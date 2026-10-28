@@ -4,6 +4,7 @@ import {
   TRACEABILITY_ANCHORS,
   lineDetailsQueryOptions,
   manifestEntriesQueryOptions,
+  policyDecisionsQueryOptions,
 } from "@/lib/packageEvidence";
 import { countLabel, humanizeIdentifier } from "@/lib/statusLabels";
 import type {
@@ -13,7 +14,7 @@ import type {
   PersonalReportPackageTraceabilityLineSummary,
 } from "@/lib/types";
 
-// The evidence lists of a package document load only after the user opens them (#2583 S8).
+// The evidence lists of a package document load only after the user opens them (#2583 S8, S11).
 // A preview carries their counts. These components mount when the user opens a list, so a
 // closed list never issues a request.
 
@@ -107,6 +108,63 @@ export function TraceabilityLineEvidence({
         <AnchorDetails key={anchor} document={document} line={line} anchor={anchor} />
       ))}
     </div>
+  );
+}
+
+/** Every framework policy decision. It mounts when the user opens the reporting basis audit details. */
+export function PolicyDecisions({ document }: { document: PersonalReportPackageDocument }) {
+  const query = useInfiniteQuery(policyDecisionsQueryOptions(document));
+  const decisions = query.data?.pages.flatMap((page) => page.decisions ?? []) ?? [];
+  const total = query.data?.pages[0]?.total ?? document.framework_policy.decision_count;
+
+  if (query.isLoading) {
+    return (
+      <p role="status" className="mt-4 text-xs text-muted">
+        Loading policy decisions...
+      </p>
+    );
+  }
+  if (query.error) {
+    return <p className="mt-4 text-xs text-[var(--error)]">{errorText(query.error, "Failed to load the policy decisions.")}</p>;
+  }
+  return (
+    <section aria-label="Policy decisions" className="mt-4">
+      <p className="text-xs font-medium">{`Policy decisions: ${decisions.length} of ${total}`}</p>
+      <div className="mt-2 grid gap-3 lg:grid-cols-2">
+        {decisions.map((d, index) => (
+          <article
+            key={d.evidence_anchors?.[0]?.anchor_id ?? `${d.domain}:${index}`}
+            className="rounded border border-[var(--border)] p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-medium">{d.domain}</p>
+                <p className="mt-1 text-xs font-mono text-muted">{d.review_state}</p>
+              </div>
+              <span className="badge badge-muted">{d.provenance}</span>
+            </div>
+            <dl className="mt-3 space-y-1 text-xs">
+              {Object.entries(d.line_mappings).map(([section, line]) => (
+                <div key={`${d.domain}:${section}`} className="flex justify-between gap-3">
+                  <dt className="text-muted">{section}</dt>
+                  <dd className="font-mono text-right">{line}</dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+        ))}
+      </div>
+      {query.hasNextPage ? (
+        <button
+          type="button"
+          className="btn-secondary mt-3 text-xs"
+          disabled={query.isFetchingNextPage}
+          onClick={() => void query.fetchNextPage()}
+        >
+          {query.isFetchingNextPage ? "Loading..." : "Load more policy decisions"}
+        </button>
+      ) : null}
+    </section>
   );
 }
 

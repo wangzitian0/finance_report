@@ -712,7 +712,10 @@ async def framework_policy_facts_for_user(
             )
         )
 
-    return facts
+    # The queries above leave the order of accounts, journal lines and dividends to the database.
+    # Every page of ``GET /reports/package/policy-decisions`` is a new request, so the decision
+    # order must not depend on it (#2583 S11). A fact id is unique, so this order is complete.
+    return sorted(facts, key=lambda fact: fact.fact_id)
 
 
 async def derive_user_framework_policy_result(

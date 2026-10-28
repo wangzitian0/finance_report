@@ -137,7 +137,8 @@ def resolve_payload_field(payload: dict[str, Any], path: str | None) -> Any:
     return current
 
 
-def package_snapshot_evidence_references(policy: Any) -> str:
+def package_evidence_references(policy: Any) -> list[str]:
+    """Return the sorted distinct ``anchor_type:source_id`` references of the decisions and gaps of a policy result."""
     references: set[str] = set()
     decisions = policy.decisions if hasattr(policy, "decisions") else policy.get("decisions", [])
     gaps = policy.gaps if hasattr(policy, "gaps") else policy.get("gaps", [])
@@ -148,7 +149,11 @@ def package_snapshot_evidence_references(policy: Any) -> str:
             source_id = anchor.source_id if hasattr(anchor, "source_id") else anchor.get("source_id")
             if anchor_type and source_id:
                 references.add(f"{anchor_type}:{source_id}")
-    return "|".join(sorted(references))
+    return sorted(references)
+
+
+def package_snapshot_evidence_references(policy: Any) -> str:
+    return "|".join(package_evidence_references(policy))
 
 
 def package_snapshot_input_decision_references(document: PersonalReportPackageDocument) -> str:

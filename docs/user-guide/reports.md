@@ -33,7 +33,18 @@ curl "https://report.zitian.party/api/reports/package/line-details?line_id=balan
 curl "https://report.zitian.party/api/reports/package/manifest-entries?limit=50&offset=0"
 ```
 
-A saved snapshot stores every detail and every manifest entry.
+The preview also carries the count of framework policy decisions with a first page of
+25, and the cash flow as one line for each activity and counterpart with its event
+count. Read the decisions, and the events of one cash-flow line (take the `line_id` from
+the preview), page by page:
+
+```bash
+curl "https://report.zitian.party/api/reports/package/policy-decisions?framework_id=personal_us_gaap_like&limit=50&offset=0"
+curl "https://report.zitian.party/api/reports/package/cash-flow-events?line_id=operating-0123456789abcdef&limit=50&offset=0"
+```
+
+A saved snapshot stores every detail, every manifest entry, every policy decision and
+every cash-flow item and event.
 
 Generate an immutable snapshot with:
 

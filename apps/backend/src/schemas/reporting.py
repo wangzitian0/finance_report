@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from src.ledger import AccountType, Direction
 from src.platform import validate_internal_action_href
 from src.reporting import (
+    CashFlowPreview,
     CashFlowResponse,
     InvariantStatus as InvariantStatus,
     MonthContinuityBucket as MonthContinuityBucket,
@@ -518,6 +519,19 @@ class FrameworkPolicyResult(BaseModel):
         return self
 
 
+class FrameworkPolicyPreview(FrameworkPolicyResult):
+    """The policy result of a package preview: the counts and a first page of ``decisions`` (#2583).
+
+    ``GET /reports/package/policy-decisions`` returns every decision page by page. A frozen
+    snapshot keeps the complete ``FrameworkPolicyResult``.
+    """
+
+    decision_count: int = Field(ge=0, description="Number of decisions of the complete result.")
+    evidence_reference_count: int = Field(
+        ge=0, description="Number of distinct evidence anchors of the complete decisions and gaps."
+    )
+
+
 class PersonalReportPackageReadinessBlocker(BaseModel):
     """Actionable blocker that prevents a report package from being ready."""
 
@@ -990,7 +1004,7 @@ class PersonalReportPackagePreviewSections(BaseModel):
 
     balance_sheet: BalanceSheetResponse
     income_statement: IncomeStatementResponse
-    cash_flow: CashFlowResponse
+    cash_flow: CashFlowPreview
     investment_performance: InvestmentPerformanceReportScheduleResponse
     annualized_income_long_term: AnnualizedIncomeScheduleResponse
     notes: PersonalReportPackageNotesResponse
@@ -1003,7 +1017,10 @@ class PersonalReportPackagePreview(BaseModel):
     It is a projection of ``PersonalReportPackageDocument``. Its appendix lines carry detail
     counts, not details. It has no input manifest entries: ``readiness.input_coverage`` gives
     their counts. ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries``
-    return the entries page by page. A frozen snapshot stores the complete document.
+    return the entries page by page. The framework policy has a first page of decisions and the
+    cash flow has one line for each activity (``GET /reports/package/policy-decisions`` and
+    ``GET /reports/package/cash-flow-events`` return the rest). A frozen snapshot stores the
+    complete document.
     """
 
     model_config = {"extra": "forbid"}
@@ -1016,7 +1033,7 @@ class PersonalReportPackagePreview(BaseModel):
     context: PersonalReportPackageContext
     contract: PersonalReportPackageContractResponse
     readiness: PersonalReportPackageReadinessResponse
-    framework_policy: FrameworkPolicyResult
+    framework_policy: FrameworkPolicyPreview
     statement_disposition_policy: PersonalReportPackageStatementDispositionPolicy | None = None
     sections: PersonalReportPackagePreviewSections
 
@@ -1030,6 +1047,15 @@ class PersonalReportPackageManifestEntriesPage(BaseModel):
     entries: list[PersonalReportPackageTraceManifestEntry] = Field(
         default_factory=list, description="Manifest entries of this page."
     )
+
+
+class PersonalReportPackagePolicyDecisionsPage(BaseModel):
+    """One page of the framework policy decisions of a package document, in document order."""
+
+    total: int = Field(ge=0, description="Number of decisions.")
+    limit: int = Field(ge=1, description="Maximum number of decisions in this page.")
+    offset: int = Field(ge=0, description="Number of decisions before this page.")
+    decisions: list[FrameworkPolicyDecision] = Field(default_factory=list, description="Decisions of this page.")
 
 
 class PersonalReportPackageSnapshotResponse(PersonalReportPackageSnapshotSummary):

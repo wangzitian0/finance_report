@@ -22,7 +22,7 @@ export function normalizablePackageDocument({
     context: { as_of_date: "2026-05-20", ...context },
     contract: { supported_frameworks: [] },
     readiness,
-    framework_policy: { decisions: [], gaps: [] },
+    framework_policy: { decisions: [], gaps: [], decision_count: 0, evidence_reference_count: 0 },
     sections: {
       balance_sheet: {},
       income_statement: {},

@@ -49,7 +49,7 @@ async def test_AC_reporting_package_document_15_one_evaluation_reads_the_authori
 ) -> None:
     """AC-reporting.package-document.15: one package evaluation runs the current-authority
     projection at most 2 times. This applies to ``GET /reports/package``,
-    ``current_package_readiness`` and the two evidence pages. One run returns each current
+    ``current_package_readiness``, the two evidence pages and the cash-flow events page. One run returns each current
     decision of the user at most once. The fixture has a reviewed bank statement, opening
     positions, a manual valuation and a market-priced holding. Before #2602 the preview ran
     the projection 8 times."""
@@ -62,6 +62,9 @@ async def test_AC_reporting_package_document_15_one_evaluation_reads_the_authori
             params={**JUNE, "line_id": "balance_sheet.total_assets", "anchor": "ledger_anchor"},
         ),
         "GET /reports/package/manifest-entries": lambda: client.get("/reports/package/manifest-entries", params=JUNE),
+        "GET /reports/package/cash-flow-events": lambda: client.get(
+            "/reports/package/cash-flow-events", params={**JUNE, "line_id": "unclassified"}
+        ),
     }
     reads: dict[str, list[int]] = {}
     for label, request in evaluations.items():

@@ -551,7 +551,7 @@ async def test_cash_flow_csv_discloses_opening_adjustment(db, test_user, monkeyp
     assert "unproven" in rows["Verification"][4]
     assert "opening_coverage_starts_after_period" in rows["Verification"][4]
 
-    from src.routers.reports import _render_cash_flow_csv, _render_income_statement_csv
+    from src.reporting import render_cash_flow_csv, render_income_statement_csv
     from src.schemas import CashFlowResponse, IncomeStatementResponse
 
     cf_dict = {
@@ -571,7 +571,7 @@ async def test_cash_flow_csv_discloses_opening_adjustment(db, test_user, monkeyp
         "proof_reasons": ["opening_coverage_starts_after_period"],
         "cash_bridge": {"opening_stock_adjustment": Decimal("100.00")},
     }
-    cf_csv = _render_cash_flow_csv(cf_dict)
+    cf_csv = render_cash_flow_csv(cf_dict)
     assert "Known Beginning Cash" in cf_csv
     assert "Opening balance adjustment" in cf_csv
     assert "unproven: opening_coverage_starts_after_period" in cf_csv
@@ -596,5 +596,5 @@ async def test_cash_flow_csv_discloses_opening_adjustment(db, test_user, monkeyp
         savings_rate=Decimal("100.00"),
         trends=[],
     )
-    assert _render_income_statement_csv(is_dict) == _render_income_statement_csv(is_model)
+    assert render_income_statement_csv(is_dict) == render_income_statement_csv(is_model)
     _ = CashFlowResponse

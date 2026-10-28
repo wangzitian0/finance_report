@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import csv
 import hashlib
 import json
 import zipfile
 from datetime import UTC, date, datetime
-from decimal import Decimal
 from enum import Enum
 from io import BytesIO, StringIO
 from typing import Any, cast
@@ -58,6 +56,9 @@ from src.reporting import (
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
+    render_balance_sheet_csv,
+    render_cash_flow_csv,
+    render_income_statement_csv,
     report_coverage as _report_coverage,
     run_balance_sheet_diagnostics,
 )
@@ -67,7 +68,6 @@ from src.schemas import (
     BalanceSheetResponse,
     BreakdownPeriod,
     BreakdownType,
-    CashFlowResponse,
     CategoryBreakdownResponse,
     IncomeStatementResponse,
     NetWorthAllocationResponse,
@@ -86,7 +86,7 @@ from src.schemas import (
     ReportSnapshotSummary,
     TrendPeriod,
 )
-from src.schemas.reporting import ReportCoverageResponse
+from src.schemas.reporting import PersonalReportPackagePolicyDecisionsPage, ReportCoverageResponse
 from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -207,6 +207,8 @@ async def _package_period(
         end_date=end_date,
         as_of_date=as_of_date,
     )
+    if report_start > report_end:
+        raise_bad_request("start_date must be before end_date")
     target_currency = _package_currency(currency)
     await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
     return report_start, report_end, report_as_of, target_currency
@@ -326,6 +328,79 @@ async def list_personal_report_package_manifest_entries(
     )
 
 
+@router.get("/package/policy-decisions", response_model=PersonalReportPackagePolicyDecisionsPage)
+async def list_personal_report_package_policy_decisions(
+    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> PersonalReportPackagePolicyDecisionsPage:
+    """Return one page of the framework policy decisions of the preview.
+
+    The decisions equal the decisions that a snapshot of the same period stores, in the same order.
+    """
+    report_start, report_end, report_as_of, _currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=None
+    )
+    decisions = await PackageAssembler().policy_decisions(
+        db,
+        user_id=user_id,
+        framework_id=framework_id,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+    )
+    await db.commit()
+    return PersonalReportPackagePolicyDecisionsPage(
+        total=len(decisions),
+        limit=pagination.limit,
+        offset=pagination.offset,
+        decisions=decisions[pagination.offset : pagination.offset + pagination.limit],
+    )
+
+
+@router.get("/package/cash-flow-events", response_model=CashFlowLineEventsPage)
+async def list_personal_report_package_cash_flow_events(
+    line_id: str = Query(min_length=1, max_length=64, description="A cash-flow line_id of GET /reports/package"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> CashFlowLineEventsPage:
+    """Return one page of the lineage records of one cash-flow line of the preview, in document order.
+
+    The records equal the records that a snapshot of the same period stores. The cash accounts are
+    the accounts of the authoritative bank statements, as in the package.
+    """
+    report_start, report_end, report_as_of, target_currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+    )
+    events = await PackageAssembler().cash_flow_events(
+        db,
+        user_id=user_id,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+        currency=target_currency,
+        line_id=line_id,
+    )
+    await db.commit()
+    if events is None:
+        raise_not_found("Cash-flow line")
+    bounds = {"line_id": line_id, "total": len(events), "limit": pagination.limit, "offset": pagination.offset}
+    return CashFlowLineEventsPage.model_validate(
+        {**bounds, "events": events[pagination.offset : pagination.offset + pagination.limit]}
+    )
+
+
 @router.post("/package/generate", response_model=PersonalReportPackageSnapshotResponse)
 async def generate_personal_report_package_snapshot(
     db: DbSession,
@@ -424,129 +499,12 @@ async def get_personal_report_package_snapshot(
         raise_bad_request(str(exc), cause=exc)
 
 
-def _csv_val(obj: Any, key: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(key, default)
-    return getattr(obj, key, default)
-
-
-def _render_balance_sheet_csv(bs: dict[str, Any] | BalanceSheetResponse) -> str:
-    output = StringIO()
-    writer = csv.writer(output)
-    _val = _csv_val
-
-    as_of_date = _val(bs, "as_of_date")
-    currency = _val(bs, "currency")
-    if as_of_date:
-        writer.writerow(["Balance Sheet", str(as_of_date), "", ""])
-    writer.writerow(["section", "account", "amount", "currency"])
-    for section, lines in (
-        ("Assets", _val(bs, "assets", [])),
-        ("Liabilities", _val(bs, "liabilities", [])),
-        ("Equity", _val(bs, "equity", [])),
-    ):
-        for line in lines:
-            writer.writerow([section, _val(line, "name"), _val(line, "amount"), currency])
-    writer.writerow(["Total Assets", "", _val(bs, "total_assets"), currency])
-    writer.writerow(["Total Liabilities", "", _val(bs, "total_liabilities"), currency])
-    total_equity = _val(bs, "total_equity")
-    net_income = _val(bs, "net_income") or Decimal("0.00")
-    unrealized_fx = _val(bs, "unrealized_fx_gain_loss") or Decimal("0.00")
-    cta_adj = _val(bs, "cta_adjustment") or Decimal("0.00")
-    net_worth_adj = _val(bs, "net_worth_adjustment_gain_loss") or Decimal("0.00")
-    writer.writerow(["Opening Equity", "", total_equity, currency])
-    writer.writerow(["Net Income", "", net_income, currency])
-    if unrealized_fx:
-        writer.writerow(["Unrealized FX Gain/Loss", "", unrealized_fx, currency])
-    if cta_adj:
-        writer.writerow(["CTA Adjustment", "", cta_adj, currency])
-    if net_worth_adj:
-        writer.writerow(["Net Worth Adjustment", "", net_worth_adj, currency])
-    ending_equity = (
-        Decimal(str(total_equity))
-        + Decimal(str(net_income))
-        + Decimal(str(unrealized_fx))
-        + Decimal(str(cta_adj))
-        + Decimal(str(net_worth_adj))
-    )
-    writer.writerow(["Ending Total Equity", "", ending_equity, currency])
-    total_liabilities = _val(bs, "total_liabilities")
-    writer.writerow(["Total Liabilities and Equity", "", Decimal(str(total_liabilities)) + ending_equity, currency])
-    return output.getvalue()
-
-
-def _render_income_statement_csv(is_stmt: dict[str, Any] | IncomeStatementResponse) -> str:
-    output = StringIO()
-    writer = csv.writer(output)
-    currency = _csv_val(is_stmt, "currency")
-    writer.writerow(["section", "account", "amount", "currency"])
-    for section, lines in (
-        ("Income", _csv_val(is_stmt, "income", [])),
-        ("Expenses", _csv_val(is_stmt, "expenses", [])),
-    ):
-        for line in lines:
-            writer.writerow([section, _csv_val(line, "name"), _csv_val(line, "amount"), currency])
-    writer.writerow(["Total Income", "", _csv_val(is_stmt, "total_income"), currency])
-    writer.writerow(["Total Expenses", "", _csv_val(is_stmt, "total_expenses"), currency])
-    writer.writerow(["Net Income", "", _csv_val(is_stmt, "net_income"), currency])
-    return output.getvalue()
-
-
-def _render_cash_flow_csv(cf: dict[str, Any] | CashFlowResponse) -> str:
-    output = StringIO()
-    writer = csv.writer(output)
-    currency = _csv_val(cf, "currency")
-    writer.writerow(["section", "account", "amount", "currency", "description"])
-    for section, lines in (
-        ("Operating", _csv_val(cf, "operating", [])),
-        ("Investing", _csv_val(cf, "investing", [])),
-        ("Financing", _csv_val(cf, "financing", [])),
-    ):
-        for line in lines:
-            writer.writerow(
-                [
-                    section,
-                    _csv_val(line, "subcategory"),
-                    _csv_val(line, "amount"),
-                    currency,
-                    _csv_val(line, "description") or "",
-                ]
-            )
-    summary = _csv_val(cf, "summary")
-    writer.writerow(["Operating Activities", "", _csv_val(summary, "operating_activities"), currency, ""])
-    writer.writerow(["Investing Activities", "", _csv_val(summary, "investing_activities"), currency, ""])
-    writer.writerow(["Financing Activities", "", _csv_val(summary, "financing_activities"), currency, ""])
-    writer.writerow(["Net Cash Flow", "", _csv_val(summary, "net_cash_flow"), currency, ""])
-    proof_reasons = list(_csv_val(cf, "proof_reasons") or [])
-    incomplete_coverage = "opening_coverage_starts_after_period" in proof_reasons
-    beginning_label = "Known Beginning Cash" if incomplete_coverage else "Beginning Cash"
-    writer.writerow([beginning_label, "", _csv_val(summary, "beginning_cash"), currency, ""])
-    cash_bridge = _csv_val(cf, "cash_bridge")
-    opening_adjustment = (
-        _csv_val(cash_bridge, "opening_stock_adjustment", Decimal("0")) if cash_bridge else Decimal("0")
-    )
-    if opening_adjustment:
-        writer.writerow(
-            [
-                "Opening balance adjustment",
-                "",
-                opening_adjustment,
-                currency,
-                "Opening balance recorded after the selected period begins",
-            ]
-        )
-    writer.writerow(["Ending Cash", "", _csv_val(summary, "ending_cash"), currency, ""])
-    if _csv_val(cf, "proof_state") == "unproven":
-        writer.writerow(["Verification", "", "", "", "unproven: " + ", ".join(str(r) for r in proof_reasons)])
-    return output.getvalue()
-
-
 def _package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> bytes:
     sections = snapshot.document.sections
     files_data = [
-        ("balance_sheet.csv", _render_balance_sheet_csv(sections.balance_sheet)),
-        ("income_statement.csv", _render_income_statement_csv(sections.income_statement)),
-        ("cash_flow.csv", _render_cash_flow_csv(sections.cash_flow)),
+        ("balance_sheet.csv", render_balance_sheet_csv(sections.balance_sheet)),
+        ("income_statement.csv", render_income_statement_csv(sections.income_statement)),
+        ("cash_flow.csv", render_cash_flow_csv(sections.cash_flow)),
     ]
     file_entries = []
     buffer = BytesIO()
@@ -1051,7 +1009,7 @@ async def export_report(
                     include_restricted=include_restricted,
                 ),
             )
-            output.write(_render_balance_sheet_csv(balance_sheet_report))
+            output.write(render_balance_sheet_csv(balance_sheet_report))
             filename = f"balance-sheet-{balance_sheet_report['as_of_date']}.csv"
         elif report_type == ExportReportType.INCOME_STATEMENT:
             if not start_date or not end_date:
@@ -1067,7 +1025,7 @@ async def export_report(
                     currency=currency,
                 ),
             )
-            output.write(_render_income_statement_csv(income_statement_report))
+            output.write(render_income_statement_csv(income_statement_report))
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
         elif report_type == ExportReportType.CASH_FLOW:
             if not start_date or not end_date:
@@ -1085,7 +1043,7 @@ async def export_report(
                     cash_account_ids=custody_ids or None,
                 ),
             )
-            output.write(_render_cash_flow_csv(cash_flow_report))
+            output.write(render_cash_flow_csv(cash_flow_report))
             filename = f"cash-flow-{start_date}-to-{end_date}.csv"
         else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")

@@ -850,6 +850,18 @@ export interface paths {
         post: operations["export_annual_tax_archive_reports_package_annual_archive_post"];
         delete?: never; options?: never; head?: never; patch?: never; trace?: never;
     };
+    "/reports/package/cash-flow-events": {
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
+        /**
+         * List Personal Report Package Cash Flow Events
+         * @description Return one page of the lineage records of one cash-flow line of the preview, in document order.
+         *
+         *     The records equal the records that a snapshot of the same period stores. The cash accounts are
+         *     the accounts of the authoritative bank statements, as in the package.
+         */
+        get: operations["list_personal_report_package_cash_flow_events_reports_package_cash_flow_events_get"];
+        put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
+    };
     "/reports/package/generate": {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         get?: never; put?: never;
@@ -880,6 +892,17 @@ export interface paths {
          *     The entries equal the input manifest that a snapshot of the same period stores, in the same order.
          */
         get: operations["list_personal_report_package_manifest_entries_reports_package_manifest_entries_get"];
+        put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
+    };
+    "/reports/package/policy-decisions": {
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
+        /**
+         * List Personal Report Package Policy Decisions
+         * @description Return one page of the framework policy decisions of the preview.
+         *
+         *     The decisions equal the decisions that a snapshot of the same period stores, in the same order.
+         */
+        get: operations["list_personal_report_package_policy_decisions_reports_package_policy_decisions_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
     };
     "/reports/package/snapshots": {
@@ -3265,6 +3288,54 @@ export interface components {
             remediation: string;
         };
         /**
+         * FrameworkPolicyPreview
+         * @description The policy result of a package preview: the counts and a first page of ``decisions`` (#2583).
+         *
+         *     ``GET /reports/package/policy-decisions`` returns every decision page by page. A frozen
+         *     snapshot keeps the complete ``FrameworkPolicyResult``.
+         */
+        FrameworkPolicyPreview: {
+            /**
+             * Decision Count
+             * @description Number of decisions of the complete result.
+             */
+            decision_count: number;
+            /** Decisions */
+            decisions: components["schemas"]["FrameworkPolicyDecision"][];
+            /**
+             * Evidence Reference Count
+             * @description Number of distinct evidence anchors of the complete decisions and gaps.
+             */
+            evidence_reference_count: number;
+            framework_id: components["schemas"]["PersonalReportingFrameworkId"];
+            /**
+             * Gaps
+             * @description Policy gaps that block trusted package output.
+             */
+            gaps?: components["schemas"]["FrameworkPolicyGap"][];
+            /**
+             * Generated At
+             * Format: date
+             */
+            generated_at: string;
+            /** Matrix Version */
+            matrix_version: string;
+            /**
+             * Report Period End
+             * Format: date
+             */
+            report_period_end: string;
+            /**
+             * Report Period Start
+             * Format: date
+             */
+            report_period_start: string;
+            /** Required Statements */
+            required_statements: string[];
+            /** Result Id */
+            result_id: string;
+        };
+        /**
          * FrameworkPolicyResult
          * @description Read-only target-backward policy result consumed by readiness and reporting.
          */
@@ -4891,18 +4962,47 @@ export interface components {
             status: string;
         };
         /**
+         * PersonalReportPackagePolicyDecisionsPage
+         * @description One page of the framework policy decisions of a package document, in document order.
+         */
+        PersonalReportPackagePolicyDecisionsPage: {
+            /**
+             * Decisions
+             * @description Decisions of this page.
+             */
+            decisions?: components["schemas"]["FrameworkPolicyDecision"][];
+            /**
+             * Limit
+             * @description Maximum number of decisions in this page.
+             */
+            limit: number;
+            /**
+             * Offset
+             * @description Number of decisions before this page.
+             */
+            offset: number;
+            /**
+             * Total
+             * @description Number of decisions.
+             */
+            total: number;
+        };
+        /**
          * PersonalReportPackagePreview
          * @description The live preview of one package document (#2583).
          *
          *     It is a projection of ``PersonalReportPackageDocument``. Its appendix lines carry detail
          *     counts, not details. It has no input manifest entries: ``readiness.input_coverage`` gives
          *     their counts. ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries``
-         *     return the entries page by page. A frozen snapshot stores the complete document.
+         *     return the entries page by page. The framework policy has a first page of decisions and the
+         *     cash flow has one line for each activity (``GET /reports/package/policy-decisions`` and
+         *     ``GET /reports/package/cash-flow-events`` return the rest). A frozen snapshot stores the
+         *     complete document.
          */
         PersonalReportPackagePreview: {
             context: components["schemas"]["PersonalReportPackageContext"];
             contract: components["schemas"]["PersonalReportPackageContractResponse"];
-            framework_policy: components["schemas"]["FrameworkPolicyResult"];
+            framework_policy: components["schemas"]["FrameworkPolicyPreview"];
             /**
              * Generated At
              * Format: date-time
@@ -4936,7 +5036,7 @@ export interface components {
         PersonalReportPackagePreviewSections: {
             annualized_income_long_term: components["schemas"]["AnnualizedIncomeScheduleResponse"];
             balance_sheet: components["schemas"]["BalanceSheetResponse"];
-            cash_flow: components["schemas"]["CashFlowResponse"];
+            cash_flow: components["schemas"]["CashFlowPreview"];
             income_statement: components["schemas"]["IncomeStatementResponse"];
             investment_performance: components["schemas"]["InvestmentPerformanceReportScheduleResponse"];
             notes: components["schemas"]["PersonalReportPackageNotesResponse"];
@@ -9775,6 +9875,44 @@ export interface operations {
             500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
         };
     };
+    list_personal_report_package_cash_flow_events_reports_package_cash_flow_events_get: {
+        parameters: {
+            query: {
+                /** @description A cash-flow line_id of GET /reports/package */
+                line_id: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                as_of_date?: string | null;
+                currency?: string | null;
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
+            header?: never; path?: never; cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["CashFlowLineEventsPage"]; }; };
+            /** @description Bad request */
+            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Unauthorized */
+            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Forbidden */
+            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Not found */
+            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Conflict */
+            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Validation Error */
+            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
+            /** @description Too many requests */
+            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Internal server error */
+            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+        };
+    };
     generate_personal_report_package_snapshot_reports_package_generate_post: {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         requestBody: {
@@ -9861,6 +9999,42 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalReportPackageManifestEntriesPage"]; }; };
+            /** @description Bad request */
+            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Unauthorized */
+            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Forbidden */
+            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Not found */
+            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Conflict */
+            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Validation Error */
+            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
+            /** @description Too many requests */
+            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Internal server error */
+            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+        };
+    };
+    list_personal_report_package_policy_decisions_reports_package_policy_decisions_get: {
+        parameters: {
+            query?: {
+                framework_id?: components["schemas"]["PersonalReportingFrameworkId"];
+                start_date?: string | null;
+                end_date?: string | null;
+                as_of_date?: string | null;
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
+            header?: never; path?: never; cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalReportPackagePolicyDecisionsPage"]; }; };
             /** @description Bad request */
             400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Unauthorized */

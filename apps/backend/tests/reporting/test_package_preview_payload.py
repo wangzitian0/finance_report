@@ -8,7 +8,7 @@ endpoints read the same contribution set and the same builder as a frozen snapsh
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -64,18 +64,34 @@ JUNE = {"start_date": "2026-06-01", "end_date": "2026-06-30", "as_of_date": "202
 ANCHORS = ("source_anchor", "ledger_anchor")
 
 
-async def _seed_year_of_anchored_entries(db: AsyncSession, user_id: UUID) -> None:
+async def _seed_year_of_anchored_entries(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    bank: Account | None = None,
+    categories: Sequence[str] = (),
+) -> None:
     """Write one year of system-posted entries, each anchored to its own current decision.
 
     ``post_entry`` writes the same rows one entry at a time (about 0.3 s per entry). This
     fixture builds the same observation and decision with ``TraceRecord`` and inserts the rows
     in bulk. Half of the entries are income and half are expenses, so the line filters of the
     appendix apply.
+
+    ``bank`` is the cash account of the entries; the default is a new account. ``categories`` gives
+    each income and expense line the ``economic_category`` tag of a reviewed statement posting:
+    income lines are ``SALARY`` and expense lines rotate through ``categories``. Each tagged line
+    is one framework policy decision and each entry on a statement cash account is one cash event
+    (#2583 S11). The default entries carry no tag.
     """
-    bank = Account(user_id=user_id, name="Bank", code="1001", type=AccountType.ASSET, currency="SGD")
+    bank = bank or Account(user_id=user_id, name="Bank", code="1001", type=AccountType.ASSET, currency="SGD")
     salary = Account(user_id=user_id, name="Salary", code="4001", type=AccountType.INCOME, currency="SGD")
-    groceries = Account(user_id=user_id, name="Groceries", code="5001", type=AccountType.EXPENSE, currency="SGD")
-    db.add_all([bank, salary, groceries])
+    expense_names = list(categories) or ["Groceries"]
+    expenses = [
+        Account(user_id=user_id, name=name.title(), code=f"5{number:03d}", type=AccountType.EXPENSE, currency="SGD")
+        for number, name in enumerate(expense_names, start=1)
+    ]
+    db.add_all([bank, salary, *expenses])
     await db.flush()
     policy = SystemJournalCommandPolicy()
     scope = TraceScope.tenant(user_id)
@@ -89,7 +105,10 @@ async def _seed_year_of_anchored_entries(db: AsyncSession, user_id: UUID) -> Non
         memo = f"year-scale entry {index}"
         income = index % 2 == 0
         amount = Decimal("3000.00") if income else Decimal(f"{index % 90 + 10}.25")
-        debit, credit = (bank.id, salary.id) if income else (groceries.id, bank.id)
+        expense = expenses[index % len(expenses)]
+        debit, credit = (bank.id, salary.id) if income else (expense.id, bank.id)
+        counter_id = salary.id if income else expense.id
+        counter_tags = {"economic_category": "SALARY" if income else expense_names[index % len(expenses)]}
         lines_data = [
             {"account_id": debit, "direction": Direction.DEBIT, "amount": amount, "currency": "SGD"},
             {"account_id": credit, "direction": Direction.CREDIT, "amount": amount, "currency": "SGD"},
@@ -162,7 +181,7 @@ async def _seed_year_of_anchored_entries(db: AsyncSession, user_id: UUID) -> Non
                     "currency": "SGD",
                     "fx_rate": None,
                     "event_type": None,
-                    "tags": None,
+                    "tags": counter_tags if categories and line["account_id"] == counter_id else None,
                     "created_at": now,
                     "updated_at": now,
                 }
