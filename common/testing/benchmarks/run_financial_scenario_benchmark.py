@@ -70,7 +70,7 @@ class ScenarioBenchmarkRunner:
         self.verify = verify
         self.replay_mode = replay_mode
         self.last_auth_context: dict[str, Any] | None = None
-        self._counter_accounts_cache: dict[tuple[int, str, str], str] = {}
+        self._counter_accounts_cache: dict[tuple[str, str, str], str] = {}
 
     def create_ephemeral_client(
         self, prefix: str = "qa_bench"
@@ -249,7 +249,8 @@ class ScenarioBenchmarkRunner:
                 currency = "SGD"
 
         def get_or_create_counter_account(acc_type: str, curr: str) -> str:
-            key = (id(client), acc_type, curr)
+            client_scope = str(client.headers.get("Authorization") or id(client))
+            key = (client_scope, acc_type, curr)
             if key not in self._counter_accounts_cache:
                 target_name = f"{acc_type.capitalize()} - Other {curr}"
                 list_resp = client.get("/api/accounts")

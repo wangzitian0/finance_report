@@ -1,5 +1,7 @@
-// AC-reporting.fe-report-surfaces.1
-// AC-extraction.fe-upload-review.1
+// AC-reporting.report-integrity.3
+// AC-extraction.fe-stage1-review.7
+// AC-extraction.human-source-review.4
+// AC-extraction.2477.1
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
