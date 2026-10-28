@@ -94,7 +94,7 @@ logger = get_logger(__name__)
 
 
 def _target_currency_pair(currency: str | None) -> list[str]:
-    target = (currency or settings.base_currency).strip().upper()
+    target = (currency if isinstance(currency, str) and currency else settings.base_currency).strip().upper()
     base = settings.base_currency.strip().upper()
     if target == base:
         return []
