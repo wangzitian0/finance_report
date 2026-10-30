@@ -502,6 +502,20 @@ async def test_generated_multicurrency_pdf_preserves_every_batch(db, test_user):
         pdf.drawString(72, 720, f"Synthetic statement page {page + 1}")
         pdf.showPage()
     pdf.save()
+    meta = {
+        "institution": "Synthetic Bank",
+        "account_last4": "0001",
+        "currency": "SGD",
+        "period_start": "2025-01-01",
+        "period_end": "2025-01-31",
+        "opening_balance": "100",
+        "closing_balance": "110",
+        "balances": [
+            {"currency": "SGD", "opening": "100", "closing": "110"},
+            {"currency": "USD", "opening": "200", "closing": "200"},
+            {"currency": "EUR", "opening": "300", "closing": "320"},
+        ],
+    }
     first = _payload(
         balances=[
             {"currency": "SGD", "opening": "100", "closing": "110"},
@@ -522,7 +536,7 @@ async def test_generated_multicurrency_pdf_preserves_every_batch(db, test_user):
     }
     service = ExtractionService()
     service.api_key = "synthetic-provider-key"
-    service._extract_json_with_model = AsyncMock(side_effect=[first, second])
+    service._extract_json_with_model = AsyncMock(side_effect=[meta, first, second])
     source = DocumentSource.resolve(path=Path("synthetic/multicurrency.pdf"), content=output.getvalue())
     result = await service.parse_document(
         source, user_id=test_user.id, account_id=account.id, db=db, force_model="synthetic-vision"
@@ -535,7 +549,7 @@ async def test_generated_multicurrency_pdf_preserves_every_batch(db, test_user):
         )
     )
     assert len(await resolve_statement_transactions(db, summary)) == 2
-    assert service._extract_json_with_model.await_count == 2
+    assert service._extract_json_with_model.await_count == 3
 
 
 async def test_membership_rejects_ambiguous_custody(db, test_user):
