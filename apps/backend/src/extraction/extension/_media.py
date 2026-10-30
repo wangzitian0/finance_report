@@ -44,8 +44,8 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
     def __len__(self) -> int:
         return self.batch_count
 
-    def _render_page_range(self, start_page: int, end_page: int) -> list[dict[str, Any]]:
-        """Render ``[start_page, end_page)`` 0-based PDF pages while enforcing the cumulative byte ceiling."""
+    def _render_pages(self, page_indices: Sequence[int]) -> list[dict[str, Any]]:
+        """Render the specified 0-based PDF ``page_indices`` in one open/close cycle while enforcing the byte ceiling."""
         fitz = self._owner._import_fitz()
         document = self._owner._open_pdf_document(fitz, self._file_content)
         try:
@@ -55,7 +55,7 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
                 "PDF_VISION_MAX_TOTAL_IMAGE_BYTES",
                 _MediaMixin.PDF_VISION_MAX_TOTAL_IMAGE_BYTES,
             )
-            for page_index in range(start_page, end_page):
+            for page_index in page_indices:
                 payload, page_bytes = self._owner._render_pdf_page_image_payload(
                     document,
                     fitz,
@@ -78,20 +78,14 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
 
         Also caches batch 0 so Stage 2 does not re-render pages 1..batch_size.
         """
-        head_batch = self.pop_batch(0)
-        self._cached_batch_index = 0
-        self._cached_batch = head_batch
-
+        self.total_image_bytes = 0
         head_end = min(self.total_pages, self.batch_size)
         tail_start = max(head_end, self.total_pages - self.batch_size)
-        page_numbers = list(range(1, head_end + 1))
-        meta_pages = list(head_batch)
-
-        if tail_start < self.total_pages:
-            meta_pages.extend(self._render_page_range(tail_start, self.total_pages))
-            page_numbers.extend(range(tail_start + 1, self.total_pages + 1))
-
-        return meta_pages, page_numbers
+        indices = [*range(0, head_end), *range(tail_start, self.total_pages)]
+        meta_pages = self._render_pages(indices)
+        self._cached_batch_index = 0
+        self._cached_batch = meta_pages[:head_end]
+        return meta_pages, [idx + 1 for idx in indices]
 
     def pop_batch(self, batch_index: int) -> list[dict[str, Any]]:
         """Render and return one batch without retaining it on the sequence."""
@@ -113,7 +107,7 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
 
         start_page = batch_index * self.batch_size
         end_page = min(self.total_pages, start_page + self.batch_size)
-        batch = self._render_page_range(start_page, end_page)
+        batch = self._render_pages(range(start_page, end_page))
         if end_page == self.total_pages:
             logger.info(
                 "Rendered PDF pages for vision fallback",
