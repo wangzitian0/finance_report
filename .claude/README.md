@@ -1,26 +1,32 @@
 # Multi-runtime agent bridge
 
 This repo is open-and-develop for **Claude Code**, **Codex**, **OpenCode**, and
-the **Gemini / Antigravity CLI**. The authoritative entry point is `AGENTS.md`. The
-instruction docs and skill libraries are symlinks (nothing to sync by hand); a
-few small committed config files (`.claude/settings.json`, `.mcp.json`,
-`.gemini/settings.json`, `opencode.json`) declare per-runtime MCP/approval.
+the **Gemini / Antigravity CLI**. `AGENTS.md` is the authoritative entry point
+(`GEMINI.md` symlinks to `AGENTS.md`; no `CLAUDE.md` may exist, `dev_env#393`).
+`.agents/skills`, `.claude/skills`, and `.codex/skills` are physical skill
+directories rendered from `dev_env` and pinned by `.ws-publish/manifest.json`
+(`dev_env#348`). Do not hand-edit rendered skill files; edit their `dev_env`
+sources and run `ws-render-pr finance_report`. A few small committed config
+files (`.claude/settings.json`, `.mcp.json`, `.gemini/settings.json`,
+`opencode.json`) declare per-runtime MCP/approval.
 
 | Runtime | Instructions | Skills | MCP |
 |---|---|---|---|
-| OpenCode | `AGENTS.md` (native) | `skills` (canonical) | `opencode.json` |
-| Claude Code | `AGENTS.md` (native; no `CLAUDE.md` may exist, dev_env#393) | `.claude/skills/*` → `skills/*` | `.mcp.json` |
-| Codex | `AGENTS.md` (native) | `.codex/skills/*` → `skills/*` | global only |
-| Gemini / Antigravity | `GEMINI.md` → `AGENTS.md` | `.agents/skills/*` → `skills/*` | `.gemini/settings.json` |
+| OpenCode | `AGENTS.md` (native) | `.agents/skills/*` (rendered from `dev_env`) | `opencode.json` |
+| Claude Code | `AGENTS.md` (native; no `CLAUDE.md` may exist, dev_env#393) | `.claude/skills/*` (rendered from `dev_env`) | `.mcp.json` |
+| Codex | `AGENTS.md` (native) | `.codex/skills/*` (rendered from `dev_env`) | global only |
+| Gemini / Antigravity | `GEMINI.md` → `AGENTS.md` | `.agents/skills/*` (rendered from `dev_env`) | `.gemini/settings.json` |
 
 - `../GEMINI.md` is a symlink to `../AGENTS.md`. A `CLAUDE.md` in any directory stops Claude Code from loading `AGENTS.md`, so none exists. Edit
-  `AGENTS.md`, never the symlinks (and note `AGENTS.md` is policy-protected).
-- `.claude/skills/<name>`, `.codex/skills/<name>`, and `.agents/skills/<name>`
-  are flat symlinks onto the canonical library in `../skills`. Add or rename a skill
-  **there only**; the links are each runtime's view of it. Discovery is case-sensitive
-  (`SKILL.md`), and all runtimes pick up project skills on clone.
+  `AGENTS.md` via its `dev_env` source, never the symlink (and note `AGENTS.md` is policy-protected).
+- `.agents/skills/<name>`, `.claude/skills/<name>`, and `.codex/skills/<name>`
+  are physical skill directories rendered from `dev_env` and pinned by
+  `.ws-publish/manifest.json` (`dev_env#348`). Do not hand-edit rendered skill
+  files; edit their `dev_env` sources and run `ws-render-pr finance_report`.
+  Discovery is case-sensitive (`SKILL.md`), and all runtimes pick up project
+  skills on clone.
 
-Drift (a renamed target, a skill linked on one side only, a re-added ban-risk
+Drift (a hand-edited or unmanifested skill file, a skill rendered on one side only, a re-added ban-risk
 auth plugin or model provider, a dropped MCP server) is caught by
 `tests/tooling/test_agent_runtime_symlinks.py`.
 
@@ -32,8 +38,8 @@ Per-runtime mechanics (model routing, hooks, approval policy) are intentionally
 ## Claude Code subagents (`.claude/agents/`)
 
 OpenCode's named agents live in `.opencode/oh-my-openagent.json` (a JSON config,
-not per-agent files), so they **cannot** be symlinked into Claude Code the way
-skills are. Claude Code subagents are individual markdown files with their own
+not per-agent files), so they **cannot** be rendered into Claude Code as
+per-agent files. Claude Code subagents are individual markdown files with their own
 `model:` routing. `.claude/agents/` therefore holds a small Claude-native mirror
 of the cost-tiered roles — this is per-runtime mechanics, intentionally not
 shared:
