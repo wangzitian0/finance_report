@@ -8,19 +8,21 @@ instructions, skills, and MCP tools:
   read it natively. ``CLAUDE.md`` must not exist: it suppresses the native
   ``AGENTS.md`` load of Claude Code (dev_env#393). ``GEMINI.md`` symlinks to
   ``AGENTS.md`` for the Gemini CLI.
-* ``.claude/skills``, ``.codex/skills`` and ``.agents/skills`` hold
-  materialized copies of the canonical skill library in ``skills`` so every
-  runtime discovers the same SKILL.md files (agy reads ``.agents/skills``).
+* ``.agents/skills``, ``.claude/skills`` and ``.codex/skills`` hold
+  physical skill directories rendered from ``dev_env`` and pinned by
+  ``.ws-publish/manifest.json`` (dev_env#348) so every runtime discovers the
+  same SKILL.md files (agy and OpenCode read ``.agents/skills``).
 * The project MCP baseline ships in ``.mcp.json`` (Claude Code),
   ``opencode.json`` (OpenCode), and ``.gemini/settings.json`` (Gemini CLI).
 
-These tests fail loudly if a link or materialized copy goes stale (renamed/removed
-target, a skill added on one side only, a re-introduced ban-risk auth plugin or model
-provider, a dropped MCP server, etc.).
+These tests fail loudly if a link or rendered skill file goes stale (hand-edited
+or unmanifested skill file, a skill added on one side only, a re-introduced ban-risk
+auth plugin or model provider, a dropped MCP server, etc.).
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -30,10 +32,12 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+MANIFEST_PATH = ROOT / ".ws-publish" / "manifest.json"
 CANONICAL_SKILLS = ROOT / ".agents" / "skills"
-# Runtimes that mirror the canonical skill library via materialized directories
-# (Claude Code reads .claude/skills, Codex reads .codex/skills, agy reads
-# .agents/skills — all project-level and discovered on clone).
+# Runtimes that receive physical skill directories rendered from dev_env and
+# pinned by .ws-publish/manifest.json (Claude Code reads .claude/skills, Codex
+# reads .codex/skills, agy and OpenCode read .agents/skills — all project-level
+# and discovered on clone).
 MIRROR_SKILL_DIRS = {
     "claude": ROOT / ".claude" / "skills",
     "codex": ROOT / ".codex" / "skills",
@@ -80,18 +84,32 @@ def _all_opencode_model_refs() -> dict[str, str]:
     return refs
 
 
-def _canonical_leaf_skill_dirs() -> dict[str, Path]:
-    """Map skill name -> leaf directory for every SKILL.md under skills.
+def _manifest_skill_files(root: Path = ROOT) -> dict[str, str]:
+    """Load the rendered skill file -> sha256 map from .ws-publish/manifest.json."""
+    manifest = json.loads(
+        (root / ".ws-publish" / "manifest.json").read_text(encoding="utf-8")
+    )
+    files = manifest.get("skills", {}).get("files", {})
+    assert isinstance(files, dict) and files, (
+        "expected non-empty skills.files in .ws-publish/manifest.json"
+    )
+    return {str(k): str(v) for k, v in files.items()}
 
-    The mirrors are flat, so a name is the whole address: two leaves sharing one
-    would make the mirror checks silently require only whichever was seen last.
+
+def _canonical_leaf_skill_dirs(root: Path = ROOT) -> dict[str, Path]:
+    """Map skill name -> leaf directory for every SKILL.md under .agents/skills.
+
+    The rendered skill directories are flat, so a name is the whole address: two
+    leaves sharing one would make the checks silently require only whichever was
+    seen last.
     """
     leaves: dict[str, Path] = {}
-    for skill_file in sorted(CANONICAL_SKILLS.rglob("SKILL.md")):
+    skills_root = root / ".agents" / "skills"
+    for skill_file in sorted(skills_root.rglob("SKILL.md")):
         leaf = skill_file.parent
         assert leaf.name not in leaves, (
-            f"Canonical skills {leaves.get(leaf.name)} and {leaf} share the name "
-            f"{leaf.name!r}; the flat mirrors can link only one of them"
+            f"Rendered skills {leaves.get(leaf.name)} and {leaf} share the name "
+            f"{leaf.name!r}; the flat runtime directories can hold only one of them"
         )
         leaves[leaf.name] = leaf
     return leaves
@@ -133,12 +151,30 @@ def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
     assert (ROOT / "CLAUDE.md") not in check_ssot_ownership.CHECK4_EXEMPT_PATHS
 
 
-def test_every_canonical_skill_is_mirrored() -> None:
-    """Every canonical skill exists as a materialized directory in each mirror."""
-    leaves = _canonical_leaf_skill_dirs()
+def _verify_rendered_skills_match_manifest(root: Path = ROOT) -> None:
+    """Verify every skill file in .ws-publish/manifest.json exists and matches sha256."""
+    manifest_files = _manifest_skill_files(root)
+    leaves = _canonical_leaf_skill_dirs(root)
     assert leaves, "expected to discover .agents/skills/**/SKILL.md leaves"
 
-    for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
+    mirror_dirs = {
+        "claude": root / ".claude" / "skills",
+        "codex": root / ".codex" / "skills",
+        "agents": root / ".agents" / "skills",
+    }
+
+    for rel_str, expected_sha in sorted(manifest_files.items()):
+        path = root / rel_str
+        assert path.is_file() and not path.is_symlink(), (
+            f"manifest skill file {rel_str} must exist as a physical file, not a symlink"
+        )
+        actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert actual_sha == expected_sha, (
+            f"rendered skill file {rel_str} sha256 {actual_sha} != "
+            f"manifest sha256 {expected_sha} (.ws-publish/manifest.json)"
+        )
+
+    for runtime, skills_dir in mirror_dirs.items():
         for name, leaf in sorted(leaves.items()):
             mirror_dir = skills_dir / name
             assert mirror_dir.is_dir() and not mirror_dir.is_symlink(), (
@@ -152,36 +188,109 @@ def test_every_canonical_skill_is_mirrored() -> None:
                 rel = canonical_file.relative_to(leaf)
                 mirror_file = mirror_dir / rel
                 assert mirror_file.is_file() and not mirror_file.is_symlink(), (
-                    f"{runtime}: missing materialized file {mirror_file}"
+                    f"{runtime}: missing rendered file {mirror_file}"
+                )
+                mirror_rel = mirror_file.relative_to(root).as_posix()
+                assert mirror_rel in manifest_files, (
+                    f"{runtime}: {mirror_rel} is not recorded in .ws-publish/manifest.json"
                 )
                 assert mirror_file.read_bytes() == canonical_file.read_bytes(), (
                     f"{runtime}: {mirror_file} content drifts from {canonical_file}"
                 )
 
 
-def test_no_orphan_or_broken_mirror_skill_links() -> None:
-    """Every mirror entry is a physical directory matching a canonical skill."""
-    leaves = _canonical_leaf_skill_dirs()
-    for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
+def _verify_no_unmanifested_or_orphan_skill_files(root: Path = ROOT) -> None:
+    """Verify no extra, unmanifested, or symlinked files exist in rendered skill directories."""
+    manifest_files = _manifest_skill_files(root)
+    leaves = _canonical_leaf_skill_dirs(root)
+    mirror_dirs = {
+        "claude": root / ".claude" / "skills",
+        "codex": root / ".codex" / "skills",
+        "agents": root / ".agents" / "skills",
+    }
+
+    on_disk_files: set[str] = set()
+    for runtime, skills_dir in mirror_dirs.items():
         for entry in sorted(skills_dir.iterdir()):
+            if entry.name == ".ws-agy-managed":
+                continue
             assert entry.is_dir() and not entry.is_symlink(), (
                 f"{runtime}: {entry} must be a physical directory, not a symlink"
             )
             assert entry.name in leaves, (
-                f"{runtime}: {entry.name} is not in canonical skills/. "
-                "skills/ is the one declared source; anything else is drift."
+                f"{runtime}: {entry.name} is not in .ws-publish/manifest.json. "
+                "Rendered skill directories are pinned by .ws-publish/manifest.json; "
+                "anything else is drift."
             )
             leaf = leaves[entry.name]
             canonical_rels = {
                 p.relative_to(leaf) for p in leaf.rglob("*") if p.is_file()
             }
-            mirror_rels = {
-                p.relative_to(entry) for p in entry.rglob("*") if p.is_file()
-            }
+            mirror_rels: set[Path] = set()
+            for p in sorted(entry.rglob("*")):
+                assert not p.is_symlink(), f"{runtime}: {p} must not be a symlink"
+                if p.is_file():
+                    mirror_rels.add(p.relative_to(entry))
+                    rel_posix = p.relative_to(root).as_posix()
+                    assert rel_posix in manifest_files, (
+                        f"{runtime}: unmanifested file {rel_posix} not in .ws-publish/manifest.json"
+                    )
+                    on_disk_files.add(rel_posix)
             assert mirror_rels == canonical_rels, (
                 f"{runtime}: {entry.name} file set {sorted(mirror_rels)} != "
-                f"canonical {sorted(canonical_rels)}"
+                f"rendered {sorted(canonical_rels)}"
             )
+
+    assert on_disk_files == set(manifest_files), (
+        f"on-disk skill files {sorted(on_disk_files ^ set(manifest_files))} "
+        "do not match .ws-publish/manifest.json"
+    )
+
+
+def test_every_canonical_skill_is_mirrored() -> None:
+    """Every skill in .ws-publish/manifest.json exists as a matching physical file across all runtimes."""
+    _verify_rendered_skills_match_manifest(ROOT)
+
+
+def test_no_orphan_or_broken_mirror_skill_links() -> None:
+    """Every rendered skill entry is a physical directory matching .ws-publish/manifest.json."""
+    _verify_no_unmanifested_or_orphan_skill_files(ROOT)
+
+
+def test_rendered_skill_drift_fails_closed(tmp_path: Path) -> None:
+    """Counterfactual: hand-editing a rendered SKILL.md or adding an unmanifested file fails closed."""
+    skill_text = "# Sample skill\n"
+    skill_sha = hashlib.sha256(skill_text.encode("utf-8")).hexdigest()
+    manifest_files: dict[str, str] = {}
+    for prefix in (".agents/skills", ".claude/skills", ".codex/skills"):
+        rel = f"{prefix}/audit/SKILL.md"
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(skill_text, encoding="utf-8")
+        manifest_files[rel] = skill_sha
+
+    manifest_dir = tmp_path / ".ws-publish"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    (manifest_dir / "manifest.json").write_text(
+        json.dumps({"skills": {"files": manifest_files}}),
+        encoding="utf-8",
+    )
+
+    _verify_rendered_skills_match_manifest(tmp_path)
+    _verify_no_unmanifested_or_orphan_skill_files(tmp_path)
+
+    # 1. Hand-edit one rendered SKILL.md -> sha256 mismatch must fail closed.
+    claude_skill = tmp_path / ".claude/skills/audit/SKILL.md"
+    claude_skill.write_text("# Hand-edited drift\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="manifest sha256"):
+        _verify_rendered_skills_match_manifest(tmp_path)
+    claude_skill.write_text(skill_text, encoding="utf-8")
+
+    # 2. Add an unmanifested file -> orphan check must fail closed.
+    extra_file = tmp_path / ".codex/skills/audit/extra.md"
+    extra_file.write_text("orphan\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="unmanifested file"):
+        _verify_no_unmanifested_or_orphan_skill_files(tmp_path)
 
 
 def test_opencode_config_has_no_banrisk_auth_plugins() -> None:
