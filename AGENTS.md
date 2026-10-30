@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=6d18549a5a47ca83e560ce421e2985d6341405c0a5d0985aeef937321b21a772 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=057700d81b32354dbf9f532720bb6dc46c4bc642c8a5e840ce88496e287ccf9a -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -166,7 +166,7 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 
 ## 🤖 Agent Architecture
 
-Guides: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** · **[.claude/README.md](.claude/README.md)** · Skills: **[.agents/skills/](.agents/skills/)**
+Guides: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** · **[.claude/README.md](.claude/README.md)** · Skills: **[.agents/skills/](.agents/skills/)** and **[.claude/skills/](.claude/skills/)** (physical renders from `dev_env`)
 
 - The active runtime's main loop is the orchestrator. Use the runtime's own subagent list (Claude Code: `.claude/agents/`; OpenCode: `.opencode/oh-my-openagent.json`).
 - Delegate read-only search fan-out to cheap search agents; reserve expensive models for hard reasoning. Bound parallelism by write conflicts (vision.md, Good Taste 6).
@@ -177,6 +177,7 @@ Guides: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** · **[.
 ## ✍️ Communication & Writing Standards
 
 - **Plain engineering facts**: State exact files changed, rationale, and verification results (commands, exit codes, latency).
+- **Performance claims**: A performance claim compares wall time, CPU time, and SQL count at a year-scale dataset, before and after, in the same environment. Each run samples a control endpoint, and both runs use the same user and data state. A count of removed calls is not evidence of a latency change.
 - **Banned jargon**: Never use "orthogonal" (outside math), "ontology planes", "terminal residue", "epistemic layer", "emergence", "empowerment", "touchpoint", or "paradigm shift".
 - **Zero concealment**: Report exact failing commands, stack traces, and minimal reproduction steps.
 <!-- WS_STATIC_END -->
