@@ -114,7 +114,10 @@ def test_AC8_13_49_main_supports_shell_and_human_output(monkeypatch, capsys) -> 
     assert "- uploads: 1" in output
 
 
-CANARY_FILE = "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
+CANARY_FILES = [
+    "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+    "tests/e2e/test_institution_statement_journeys.py",
+]
 #: The accessible name of the Home statement cockpit region (apps/frontend StatementCockpit).
 HOME_LANDMARK_LABEL = "Three-statement cockpit"
 
@@ -126,13 +129,11 @@ HEAVY_AUDIT_JOURNEYS = (
 
 
 def test_AC8_13_156_canary_corpus_is_minimal_liveness() -> None:
-    """AC-testing.deploy-gates.31: AC8.13.156: The blocking canary is one minimal upload/parse/import liveness
-    check that makes no broad audit assertions."""
+    """AC-testing.deploy-gates.31: AC8.13.156: The blocking canary is the minimal upload/parse/import/approve
+    liveness corpus across brokerage and multi-page institution statements with no broad audit assertions."""
     canary = contract.canary_files()
 
-    # Exactly one representative liveness journey — the brokerage upload→parse→
-    # import→value path is the only single test that exercises `import`.
-    assert canary == [CANARY_FILE]
+    assert canary == CANARY_FILES
 
     # The canary is a subset of the full derived llm post-merge corpus and every
     # canary file is fail-closed against the replay-counter source.
@@ -144,7 +145,8 @@ def test_AC8_13_156_canary_corpus_is_minimal_liveness() -> None:
 
     # The selectable corpus shell honors the canary selection.
     shell = contract.emit_shell(contract.canary_files())
-    assert f"STAGING_AI_OCR_TESTS=({CANARY_FILE})" in shell
+    expected_joined = " ".join(CANARY_FILES)
+    assert f"STAGING_AI_OCR_TESTS=({expected_joined})" in shell
 
 
 def test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys() -> None:

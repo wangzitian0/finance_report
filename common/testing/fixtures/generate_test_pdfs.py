@@ -145,6 +145,18 @@ def draw_common_header(
 
     y -= 24
     pdf.setFont(font_name, 10)
+    if fixture.institution == "CMB":
+        # Real Chinese bank statements (e.g. CMB transaction detail) omit explicit
+        # Opening/Closing Balance summary boxes and rely on per-row running balances.
+        pdf.drawString(
+            48, y, f"账号: {fixture.account_masked}   币种: {fixture.currency}"
+        )
+        y -= 16
+        pdf.drawString(
+            48, y, f"起止日期: {fixture.period_start} 至 {fixture.period_end}"
+        )
+        return y - 24
+
     pdf.drawString(48, y, f"Account Number: {fixture.account_masked}")
     y -= 16
     pdf.drawString(
@@ -184,18 +196,31 @@ def draw_dbs_table(
         y -= 17
 
 
-def draw_cmb_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
-) -> None:
+def _draw_cmb_table_header(pdf: canvas.Canvas, y: float, page_num: int) -> float:
     pdf.setFont("STSong-Light", 10)
     pdf.drawString(48, y, "交易日期")
     pdf.drawString(136, y, "摘要")
     pdf.drawString(320, y, "交易金额")
     pdf.drawString(430, y, "账户余额")
+    pdf.drawRightString(540, y, f"第 {page_num} 页")
     pdf.line(48, y - 4, 545, y - 4)
+    return y - 20
 
-    y -= 20
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
+
+def draw_cmb_table(
+    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
+) -> None:
+    _, height = A4
+    rows_per_page = 14
+    page_num = 1
+    y = _draw_cmb_table_header(pdf, y, page_num)
+    for idx, (txn, balance_after) in enumerate(
+        zip(fixture.transactions, balances, strict=True)
+    ):
+        if idx > 0 and idx % rows_per_page == 0:
+            pdf.showPage()
+            page_num += 1
+            y = _draw_cmb_table_header(pdf, height - 56, page_num)
         signed = txn.amount if txn.direction == "IN" else -txn.amount
         pdf.drawString(48, y, txn.date)
         pdf.drawString(136, y, txn.description)

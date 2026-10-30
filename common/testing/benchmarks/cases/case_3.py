@@ -4,10 +4,8 @@ Case 3: Credit Card Liability & Non-P&L Repayment Clearance benchmark scenario.
 
 from __future__ import annotations
 
-import tempfile
 import time
 from decimal import Decimal
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -15,7 +13,7 @@ import httpx
 from common.testing.benchmarks.case_types import CaseResult
 from common.testing.benchmarks.oracles import assert_triple_accounting_articulation
 from common.testing.benchmarks.statement_generators import (
-    generate_credit_card_repayment_bank_pdf,
+    generate_credit_card_repayment_bank_csv,
 )
 
 if TYPE_CHECKING:
@@ -84,14 +82,15 @@ def _upload_bank_card_repayment(
     runner: ScenarioBenchmarkRunner, client: httpx.Client, cc_acc: dict[str, Any]
 ) -> None:
     print("  [4/6] Uploading Bank Statement with 1,200.00 SGD Card Payment...")
-    with tempfile.TemporaryDirectory() as td:
-        pdf_tmp = Path(td) / "case3_cc_repay_bank.pdf"
-        pdf_bytes = generate_credit_card_repayment_bank_pdf(
-            pdf_tmp, opening_balance=Decimal("10000.00")
-        )
-        stmt_id = runner.upload_statement(
-            client, pdf_bytes, "dbs_bank_cc_repayment.pdf", institution="DBS Bank"
-        )
+    csv_bytes = generate_credit_card_repayment_bank_csv(
+        opening_balance=Decimal("10000.00")
+    )
+    stmt_id = runner.upload_statement(
+        client,
+        csv_bytes,
+        "dbs_bank_cc_repayment.csv",
+        institution="DBS Bank",
+    )
     stmt_data = runner.wait_for_statement_parsed(client, stmt_id)
     print(
         f"        Bank Statement Parsed: Opening={stmt_data['opening_balance']}, "

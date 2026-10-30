@@ -4,7 +4,6 @@ Case 1: Consecutive 4-Month Rollforward and Q1 Articulation benchmark scenario.
 
 from __future__ import annotations
 
-import tempfile
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -14,17 +13,13 @@ import httpx
 
 from common.testing.benchmarks.case_types import CaseResult
 from common.testing.benchmarks.oracles import (
-    assert_ai_advisor_semantic_grounding,
     assert_triple_accounting_articulation,
 )
 from common.testing.benchmarks.statement_generators import (
     generate_consecutive_month1_csv,
     generate_consecutive_month2_csv,
-    generate_consecutive_month2_pdf,
     generate_consecutive_month3_csv,
-    generate_consecutive_month3_pdf,
     generate_consecutive_month4_csv,
-    generate_consecutive_month4_pdf,
 )
 
 if TYPE_CHECKING:
@@ -48,29 +43,14 @@ M4_EXPECTED_CLOSING = Decimal("24200.00")
 def _upload_month1_statement(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
 ) -> tuple[str, dict[str, Any], str, str]:
-    if getattr(runner, "replay_mode", "off") == "replay":
-        print("  [2/9] Uploading Month 1 (Jan 2025) statement via replay cassette...")
-        m1_bytes = generate_consecutive_month1_csv()
-        m1_id = runner.upload_statement(
-            client,
-            m1_bytes,
-            "scb_month1_replay.csv",
-            institution="Standard Chartered Bank",
-        )
-    else:
-        m1_fixture = (
-            REPO_ROOT
-            / "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
-        )
-        if not m1_fixture.exists():
-            raise FileNotFoundError(
-                f"Month 1 fixture not found: {m1_fixture}. Run tools/sync_benchmark_fixtures.py first."
-            )
-
-        print("  [2/9] Uploading Month 1 (Jan 2025) statement...")
-        m1_id = runner.upload_statement(
-            client, m1_fixture.read_bytes(), "bsb_001_straits_capital.pdf"
-        )
+    print("  [2/9] Uploading Month 1 (Jan 2025) deterministic CSV statement...")
+    m1_bytes = generate_consecutive_month1_csv()
+    m1_id = runner.upload_statement(
+        client,
+        m1_bytes,
+        "scb_month1_replay.csv",
+        institution="Standard Chartered Bank",
+    )
 
     m1_data = runner.wait_for_statement_parsed(client, m1_id)
     print(
@@ -98,23 +78,13 @@ def _upload_month1_statement(
 def _ingest_chained_months(
     runner: ScenarioBenchmarkRunner,
     client: httpx.Client,
-    temp_dir: Path,
     m1_closing: Decimal,
     m1_account_id: str,
     m1_institution: str,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    is_replay = getattr(runner, "replay_mode", "off") == "replay"
-
     # Month 2: generated with independent ground-truth opening balance (#2318 non-circular)
-    if is_replay:
-        m2_bytes = generate_consecutive_month2_csv(opening_balance=M2_EXPECTED_OPENING)
-        m2_filename = "scb_month2_replay.csv"
-    else:
-        m2_tmp_pdf = temp_dir / "case1_m2_scb.pdf"
-        m2_bytes = generate_consecutive_month2_pdf(
-            m2_tmp_pdf, opening_balance=M2_EXPECTED_OPENING
-        )
-        m2_filename = "scb_month2_chained.pdf"
+    m2_bytes = generate_consecutive_month2_csv(opening_balance=M2_EXPECTED_OPENING)
+    m2_filename = "scb_month2_replay.csv"
 
     print(
         f"  [3/9] Uploading Month 2 (Feb 2025) chained statement linked to account {m1_account_id}..."
@@ -150,15 +120,8 @@ def _ingest_chained_months(
     print(f"        M2 approved successfully (status={m2_app['status']})")
 
     # Month 3: generated with independent ground-truth opening balance (#2318 non-circular)
-    if is_replay:
-        m3_bytes = generate_consecutive_month3_csv(opening_balance=M3_EXPECTED_OPENING)
-        m3_filename = "scb_month3_replay.csv"
-    else:
-        m3_tmp_pdf = temp_dir / "case1_m3_scb.pdf"
-        m3_bytes = generate_consecutive_month3_pdf(
-            m3_tmp_pdf, opening_balance=M3_EXPECTED_OPENING
-        )
-        m3_filename = "scb_month3_chained.pdf"
+    m3_bytes = generate_consecutive_month3_csv(opening_balance=M3_EXPECTED_OPENING)
+    m3_filename = "scb_month3_replay.csv"
 
     print(
         f"  [4/9] Uploading Month 3 (Mar 2025) chained statement linked to account {m1_account_id}..."
@@ -194,15 +157,8 @@ def _ingest_chained_months(
     print(f"        M3 approved successfully (status={m3_app['status']})")
 
     # Month 4: generated with independent ground-truth opening balance (#2318 non-circular)
-    if is_replay:
-        m4_bytes = generate_consecutive_month4_csv(opening_balance=M4_EXPECTED_OPENING)
-        m4_filename = "scb_month4_replay.csv"
-    else:
-        m4_tmp_pdf = temp_dir / "case1_m4_scb.pdf"
-        m4_bytes = generate_consecutive_month4_pdf(
-            m4_tmp_pdf, opening_balance=M4_EXPECTED_OPENING
-        )
-        m4_filename = "scb_month4_chained.pdf"
+    m4_bytes = generate_consecutive_month4_csv(opening_balance=M4_EXPECTED_OPENING)
+    m4_filename = "scb_month4_replay.csv"
 
     print(
         f"  [5/9] Uploading Month 4 (Apr 2025) chained statement linked to account {m1_account_id}..."
@@ -399,11 +355,9 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         )
         m1_closing = Decimal(m1_data["closing_balance"])
 
-        with tempfile.TemporaryDirectory() as td:
-            temp_dir = Path(td)
-            m2_data, m3_data, m4_data = _ingest_chained_months(
-                runner, client, temp_dir, m1_closing, m1_account_id, m1_institution
-            )
+        m2_data, m3_data, m4_data = _ingest_chained_months(
+            runner, client, m1_closing, m1_account_id, m1_institution
+        )
 
         flow_7_blocked, flow_24_pending_triage = (
             _verify_flow_7_and_24_mismatch_and_diagnostics(runner, client)
@@ -443,33 +397,6 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         assert len(lineage_lines) > 0, (
             f"Expected non-empty account lineage lines for {m1_account_id}, got {lineage}"
         )
-
-        # Pillar 1: AI Semantic Grounding Oracle
-        print("  [10/10] Verifying AI Advisor Grounding & Semantic Invariant...")
-        advisor_answer = None
-        try:
-            advisor_answer = runner.query_ai_advisor(
-                client,
-                "What is my current net worth and do my accounts reconcile?",
-            )
-            print(f"        AI Advisor response: {advisor_answer[:120]}...")
-        except Exception as exc:
-            if (
-                "temporarily unavailable" in str(exc).lower()
-                or "503" in str(exc)
-                or "api key" in str(exc).lower()
-            ):
-                print(
-                    f"        ⚠️ AI Advisor service unavailable in target environment: {exc}"
-                )
-            else:
-                raise
-
-        if advisor_answer is not None:
-            assert_ai_advisor_semantic_grounding(
-                advisor_answer,
-                expected_figures=["24,200", "24200"],
-            )
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")

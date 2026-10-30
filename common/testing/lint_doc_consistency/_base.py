@@ -42,10 +42,7 @@ NO_AC_SCAN_TARGETS: tuple[tuple[Path, tuple[str, ...]], ...] = (
 )
 
 CHECK6_TEST_ROOTS = [r for r in TEST_ROOTS if r != REPO_ROOT / "tests" / "tooling"]
-E2E_PRODUCT_TEST_EXCEPTION_PREFIXES = (
-    "tests/e2e/test_",
-    "apps/backend/tests/e2e/test_",
-)
+E2E_PRODUCT_TEST_EXCEPTION_PREFIXES = ("tests/e2e/test_",)
 
 # Allow-list of AC IDs that may appear in test fixtures without a
 # matching registry entry. Keep this list tight; every entry should be

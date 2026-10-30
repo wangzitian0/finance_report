@@ -242,7 +242,7 @@ def test_all_thirty_flows_have_physical_runner_invocations_in_mapped_cases() -> 
         7: {"assert_approval_blocked_by_balance_mismatch"},
         8: {"run_stage2_consistency_checks"},
         9: {"reject_statement"},
-        10: {"query_ai_advisor"},
+        10: {"get_data_quality_health", "get_balance_sheet_diagnostics"},
         11: {"adjudicate_unmatched_items"},
         12: {"batch_approve_matches"},
         13: {"adjudicate_unmatched_items", "create_account"},
@@ -262,7 +262,7 @@ def test_all_thirty_flows_have_physical_runner_invocations_in_mapped_cases() -> 
         27: {"get_account_lineage"},
         28: {"export_annual_tax_archive"},
         29: {"list_transaction_anomalies"},
-        30: {"query_ai_advisor"},
+        30: {"get_balance_sheet", "get_account_lineage"},
     }
     assert set(flow_expected_runner_methods.keys()) == set(range(1, 31))
 

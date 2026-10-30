@@ -8,9 +8,11 @@ institution, so provider drift against a statement *shape* (Chinese bank
 layout, digital-bank layout, 平安银行) surfaces in the audit-replay corpus
 instead of first failing on a real user statement.
 
-Corpus placement: `llm`-marked `post_merge_environment` proofs land in the
-non-blocking audit-replay corpus by subtraction (AC8.13.159) — the blocking
-canary set is unchanged.
+Corpus placement: `test_institution_statement_journeys.py` is included in the
+blocking Staging AI/OCR Canary (`CANARY_FILES` in `staging_ai_ocr_gate_contract.py`)
+alongside `test_brokerage_upload_to_portfolio_value.py` so multi-page Chinese bank
+statements (CMB `>= 6` pages without explicit opening-balance header) and regional
+institution shapes are verified on live provider extraction before promotion (#2817).
 
 House rules (AC8.13.109): isolated user per test, cookie auth for API calls,
 absolute `_api_url(...)` URLs, deterministic waits only.

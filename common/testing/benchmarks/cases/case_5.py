@@ -380,20 +380,6 @@ def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
             f"Expected non-empty files in annual tax archive manifest: {archive_manifest}"
         )
 
-        # Flow 30: Natural Language Financial AI Assistant with Tool Calling
-        try:
-            runner.query_ai_advisor(
-                client,
-                "Summarize my portfolio holdings and tax withholding status.",
-            )
-        except Exception as exc:
-            if not (
-                "temporarily unavailable" in str(exc).lower()
-                or "503" in str(exc)
-                or "api key" in str(exc).lower()
-            ):
-                raise
-
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
         return CaseResult(

@@ -25,8 +25,8 @@ from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.workflow import stored_package_readiness
-from tests.e2e.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 from tests.factories import seed_parsed_statement
+from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 
 GOLDEN_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "advisor_context_golden.json"
 

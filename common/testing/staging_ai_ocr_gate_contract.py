@@ -39,17 +39,17 @@ SUPPLEMENTAL_LLM_FILES = [
     "tests/e2e/test_statement_upload_e2e.py",
 ]
 
-# The minimal production-promotion AI/OCR canary corpus (issue #1232, AC8.13.156).
+# The minimal production-promotion AI/OCR canary corpus (issue #1232, #2817, AC8.13.156).
 # This is a hand-curated SUBSET of the derived llm post-merge corpus (gate_files):
-# the smallest set that proves the real-provider upload -> parse -> import -> value
-# liveness path users need in production, with NO broad audit assertions. The
-# brokerage journey is the only single test that exercises `import`
-# (report_verifications == 0), so it is the canary on its own. Everything else in
-# the derived corpus is audit-replay (audit_replay_files = gate_files - canary),
+# the smallest set that proves the real-provider upload -> parse -> import/approve -> value
+# liveness path users need in production across both brokerage and multi-page Chinese bank
+# statement layouts, with NO broad audit assertions (report_verifications == 0).
+# Everything else in the derived corpus is audit-replay (audit_replay_files = gate_files - canary),
 # so a newly-added heavy `@ac_proof` journey defaults to audit-replay and can
 # never silently creep into the blocking path (AC8.13.159).
 CANARY_FILES = [
     "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+    "tests/e2e/test_institution_statement_journeys.py",
 ]
 
 # The journey-board checkpoint map (#2370). Its proof files are the

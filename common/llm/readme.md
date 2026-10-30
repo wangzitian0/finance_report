@@ -431,7 +431,7 @@ cassettes are balance-exempt (`balance_reconciles: false`) and field-graded only
 > SSOT owner for the **corpus E2E tier**: the committed extraction corpus,
 > seeded end-to-end through the statement pipeline in PR CI. Registered as
 > roadmap group 11 in [`contract.py`](contract.py); tests live in
-> `apps/backend/tests/e2e/test_statement_corpus_journeys.py` and run in the
+> `apps/backend/tests/integration/test_statement_corpus_journeys.py` and run in the
 > `ci.yml backend-integration` merge gate.
 
 One corpus, four consuming gates — each answers a different question:

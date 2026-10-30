@@ -82,7 +82,7 @@ class FixtureSchema(BaseModel):
     institution: str
     success: bool
     statement: StatementSchema
-    events: list[EventSchema] = Field(min_length=5, max_length=10)
+    events: list[EventSchema] = Field(min_length=5, max_length=150)
 
 
 def _run_generator() -> None:
@@ -113,7 +113,7 @@ def test_generated_pdfs_are_valid() -> None:
         pypdf_module = importlib.import_module("pypdf")
         pypdf_reader = pypdf_module.PdfReader
 
-    for pdf_path, _ in EXPECTED.values():
+    for institution, (pdf_path, _) in EXPECTED.items():
         payload = pdf_path.read_bytes()
         assert payload.startswith(b"%PDF-"), f"Invalid PDF header: {pdf_path.name}"
         assert b"%%EOF" in payload[-2048:], f"Missing EOF marker: {pdf_path.name}"
@@ -121,6 +121,13 @@ def test_generated_pdfs_are_valid() -> None:
         if pypdf_reader is not None:
             reader = pypdf_reader(str(pdf_path))
             assert len(reader.pages) >= 1, f"Expected at least one page: {pdf_path.name}"
+            if institution == "CMB":
+                assert len(reader.pages) >= 6, (
+                    f"CMB fixture must have >= 6 pages to exercise multi-page chunking: got {len(reader.pages)}"
+                )
+                first_page_text = reader.pages[0].extract_text() or ""
+                assert "Opening Balance:" not in first_page_text
+                assert "Closing Balance:" not in first_page_text
 
 
 def test_expected_json_matches_schema() -> None:

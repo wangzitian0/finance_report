@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base
 from src.extraction import TransactionDirection
-from tests.e2e.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 from tests.factories import seed_parsed_statement
+from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 
 pytestmark = pytest.mark.asyncio
 
