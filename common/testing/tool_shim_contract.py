@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import sys
 from collections.abc import Sequence
@@ -14,13 +15,29 @@ BASELINE_UPDATE_MODE = "shrink-only"
 MAX_TOOL_LINES = 40
 
 
-def _fat_tools(repo_root: Path) -> dict[str, int]:
+def _scan_tools(repo_root: Path) -> tuple[dict[str, int], list[str]]:
     tools_dir = repo_root / "tools"
     fat_tools: dict[str, int] = {}
+    alias_findings: list[str] = []
     for path in sorted(tools_dir.glob("*.py")):
-        line_count = len(path.read_text(encoding="utf-8").splitlines())
+        rel = path.relative_to(repo_root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        line_count = len(text.splitlines())
         if line_count > MAX_TOOL_LINES:
-            fat_tools[path.relative_to(repo_root).as_posix()] = line_count
+            fat_tools[rel] = line_count
+        tree = ast.parse(text, filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                for alias in node.names:
+                    if alias.asname == alias.name:
+                        alias_findings.append(
+                            f"pass-through re-export in tool shim: {rel} ({alias.name})"
+                        )
+    return fat_tools, alias_findings
+
+
+def _fat_tools(repo_root: Path) -> dict[str, int]:
+    fat_tools, _ = _scan_tools(repo_root)
     return fat_tools
 
 
@@ -43,13 +60,13 @@ def _write_baseline(path: Path, paths: set[str]) -> None:
 
 
 def findings(repo_root: Path, baseline_path: Path) -> tuple[list[str], list[str]]:
-    """Return newly fat and resolved-but-still-baselined tool paths."""
-    current = _fat_tools(repo_root)
+    """Return newly fat/re-exporting and resolved-but-still-baselined tool paths."""
+    current, alias_findings = _scan_tools(repo_root)
     baseline = _load_baseline(baseline_path)
     new = [
         f"new fat tool: {path} ({current[path]} lines; maximum {MAX_TOOL_LINES})"
         for path in sorted(current.keys() - baseline)
-    ]
+    ] + alias_findings
     stale = [
         f"resolved fat tool still baselined: {path}"
         for path in sorted(baseline - current.keys())

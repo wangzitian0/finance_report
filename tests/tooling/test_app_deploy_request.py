@@ -13,11 +13,13 @@ from pathlib import Path
 
 import pytest
 
+from common.runtime.deploy import app_deploy_request as renderer
 from common.runtime.sdk_pin import read_sdk_pin
-from tools import app_deploy_request as renderer
+from tools import app_deploy_request as request_shim
+from tools import app_deploy_transport as transport_shim
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULE_PATH = ROOT / "tools/app_deploy_request.py"
+MODULE_PATH = ROOT / "common/runtime/deploy/app_deploy_request.py"
 
 VALID_REQUEST = {
     "contract_version": 1,
@@ -174,8 +176,12 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
 
 def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> None:
     """AC-runtime.deploy-request.3: dispatch success means this exact receiver run succeeded."""
-    transport = importlib.import_module("tools.app_deploy_transport")
-    source = (ROOT / "tools/app_deploy_transport.py").read_text(encoding="utf-8")
+    transport = importlib.import_module("common.runtime.deploy.app_deploy_transport")
+    assert request_shim.main is renderer.main
+    assert transport_shim.main is transport.main
+    source = (ROOT / "common/runtime/deploy/app_deploy_transport.py").read_text(
+        encoding="utf-8"
+    )
     sdk_imports = {
         alias.name
         for node in ast.walk(ast.parse(source))
@@ -270,7 +276,7 @@ def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> N
 
 def test_AC_runtime_deploy_request_5_transport_announces_the_approval_wait() -> None:
     """AC-runtime.deploy-request.5: a waiting Production request names its approval link and approval deadline."""
-    transport = importlib.import_module("tools.app_deploy_transport")
+    transport = importlib.import_module("common.runtime.deploy.app_deploy_transport")
     request_id = str(VALID_PRODUCTION_REQUEST["request_id"])
     run_title = f"Deploy finance_report/app prod v2.3.4 abc [{request_id}]"
 

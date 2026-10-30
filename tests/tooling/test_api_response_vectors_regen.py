@@ -22,7 +22,8 @@ def test_build_vector_files_matches_every_committed_vectors_json() -> None:
     """AC-reporting.api-vectors.1 AC-ledger.api-vectors.1
     AC-extraction.api-vectors.1: the committed files are exactly what the
     builders produce."""
-    files = arv.build_vector_files()
+    files = arv_impl.build_vector_files()
+    assert arv.main is arv_impl.main
     assert len(files) == 3
     for path, payload in files.items():
         assert path.exists(), f"missing committed vector file: {path}"

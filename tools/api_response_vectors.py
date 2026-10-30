@@ -14,10 +14,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(1, str(BACKEND_ROOT))
 
-from common.platform.api_response_vectors import (  # noqa: E402, F401
-    build_vector_files as build_vector_files,
-    main,
-)
+from common.platform.api_response_vectors import main  # noqa: E402
 
 if __name__ == "__main__":
     raise SystemExit(main())
