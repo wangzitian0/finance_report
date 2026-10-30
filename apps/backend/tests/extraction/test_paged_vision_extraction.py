@@ -292,10 +292,10 @@ class TestBatchedExtractFlow:
             active_calls += 1
             max_concurrent_calls = max(max_concurrent_calls, active_calls)
             try:
-                gc.collect()
+                content = messages[0]["content"]
                 live_payloads = [
                     obj
-                    for obj in gc.get_objects()
+                    for obj in content
                     if isinstance(obj, dict)
                     and obj.get("type") == "image_url"
                     and isinstance(obj.get("image_url"), dict)
