@@ -46,16 +46,7 @@ class PathRule:
 # Order matters: the first (most specific) match wins, mirroring the
 # longest-prefix semantics in common/testing/check_ac_traceability.py.
 PATH_RULES: tuple[PathRule, ...] = (
-    PathRule(
-        "apps/backend/tests/e2e/test_statement_corpus_journeys.py",
-        "backend_integration",
-        True,
-    ),
-    PathRule(
-        "apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py",
-        "backend_integration",
-        True,
-    ),
+    PathRule("apps/backend/tests/integration/", "backend_integration", True),
     PathRule("apps/backend/tests/", "backend_ci", True),
     PathRule("apps/frontend/playwright/", "frontend_playwright_ci", True),
     PathRule("apps/frontend/src/", "frontend_vitest", True),

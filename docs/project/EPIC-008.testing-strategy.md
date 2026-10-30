@@ -155,7 +155,7 @@ job inventories or scenario counts into this EPIC.
 ## 🧪 Test Cases
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See `apps/backend/tests/e2e/` and `tools/smoke_test.sh`
+> **Coverage**: See `tests/e2e/` and `tools/smoke_test.sh`
 >
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC8.x.y` numbers reflect deprecated or merged ACs preserved for historical traceability through generated registry indexes plus explicit overrides. Do **not** renumber. New active ACs append to the next available index in the owning EPIC block.
 
@@ -560,8 +560,8 @@ The statement review -> reconcile -> report journey previously needed a real
 provider, so its LLM-independent DOM/CRUD/render assertions were stranded behind
 `@pytest.mark.llm` mega-journeys that only run on the manual staging deploy —
 letting selector/contract drift (and the empty-`original_filename` invisible-link
-bug, #1142) slip past the merge gate. A `seeded_parsed_statement` fixture
-(`apps/backend/tests/e2e/conftest.py`) injects an already-parsed statement —
+bug, #1142) slip past the merge gate. A `seed_parsed_statement` factory
+(`apps/backend/tests/factories.py`) injects an already-parsed statement —
 ODS `UploadedDocument`, DWD `StatementSummary` (`status=PARSED`), and Layer-2
 `AtomicTransaction` rows joined via `source_documents[*].doc_id` — directly into
 the test database, bypassing the `ExtractionService.parse_document` -> `stream_ai_json`
@@ -700,8 +700,8 @@ Product E2E ownership index:
 | `tests/e2e/test_assistant_chat_journey.py` | Core-journey proof U14 (#2461): the live assistant states the report amounts of an isolated user, cites the balance sheet and the income statement, and invents no amount for a period with no data; AC-advisor.grounding.3 is owned by `common/advisor/contract.py`. |
 | `tests/e2e/test_institution_statement_journeys.py` | Per-institution live-extraction staging journeys (audit-replay corpus, #1613); ACs live in the `llm` package roadmap (AC-llm.12.1 AC-llm.12.2 AC-llm.12.3 AC-llm.12.4, `common/llm/contract.py`) |
 | `tests/e2e/test_opening_balance_browser_journey.py` | Core-journey board proof U5 (post-deploy core_journey lane, #2370, #2383); AC-ledger.first-use.2 is owned by `common/ledger/contract.py` |
-| `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
-| `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4 AC-llm.11.5 AC-llm.11.6, `common/llm/contract.py`) |
+| `apps/backend/tests/integration/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT backend integration test; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
+| `apps/backend/tests/integration/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier integration journeys; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4 AC-llm.11.5 AC-llm.11.6, `common/llm/contract.py`) |
 | `tests/e2e/test_ai_provider_connectivity.py` | Staging AI provider connectivity smoke; its AC lives in the `testing` package roadmap (AC-testing.deploy-gates.27, `common/testing/contract.py`) |
 | `tests/e2e/test_transfer_processing_journey.py` | Core-journey board proof U7 (post-deploy core_journey lane, #2370, #2384); AC-ledger.transfer-clearing.1 is owned by `common/ledger/contract.py` |
 | `tests/e2e/test_twelve_month_journey.py` | Core-journey board proof U9 (post-deploy core_journey lane, #2370); AC-reporting.full-year.1 is owned by `common/reporting/contract.py` |
@@ -721,8 +721,7 @@ Product E2E ownership index:
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
 | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC-testing.product-gates.2; source facts without authoritative economic meaning return to Stage 1 review with zero journal entries |
 
-Product E2E files under `tests/e2e/test_*.py` and
-`apps/backend/tests/e2e/test_*.py` must carry AC references directly. They are
+Product E2E files under `tests/e2e/test_*.py` must carry AC references directly. They are
 not eligible for `docs/project/traceability-exceptions.md`; only fixtures and
 shared harness files may use that exception path. The `repo/e2e_regressions/`
 tree belongs to the independent infra2 repository and is managed by its own

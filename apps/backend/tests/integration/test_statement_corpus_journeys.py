@@ -74,28 +74,15 @@ CORPUS_FINGERPRINTS: tuple[str, ...] = (
     "a531a974fd0bd144fd4a31f63d94384210f043c94bfc81631b20d3f178c779ed",
     # vision / named_bank — synthetic OCR class distinct from generic_hf
     "f480cf4eb7050d96a674f2ff45fe92c1bad7920ff26df9c754469e40db64b219",
-    # vision / generic_hf — largest corpus statement (170 txns)
-    "5f1ef733e543f140966bfaadc1be1e2acc012ef4ca7394379228cd9896a5d934",
-    # text / generic_hf — 161-txn large text statement
-    "69e9b2c1b2fb563811851dbd3a33096b68ef8f39261a0951fa3b7a5dcf7d4484",
+    # vision / generic_hf — 164-txn large vision statement, zero unpostable rows
+    "e3dd21a7fe486770b51b39f51f49738221e4236fcbfb9e2d3b1f0c27030daf37",
+    # text / generic_hf — 159-txn large text statement, zero unpostable rows
+    "ccd2975934705a6e8b0d04ea97879fd4d8ca8f1a093216fb2149ddbba6aafc9a",
     # text / generic_hf — 163-txn large text statement, 8-figure closing
     "4ec965fd2615a4b285964aab735b385feae08fc754282629b39101ae12083efe",
 )
 
 ZERO_TXN_FINGERPRINT = "05d7858b5baa76e92d75f39b2c7d101d16aac776c608488affc21a14c1f754c1"
-
-# Known-unpostable rows per cassette: frozen extraction outputs are committed
-# verbatim, and two of them carry a row that cannot become a Layer-2
-# AtomicTransaction (amount None / amount == 0, which the DB's
-# ck_atomic_transactions_amount_positive rejects). The loader drops these
-# LOUDLY: any drop not in this exact allowlist fails the manifest test, so a
-# re-recorded cassette that silently loses pricing on more rows is caught.
-KNOWN_UNPOSTABLE_ROWS: dict[str, int] = {
-    # vision / generic_hf 170-txn statement: one amount == 0 row
-    "5f1ef733e543f140966bfaadc1be1e2acc012ef4ca7394379228cd9896a5d934": 1,
-    # text / generic_hf 161-txn statement: one amount == None row
-    "69e9b2c1b2fb563811851dbd3a33096b68ef8f39261a0951fa3b7a5dcf7d4484": 1,
-}
 
 
 @dataclass(frozen=True)
@@ -144,11 +131,8 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
     unpostable = 0
     for index, txn in enumerate(payload["transactions"]):
         if txn["amount"] is None or Decimal(str(txn["amount"])) == 0:
-            # Raw extraction artifact: the frozen output can carry a row it
-            # failed to price (None) or a zero-amount row — neither can become
-            # a Layer-2 AtomicTransaction (ck_atomic_transactions_amount_positive).
-            # Counted, not silent: the manifest test pins the exact per-case
-            # count via KNOWN_UNPOSTABLE_ROWS.
+            # Count any unpostable row (None or zero amount); the manifest test
+            # enforces zero unpostable rows across the entire corpus.
             unpostable += 1
             continue
         amount = Decimal(str(txn["amount"]))
@@ -305,14 +289,10 @@ def test_corpus_manifest_is_diverse():
             assert isinstance(row["amount"], Decimal)
             assert row["direction"] in (TransactionDirection.IN, TransactionDirection.OUT)
 
-    # Unpostable rows (amount None / zero in the frozen output) are dropped by
-    # the loader but never silently: the per-case count must equal the exact
-    # committed allowlist, so a re-recorded cassette losing pricing on more
-    # rows — or an allowlist entry going stale — fails here.
+    # Zero tolerance for unpostable rows (amount None / zero in the frozen output):
+    # no allowlist shims are permitted in the corpus manifest.
     actual_unpostable = {case.fingerprint: case.unpostable_rows for case in cases if case.unpostable_rows}
-    assert actual_unpostable == KNOWN_UNPOSTABLE_ROWS, (
-        f"unpostable-row drift: expected {KNOWN_UNPOSTABLE_ROWS}, got {actual_unpostable}"
-    )
+    assert actual_unpostable == {}, f"unpostable rows found in corpus manifest (zero allowed): {actual_unpostable}"
 
 
 @ac_proof(

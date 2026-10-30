@@ -305,8 +305,8 @@ none currently meet that bar.
 
 Journeys that depend on a parsed statement (review -> reconcile -> report) must
 not require a real provider to run in the merge-blocking tier. The reusable
-pattern is the `seeded_parsed_statement` fixture in
-`apps/backend/tests/e2e/conftest.py`: it injects an already-parsed statement —
+pattern is the `seed_parsed_statement` factory in
+`apps/backend/tests/factories.py`: it injects an already-parsed statement —
 ODS `UploadedDocument`, DWD `StatementSummary` (`status=PARSED`), and Layer-2
 `AtomicTransaction` rows joined via `source_documents[*].doc_id` — directly into
 the test database via `tests/factories.py`, bypassing the extraction/LLM seam

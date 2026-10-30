@@ -127,7 +127,6 @@ moon run :test                    # All tests (backend threshold is code-owned b
 moon run :test -- --fast          # TDD mode (no coverage, fastest)
 moon run :test -- --smart         # Coverage on changed files only
 moon run :test -- --e2e           # Root deployment E2E tests under tests/e2e/
-moon run :test -- --backend-e2e   # Backend Tier-1 API E2E under apps/backend/tests/e2e/
 moon run :test -- tests/ledger/  # Run specific module
 moon run :test -- tests/ledger/test_journal_service.py  # Run specific file
 

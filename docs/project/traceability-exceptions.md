@@ -40,7 +40,6 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/counter/__init__.py` | Package marker |
 | `apps/backend/tests/counter/_fake.py` | In-memory counter store fake for ops unit tests |
 | `apps/backend/tests/reconciliation/conftest.py` | EPIC-011 PR-B Layer-2 read bridge fixture |
-| `apps/backend/tests/e2e/conftest.py` | Shared E2E fixtures |
 | `apps/backend/tests/extraction/__init__.py` | Package marker |
 | `apps/backend/tests/factories.py` | Shared backend test factories |
 | `apps/backend/tests/infra/__init__.py` | Package marker |
@@ -235,6 +234,6 @@ pin a specific fix rather than owning an EPIC acceptance criterion.
 New tests for user-visible behavior must include an AC reference. New helper,
 fixture, or pure contract tests without AC references must be added to this file
 in the same PR, with an SSOT or EPIC owner. Product E2E tests under
-`tests/e2e/test_*.py` or `apps/backend/tests/e2e/test_*.py` are not eligible
+`tests/e2e/test_*.py` are not eligible
 for this allow-list; attach AC IDs or remove the obsolete test. This policy is
 enforced by `tools/lint_doc_consistency.py`.

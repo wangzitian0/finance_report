@@ -263,9 +263,7 @@ class _FakeRunner:
         return {"status": "approved"}
 
 
-def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months(
-    tmp_path: Path,
-) -> None:
+def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months() -> None:
     from common.testing.benchmarks.cases import case_1
 
     runner, client = _FakeRunner("replay"), _FakeClient()
@@ -273,7 +271,6 @@ def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months(
     case_1._ingest_chained_months(
         runner,
         client,
-        tmp_path,
         Decimal(m1["closing_balance"]),
         account_id,
         institution,
@@ -286,22 +283,9 @@ def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months(
     ]
 
 
-def test_case_1_off_mode_uses_the_pdf_fixture_and_fails_when_it_is_missing(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_case_1_off_mode_uses_generated_csv_for_month1() -> None:
     from common.testing.benchmarks.cases import case_1
 
-    monkeypatch.setattr(case_1, "REPO_ROOT", tmp_path)
     runner, client = _FakeRunner("off"), _FakeClient()
-    with pytest.raises(FileNotFoundError, match="sync_benchmark_fixtures"):
-        case_1._upload_month1_statement(runner, client)
-    assert runner.uploads == []
-
-    fixture = (
-        tmp_path
-        / "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
-    )
-    fixture.parent.mkdir(parents=True)
-    fixture.write_bytes(b"%PDF-1.4 fake")
     case_1._upload_month1_statement(runner, client)
-    assert runner.uploads == ["bsb_001_straits_capital.pdf"]
+    assert runner.uploads == ["scb_month1_replay.csv"]

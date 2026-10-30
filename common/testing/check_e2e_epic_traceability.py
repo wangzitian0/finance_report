@@ -17,10 +17,7 @@ from common.meta.base.gate_cli import run_gate
 from common.meta.base.gate_util import display_path, duplicate_values
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_E2E_ROOTS = (
-    "tests/e2e",
-    "apps/backend/tests/e2e",
-)
+DEFAULT_E2E_ROOTS = ("tests/e2e",)
 DECLARED_NON_PRODUCT_E2E_ROOTS = ("repo/e2e_regressions",)
 DECLARED_NON_PRODUCT_E2E_FILES = ("repo/finance/appwrite/scripts/e2e-test.sh",)
 E2E_ASSET_SUFFIXES = {".py", ".sh", ".ts", ".tsx", ".js", ".jsx"}

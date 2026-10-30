@@ -12,7 +12,7 @@ import pytest
 
 from common.testing.matrix import STAGING_CORE_E2E_MARKER
 from common.testing.benchmarks.statement_generators import (
-    generate_credit_card_repayment_bank_pdf,
+    generate_credit_card_repayment_bank_csv,
     generate_household_wife_operations_csv,
     generate_standard_operations_csv,
 )
@@ -84,35 +84,17 @@ def test_generate_household_wife_operations_csv_identity() -> None:
     assert expected_closing == Decimal("8100.00")
 
 
-def test_generate_credit_card_repayment_bank_pdf(tmp_path: Path) -> None:
-    """Benchmark Case 3: credit card debt clearance bank PDF generates valid ReportLab document."""
-    pdf_path = tmp_path / "cc_repay.pdf"
-    pdf_bytes = generate_credit_card_repayment_bank_pdf(
-        pdf_path, opening_balance=Decimal("10000.00")
-    )
-    assert pdf_bytes.startswith(b"%PDF")
-    assert len(pdf_bytes) > 1000
-    assert pdf_path.exists()
-
-
-def test_generate_consecutive_month3_and_month4_pdf(tmp_path: Path) -> None:
-    """Benchmark Case 1: Month 3 (Q1 close) and Month 4 (Q2 transition) PDFs generate valid ReportLab documents."""
-    from common.testing.benchmarks.statement_generators import (
-        generate_consecutive_month3_pdf,
-        generate_consecutive_month4_pdf,
-    )
-
-    p3 = tmp_path / "m3.pdf"
-    b3 = generate_consecutive_month3_pdf(p3, opening_balance=Decimal("18250.00"))
-    assert b3.startswith(b"%PDF")
-    assert len(b3) > 1000
-    assert p3.exists()
-
-    p4 = tmp_path / "m4.pdf"
-    b4 = generate_consecutive_month4_pdf(p4, opening_balance=Decimal("21300.00"))
-    assert b4.startswith(b"%PDF")
-    assert len(b4) > 1000
-    assert p4.exists()
+def test_generate_credit_card_repayment_bank_csv() -> None:
+    """Benchmark Case 3: credit card debt clearance bank CSV generates deterministic repayment rows."""
+    opening = Decimal("10000.00")
+    csv_bytes = generate_credit_card_repayment_bank_csv(opening_balance=opening)
+    assert isinstance(csv_bytes, bytes)
+    rows = list(csv.DictReader(io.StringIO(csv_bytes.decode("utf-8"))))
+    assert len(rows) == 1
+    assert rows[0]["Statement Currency"] == "SGD"
+    assert Decimal(rows[0]["Statement Opening Balance"]) == opening
+    assert Decimal(rows[0]["Amount"]) == Decimal("-1200.00")
+    assert Decimal(rows[0]["Statement Closing Balance"]) == Decimal("8800.00")
 
 
 def test_generate_multicurrency_usd_and_hkd_csv() -> None:
@@ -189,9 +171,7 @@ def test_generate_consecutive_months_replay_csv_identity() -> None:
 
 
 def test_benchmark_manifest_v2_fixtures_verified() -> None:
-    """AC-testing.benchmarks.7: manifest.yaml is version 2.1 and all registered fixtures have verified schema and sha256."""
-    import hashlib
-    import re
+    """AC-testing.benchmarks.7: manifest.yaml is version 2.1 and retires external PDF fixtures after Bench V2 de-LLM (#2817)."""
     import yaml
 
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
@@ -201,40 +181,17 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
     assert "domains" not in data, "domains live only in thirty_flows_ssot.json"
 
     fixtures = data.get("fixtures", [])
-    fixture_ids = {f["id"] for f in fixtures}
-    expected_ids = {
-        "bankstatemently_straits_capital",
-    }
-    assert expected_ids == fixture_ids, f"Manifest fixtures drifted: {fixture_ids}"
-
-    required_fixture_keys = {
-        "id",
-        "doc_type",
-        "currency",
-        "download_url",
-        "sha256",
-        "local_path",
-    }
-    sha256_pattern = re.compile(r"^[a-f0-9]{64}$")
-    for item in fixtures:
-        assert required_fixture_keys.issubset(item.keys())
-        assert item["download_url"].startswith("https://")
-        assert sha256_pattern.match(item["sha256"]), f"Invalid sha256 for {item['id']}"
-        rel_path = item["local_path"]
-        f_path = REPO_ROOT / rel_path
-        if f_path.exists():
-            actual_sha = hashlib.sha256(f_path.read_bytes()).hexdigest()
-            assert actual_sha == item["sha256"], f"SHA256 mismatch for {rel_path}"
+    assert fixtures == [], (
+        f"Bench V2 must not depend on external PDF fixtures (#2817); got: {fixtures}"
+    )
 
     cases_dir = REPO_ROOT / "common/testing/benchmarks/cases"
     case_files_content = "\n".join(
         p.read_text(encoding="utf-8") for p in cases_dir.glob("case_*.py")
     )
-    for item in fixtures:
-        fixture_filename = Path(item["local_path"]).name
-        assert fixture_filename in case_files_content, (
-            f"Fixture {fixture_filename} in manifest.yaml is orphaned (not referenced in any case_*.py)"
-        )
+    assert "bsb_001_straits_capital.pdf" not in case_files_content, (
+        "Bench V2 cases must not reference retired external PDF fixtures (#2817)"
+    )
 
 
 def test_benchmark_reporter_summary_extraction_v2() -> None:
@@ -426,10 +383,7 @@ def test_benchmark_statement_generators_zero_orphan_contract() -> None:
         "generate_consecutive_month2_csv",
         "generate_consecutive_month3_csv",
         "generate_consecutive_month4_csv",
-        "generate_consecutive_month2_pdf",
-        "generate_consecutive_month3_pdf",
-        "generate_consecutive_month4_pdf",
-        "generate_credit_card_repayment_bank_pdf",
+        "generate_credit_card_repayment_bank_csv",
         "generate_household_wife_operations_csv",
         "generate_multicurrency_hkd_csv",
         "generate_multicurrency_usd_csv",
@@ -447,7 +401,7 @@ def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
     manifest = sync_benchmark_fixtures.load_manifest(manifest_path)
     assert manifest["version"] == "2.1"
-    assert len(manifest["fixtures"]) == 1
+    assert manifest["fixtures"] == []
 
     # Test SHA-256 computation
     sample_bytes = b"hello finance report benchmark"
