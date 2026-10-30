@@ -158,29 +158,29 @@
             <div class="header-title-row">
                 <div>
                     <h1 class="h1-title">Financial Scenario Benchmark: v0.2.41</h1>
-                    <p class="meta-text">Target: <strong>https://report-staging.zitian.party</strong> • Executed: <strong>2026-10-30T04:16:48.429511+00:00</strong></p>
+                    <p class="meta-text">Target: <strong>https://report-staging.zitian.party</strong> • Executed: <strong>2026-10-30T04:34:08.237235+00:00</strong></p>
                 </div>
-                <span class="badge badge-fail">6 OF 7 SCENARIOS PASSED</span>
+                <span class="badge badge-pass">ALL 7 SCENARIOS PASSED</span>
             </div>
         </header>
 
         <div class="grid grid-4 card">
             <div class="stat-box">
                 <span class="stat-label">Scenarios Passed</span>
-                <span class="stat-value">6 / 7</span>
+                <span class="stat-value">7 / 7</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Total Duration</span>
-                <span class="stat-value">627.42s</span>
+                <span class="stat-value">868.35s</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Largest Balance Delta</span>
                 <span class="stat-value">0.00 SGD</span>
-                <span class="stat-note">recorded by 5 of 7 cases</span>
+                <span class="stat-note">recorded by 6 of 7 cases</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Cases Not Passed</span>
-                <span class="stat-value">1</span>
+                <span class="stat-value">0</span>
             </div>
         </div>
 
@@ -201,14 +201,14 @@
                     <tr>
                         <td><strong>Balance Sheet Identity</strong></td>
                         <td><code>Assets ≡ Liabilities + Equity + Net Income</code></td>
-                        <td>Largest recorded |Δ| is 0.00 SGD, recorded by 2 of 3 cases</td>
-                        <td><span class="badge badge-fail">FAIL</span></td>
+                        <td>Largest recorded |Δ| is 0.00 SGD, recorded by 3 of 3 cases</td>
+                        <td><span class="badge badge-pass">PASS</span></td>
                     </tr>
                     <tr>
                         <td><strong>Temporal Multi-Period Rollforward</strong></td>
                         <td><code>Month_{n+1} Opening Cash ≡ Month_n Closing Cash</code></td>
-                        <td>Closing balances of months 1 to 4: n/a, n/a, n/a, n/a</td>
-                        <td><span class="badge badge-fail">FAIL</span></td>
+                        <td>Closing balances of months 1 to 4: 15271.23, 18250.00, 21300.00, 24200.00</td>
+                        <td><span class="badge badge-pass">PASS</span></td>
                     </tr>
                     <tr>
                         <td><strong>Credit Card Liability Clearance (No Double Counting)</strong></td>
@@ -219,8 +219,8 @@
                     <tr>
                         <td><strong>Retained Earnings Articulation</strong></td>
                         <td><code>Closing Equity = Opening Equity + Net Income</code></td>
-                        <td>Cumulative net income n/a</td>
-                        <td><span class="badge badge-fail">FAIL</span></td>
+                        <td>Cumulative net income 8749.25</td>
+                        <td><span class="badge badge-pass">PASS</span></td>
                     </tr>
                 </tbody>
             </table>
@@ -235,53 +235,50 @@
                     <h3 class="scenario-title">Case 1: Consecutive 4-Month Rollforward &amp; Q1 Articulation</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 251.30s</span>
-                    <span class="badge badge-fail">FAIL</span>
+                    <span class="duration-tag">⏱️ 338.93s</span>
+                    <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
-            <div class='error-banner'><strong>Error:</strong> Pillar 1 Invariant Failure: AI Advisor hallucinated discrepancy/imbalance token &#x27;imbalance&#x27; in response: # Your Net Worth &amp; Reconciliation Status
-
-## Current Net Worth
-
-Your net worth is **SGD 24,200.00**, which breaks down as follows:
-
-| Item | Amount |
-|---|---|
-| Total Assets | SGD 24,200.00 |
-| Total Liabilities | SGD 0.00 |
-| **Net Worth** | **SGD 24,200.00** |
-
-## Accounting Consistency Check ✅
-
-I verified your ledger under both accounting identities, and everything ties out:
-
-1. **Assets − Liabilities = Net Worth**
-   - SGD 24,200.00 − SGD 0.00 = **SGD 24,200.00** ✓
-
-2. **Opening Equity + Cumulative Net Income = Net Worth**
-   - SGD 15,450.75 + SGD 8,749.25 = **SGD 24,200.00** ✓
-
-Both calculations match exactly, so there are no discrepancies or imbalances in your books.
-
-## Reconciliation Status
-
-Your accounts reconcile cleanly:
-
-- **Reconciliation match rate:** 100.0%
-- **Unmatched transactions:** 0
-- **Balance sheet confidence tier:** DETERMINISTIC
-- **Income statement confidence tier:** DETERMINISTIC
-- **Blocking advisor flags:** None
-
-## Summary
-
-Your financial records are in excellent shape — fully reconciled with no pending reviews or unmatched transactions. With zero liabilities, your entire SGD 24,200.00 net worth is unencumbered, and you&#x27;re running a strong monthly surplus (SGD 3,500.00 income vs. SGD 600.00 expenses, roughly SGD 2,900.00 per month).
-
-The above analysis is for reference only.</div>
-            <p>No figures recorded. The case stopped before it recorded any.</p>
+            
+            
+    <table class="data-table">
+        <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
+        <tbody>
+            <tr><td>Month 1 (Jan 2025) Ending Balance</td><td>$15271.23</td><td>✅ Anchor Confirmed</td></tr>
+            <tr><td>Month 2 (Feb 2025) Ending Balance</td><td>$18250.00</td><td>✅ Exact Continuity Rollforward</td></tr>
+            <tr><td>Month 3 (Mar 2025 - Q1 Close) Ending Balance</td><td>$21300.00</td><td>✅ Q1 Continuity Confirmed</td></tr>
+            <tr><td>Month 4 (Apr 2025 - Q2 Transition) Ending Balance</td><td>$24200.00</td><td>✅ 4-Month Rollforward Intact</td></tr>
+            <tr><td>Q1 Cumulative Net Income</td><td>$5849.25</td><td>✅ Articulated to Q1 Retained Earnings</td></tr>
+            <tr><td>4-Month Cumulative Net Income</td><td>$8749.25</td><td>✅ Articulated to Retained Earnings</td></tr>
+            <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>$0.00</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
+        </tbody>
+    </table>
+    
             <details class="raw-details">
                 <summary>Inspect Raw Adjudication Telemetry</summary>
-                <pre class="raw-json">{}</pre>
+                <pre class="raw-json">{
+  &quot;m1_closing_balance&quot;: &quot;15271.23&quot;,
+  &quot;m2_opening_balance&quot;: &quot;15271.23&quot;,
+  &quot;m2_closing_balance&quot;: &quot;18250.00&quot;,
+  &quot;m3_opening_balance&quot;: &quot;18250.00&quot;,
+  &quot;m3_closing_balance&quot;: &quot;21300.00&quot;,
+  &quot;m4_opening_balance&quot;: &quot;21300.00&quot;,
+  &quot;m4_closing_balance&quot;: &quot;24200.00&quot;,
+  &quot;coverage_start&quot;: &quot;2025-01-01&quot;,
+  &quot;q1_net_income&quot;: &quot;5849.25&quot;,
+  &quot;q1_assets&quot;: &quot;21300.00&quot;,
+  &quot;total_assets&quot;: &quot;24200.00&quot;,
+  &quot;total_equity&quot;: &quot;15450.75&quot;,
+  &quot;cumulative_net_income&quot;: &quot;8749.25&quot;,
+  &quot;beginning_cash&quot;: &quot;15450.75&quot;,
+  &quot;ending_cash&quot;: &quot;24200.00&quot;,
+  &quot;equation_delta&quot;: &quot;0.00&quot;,
+  &quot;is_balanced&quot;: true,
+  &quot;flow_7_mismatch_blocked&quot;: true,
+  &quot;flow_24_pending_triage_verified&quot;: true,
+  &quot;flow_24_diagnostics_balanced&quot;: true,
+  &quot;flow_27_lineage_lines&quot;: 25
+}</pre>
             </details>
         </div>
         
@@ -292,7 +289,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 2: Multi-PII Household Operations &amp; Category Reconciliation</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 70.25s</span>
+                    <span class="duration-tag">⏱️ 114.24s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -342,7 +339,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 3: Credit Card Liability &amp; Non-P&amp;L Repayment Clearance</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 52.84s</span>
+                    <span class="duration-tag">⏱️ 96.54s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -389,7 +386,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 4: Multi-National &amp; Multi-Currency Consolidated Balance Sheet</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 80.16s</span>
+                    <span class="duration-tag">⏱️ 108.29s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -435,7 +432,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 5: Holistic Multi-Asset &amp; Tax Ecosystem</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 75.15s</span>
+                    <span class="duration-tag">⏱️ 93.00s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -486,7 +483,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 6: Bank Overdraft &amp; Capital Gain Disposal</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 6.42s</span>
+                    <span class="duration-tag">⏱️ 8.25s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -527,7 +524,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case UI: Browser Zero-Console-Error &amp; DOM Hygiene Oracle</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 91.30s</span>
+                    <span class="duration-tag">⏱️ 109.11s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
