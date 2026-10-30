@@ -44,6 +44,35 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
     def __len__(self) -> int:
         return self.batch_count
 
+    def _render_page_range(self, start_page: int, end_page: int) -> list[dict[str, Any]]:
+        """Render ``[start_page, end_page)`` 0-based PDF pages while enforcing the cumulative byte ceiling."""
+        fitz = self._owner._import_fitz()
+        document = self._owner._open_pdf_document(fitz, self._file_content)
+        try:
+            batch: list[dict[str, Any]] = []
+            max_total_bytes = getattr(
+                self._owner,
+                "PDF_VISION_MAX_TOTAL_IMAGE_BYTES",
+                _MediaMixin.PDF_VISION_MAX_TOTAL_IMAGE_BYTES,
+            )
+            for page_index in range(start_page, end_page):
+                payload, page_bytes = self._owner._render_pdf_page_image_payload(
+                    document,
+                    fitz,
+                    page_index,
+                )
+                self.total_image_bytes += page_bytes
+                if max_total_bytes > 0 and self.total_image_bytes > max_total_bytes:
+                    raise ExtractionError(
+                        f"Rendered PDF vision payloads ({self.total_image_bytes:,} bytes) exceed the "
+                        f"{max_total_bytes:,} bytes in-process memory bound."
+                    )
+                batch.append(payload)
+            return batch
+        finally:
+            document.close()
+            fitz.TOOLS.store_shrink(100)
+
     def pop_head_tail_meta_pages(self) -> tuple[list[dict[str, Any]], list[int]]:
         """Render the deduplicated first ``batch_size`` and last ``batch_size`` pages for Stage 1 metadata (#2813).
 
@@ -59,31 +88,8 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
         meta_pages = list(head_batch)
 
         if tail_start < self.total_pages:
-            fitz = self._owner._import_fitz()
-            document = self._owner._open_pdf_document(fitz, self._file_content)
-            try:
-                max_total_bytes = getattr(
-                    self._owner,
-                    "PDF_VISION_MAX_TOTAL_IMAGE_BYTES",
-                    _MediaMixin.PDF_VISION_MAX_TOTAL_IMAGE_BYTES,
-                )
-                for page_index in range(tail_start, self.total_pages):
-                    payload, page_bytes = self._owner._render_pdf_page_image_payload(
-                        document,
-                        fitz,
-                        page_index,
-                    )
-                    self.total_image_bytes += page_bytes
-                    if max_total_bytes > 0 and self.total_image_bytes > max_total_bytes:
-                        raise ExtractionError(
-                            f"Rendered PDF vision payloads ({self.total_image_bytes:,} bytes) exceed the "
-                            f"{max_total_bytes:,} bytes in-process memory bound."
-                        )
-                    meta_pages.append(payload)
-                    page_numbers.append(page_index + 1)
-            finally:
-                document.close()
-                fitz.TOOLS.store_shrink(100)
+            meta_pages.extend(self._render_page_range(tail_start, self.total_pages))
+            page_numbers.extend(range(tail_start + 1, self.total_pages + 1))
 
         return meta_pages, page_numbers
 
@@ -105,43 +111,18 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
         if batch_index == 0:
             self.total_image_bytes = 0
 
-        fitz = self._owner._import_fitz()
         start_page = batch_index * self.batch_size
         end_page = min(self.total_pages, start_page + self.batch_size)
-        document = self._owner._open_pdf_document(fitz, self._file_content)
-        try:
-            batch = []
-            max_total_bytes = getattr(
-                self._owner,
-                "PDF_VISION_MAX_TOTAL_IMAGE_BYTES",
-                _MediaMixin.PDF_VISION_MAX_TOTAL_IMAGE_BYTES,
+        batch = self._render_page_range(start_page, end_page)
+        if end_page == self.total_pages:
+            logger.info(
+                "Rendered PDF pages for vision fallback",
+                rendered_pages=self.total_pages,
+                pages_per_call=self.batch_size,
+                batch_count=self.batch_count,
+                total_image_bytes=self.total_image_bytes,
             )
-            for page_index in range(start_page, end_page):
-                payload, page_bytes = self._owner._render_pdf_page_image_payload(
-                    document,
-                    fitz,
-                    page_index,
-                )
-                self.total_image_bytes += page_bytes
-                if max_total_bytes > 0 and self.total_image_bytes > max_total_bytes:
-                    raise ExtractionError(
-                        f"Rendered PDF vision payloads ({self.total_image_bytes:,} bytes) exceed the "
-                        f"{max_total_bytes:,} bytes in-process memory bound."
-                    )
-                batch.append(payload)
-
-            if end_page == self.total_pages:
-                logger.info(
-                    "Rendered PDF pages for vision fallback",
-                    rendered_pages=self.total_pages,
-                    pages_per_call=self.batch_size,
-                    batch_count=self.batch_count,
-                    total_image_bytes=self.total_image_bytes,
-                )
-            return batch
-        finally:
-            document.close()
-            fitz.TOOLS.store_shrink(100)
+        return batch
 
     def __iter__(self) -> Iterator[list[dict[str, Any]]]:
         for batch_index in range(self.batch_count):
