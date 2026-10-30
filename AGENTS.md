@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=56f457d9db3572abfcc5374bf6bd08a85f0f6920c877d5a9fe35dcd9d4f4d086 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=6d18549a5a47ca83e560ce421e2985d6341405c0a5d0985aeef937321b21a772 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -15,7 +15,7 @@
 - **Physical context verification:** Static file existence does not prove host runtime context injection. Junior runs non-interactive probes (`-p` or headless exec) with low-cost models, asserting visible specification text across root and deep subdirectories.
 - **Host verification scope:** Official host CLIs are the primary execution environment. Regular testing covers Antigravity 2.0 project workspaces (`.agents/skills/` and project rules); standalone desktop chat apps without directory awareness are excluded.
 - **Local and remote test segregation:** Inner-loop verification (Senior, Junior, Intern) runs only focused tests on changed files (`pytest <file>::<test> -x`). Full-suite regression runs on remote CI, or locally at most once before merge.
-- **Bounded file reads:** Pass `StartLine` and `EndLine` (`<= 250` lines per call) when reading existing files with `read_file` or `view_file`.
+- **Bounded file reads:** Pass `StartLine` and `EndLine` (`<= 800` lines per call) when reading existing files with `read_file` or `view_file`.
 
 ## Delivery and merge
 
