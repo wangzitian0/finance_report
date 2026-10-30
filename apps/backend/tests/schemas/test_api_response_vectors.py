@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tools.api_response_vectors import ROOT_DIR, build_vector_files
+from common.platform.api_response_vectors import ROOT_DIR, build_vector_files
 
 
 def _committed(path: Path) -> dict:

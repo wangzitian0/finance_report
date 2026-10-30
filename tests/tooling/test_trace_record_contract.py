@@ -156,6 +156,14 @@ print(json.dumps(accepted))
 
 
 def test_trace_authority_stage_acceptance_matches_execution_ssot():
+    from infra2_sdk.ci import load_delivery_stages
+    from common.testing.ac_proof_execution import sdk_proof_execution_stages
+
+    sdk_stages = tuple(load_delivery_stages())
+    assert sdk_proof_execution_stages() == sdk_stages
+    assert set(PROOF_EXECUTION_STAGES) == (
+        (set(sdk_stages) - {"preview.runtime"}) | {"product.runtime"}
+    )
     assert _VALID_STAGES == frozenset(PROOF_EXECUTION_STAGES)
     for stage in PROOF_EXECUTION_STAGES:
         TraceAuthorityProfile(

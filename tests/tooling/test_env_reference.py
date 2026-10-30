@@ -10,7 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tools import generate_env_reference as gen  # noqa: E402
+from common.runtime import env_reference as gen  # noqa: E402
+from tools import generate_env_reference as tool_shim  # noqa: E402
 
 
 def test_collect_backend_fields_are_grouped_env_fields():
@@ -98,6 +99,7 @@ def test_alias_names_reads_the_alias_choices_chain():
     assert by_field["llm_encryption_keys"]["aliases"] == []
     assert by_field["ai_provider"]["aliases"] == []  # plain string validation_alias
     assert by_field["debug"]["aliases"] == []  # no validation_alias at all
+    assert tool_shim.main is gen.main
 
 
 def test_documented_keys_accept_the_commented_canonical_form():

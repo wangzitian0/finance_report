@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from typing import Any
 
+# Finance Report retired PR preview environments (#2699) and records tenant
+# runtime observations under `product.runtime`. Other stages match
+# `infra2_sdk.ci.load_delivery_stages()` (verified by `sdk_proof_execution_stages()`).
 PROOF_EXECUTION_STAGES = (
     "local.advisory",
     "product.runtime",
@@ -19,6 +22,18 @@ PROOF_EXECUTION_STAGES = (
     "ops.scheduled_cleanup",
     "manual.adjudication",
 )
+
+
+def sdk_proof_execution_stages() -> tuple[str, ...]:
+    """Return the canonical delivery stages from `infra2_sdk.ci.load_delivery_stages()`.
+
+    Loaded lazily inside a function so stdlib-only CI fan-in jobs (`ac-behavioral-ratchet`)
+    can import `common.testing.ac_proof_execution` without installing the SDK wheel first.
+    """
+    from infra2_sdk.ci import load_delivery_stages
+
+    return tuple(load_delivery_stages())
+
 
 PROOF_TASK_CATEGORIES = (
     "aggregate",

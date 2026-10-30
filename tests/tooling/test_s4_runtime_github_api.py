@@ -17,8 +17,9 @@ from common.runtime import (
     release_evidence,
     release_images,
 )
+from common.runtime.deploy import app_deploy_transport
 from common.testing import github_workflow_timing_summary, wait_for_cheap_ci
-from tools import app_deploy_transport
+from tools import app_deploy_transport as transport_shim
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -38,6 +39,7 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
         github_workflow_timing_summary.parse_github_time is github_api.parse_github_time
     )
     assert app_deploy_transport.write_github_output is github_api.write_github_output
+    assert transport_shim.main is app_deploy_transport.main
 
     helper_definitions: dict[str, list[str]] = {
         "parse_github_time": [],

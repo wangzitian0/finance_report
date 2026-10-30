@@ -254,7 +254,6 @@ def test_AC_testing_preflight_4_cli_flags_and_formatting(capsys):
         worktree_doctor.main(["--help"])
     assert exc.value.code == 0
     assert tools_shim.main is worktree_doctor.main
-    assert tools_shim.run_doctor is worktree_doctor.run_doctor
 
 
 def test_AC_testing_preflight_4_runner_and_pr_resolver_edge_cases(monkeypatch):

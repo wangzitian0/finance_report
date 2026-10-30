@@ -18,7 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tools import generate_sla_manifest as gen  # noqa: E402
+from common.runtime import sla_manifest as gen  # noqa: E402
+from tools import generate_sla_manifest as tool_shim  # noqa: E402
 
 
 def _committed_manifest() -> dict:
@@ -96,3 +97,4 @@ def test_check_mode_reds_on_stale_manifest(tmp_path, monkeypatch, capsys):
 
     assert gen.main() == 1
     assert "sla-manifest.generated.json" in capsys.readouterr().out
+    assert tool_shim.main is gen.main

@@ -262,3 +262,71 @@ def test_tool_shim_entrypoint() -> None:
     assert callable(tools.sync_ci_test_durations.main)
     with pytest.raises(SystemExit):
         tools.sync_ci_test_durations.main(["--invalid-argument"])
+
+
+def test_update_duration_seed_prunes_deleted_test_functions(tmp_path: Path) -> None:
+    """AC-testing.ci-structure.13: prune obsolete test keys when the test function no longer exists (#2719)."""
+    repo = tmp_path / "repo"
+    tests_dir = repo / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "test_sample.py").write_text(
+        "def test_alive():\n"
+        "    pass\n\n"
+        "async def test_async_alive():\n"
+        "    pass\n\n"
+        "class TestSuite:\n"
+        "    def test_method_alive(self):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+
+    seed_file = tmp_path / "seed.json"
+    initial = {
+        "tests/test_sample.py::test_alive": 0.4,
+        "tests/test_sample.py::test_alive[param1]": 0.5,
+        "tests/test_sample.py::test_async_alive": 0.3,
+        "tests/test_sample.py::TestSuite::test_method_alive[case-a]": 0.6,
+        "tests/test_sample.py::test_deleted_fn": 1.2,
+        "tests/test_sample.py::TestSuite::test_deleted_method": 0.9,
+    }
+    seed_file.write_text(json.dumps(initial), encoding="utf-8")
+
+    total, updated = update_duration_seed(
+        seed_file,
+        {},
+        repo_root=repo,
+        prune_missing=True,
+    )
+    assert total == 4
+    assert updated == 0
+    saved = json.loads(seed_file.read_text(encoding="utf-8"))
+    assert saved == {
+        "tests/test_sample.py::TestSuite::test_method_alive[case-a]": 0.6,
+        "tests/test_sample.py::test_alive": 0.4,
+        "tests/test_sample.py::test_alive[param1]": 0.5,
+        "tests/test_sample.py::test_async_alive": 0.3,
+    }
+
+
+def test_committed_duration_seeds_reference_existing_test_functions() -> None:
+    """AC-testing.ci-structure.13: every committed duration-seed key maps to an existing file and test (#2719)."""
+    from common.testing.sync_ci_test_durations import (
+        REPO_ROOT,
+        find_stale_duration_keys,
+    )
+
+    tooling_seed = json.loads(
+        (REPO_ROOT / "ci" / "tooling-test-durations.json").read_text(encoding="utf-8")
+    )
+    backend_seed = json.loads(
+        (
+            REPO_ROOT / "apps" / "backend" / "ci" / "backend-test-durations.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert find_stale_duration_keys(tooling_seed, repo_root=REPO_ROOT) == []
+    assert (
+        find_stale_duration_keys(
+            backend_seed, repo_root=REPO_ROOT, path_prefix="apps/backend"
+        )
+        == []
+    )

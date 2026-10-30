@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tools import generate_env_reference as gen  # noqa: E402
+from common.runtime import env_reference as gen  # noqa: E402
 
 
 def _committed_manifest() -> dict:

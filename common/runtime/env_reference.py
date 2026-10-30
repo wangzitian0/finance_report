@@ -45,13 +45,6 @@ if str(ROOT_DIR) not in sys.path:
 
 def _settings_module():
     """Load config.py by explicit file path (see ``_settings_model``)."""
-    shim = sys.modules.get("tools.generate_env_reference")
-    if (
-        shim is not None
-        and hasattr(shim, "_settings_module")
-        and shim._settings_module is not _settings_module
-    ):
-        return shim._settings_module()
     import importlib.util
 
     config_path = BACKEND_DIR / "src" / "config.py"
@@ -415,15 +408,6 @@ def _diff(label: str, current: str, generated: str) -> str:
     )
 
 
-def _get_path(name: str, default: Path) -> Path:
-    shim = sys.modules.get("tools.generate_env_reference")
-    if shim is not None and hasattr(shim, name):
-        val = getattr(shim, name)
-        if isinstance(val, (str, Path)):
-            return Path(val)
-    return default
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -435,12 +419,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     fields = collect_backend_fields()
 
-    env_example_path = _get_path("ENV_EXAMPLE_PATH", ENV_EXAMPLE_PATH)
-    env_reference_doc_path = _get_path("ENV_REFERENCE_DOC_PATH", ENV_REFERENCE_DOC_PATH)
-    required_env_manifest_path = _get_path(
-        "REQUIRED_ENV_MANIFEST_PATH", REQUIRED_ENV_MANIFEST_PATH
-    )
-    root_dir = _get_path("ROOT_DIR", ROOT_DIR)
+    env_example_path = ENV_EXAMPLE_PATH
+    env_reference_doc_path = ENV_REFERENCE_DOC_PATH
+    required_env_manifest_path = REQUIRED_ENV_MANIFEST_PATH
+    root_dir = ROOT_DIR
 
     existing_env = env_example_path.read_text() if env_example_path.exists() else None
     new_env = render_env_example(existing_env, fields)

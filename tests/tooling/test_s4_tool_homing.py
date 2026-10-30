@@ -141,6 +141,18 @@ def test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt(
         "legacy_fat_tools": []
     }
 
+    (tools_dir / "alias_shim.py").write_text(
+        "from common.runtime.env_reference import collect_backend_fields as collect_backend_fields\n",
+        encoding="utf-8",
+    )
+    new_with_alias, _ = tool_shim_contract.findings(tmp_path, baseline_path)
+    assert new_with_alias == [
+        "pass-through re-export in tool shim: tools/alias_shim.py (collect_backend_fields)"
+    ]
+    assert tool_shim_contract.findings(
+        ROOT, ROOT / tool_shim_contract.DEFAULT_BASELINE.relative_to(ROOT)
+    ) == ([], [])
+
 
 def test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain(
     monkeypatch, capsys

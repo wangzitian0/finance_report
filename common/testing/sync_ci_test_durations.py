@@ -11,11 +11,12 @@ updates duration seeds, and computes shard balance reports.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -27,6 +28,63 @@ from common.testing.backend_shard import (
 from common.testing.coverage.junit import iter_testcases
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _defined_test_names(file_path: Path) -> set[str]:
+    """Return AST-defined test node suffixes (`test_foo` or `TestClass::test_foo`)."""
+    tree = ast.parse(
+        file_path.read_text(encoding="utf-8", errors="ignore"),
+        filename=str(file_path),
+    )
+    names: set[str] = set()
+    for node in tree.body:
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ) and node.name.startswith("test_"):
+            names.add(node.name)
+        elif isinstance(node, ast.ClassDef):
+            for child in node.body:
+                if isinstance(
+                    child, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ) and child.name.startswith("test_"):
+                    names.add(f"{node.name}::{child.name}")
+                    names.add(child.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id.startswith("test_"):
+                    names.add(target.id)
+    return names
+
+
+def find_stale_duration_keys(
+    durations: Mapping[str, float],
+    *,
+    repo_root: Path,
+    path_prefix: str = "",
+) -> list[str]:
+    """Return duration-seed node IDs whose file or test definition no longer exists."""
+    defined_cache: dict[Path, set[str] | None] = {}
+    stale: list[str] = []
+    for nid in sorted(durations):
+        parts = nid.split("::")
+        rel_file = parts[0]
+        full_path = (
+            (repo_root / path_prefix / rel_file).resolve()
+            if path_prefix
+            else (repo_root / rel_file).resolve()
+        )
+        if full_path not in defined_cache:
+            defined_cache[full_path] = (
+                _defined_test_names(full_path) if full_path.exists() else None
+            )
+        defined = defined_cache[full_path]
+        if defined is None:
+            stale.append(nid)
+            continue
+        test_part = "::".join(parts[1:]).split("[", 1)[0]
+        if test_part not in defined:
+            stale.append(nid)
+    return stale
 
 
 def case_to_node_id(case: ElementTree.Element) -> str:
@@ -80,17 +138,14 @@ def update_duration_seed(
     if prune_missing:
         if repo_root is None:
             raise ValueError("repo_root must be provided when prune_missing is True")
-        pruned: dict[str, float] = {}
-        for nid, dur in data.items():
-            rel_file = nid.split("::")[0]
-            full_path = (
-                (repo_root / path_prefix / rel_file).resolve()
-                if path_prefix
-                else (repo_root / rel_file).resolve()
+        stale = set(
+            find_stale_duration_keys(
+                data,
+                repo_root=repo_root,
+                path_prefix=path_prefix,
             )
-            if full_path.exists():
-                pruned[nid] = dur
-        data = pruned
+        )
+        data = {nid: dur for nid, dur in data.items() if nid not in stale}
 
     sorted_data = dict(sorted(data.items()))
     if not dry_run:
@@ -105,7 +160,7 @@ def update_duration_seed(
 def report_backend_balance(
     backend_root: Path,
     durations: dict[str, float],
-    splits: int = 4,
+    splits: int = 8,
 ) -> None:
     """Print partition balance report for backend shards."""
     per_file = file_durations(durations)
