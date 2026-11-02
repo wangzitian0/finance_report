@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=057700d81b32354dbf9f532720bb6dc46c4bc642c8a5e840ce88496e287ccf9a -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=1733f6bfebe368f8c4732089e4aad59cce8ad514912978b1a7ef785ed7fa8e98 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -170,7 +170,7 @@ Guides: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** · **[.
 
 - The active runtime's main loop is the orchestrator. Use the runtime's own subagent list (Claude Code: `.claude/agents/`; OpenCode: `.opencode/oh-my-openagent.json`).
 - Delegate read-only search fan-out to cheap search agents; reserve expensive models for hard reasoning. Bound parallelism by write conflicts (vision.md, Good Taste 6).
-- Prove UI behavior with tests and pass the `ux-review` skill on simulator or browser captures.
+- UI work: tests prove behavior. A UI change goes to production only when its before/after `ux-review` skill pass on simulator or browser captures finds no core moment worse.
 
 ---
 
