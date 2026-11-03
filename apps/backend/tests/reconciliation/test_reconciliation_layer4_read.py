@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.extraction import DocumentSource
+from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
@@ -85,11 +85,11 @@ class TestReconciliationLayer4Read:
         )
         db.add_all([line1, line2])
         await db.commit()
-        return entry
+        return entry, account
 
     async def test_reconciliation_reads_layer2(self, db, test_user, mock_ai_response, monkeypatch, capsys):
         """Test that reconciliation uses AtomicTransaction when enabled."""
-        await self._create_candidate_entry(db, test_user.id)
+        _, account = await self._create_candidate_entry(db, test_user.id)
 
         # 1. Enable Dual Write AND Layer 4 Read
 
@@ -99,13 +99,15 @@ class TestReconciliationLayer4Read:
         # Parse document with db -> parse_document runs dual_write_layer2 internally,
         # persisting the UploadedDocument, AtomicTransaction rows and StatementSummary.
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            _result, _statement, _transactions = await parse_and_load_statement_projection(
+            _result, statement, _transactions = await parse_and_load_statement_projection(
                 service,
                 db=db,
                 source=DocumentSource.resolve(path=Path("test_l4.pdf"), content=content),
                 institution="DBS",
                 user_id=test_user.id,
+                account_id=account.id,
             )
+        statement.status = BankStatementStatus.APPROVED
         await db.commit()
 
         # 2. Run Reconciliation
@@ -127,20 +129,22 @@ class TestReconciliationLayer4Read:
 
     async def test_reconciliation_idempotency_layer2(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that already matched Layer 2 transactions are skipped."""
-        await self._create_candidate_entry(db, test_user.id)
+        _, account = await self._create_candidate_entry(db, test_user.id)
 
         # ... setup data ...
         service = ExtractionService()
         content = b"PDF-CONTENT-L4-IDEM"
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            _result, _statement, _transactions = await parse_and_load_statement_projection(
+            _result, statement, _transactions = await parse_and_load_statement_projection(
                 service,
                 db=db,
                 source=DocumentSource.resolve(path=Path("test_l4_idem.pdf"), content=content),
                 institution="DBS",
                 user_id=test_user.id,
+                account_id=account.id,
             )
+        statement.status = BankStatementStatus.APPROVED
         await db.commit()
 
         # Run once

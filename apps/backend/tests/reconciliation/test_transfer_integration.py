@@ -62,7 +62,11 @@ async def _seed_statement(
         institution="TestBank",
         account_last4="1234",
         currency="SGD",
-        status=BankStatementStatus.PARSED,
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED if account_id is not None else BankStatementStatus.PARSED,
     )
     db.add(summary)
     await db.flush()

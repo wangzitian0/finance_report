@@ -78,6 +78,11 @@ async def _add_statement_txn(
     direction: str,
     account_id=None,
 ) -> AtomicTransaction:
+    if account_id is None:
+        custody = Account(user_id=user_id, name=f"Custody {uuid4()}", type=AccountType.ASSET, currency="SGD")
+        db.add(custody)
+        await db.flush()
+        account_id = custody.id
     file_hash = f"source-type-{uuid4()}"
     doc = UploadedDocument(
         user_id=user_id,
@@ -100,7 +105,7 @@ async def _add_statement_txn(
         period_end=date(2024, 1, 31),
         opening_balance=Decimal("100.00"),
         closing_balance=Decimal("100.00"),
-        status=BankStatementStatus.PARSED,
+        status=BankStatementStatus.APPROVED,
     )
     db.add(statement)
     await db.flush()

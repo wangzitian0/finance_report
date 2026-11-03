@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import BankStatementStatus, DocumentType, UploadedDocument
 from src.extraction.base.source_vocabulary import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
@@ -180,6 +180,7 @@ async def _seed_transfer_setup(
     await db.flush()
     statement = _make_statement(owner_id=uid, base_date=date(2024, 1, 1))
     statement.account_id = account.id
+    statement.status = BankStatementStatus.APPROVED
     doc_id = None
     if with_doc:
         doc = await _seed_document(db, owner_id=uid)
@@ -750,6 +751,7 @@ async def test_transfer_pairs_auto_pairing(db: AsyncSession):
         doc = await _seed_document(db, owner_id=user_id)
         stmt = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
         stmt.account_id, stmt.uploaded_document_id, stmt.file_hash = acc.id, doc.id, doc.file_hash
+        stmt.status = BankStatementStatus.APPROVED
         db.add(stmt)
         return _atomic_txn(
             owner_id=user_id,

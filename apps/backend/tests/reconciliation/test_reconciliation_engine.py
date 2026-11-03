@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
 from src.composition import compose_reviewed_disposition_dependencies
-from src.extraction import DocumentType, EconomicIntent, TransactionDirection, UploadedDocument
+from src.extraction import BankStatementStatus, DocumentType, EconomicIntent, TransactionDirection, UploadedDocument
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
@@ -60,6 +60,11 @@ async def _seed_summary(
     Returns the StatementSummary. Atomic transactions reference its
     ``uploaded_document_id`` via ``source_documents``.
     """
+    if account_id is None:
+        custody = Account(user_id=owner_id, name=f"Custody {uuid4()}", type=AccountType.ASSET, currency=currency)
+        db.add(custody)
+        await db.flush()
+        account_id = custody.id
     doc = UploadedDocument(
         user_id=owner_id,
         file_path="statements/test.pdf",
@@ -81,6 +86,7 @@ async def _seed_summary(
         period_end=base_date,
         opening_balance=Decimal("0.00"),
         closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED,
     )
     db.add(summary)
     await db.flush()
