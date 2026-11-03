@@ -178,7 +178,16 @@ export default function StatementDetailPage() {
     queryKey: ["statement-review", statementId],
     queryFn: () => apiOperation("get_statement_for_review_statements__statement_id__review_get", { path: { statement_id: statementId } }),
     enabled: reviewReady,
+    refetchInterval: (query) => (query.state.data?.preclassification_in_progress ? PARSING_POLL_MS : false),
   });
+  const preclassificationInProgress = Boolean(review?.preclassification_in_progress);
+  const prevPreclassificationRef = useRef(false);
+  useEffect(() => {
+    if (prevPreclassificationRef.current && !preclassificationInProgress) {
+      void fetchStatement({ supersede: true });
+    }
+    prevPreclassificationRef.current = preclassificationInProgress;
+  }, [preclassificationInProgress, fetchStatement]);
   const { data: pendingStatementsData } = useQuery({
     queryKey: ["pending-statements"],
     queryFn: () => apiOperation("list_pending_review_statements_pending_review_get"),
@@ -199,6 +208,7 @@ export default function StatementDetailPage() {
   const requiresOtherSourceReview = isParsed && !sourceEnvelopeReviewable && sourceMissingFacts.length > 0 && !review?.reviewed_envelope;
   const hasUnclassifiedPendingTxns =
     isParsed &&
+    !preclassificationInProgress &&
     !requiresEnvelopeConfirmation &&
     !requiresOtherSourceReview &&
     (statement?.transactions ?? []).some(
@@ -225,7 +235,14 @@ export default function StatementDetailPage() {
   const approveMutation = useMutation({
     mutationFn: (variables: { autoFill?: boolean } | void) => apiOperation(
       "approve_statement_stage1_statements__statement_id__review_approve_post",
-      { path: { statement_id: statementId }, body: { create_account_if_missing: !review?.account_id, auto_fill_default_categories: Boolean(variables?.autoFill) } },
+      {
+        path: { statement_id: statementId },
+        body: {
+          ...(envelopeDraft.accountId && !review?.account_id ? { account_id: envelopeDraft.accountId } : {}),
+          create_account_if_missing: !review?.account_id && !envelopeDraft.accountId,
+          auto_fill_default_categories: Boolean(variables?.autoFill),
+        },
+      },
     ),
     onSuccess: (result) => {
       setEconomicReviewRequired(false);
@@ -335,6 +352,7 @@ export default function StatementDetailPage() {
     try {
       await apiOperation("retry_statement_parsing_statements__statement_id__retry_post", { path: { statement_id: statementId } });
       showToast("Re-parsing started", "success");
+      void invalidateLedgerDerivedQueries(queryClient);
       await fetchStatement({ supersede: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to retry parsing";
@@ -370,6 +388,7 @@ export default function StatementDetailPage() {
     try {
       await apiOperation("delete_statement_statements__statement_id__delete", { path: { statement_id: statementId } });
       showToast("Statement deleted successfully", "success");
+      void invalidateLedgerDerivedQueries(queryClient);
       if (typeof window !== "undefined") window.location.href = "/upload";
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to delete statement", "error");
@@ -436,6 +455,12 @@ export default function StatementDetailPage() {
       {isParsed && !review && reviewLoading && (
         <div role="status" className="mb-4 text-xs text-muted text-right">
           Loading balance verification...
+        </div>
+      )}
+      {isParsed && preclassificationInProgress && (
+        <div role="status" aria-live="polite" className="mb-4 card p-4 flex items-center gap-3">
+          <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+          <div className="text-sm text-muted">Classifying transactions…</div>
         </div>
       )}
       {isParsed && review && (

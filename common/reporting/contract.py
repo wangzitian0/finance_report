@@ -895,6 +895,8 @@ CONTRACT = PackageContract(
         ac('AC-reporting.2654.2', 'On Home and on the Balance sheet tab, a manual valuation line links to /portfolio?panel=evidence and never requests GET /reports/account-lineage with a non-account id (#2654).', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC-reporting.2654.2 routes manual valuation lines to /portfolio?panel=evidence without calling account-lineage', priority='P1'),
         # ── group 2664: balanced foreign-currency entry equation check with no stored FxRate (#2664) ──
         ac('AC-reporting.2664.1', 'A balanced foreign-currency journal entry with an entry fx_rate and no stored FxRate row either balances in the equation check or reports a named missing-rate cause in run_balance_sheet_diagnostics and GET /reports/data-quality, never an Unclassified discrepancy (#2664).', 'apps/backend/tests/reporting/test_equation_diagnostics.py::test_AC_reporting_2664_1_balanced_usd_entry_without_fx_rate_row_never_reports_unclassified_discrepancy', priority='P0', proof_kind='exact'),
+        # ── group 2822: Stage-1 unapproved statement transactions excluded from Stage-2 reconciliation purity failure in data quality (#2822) ──
+        ac('AC-reporting.2822.1', 'compute_personal_data_quality excludes unapproved Stage-1 (UPLOADED, PARSING, PARSED) statement transactions from Stage-2 Reconciliation & Debt Clearance Purity failures and duplicate RECONCILE_TRANSACTIONS action items while surfacing REVIEW_STATEMENT (#2822).', 'apps/backend/tests/reporting/test_data_quality_service.py::test_AC_reporting_2822_1_pending_stage1_statement_does_not_fail_reconciliation_purity', priority='P1', proof_kind='exact'),
     ],
     governance=[
         GovernanceInitiative(

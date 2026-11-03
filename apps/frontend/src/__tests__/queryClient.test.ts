@@ -60,10 +60,17 @@ describe("app query client (#2583 S4)", () => {
         "accounts",
         "dashboard",
         "report",
+        "reports",
         "report-package",
         "reports-net-worth-allocation",
         "workflow",
         "chat",
+        "ai",
+        "statement-review",
+        "pending-statements",
+        "statement-conflicts",
+        "statement-review-custody-accounts",
+        "journal-entries",
       ]),
     );
   });

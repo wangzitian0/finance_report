@@ -155,4 +155,37 @@ describe("Home action banner (#2621 LC, EPIC-022 AC22.6.2)", () => {
     expect(pickHomeAction(status("processing"), [])).toBeNull();
     expect(pickHomeAction(null, [])).toBeNull();
   });
+
+  // AC-reconciliation.2823.1
+  it("AC-reconciliation.2823.1 prioritises pending Stage-1 statement_review over unmatched_transactions in firstItem", async () => {
+    const queue: AttentionItem[] = [
+      {
+        id: "reconciliation:unmatched",
+        kind: "unmatched_transactions",
+        title: "ACME Corp Salary and 3 more",
+        detail: "4 unmatched transactions · no ledger match yet",
+        reason: "No matching ledger entry.",
+        confidence: 0,
+        href: "/reconciliation?tab=unmatched",
+      },
+      {
+        id: "statement:s-oct",
+        kind: "statement_review",
+        title: "synthetic_oct_statement.csv",
+        detail: "Parsed — ready to review",
+        reason: "Parsed from your upload and waiting for you to confirm the entries before they post to the ledger.",
+        confidence: 95,
+        href: "/statements/s-oct",
+      },
+    ];
+    expect(pickHomeAction(status("needs_action"), queue)).toMatchObject({
+      title: "2 items need you",
+      href: "/audit?tab=needs-you",
+      firstItem: {
+        title: "synthetic_oct_statement.csv",
+        detail: "Parsed — ready to review",
+        href: "/statements/s-oct?from=attention",
+      },
+    });
+  });
 });

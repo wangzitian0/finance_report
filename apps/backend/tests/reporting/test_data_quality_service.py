@@ -482,3 +482,80 @@ async def test_AC_reporting_2726_3_timeline_anchors_at_latest_statement_period_e
     assert feb_bucket.status == "GAP_DETECTED"
     assert res.temporal_continuity_invariant.is_healthy is False
     assert "2025-02" in res.temporal_continuity_invariant.detail
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_2822_1_pending_stage1_statement_does_not_fail_reconciliation_purity(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC-reporting.2822.1: Unapproved Stage-1 (PARSED) statement transactions do not fail Stage-2 Reconciliation & Debt Clearance Purity or emit duplicate RECONCILE_TRANSACTIONS actions."""
+    from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
+    from src.extraction.orm.layer2 import AtomicTransaction
+    from src.ledger import Account, AccountType
+
+    acc = Account(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="DBS Checking",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(acc)
+    await db.flush()
+
+    doc = UploadedDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/oct.csv",
+        file_hash="hash_oct_pending_2822",
+        original_filename="oct.csv",
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
+    )
+    db.add(doc)
+    await db.flush()
+
+    st_pending = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        uploaded_document_id=doc.id,
+        file_hash="hash_oct_pending_2822",
+        institution="DBS",
+        currency="SGD",
+        period_start=date(2026, 10, 1),
+        period_end=date(2026, 10, 31),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1500.00"),
+        status=BankStatementStatus.PARSED,
+    )
+    db.add(st_pending)
+    await db.flush()
+
+    txn = AtomicTransaction(
+        id=uuid4(),
+        user_id=test_user.id,
+        txn_date=date(2026, 10, 5),
+        amount=Decimal("500.00"),
+        direction="IN",
+        description="Pending statement inflow",
+        currency="SGD",
+        dedup_hash="dedup_oct_pending_2822",
+        source_documents=[{"doc_id": str(doc.id)}],
+    )
+    db.add(txn)
+    await db.flush()
+
+    res = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 10, 31),
+        currency="SGD",
+    )
+
+    assert res.reconciliation_purity_invariant.is_healthy is True
+    assert res.reconciliation_purity_invariant.delta == Decimal("0")
+    action_types = [a.action_type for a in res.action_items]
+    assert "REVIEW_STATEMENT" in action_types
+    assert "RECONCILE_TRANSACTIONS" not in action_types

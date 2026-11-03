@@ -15,8 +15,10 @@ import { formatCategoryLabel, getCategoriesForDirection } from "@/lib/categories
 import { confidenceLabel, statementDisplayTitle } from "@/lib/statusLabels";
 import { DetailDialog } from "@/components/ui/Overlay";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { MessageSquareText, Check } from "lucide-react";
 import { apiOperation, apiOperationDownload } from "@/lib/api-client";
+import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
 import { useToast } from "@/components/ui/Toast";
 import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
 
@@ -356,6 +358,7 @@ export interface LowConfidenceReviewModalProps {
 
 export function LowConfidenceReviewModal({ isOpen, onClose, transaction, currency = "SGD", onSuccess }: LowConfidenceReviewModalProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [category, setCategory] = useState("");
   const [saving, setSaving] = useState(false);
@@ -390,6 +393,7 @@ export function LowConfidenceReviewModal({ isOpen, onClose, transaction, currenc
     setError(null);
     try {
       await apiOperation("create_correction_corrections_post", { body: { transaction_id: transaction.id, corrected_category: trimmed } });
+      void invalidateLedgerDerivedQueries(queryClient);
       showToast(`Category updated to "${formatCategoryLabel(trimmed)}"`, "success");
       onSuccess?.();
       onClose();

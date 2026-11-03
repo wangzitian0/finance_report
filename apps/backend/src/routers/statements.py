@@ -45,6 +45,7 @@ from src.extraction import (
     edit_and_approve,
     get_current_statement_extraction_result,
     is_bank_custody_source,
+    is_preclassification_in_progress,
     lock_statement_classification,
     pending_stage1_review_filter,
     record_brokerage_import_failure,
@@ -933,6 +934,7 @@ async def get_statement_for_review(
         "source_result_digest": source_result_digest,
         "source_missing_facts": source_missing_facts,
         "source_envelope_reviewable": source_envelope_reviewable,
+        "preclassification_in_progress": is_preclassification_in_progress(statement.id),
         "reviewed_envelope": (
             ReviewedStatementEnvelopeResponse(
                 id=reviewed_envelope.id,
@@ -1023,7 +1025,11 @@ async def approve_statement_stage1(
     try:
         await lock_statement_classification(db, statement_id)
         statement = await _get_statement_or_404(db, statement_id, user_id)
-        if request and request.create_account_if_missing and not statement.account_id:
+        if request and request.account_id is not None:
+            statement.account_id = request.account_id
+            await db.flush()
+            await resolve_statement_posting_account(db, statement, user_id)
+        elif request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)

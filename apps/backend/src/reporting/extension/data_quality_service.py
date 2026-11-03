@@ -8,18 +8,23 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config_app import get_effective_base_currency
-from src.extraction import BankStatementStatus, StatementSummary
+from src.extraction import AtomicTransaction, BankStatementStatus, StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
 
 # PricingError is the FX error family; NoObservationError (no rate) is the subclass that
 # this module tells apart.
 from src.pricing import NoObservationError, PricingError
-from src.reconciliation import get_reconciliation_stats
+from src.reconciliation import (
+    ReconciliationMatch,
+    ReconciliationStatus,
+    get_reconciliation_stats,
+    posted_statement_source_ids,
+)
 from src.reporting.base.data_quality_types import (
     InvariantStatus,
     MonthContinuityBucket,
@@ -242,14 +247,60 @@ async def compute_personal_data_quality(
     )
 
     # 4. Reconciliation Purity Invariant
-    recon_healthy = stats.pending_review == 0 and stats.unmatched_transactions == 0 and not has_unanchored_activity
+    # Unapproved Stage-1 statements (UPLOADED/PARSING/PARSED) have not posted to the ledger yet;
+    # their transactions are tracked under `review_pending_statements` and must not be counted as
+    # Stage-2 unmatched reconciliation failures (#2822).
+    pending_doc_ids = [
+        str(s.uploaded_document_id)
+        for s in raw_statements
+        if s.status in pending_statuses and s.uploaded_document_id is not None
+    ]
+    pending_stage1_unmatched = 0
+    if pending_doc_ids and stats.unmatched_transactions > 0:
+        active_matches = (
+            select(ReconciliationMatch.atomic_txn_id)
+            .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
+            .where(ReconciliationMatch.superseded_by_id.is_(None))
+            .where(
+                ReconciliationMatch.status.in_(
+                    [
+                        ReconciliationStatus.ACCEPTED,
+                        ReconciliationStatus.AUTO_ACCEPTED,
+                        ReconciliationStatus.PENDING_REVIEW,
+                    ]
+                )
+            )
+        )
+        posted_sources = posted_statement_source_ids(user_id)
+        pending_stage1_unmatched = (
+            await db.scalar(
+                select(func.count(func.distinct(AtomicTransaction.id)))
+                .where(AtomicTransaction.user_id == user_id)
+                .where(
+                    or_(
+                        *[
+                            AtomicTransaction.source_documents.op("@>")(
+                                func.jsonb_build_array(func.jsonb_build_object("doc_id", doc_id))
+                            )
+                            for doc_id in pending_doc_ids
+                        ]
+                    )
+                )
+                .where(AtomicTransaction.id.notin_(active_matches))
+                .where(AtomicTransaction.id.notin_(posted_sources))
+            )
+            or 0
+        )
+
+    stage2_unmatched = max(0, stats.unmatched_transactions - pending_stage1_unmatched)
+    stage2_total = max(0, stats.total_transactions - pending_stage1_unmatched)
+
+    recon_healthy = stats.pending_review == 0 and stage2_unmatched == 0 and not has_unanchored_activity
     recon_delta = (
         stats.pending_review
         if stats.pending_review > 0
         else (
-            stats.unmatched_transactions
-            if stats.unmatched_transactions > 0
-            else (max(1, posted_entry_count) if has_unanchored_activity else 0)
+            stage2_unmatched if stage2_unmatched > 0 else (max(1, posted_entry_count) if has_unanchored_activity else 0)
         )
     )
     if recon_healthy:
@@ -258,8 +309,8 @@ async def compute_personal_data_quality(
     elif stats.pending_review > 0:
         recon_summary = f"{stats.pending_review} reconciliation item(s) pending review"
         recon_detail = "Review suggested matches to confirm liability clearing."
-    elif stats.unmatched_transactions > 0:
-        recon_summary = f"{stats.unmatched_transactions} unmatched transaction(s) require reconciliation"
+    elif stage2_unmatched > 0:
+        recon_summary = f"{stage2_unmatched} unmatched transaction(s) require reconciliation"
         recon_detail = "Match statement transactions against journal entries to verify cash clearance."
     else:
         recon_summary = f"{recon_delta} ledger entry(s) have zero bank statement reconciliation coverage"
@@ -312,10 +363,10 @@ async def compute_personal_data_quality(
         temporal_pts = max(0, 25 - total_gaps * 10)
 
     # Reconciliation purity: 20 points
-    if stats.total_transactions == 0:
+    if stage2_total == 0:
         recon_pts = 10 if has_unanchored_activity else 20
     else:
-        ratio = (stats.matched_transactions + stats.auto_accepted) / max(1, stats.total_transactions)
+        ratio = (stats.matched_transactions + stats.auto_accepted) / max(1, stage2_total)
         recon_pts = int(round(20 * ratio))
         if stats.pending_review > 0:
             recon_pts = max(0, recon_pts - min(10, stats.pending_review * 2))
@@ -425,12 +476,12 @@ async def compute_personal_data_quality(
                 action_url="/reconciliation",
             )
         )
-    elif stats.unmatched_transactions > 0:
+    elif stage2_unmatched > 0:
         action_items.append(
             QualityActionItem(
                 id="reconcile_unmatched_transactions",
                 priority="P2",
-                title=f"Reconcile {stats.unmatched_transactions} Unmatched Transaction(s)",
+                title=f"Reconcile {stage2_unmatched} Unmatched Transaction(s)",
                 description="Match or classify unmatched statement transactions in the reconciliation workbench.",
                 score_boost=min(15, max(2, 20 - recon_pts)),
                 action_type="RECONCILE_TRANSACTIONS",

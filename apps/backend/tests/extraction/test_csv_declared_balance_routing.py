@@ -73,3 +73,31 @@ async def test_AC_extraction_2504_1_a_csv_without_declared_balances_stays_unprov
     assert len(result.transactions) == 1
     assert result.balance_validated is None
     assert result.confidence == Decimal("0.25")
+
+
+async def test_AC_extraction_2822_1_csv_with_currency_and_balance_columns_reaches_authoritative_confidence() -> None:
+    """AC-extraction.2822.1: CSV with Currency and Balance columns reaches authoritative confidence."""
+    from src.extraction.base.reviewed_statement_envelope import supports_reviewed_statement_envelope
+
+    csv_with_currency_and_balance = (
+        "Date,Description,Amount,Currency,Reference,Balance,"
+        "Statement Opening Balance,Statement Closing Balance,Statement Period Start,Statement Period End\n"
+        "2026-10-05,ACME Corp Salary,8500.00,SGD,SAL-2026-10,18500.00,10000.00,14180.00,2026-10-01,2026-10-31\n"
+        "2026-10-10,Marina Bay Condo Rent,-3200.00,SGD,RENT-2026-10,15300.00,10000.00,14180.00,2026-10-01,2026-10-31\n"
+        "2026-10-15,NTUC FairPrice Groceries,-320.00,SGD,POS-2026-1015,14980.00,10000.00,14180.00,2026-10-01,2026-10-31\n"
+        "2026-10-20,Credit Card Bill Payment,-800.00,SGD,CC-2026-1020,14180.00,10000.00,14180.00,2026-10-01,2026-10-31\n"
+    )
+    result = await _parse(csv_with_currency_and_balance)
+
+    assert len(result.transactions) == 4
+    assert result.balance_validated is True
+    assert all(txn.currency == "SGD" for txn in result.transactions)
+    assert [txn.balance_after for txn in result.transactions] == [
+        Decimal("18500.00"),
+        Decimal("15300.00"),
+        Decimal("14980.00"),
+        Decimal("14180.00"),
+    ]
+    assert result.confidence >= Decimal("0.85")
+    assert result.missing_required_facts == ()
+    assert supports_reviewed_statement_envelope(result) is False
