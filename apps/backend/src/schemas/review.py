@@ -9,11 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.extraction import Stage1Status
 from src.reconciliation import CheckStatus, CheckType
-from src.schemas.extraction import (
-    AtomicTransactionResponse,
-    BankStatementResponse,
-    BankStatementStatusEnum,
-)
+from src.schemas.extraction import BankStatementResponse
 
 Stage1StatusEnum = Stage1Status
 
@@ -73,23 +69,7 @@ class ReviewedStatementEnvelopeResponse(BaseModel):
     created_at: datetime
 
 
-class StatementReviewResponse(BaseModel):
-    id: UUID
-    user_id: UUID
-    account_id: UUID | None
-    file_path: str
-    original_filename: str
-    institution: str
-    account_last4: str | None
-    currency: str | None
-    period_start: date | None
-    period_end: date | None
-    opening_balance: Decimal | None
-    closing_balance: Decimal | None
-    status: BankStatementStatusEnum
-    confidence_score: int | None
-    balance_validated: bool | None
-    validation_error: str | None
+class StatementReviewResponse(BankStatementResponse):
     stage1_status: Stage1StatusEnum | None = None
     balance_validation_result: BalanceValidationResult | None = None
     stage1_reviewed_at: datetime | None = None
@@ -108,12 +88,6 @@ class StatementReviewResponse(BaseModel):
         description="Whether background post-parse pre-classification is currently running for this statement",
     )
     reviewed_envelope: ReviewedStatementEnvelopeResponse | None = None
-    created_at: datetime
-    updated_at: datetime
-    transactions: list[AtomicTransactionResponse] = Field(
-        default_factory=list,
-        description="Transactions extracted from this statement for reviewer inspection",
-    )
     pdf_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

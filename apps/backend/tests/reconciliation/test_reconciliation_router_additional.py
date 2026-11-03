@@ -12,7 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import JournalEntrySourceType
 from src.composition import compose_reviewed_disposition_dependencies
 from src.deps import PaginationParams
-from src.extraction import CurrencyUnresolvedError, DocumentType, EconomicIntent, TransactionDirection, UploadedDocument
+from src.extraction import (
+    BankStatementStatus,
+    CurrencyUnresolvedError,
+    DocumentType,
+    EconomicIntent,
+    TransactionDirection,
+    UploadedDocument,
+)
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
@@ -53,6 +60,11 @@ from tests.factories import UserFactory
 async def _create_statement(db: AsyncSession, user_id, account_id=None) -> StatementSummary:
     """Create a StatementSummary conform linked to an ODS UploadedDocument."""
     today = date.today()
+    if account_id is None:
+        custody = Account(user_id=user_id, name=f"Custody {uuid4()}", type=AccountType.ASSET, currency="SGD")
+        db.add(custody)
+        await db.flush()
+        account_id = custody.id
     file_hash = str(uuid4())
     doc = UploadedDocument(
         user_id=user_id,
@@ -75,6 +87,7 @@ async def _create_statement(db: AsyncSession, user_id, account_id=None) -> State
         period_end=today,
         opening_balance=Decimal("0.00"),
         closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED,
     )
     db.add(statement)
     await db.flush()

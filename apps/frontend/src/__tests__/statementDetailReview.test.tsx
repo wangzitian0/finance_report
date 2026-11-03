@@ -694,4 +694,64 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     fireEvent.click(within(approveDialog).getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(capturedBody).toMatchObject({ auto_fill_default_categories: true }));
   });
+
+  // AC-extraction.2826.2
+  it("AC-extraction.2826.2 enables custody account selection when account_id is null even without envelope confirmation", async () => {
+    let capturedApproveBody: Record<string, unknown> | null = null;
+    mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/api/statements/s1/review") {
+        return Promise.resolve({
+          ...baseStatement,
+          account_id: null,
+          source_envelope_reviewable: false,
+          source_missing_facts: [],
+          transactions: [
+            {
+              id: "txn-2826",
+              txn_date: "2024-01-03",
+              description: "ACME SALARY",
+              reference: "REF-2826",
+              amount: 100,
+              direction: "IN",
+              currency: "SGD",
+              balance_after: 200,
+              suggested_category: "Salary",
+              confidence_score: 0.95,
+              suggestion_status: "accepted",
+            },
+          ],
+        });
+      }
+      if (path === "/api/accounts?account_type=ASSET&is_active=true") {
+        return Promise.resolve({
+          items: [
+            { id: "acc-existing", name: "DBS Multiplier", type: "ASSET", currency: "SGD", is_active: true },
+          ],
+          total: 1,
+        });
+      }
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+      if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+      if (path === "/api/statements/s1/review/approve") {
+        capturedApproveBody = JSON.parse(options?.body as string);
+        return Promise.resolve({ journal_entries_created: 1 });
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    renderReviewComponent(<StatementReviewPage /> as never);
+    const select = await screen.findByLabelText("Custody account");
+    fireEvent.change(select, { target: { value: "acc-existing" } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    const approveDialog = await screen.findByRole("dialog", { name: "Approve Statement" });
+    fireEvent.click(within(approveDialog).getByRole("button", { name: "Approve" }));
+
+    await waitFor(() =>
+      expect(capturedApproveBody).toMatchObject({
+        account_id: "acc-existing",
+        create_account_if_missing: false,
+      }),
+    );
+  });
 });

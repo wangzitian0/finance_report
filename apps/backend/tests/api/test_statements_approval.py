@@ -1574,3 +1574,30 @@ async def test_AC_extraction_2822_2_approve_binds_explicit_account_id_and_review
     assert approved.status == BankStatementStatus.APPROVED
     assert approved.account_id == selected_account.id
     assert approved.journal_entries_created == 1
+
+
+async def test_AC_extraction_2826_1_review_response_inherits_bank_statement_response(db, test_user):
+    """AC-extraction.2826.1: StatementReviewResponse inherits BankStatementResponse and surfaces brokerage import failure state."""
+    from src.schemas.extraction import BankStatementResponse
+    from src.schemas.review import StatementReviewResponse
+
+    assert issubclass(StatementReviewResponse, BankStatementResponse)
+
+    statement = build_statement(test_user.id, "hash_review_inherits_2826", 85)
+    statement.extraction_metadata = {
+        "brokerage_import_failure": {
+            "reason": "Brokerage import failed: missing instrument symbol",
+            "request_id": "req-2826",
+            "recorded_at": "2026-03-01T00:00:00Z",
+        }
+    }
+    db.add(statement)
+    await db.commit()
+
+    review = await statements_router.get_statement_for_review(
+        statement_id=statement.id,
+        db=db,
+        user_id=test_user.id,
+    )
+    assert review.brokerage_import_failed is True
+    assert review.brokerage_import_failure_reason == "Brokerage import failed: missing instrument symbol"

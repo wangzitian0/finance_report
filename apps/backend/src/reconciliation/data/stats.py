@@ -57,7 +57,8 @@ async def get_reconciliation_stats(
     # Each later statement names these ids. A statement on ``reconciliation_matches`` then reads
     # the matches of these transactions through the ``atomic_txn_id`` index. A match has no
     # ``user_id``: a join without the ids lets the planner scan the matches of all users (#2617).
-    effective_filter = effective_statement_transaction_filter(user_id)
+    # Stage-2 stats cover only APPROVED statements plus standalone/manual rows (#2826).
+    effective_filter = effective_statement_transaction_filter(user_id, include_pending_stage1=False)
     effective_ids = list((await db.execute(select(AtomicTransaction.id).where(effective_filter))).scalars())
     total = len(effective_ids)
     effective_ids_array = bindparam("effective_ids", effective_ids, type_=ARRAY(PGUUID(as_uuid=True)), unique=True)

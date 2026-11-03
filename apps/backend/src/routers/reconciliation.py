@@ -69,12 +69,13 @@ router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)
 
 
-def _unmatched_atomic_txn_query(user_id: UUID):
+def _unmatched_atomic_txn_query(user_id: UUID, *, include_pending_stage1: bool = False):
     """Select Layer-2 atomic transactions that still require economic review.
 
     A source entry created from a reviewed disposition is already resolved; it
     must not keep reappearing in the unmatched queue merely because it has no
-    separate reconciliation-match row.
+    separate reconciliation-match row. Unscoped Stage-2 calls exclude unapproved
+    Stage-1 statements (#2826).
     """
     matched_transaction = aliased(AtomicTransaction)
     matched_subquery = (
@@ -86,7 +87,7 @@ def _unmatched_atomic_txn_query(user_id: UUID):
         .where(ReconciliationMatch.atomic_txn_id.is_not(None))
     )
     return select(AtomicTransaction).where(
-        effective_statement_transaction_filter(user_id),
+        effective_statement_transaction_filter(user_id, include_pending_stage1=include_pending_stage1),
         AtomicTransaction.id.notin_(matched_subquery),
         AtomicTransaction.id.notin_(posted_statement_source_ids(user_id)),
     )
@@ -250,7 +251,7 @@ async def run_reconciliation(
     auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
     pending_review = sum(1 for match in matches if match.status.value == "pending_review")
 
-    unmatched_query = _unmatched_atomic_txn_query(user_id)
+    unmatched_query = _unmatched_atomic_txn_query(user_id, include_pending_stage1=statement is not None)
     if statement is not None:
         unmatched_query = unmatched_query.where(AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement)))
     unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
@@ -486,7 +487,7 @@ async def list_unmatched(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> UnmatchedTransactionsResponse:
-    query = _unmatched_atomic_txn_query(user_id)
+    query = _unmatched_atomic_txn_query(user_id, include_pending_stage1=statement_id is not None)
     if statement_id is not None:
         statement = await get_owned_or_404(
             db,

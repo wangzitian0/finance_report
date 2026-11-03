@@ -181,13 +181,21 @@ export default function StatementDetailPage() {
     refetchInterval: (query) => (query.state.data?.preclassification_in_progress ? PARSING_POLL_MS : false),
   });
   const preclassificationInProgress = Boolean(review?.preclassification_in_progress);
-  const prevPreclassificationRef = useRef(false);
   useEffect(() => {
-    if (prevPreclassificationRef.current && !preclassificationInProgress) {
-      void fetchStatement({ supersede: true });
-    }
-    prevPreclassificationRef.current = preclassificationInProgress;
-  }, [preclassificationInProgress, fetchStatement]);
+    if (!review) return;
+    setStatement((prev) => {
+      const normalizedReview = normalizeBankStatement(review);
+      if (!prev) return normalizedReview;
+      return {
+        ...prev,
+        ...normalizedReview,
+        transactions:
+          normalizedReview.transactions.length > 0 || prev.transactions.length === 0
+            ? normalizedReview.transactions
+            : prev.transactions,
+      };
+    });
+  }, [review]);
   const { data: pendingStatementsData } = useQuery({
     queryKey: ["pending-statements"],
     queryFn: () => apiOperation("list_pending_review_statements_pending_review_get"),
@@ -220,10 +228,11 @@ export default function StatementDetailPage() {
         !t.confidence_tier,
     );
 
+  const needsCustodyAccountSelection = isParsed && (requiresEnvelopeConfirmation || (review?.account_id === null && !requiresOtherSourceReview));
   const { data: custodyAccountsData } = useQuery({
     queryKey: ["statement-review-custody-accounts", statementId],
     queryFn: () => apiOperation("list_accounts_accounts_get", { query: { account_type: "ASSET", is_active: true } }),
-    enabled: requiresEnvelopeConfirmation,
+    enabled: needsCustodyAccountSelection,
   });
 
   const refreshAfterReview = () => {
@@ -464,7 +473,26 @@ export default function StatementDetailPage() {
         </div>
       )}
       {isParsed && review && (
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+          {!requiresEnvelopeConfirmation && !requiresOtherSourceReview && review.account_id === null && (
+            <label htmlFor="custody-account" className="flex items-center gap-2 text-xs text-muted">
+              <span>Custody account</span>
+              <select
+                id="custody-account"
+                aria-label="Custody account"
+                value={envelopeDraft.accountId}
+                onChange={(e) => setEnvelopeDraft((current) => ({ ...current, accountId: e.target.value }))}
+                className="input py-1.5 text-sm min-w-[220px]"
+              >
+                <option value="">Auto-create ({statement.institution || "Statement Account"})</option>
+                {(custodyAccountsData?.items ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.currency})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={handleRetry} reparsePending={retryLoading} />
         </div>
       )}
@@ -514,7 +542,7 @@ export default function StatementDetailPage() {
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
       <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />
-      <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate(hasUnclassifiedPendingTxns ? { autoFill: true } : undefined)} title="Approve Statement" message={(hasUnclassifiedPendingTxns ? "Transactions without a category will be filed under default categories. " : "") + (review?.account_id ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?")} confirmLabel="Approve" loading={approveMutation.isPending} />
+      <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate(hasUnclassifiedPendingTxns ? { autoFill: true } : undefined)} title="Approve Statement" message={(hasUnclassifiedPendingTxns ? "Transactions without a category will be filed under default categories. " : "") + (review?.account_id || envelopeDraft.accountId ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?")} confirmLabel="Approve" loading={approveMutation.isPending} />
       <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={(reason) => rejectMutation.mutate(reason)} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement and re-parse it (Retry Parse) on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection..." }} loading={rejectMutation.isPending} />
       <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />
     </div>

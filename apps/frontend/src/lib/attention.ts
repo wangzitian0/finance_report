@@ -47,7 +47,7 @@ export interface AttentionSources {
   stats?: ReconciliationStatsResponse | null;
   processing?: ProcessingPendingItem[] | null;
   /** The newest unmatched row. Its description names the unmatched item (#2646). */
-  firstUnmatched?: { description?: string | null; statement_id?: string | null } | null;
+  firstUnmatched?: { description?: string | null } | null;
 }
 
 /** A processing transfer is "stuck" once it has been in transit this long. */
@@ -114,16 +114,7 @@ export function buildAttentionItems(
   }
 
   // Unmatched transactions have no ledger match at all — the lowest confidence.
-  // When the newest unmatched row belongs to a Stage-1 statement that is still in `parsed`
-  // status awaiting review, omit the redundant Stage-2 unmatched item until the statement
-  // is approved (#2823).
-  const parsedStatementIds = new Set(
-    (sources.statements ?? []).filter((s) => s.status === "parsed").map((s) => s.id),
-  );
-  const firstUnmatchedStatementId = sources.firstUnmatched?.statement_id;
-  const unmatchedCoveredByPendingStatement =
-    Boolean(firstUnmatchedStatementId) && parsedStatementIds.has(firstUnmatchedStatementId!);
-  if (stats && stats.unmatched_transactions > 0 && !unmatchedCoveredByPendingStatement) {
+  if (stats && stats.unmatched_transactions > 0) {
     const count = stats.unmatched_transactions;
     const countText = `${count} unmatched transaction${count > 1 ? "s" : ""}`;
     const description = sources.firstUnmatched?.description?.trim();
