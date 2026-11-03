@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.composition import compose_reviewed_disposition_dependencies
-from src.extraction import EconomicIntent, TransactionDirection
+from src.extraction import BankStatementStatus, EconomicIntent, TransactionDirection
 from src.ledger import Account, AccountType, JournalEntry
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.base.errors import ReviewedDispositionError
@@ -34,6 +34,7 @@ async def seed(db, user):
         ],
     )
     source.statement.account_id = bank.id
+    source.statement.status = BankStatementStatus.APPROVED
     txn = source.transactions[0]
     match = ReconciliationMatch(
         atomic_txn_id=txn.id, journal_entry_ids=[], match_score=70, status=ReconciliationStatus.PENDING_REVIEW

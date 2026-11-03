@@ -910,32 +910,23 @@ async def get_statement_for_review(
         source_envelope_reviewable = supports_reviewed_statement_envelope(source_result)
 
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
+    base_response = compose_statement_response(
+        statement,
+        uploaded_document,
+        transactions,
+        suggestions=suggestions,
+    )
 
-    response_data = {
-        "id": statement.id,
-        "user_id": statement.user_id,
-        "account_id": statement.account_id,
-        "file_path": uploaded_document.file_path if uploaded_document else "",
-        "original_filename": uploaded_document.original_filename if uploaded_document else "",
-        "institution": statement.institution,
-        "account_last4": statement.account_last4,
-        "currency": statement.currency,
-        "period_start": statement.period_start,
-        "period_end": statement.period_end,
-        "opening_balance": statement.opening_balance,
-        "closing_balance": statement.closing_balance,
-        "status": statement.status,
-        "confidence_score": statement.confidence_score,
-        "balance_validated": statement.balance_validated,
-        "validation_error": statement.validation_error,
-        "stage1_status": statement.stage1_status,
-        "stage1_reviewed_at": statement.stage1_reviewed_at,
-        "manual_opening_balance": statement.manual_opening_balance,
-        "source_result_digest": source_result_digest,
-        "source_missing_facts": source_missing_facts,
-        "source_envelope_reviewable": source_envelope_reviewable,
-        "preclassification_in_progress": is_preclassification_in_progress(statement.id),
-        "reviewed_envelope": (
+    return StatementReviewResponse(
+        **base_response.model_dump(),
+        stage1_status=statement.stage1_status,
+        stage1_reviewed_at=statement.stage1_reviewed_at,
+        manual_opening_balance=statement.manual_opening_balance,
+        source_result_digest=source_result_digest,
+        source_missing_facts=source_missing_facts,
+        source_envelope_reviewable=source_envelope_reviewable,
+        preclassification_in_progress=is_preclassification_in_progress(statement.id),
+        reviewed_envelope=(
             ReviewedStatementEnvelopeResponse(
                 id=reviewed_envelope.id,
                 source_result_digest=source_result_digest or "",
@@ -952,13 +943,8 @@ async def get_statement_for_review(
             if reviewed_envelope is not None
             else None
         ),
-        "created_at": statement.created_at,
-        "updated_at": statement.updated_at,
-        "transactions": [
-            AtomicTransactionResponse.from_atomic(t, statement.id, suggestions.get(t.id)) for t in transactions
-        ],
-        "pdf_url": pdf_url,
-        "balance_validation_result": BalanceValidationResult(
+        pdf_url=pdf_url,
+        balance_validation_result=BalanceValidationResult(
             opening_balance=validation_result["opening_balance"],
             closing_balance=validation_result["closing_balance"],
             calculated_closing=validation_result["calculated_closing"],
@@ -968,8 +954,7 @@ async def get_statement_for_review(
             closing_match=validation_result["closing_match"],
             validated_at=validation_result["validated_at"],
         ),
-    }
-    return StatementReviewResponse.model_validate(response_data)
+    )
 
 
 @router.post(

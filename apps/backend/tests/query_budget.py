@@ -149,6 +149,7 @@ def _tenant_waves(user_id: UUID, *, entries: int, transactions: int) -> list[lis
     statement = StatementSummary(
         id=uuid4(),
         user_id=user_id,
+        account_id=bank.id,
         file_hash=file_hash,
         uploaded_document_id=document.id,
         institution="DBS",
@@ -157,8 +158,8 @@ def _tenant_waves(user_id: UUID, *, entries: int, transactions: int) -> list[lis
         period_end=FIRST_DAY + timedelta(days=30),
         opening_balance=Decimal("0.00"),
         closing_balance=Decimal("0.00"),
-        status=BankStatementStatus.PARSED,
-        stage1_status=Stage1Status.PENDING_REVIEW,
+        status=BankStatementStatus.APPROVED,
+        stage1_status=Stage1Status.APPROVED,
         confidence_score=95,
     )
     rule = ClassificationRule(

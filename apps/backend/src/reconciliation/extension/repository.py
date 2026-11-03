@@ -55,7 +55,7 @@ class SqlReconciliationRepository(ReconciliationRepository):
         )
         query = (
             select(AtomicTransaction)
-            .where(effective_statement_transaction_filter(user_id))
+            .where(effective_statement_transaction_filter(user_id, include_pending_stage1=False))
             .where(AtomicTransaction.id.notin_(subquery))
             .where(AtomicTransaction.id.notin_(posted_statement_source_ids(user_id)))
             .order_by(AtomicTransaction.txn_date)

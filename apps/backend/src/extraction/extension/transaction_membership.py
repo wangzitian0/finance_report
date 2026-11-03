@@ -13,13 +13,21 @@ from src.extraction.orm.reviewed_statement_envelope import StatementExtractionRe
 from src.extraction.orm.statement_summary import StatementSummary
 
 
-def effective_statement_transaction_filter(user_id: UUID, statement_id: UUID | None = None) -> ColumnElement[bool]:
+def effective_statement_transaction_filter(
+    user_id: UUID,
+    statement_id: UUID | None = None,
+    *,
+    include_pending_stage1: bool = True,
+) -> ColumnElement[bool]:
     """Return a predicate over AtomicTransaction without exposing historical rows.
 
     A typed source contributes only its current result's facts, including v2
     aliases. Legacy source rows without typed results retain their old membership.
     Global callers may also handle unattached legacy/manual rows; scoped callers
-    must prove membership of the specifically requested source.
+    must prove membership of the specifically requested source. When
+    ``include_pending_stage1`` is False, statement-backed membership is restricted
+    to ``APPROVED`` statements so Stage-2 reconciliation queues and stats exclude
+    unapproved Stage-1 statements (#2826).
     """
     linked = and_(
         StatementSummary.user_id == user_id,
@@ -122,7 +130,11 @@ def effective_statement_transaction_filter(user_id: UUID, statement_id: UUID | N
         .where(
             linked,
             UploadedDocument.user_id == user_id,
-            StatementSummary.status.notin_([BankStatementStatus.RETIRED, BankStatementStatus.REJECTED]),
+            (
+                StatementSummary.status.notin_([BankStatementStatus.RETIRED, BankStatementStatus.REJECTED])
+                if include_pending_stage1
+                else StatementSummary.status == BankStatementStatus.APPROVED
+            ),
             custody_proven,
             or_(
                 and_(StatementSummary.current_extraction_result_id.is_(None), payload.is_(None)),

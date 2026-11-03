@@ -387,3 +387,106 @@ async def test_AC_reconciliation_2548_3_stats_unmatched_aligns_with_unmatched_qu
     assert [row.id for row in unmatched_rows] == [txn_unmatched.id]
     assert stats.score_distribution is not None
     assert sum(stats.score_distribution.values()) == 2
+
+
+async def test_AC_reconciliation_2826_1_stage2_scope_excludes_unapproved_stage1_statements(db, test_user):
+    """AC-reconciliation.2826.1: Stage-2 stats, unscoped unmatched list, and pending transactions exclude PARSED statements."""
+    from src.extraction import BankStatementStatus, DocumentType, UploadedDocument
+    from src.extraction.orm.statement_summary import StatementSummary
+    from src.reconciliation.extension.repository import SqlReconciliationRepository
+    from src.reporting.extension.data_quality_service import compute_personal_data_quality
+    from src.routers.reconciliation import list_unmatched
+
+    user_id = test_user.id
+    bank_account = await _make_account(db, user_id)
+
+    parsed_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=user_id,
+        file_path="statements/parsed_2826.csv",
+        file_hash=f"parsed_{uuid4().hex}",
+        original_filename="parsed_2826.csv",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    approved_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=user_id,
+        file_path="statements/approved_2826.csv",
+        file_hash=f"approved_{uuid4().hex}",
+        original_filename="approved_2826.csv",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add_all([parsed_doc, approved_doc])
+    await db.flush()
+
+    parsed_stmt = StatementSummary(
+        id=uuid4(),
+        user_id=user_id,
+        uploaded_document_id=parsed_doc.id,
+        file_hash=parsed_doc.file_hash,
+        institution="Bank",
+        currency="SGD",
+        status=BankStatementStatus.PARSED,
+        period_start=date(2026, 3, 1),
+        period_end=date(2026, 3, 31),
+        opening_balance=Decimal("100.00"),
+        closing_balance=Decimal("58.00"),
+    )
+    approved_stmt = StatementSummary(
+        id=uuid4(),
+        user_id=user_id,
+        account_id=bank_account.id,
+        uploaded_document_id=approved_doc.id,
+        file_hash=approved_doc.file_hash,
+        institution="Bank",
+        currency="SGD",
+        status=BankStatementStatus.APPROVED,
+        period_start=date(2026, 2, 1),
+        period_end=date(2026, 2, 28),
+        opening_balance=Decimal("188.00"),
+        closing_balance=Decimal("100.00"),
+    )
+    db.add_all([parsed_stmt, approved_stmt])
+    await db.flush()
+
+    parsed_txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2026, 3, 10),
+        description="Pending Stage-1 CSV row",
+        amount=Decimal("42.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(parsed_doc.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
+    )
+    approved_txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2026, 2, 10),
+        description="Approved Stage-2 unmatched row",
+        amount=Decimal("88.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(approved_doc.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
+    )
+    db.add_all([parsed_txn, approved_txn])
+    await db.commit()
+
+    stats = await get_reconciliation_stats(db, user_id)
+    assert stats.total_transactions == 1
+    assert stats.unmatched_transactions == 1
+
+    unscoped_unmatched = await list_unmatched(statement_id=None, limit=100, offset=0, db=db, user_id=user_id)
+    assert [item.id for item in unscoped_unmatched.items] == [approved_txn.id]
+    assert unscoped_unmatched.total == 1
+
+    scoped_unmatched = await list_unmatched(statement_id=parsed_stmt.id, limit=100, offset=0, db=db, user_id=user_id)
+    assert [item.id for item in scoped_unmatched.items] == [parsed_txn.id]
+    assert scoped_unmatched.total == 1
+
+    repo = SqlReconciliationRepository(db)
+    pending_txns = await repo.list_pending_transactions(user_id)
+    assert [item.id for item in pending_txns] == [approved_txn.id]
+
+    quality = await compute_personal_data_quality(db, user_id, as_of_date=date(2026, 3, 31))
+    assert quality.reconciliation_purity_invariant.delta == Decimal(1)

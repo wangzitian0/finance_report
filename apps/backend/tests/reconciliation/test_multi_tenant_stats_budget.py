@@ -62,6 +62,12 @@ async def test_AC_reconciliation_2617_1_stats_do_not_read_matches_of_other_tenan
 
 async def _seed_match_states(db, user_id) -> None:
     """Add twelve transactions of one statement. They hold every match state that the statistics count."""
+    from src.extraction import BankStatementStatus, Stage1Status
+    from src.ledger import Account, AccountType
+
+    bank = Account(user_id=user_id, name="Stats Budget Bank", type=AccountType.ASSET, currency="SGD")
+    db.add(bank)
+    await db.flush()
     seeded = await seed_parsed_statement(
         db,
         user_id,
@@ -75,6 +81,10 @@ async def _seed_match_states(db, user_id) -> None:
             for index in range(12)
         ],
     )
+    seeded.statement.account_id = bank.id
+    seeded.statement.status = BankStatementStatus.APPROVED
+    seeded.statement.stage1_status = Stage1Status.APPROVED
+    await db.flush()
     ids = [transaction.id for transaction in seeded.transactions]
 
     def add_match(index: int, status: ReconciliationStatus, score: int, **extra) -> ReconciliationMatch:
