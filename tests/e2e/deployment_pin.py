@@ -7,6 +7,7 @@ compares versions by commit identity, never by plain string equality.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -20,23 +21,31 @@ def resolve_expected_commit(
     """Return the commit that ``expected_version`` names, or None when git cannot resolve it.
 
     The post-merge gate checks out a shallow commit, so a release tag need not exist
-    locally. Exact release strings stay sufficient; a tag-versus-SHA comparison is
-    possible only when this function returns a commit.
+    locally. When ``git rev-parse`` cannot resolve the tag directly, fall back to
+    ``COMMIT_REF`` or ``GITHUB_SHA`` if present and valid in the checkout.
     """
-    result = subprocess.run(
-        [
-            "git",
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            f"{expected_version}^{{commit}}",
-        ],
-        cwd=repo_root,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
+    candidates = [expected_version]
+    for env_key in ("COMMIT_REF", "GITHUB_SHA"):
+        env_val = os.getenv(env_key, "").strip()
+        if env_val and env_val not in candidates:
+            candidates.append(env_val)
+    for ref in candidates:
+        result = subprocess.run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                f"{ref}^{{commit}}",
+            ],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    return None
 
 
 def assert_pinned_deployment(
