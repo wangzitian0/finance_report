@@ -103,8 +103,29 @@ def test_an_annotated_tag_resolves_to_its_commit(tmp_path: Path) -> None:
     assert resolve_expected_commit(commit[:7], tmp_path) == commit
 
 
-def test_an_unknown_tag_resolves_to_nothing(tmp_path: Path) -> None:
+def test_an_unknown_tag_resolves_to_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("COMMIT_REF", raising=False)
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
     _git(tmp_path, "init", "-q")
     _git(tmp_path, "commit", "--allow-empty", "-q", "-m", "release")
 
     assert resolve_expected_commit("v0.0.0-missing", tmp_path) is None
+
+
+def test_unknown_tag_falls_back_to_commit_ref_or_github_sha(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("COMMIT_REF", raising=False)
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "commit", "--allow-empty", "-q", "-m", "release")
+    commit = _git(tmp_path, "rev-parse", "HEAD")
+
+    monkeypatch.setenv("COMMIT_REF", commit)
+    assert resolve_expected_commit("v0.0.0-missing", tmp_path) == commit
+
+    monkeypatch.delenv("COMMIT_REF")
+    monkeypatch.setenv("GITHUB_SHA", commit)
+    assert resolve_expected_commit("v0.0.0-missing", tmp_path) == commit
