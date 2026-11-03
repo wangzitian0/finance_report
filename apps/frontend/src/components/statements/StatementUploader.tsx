@@ -72,14 +72,14 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
   const aiModelId = `ai-model-${reactId}`;
   const { showToast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [institution, setInstitution] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<AiModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [modelLoading, setModelLoading] = useState(true);
-  const isCsvFile = file ? getFileExtension(file.name) === "csv" : false;
+  const isCsvFile = files.length > 0 && files.every((f) => getFileExtension(f.name) === "csv");
 
   useEffect(() => {
     let active = true;
@@ -121,48 +121,63 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
     return () => { active = false; };
   }, []);
 
-  const validateAndSetFile = useCallback(
-    (f: File): void => {
-      const extension = getFileExtension(f.name);
-      if (!uploaderConfig.extensions.includes(extension)) {
-        setError(`Invalid file type: .${extension}. Allowed: ${uploaderConfig.typesLabel}`);
-        return;
+  const validateAndSetFiles = useCallback(
+    (incoming: FileList | File[]): void => {
+      const selected = Array.from(incoming);
+      if (selected.length === 0) return;
+      for (const f of selected) {
+        const extension = getFileExtension(f.name);
+        if (!uploaderConfig.extensions.includes(extension)) {
+          setError(`Invalid file type: .${extension}. Allowed: ${uploaderConfig.typesLabel}`);
+          return;
+        }
+        if (f.size > 10 * 1024 * 1024) {
+          setError("File exceeds 10MB limit");
+          return;
+        }
       }
-      if (f.size > 10 * 1024 * 1024) {
-        setError("File exceeds 10MB limit");
-        return;
-      }
-      setFile(f);
+      setFiles(selected);
       setError(null);
     },
     [uploaderConfig],
   );
 
   async function handleUpload(): Promise<void> {
-    if (!file) {
+    if (files.length === 0) {
       setError("Please select a file");
+      return;
+    }
+    const hasNonCsv = files.some((f) => getFileExtension(f.name) !== "csv");
+    if (hasNonCsv && !selectedModel) {
+      setError("Please select an AI model");
       return;
     }
     setUploading(true);
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      if (institution.trim()) formData.append("institution", institution.trim());
-      if (!isCsvFile && !selectedModel) {
-        setError("Please select an AI model");
-        return;
-      }
-      if (!isCsvFile) formData.append("model", selectedModel);
-
       const { apiOperationUpload } = await import("@/lib/api-client");
-      track(ANALYTICS_EVENTS.UPLOAD_STARTED, { is_csv: isCsvFile });
-      await apiOperationUpload("upload_statement_statements_upload_post", { body: formData });
-      track(ANALYTICS_EVENTS.UPLOAD_SUCCEEDED, { is_csv: isCsvFile });
+      for (const currentFile of files) {
+        const currentIsCsv = getFileExtension(currentFile.name) === "csv";
+        const formData = new FormData();
+        formData.append("file", currentFile);
+        if (institution.trim()) formData.append("institution", institution.trim());
+        if (!currentIsCsv) formData.append("model", selectedModel);
 
-      showToast(isCsvFile ? "Statement uploaded! CSV parsing in progress..." : "Statement uploaded! AI parsing in progress...", "success");
-      setFile(null);
+        track(ANALYTICS_EVENTS.UPLOAD_STARTED, { is_csv: currentIsCsv });
+        await apiOperationUpload("upload_statement_statements_upload_post", { body: formData });
+        track(ANALYTICS_EVENTS.UPLOAD_SUCCEEDED, { is_csv: currentIsCsv });
+      }
+
+      showToast(
+        files.length > 1
+          ? `${files.length} statements uploaded! Parsing in progress...`
+          : isCsvFile
+            ? "Statement uploaded! CSV parsing in progress..."
+            : "Statement uploaded! AI parsing in progress...",
+        "success",
+      );
+      setFiles([]);
       setInstitution("");
       onUploadComplete?.();
     } catch (err) {
@@ -177,7 +192,7 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
 
   const dropZoneTone = isDragging
     ? "border-[var(--accent)] bg-[var(--accent-muted)]"
-    : file
+    : files.length > 0
       ? "border-[var(--success)] bg-[var(--success-muted)]"
       : "hover:border-[var(--border-hover)]";
 
@@ -189,23 +204,23 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
         onDrop={(e) => {
           e.preventDefault();
           setIsDragging(false);
-          const dropped = e.dataTransfer.files[0];
-          if (dropped) validateAndSetFile(dropped);
+          if (e.dataTransfer.files.length > 0) validateAndSetFiles(e.dataTransfer.files);
         }}
         className={`card p-6 text-center cursor-pointer transition-colors ${dropZoneTone}`}
       >
         <input
           type="file"
+          multiple
           accept={uploaderConfig.acceptAttr}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) validateAndSetFile(f); }}
+          onChange={(e) => { if (e.target.files && e.target.files.length > 0) validateAndSetFiles(e.target.files); }}
           className="hidden"
           id={fileInputId}
           data-testid={`uploader-file-${kind}`}
         />
         <label htmlFor={fileInputId} className="cursor-pointer block">
           <div className="flex flex-col items-center">
-            <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${file ? "bg-[var(--success-muted)]" : "bg-[var(--background-muted)]"}`}>
-              {file ? (
+            <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${files.length > 0 ? "bg-[var(--success-muted)]" : "bg-[var(--background-muted)]"}`}>
+              {files.length > 0 ? (
                 <svg className="w-5 h-5 text-[var(--success)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -215,10 +230,17 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
                 </svg>
               )}
             </div>
-            {file ? (
+            {files.length === 1 ? (
               <>
-                <p className="font-medium">{file.name}</p>
-                <p className="text-xs text-muted mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                <p className="font-medium">{files[0].name}</p>
+                <p className="text-xs text-muted mt-1">{(files[0].size / 1024 / 1024).toFixed(2)} MB</p>
+              </>
+            ) : files.length > 1 ? (
+              <>
+                <p className="font-medium">{files.map((f) => f.name).join(", ")}</p>
+                <p className="text-xs text-muted mt-1">
+                  {files.length} files · {(files.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB
+                </p>
               </>
             ) : (
               <>

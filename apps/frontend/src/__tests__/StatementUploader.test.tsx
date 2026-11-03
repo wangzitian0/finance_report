@@ -520,4 +520,35 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       expect(JSON.stringify(call[1] ?? {})).not.toContain("Server Error");
     }
   });
+
+  // AC-extraction.2823.1
+  it("AC-extraction.2823.1 uploads multiple selected files in one batch", async () => {
+    vi.mocked(apiOperationUpload).mockResolvedValue(statementUploadAcceptedVector);
+    const onUploadComplete = vi.fn();
+    render(<StatementUploader onUploadComplete={onUploadComplete} />);
+
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file1 = new File(["date,description,amount"], "october.csv", {
+      type: "text/csv",
+    });
+    const file2 = new File(["date,description,amount"], "november.csv", {
+      type: "text/csv",
+    });
+    await userEvent.upload(fileInput, [file1, file2]);
+
+    expect(screen.getByText(/october\.csv/)).toBeInTheDocument();
+    expect(screen.getByText(/november\.csv/)).toBeInTheDocument();
+
+    const uploadButton = screen.getByRole("button", {
+      name: /upload & parse/i,
+    });
+    await userEvent.click(uploadButton);
+
+    await waitFor(() => {
+      expect(apiOperationUpload).toHaveBeenCalledTimes(2);
+    });
+    expect(onUploadComplete).toHaveBeenCalledTimes(1);
+  });
 });

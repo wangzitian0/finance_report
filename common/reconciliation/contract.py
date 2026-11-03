@@ -626,6 +626,8 @@ CONTRACT = PackageContract(
         # ── group 2617: reconciliation statistics do not read the matches of other users (#2617) ──
         ac('AC-reconciliation.2617.1', 'With 100 more users and their accepted matches in the database, GET /reconciliation/stats reads at most 1.25 times the rows (plus 100) that it reads for one user alone, and it reads no match row of another user. The counts for the user do not change (#2617).', 'apps/backend/tests/reconciliation/test_multi_tenant_stats_budget.py::test_AC_reconciliation_2617_1_stats_do_not_read_matches_of_other_tenants', priority='P1', proof_kind='property'),
         ac('AC-reconciliation.2617.2', 'get_reconciliation_stats returns the values of the version before #2617 (counts, match rate and score distribution) for twelve transactions in every match state, with the accepted matches of other users present (#2617).', 'apps/backend/tests/reconciliation/test_multi_tenant_stats_budget.py::test_AC_reconciliation_2617_2_stats_equal_the_pre_change_values', priority='P1', proof_kind='exact'),
+        # ── group 2823: Stage-1 firstItem priority in HomeActionBanner and complete LEDGER_DERIVED_QUERY_KEYS invalidation (#2823) ──
+        ac('AC-reconciliation.2823.1', 'pickHomeAction selects a pending Stage-1 statement_review item ahead of Stage-2 unmatched_transactions for the Home action banner firstItem, and LEDGER_DERIVED_QUERY_KEYS invalidates reports, ai suggestions, statement-review, pending-statements, statement-conflicts, and journal-entries (#2823).', 'apps/frontend/src/__tests__/homeActionBanner.test.tsx::AC-reconciliation.2823.1 prioritises pending Stage-1 statement_review over unmatched_transactions in firstItem', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(

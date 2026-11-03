@@ -103,6 +103,10 @@ class StatementReviewResponse(BaseModel):
         default=False,
         description="Whether the current source's missing facts can be confirmed by a cash statement envelope",
     )
+    preclassification_in_progress: bool = Field(
+        default=False,
+        description="Whether background post-parse pre-classification is currently running for this statement",
+    )
     reviewed_envelope: ReviewedStatementEnvelopeResponse | None = None
     created_at: datetime
     updated_at: datetime
@@ -132,6 +136,7 @@ class EditAndApproveRequest(BaseModel):
 
 
 class Stage1ApprovalRequest(BaseModel):
+    account_id: UUID | None = None
     create_account_if_missing: bool = False
     auto_fill_default_categories: bool = False
 

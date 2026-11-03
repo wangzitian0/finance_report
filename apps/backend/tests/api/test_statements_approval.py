@@ -1514,3 +1514,63 @@ async def test_edit_and_approve_statement_balance_invalid(db, test_user):
             statement_id=statement_id, request=edit_req, db=db, user_id=test_user.id
         )
     assert exc.value.status_code == 400
+
+
+async def test_AC_extraction_2822_2_approve_binds_explicit_account_id_and_review_reports_preclassification_in_progress(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2822.2: approve_statement_stage1 binds explicit account_id and get_statement_for_review exposes preclassification_in_progress."""
+    from src.extraction.extension.statement_preclassification import (
+        mark_preclassification_finished,
+        mark_preclassification_started,
+    )
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    selected_account = await create_statement_account(db, test_user.id, "User Selected Custody Account")
+    statement = build_statement(test_user.id, "hash_explicit_account_2822", 88)
+    statement.account_id = None
+    statement.account_last4 = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Salary credit",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    await db.commit()
+
+    mark_preclassification_started(statement.id)
+    try:
+        review_in_flight = await statements_router.get_statement_for_review(
+            statement_id=statement.id,
+            db=db,
+            user_id=test_user.id,
+        )
+        assert review_in_flight.preclassification_in_progress is True
+    finally:
+        mark_preclassification_finished(statement.id)
+
+    review_settled = await statements_router.get_statement_for_review(
+        statement_id=statement.id,
+        db=db,
+        user_id=test_user.id,
+    )
+    assert review_settled.preclassification_in_progress is False
+
+    approved = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(
+            account_id=selected_account.id,
+            auto_fill_default_categories=True,
+        ),
+        db=db,
+        user_id=test_user.id,
+    )
+    assert approved.status == BankStatementStatus.APPROVED
+    assert approved.account_id == selected_account.id
+    assert approved.journal_entries_created == 1

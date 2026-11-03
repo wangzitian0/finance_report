@@ -6389,6 +6389,8 @@ export interface components {
         };
         /** Stage1ApprovalRequest */
         Stage1ApprovalRequest: {
+            /** Account Id */
+            account_id?: string | null;
             /**
              * Auto Fill Default Categories
              * @default false
@@ -6564,6 +6566,12 @@ export interface components {
             period_end: string | null;
             /** Period Start */
             period_start: string | null;
+            /**
+             * Preclassification In Progress
+             * @description Whether background post-parse pre-classification is currently running for this statement
+             * @default false
+             */
+            preclassification_in_progress: boolean;
             reviewed_envelope?: components["schemas"]["ReviewedStatementEnvelopeResponse"] | null;
             /**
              * Source Envelope Reviewable

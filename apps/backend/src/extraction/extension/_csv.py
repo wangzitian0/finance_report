@@ -54,6 +54,8 @@ class _BankCsvProfile:
     include_reference: bool = True
     #: ISO datetime values carry a "T"; strip the time part before date parsing
     date_time_split: bool = False
+    currency_cols: tuple[str, ...] = ("Currency", "Transaction Currency", "CCY")
+    balance_cols: tuple[str, ...] = ("Balance", "Running Balance", "Ledger Balance", "Available Balance")
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,8 @@ class _ResolvedBankCsvColumns:
     desc_parts: tuple[str | None, ...]
     desc: str | None
     ref: str | None
+    currency: str | None = None
+    balance: str | None = None
 
 
 _BANK_CSV_PROFILES: tuple[tuple[frozenset[str], _BankCsvProfile], ...] = (
@@ -211,6 +215,8 @@ def _resolve_bank_csv_columns(
         desc_parts=tuple(find_header(list(group)) for group in profile.desc_col_groups),
         desc=find_header(list(profile.desc_cols)),
         ref=find_header(list(profile.ref_cols)),
+        currency=find_header(list(profile.currency_cols)),
+        balance=find_header(list(profile.balance_cols)),
     )
 
 
@@ -367,6 +373,14 @@ def _append_bank_csv_rows(
         if profile.include_reference:
             ref_val = row.get(cols.ref, "") if cols.ref else ""
             txn["reference"] = str(ref_val).strip() if ref_val else None
+        if cols.currency:
+            ccy_raw = str(row.get(cols.currency, "") or "").strip().upper()
+            if len(ccy_raw) == 3 and ccy_raw.isalpha():
+                txn["currency"] = ccy_raw
+        if cols.balance:
+            bal_val = parse_amount(str(row.get(cols.balance, "") or ""))
+            if bal_val is not None:
+                txn["balance_after"] = str(bal_val)
         transactions.append(txn)
 
         if period_start is None or txn_date < period_start:
@@ -567,6 +581,10 @@ class _CsvMixin:
             parse_amount=parse_amount,
             transactions=transactions,
         )
+        if source_currency is None and transactions:
+            txn_currencies = [txn.get("currency") for txn in transactions]
+            if all(isinstance(ccy, str) and len(ccy) == 3 for ccy in txn_currencies) and len(set(txn_currencies)) == 1:
+                source_currency = str(txn_currencies[0])
 
         used_ai_mapping = False
         if not transactions:

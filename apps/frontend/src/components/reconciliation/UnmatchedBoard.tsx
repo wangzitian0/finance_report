@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
 import type { components } from "@/lib/api-types";
 import type { Account, BankTransactionSummary, JournalEntrySummary } from "@/lib/types";
 
@@ -94,6 +96,7 @@ function saveFlaggedToStorage(flagged: Set<string>): void {
 
 export default function UnmatchedBoard() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const statementId = searchParams.get("statement_id");
   const requestedReturnTo = searchParams.get("return_to");
   const statementReviewHref = statementId ? `/statements/${encodeURIComponent(statementId)}` : null;
@@ -189,6 +192,7 @@ export default function UnmatchedBoard() {
       );
       setPostedEntry(entry);
       setError(null);
+      void invalidateLedgerDerivedQueries(queryClient);
       await refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to save transaction review.");

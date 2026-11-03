@@ -36,7 +36,11 @@ export interface HomeAction {
 
 export function pickHomeAction(status: WorkflowStatusResponse | null, queue: readonly AttentionItem[]): HomeAction | null {
   if (queue.length > 0) {
-    const [first] = queue;
+    const stage1 = queue.find((item) => item.kind === "statement_review");
+    const first =
+      stage1 && (queue[0].kind !== "unmatched_transactions" || status?.primary_state === "needs_action")
+        ? stage1
+        : queue[0];
     return {
       title: `${countLabel(queue.length, "item")} ${queue.length === 1 ? "needs" : "need"} you`,
       summary: "Start with the item that the system is least sure about.",
