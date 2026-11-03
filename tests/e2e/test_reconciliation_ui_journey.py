@@ -104,9 +104,10 @@ async def test_reconciliation_unmatched_interactive_disposition(page: Page):
         page, runner.last_auth_context, APP_URL
     )
 
-    # 3. Navigate to the unmatched tab
+    # 3. Navigate to the unmatched tab scoped to the Stage-1 statement
     await page.goto(
-        f"{APP_URL}/reconciliation?tab=unmatched", wait_until="domcontentloaded"
+        f"{APP_URL}/reconciliation?tab=unmatched&statement_id={stmt_id}",
+        wait_until="domcontentloaded",
     )
     assert "/login" not in page.url
 
