@@ -728,7 +728,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
 ):
     """AC-reporting.2832.3: Cover tiny plug (< 0.1% of scale), unlinked statements without balances,
     and missing period boundary edge branches in compute_personal_data_quality."""
-    # 1. Two unlinked statements (account_id=None) where:
+    # 1. Unlinked PARSED statements (account_id=None) where:
     # - One has missing period_end (skipped at line 221)
     # - Next two have tiny plug (delta = 0.50 on 10,000.00 -> rel_ratio = 0.00005 < 0.001, lines 248-249, 257, 367-369)
     # - Another unlinked account has None closing_balance across a gap (lines 236-239)
@@ -744,7 +744,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
         period_end=None,
         opening_balance=Decimal("10000.00"),
         closing_balance=Decimal("10000.00"),
-        status=BankStatementStatus.APPROVED,
+        status=BankStatementStatus.PARSED,
     )
     st_tiny_jan = StatementSummary(
         id=uuid4(),
@@ -758,7 +758,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
         period_end=date(2026, 1, 31),
         opening_balance=Decimal("10000.00"),
         closing_balance=Decimal("10000.00"),
-        status=BankStatementStatus.APPROVED,
+        status=BankStatementStatus.PARSED,
     )
     st_tiny_mar = StatementSummary(
         id=uuid4(),
@@ -772,7 +772,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
         period_end=date(2026, 3, 31),
         opening_balance=Decimal("10000.50"),
         closing_balance=Decimal("10000.50"),
-        status=BankStatementStatus.APPROVED,
+        status=BankStatementStatus.PARSED,
     )
     st_none_bal_jan = StatementSummary(
         id=uuid4(),
@@ -786,7 +786,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
         period_end=date(2026, 1, 31),
         opening_balance=None,
         closing_balance=None,
-        status=BankStatementStatus.APPROVED,
+        status=BankStatementStatus.PARSED,
     )
     st_none_bal_feb = StatementSummary(
         id=uuid4(),
@@ -800,7 +800,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
         period_end=date(2026, 2, 28),
         opening_balance=None,
         closing_balance=None,
-        status=BankStatementStatus.APPROVED,
+        status=BankStatementStatus.PARSED,
     )
     db.add_all([st_no_end, st_tiny_jan, st_tiny_mar, st_none_bal_jan, st_none_bal_feb])
     await db.flush()
@@ -827,7 +827,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
         period_end=date(2026, 3, 31),
         opening_balance=Decimal("12500.50"),
         closing_balance=Decimal("12500.50"),
-        status=BankStatementStatus.APPROVED,
+        status=BankStatementStatus.PARSED,
     )
     db.add(st_tiny_mar_late)
     await db.flush()
