@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE
+from src.ledger.extension.account_service import CROSS_PERIOD_GAP_PLUG_TOLERANCE
 from src.ledger.orm.account import Account
 from src.schemas.account import (
     AccountCoverageCadence,
@@ -172,30 +173,30 @@ def _coverage_issues(statements: list[StatementCoverageRow], currency: str) -> l
             continue
 
         if current.period_start > expected_start:
-            # Calendar gap check: weekend / non-business days (e.g. Fri -> Mon, only Sat/Sun un-covered).
-            gap_days = (current.period_start - expected_start).days
-            all_weekend_days = gap_days > 0 and all(
-                (expected_start + timedelta(days=d)).weekday() in (5, 6) for d in range(gap_days)
+            # #2832: Zero-change inter-statement gaps (next opening == previous closing within plug tolerance)
+            # are automatically verified without requiring redundant statement uploads.
+            has_both_balances = previous.closing_balance is not None and current.opening_balance is not None
+            gap_delta = (
+                _abs_decimal_delta(current.opening_balance, previous.closing_balance)
+                if has_both_balances and current.opening_balance is not None and previous.closing_balance is not None
+                else None
             )
-            is_continuous_balance = (
-                gap_days <= 4
-                and all_weekend_days
-                and previous.closing_balance is not None
-                and current.opening_balance is not None
-                and _abs_decimal_delta(current.opening_balance, previous.closing_balance) <= BALANCE_TOLERANCE
-            )
-            if not is_continuous_balance:
-                issues.append(
-                    AccountCoverageIssue(
-                        type=AccountCoverageIssueType.GAP,
-                        severity=WARNING_SEVERITY,
-                        currency=currency,
-                        period_start=expected_start,
-                        period_end=current.period_start - timedelta(days=1),
-                        statement_id=current.id,
-                        previous_statement_id=previous.id,
-                    )
+            if gap_delta is not None and gap_delta <= CROSS_PERIOD_GAP_PLUG_TOLERANCE:
+                continue
+            issues.append(
+                AccountCoverageIssue(
+                    type=AccountCoverageIssueType.GAP,
+                    severity=WARNING_SEVERITY,
+                    currency=currency,
+                    period_start=expected_start,
+                    period_end=current.period_start - timedelta(days=1),
+                    statement_id=current.id,
+                    previous_statement_id=previous.id,
+                    expected_opening_balance=previous.closing_balance,
+                    actual_opening_balance=current.opening_balance,
+                    delta=gap_delta,
                 )
+            )
             continue
 
         if previous.closing_balance is None or current.opening_balance is None:
@@ -206,7 +207,7 @@ def _coverage_issues(statements: list[StatementCoverageRow], currency: str) -> l
             issues.append(
                 AccountCoverageIssue(
                     type=AccountCoverageIssueType.OPENING_BALANCE_MISMATCH,
-                    severity=CRITICAL_SEVERITY,
+                    severity=WARNING_SEVERITY,
                     currency=currency,
                     period_start=current.period_start,
                     period_end=current.period_end,

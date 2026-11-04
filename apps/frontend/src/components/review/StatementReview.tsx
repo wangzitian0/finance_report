@@ -59,11 +59,11 @@ export interface CustodyAccount {
 export function BalanceIndicator({ openingBalance, closingBalance, validationResult, currency }: {
   openingBalance: MoneyValue | null; closingBalance: MoneyValue | null; validationResult: BalanceValidationResult | null; currency: string;
 }) {
-  const openingValid = validationResult?.opening_match ?? false;
   const closingValid = validationResult?.closing_match ?? false;
   const closingKnown = (validationResult?.closing_balance ?? null) !== null;
   const hasCrossPeriodGap =
     validationResult?.cross_period_match === false && Boolean(validationResult?.cross_period_delta);
+  const priorPeriodDelta = validationResult?.cross_period_delta ?? validationResult?.opening_delta ?? "0.00";
   return (
     <div className="mb-4 space-y-2">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -74,8 +74,10 @@ export function BalanceIndicator({ openingBalance, closingBalance, validationRes
           <div className="text-xs text-muted mb-2">Balance Validation</div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <span className={`text-sm font-medium ${openingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>Opening {openingValid ? "Valid" : "Mismatch"}</span>
-              <span className="text-xs text-muted">Opening Δ: {validationResult?.opening_delta || "?"}</span>
+              <span className={`text-sm font-medium ${hasCrossPeriodGap ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
+                {hasCrossPeriodGap ? "Prior Gap (3198)" : "Opening Anchored"}
+              </span>
+              <span className="text-xs text-muted">Prior Δ: {priorPeriodDelta}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className={`text-sm font-medium ${!closingKnown ? "text-muted" : closingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>Closing {!closingKnown ? "Unknown" : closingValid ? "Valid" : "Mismatch"}</span>

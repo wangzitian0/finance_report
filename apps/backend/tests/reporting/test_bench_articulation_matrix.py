@@ -582,19 +582,23 @@ class TestBenchDomain1Ingestion:
         _check_bs(bs, "12149.75")
 
     async def test_flow_2_batch_multimonth_continuity_and_gap_detection(self, db: AsyncSession, test_user_id) -> None:
-        """Flow 2: Statement[M].closing_balance == Statement[M+1].opening_balance."""
+        """Flow 2: Anchor-first statement chain reconciles out-of-order uploads, zero-change gaps, and 3198 gap plugs (#2832)."""
         from datetime import UTC, datetime
 
+        from src.extraction import BankStatementStatus
+        from src.extraction.extension.statement_posting import try_auto_post_statement_opening_balance
+        from src.ledger import account_service, calculate_account_balance, submit_system_journal_entry
         from src.ledger.data.account_coverage import (
             StatementCoverageRow,
             _coverage_issues,
         )
         from src.schemas.account import AccountCoverageIssueType
+        from tests.factories import StatementSummaryFactory
 
         acc_id = uuid4()
         now = datetime.now(UTC)
 
-        # 1. Continuous statements without gaps or mismatch
+        # 1. Zero-change inter-statement gap (Jan close 15,271.23 == Apr open 15,271.23) is verified without GAP noise
         s1 = StatementCoverageRow(
             id=uuid4(),
             account_id=acc_id,
@@ -605,46 +609,107 @@ class TestBenchDomain1Ingestion:
             closing_balance=Decimal("15271.23"),
             updated_at=now,
         )
-        s2 = StatementCoverageRow(
-            id=uuid4(),
-            account_id=acc_id,
-            currency="SGD",
-            period_start=date(2025, 2, 1),
-            period_end=date(2025, 2, 28),
-            opening_balance=Decimal("15271.23"),
-            closing_balance=Decimal("18500.00"),
-            updated_at=now,
-        )
-        issues = _coverage_issues([s1, s2], "SGD")
-        assert issues == [], "Continuous statements must produce zero coverage issues"
-
-        # 2. Tampered opening balance triggers OPENING_BALANCE_MISMATCH
-        s2_tampered = StatementCoverageRow(
-            id=uuid4(),
-            account_id=acc_id,
-            currency="SGD",
-            period_start=date(2025, 2, 1),
-            period_end=date(2025, 2, 28),
-            opening_balance=Decimal("16000.00"),
-            closing_balance=Decimal("18500.00"),
-            updated_at=now,
-        )
-        issues_tampered = _coverage_issues([s1, s2_tampered], "SGD")
-        assert any(issue.type == AccountCoverageIssueType.OPENING_BALANCE_MISMATCH for issue in issues_tampered)
-
-        # 3. Discontinuous gap triggers GAP issue
-        s3_gap = StatementCoverageRow(
+        s_apr_zero = StatementCoverageRow(
             id=uuid4(),
             account_id=acc_id,
             currency="SGD",
             period_start=date(2025, 4, 1),
             period_end=date(2025, 4, 30),
             opening_balance=Decimal("15271.23"),
-            closing_balance=Decimal("19000.00"),
+            closing_balance=Decimal("18500.00"),
             updated_at=now,
         )
-        issues_gap = _coverage_issues([s1, s3_gap], "SGD")
-        assert any(issue.type == AccountCoverageIssueType.GAP for issue in issues_gap)
+        assert _coverage_issues([s1, s_apr_zero], "SGD") == []
+
+        # 2. Non-zero inter-statement gap reports GAP with delta; adjacent mismatch reports OPENING_BALANCE_MISMATCH
+        s_apr_gap = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 4, 1),
+            period_end=date(2025, 4, 30),
+            opening_balance=Decimal("16000.00"),
+            closing_balance=Decimal("18500.00"),
+            updated_at=now,
+        )
+        issues_gap = _coverage_issues([s1, s_apr_gap], "SGD")
+        assert any(i.type == AccountCoverageIssueType.GAP and i.delta == Decimal("728.77") for i in issues_gap)
+
+        # 3. End-to-end anchor-first reconciliation: upload June first, then January out-of-order
+        [cash, salary] = await _seed_accounts(
+            db,
+            test_user_id,
+            ("DBS Checking", AccountType.ASSET, "SGD"),
+            ("Salary Income", AccountType.INCOME, "SGD"),
+        )
+        stmt_jun = StatementSummaryFactory.build(
+            user_id=test_user_id,
+            account_id=cash.id,
+            institution="DBS",
+            currency="SGD",
+            period_start=date(2025, 6, 1),
+            period_end=date(2025, 6, 30),
+            opening_balance=Decimal("15000.00"),
+            closing_balance=Decimal("18000.00"),
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add(stmt_jun)
+        await db.flush()
+        await submit_system_journal_entry(
+            db,
+            user_id=test_user_id,
+            entry_date=date(2025, 6, 15),
+            memo="June salary",
+            lines_data=[
+                {"account_id": cash.id, "direction": Direction.DEBIT, "amount": Decimal("3000.00"), "currency": "SGD"},
+                {
+                    "account_id": salary.id,
+                    "direction": Direction.CREDIT,
+                    "amount": Decimal("3000.00"),
+                    "currency": "SGD",
+                },
+            ],
+            base_currency="SGD",
+            operation="bench-flow2-jun",
+        )
+        await try_auto_post_statement_opening_balance(db, stmt_jun, test_user_id)
+
+        stmt_jan = StatementSummaryFactory.build(
+            user_id=test_user_id,
+            account_id=cash.id,
+            institution="DBS",
+            currency="SGD",
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 31),
+            opening_balance=Decimal("10000.00"),
+            closing_balance=Decimal("12000.00"),
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add(stmt_jan)
+        await db.flush()
+        await submit_system_journal_entry(
+            db,
+            user_id=test_user_id,
+            entry_date=date(2025, 1, 15),
+            memo="January salary",
+            lines_data=[
+                {"account_id": cash.id, "direction": Direction.DEBIT, "amount": Decimal("2000.00"), "currency": "SGD"},
+                {
+                    "account_id": salary.id,
+                    "direction": Direction.CREDIT,
+                    "amount": Decimal("2000.00"),
+                    "currency": "SGD",
+                },
+            ],
+            base_currency="SGD",
+            operation="bench-flow2-jan",
+        )
+        await try_auto_post_statement_opening_balance(db, stmt_jan, test_user_id)
+
+        gap_equity = await account_service.get_or_create_unexplained_gap_equity_account(db, test_user_id, "SGD")
+        assert await calculate_account_balance(db, gap_equity.id, test_user_id) == Decimal("3000.00")
+        bs_jun = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 6, 30), currency="SGD")
+        _check_bs(bs_jun, "18000.00", "0.00", "13000.00", "5000.00")
 
     async def test_flow_3_custom_csv_column_mapping_and_ledger_posting(self, db: AsyncSession, test_user_id) -> None:
         """Flow 3: All mapped rows have valid txn_date, description, and Decimal amount."""

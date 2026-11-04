@@ -427,7 +427,7 @@ export default function StatementDetailPage() {
   const canRetry = statement.status === "parsed" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
   const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved") && canImportBrokerageStatement(statement);
   const validationResult = review?.balance_validation_result ?? null;
-  const balanceValid = Boolean(validationResult?.opening_match && validationResult?.closing_match);
+  const balanceValid = Boolean(validationResult?.closing_match);
   const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
   const approvalBlockedReason = requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
     : requiresOtherSourceReview ? "This source has facts that a cash statement check cannot confirm."

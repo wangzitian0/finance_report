@@ -82,10 +82,41 @@ const OCTOBER_ROWS = [
 const october = {
   ...statement,
   id: OCTOBER_ID,
+  account_id: "acct-dbs",
   original_filename: "dbs-2026-10.csv",
   file_path: "statements/dbs-2026-10.csv",
   period_start: "2026-10-01",
   period_end: "2026-10-31",
+  opening_balance: "15000.00",
+  closing_balance: "17326.85",
+  reviewed_envelope: {
+    id: "review-oct",
+    source_result_digest: "a".repeat(64),
+    account_id: "acct-dbs",
+    currency: "SGD",
+    period_start: "2026-10-01",
+    period_end: "2026-10-31",
+    opening_balance: "15000.00",
+    closing_balance: "17326.85",
+    rationale: "Confirmed October statement envelope.",
+    review_trace_record_id: "trace-oct",
+    created_at: "2026-10-31T00:00:00Z",
+  },
+  balance_validation_result: {
+    opening_balance: "15000.00",
+    closing_balance: "17326.85",
+    calculated_closing: "17326.85",
+    opening_delta: "0.00",
+    closing_delta: "0.00",
+    opening_match: true,
+    closing_match: true,
+    validated_at: "2026-10-31T00:00:00Z",
+    previous_closing_balance: "12000.00",
+    previous_period_end: "2026-08-31",
+    cross_period_delta: "3000.00",
+    cross_period_match: false,
+    has_date_gap: true,
+  },
   transactions: OCTOBER_ROWS,
 };
 const STATEMENTS: Record<string, unknown> = {
@@ -182,6 +213,9 @@ test.describe("AC-extraction.human-source-review.4 statement review click path",
       // The pinned row states its position in the API order (date order): the last of six rows.
       await expect(firstRow.getByTestId("date-row-number")).toHaveText("Row 6 of 6 by date");
       await expect(page.getByTestId("low-confidence-count")).toHaveText("1 low confidence · shown first");
+      await expect(page.getByText("Prior Gap (3198)")).toBeVisible();
+      await expect(page.getByText(/Unexplained Statement Gap Equity \(3198\)/i)).toBeVisible();
+      await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeEnabled();
 
       // The description renders in full: the text fits its box and no ellipsis clips it.
       const text = firstRow.getByText(LOW_DESCRIPTION, { exact: true });

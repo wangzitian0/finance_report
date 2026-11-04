@@ -246,7 +246,7 @@ async def test_account_coverage_reports_missing_overlapping_and_duplicate_ranges
         file_hash="ac373-apr",
         period_start=date(2025, 4, 1),
         period_end=date(2025, 4, 30),
-        opening_balance=Decimal("1125.00"),
+        opening_balance=Decimal("1250.00"),
         closing_balance=Decimal("1300.00"),
     )
     await db.commit()
@@ -260,6 +260,7 @@ async def test_account_coverage_reports_missing_overlapping_and_duplicate_ranges
     gap = next(issue for issue in item["issues"] if issue["type"] == "gap")
     assert gap["period_start"] == "2025-02-16"
     assert gap["period_end"] == "2025-03-31"
+    assert _decimal(gap["delta"]) == Decimal("125.00")
 
 
 async def test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapshot_override(
@@ -372,34 +373,53 @@ async def test_account_coverage_accepts_inclusive_boundary_and_weekend_gap(
 async def test_account_coverage_flags_business_day_gap_even_if_weekend_included(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC-extraction.7.5: Business days included in gap must report GAP issue even if weekend is spanned."""
+    """AC-extraction.7.5: Zero-change inter-statement gaps are verified, while non-zero gaps report GAP issue (#2832)."""
     account = await _create_account(db, test_user.id, name="Business Gap Checking")
-    # Statement 1: Ends on Wed Feb 26, 2025
+    # Statement 1: Ends on Jan 31, 2025 with 1,500.00
     await _create_statement(
         db,
         test_user.id,
         account,
-        file_hash="gap-wed",
-        period_start=date(2025, 2, 1),
-        period_end=date(2025, 2, 26),
+        file_hash="gap-jan",
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
         opening_balance=Decimal("1000.00"),
         closing_balance=Decimal("1500.00"),
     )
-    # Statement 2: Starts Mon March 3, 2025 (Thursday Feb 27 & Friday Feb 28 are business days)
+    # Statement 2: Skips February, starts March 1, 2025 with identical 1,500.00 (0 change -> no GAP issue)
     await _create_statement(
         db,
         test_user.id,
         account,
-        file_hash="gap-mon",
-        period_start=date(2025, 3, 3),
+        file_hash="gap-mar-zero",
+        period_start=date(2025, 3, 1),
         period_end=date(2025, 3, 31),
         opening_balance=Decimal("1500.00"),
         closing_balance=Decimal("2000.00"),
     )
     await db.commit()
 
-    response = await client.get("/accounts/coverage?as_of=2025-04-01&stale_after_days=45")
+    res_zero = await client.get("/accounts/coverage?as_of=2025-04-01&stale_after_days=45")
+    assert res_zero.status_code == 200
+    item_zero = _coverage_item(res_zero.json(), account)
+    assert item_zero["coverage_complete"] is True
+    assert item_zero["issues"] == []
+
+    # Statement 3: Skips April, starts May 1, 2025 with 2,350.00 (+350 unexplained movement -> reports GAP issue)
+    await _create_statement(
+        db,
+        test_user.id,
+        account,
+        file_hash="gap-may-nonzero",
+        period_start=date(2025, 5, 1),
+        period_end=date(2025, 5, 31),
+        opening_balance=Decimal("2350.00"),
+        closing_balance=Decimal("2600.00"),
+    )
+    await db.commit()
+
+    response = await client.get("/accounts/coverage?as_of=2025-06-01&stale_after_days=45")
     assert response.status_code == 200
     item = _coverage_item(response.json(), account)
     assert item["coverage_complete"] is False
-    assert any(issue["type"] == "gap" for issue in item["issues"])
+    assert any(issue["type"] == "gap" and _decimal(issue["delta"]) == Decimal("350.00") for issue in item["issues"])
