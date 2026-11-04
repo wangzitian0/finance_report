@@ -496,3 +496,147 @@ def test_statement_chain_ssot_constants_and_effective_opening() -> None:
     assert stmt.effective_opening_balance() == Decimal("100.00")
     stmt.manual_opening_balance = Decimal("250.00")
     assert stmt.effective_opening_balance() == Decimal("250.00")
+
+
+async def test_AC_extraction_2832_3_reconcile_chain_retirement_and_fx_plug_guards(db, test_user):
+    """AC-extraction.2832.3: Cover retiring all statements on an account (voiding plugs and opening entries),
+    retiring earlier S_0 to promote S_1, and foreign-currency gap plug FX rate resolution and error guards."""
+    from uuid import uuid4
+
+    from src.extraction.base.source_vocabulary import BankStatementStatus
+    from src.extraction.extension.statement_posting import (
+        reconcile_account_statement_chain,
+        void_statement_posted_entries,
+    )
+    from src.pricing import PricingError
+
+    # 1. Missing account returns False
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=uuid4()) is False
+
+    # 2. Foreign currency account (USD) with 2 statements and a gap plug -> tests FX provider and default PricingError guard
+    usd_acc = Account(user_id=test_user.id, name="USD Custody", type=AccountType.ASSET, currency="USD")
+    db.add(usd_acc)
+    await db.flush()
+
+    s_usd_jan = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=usd_acc.id,
+        institution="DBS",
+        account_last4="1234",
+        currency="USD",
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1000.00"),
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    s_usd_mar = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=usd_acc.id,
+        institution="DBS",
+        account_last4="1234",
+        currency="USD",
+        opening_balance=Decimal("1500.00"),
+        closing_balance=Decimal("1500.00"),
+        period_start=date(2025, 3, 1),
+        period_end=date(2025, 3, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add_all([s_usd_jan, s_usd_mar])
+    await db.flush()
+
+    # Provider succeeds for Jan 1 opening (call 1) and fails for Feb 28 plug (call 2)
+    failing_plug_provider = AsyncMock(side_effect=[Decimal("1.35"), ValueError("No plug FX")])
+    deps_fail = replace(
+        compose_statement_posting_dependencies(),
+        fx_rate_provider=failing_plug_provider,
+        fx_rate_error=ValueError,
+    )
+    with pytest.raises(ValueError, match="FX rate required for cross-period gap plug in USD"):
+        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=deps_fail)
+
+    # Default get_exchange_rate fallback when dependencies=None and opening is already anchored
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "src.pricing.get_exchange_rate",
+            AsyncMock(side_effect=PricingError("No rate")),
+        )
+        with pytest.raises(ValueError, match="FX rate required for cross-period gap plug in USD"):
+            await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=None)
+
+    # Provider succeeds for plug creation
+    ok_provider = AsyncMock(return_value=Decimal("1.35"))
+    deps_ok = replace(
+        compose_statement_posting_dependencies(),
+        fx_rate_provider=ok_provider,
+        fx_rate_error=ValueError,
+    )
+    assert (
+        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=deps_ok)
+        is True
+    )
+    # Second call with identical chain keeps existing plug (lines 997-998, 1011) and returns False
+    assert (
+        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=deps_ok)
+        is False
+    )
+
+    # 3. Base-currency account (SGD): retiring earliest statement promotes next statement, then retiring all statements voids plugs and opening entry
+    sgd_acc = Account(user_id=test_user.id, name="SGD Custody", type=AccountType.ASSET, currency="SGD")
+    db.add(sgd_acc)
+    await db.flush()
+
+    s_sgd_jan = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=sgd_acc.id,
+        institution="DBS",
+        account_last4="5678",
+        currency="SGD",
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1000.00"),
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(s_sgd_jan)
+    await db.flush()
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=sgd_acc.id) is True
+
+    # Retiring earliest statement (s_sgd_jan) and approving s_sgd_mar promotes s_sgd_mar via retired_at_existing check (lines 895-906)
+    s_sgd_jan.status = BankStatementStatus.RETIRED
+    s_sgd_mar = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=sgd_acc.id,
+        institution="DBS",
+        account_last4="5678",
+        currency="SGD",
+        opening_balance=Decimal("1500.00"),
+        closing_balance=Decimal("1500.00"),
+        period_start=date(2025, 3, 1),
+        period_end=date(2025, 3, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    s_sgd_may = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=sgd_acc.id,
+        institution="DBS",
+        account_last4="5678",
+        currency="SGD",
+        opening_balance=Decimal("2000.00"),
+        closing_balance=Decimal("2000.00"),
+        period_start=date(2025, 5, 1),
+        period_end=date(2025, 5, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add_all([s_sgd_mar, s_sgd_may])
+    await db.flush()
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=sgd_acc.id) is True
+
+    # Retiring all statements voids remaining plugs and opening entry (lines 850-876)
+    s_sgd_mar.status = BankStatementStatus.RETIRED
+    s_sgd_may.status = BankStatementStatus.RETIRED
+    await db.flush()
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=sgd_acc.id) is True
+
+    # 4. void_statement_posted_entries with empty transactions returns 0
+    assert await void_statement_posted_entries(db, s_sgd_mar, test_user.id) == 0

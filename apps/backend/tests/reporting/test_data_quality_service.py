@@ -719,3 +719,91 @@ async def test_AC_reporting_2832_2_zero_change_gap_verified_and_material_gaps_ra
     assert "UOB Cash (*2222)" in upload_actions[1].title
     assert "+400.00 SGD" in upload_actions[1].description
     assert "8%" in upload_actions[1].description
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branches(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC-reporting.2832.3: Cover tiny plug (< 0.1% of scale) and same-month gap diagnostic branches
+    in compute_personal_data_quality."""
+    from src.ledger import Account, AccountType
+
+    acc = Account(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="Citibank Checking",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(acc)
+    await db.flush()
+
+    # 1. Two APPROVED statements with a tiny plug (delta = 0.50 on 10,000.00 -> rel_ratio < 0.1%)
+    st_tiny_jan = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        file_hash="tiny_jan",
+        institution="Citibank",
+        account_last4="9999",
+        currency="SGD",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        opening_balance=Decimal("10000.00"),
+        closing_balance=Decimal("10000.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    st_tiny_mar = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        file_hash="tiny_mar",
+        institution="Citibank",
+        account_last4="9999",
+        currency="SGD",
+        period_start=date(2026, 3, 1),
+        period_end=date(2026, 3, 31),
+        opening_balance=Decimal("10000.50"),
+        closing_balance=Decimal("10000.50"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add_all([st_tiny_jan, st_tiny_mar])
+    await db.flush()
+
+    res_tiny = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 3, 31),
+        currency="SGD",
+    )
+    assert res_tiny.temporal_continuity_invariant.is_healthy is True
+    assert "minor cross-period rounding absorbed" in res_tiny.temporal_continuity_invariant.summary
+
+    # 2. Same-month material jump on Citibank so a material gap is recorded without a missing calendar month bucket
+    st_tiny_mar_late = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        file_hash="citi_mar_late",
+        institution="Citibank",
+        account_last4="9999",
+        currency="SGD",
+        period_start=date(2026, 3, 31),
+        period_end=date(2026, 3, 31),
+        opening_balance=Decimal("12500.50"),
+        closing_balance=Decimal("12500.50"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(st_tiny_mar_late)
+    await db.flush()
+
+    res_intra = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 3, 31),
+        currency="SGD",
+    )
+    assert res_intra.temporal_continuity_invariant.is_healthy is False
+    assert res_intra.temporal_continuity_invariant.delta == Decimal("1")
