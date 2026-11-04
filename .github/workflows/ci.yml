@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main, 'release/**']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -75,16 +76,22 @@ jobs:
         env:
           ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}
           ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}
+          GITHUB_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
 
-          required = json.loads(os.environ["ENV_STAGE_REQUIRED"])
-          reasons = json.loads(os.environ["ENV_STAGE_REASONS"])
-          print(f"pr_required={str(required['pr']).lower()}")
-          print(f"pr_reason={reasons['pr']}")
+          ref = os.environ.get("GITHUB_REF", "")
+          if ref.startswith("refs/tags/v"):
+              print("pr_required=false")
+              print("pr_reason=tag-push-promotion-only")
+          else:
+              required = json.loads(os.environ["ENV_STAGE_REQUIRED"])
+              reasons = json.loads(os.environ["ENV_STAGE_REASONS"])
+              print(f"pr_required={str(required['pr']).lower()}")
+              print(f"pr_reason={reasons['pr']}")
           PY
 
   lint:
@@ -1755,3 +1762,47 @@ jobs:
             --budget main \
             --enforce \
             --comment
+
+  promote-release-images:
+    name: Promote Release Tag Images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install infra2-sdk
+        uses: ./.github/actions/install-infra2-sdk
+      - name: Log in to Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Retag :<sha> images as release tag
+        run: |
+          set -euo pipefail
+          full_sha=$(git rev-parse HEAD)
+          short_sha="${full_sha:0:7}"
+          tag_name="${GITHUB_REF_NAME}"
+          python tools/verify_release_images.py \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --version-ref "$short_sha"
+          for component in backend frontend; do
+            src_img="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${component}:${short_sha}"
+            dst_img="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${component}:${tag_name}"
+            docker buildx imagetools create --prefer-index=false --tag "$dst_img" "$src_img"
+          done
+          python tools/verify_release_images.py \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --version-ref "$tag_name"
