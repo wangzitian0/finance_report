@@ -113,6 +113,46 @@
         "-q"
       ],
       "cwd": "apps/backend"
+    },
+    {
+      "id": "posting/cross-period-gap-plug-delta-sign",
+      "guard": "tests/extraction/test_statement_opening_guards.py",
+      "file": "apps/backend/src/extraction/extension/statement_posting.py",
+      "find": "delta = to_money(next_open - s_prev.closing_balance - non_plug_movement)",
+      "replace": "delta = to_money(s_prev.closing_balance - next_open - non_plug_movement)",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/extraction/test_statement_opening_guards.py",
+        "-k",
+        "test_AC_extraction_2832_2_reconcile_statement_chain_anchors_out_of_order_and_gap_plugs",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
+    },
+    {
+      "id": "reporting/cross-period-gap-plug-cash-bridge",
+      "guard": "tests/reporting/test_cash_event_projection.py",
+      "file": "apps/backend/src/reporting/extension/cash_flow.py",
+      "find": "line.event_type == account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE",
+      "replace": "False and line.event_type == account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/reporting/test_cash_event_projection.py",
+        "-k",
+        "test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stock_adjustment",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
     }
   ]
 }

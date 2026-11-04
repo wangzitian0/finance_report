@@ -182,32 +182,19 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
   });
 
   // AC-extraction.fe-stage1-review.13
-  it("AC16.31.2 disables approval when opening balance validation fails", async () => {
-    mockedApi.mockImplementation((path: string) => {
-      if (path === "/api/statements/s1/review") {
-        return Promise.resolve({
-          ...baseStatement,
-          balance_validation_result: { ...baseStatement.balance_validation_result, opening_match: false, closing_match: true },
-        });
-      }
-      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
-      if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
-      return Promise.reject(new Error(`Unexpected path ${path}`));
-    });
-
-    renderReviewComponent(<StatementReviewPage /> as never);
-    expect(await screen.findByRole("button", { name: "Approve" })).toBeDisabled();
-  });
-
-  // AC-extraction.fe-stage1-review.14
-  it("AC16.32.2 shows opening and closing balance validation states separately", async () => {
+  it("AC16.31.2 keeps approval enabled when intra-statement closing matches and shows 3198 cross-period gap notice", async () => {
     mockedApi.mockImplementation((path: string) => {
       if (path === "/api/statements/s1/review") {
         return Promise.resolve({
           ...baseStatement,
           balance_validation_result: {
             ...baseStatement.balance_validation_result,
-            opening_match: false, closing_match: true, opening_delta: "5.00", closing_delta: "0.00",
+            opening_match: true,
+            closing_match: true,
+            cross_period_match: false,
+            cross_period_delta: "+3000.00",
+            previous_period_end: "2024-01-31",
+            has_date_gap: true,
           },
         });
       }
@@ -217,10 +204,37 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     });
 
     renderReviewComponent(<StatementReviewPage /> as never);
-    expect(await screen.findByText("Opening Mismatch")).toBeInTheDocument();
-    expect(screen.getByText("Closing Valid")).toBeInTheDocument();
-    expect(screen.getByText("Opening Δ: 5.00")).toBeInTheDocument();
-    expect(screen.getByText("Closing Δ: 0.00")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeEnabled();
+    expect(screen.getByText("Prior Gap (3198)")).toBeInTheDocument();
+    expect(screen.getByText(/Unexplained Statement Gap Equity \(3198\)/i)).toBeInTheDocument();
+  });
+
+  // AC-extraction.fe-stage1-review.14
+  it("AC16.32.2 shows prior period anchor and closing balance validation states separately", async () => {
+    mockedApi.mockImplementation((path: string) => {
+      if (path === "/api/statements/s1/review") {
+        return Promise.resolve({
+          ...baseStatement,
+          balance_validation_result: {
+            ...baseStatement.balance_validation_result,
+            opening_match: true,
+            closing_match: false,
+            closing_delta: "5.00",
+            cross_period_match: false,
+            cross_period_delta: "120.00",
+          },
+        });
+      }
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+      if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    renderReviewComponent(<StatementReviewPage /> as never);
+    expect(await screen.findByText("Prior Gap (3198)")).toBeInTheDocument();
+    expect(screen.getByText("Closing Mismatch")).toBeInTheDocument();
+    expect(screen.getByText("Prior Δ: 120.00")).toBeInTheDocument();
+    expect(screen.getByText("Closing Δ: 5.00")).toBeInTheDocument();
   });
 
   it("AC-extraction.reviewed-envelope.6 confirms missing source envelope facts before approval", async () => {

@@ -233,6 +233,7 @@ CHECKS: tuple[Check, ...] = (
             "apps/backend/src/extraction/extension/classification.py",
             "apps/backend/src/extraction/extension/transaction_classification.py",
             "apps/backend/src/extraction/extension/statement_posting.py",
+            "apps/backend/src/reporting/extension/cash_flow.py",
             "common/testing/mutation_check.py",
             "common/testing/data/money-mutations.json",
             "tools/check_mutations.py",
