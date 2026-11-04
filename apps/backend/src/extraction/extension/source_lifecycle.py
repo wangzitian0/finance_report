@@ -95,7 +95,7 @@ async def retire_statement(
         if document is not None and document.user_id == command.user_id:
             document.status = DocumentStatus.RETIRED
     await db.flush()
-    if was_approved or statement.account_id is not None:
+    if was_approved:
         from src.extraction.extension.statement_posting import (
             reconcile_account_statement_chain,
             void_statement_posted_entries,

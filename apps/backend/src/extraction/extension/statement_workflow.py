@@ -62,9 +62,10 @@ async def reject_statement_workflow(
     transition stays a pure, committed unit.
     """
     statement = await reject_statement(db, statement_id, user_id, reason=reason)
-    await void_statement_posted_entries(db, statement, user_id, reason=reason or "Statement rejected")
-    if statement.account_id is not None:
-        await reconcile_account_statement_chain(db, user_id=user_id, account_id=statement.account_id)
+    voided = await void_statement_posted_entries(db, statement, user_id, reason=reason or "Statement rejected")
+    account_id = getattr(statement, "account_id", None)
+    if voided > 0 and account_id is not None:
+        await reconcile_account_statement_chain(db, user_id=user_id, account_id=account_id)
     await db.commit()
     await db.refresh(statement)
     return statement

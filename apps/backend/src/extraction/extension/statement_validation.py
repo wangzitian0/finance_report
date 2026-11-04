@@ -55,10 +55,11 @@ async def resolve_statement_transactions(
     whose ``source_documents`` reference that ODS document. Returns transactions
     ordered by ``txn_date`` then ``created_at`` for stable balance chaining.
     """
-    if statement.uploaded_document_id is None:
+    uploaded_doc_id = getattr(statement, "uploaded_document_id", None)
+    if uploaded_doc_id is None:
         return []
 
-    doc_marker = [{"doc_id": str(statement.uploaded_document_id)}]
+    doc_marker = [{"doc_id": str(uploaded_doc_id)}]
     query = select(AtomicTransaction).where(
         AtomicTransaction.user_id == statement.user_id,
         AtomicTransaction.source_documents.contains(doc_marker),
@@ -79,7 +80,7 @@ async def resolve_statement_transactions(
         current_ids = {fact["fact_id"] for fact in facts}
         # Version-1 result snapshots remain readable through a validated v2
         # alias, without rewriting their immutable fact IDs.
-        scope = await source_custody_scope(db, user_id=statement.user_id, document_id=statement.uploaded_document_id)
+        scope = await source_custody_scope(db, user_id=statement.user_id, document_id=uploaded_doc_id)
         current_ids.update(
             versioned_transaction_hash(fact["fact_id"], fact["currency"], scope)
             for fact in facts
