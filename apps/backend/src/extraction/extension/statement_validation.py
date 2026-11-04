@@ -145,6 +145,10 @@ def _direction_is_in(direction: object) -> bool:
     return value == TransactionDirection.IN.value
 
 
+def _signed_txn_amount(txn: AtomicTransaction) -> Decimal:
+    return txn.amount if _direction_is_in(txn.direction) else -txn.amount
+
+
 async def validate_balance_chain(
     db: AsyncSession,
     statement_id: UUID,
@@ -168,7 +172,7 @@ async def validate_balance_chain(
         for txn in transactions:
             currency = txn.currency.strip().upper()
             nets.setdefault(currency, Decimal("0"))
-            nets[currency] += txn.amount if _direction_is_in(txn.direction) else -txn.amount
+            nets[currency] += _signed_txn_amount(txn)
 
         per_currency = []
         for balance in typed_balances:
@@ -247,7 +251,7 @@ async def validate_balance_chain(
         nets = {currency: Decimal("0") for currency in transaction_currencies}
         for txn in transactions:
             currency = txn.currency.strip().upper()
-            nets[currency] += txn.amount if _direction_is_in(txn.direction) else -txn.amount
+            nets[currency] += _signed_txn_amount(txn)
         per_currency = []
         for currency in sorted(nets):
             expected, delta = balance_check(Decimal("0"), Decimal("0"), nets[currency], currency)
@@ -280,16 +284,9 @@ async def validate_balance_chain(
             "validated_at": datetime.now(UTC).isoformat(),
         }
 
-    opening_balance = await _get_opening_balance(db, statement)
+    opening_balance = statement.effective_opening_balance() or Decimal("0")
     opening_delta = Decimal("0.00")
-
-    txn_sum = Decimal("0")
-    for txn in transactions:
-        if _direction_is_in(txn.direction):
-            txn_sum += txn.amount
-        else:
-            txn_sum -= txn.amount
-
+    txn_sum = sum((_signed_txn_amount(txn) for txn in transactions), Decimal("0"))
     calculated_closing = opening_balance + txn_sum
 
     closing_known = statement.closing_balance is not None
@@ -351,12 +348,6 @@ async def _get_previous_approved_statement(db: AsyncSession, statement: Statemen
         select(StatementSummary).where(and_(*filters)).order_by(desc(StatementSummary.period_end)).limit(1)
     )
     return prev_result.scalar_one_or_none()
-
-
-async def _get_opening_balance(db: AsyncSession, statement: StatementSummary) -> Decimal:
-    if statement.manual_opening_balance is not None:
-        return statement.manual_opening_balance
-    return statement.opening_balance or Decimal("0")
 
 
 async def _get_statement_for_update(

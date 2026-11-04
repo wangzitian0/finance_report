@@ -24,6 +24,7 @@ from src.ledger import (
     JournalEntryAuthorityState,
     JournalLine,
     ProcessingAccount,
+    account_service,
 )
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
@@ -644,7 +645,7 @@ async def _build_cash_flow(
                 and position.amount == _cash_delta(line)
             )
             or (
-                line.event_type == "cross_period_gap_plug"
+                line.event_type == account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE
                 and event.entry.source_type == JournalEntrySourceType.SYSTEM
                 and event.has_authoritative_decision
             )

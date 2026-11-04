@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.ratio import Ratio
 from src.config_app import get_effective_base_currency
 from src.extraction import BankStatementStatus, StatementSummary
-from src.ledger import Account, JournalEntry, JournalEntryStatus
+from src.ledger import Account, JournalEntry, JournalEntryStatus, account_service
 from src.observability import get_logger
 
 # PricingError is the FX error family; NoObservationError (no rate) is the subclass that
@@ -210,10 +210,7 @@ async def compute_personal_data_quality(
     material_gap_months: set[str] = set()
 
     for acc_key, acc_stmts in statements_by_account.items():
-        ordered = sorted(
-            acc_stmts,
-            key=lambda s: (s.period_start or date.min, s.period_end or s.period_start or date.min),
-        )
+        ordered = sorted(acc_stmts, key=StatementSummary.chain_sort_key)
         for idx in range(len(ordered) - 1):
             s_prev = ordered[idx]
             s_next = ordered[idx + 1]
@@ -224,9 +221,7 @@ async def compute_personal_data_quality(
             missing_months = tuple(_months_between_exclusive(prev_month, next_month))
             has_date_gap = (s_next.period_start - s_prev.period_end).days > 1 or len(missing_months) > 0
             prev_close = s_prev.closing_balance
-            next_open = (
-                s_next.manual_opening_balance if s_next.manual_opening_balance is not None else s_next.opening_balance
-            )
+            next_open = s_next.effective_opening_balance()
             if prev_close is not None and next_open is not None:
                 delta = next_open - prev_close
                 abs_delta = abs(delta)
@@ -238,10 +233,10 @@ async def compute_personal_data_quality(
                 scale = Decimal("100")
                 rel_ratio = Ratio.zero()
 
-            if not has_date_gap and abs_delta <= Decimal("0.10"):
+            if not has_date_gap and abs_delta <= account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE:
                 continue
 
-            if abs_delta <= Decimal("0.10"):
+            if abs_delta <= account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE:
                 tier: Literal["zero_change", "tiny_plug", "material_gap"] = "zero_change"
                 zero_change_verified_months.update(missing_months)
             elif rel_ratio.value < Decimal("0.001"):
@@ -362,13 +357,16 @@ async def compute_personal_data_quality(
 
     temporal_healthy = total_gaps == 0 and not has_unanchored_activity
     temporal_delta = total_gaps if not has_unanchored_activity else 1
+    gap_code = account_service.UNEXPLAINED_GAP_EQUITY_CODE
     if temporal_healthy:
         if tiny_gaps:
             tiny_total = sum((g.abs_delta for g in tiny_gaps), Decimal("0"))
-            temporal_summary = "Statement anchors verified (minor cross-period rounding absorbed in 3198 Gap Equity)"
+            temporal_summary = (
+                f"Statement anchors verified (minor cross-period rounding absorbed in {gap_code} Gap Equity)"
+            )
             temporal_detail = (
                 f"Minor cross-period variance ({tiny_total:.2f}) is within 0.1% materiality and absorbed in "
-                "Unexplained Statement Gap Equity (3198); no missing statement upload required."
+                f"Unexplained Statement Gap Equity ({gap_code}); no missing statement upload required."
             )
         elif zero_change_verified_months:
             temporal_summary = "Continuous multi-period cash rollforward verified (zero-change gaps verified)"
@@ -394,7 +392,7 @@ async def compute_personal_data_quality(
         temporal_detail = (
             f"Statement missing for {gap_period_str} on {top_gap.account_label} "
             f"(unexplained movement {top_gap.delta:+.2f} {top_gap.currency}, {pct_str} of balance; "
-            "currently parked in 3198 Unexplained Statement Gap Equity). "
+            f"currently parked in {gap_code} Unexplained Statement Gap Equity). "
             "Upload statement to improve Income Statement and Cash Flow precision."
         )
     else:

@@ -172,3 +172,12 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         case still lives in the scalar ``opening_balance``/``closing_balance``).
         """
         return CurrencyBalances.from_jsonb(self.currency_balances)
+
+    def effective_opening_balance(self) -> Decimal | None:
+        """Return manual_opening_balance when overridden, otherwise opening_balance."""
+        return self.manual_opening_balance if self.manual_opening_balance is not None else self.opening_balance
+
+    def chain_sort_key(self) -> tuple[date, date, str]:
+        """Return canonical chronological ordering key for per-account statement chains."""
+        start = self.period_start or date.min
+        return (start, self.period_end or start, str(self.id))
