@@ -169,12 +169,47 @@ def test_AC8_22_5_shell_emission_round_trips(monkeypatch: pytest.MonkeyPatch) ->
         == f"STAGING_CORE_E2E_PARALLELISM={matrix.STAGING_CORE_E2E_PARALLELISM}"
     )
 
+    preview_emitted = matrix.emit_shell(matrix.PREVIEW_MINIMUM_E2E_STAGE)
+    preview_lines = preview_emitted.splitlines()
+    assert preview_lines[0].startswith("PREVIEW_MINIMUM_E2E_TESTS=(") and preview_lines[
+        0
+    ].endswith(")")
+    preview_tests = shlex.split(
+        preview_lines[0][len("PREVIEW_MINIMUM_E2E_TESTS=(") : -1]
+    )
+    assert tuple(preview_tests) == matrix.preview_minimum_e2e_selection()
+    assert shlex.split(preview_lines[1].split("=", 1)[1]) == [
+        matrix.PREVIEW_MINIMUM_E2E_MARKER
+    ]
+
+    for corpus in ("canary", "audit_replay", "core_journey"):
+        ocr_emitted = matrix.emit_shell(matrix.STAGING_AI_OCR_STAGE, corpus=corpus)
+        ocr_lines = ocr_emitted.splitlines()
+        assert ocr_lines[0].startswith("STAGING_AI_OCR_TESTS=(") and ocr_lines[
+            0
+        ].endswith(")")
+        ocr_tests = shlex.split(ocr_lines[0][len("STAGING_AI_OCR_TESTS=(") : -1])
+        assert tuple(ocr_tests) == matrix.staging_ai_ocr_selection(corpus)
+        assert shlex.split(ocr_lines[-1].split("=", 1)[1]) == [
+            matrix.STAGING_AI_OCR_GATE_MARKER
+        ]
+
     with pytest.raises(ValueError, match="unknown selection stage"):
         matrix.emit_shell("nonexistent_stage")
 
     with pytest.raises(ValueError, match="produced an empty test tuple"):
         monkeypatch.setattr(matrix, "staging_core_e2e_selection", lambda: ())
         matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE)
+
+    with pytest.raises(ValueError, match="produced an empty test tuple"):
+        monkeypatch.setattr(matrix, "preview_minimum_e2e_selection", lambda: ())
+        matrix.emit_shell(matrix.PREVIEW_MINIMUM_E2E_STAGE)
+
+    with pytest.raises(ValueError, match="produced an empty test tuple"):
+        monkeypatch.setattr(
+            matrix, "staging_ai_ocr_selection", lambda _corpus="all": ()
+        )
+        matrix.emit_shell(matrix.STAGING_AI_OCR_STAGE, corpus="canary")
 
     # The CLI rejects an unknown stage with a diagnostic instead of a
     # KeyError traceback (Copilot review on PR #1562), on both output paths.
@@ -292,3 +327,32 @@ def test_test_selection_cli_in_process(
         tuple(capsys.readouterr().out.strip().splitlines())
         == matrix.staging_core_e2e_selection()
     )
+
+    assert test_selection.main(["--stage", "preview_minimum_e2e", "--shell"]) == 0
+    preview_out = capsys.readouterr().out
+    assert "PREVIEW_MINIMUM_E2E_TESTS=(" in preview_out
+    assert "PREVIEW_MINIMUM_E2E_MARKER=" in preview_out
+
+    assert test_selection.main(["--stage", "preview_minimum_e2e"]) == 0
+    assert (
+        tuple(capsys.readouterr().out.strip().splitlines())
+        == matrix.preview_minimum_e2e_selection()
+    )
+
+    for corpus in ("canary", "audit_replay", "core_journey"):
+        assert (
+            test_selection.main(
+                ["--stage", "staging_ai_ocr", "--corpus", corpus, "--shell"]
+            )
+            == 0
+        )
+        ocr_out = capsys.readouterr().out
+        assert "STAGING_AI_OCR_TESTS=(" in ocr_out
+        assert "STAGING_AI_OCR_MARKER=" in ocr_out
+
+        assert (
+            test_selection.main(["--stage", "staging_ai_ocr", "--corpus", corpus]) == 0
+        )
+        assert tuple(
+            capsys.readouterr().out.strip().splitlines()
+        ) == matrix.staging_ai_ocr_selection(corpus)
