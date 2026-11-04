@@ -705,6 +705,7 @@ async def void_statement_posted_entries(
                 .where(
                     JournalEntry.user_id == user_id,
                     JournalEntry.source_id.in_(txn_ids),
+                    JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
                     JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
                 )
                 .order_by(JournalEntry.entry_date, JournalEntry.id)
@@ -801,8 +802,7 @@ async def reconcile_account_statement_chain(
     """
     from src.audit.money import to_money
     from src.extraction.extension.statement_contribution import resolve_statement_contribution
-    from src.ledger import initialize_opening_positions, list_opening_positions
-    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
+    from src.ledger import account_service, initialize_opening_positions, list_opening_positions
 
     account = await db.scalar(select(Account).where(Account.id == account_id, Account.user_id == user_id))
     if account is None:
@@ -859,7 +859,11 @@ async def reconcile_account_statement_chain(
                 base_currency=base_currency,
             )
             changed = True
-        if existing_opening is not None and existing_opening.journal_entry_id is not None:
+        if (
+            existing_opening is not None
+            and existing_opening.journal_entry_id is not None
+            and existing_opening.source_decision is not None
+        ):
             await void_journal_entry(
                 db,
                 existing_opening.journal_entry_id,
@@ -1022,7 +1026,7 @@ async def reconcile_account_statement_chain(
                     fx_rate = await get_exchange_rate(db, acct_currency, base_currency, plug_date, lazy_load=True)
                 except PricingError as exc:
                     raise ValueError(f"FX rate required for cross-period gap plug in {acct_currency}") from exc
-        gap_equity = await get_or_create_unexplained_gap_equity_account(db, user_id, acct_currency)
+        gap_equity = await account_service.get_or_create_unexplained_gap_equity_account(db, user_id, acct_currency)
         debit_custody = debit_normal if delta > 0 else not debit_normal
         custody_direction = Direction.DEBIT if debit_custody else Direction.CREDIT
         equity_direction = Direction.CREDIT if debit_custody else Direction.DEBIT

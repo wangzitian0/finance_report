@@ -163,20 +163,19 @@ async def initialize_opening_positions(
         return await db.get(JournalEntry, next(iter(existing_entries))) if existing_entries else None
     # Opening stock must precede activity. Same-date activity is allowed: the
     # opening evidence distinguishes the start of that day from its flows.
-    if not allow_supersede:
-        prior = await db.scalar(
-            select(JournalLine.id)
-            .join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
-            .where(
-                JournalLine.account_id.in_(new),
-                JournalEntry.user_id == user_id,
-                active_journal_entry_filter(JournalEntry),
-                JournalEntry.entry_date < entry_date,
-            )
-            .limit(1)
+    prior = await db.scalar(
+        select(JournalLine.id)
+        .join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
+        .where(
+            JournalLine.account_id.in_(new),
+            JournalEntry.user_id == user_id,
+            active_journal_entry_filter(JournalEntry),
+            JournalEntry.entry_date < entry_date,
         )
-        if prior is not None:
-            raise ValidationError("Opening balances must precede all activity for the affected accounts")
+        .limit(1)
+    )
+    if prior is not None:
+        raise ValidationError("Opening balances must precede all activity for the affected accounts")
     lines = []
     net = Decimal("0")
     for aid, amount in new.items():

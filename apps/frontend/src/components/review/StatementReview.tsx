@@ -62,14 +62,8 @@ export function BalanceIndicator({ openingBalance, closingBalance, validationRes
   const openingValid = validationResult?.opening_match ?? false;
   const closingValid = validationResult?.closing_match ?? false;
   const closingKnown = (validationResult?.closing_balance ?? null) !== null;
-  const valAny = validationResult as (BalanceValidationResult & {
-    cross_period_match?: boolean | null;
-    cross_period_delta?: string | null;
-    previous_closing_balance?: string | null;
-    previous_period_end?: string | null;
-    has_date_gap?: boolean | null;
-  }) | null;
-  const hasCrossPeriodGap = valAny?.cross_period_match === false && Boolean(valAny?.cross_period_delta);
+  const hasCrossPeriodGap =
+    validationResult?.cross_period_match === false && Boolean(validationResult?.cross_period_delta);
   return (
     <div className="mb-4 space-y-2">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -92,8 +86,8 @@ export function BalanceIndicator({ openingBalance, closingBalance, validationRes
       </div>
       {hasCrossPeriodGap && (
         <div role="note" className="rounded-md border border-[var(--accent)]/30 bg-[var(--background-muted)]/50 px-3 py-2 text-xs text-muted">
-          Cross-period gap from prior closing balance{valAny?.previous_period_end ? ` (${valAny.previous_period_end})` : ""}:{" "}
-          <span className="font-medium text-[var(--foreground)]">{valAny?.cross_period_delta} {currency}</span>.{" "}
+          Cross-period gap from prior closing balance{validationResult?.previous_period_end ? ` (${validationResult.previous_period_end})` : ""}:{" "}
+          <span className="font-medium text-[var(--foreground)]">{validationResult?.cross_period_delta} {currency}</span>.{" "}
           Statement balances are anchored directly; any inter-statement gap is tracked in Unexplained Statement Gap Equity (3198) until intermediate statements are uploaded.
         </div>
       )}

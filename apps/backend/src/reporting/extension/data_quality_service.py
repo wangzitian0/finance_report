@@ -194,7 +194,7 @@ async def compute_personal_data_quality(
 
     statements_by_account: dict[str, list[StatementSummary]] = {}
     for st in raw_statements:
-        if st.status == BankStatementStatus.RETIRED or st.period_start is None:
+        if st.status != BankStatementStatus.APPROVED or st.period_start is None:
             continue
         acc_key = (
             str(st.account_id)
