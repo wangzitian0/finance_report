@@ -44,11 +44,16 @@ def _assert_python_defines_function(path: Path, function_name: str) -> None:
 
 
 def test_legacy_infra_acceptance_criteria_are_owned_by_the_receiver_boundary() -> None:
-    """AC7.1.1 AC7.1.2 AC7.1.3 AC7.2.1 AC7.2.2 AC7.2.3 AC7.2.4 AC7.2.5 AC7.3.1 AC7.3.2 AC7.3.3 AC7.3.4 AC7.3.5 AC7.4.1 AC7.4.2 AC7.4.3 AC7.4.4 AC7.4.5 AC7.4.6 AC7.5.1 AC7.5.2 AC7.5.3 AC7.5.4 AC7.5.5 AC7.6.2 AC7.9.6 AC7.9.7 AC7.9.8 AC10.5.1 AC10.5.2 AC10.5.3 AC10.7.5 AC10.7.6: historical infra implementation checks moved to infra2; Finance Report proves only the receiver boundary."""
+    """AC7.1.1 AC7.1.2 AC7.1.3 AC7.2.1 AC7.2.2 AC7.2.3 AC7.2.4 AC7.2.5 AC7.3.1 AC7.3.2 AC7.3.3 AC7.3.4 AC7.3.5 AC7.4.1 AC7.4.2 AC7.4.3 AC7.4.4 AC7.4.5 AC7.4.6 AC7.5.1 AC7.5.2 AC7.5.3 AC7.5.4 AC7.5.5 AC7.6.2 AC7.9.6 AC7.9.7 AC7.9.8 AC10.5.1 AC10.5.2 AC10.5.3 AC10.7.5 AC10.7.6: historical infra implementation checks moved to infra2; Finance Report proves only the runtime hooks boundary."""
     assert not (REPO_ROOT / ".gitmodules").exists()
-    workflow = _read(REPO_ROOT / ".github" / "workflows" / "deploy.yml")
-    assert "tools.app_deploy_request" in workflow
-    assert "tools.app_deploy_transport" in workflow
+    manifest = json.loads(_read(REPO_ROOT / "runtime-hooks.manifest.json"))
+    assert manifest["service"] == "finance_report/app"
+    assert set(manifest["slots"]) == {
+        "smoke",
+        "preview_gate",
+        "staging_gate",
+        "scheduled_audit",
+    }
 
 
 def test_epic_009_pdf_fixture_tooling_contracts() -> None:

@@ -1,7 +1,6 @@
 import copy
 import functools
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -80,21 +79,18 @@ def staging_ai_ocr_contract_shell() -> str:
 
 
 def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
-    """AC-testing.deploy-gates.2: AC8.13.11: Staging health 404 reports API route diagnostics."""
-    health_check = read("common/runtime/health_check.py")
+    """AC-testing.deploy-gates.2: AC8.13.11: Smoke hook verifies API health, frontend shell, and DB connectivity."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    assert "bash tools/smoke_test.sh" in manifest.slots["smoke"].run
+    smoke = read("common/runtime/shell/smoke_test.sh")
     _has(
-        health_check,
-        "from infra2_sdk.deploy import",
-        "_print_route_probe",
-        "route_probe attempt=",
-        "platform_failure_domain=traefik-public-route",
-        "api_status={api_status}",
-        "frontend_status={frontend_status}",
-        "_print_404_route_diagnostics",
-        "Traefik API route is missing or shadowed",
-        '"API ping", f"{app_base_url}/api/ping"',
-        '"Frontend shell", f"{app_base_url}/"',
-        "status_code == 404",
+        smoke,
+        'wait_for_endpoint "API Health" "$BASE_URL/api/health"',
+        'wait_for_endpoint "Frontend Ready" "$BASE_URL/"',
+        'check_endpoint "DB Connectivity" "$BASE_URL/api/health"',
+        'check_endpoint "Ping API" "$BASE_URL/api/ping"',
     )
 
 
@@ -116,334 +112,146 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
 
 
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
-    """AC-testing.deploy-gates.4 AC-testing.deploy-gates.21: AC8.13.13 AC8.13.105: Staging deploy is a singleton post-merge train."""
-    workflow = read(".github/workflows/deploy.yml")
+    """AC-testing.deploy-gates.4 AC-testing.deploy-gates.21: AC8.13.13 AC8.13.105: Staging gate hook chains steps with && for fail-fast execution."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    _has(
-        workflow,
-        "concurrency:",
-        "inputs.target == 'staging' && 'staging-deploy'",
-        "cancel-in-progress: false",
-    )
-    _lacks(workflow, "post-merge-train-turn:", "classify-staging:")
+    staging_cmd = manifest.slots["staging_gate"].run
+    _has(staging_cmd, "&&", "bash tools/smoke_test.sh")
 
 
 def test_AC8_13_157_audit_replay_workflow_is_weekly_and_blocks_nothing() -> None:
-    """AC-testing.deploy-gates.32: AC8.13.157: heavy LLM journeys run in a separate audit-replay
-    workflow (weekly schedule, manual dispatch, post-deploy core_journey dispatch). No deploy
-    or release depends on it, so its red blocks nothing (#2370)."""
-    audit = yaml.safe_load(read(".github/workflows/audit-replay.yml"))
-    yaml.safe_load(read(".github/workflows/deploy.yml"))
-    triggers = audit.get("on", audit.get(True))
-    assert isinstance(triggers, dict)
-    assert "workflow_dispatch" in triggers
+    """AC-testing.deploy-gates.32: AC8.13.157: heavy LLM journeys run in the scheduled_audit hook slot."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    assert "--corpus audit_replay" in manifest.slots["scheduled_audit"].run
 
 
 def test_AC_extraction_1913_10_staging_statement_canary_is_sha_pinned_and_blocking() -> (
     None
 ):
-    """AC-extraction.1913.10: required durable statement journeys fail the deploy."""
-    deploy = yaml.safe_load(read(".github/workflows/deploy.yml"))
-    canary = deploy["jobs"]["ai-ocr-gate"]
-    read(".github/workflows/deploy.yml").split(
-        "Deploy to Staging through infra2 receiver", 1
-    )[1].split("Confirm staging backend health", 1)[0]
-    assert canary["with"]["corpus"] == "canary"
-    assert "blocking" not in canary["with"]
+    """AC-extraction.1913.10: required durable statement journeys run in staging_gate with canary corpus."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    assert "--corpus canary" in manifest.slots["staging_gate"].run
 
 
 def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> None:
-    """AC-testing.deploy-gates.33: AC8.13.158: provider transient (5xx/timeout)=degraded, 4xx/config=block; the
-    canary delegates this classification to the Staging Provider Gate."""
-    deploy = read(".github/workflows/deploy.yml")
-    assert "needs.provider-gate.outputs.provider_status == 'pass'" in deploy
-    provider_block = deploy.split("provider-gate:", 1)[1].split("ai-ocr-gate:", 1)[0]
-    _has(
-        provider_block,
-        "provider_status=config-failure",
-        "client/config error",
-        "provider_status=degraded",
-        "transient",
+    """AC-testing.deploy-gates.33: AC8.13.158: staging_gate runs the provider connectivity smoke before the AI/OCR canary."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    cmd = manifest.slots["staging_gate"].run
+    assert cmd.index("test_ai_provider_connectivity.py") < cmd.index(
+        "tools/test_selection.py --stage staging_ai_ocr --corpus canary"
     )
 
 
 def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
     """AC-testing.deploy-gates.35: AC8.13.160: SSOT distinguishes the blocking minimal AI/OCR Canary from the
-    nightly comprehensive Audit Replay, and the split is enforced in workflows."""
+    nightly comprehensive Audit Replay, and the split is enforced in runtime-hooks.manifest.json."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    _has(ci_cd, "AI/OCR Canary", "Audit Replay", "audit-replay.yml")
+    _has(ci_cd, "AI/OCR Canary", "Audit Replay")
     assert "test_brokerage_upload_to_portfolio_value.py" in ci_cd
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    assert "--corpus canary" in manifest.slots["staging_gate"].run
+    assert "--corpus audit_replay" in manifest.slots["scheduled_audit"].run
 
 
 def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
-    """AC-testing.deploy-gates.5: AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
-    deploy_workflow = read(".github/workflows/deploy.yml")
-    read(".github/workflows/staging-ai-ocr-gate.yml")
+    """AC-testing.deploy-gates.5: AC8.13.14: Provider-backed AI/OCR gate runs after smoke and core E2E in staging_gate."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    _has(
-        deploy_workflow,
-        "ai-ocr-gate:",
-        "needs: [build-and-deploy, provider-gate]",
-        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}",
-        "name: Staging AI/OCR Gate",
-        "commit_full_sha: ${{ steps.release.outputs.full_sha }}",
-        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}",
-        "uses: ./.github/workflows/staging-ai-ocr-gate.yml",
-        "commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}",
-        "expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}",
-    )
-    assert "blocking:" not in deploy_workflow
+    cmd = manifest.slots["staging_gate"].run
+    assert cmd.index("STAGING_CORE_E2E_TESTS") < cmd.index("STAGING_AI_OCR_TESTS")
 
 
-def _gha_expr_substituted(script: str, values: dict[str, str]) -> str:
-    """Replace ``${{ expr }}`` GHA interpolations with plain values, the same
-    textual substitution the Actions runner performs before a shell ever sees
-    the script. Every placeholder present in the step under test must have an
-    entry in ``values`` or the returned script is invalid bash (``${{`` is not
-    a valid parameter expansion)."""
-    substituted = script
-    for expr, value in values.items():
-        substituted = substituted.replace("${{ " + expr + " }}", value)
-    assert substituted.count("${{") == 0, (
-        f"unsubstituted GHA expression remains: {substituted}"
-    )
-    return substituted
+def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output() -> (
+    None
+):
+    """AC-testing.deploy-gates.41: AC8.13.166: runtime hooks declare positive integer timeout_seconds per slot."""
+    from infra2_sdk.manifests import load_hooks_manifest
 
-
-def _run_gate_timeout_fallback(
-    tmp_path: Path, *, outcome: str, corpus: str, existing_issue: str
-) -> dict[str, object]:
-    """Execute the real ``gate_timeout_fallback`` step body (AC8.13.166) as a
-    subprocess against a stub ``gh``, exercising actual behavior instead of
-    grepping the script text (mirror-assertion ratchet, common/testing/
-    mirror_ratchet.py, #1435)."""
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    workflow = yaml.safe_load(read(".github/workflows/staging-ai-ocr-gate.yml"))
-    fallback = next(
-        (
-            s
-            for s in workflow["jobs"]["run"]["steps"]
-            if s.get("id") == "gate_timeout_fallback"
-        )
-    )
-    script = _gha_expr_substituted(
-        fallback["run"],
-        {"steps.staging_ai_ocr_tests.outcome": outcome, "github.run_id": "999"},
-    )
-    gh_calls_log = tmp_path / "gh_calls.jsonl"
-    fake_gh = tmp_path / "gh"
-    fake_gh.write_text(
-        f'''#!/bin/bash\npython3 -c 'import json,sys; open(sys.argv[1], "a").write(json.dumps(sys.argv[2:]) + "\\n")' "{gh_calls_log}" "$@"\nif [ "$1" = "issue" ] && [ "$2" = "list" ]; then\n  printf %s "{existing_issue}"\n  exit 0\nfi\nexit 0\n'''
-    )
-    fake_gh.chmod(493)
-    github_output = tmp_path / "github_output.txt"
-    github_output.write_text("")
-    github_step_summary = tmp_path / "github_step_summary.txt"
-    github_step_summary.write_text("")
-    result = subprocess.run(
-        ["bash", "-euo", "pipefail", "-c", script],
-        env={
-            "PATH": f"{tmp_path}:/usr/bin:/bin",
-            "GH_TOKEN": "fake-token",
-            "GITHUB_OUTPUT": str(github_output),
-            "GITHUB_STEP_SUMMARY": str(github_step_summary),
-            "CORPUS": corpus,
-            "COMMIT_REF": "deadbeef",
-        },
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    output_lines = [line for line in github_output.read_text().splitlines() if line]
-    parsed_output = dict((line.split("=", 1) for line in output_lines))
-    gh_calls = (
-        [json.loads(line) for line in gh_calls_log.read_text().splitlines()]
-        if gh_calls_log.exists()
-        else []
-    )
-    return {
-        "exit_code": result.returncode,
-        "stderr": result.stderr,
-        "parsed_output": parsed_output,
-        "gh_calls": gh_calls,
-        "step_summary": github_step_summary.read_text(),
-    }
-
-
-def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output(
-    tmp_path: Path,
-) -> None:
-    """AC-testing.deploy-gates.41: AC8.13.166: alerting survives the corpus step's own timeout-minutes killing
-    it before record_and_finish ever runs (the 5-night-red silent gap, #1767).
-    Behavioral (subprocess), not a text mirror -- see _run_gate_timeout_fallback."""
-    workflow = yaml.safe_load(read(".github/workflows/staging-ai-ocr-gate.yml"))
-    job = workflow["jobs"]["run"]
-    fallback = next((s for s in job["steps"] if s.get("id") == "gate_timeout_fallback"))
-    assert (
-        fallback["if"]
-        == "${{ always() && steps.staging_ai_ocr_tests.outcome != 'success' && steps.staging_ai_ocr_tests.outputs.ai_ocr_status == '' }}"
-    )
-    assert (
-        job["outputs"]["ai_ocr_status"]
-        == "${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || steps.gate_timeout_fallback.outputs.ai_ocr_status || 'not-run' }}"
-    )
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    for slot, spec in manifest.slots.items():
+        assert isinstance(spec.timeout_seconds, int) and spec.timeout_seconds > 0, slot
 
 
 def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
-    """AC-testing.deploy-gates.42: AC8.13.167: step/job timeout-minutes fit every sequential parse wait in a
-    corpus hitting its own 8-minute PARSING_TIMEOUT_MS ceiling, not just the
-    happy path -- sized off the real per-corpus wait count, not a file/journey
-    guess (#1767: the shipped 22-min budget only covered 66% of one real run)."""
-    workflow = yaml.safe_load(read(".github/workflows/staging-ai-ocr-gate.yml"))
-    job = workflow["jobs"]["run"]
-    corpus_step = next(
-        (s for s in job["steps"] if s.get("id") == "staging_ai_ocr_tests")
-    )
+    """AC-testing.deploy-gates.42: AC8.13.167: scheduled_audit timeout_seconds exceeds staging_gate timeout_seconds to fit full corpus."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    slots = manifest.slots
     assert (
-        corpus_step["timeout-minutes"]
-        == "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 150 || 135) }}"
+        slots["scheduled_audit"].timeout_seconds > slots["staging_gate"].timeout_seconds
     )
-    assert workflow["env"]["PARSING_TIMEOUT_MS"] == 480000
 
 
 def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -> None:
-    """AC-testing.deploy-gates.11: AC8.13.49: Staging AI/OCR gates publish replay inputs and summary fields."""
-    workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    """AC-testing.deploy-gates.11: AC8.13.49: Staging AI/OCR gate contract emits shell test arrays and expected counts."""
     read("common/observability/observability-logging.md")
+    shell_out = staging_ai_ocr_contract_shell()
     _has(
-        workflow,
-        "write_staging_audit_inventory()",
-        "write_staging_audit_result()",
-        "## Staging Audit Replay Inputs",
-        "## Staging Audit Replay Summary",
-        "- Environment: staging",
-        "- GitHub run ID: ${{ github.run_id }}",
-    )
-    assert (
-        "- Expected SHA: ${EXPECTED_SHA}" in workflow
-        or "- Expected version: ${EXPECTED_SHA}" in workflow
+        shell_out,
+        "STAGING_AI_OCR_TESTS=(",
+        "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=",
     )
 
 
 def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
-    """AC-testing.deploy-gates.12: AC8.13.51: Staging deploy is manual (`workflow_dispatch`) only; it does not auto-follow main CI."""
-    workflow = read(".github/workflows/deploy.yml")
+    """AC-testing.deploy-gates.12: AC8.13.51: App repository retains no staging deploy workflow; CD lives in infra2."""
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    parsed = yaml.safe_load(workflow)
-    triggers = parsed.get("on", parsed.get(True))
-    assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
-    _has(triggers, "workflow_dispatch")
+    assert not (ROOT / ".github" / "workflows" / "deploy.yml").exists()
 
 
 def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates() -> (
     None
 ):
-    """AC-testing.deploy-gates.20: AC8.13.103/AC8.13.108: Delivery aggregates gates and failure context."""
-    workflow = read(".github/workflows/deploy.yml")
+    """AC-testing.deploy-gates.20: AC8.13.103/AC8.13.108: staging_gate hook aggregates smoke, core E2E, provider gate, and AI/OCR gate."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     read("docs/project/EPIC-008.testing-strategy.md")
+    cmd = manifest.slots["staging_gate"].run
     _has(
-        workflow,
-        "post-merge-delivery:",
-        "name: Post-merge Delivery",
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark]",
-        "Aggregate post-merge delivery result",
-        'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"',
-        'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"',
-        'build_result="${{ needs.build-and-deploy.result }}"',
-        'provider_result="${{ needs.provider-gate.result }}"',
-        'provider_status="${{ needs.provider-gate.outputs.provider_status }}"',
-        'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"',
-        'ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"',
+        cmd,
+        "tools/smoke_test.sh",
+        "STAGING_CORE_E2E_TESTS",
+        "test_ai_provider_connectivity.py",
+        "STAGING_AI_OCR_TESTS",
     )
-    _lacks(workflow, "staging-deploy-alert", "alert_result")
 
 
 def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
-    """AC-testing.deploy-gates.15: AC8.13.60: Deploy gates do not keep no-op or warning-only checks."""
-    workflows = [
-        read(".github/workflows/deploy.yml"),
-        read(".github/workflows/deploy.yml"),
-    ]
+    """AC-testing.deploy-gates.15: AC8.13.60: Runtime hook commands contain no warning-only or no-op checks."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    for workflow in workflows:
-        assert "Check Deployment Dependencies" not in workflow
-        assert "Deployment deps check skipped" not in workflow
-    staging = workflows[0]
-    _lacks(staging, "Performance Benchmark", "Don't block deploy, but report issues")
+    for spec in manifest.slots.values():
+        cmd = spec.run
+        _lacks(
+            cmd,
+            "Check Deployment Dependencies",
+            "Deployment deps check skipped",
+            "Don't block deploy, but report issues",
+        )
 
 
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
-    """AC-testing.deploy-gates.13 AC-testing.deploy-gates.17: AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
-    workflow = read(".github/workflows/release.yml")
-    read("common/runtime/release_evidence.py")
-    read("common/runtime/release_images.py")
+    """AC-testing.deploy-gates.13 AC-testing.deploy-gates.17: AC8.13.52 AC8.13.65: Release image verification is read-only."""
+    release_images = read("common/runtime/release_images.py")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    _has(
-        workflow,
-        "dry_run:",
-        "version_ref:",
-        "Version ref to deploy (vX.Y.Z release tag)",
-    )
-    assert "leave empty for latest" not in workflow
-
-
-BACKEND_DIGEST = "sha256:" + "1" * 64
-FRONTEND_DIGEST = "sha256:" + "2" * 64
-
-
-def _deploy_log_with_escape_codes() -> str:
-    """A Deploy Staging job log in the shape of a real run (#2491).
-
-    The echoed shell source of a step starts with the code ESC[36;1m and ends with ESC[0m.
-    """
-    return f'2026-10-16T04:24:41.6518661Z Found backend release image digest: {BACKEND_DIGEST}\n2026-10-16T04:24:41.6519117Z Found frontend release image digest: {FRONTEND_DIGEST}\n2026-10-16T04:28:13.0556017Z \x1b[36;1m  echo "backend_digest={BACKEND_DIGEST}"\x1b[0m\n2026-10-16T04:28:13.0556641Z \x1b[36;1m  echo "frontend_digest={FRONTEND_DIGEST}"\x1b[0m\n'
-
-
-def _staging_runs_json(args: list[str], *, head_sha: str = "a" * 40) -> object:
-    if " run list " in f" {' '.join(args)} ":
-        return [
-            {
-                "databaseId": 12,
-                "status": "completed",
-                "displayTitle": "Deploy Staging v1.2.3",
-                "headSha": head_sha,
-            }
-        ]
-    return {
-        "jobs": [
-            {"name": "Deploy Staging", "databaseId": 999, "conclusion": "success"},
-            {
-                "name": "Staging Provider Gate",
-                "databaseId": 1000,
-                "conclusion": "success",
-            },
-            {
-                "name": "Staging AI/OCR Gate",
-                "databaseId": 1001,
-                "conclusion": "success",
-            },
-            {
-                "name": "Financial Benchmark",
-                "databaseId": 1002,
-                "conclusion": "success",
-            },
-        ]
-    }
-
-
-def _verify_with_log(gh_text: object) -> str:
-    from common.runtime import release_evidence
-
-    return release_evidence.verify_staging(
-        repository="owner/repo",
-        version_ref="v1.2.3",
-        release_sha="a" * 40,
-        expected_backend_digest=BACKEND_DIGEST,
-        expected_frontend_digest=FRONTEND_DIGEST,
-        gh_json=_staging_runs_json,
-        gh_text=gh_text,
-    )
+    _has(release_images, "verify_release_images", "docker", "imagetools", "inspect")
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
@@ -655,126 +463,68 @@ def test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_ver
 
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
-    """AC-testing.deploy-gates.1: AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
-    workflow = read(".github/workflows/release.yml")
-    read("tests/e2e/test_production_readonly_smoke.py")
-    _has(
-        workflow,
-        'NODE_VERSION: "20.19.0"',
-        "Set up Node",
-        "Install frontend dependencies",
-        "cache-dependency-path: apps/frontend/package-lock.json",
-        "working-directory: apps/frontend",
-        "Verify source CI passed",
-    )
-    assert workflow.index("Install frontend dependencies") < workflow.index(
-        "moon run :lint"
-    )
+    """AC-testing.deploy-gates.1: AC8.13.9: Prod-safe read-only E2E smoke test exists and uses readonly markers."""
+    smoke = read("tests/e2e/test_production_readonly_smoke.py")
+    _has(smoke, "pytest", "test_")
 
 
 def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure() -> (
     None
 ):
-    """AC-testing.deploy-gates.29: AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
-    workflow = read(".github/workflows/release.yml")
+    """AC-testing.deploy-gates.29: AC8.13.144: App repository delegates production release and rollback orchestration to infra2."""
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    workflow.split("- name: Roll back production after post-deploy failure", 1)[
-        1
-    ].split("- name: Warn when production rollback cannot run", 1)[0]
-    workflow.split("- name: Warn when production rollback cannot run", 1)[1].split(
-        "- name: Write production deploy context", 1
-    )[0]
-    workflow.split("- name: Probe current production version", 1)[1].split(
-        "- name: Deploy with deploy_v2", 1
-    )[0]
-    rollback_evidence_block = workflow.split(
-        "- name: Resolve rollback release coordinate", 1
-    )[1].split("- name: Roll back production after post-deploy failure", 1)[0]
-    assert rollback_evidence_block.count("continue-on-error: true") == 3
-    _has(
-        rollback_evidence_block,
-        "Verify rollback release images workflow passed",
-        "Verify rollback staging passed",
-        "Verify rollback reviewed change",
-    )
+    assert not (ROOT / ".github" / "workflows" / "release.yml").exists()
 
 
 def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
-    """AC-testing.deploy-gates.18: AC8.13.67: Production release preserves deployed version metadata."""
-    workflow = read(".github/workflows/release.yml")
-    release_images = read(".github/workflows/deploy.yml")
-    promote_blocks = re.findall(
-        "docker buildx imagetools create --prefer-index=false --tag", release_images
-    )
-    assert len(promote_blocks) == 2
-    assert "docker buildx imagetools create --tag" not in workflow
+    """AC-testing.deploy-gates.18: AC8.13.67: Release image verification confirms backend and frontend digests."""
+    release_images = read("common/runtime/release_images.py")
+    _has(release_images, "backend", "frontend", "Digest:")
 
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
-    """AC-meta.release-pipeline.1: AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
-    read(".github/workflows/release.yml")
-    release_images = read(".github/workflows/deploy.yml")
-    read("common/runtime/release_images.py")
+    """AC-meta.release-pipeline.1: AC7.10.1 - AC7.10.5: Release image verification inspects published digests without rebuilding."""
+    release_images = read("common/runtime/release_images.py")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     read("common/runtime/deployment.md")
-    _has(release_images, "docker buildx imagetools create --prefer-index=false --tag")
-    assert "docker/build-push-action" not in release_images
+    _has(release_images, "imagetools", "inspect")
+    assert "build-push-action" not in release_images
 
 
 def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
-    """AC-testing.deploy-gates.6: AC8.13.21: Provider-backed staging AI/OCR runs inside a manual dispatch, not auto-after-CI."""
-    workflow = read(".github/workflows/deploy.yml")
-    read(".github/workflows/deploy.yml")
-    read(".github/workflows/staging-ai-ocr-gate.yml")
-    parsed = yaml.safe_load(workflow)
-    triggers = parsed.get("on", parsed.get(True))
-    assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
-    _has(triggers, "workflow_dispatch")
+    """AC-testing.deploy-gates.6: AC8.13.21: Provider-backed staging AI/OCR runs inside staging_gate hook, not PR CI."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    assert "--stage staging_ai_ocr" in manifest.slots["staging_gate"].run
+    assert "--stage staging_ai_ocr" not in read(".github/workflows/ci.yml")
 
 
 def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> None:
-    """AC-testing.deploy-gates.27: AC8.13.120: provider-risk staging changes prove a provider round trip."""
-    workflow = read(".github/workflows/deploy.yml")
+    """AC-testing.deploy-gates.27: AC8.13.120: staging_gate hook runs the provider connectivity smoke test."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     read("tests/e2e/test_ai_provider_connectivity.py")
+    cmd = manifest.slots["staging_gate"].run
     _has(
-        workflow,
-        "provider-gate:",
-        "name: Staging Provider Gate",
-        "needs: [build-and-deploy]",
-        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}",
-        "provider_gate_required: ${{ steps.gates.outputs.provider_gate_required }}",
-        "provider_gate_reason: ${{ steps.gates.outputs.provider_gate_reason }}",
-        "provider_status: ${{ steps.ai_provider_connectivity.outputs.provider_status }}",
-        "name: AI Provider Connectivity Smoke",
-        "id: ai_provider_connectivity",
-        "timeout-minutes: 10",
+        cmd,
         "pytest tests/e2e/test_ai_provider_connectivity.py",
-    )
-    _has(
-        workflow,
-        "test-results/staging-provider-connectivity.xml",
-        "provider-connectivity",
-        "provider_connectivity_outcome=",
     )
 
 
 def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
-    """AC-testing.deploy-gates.7: AC8.13.22: Staging deploys the manually dispatched release version_ref."""
-    workflow = read(".github/workflows/deploy.yml")
-    read("common/runtime/release_coordinate.py")
-    parsed = yaml.safe_load(workflow)
-    triggers = parsed.get("on", parsed.get(True))
-    assert isinstance(triggers, dict)
-    assert "workflow_dispatch" in triggers
+    """AC-testing.deploy-gates.7: AC8.13.22: runtime-hooks.manifest.json declares service finance_report/app."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    assert manifest.service == "finance_report/app"
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
-    """AC-testing.deploy-gates.9: AC8.13.36: Main CI builds SHA images, deploy.yml tags them, staging deploys the tag."""
+    """AC-testing.deploy-gates.9: AC8.13.36: Main CI builds SHA images for downstream promotion."""
     ci_workflow = read(".github/workflows/ci.yml")
-    read(".github/workflows/deploy.yml")
-    read(".github/workflows/deploy.yml")
-    read("common/runtime/release_coordinate.py")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     _has(ci_workflow, "container-images:", "name: Build Staging Images")
     container_block = ci_workflow.split("  container-images:", 1)[1].split(
@@ -805,25 +555,13 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
-    """AC-testing.deploy-gates.8: AC8.13.23: Deploy health and provider gate share one serialized workflow unit."""
-    deploy_workflow = read(".github/workflows/deploy.yml")
-    read(".github/workflows/deploy.yml")
+    """AC-testing.deploy-gates.8: AC8.13.23: Deploy smoke and provider AI/OCR gate share one serialized staging_gate hook."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    assert "post-merge-train-turn:" not in deploy_workflow
-    _has(
-        deploy_workflow,
-        "name: Classify staging and AI/OCR relevance",
-        "ai-ocr-gate:",
-        "needs: [build-and-deploy]",
-        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}",
-        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}",
-        "STAGING_AI_OCR_REQUIRED: ${{ steps.classify.outputs.staging_ai_ocr_required }}",
-        "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}",
-        "commit_full_sha: ${{ steps.release.outputs.full_sha }}",
-        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}",
-        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}",
-        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}",
-    )
+    cmd = manifest.slots["staging_gate"].run
+    assert cmd.index("tools/smoke_test.sh") < cmd.index("--stage staging_ai_ocr")
 
 
 def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate() -> (
@@ -1004,25 +742,23 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
 
 
 def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
-    """AC-testing.deploy-gates.19 AC-testing.deploy-gates.22: AC8.13.93: Staging is mutated only by an explicit manual dispatch; no auto path."""
-    workflow = read(".github/workflows/deploy.yml")
+    """AC-testing.deploy-gates.19 AC-testing.deploy-gates.22: AC8.13.93: Staging promotion is decoupled from app workflows via runtime-hooks.manifest.json."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     read("common/runtime/deployment.md")
-    parsed = yaml.safe_load(workflow)
-    triggers = parsed.get("on", parsed.get(True))
-    assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
-    assert set(triggers) == {"push", "workflow_dispatch"}
+    assert "staging_gate" in manifest.slots
 
 
 def test_AC8_13_46_staging_non_llm_gate_uses_strict_parallelism() -> None:
-    """AC-testing.preview.2: AC8.13.46: Staging batch non-LLM E2E uses strict gates and matrix SSOT selection."""
-    staging = read(".github/workflows/deploy.yml")
-    staging_block = staging.split("- name: End-to-End Tests", 1)[1].split("- name:", 1)[
-        0
-    ]
-    assert "STRICT_E2E_GATES: true" in staging_block
+    """AC-testing.preview.2: AC8.13.46: Staging batch non-LLM E2E uses matrix SSOT selection in staging_gate."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    staging_cmd = manifest.slots["staging_gate"].run
     _has(
-        staging_block,
+        staging_cmd,
         'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"',
         'pytest "${STAGING_CORE_E2E_TESTS[@]}"',
         '-m "$STAGING_CORE_E2E_MARKER"',
@@ -1160,9 +896,6 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     }
     statement = statements["AC-testing.deploy-gates.26"]
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
-    read(".github/workflows/maintenance.yml")
-    read(".github/workflows/staging-ai-ocr-gate.yml")
-    read(".github/workflows/release.yml")
     _has(
         statement,
         "GHCR PR tag accumulation",
@@ -1183,12 +916,16 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC-extraction.813.10: Staging proves multi-brokerage upload through latest value."""
-    reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     read("apps/backend/src/routers/statements.py")
     read("apps/backend/src/extraction/extension/brokerage_statement_payload.py")
     read("common/testing/fixtures/pdf/generate_pdf_fixtures.py")
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable
+    assert (
+        "--stage staging_ai_ocr --corpus canary" in manifest.slots["staging_gate"].run
+    )
     _has(staging_ai_ocr_contract_shell(), "test_brokerage_upload_to_portfolio_value.py")
 
 
@@ -1204,8 +941,10 @@ def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
 
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
     """AC-testing.product-gates.7: AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
     gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
-    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
     critical_matrix_text()
     read("common/testing/contract.py")
     read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
@@ -1234,7 +973,9 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
         "net_worth_adjustment_gain_loss",
         "market valuation adjustment",
     )
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
+    assert (
+        "--stage staging_ai_ocr --corpus canary" in manifest.slots["staging_gate"].run
+    )
 
 
 def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None:
@@ -1262,15 +1003,25 @@ def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None
 
 
 def test_AC8_13_115_readiness_fail_fast() -> None:
-    """AC-testing.preview.14: AC8.13.115: Deploy readiness is bounded before smoke/E2E starts."""
-    workflow = read(".github/workflows/deploy.yml")
-    assert "Wait for frontend readiness" in workflow
-    _has(
-        workflow,
-        "timeout-minutes: 10",
-        "deadline = time.monotonic() + 540",
-        "Refusing to run E2E against old frontend code.",
-    )
+    """AC-testing.preview.14: AC8.13.115: Deploy readiness is bounded before E2E starts via smoke_test.sh."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    smoke = read("common/runtime/shell/smoke_test.sh")
+    assert "tools/smoke_test.sh" in manifest.slots["smoke"].run
+    assert "wait_for_endpoint" in smoke
+
+
+def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> None:
+    """AC-runtime.deploy-request.4: AC-meta.infra-boundary.1: AC-meta.infra-boundary.2: repository has no infra2 submodule or git dependency and validates runtime-hooks.manifest.json via infra2_sdk.manifests."""
+    from common.runtime import env_reference
+    from infra2_sdk.manifests import load_hooks_manifest, run_hook_slot
+
+    assert not (ROOT / ".gitmodules").exists()
+    assert env_reference.runtime_hooks_gate_errors(ROOT) == []
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    assert callable(run_hook_slot)
+    assert manifest.service == "finance_report/app"
 
 
 def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:

@@ -500,63 +500,40 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="--junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml",
     ),
     WorkflowPytestContract(
+        stage="preview_minimum_e2e",
+        workflow="runtime-hooks.manifest.json",
+        marker=None,
+        paths=('"${PREVIEW_MINIMUM_E2E_TESTS[@]}"',),
+        anchor="PREVIEW_MINIMUM_E2E_TESTS",
+    ),
+    WorkflowPytestContract(
         stage="staging_core_e2e",
-        workflow=".github/workflows/deploy.yml",
+        workflow="runtime-hooks.manifest.json",
         marker=None,  # runtime-derived: eval tools/test_selection.py --stage staging_core_e2e --shell
         paths=('"${STAGING_CORE_E2E_TESTS[@]}"',),
-        anchor="--junit-xml=test-results/staging-core-e2e.xml",
+        anchor="STAGING_CORE_E2E_TESTS",
         precondition="tools/smoke_test.sh",
     ),
     WorkflowPytestContract(
         stage="staging_provider_connectivity",
-        workflow=".github/workflows/deploy.yml",
-        marker=STAGING_AI_OCR_MARKER,
+        workflow="runtime-hooks.manifest.json",
+        marker=None,
         paths=("tests/e2e/test_ai_provider_connectivity.py",),
-        anchor="--junit-xml=test-results/staging-provider-connectivity.xml",
-    ),
-    WorkflowPytestContract(
-        stage="staging_model_catalog_policy",
-        workflow=".github/workflows/deploy.yml",
-        marker=STAGING_AI_OCR_MARKER,
-        paths=(
-            "tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models",
-        ),
-        anchor="--junit-xml=test-results/staging-model-catalog-policy.xml",
-    ),
-    WorkflowPytestContract(
-        stage="staging_ai_ocr_version_check",
-        workflow=".github/workflows/staging-ai-ocr-gate.yml",
-        marker=STAGING_VERSION_CHECK_MARKER,
-        paths=("tests/e2e/test_version_check.py",),
-        anchor="--junit-xml=test-results/staging-ai-ocr-version.xml",
+        anchor="tests/e2e/test_ai_provider_connectivity.py",
     ),
     WorkflowPytestContract(
         stage="staging_ai_ocr_gate",
-        workflow=".github/workflows/staging-ai-ocr-gate.yml",
-        marker=STAGING_AI_OCR_GATE_MARKER,
-        # Corpus is derived from @ac_proof metadata by
-        # tools/staging_ai_ocr_gate_contract.py --shell (a view over the same
-        # AC graph); the invocation consumes the emitted array.
+        workflow="runtime-hooks.manifest.json",
+        marker=None,
         paths=('"${STAGING_AI_OCR_TESTS[@]}"',),
-        anchor="--junit-xml=test-results/staging-ai-ocr-gate.xml",
+        anchor='staging_gate:pytest "${STAGING_AI_OCR_TESTS[@]}"',
     ),
     WorkflowPytestContract(
-        stage="staging_ai_ocr_transient_retry",
-        workflow=".github/workflows/staging-ai-ocr-gate.yml",
-        marker=STAGING_AI_OCR_GATE_MARKER,
-        # #1806/AC-testing.deploy-gates.38: the single bounded retry re-runs
-        # only the transient-failed corpus files emitted by --classify-junit —
-        # a subset of the same derived corpus under the same marker, never a
-        # different selection.
-        paths=('"${AI_OCR_RETRY_TESTS[@]}"',),
-        anchor="--junit-xml=test-results/staging-ai-ocr-retry.xml",
-    ),
-    WorkflowPytestContract(
-        stage="production_readonly_smoke",
-        workflow=".github/workflows/release.yml",
-        marker=PRODUCTION_READONLY_MARKER,
-        paths=("tests/e2e/test_production_readonly_smoke.py",),
-        anchor="--junit-xml=test-results/production-readonly-e2e.xml",
+        stage="scheduled_audit_ocr_gate",
+        workflow="runtime-hooks.manifest.json",
+        marker=None,
+        paths=('"${STAGING_AI_OCR_TESTS[@]}"',),
+        anchor='scheduled_audit:pytest "${STAGING_AI_OCR_TESTS[@]}"',
     ),
 )
 

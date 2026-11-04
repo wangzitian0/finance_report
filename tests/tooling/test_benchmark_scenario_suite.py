@@ -24,13 +24,14 @@ if str(REPO_ROOT / "apps" / "backend") not in sys.path:
 
 def test_staging_core_e2e_marker_contract() -> None:
     """Staging deployment Phase 2 validation is scoped to staging_core_e2e selection."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
     assert STAGING_CORE_E2E_MARKER == "(smoke or e2e) and not llm"
-    deploy_yml = (REPO_ROOT / ".github" / "workflows" / "deploy.yml").read_text(
-        encoding="utf-8"
-    )
+    manifest = load_hooks_manifest(REPO_ROOT / "runtime-hooks.manifest.json")
+    staging_run = manifest.slots["staging_gate"].run
     assert (
-        "tools/test_selection.py --stage staging_core_e2e --shell" in deploy_yml
-        and 'pytest "${STAGING_CORE_E2E_TESTS[@]}"' in deploy_yml
+        "tools/test_selection.py --stage staging_core_e2e --shell" in staging_run
+        and 'pytest "${STAGING_CORE_E2E_TESTS[@]}"' in staging_run
     )
 
 

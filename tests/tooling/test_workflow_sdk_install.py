@@ -142,8 +142,7 @@ def test_AC_runtime_sdk_install_1_the_scan_finds_the_tools_that_need_the_sdk() -
 
     # These tools reach `infra2_sdk` by a module-level import today. A tool that drops the import leaves the set.
     assert {
-        "resolve_release_coordinate",
-        "verify_release_evidence",
+        "generate_env_reference",
         "verify_release_images",
     } <= tools
     # A tool that imports only the standard library is not in the set.
@@ -160,8 +159,8 @@ def test_AC_runtime_sdk_install_1_every_job_installs_the_sdk_before_it_runs_a_to
     ("steps", "expected"),
     [
         ([{"run": "python tools/verify_release_images.py --help"}], 1),
-        ([{"run": "python3 tools/resolve_release_coordinate.py --version-ref v1"}], 1),
-        ([{"run": "python -m tools.verify_release_evidence --check staging"}], 1),
+        ([{"run": "python3 tools/generate_env_reference.py --check"}], 1),
+        ([{"run": "python -m tools.verify_release_images --help"}], 1),
         (
             [
                 {"uses": INSTALL_ACTION},

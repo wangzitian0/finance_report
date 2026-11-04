@@ -524,15 +524,12 @@ def test_AC7_11_4_summary_and_cli_paths_are_reported(tmp_path: Path, capsys) -> 
 
 
 def test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract() -> None:
-    """AC-meta.migration-risk.4: AC7.11.4: CI and production dry-run surface migration risk classification."""
+    """AC-meta.migration-risk.4: AC7.11.4: CI surfaces migration risk classification."""
 
     ci = read(".github/workflows/ci.yml")
-    release = read(".github/workflows/release.yml")
 
     assert "Migration Risk Contract Check" in ci
     assert "python tools/check_migration_risk.py" in ci
-    assert "Validate Migration Risk Contract" in release
-    assert "production-migration-risk-context.md" in release
 
 
 def test_AC7_11_5_low_and_medium_migrations_are_auto_classified(tmp_path: Path) -> None:

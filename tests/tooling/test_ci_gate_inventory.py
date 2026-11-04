@@ -74,78 +74,31 @@ def test_AC8_13_142_finish_inventory_matches_ci_fan_in() -> None:
 
 
 def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
-    """AC-testing.gate-inventory.4: AC8.13.153: both AI/OCR entrances call one reusable workflow; no duplicate body."""
-    deploy = _load_yaml(WORKFLOWS / "deploy.yml")
-    reusable_path = WORKFLOWS / "staging-ai-ocr-gate.yml"
-    reusable = _load_yaml(reusable_path)
-    reusable_text = reusable_path.read_text(encoding="utf-8")
+    """AC-testing.gate-inventory.4: AC8.13.153: both staging_gate and scheduled_audit hook slots invoke the single staging AI/OCR selection stage."""
+    from infra2_sdk.manifests import load_hooks_manifest
 
-    # The reusable workflow is workflow_call; the corpus is its only behavioral
-    # input. The blocking input is gone: the gate always exits with the real
-    # status (#2370: red means red).
-    on = reusable.get("on", reusable.get(True))
-    assert isinstance(on, dict) and "workflow_call" in on
-    inputs = on["workflow_call"]["inputs"]
-    assert {"commit_ref", "expected_sha", "corpus"} <= set(inputs)
-    assert "blocking" not in inputs
-    assert "run" in reusable["jobs"]
-    # The ~120-line gate body lives here exactly once.
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable_text
-    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in reusable_text
-
-    # A failed gate fails the job for every caller; no BLOCKING switch exists.
-    assert 'exit "$status"' in reusable_text
-    assert "BLOCKING" not in reusable_text
-
-    # Both deploy.yml entrances use the reusable workflow and fail closed. The
-    # separate audit-replay workflow is the only caller that nothing depends on.
-    ref = "./.github/workflows/staging-ai-ocr-gate.yml"
-    for job_id in ("ai-ocr-gate", "manual-ai-ocr-gate"):
-        job = deploy["jobs"][job_id]
-        assert job["uses"] == ref
-        assert "blocking" not in job["with"]
-        assert job.get("secrets") == "inherit"
-        # A caller cannot also inline steps — the body must not be duplicated.
-        assert "steps" not in job
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    slots = manifest.slots
+    for slot in ("staging_gate", "scheduled_audit"):
+        cmd = slots[slot].run
+        assert "tools/test_selection.py --stage staging_ai_ocr" in cmd
+        assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in cmd
 
 
 def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
-    """AC-testing.gate-inventory.5: AC8.13.154: production release split into release.yml; deploy.yml keeps staging + promote."""
+    """AC-testing.gate-inventory.5: AC8.13.154: App repository retains only ci.yml and docs.yml workflows; CD and release orchestration live in infra2 via runtime-hooks.manifest.json."""
     from common.meta.extension.workflow_contract import (
         APP_WORKFLOW_FILES,
         WORKFLOW_CONTRACT,
     )
 
-    release = _load_yaml(WORKFLOWS / "release.yml")
-    deploy = _load_yaml(WORKFLOWS / "deploy.yml")
-
-    # release.yml is manual-dispatch only and hosts exactly the prod jobs.
-    on = release.get("on", release.get(True))
-    assert isinstance(on, dict) and set(on) == {"workflow_dispatch"}
-    assert set(release["jobs"]) == {"journey-board", "dry-run", "deploy"}
-    # The board row (#2370) never gates production: deploy runs on !cancelled().
-    assert release["jobs"]["deploy"]["needs"] == ["journey-board"]
-    assert release["jobs"]["deploy"]["if"] == "${{ !cancelled() && !inputs.dry_run }}"
-    assert "environment" not in release["jobs"]["journey-board"]
-
-    # Serialized per version_ref so two production releases never run concurrently.
-    concurrency = release["concurrency"]
-    assert "production-release-" in concurrency["group"]
-    assert concurrency["cancel-in-progress"] is False
-
-    # deploy.yml no longer hosts the prod jobs but keeps staging + tag-push promote.
-    assert "dry-run" not in deploy["jobs"]
-    assert "deploy" not in deploy["jobs"]
-    assert {"build-and-deploy", "promote"} <= set(deploy["jobs"])
-
-    # The workflow contract tracks the new file and re-homed job ids.
-    assert ".github/workflows/release.yml" in APP_WORKFLOW_FILES
-    assert WORKFLOW_CONTRACT[".github/workflows/release.yml"]["jobs"] == (
-        "journey-board",
-        "dry-run",
-        "deploy",
+    assert APP_WORKFLOW_FILES == (
+        ".github/workflows/ci.yml",
+        ".github/workflows/docs.yml",
     )
-    assert "dry-run" not in WORKFLOW_CONTRACT[".github/workflows/deploy.yml"]["jobs"]
+    assert set(WORKFLOW_CONTRACT) == set(APP_WORKFLOW_FILES)
+    assert not (WORKFLOWS / "release.yml").exists()
+    assert not (WORKFLOWS / "deploy.yml").exists()
 
 
 def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:

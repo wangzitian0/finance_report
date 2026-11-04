@@ -83,20 +83,24 @@ def _violations() -> list[str]:
     return found
 
 
-def test_AC_runtime_reusable_permissions_1_the_scan_finds_the_reusable_calls() -> None:
-    calls = {
-        (path.name, job_id)
-        for path in WORKFLOWS.glob("*.yml")
-        for job_id, _, _ in _local_calls(path)
-    }
-
-    # A scan that finds no call would pass the next test without a check.
-    assert {
-        ("deploy.yml", "ai-ocr-gate"),
-        ("deploy.yml", "financial-benchmark"),
-        ("deploy.yml", "manual-ai-ocr-gate"),
-        ("audit-replay.yml", "audit-replay"),
-    } <= calls
+def test_AC_runtime_reusable_permissions_1_the_scan_finds_the_reusable_calls(
+    tmp_path: Path,
+) -> None:
+    caller = tmp_path / "caller.yml"
+    caller.write_text(
+        yaml.safe_dump(
+            {
+                "on": {"push": {}},
+                "jobs": {
+                    "call": {"uses": "./.github/workflows/callee.yml"},
+                    "local": {"runs-on": "ubuntu-latest", "steps": [{"run": "true"}]},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls = {(caller.name, job_id) for job_id, _, _ in _local_calls(caller)}
+    assert calls == {("caller.yml", "call")}
 
 
 def test_AC_runtime_reusable_permissions_1_every_call_grants_what_the_called_jobs_request() -> (

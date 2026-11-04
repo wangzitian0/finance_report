@@ -12,7 +12,7 @@
 validate_non_empty() {
   local value="${1:-}"
   local name="${2:-variable}"
-  
+
   # Strip all whitespace and check if empty
   if [[ -z "${value// }" ]]; then
     echo "ERROR: $name is empty or whitespace-only" >&2
@@ -33,26 +33,26 @@ safe_jq() {
   local jq_output_file
   local jq_stderr_file
   local exit_code
-  
+
   jq_output_file=$(mktemp)
   jq_stderr_file=$(mktemp)
-  
+
   echo "$input" | jq -r "$filter" >"$jq_output_file" 2>"$jq_stderr_file"
   exit_code=$?
-  
+
   if [[ -s "$jq_stderr_file" ]] && grep -q "parse error" "$jq_stderr_file"; then
     echo "ERROR: jq failed in $context" >&2
     cat "$jq_stderr_file" >&2
     rm -f "$jq_output_file" "$jq_stderr_file"
     return 1
   fi
-  
+
   if [[ $exit_code -eq 0 ]]; then
     cat "$jq_output_file"
     rm -f "$jq_output_file" "$jq_stderr_file"
     return 0
   fi
-  
+
   echo "ERROR: jq failed in $context" >&2
   cat "$jq_stderr_file" >&2
   rm -f "$jq_output_file" "$jq_stderr_file"
@@ -80,7 +80,7 @@ check_http_code() {
   local actual="${1:-000}"
   local expected="${2:-200}"
   local context="${3:-HTTP request}"
-  
+
   # Numeric comparison (handles "200 " vs "200" edge cases)
   if ! [[ "$actual" =~ ^[0-9]+$ ]] || [[ "$actual" -ne "$expected" ]]; then
     echo "ERROR: $context returned HTTP $actual (expected $expected)" >&2
@@ -92,7 +92,7 @@ check_http_code() {
 # Setup temp files with safe cleanup
 # Fixes: CRITICAL-6 (temp file cleanup race condition)
 #
-# Usage: 
+# Usage:
 #   response_file=$(mktemp)
 #   error_file=$(mktemp)
 #   register_cleanup "$response_file" "$error_file"
@@ -126,33 +126,12 @@ escape_env_value() {
 # Returns: 0 if healthy, 1 otherwise
 validate_health_response() {
   local response="$1"
-  
+
   # Parse as JSON and check status field explicitly
   if ! echo "$response" | jq -e '.status == "healthy"' >/dev/null 2>&1; then
     return 1
   fi
   return 0
-}
-
-safe_dokploy_message() {
-  local response_file="$1"
-  if [[ -s "$response_file" ]]; then
-    jq -r '.message // .error // .status // "unavailable"' "$response_file" 2>/dev/null | head -c 160
-  else
-    printf "unavailable"
-  fi
-}
-
-print_dokploy_error() {
-  local context="$1"
-  local endpoint="$2"
-  local http_code="$3"
-  local response_file="$4"
-
-  echo "ERROR: $context returned HTTP $http_code" >&2
-  echo "endpoint: $endpoint" >&2
-  echo "safe_message: $(safe_dokploy_message "$response_file")" >&2
-  echo "raw_body_printed: false" >&2
 }
 
 env_value() {
@@ -187,82 +166,6 @@ render_allowlisted_env_diff() {
   return "$failed"
 }
 
-# Call Dokploy API with comprehensive error handling
-# Fixes: CRITICAL-4 (pipe errors hidden), CRITICAL-7 (HTTP comparison)
-#
-# Usage: dokploy_api_call "GET" "endpoint" "" "$output_file" "context"
-#        dokploy_api_call "POST" "endpoint" "$json_payload" "$output_file" "context"
-#
-# Environment: Requires DOKPLOY_API_KEY, DOKPLOY_API_URL
-# Returns: 0 on success (HTTP 200), exits on error
-dokploy_api_call() {
-  local method="$1"
-  local endpoint="$2"
-  local data="${3:-}"
-  local output_file="${4:-}"
-  local error_context="${5:-API call}"
-  
-  # Validate inputs
-  validate_non_empty "$method" "HTTP method" || return 1
-  validate_non_empty "$endpoint" "API endpoint" || return 1
-  validate_non_empty "$output_file" "output file" || return 1
-  validate_non_empty "${DOKPLOY_API_KEY:-}" "DOKPLOY_API_KEY" || return 1
-  validate_non_empty "${DOKPLOY_API_URL:-}" "DOKPLOY_API_URL" || return 1
-  
-  local error_file
-  error_file=$(mktemp)
-  register_cleanup "$error_file"
-
-  local curl_config_file
-  curl_config_file=$(mktemp)
-  register_cleanup "$curl_config_file"
-  printf 'header = "x-api-key: %s"\n' "$DOKPLOY_API_KEY" > "$curl_config_file"
-
-  local data_file=""
-  if [[ -n "$data" ]]; then
-    data_file=$(mktemp)
-    register_cleanup "$data_file"
-    printf "%s" "$data" > "$data_file"
-  fi
-  
-  local curl_args=(
-    -s
-    --connect-timeout 10
-    --max-time 60
-    -o "$output_file"
-    -w "%{http_code}"
-    --config "$curl_config_file"
-  )
-  
-  if [[ "$method" == "POST" ]]; then
-    curl_args+=(-X POST -H "Content-Type: application/json")
-    if [[ -n "$data_file" ]]; then
-      curl_args+=(--data-binary "@$data_file")
-    fi
-  fi
-  
-  curl_args+=("$DOKPLOY_API_URL/$endpoint")
-  
-  # Capture HTTP code and handle connection errors
-  local http_code
-  http_code=$(curl "${curl_args[@]}" 2>"$error_file" || echo "000")
-  
-  # Check for connection failures
-  if [[ "$http_code" == "000" ]]; then
-    echo "ERROR: Failed to connect to Dokploy API ($error_context)" >&2
-    cat "$error_file" >&2
-    return 1
-  fi
-  
-  # Validate HTTP status code
-  if ! check_http_code "$http_code" "200" "$error_context"; then
-    print_dokploy_error "$error_context" "$endpoint" "$http_code" "$output_file"
-    return 1
-  fi
-  
-  return 0
-}
-
 # Update environment variable in multi-line env string
 # Fixes: CRITICAL-3 (uses escape_env_value for safety)
 #
@@ -271,11 +174,11 @@ update_env_var() {
   local env_content="$1"
   local var_name="$2"
   local var_value="$3"
-  
+
   # Escape the value for safe injection
   local safe_value
   safe_value=$(escape_env_value "$var_value")
-  
+
   # Update or append
   if echo "$env_content" | grep -q "^${var_name}="; then
     echo "$env_content" | sed "s|^${var_name}=.*|${var_name}=${safe_value}|"
@@ -288,7 +191,7 @@ update_env_var() {
 # Usage: mask_secrets "$env_string"
 mask_secrets() {
   local env_content="$1"
-  
+
   while IFS= read -r line; do
     case "$line" in
       VAULT_*=*|*TOKEN=*|*SECRET=*|*KEY=*|*PASSWORD=*)
