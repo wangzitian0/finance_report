@@ -329,13 +329,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 ### AC7.19: GHCR SHA Image Retention (#1277)
 
 > Main and release-branch CI publish backend/frontend `:<sha>` images. The
-> scheduled GHCR retention lane must keep these tags bounded without touching
-> release tags or the SHA backing a currently live staging/production deploy.
-> If live deploy SHA discovery fails, the job fails before deleting package
-> versions.
-
-> This row removed — migrated to the `runtime` package roadmap as
-> `AC-runtime.22.1` (migration closeout continuation, #1663 / #1714).
+> scheduled GHCR retention lane is owned by `infra2` (`#2831`).
 
 
 ## 📏 Acceptance Criteria

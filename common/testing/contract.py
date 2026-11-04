@@ -247,7 +247,6 @@ CONTRACT = PackageContract(
         ac('AC-testing.deploy-gates.13', 'Production release dry-run validates release prerequisites and image builds through shared release evidence/image digest tools without production mutation (Was EPIC-008 AC8.13.52).', 'tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_52_production_release_dry_run_does_not_mutate_production'),
         ac('AC-testing.deploy-gates.14', 'Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, or toolchain changes (Was EPIC-008 AC8.13.55).', 'tests/tooling/test_ci_change_classifier.py::test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes'),
         ac('AC-testing.deploy-gates.15', 'Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk (Was EPIC-008 AC8.13.60).', 'tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates'),
-        ac('AC-testing.deploy-gates.16', "Production release verifies DB, S3, app vendor-neutral OTEL readiness, API, and frontend before completing deploy (proving the observability backend ingests is infra2's job) (Was EPIC-008 AC8.13.64).", 'tests/tooling/test_production_infra_smoke.py::test_AC8_13_64_production_infra_smoke_cli_reports_failure'),
         ac('AC-testing.deploy-gates.17', 'Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane (Was EPIC-008 AC8.13.65).', 'tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_52_production_release_dry_run_does_not_mutate_production'),
         ac('AC-testing.deploy-gates.18', 'Production release preserves deployed version metadata from image build through Dokploy runtime health (Was EPIC-008 AC8.13.67).', 'tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_67_production_release_preserves_version_metadata'),
         ac('AC-testing.deploy-gates.19', 'Staging is mutated only by an explicit manual workflow_dispatch with a required release version_ref input; no auto path can promote images or change Dokploy, and structured deploy failure context is preserved (Was EPIC-008 AC8.13.93).', 'tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_93_staging_promotion_requires_manual_dispatch'),
@@ -297,9 +296,6 @@ CONTRACT = PackageContract(
         # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /
         # #1718 ──
         ac('AC-testing.preview.2', 'Staging core non-LLM E2E uses strict gates and parallelism across all non-LLM end-to-end suites while PR validation runs unit/integration tests in CI (Was EPIC-008 AC8.13.46).', 'tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_46_staging_non_llm_gate_uses_strict_parallelism', priority='P1'),
-        ac('AC-testing.preview.4', 'Dokploy deploy diagnostics redact raw responses, log only allowlisted effective environment/config details, parse deployment records as typed object records, fail before readiness when fixed deploy_v2 sees rollout error/no terminal new record (Was EPIC-008 AC8.13.72).', 'tests/tooling/test_dokploy_redaction.py::test_AC8_13_72_common_dokploy_call_redacts_non_200_body'),
-        ac('AC-testing.preview.5', 'The app owns no VPS host hygiene — generic host GC (Docker/journald/disk prune) is infra2-owned (tools/host_hygiene_schedule.py + the ops-checks re-ensure job); the app ships no vps_host_hygiene module and provisions no Dokploy host-schedule (Was EPIC-008 AC8.13.73).', 'tests/tooling/test_cleanup_pr_preview_resources.py::test_AC8_13_73_app_owns_no_vps_host_hygiene'),
-        ac('AC-testing.preview.6', "The app's scheduled maintenance performs no Dokploy preview reconcile and no host hygiene — it only prunes the app's own stale GHCR PR image tags (Dokploy preview reclaim is infra2-owned) (Was EPIC-008 AC8.13.74).", 'tests/tooling/test_cleanup_pr_preview_resources.py::test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only'),
         ac('AC-testing.preview.14', 'Deploy readiness is bounded before smoke/E2E starts, with stack logs emitted on failure (Was EPIC-008 AC8.13.115).', 'tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_115_readiness_fail_fast'),
         # ── group classifier: CI change classification (was EPIC-008
         # AC8.13 subset), migration closeout, #1663 / #1718 ──
@@ -409,7 +405,6 @@ CONTRACT = PackageContract(
         # deploy_v2 dependency-install retry hardening (was EPIC-007
         # AC7.16.1/.2, #1821 Wave A horizontal move) ──
         ac('AC-testing.toolchain.11', 'The shared E2E toolchain-setup composite (setup-e2e-tests) retries transient dependency/browser download failures (uv pip install, playwright install) with bounded exponential backoff and keeps the original external error visible on exhaustion. The browser install is one composite (install-playwright) that the frontend jobs and setup-e2e-tests share, with a cache keyed by the Playwright version and no apt step (#2688).', 'tests/tooling/test_staging_toolchain_retry.py::test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads'),
-        ac('AC-testing.toolchain.12', 'The staging receiver dependency install retries transient download failures with bounded exponential backoff; application deploy/test steps remain fail-fast (not wrapped in retry).', 'tests/tooling/test_staging_toolchain_retry.py::test_AC7_16_2_staging_receiver_dependency_install_retries'),
         # ── group schema: schema/migration proof lanes (was EPIC-008
         # AC8.13 subset), migration closeout, #1663 / #1718 ──
         ac('AC-testing.schema.1', 'PR CI runs a schema migration contract against ephemeral Postgres with alembic upgrade head, alembic check, uploaded context, and finish aggregation (Was EPIC-008 AC8.13.121).', 'tests/tooling/test_schema_quality_contract.py::test_AC8_13_121_pr_ci_runs_schema_migration_contract'),
@@ -650,7 +645,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/testing/journey_board.py",
                 "common/testing/data/core-journey-checkpoints.json",
-                ".github/workflows/journey-board.yml",
+                "runtime-hooks.manifest.json",
                 "docs/board/index.html",
                 "tests/e2e/journey_checkpoint.py",
             ],
@@ -682,7 +677,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/data/staging-ai-ocr-replay-counters.json",
-                ".github/workflows/staging-ai-ocr-gate.yml",
+                "runtime-hooks.manifest.json",
             ],
             proofs=[
                 "tests/tooling/test_staging_ai_ocr_gate_contract.py",

@@ -27,40 +27,41 @@ version: "1.0"
 
 gates:
   - id: staging-deploy
-    workflow: .github/workflows/deploy.yml
-    job: build-and-deploy
-    trigger: workflow_dispatch      # manual only — staging no longer auto-follows main
+    workflow: runtime-hooks.manifest.json
+    job: staging_gate
+    trigger: workflow_dispatch      # manual/infra2-orchestrated staging gate slot
     blocking: false
     image_free: false
     description: >
-      Manual staging deploy. Consumes an existing release version_ref through
-      deploy_v2 and rolls staging. Staging is a pre-prod canary (approx prod,
-      slightly ahead); deploys are manual (CI is the dev quality gate, not auto-deploy).
+      Staging verification hook slot (staging_gate) in runtime-hooks.manifest.json,
+      invoked by infra2 after deploying an immutable release image.
 
   - id: staging-benchmark
-    workflow: .github/workflows/benchmark.yml
-    job: run-benchmark
+    workflow: runtime-hooks.manifest.json
+    job: scheduled_audit
     trigger: workflow_call
     blocking: true
     image_free: false
     description: >
-      Financial temporal benchmark suite executing 7 end-to-end multi-period financial
-      scenarios enforcing Assets - Liabilities - Equity == 0.00 and zero browser console errors.
+      Financial temporal benchmark and scheduled audit slot (scheduled_audit) in
+      runtime-hooks.manifest.json.
 
   - id: release-images
-    workflow: .github/workflows/deploy.yml
-    job: promote
+    workflow: runtime-hooks.manifest.json
+    job: smoke
     trigger: tag                   # vX.Y.Z release tag push
     blocking: false
     image_free: true              # manifest-copy of existing main-CI :<sha7> images
     description: >
-      Promote main-CI SHA images to immutable release tags with digest verification.
+      Promote main-CI SHA images to immutable release tags with digest verification
+      and verify deployed runtime health via the smoke hook slot.
 
   - id: production-release
-    workflow: .github/workflows/release.yml
-    job: deploy
+    workflow: runtime-hooks.manifest.json
+    job: smoke
     trigger: workflow_dispatch
     blocking: false
     image_free: true              # consumes existing release version_ref images; no rebuild
     description: >
-      Deploy an existing staging-validated release version_ref to production via deploy_v2.
+      Deploy an existing staging-validated release version_ref to production via infra2
+      and run the smoke hook slot.

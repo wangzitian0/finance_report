@@ -280,10 +280,7 @@ def test_main_omits_provider_health_when_provider_status_not_given(
 def test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow() -> (
     None
 ):
-    """AC-llm.evidence-bundle.2: AC8.13.165: main-CI (after unified-coverage + ac-behavioral-ratchet) and
-    the nightly audit-replay both call tools/generate_evidence_bundle.py and
-    upload an `evidence-bundle` artifact; only audit-replay supplies
-    --provider-status/--provider-exit-code."""
+    """AC-llm.evidence-bundle.2: AC8.13.165: main-CI (after unified-coverage + ac-behavioral-ratchet) calls tools/generate_evidence_bundle.py and uploads an `evidence-bundle` artifact without provider-status flags."""
     generator_script = "tools/generate_evidence_bundle.py"
     artifact_name = "evidence-bundle"
 
@@ -304,28 +301,12 @@ def test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow()
     assert provider_flag not in ci_commands
     assert_pyyaml_installed_before_generator(ci_commands, generator_script)
 
-    audit_workflow = yaml.safe_load(
-        (ROOT / ".github" / "workflows" / "audit-replay.yml").read_text()
+    upload_step = next(
+        step
+        for step in ci_job["steps"]
+        if isinstance(step, dict) and "upload-artifact" in str(step.get("uses", ""))
     )
-    audit_job = audit_workflow["jobs"]["evidence-bundle"]
-    assert audit_job["needs"] == ["audit-replay"]
-    audit_commands = "\n".join(
-        str(step.get("run", ""))
-        for step in audit_job["steps"]
-        if isinstance(step, dict)
-    )
-    assert generator_script in audit_commands
-    assert provider_flag in audit_commands
-    assert_pyyaml_installed_before_generator(audit_commands, generator_script)
-
-    for workflow in (ci_workflow, audit_workflow):
-        job = workflow["jobs"]["evidence-bundle"]
-        upload_step = next(
-            step
-            for step in job["steps"]
-            if isinstance(step, dict) and "upload-artifact" in str(step.get("uses", ""))
-        )
-        assert upload_step["with"]["name"] == artifact_name
+    assert upload_step["with"]["name"] == artifact_name
 
 
 def test_evidence_bundle_ci_job_is_not_required_by_finish() -> None:

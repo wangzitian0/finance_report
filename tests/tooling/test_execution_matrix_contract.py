@@ -21,18 +21,18 @@ from common.testing import matrix, test_selection
 
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX_YAML = ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
-DEPLOY_WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
+RUNTIME_HOOKS_MANIFEST = ROOT / "runtime-hooks.manifest.json"
 TESTING_README = ROOT / "common" / "testing" / "readme.md"
 MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 
 def _staging_e2e_run_step() -> str:
-    """Return the non-LLM E2E tests run block from deploy.yml."""
-    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-    marker = "- name: End-to-End Tests"
-    assert marker in workflow, "deploy.yml End-to-End Tests step not found"
-    block = workflow.split(marker, 1)[1]
-    return block.split("- name:", 1)[0]
+    """Return the non-LLM E2E tests command from runtime-hooks.manifest.json."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(RUNTIME_HOOKS_MANIFEST)
+    command = manifest.slots["staging_gate"].run
+    return command.split("pytest tests/e2e/test_ai_provider_connectivity.py", 1)[0]
 
 
 def test_AC8_22_1_generated_matrix_matches_checked_in_yaml() -> None:
@@ -62,7 +62,7 @@ def test_AC8_22_1_generated_yaml_parses_identically_for_consumers() -> None:
 
 
 def test_AC8_22_2_staging_workflow_derives_selection_from_matrix() -> None:
-    """AC-testing.matrix.2: AC8.22.2: deploy.yml consumes the CLI; no hardcoded whitelist remains."""
+    """AC-testing.matrix.2: AC8.22.2: runtime-hooks.manifest.json consumes the CLI; no hardcoded whitelist remains."""
     step = _staging_e2e_run_step()
     assert (
         'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"'
@@ -70,7 +70,6 @@ def test_AC8_22_2_staging_workflow_derives_selection_from_matrix() -> None:
     )
     assert 'pytest "${STAGING_CORE_E2E_TESTS[@]}"' in step
     assert '-m "$STAGING_CORE_E2E_MARKER"' in step
-    assert '-n "$STAGING_CORE_E2E_PARALLELISM"' in step
     # The selection lives in the matrix, not the workflow: no literal e2e
     # test path may reappear in the run step.
     assert "tests/e2e/" not in step

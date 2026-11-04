@@ -191,14 +191,10 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
         "tools.github_workflow_timing_summary": (
             "common.testing.github_workflow_timing_summary"
         ),
-        "tools.health_check": "common.runtime.health_check",
-        "tools.production_infra_smoke": "common.runtime.production_infra_smoke",
         "tools.staging_ai_ocr_gate_contract": (
             "common.testing.staging_ai_ocr_gate_contract"
         ),
         "tools.tier2_http_e2e": "common.runtime.tier2_http_e2e",
-        "tools.resolve_release_coordinate": "common.runtime.release_coordinate",
-        "tools.verify_release_evidence": "common.runtime.release_evidence",
         "tools.verify_release_images": "common.runtime.release_images",
     }
 
@@ -230,10 +226,7 @@ def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
     """AC8.13.58: Shell command entry points stay thin and delegate to common/runtime/shell."""
     shell_commands = [
         "bootstrap.sh",
-        "check_ghcr_image_tag.sh",
         "cleanup_dev_resources.sh",
-        "health_check.sh",
-        "infra.sh",
         "smoke_test.sh",
     ]
 
@@ -247,19 +240,6 @@ def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
         assert len(wrapper.splitlines()) <= 5
         assert implementation.startswith("#!")
         assert "common/runtime/shell/$(basename" not in implementation
-
-
-def test_AC8_13_58_infra_shell_tool_owns_legacy_docker_actions():
-    """AC8.13.58: Legacy infra Moon docker actions are owned by tools/infra.sh."""
-    implementation = (ROOT / "common" / "runtime" / "shell" / "infra.sh").read_text(
-        encoding="utf-8"
-    )
-
-    for command in ("docker-up", "docker-down", "docker-logs"):
-        assert command in implementation
-    assert "--profile infra up -d" in implementation
-    assert 'down "$@"' in implementation
-    assert 'logs -f "$@"' in implementation
 
 
 def test_AC8_13_56_python_tool_wrappers_bootstrap_repo_root_when_run_directly():

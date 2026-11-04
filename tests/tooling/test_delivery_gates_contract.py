@@ -11,6 +11,7 @@ environments.md, EPIC-008) cross-ref the manifest instead of re-stating the mech
 from pathlib import Path
 
 import yaml
+from infra2_sdk.manifests import load_hooks_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -37,7 +38,13 @@ GATES = _load("common/meta/data/delivery-gates.yaml")["gates"]
 
 
 def test_every_gate_workflow_declares_its_manifest_trigger():
+    hooks = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json").slots
     for gate in GATES:
+        if gate["workflow"] == "runtime-hooks.manifest.json":
+            assert gate["job"] in hooks, (
+                f"gate {gate['id']!r} references hook slot {gate['job']!r} not in runtime-hooks.manifest.json"
+            )
+            continue
         on = _workflow_on(_load(gate["workflow"]))
         key = _TRIGGER_ON_KEY[gate["trigger"]]
         assert key in on, (
@@ -61,16 +68,23 @@ def test_merge_authority_gate_is_synchronous_not_bypassable():
 
 
 def test_staging_benchmark_is_wired_via_workflow_call():
-    """Financial temporal benchmark is wired via workflow_call and blocking in Staging Batch Train."""
+    """Financial temporal benchmark and scheduled audit are wired into the scheduled_audit runtime hook slot."""
     gate = next(g for g in GATES if g["id"] == "staging-benchmark")
-    assert gate["trigger"] == "workflow_call"
+    assert gate["workflow"] == "runtime-hooks.manifest.json"
+    assert gate["job"] == "scheduled_audit"
     assert gate["blocking"] is True
-    on = _workflow_on(_load(gate["workflow"]))
-    assert "workflow_call" in on
+    hooks = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json").slots
+    assert "--corpus audit_replay" in hooks["scheduled_audit"].run
 
 
 def test_every_referenced_workflow_and_job_exists():
+    hooks = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json").slots
     for gate in GATES:
+        if gate["workflow"] == "runtime-hooks.manifest.json":
+            assert gate["job"] in hooks, (
+                f"gate {gate['id']!r} references hook slot {gate['job']!r} not in {gate['workflow']}."
+            )
+            continue
         jobs = _load(gate["workflow"]).get("jobs") or {}
         assert gate["job"] in jobs, (
             f"gate {gate['id']!r} references job {gate['job']!r} not in {gate['workflow']}."

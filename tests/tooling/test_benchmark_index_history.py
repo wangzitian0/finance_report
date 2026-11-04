@@ -13,12 +13,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
 from common.testing.benchmarks import generate_benchmark_index as generator
-
-ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = ROOT / ".github" / "workflows" / "benchmark.yml"
 
 
 def _summary(
@@ -143,32 +139,3 @@ def test_AC_testing_benchmarks_15_a_history_file_that_is_no_summary_is_skipped_w
     err = capsys.readouterr().err
     assert "Failed to parse" in err and "v0.2.4" in err
     assert "not a JSON object" in err and "v0.2.5" in err
-
-
-def _steps() -> list[dict[str, Any]]:
-    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    return workflow["jobs"]["run-benchmark"]["steps"]
-
-
-def _step_index(steps: list[dict[str, Any]], needle: str) -> int:
-    matches = [i for i, step in enumerate(steps) if needle in str(step.get("run", ""))]
-    assert len(matches) == 1, (
-        f"expected one step that runs {needle!r}, found {len(matches)}"
-    )
-    return matches[0]
-
-
-def test_AC_testing_benchmarks_15_the_workflow_fetches_the_published_history_before_it_builds_the_index() -> (
-    None
-):
-    steps = _steps()
-    fetch = _step_index(steps, "git fetch --no-tags --depth=1 origin gh-pages")
-    build = _step_index(steps, "generate_benchmark_index.py")
-
-    assert fetch < build
-    # The index must read the tree that the fetch step extracts.
-    assert "git archive --format=tar FETCH_HEAD benchmarks" in steps[fetch]["run"]
-    assert '-C "$RUNNER_TEMP/published"' in steps[fetch]["run"]
-    assert '--history-dir "$RUNNER_TEMP/published/benchmarks"' in steps[build]["run"]
-    # A failed fetch must not skip the index: both steps run after a failed benchmark too.
-    assert steps[fetch]["if"] == steps[build]["if"] == "always()"

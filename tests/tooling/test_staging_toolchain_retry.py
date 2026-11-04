@@ -30,21 +30,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 SETUP_E2E_ACTION = ".github/actions/setup-e2e-tests/action.yml"
 INSTALL_PLAYWRIGHT_ACTION = ".github/actions/install-playwright/action.yml"
-STAGING_DEPLOY_WORKFLOW = ".github/workflows/deploy.yml"
 
 
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
-
-
-def _step_run_by_id(steps: list[dict], step_id: str) -> str:
-    """Return the ``run:`` shell body of the step with the given ``id``."""
-    for step in steps:
-        if isinstance(step, dict) and step.get("id") == step_id:
-            run = step.get("run")
-            assert isinstance(run, str), f"step {step_id!r} has no shell 'run' body"
-            return run
-    raise AssertionError(f"no step with id={step_id!r} found")
 
 
 def _has_bounded_backoff_retry(shell: str) -> bool:
@@ -134,61 +123,3 @@ def test_AC7_16_1_setup_e2e_composite_does_not_wrap_test_execution() -> None:
         ]
         for line in command_lines:
             assert "pytest " not in line, "setup composite must not run pytest"
-
-
-def test_AC7_16_2_staging_receiver_dependency_install_retries() -> None:
-    """AC-testing.toolchain.12: AC7.16.2: receiver dependency install retries with backoff.
-
-    The app deploy request dependency step is a transient network download and must be wrapped in
-    the bounded exponential-backoff retry idiom, with the original error visible
-    on exhaustion.
-    """
-    workflow_text = read(STAGING_DEPLOY_WORKFLOW)
-    workflow = yaml.safe_load(workflow_text)
-
-    steps = workflow["jobs"]["build-and-deploy"]["steps"]
-    shell = _step_run_by_id(steps, "install_deploy_v2")
-
-    assert "httpx" in shell and "python tools/sdk_pin.py" in shell
-    assert 'python -m pip install "$sdk_wheel"' in shell
-    assert _has_bounded_backoff_retry(shell), (
-        "App deploy request dependencies must use the bounded backoff retry idiom"
-    )
-    assert "TOOLCHAIN_DOWNLOAD_RETRIES" in shell
-    assert "TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS" in shell
-    assert "tee " in shell
-    assert "::group::" in shell
-
-
-def test_AC7_16_2_staging_deploy_and_e2e_steps_stay_fail_fast() -> None:
-    """AC7.16.2: deploy/test execution steps are NOT wrapped in retry.
-
-    Only the toolchain download commands gain retry. The actual staging deploy
-    (``Deploy to Staging``) and the End-to-End test execution stay fail-fast so
-    application/test failures are not masked by retries.
-    """
-    workflow_text = read(STAGING_DEPLOY_WORKFLOW)
-    workflow = yaml.safe_load(workflow_text)
-    jobs = workflow["jobs"]
-    deploy_steps = jobs["build-and-deploy"]["steps"]
-
-    deploy_shell = _step_run_by_id(deploy_steps, "deploy_staging")
-    assert not _has_bounded_backoff_retry(deploy_shell), (
-        "Deploy to Staging must remain fail-fast (no download-retry wrapper)"
-    )
-
-    # The End-to-End test execution step must not be wrapped in the toolchain
-    # download retry idiom. (The provider smoke retry is a separate, pre-existing
-    # construct and is intentionally left alone.)
-    e2e_run_steps = [
-        step
-        for step in deploy_steps
-        if isinstance(step, dict)
-        and isinstance(step.get("run"), str)
-        and step.get("name") == "End-to-End Tests"
-    ]
-    assert e2e_run_steps, "expected an 'End-to-End Tests' step in build-and-deploy"
-    for step in e2e_run_steps:
-        assert "TOOLCHAIN_DOWNLOAD_RETRIES" not in step["run"], (
-            "End-to-End Tests execution must stay fail-fast"
-        )

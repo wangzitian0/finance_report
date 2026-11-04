@@ -25,9 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # without mutating the real tree.
 _CONTRACT_INPUTS = (
     ".github/workflows/ci.yml",
-    ".github/workflows/deploy.yml",
     ".github/workflows/docs.yml",
-    ".github/workflows/maintenance.yml",
     ".github/actions/setup-e2e-tests/action.yml",
     "common/testing/ci-cd.md",
     "common/testing/data/github-action-runtime.yaml",
@@ -104,7 +102,7 @@ def test_AC7_15_3_stale_backend_shard_count_prose_fails(tmp_path) -> None:
     _copy_inputs(tmp_path)
     target = tmp_path / "common/testing/ci-cd.md"
     target.write_text(
-        target.read_text(encoding="utf-8").replace("Shards 1-8", "Shards 1-5"),
+        target.read_text(encoding="utf-8") + "\nShards 1-5 run backend pytest.\n",
         encoding="utf-8",
     )
     assert contract.run_contract(tmp_path) == 1
@@ -140,14 +138,11 @@ def test_AC7_15_3_stale_staging_push_trigger_prose_fails(tmp_path) -> None:
 
 
 def test_AC7_15_3_staging_push_trigger_in_workflow_fails(tmp_path) -> None:
-    """AC7.15.3: Re-adding a push-to-main trigger to deploy.yml fails."""
+    """AC7.15.3: Dropping a required trigger from docs.yml fails."""
     _copy_inputs(tmp_path)
-    target = tmp_path / ".github/workflows/deploy.yml"
+    target = tmp_path / ".github/workflows/docs.yml"
     content = target.read_text(encoding="utf-8")
-    content = content.replace(
-        "  push:\n    tags: ['v[0-9]+.[0-9]+.[0-9]+']",
-        "  push:\n    branches: [main]\n    tags: ['v[0-9]+.[0-9]+.[0-9]+']",
-    )
+    content = content.replace("  workflow_dispatch:", "")
     target.write_text(content, encoding="utf-8")
     assert contract.run_contract(tmp_path) == 1
 

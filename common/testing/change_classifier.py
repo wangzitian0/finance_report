@@ -173,12 +173,10 @@ def _classify_components(files: tuple[str, ...]) -> dict[str, bool]:
 STAGING_ONLY_EXACT = frozenset(
     {
         ".github/workflows/ci.yml",
-        ".github/workflows/deploy.yml",
         ".node-version",
         ".python-version",
         "common/testing/matrix.py",
-        "tools/check_ghcr_image_tag.sh",
-        "tools/health_check.sh",
+        "runtime-hooks.manifest.json",
         "tools/test_selection.py",
         "toolchain.toml",
     }
@@ -199,7 +197,6 @@ STAGING_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES
 
 STAGING_AI_OCR_EXACT = frozenset(
     {
-        ".github/workflows/deploy.yml",
         "apps/backend/src/config.py",
         "apps/backend/src/extraction/extension/prompts/statement.py",
         "common/llm/ai.md",
@@ -209,6 +206,7 @@ STAGING_AI_OCR_EXACT = frozenset(
         # trigger below, so the staging gate still fires on the real change.
         "common/testing/data/critical-proof-outcomes.yaml",
         "common/extraction/readme.md",
+        "runtime-hooks.manifest.json",
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
         "tests/e2e/test_personal_financial_report_package.py",

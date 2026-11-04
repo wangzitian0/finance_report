@@ -19,11 +19,9 @@ def test_AC_runtime_http_probes_1_runtime_checks_share_hardened_http_primitives(
     None
 ):
     """AC-runtime.http-probes.1: runtime probes share HTTP and SHA behavior."""
-    from common.runtime import http_probe, production_infra_smoke, tier2_http_e2e
+    from common.runtime import http_probe, tier2_http_e2e
 
-    assert production_infra_smoke.HttpResponse is http_probe.HttpResponse
     assert tier2_http_e2e.HttpResponse is http_probe.HttpResponse
-    assert production_infra_smoke.sha_matches is http_probe.sha_matches
     assert tier2_http_e2e.sha_matches is http_probe.sha_matches
     assert not http_probe.sha_matches("", "")
     assert http_probe.sha_matches("abc123", "abc123456789")

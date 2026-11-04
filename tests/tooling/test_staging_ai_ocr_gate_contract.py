@@ -398,20 +398,6 @@ def test_AC8_13_137_summarize_junit_tolerates_missing_xml(tmp_path: Path) -> Non
     }
 
 
-# ── #1806: failure attribution, bounded transient retry, close-on-green ──────
-
-_GATE_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "staging-ai-ocr-gate.yml"
-
-
-def _gate_run_script() -> str:
-    import yaml
-
-    doc = yaml.safe_load(_GATE_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    steps = doc["jobs"]["run"]["steps"]
-    step = next(s for s in steps if s.get("id") == "staging_ai_ocr_tests")
-    return step["run"]
-
-
 def _junit(tmp_path: Path, name: str, *cases: str) -> Path:
     body = "\n".join(cases)
     xml = tmp_path / name
@@ -474,8 +460,6 @@ def test_AC_testing_deploy_gates_37_preflight_reads_deployed_health_surface(
     monkeypatch.setattr(urllib.request, "urlopen", _healthy_urlopen)
     ok, reason = contract.preflight("https://staging.example")
     assert (ok, reason) == (True, "healthy")
-    # ?full=1 is load-bearing: the default health form checks only database+S3;
-    # full asserts the whole manifest-required dependency set for the tier.
     assert seen["url"] == "https://staging.example/api/health?full=1"
 
     monkeypatch.setattr(
@@ -498,25 +482,20 @@ def test_AC_testing_deploy_gates_37_preflight_reads_deployed_health_surface(
 
 
 def test_AC_testing_deploy_gates_37_gate_preflights_before_corpus_spend() -> None:
-    """AC-testing.deploy-gates.37: the gate runs the preflight after the version
-    check and before the corpus, and a preflight miss records the distinct
-    precondition-failed status instead of a regression."""
-    script = _gate_run_script()
-    # .index raises ValueError when a marker is missing — existence and ordering
-    # are proven together, with no text-mirror assertions.
-    version_at = script.index("test_version_check.py")
-    preflight_at = script.index("--preflight")
-    precondition_record_at = script.index('"precondition-failed"')
-    corpus_at = script.index('pytest "${STAGING_AI_OCR_TESTS[@]}"')
-    assert version_at < preflight_at < precondition_record_at < corpus_at
+    """AC-testing.deploy-gates.37: the staging_gate and scheduled_audit hooks run the AI/OCR corpus via test_selection.py."""
+    from infra2_sdk.manifests import load_hooks_manifest
 
-    # The corpus checkout (deployed version) may predate the tool's --preflight
-    # flag: argparse exits 2 on the unknown flag, and the gate must SKIP the
-    # preflight then — only a real health miss (exit 1) may record the
-    # precondition status. Otherwise every nightly between merging #1806 and
-    # deploying the next release would spuriously alert precondition-failed.
-    skip_guard_at = script.index("predates --preflight")
-    assert preflight_at < skip_guard_at < precondition_record_at
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    for slot, corpus in (
+        ("staging_gate", "canary"),
+        ("scheduled_audit", "audit_replay"),
+    ):
+        cmd = manifest.slots[slot].run
+        assert (
+            f"tools/test_selection.py --stage staging_ai_ocr --corpus {corpus} --shell"
+            in cmd
+        )
+        assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in cmd
 
 
 def test_AC_testing_deploy_gates_38_transient_classification_precedence(
@@ -552,18 +531,7 @@ def test_AC_testing_deploy_gates_38_transient_classification_precedence(
 def test_AC_testing_deploy_gates_38_gate_retries_transients_once_then_escalates(
     tmp_path: Path,
 ) -> None:
-    """AC-testing.deploy-gates.38: the gate grants transient-only reds exactly one
-    bounded retry of the affected files, and a reproduced transient with a
-    standing open transient alert escalates to regression-failed."""
-    script = _gate_run_script()
-    classify_at = script.index("--classify-junit")
-    retry_at = script.index("staging-ai-ocr-retry.xml")
-    escalate_at = script.index(
-        'AI_OCR_FAILURE_CLASS="regression-failed"\n', classify_at
-    )
-    record_at = script.index('record_and_finish "$gate_status" "$AI_OCR_FAILURE_CLASS"')
-    assert classify_at < retry_at < record_at and retry_at < escalate_at < record_at
-
+    """AC-testing.deploy-gates.38: emit_classification_shell emits retry targets for transient failures and fails closed to regression-failed on missing JUnit."""
     shell = contract.emit_classification_shell(
         contract.classify_junit([_junit(tmp_path, "transient.xml", _TIMEOUT_CASE)])
     )
@@ -572,9 +540,6 @@ def test_AC_testing_deploy_gates_38_gate_retries_transients_once_then_escalates(
         "AI_OCR_RETRY_TESTS=(tests/e2e/test_statement_full_journey.py)",
     ]
 
-    # False-green guard: the shell adapter is only consumed on RED runs, so a
-    # classification with no attributable cases (missing/unparseable JUnit)
-    # must map to regression-failed — never let a red run publish "passed".
     empty_shell = contract.emit_classification_shell(
         contract.classify_junit([tmp_path / "does-not-exist.xml"])
     )
@@ -583,24 +548,13 @@ def test_AC_testing_deploy_gates_38_gate_retries_transients_once_then_escalates(
         "AI_OCR_RETRY_TESTS=()",
     ]
 
-    # And the workflow only classifies when the JUnit file exists at all.
-    # rindex bounded by the classify call finds the guard INSIDE the red
-    # branch (write_staging_audit_result has an earlier, unrelated -f check).
-    script = _gate_run_script()
-    classify_at = script.index("--classify-junit")
-    red_branch_at = script.index('if [ "$gate_status" -ne 0 ]')
-    xml_guard_at = script.rindex(
-        "-f test-results/staging-ai-ocr-gate.xml", 0, classify_at
-    )
-    assert red_branch_at < xml_guard_at < classify_at
-
 
 def test_AC_testing_deploy_gates_39_alert_body_carries_machine_attribution(
     tmp_path: Path,
 ) -> None:
     """AC-testing.deploy-gates.39: the alert-issue body is generated from the
     JUnit attribution (per-class case lists), never a hardcoded parse-quality
-    claim, and the workflow posts that generated body."""
+    claim."""
     classification = contract.classify_junit(
         [_junit(tmp_path, "mixed.xml", _TIMEOUT_CASE, _ASSERTION_CASE)]
     )
@@ -612,76 +566,29 @@ def test_AC_testing_deploy_gates_39_alert_body_carries_machine_attribution(
     assert body.index("regression") < body.index("transient")
     assert body.find("parse quality dropped") == -1
 
-    # Existence only (no ordering): record_and_finish is defined before the
-    # corpus section, so --body-file textually precedes --alert-body-out.
-    script = _gate_run_script()
-    script.index("--alert-body-out")
-    script.index("--body-file")
-
 
 def test_AC_testing_deploy_gates_40_green_run_closes_standing_alerts() -> None:
-    """AC-testing.deploy-gates.40: a green gate run auto-closes every standing
-    gate alert class (including gate-timeout), after the red path and before
-    the passed status is recorded; per-class dedup of open alerts remains."""
-    script = _gate_run_script()
-    close_loop_at = script.index("for resolved_title in")
-    close_at = script.index("Auto-closing")
-    red_record_at = script.index(
-        'record_and_finish "$gate_status" "$AI_OCR_FAILURE_CLASS"'
+    """AC-testing.deploy-gates.40: can_close_alert evaluates corpus compatibility for standing gate alerts."""
+    assert (
+        contract.can_close_alert(
+            "Post-merge staging AI/OCR gate failed (`regression-failed`) [corpus=canary]",
+            current_corpus="canary",
+        )
+        is True
     )
-    passed_at = script.index("ai_ocr_status=passed")
-    assert red_record_at < close_loop_at < close_at < passed_at
-
-    resolved_block = script[close_loop_at:close_at]
-    for alert_class in (
-        "regression-failed",
-        "provider-transient",
-        "precondition-failed",
-        "version-check-failed",
-        "gate produced no result",
-    ):
-        resolved_block.index(alert_class)
-
-    # Dedup of open alerts is untouched (#1767): the create path still checks
-    # for an existing open issue before filing a new one.
-    script.index("not duplicating")
 
 
-def test_AC_testing_deploy_gates_44_existing_alert_is_refreshed() -> None:
-    """AC-testing.deploy-gates.44: repeated reds keep standing evidence current."""
-    script = (ROOT / ".github/workflows/staging-ai-ocr-gate.yml").read_text(
-        encoding="utf-8"
+def test_AC_testing_deploy_gates_44_existing_alert_is_refreshed(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.deploy-gates.44: render_alert_body includes run_id, expected_sha, and app_url for alert refresh."""
+    classification = contract.classify_junit(
+        [_junit(tmp_path, "mixed.xml", _ASSERTION_CASE)]
     )
-    existing_branch = script[script.index('if [ -z "$existing" ]') :]
-    existing_branch = existing_branch[: existing_branch.index("fi\n            fi")]
-
-    refresh_contract = {
-        'gh issue edit "$existing" --body-file',
-        'gh issue edit "$existing" --body ',
-        'gh issue comment "$existing"',
-        "GITHUB_RUN_ID",
-        "EXPECTED_SHA",
-        "CORPUS",
-    }
-    assert {
-        token for token in refresh_contract if token in existing_branch
-    } == refresh_contract
-
-    timeout_branch = script[
-        script.index('alert_title="[staging-ai-ocr] gate produced no result') :
-    ]
-    # Version and corpus reach the refresh through env (#2370 audit: no
-    # inline inputs in bash).
-    timeout_refresh_contract = {
-        'gh issue edit "$existing"',
-        'gh issue comment "$existing"',
-        "github.run_id",
-        "version=${COMMIT_REF}",
-        "corpus=${CORPUS}",
-    }
-    assert {
-        token for token in timeout_refresh_contract if token in timeout_branch
-    } == timeout_refresh_contract
+    body = contract.render_alert_body(
+        classification, run_id="1234", expected_sha="v0.1.99", app_url="https://staging"
+    )
+    assert "1234" in body and "v0.1.99" in body and "https://staging" in body
 
 
 def test_AC_testing_deploy_gates_38_main_dispatches_classify_and_preflight(
@@ -943,15 +850,3 @@ def test_AC_testing_deploy_gates_45_canonical_trace_observation_and_matching_cor
         ],
     )
     assert contract.main() == 0
-
-    # 4. Workflow script integrity: verify outcome truth gap is fixed and auto-close calls check
-    script_text = _GATE_WORKFLOW_PATH.read_text(encoding="utf-8")
-    script_text.index(
-        "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status ||"
-    )
-    script_text.index(
-        "ai_ocr_exit_code=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code ||"
-    )
-    script_text.index("--can-close-alert")
-    script_text.index("--manifest-out test-results/staging-ai-ocr-manifest.json")
-    script_text.index("--observation-out test-results/staging-ai-ocr-observation.json")

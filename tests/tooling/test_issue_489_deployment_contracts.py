@@ -18,12 +18,18 @@ def read(path: Path | str) -> str:
 
 def test_staging_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: Staging validates runtime health, API, domain, and storage upload paths."""
-    staging = read(".github/workflows/deploy.yml")
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    staging = (
+        load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+        .slots["staging_gate"]
+        .run
+    )
     smoke = read("common/runtime/shell/smoke_test.sh")
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
     assert "S3_BUCKET:-statements" in read("docker-compose.yml")
-    assert "bash tools/smoke_test.sh" in staging
+    assert "tools/smoke_test.sh" in staging
     assert (
         'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"'
         in staging

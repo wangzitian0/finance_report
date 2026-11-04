@@ -26,7 +26,6 @@ def _copy_contract_inputs(target_root: Path) -> None:
         ".moon/toolchain.yml",
         "apps/frontend/package.json",
         ".github/workflows/ci.yml",
-        ".github/workflows/deploy.yml",
         ".github/workflows/docs.yml",
         ".github/actions/setup-e2e-tests/action.yml",
         ".github/actions/setup-minio/action.yml",

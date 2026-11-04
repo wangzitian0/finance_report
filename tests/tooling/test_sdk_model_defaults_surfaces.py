@@ -269,78 +269,30 @@ def test_AC_llm_sdk_model_defaults_2_docs_name_only_sdk_default_models() -> None
 
 
 def test_AC_llm_sdk_model_defaults_3_staging_gate_blocks_on_the_catalog_check() -> None:
-    """AC-llm.sdk-model-defaults.3: the staging catalog check installs the SDK, runs once, can fail the job, and the canary waits for it."""
-    workflow = (ROOT / ".github" / "workflows" / "deploy.yml").read_text(
-        encoding="utf-8"
+    """AC-llm.sdk-model-defaults.3: the staging_gate runtime hook runs the catalog check before the AI/OCR gate."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    command = manifest.slots["staging_gate"].run
+    node = "tests/e2e/test_ai_provider_connectivity.py"
+    assert node in command, (
+        "the catalog check must run in the staging_gate hook command"
     )
-    node = "tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models"
-    provider_job = workflow.split("\n  provider-gate:", 1)[1].split(
-        "\n  ai-ocr-gate:", 1
-    )[0]
-    assert node in provider_job, (
-        "the catalog check must run in the staging provider-gate job"
-    )
-    install = 'uv pip install --python "$(command -v python)" "$sdk_wheel"'
-    assert install in provider_job, "the SDK must go into the uv venv that runs pytest"
-    assert 'python -c "import infra2_sdk.runtime.llm"' in provider_job
-    assert provider_job.index(install) < provider_job.index(node), (
-        "the provider gate must install the SDK before the catalog check"
-    )
-    steps = provider_job.split("\n      - name: ")
-    catalog_steps = [step for step in steps if node in step]
-    assert len(catalog_steps) == 1, (
-        f"expected one provider-gate step that runs {node}, found {len(catalog_steps)}"
-    )
-    step = catalog_steps[0]
-    assert "for n in" not in step, (
-        "the catalog check must not run inside the provider retry loop"
-    )
-    assert "continue-on-error" not in step, (
-        "the catalog check must be able to fail the job"
-    )
-    assert "\n        if:" not in step, (
-        "the catalog step must not carry a condition that can skip it"
-    )
-    assert "|| true" not in step, "the catalog step must not swallow a failure"
-    assert "set -euo pipefail" in step, (
-        "the catalog step must stop on the first failure"
-    )
-    assert "id: model_catalog_policy" in step, (
-        "the delivery result reads the catalog step outcome"
-    )
-    assert (
-        "model_catalog_outcome: ${{ steps.model_catalog_policy.outcome }}"
-        in provider_job
-    )
-    ai_ocr_job = workflow.split("\n  ai-ocr-gate:", 1)[1].split(
-        "\n  financial-benchmark:", 1
-    )[0]
-    assert "needs.provider-gate.result == 'success'" in ai_ocr_job
-    delivery_job = workflow.split("\n  post-merge-delivery:", 1)[1]
-    catalog_branch = '[ "$model_catalog_outcome" = "failure" ]'
-    provider_branch = '[ "$provider_result" != "success" ]'
-    for text in (
-        'model_catalog_outcome="${{ needs.provider-gate.outputs.model_catalog_outcome }}"',
-        catalog_branch,
-        'failure_reason="deployed model catalog does not equal the SDK default models"',
-        provider_branch,
-    ):
-        assert text in delivery_job, f"post-merge delivery is missing: {text}"
-    assert delivery_job.index(catalog_branch) < delivery_job.index(provider_branch)
+    assert command.index(node) < command.index(
+        "tools/test_selection.py --stage staging_ai_ocr --corpus canary"
+    ), "the catalog check must run before the staging AI/OCR gate"
+    assert "|| true" not in command, "the catalog check must not swallow a failure"
 
 
 def test_AC_llm_sdk_model_defaults_4_production_release_only_reports_the_catalog() -> (
     None
 ):
-    """AC-llm.sdk-model-defaults.4: production may customize, so the release reports its catalog and never fails on it."""
-    release = (ROOT / ".github" / "workflows" / "release.yml").read_text(
-        encoding="utf-8"
-    )
-    step = release.split("\n      - name: Report production model catalog", 1)[1].split(
-        "\n      - name: ", 1
-    )[0]
-    assert "continue-on-error: true" in step, (
-        "the production catalog report must never fail the release"
-    )
-    assert "/api/llm/catalog" in step and "GITHUB_STEP_SUMMARY" in step
-    assert "exit 1" not in step and "assert" not in step
+    """AC-llm.sdk-model-defaults.4: runtime-hooks.manifest.json pins no model variable across any hook slot."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    for slot, spec in manifest.slots.items():
+        for line in spec.run.splitlines():
+            assert _slot_values(line) == [], (
+                f"hook slot {slot} pins model variables: {_slot_values(line)}"
+            )

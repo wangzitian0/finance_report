@@ -41,20 +41,6 @@ ON_KEYS = ("on", True)
 # tuples are required subsets: a workflow may add jobs/triggers, but removing or
 # renaming a documented one fails the contract.
 WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
-    ".github/workflows/audit-replay.yml": {
-        # Heavy provider-backed LLM audit journeys, decoupled from the blocking
-        # deploy path (issue #1232 / AC8.13.157). Weekly schedule for the
-        # audit_replay corpus (owner instruction, #2370) plus dispatch, which
-        # deploy.yml also uses for the post-deploy core_journey corpus.
-        "jobs": ("resolve-target", "audit-replay"),
-        "triggers": ("schedule", "workflow_dispatch"),
-    },
-    ".github/workflows/journey-board.yml": {
-        # Core-journey board publisher (#2370): the only board writer; it
-        # runs after Deploy and AI/OCR Audit Replay and blocks nothing.
-        "jobs": ("publish",),
-        "triggers": ("workflow_run", "workflow_dispatch"),
-    },
     ".github/workflows/ci.yml": {
         # The classifier job id is `changes` (NOT `classify-changes`).
         "jobs": (
@@ -72,32 +58,6 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         ),
         "triggers": ("push", "pull_request", "workflow_dispatch"),
     },
-    ".github/workflows/deploy-freshness.yml": {
-        # Daily age bound on what staging/production serve versus origin/main;
-        # the `freshness` job id is the one workflow_contract keys on, and
-        # the schedule is the primary trigger (dispatch only overrides bounds).
-        "jobs": ("freshness",),
-        "triggers": ("schedule", "workflow_dispatch"),
-    },
-    ".github/workflows/deploy.yml": {
-        # Staging is a manual-only job; tag-push image promotion shares the
-        # deploy workflow but is gated to release tags. Production release moved
-        # to release.yml (#1354 / AC8.13.154).
-        "jobs": ("build-and-deploy", "promote"),
-        "triggers": ("push", "workflow_dispatch"),
-    },
-    ".github/workflows/release.yml": {
-        # Production release line, split out of deploy.yml: manual-dispatch only,
-        # dry-run + deploy gated on the `dry_run` input.
-        "jobs": ("journey-board", "dry-run", "deploy"),
-        "triggers": ("workflow_dispatch",),
-    },
-    ".github/workflows/staging-ai-ocr-gate.yml": {
-        # Reusable workflow that owns the staging AI/OCR corpus gate; both the
-        # inline and manual deploy.yml entrances call it (AC8.13.153).
-        "jobs": ("run",),
-        "triggers": ("workflow_call",),
-    },
     ".github/workflows/docs.yml": {
         "jobs": ("build",),
         "triggers": ("push", "workflow_dispatch"),
@@ -105,26 +65,14 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 APP_WORKFLOW_FILES = (
-    ".github/workflows/audit-replay.yml",
-    ".github/workflows/benchmark.yml",
     ".github/workflows/ci.yml",
-    ".github/workflows/deploy-freshness.yml",
-    ".github/workflows/deploy.yml",
     ".github/workflows/docs.yml",
-    ".github/workflows/journey-board.yml",
-    ".github/workflows/maintenance.yml",
-    ".github/workflows/release.yml",
-    ".github/workflows/staging-ai-ocr-gate.yml",
 )
 
 # Triggers a workflow must NOT declare. Staging auto-following `main` is the
 # specific drift #531 fixes: the staging workflow must stay manual-only.
 WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
-WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {
-    ".github/workflows/deploy.yml": ("main",),
-    # release.yml is manual-dispatch only; a branch push must never deploy prod.
-    ".github/workflows/release.yml": ("main",),
-}
+WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {}
 
 # Governed main-only CI jobs (#1811, mechanizing the #1686 lane invariant).
 # Every job in .github/workflows/ci.yml whose execution condition restricts it

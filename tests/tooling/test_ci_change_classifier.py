@@ -161,7 +161,7 @@ def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
     """AC-testing.classifier.2: AC8.13.20: Runtime CI workflow changes cannot be hidden by docs-only rules."""
     assert classify_changed_paths([".github/workflows/ci.yml"]).heavy_required is True
     assert (
-        classify_changed_paths([".github/workflows/deploy.yml"]).heavy_required is True
+        classify_changed_paths(["runtime-hooks.manifest.json"]).heavy_required is True
     )
     assert (
         classify_changed_paths([".github/workflows/docs.yml"]).heavy_required is False
@@ -215,7 +215,7 @@ def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_staging() -> None:
 def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
     """AC-testing.classifier.5: AC8.13.104: Provider-backed staging proof is risk-triggered."""
     for p in (
-        ".github/workflows/deploy.yml",
+        "runtime-hooks.manifest.json",
         "apps/backend/src/config.py",
         "apps/backend/src/extraction/extension/prompts/statement.py",
         "apps/backend/src/extraction/extension/service.py",
@@ -237,7 +237,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "apps/backend/tests/extraction/test_extraction.py",
         "apps/frontend/src/app/page.tsx",
         "docker-compose.yml",
-        "tools/health_check.sh",
+        "tools/smoke_test.sh",
         "docs/ssot/README.md",
     ):
         assert is_staging_ai_ocr_relevant(p) is False
@@ -269,7 +269,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
 def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None:
     """AC-testing.deploy-gates.14: AC-testing.classifier.1: AC8.13.55: Staging deploys are scoped to paths that can change deploy risk."""
     for p in (
-        ".github/workflows/deploy.yml",
+        "runtime-hooks.manifest.json",
         ".github/workflows/ci.yml",
         ".github/actions/setup-e2e-tests/action.yml",
         "docker-compose.yml",
@@ -283,10 +283,8 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/frontend/package-lock.json",
         "tests/e2e/test_gxs_browser_journey.py",
         "tests/e2e/test_statement_upload_e2e.py",
-        "tools/health_check.sh",
         "tools/smoke_test.sh",
         "tools/generate_pdf_fixtures.py",
-        "tools/check_ghcr_image_tag.sh",
         "common/testing/fixtures/pdf/generators/dbs_generator.py",
         "common/testing/fixtures/pdf/templates/dbs_template.yaml",
         "toolchain.toml",

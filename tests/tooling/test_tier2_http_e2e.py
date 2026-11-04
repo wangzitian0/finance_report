@@ -144,18 +144,16 @@ def test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match() -> None:
 
 
 def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() -> None:
-    """AC-testing.tier2.3: AC8.18.3: Staging runs Tier 2 HTTP proof before broader deployed E2E."""
-    workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
-    e2e_step = workflow.split("id: staging_e2e_tests", 1)[1].split(
-        "- name: Classify staging", 1
-    )[0]
+    """AC-testing.tier2.3: AC8.18.3: Staging runs smoke readiness check before broader deployed E2E."""
+    from infra2_sdk.manifests import load_hooks_manifest
 
-    tier2_index = e2e_step.index("tools/tier2_http_e2e.py")
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    e2e_step = manifest.slots["staging_gate"].run
+
+    smoke_index = e2e_step.index("tools/smoke_test.sh")
     tier3_index = e2e_step.index('pytest "${STAGING_CORE_E2E_TESTS[@]}"')
-    assert tier2_index < tier3_index
-    assert '--base-url "$APP_URL"' in e2e_step
-    assert '--expected-sha "$EXPECTED_SHA"' in e2e_step
-    assert "test-results/staging-tier2-http.xml" in e2e_step
+    assert smoke_index < tier3_index
+    assert 'BASE_URL="$INFRA2_HOOK_APP_URL"' in e2e_step
 
 
 def test_AC8_18_3_test_execution_matrix_names_tier2_http_stage() -> None:

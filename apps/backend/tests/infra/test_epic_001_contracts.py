@@ -22,8 +22,8 @@ def test_epic_001_moon_workspace_configs_exist() -> None:
         REPO_ROOT / "moon.yml",
         REPO_ROOT / "apps/backend/moon.yml",
         REPO_ROOT / "apps/frontend/moon.yml",
-        REPO_ROOT / "tools/infra.sh",
-        REPO_ROOT / "common/runtime/shell/infra.sh",
+        REPO_ROOT / "tools/smoke_test.sh",
+        REPO_ROOT / "common/runtime/shell/smoke_test.sh",
     ]
     for file_path in required_files:
         assert file_path.exists(), f"Missing moon config: {file_path}"

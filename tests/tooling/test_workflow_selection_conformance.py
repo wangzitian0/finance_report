@@ -67,7 +67,9 @@ def _joined_lines(text: str) -> list[str]:
 
 
 def _pytest_invocations() -> dict[str, list[str]]:
-    """All junit-emitting pytest invocation lines per workflow file."""
+    """All junit-emitting pytest invocation lines per workflow file and runtime hooks manifest."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
     found: dict[str, list[str]] = {}
     for wf in sorted(WORKFLOWS.glob("*.yml")):
         rel = wf.relative_to(ROOT).as_posix()
@@ -77,6 +79,19 @@ def _pytest_invocations() -> dict[str, list[str]]:
                 continue
             if re.search(r"\bpytest\b", stripped) and "--junit-xml=" in stripped:
                 found.setdefault(rel, []).append(stripped)
+
+    hooks_manifest = ROOT / "runtime-hooks.manifest.json"
+    if hooks_manifest.exists():
+        manifest_data = load_hooks_manifest(hooks_manifest)
+        for slot_name, spec in manifest_data.slots.items():
+            seen_in_slot: set[str] = set()
+            for part in str(spec.run).split("&&"):
+                stripped = part.strip()
+                if re.search(r"\bpytest\b", stripped):
+                    key = f"{slot_name}:{stripped}"
+                    if key not in seen_in_slot:
+                        seen_in_slot.add(key)
+                        found.setdefault("runtime-hooks.manifest.json", []).append(key)
     return found
 
 
