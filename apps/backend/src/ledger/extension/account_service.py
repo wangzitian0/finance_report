@@ -1,6 +1,7 @@
 """Account management service."""
 
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select, text
@@ -20,8 +21,15 @@ _ACCOUNT_CREATION_LOCK = text("SELECT pg_advisory_xact_lock(hashtextextended(:ke
 #: How long the own transaction waits for any lock. The lock of another creator lasts milliseconds.
 ACCOUNT_CREATION_LOCK_TIMEOUT = "5s"
 
+#: System equity account code for guided/statement opening balance entries (#949).
+OPENING_BALANCE_EQUITY_CODE = "3199"
+
 #: System equity account code for cross-period statement gap calibration (#2832).
 UNEXPLAINED_GAP_EQUITY_CODE = "3198"
+
+#: Materiality threshold and event type for cross-period statement balance gap calibration (#2832).
+CROSS_PERIOD_GAP_PLUG_TOLERANCE = Decimal("0.10")
+CROSS_PERIOD_GAP_PLUG_EVENT_TYPE = "cross_period_gap_plug"
 
 
 class AccountServiceError(Exception):
@@ -144,7 +152,7 @@ async def get_or_create_opening_balance_equity_account(
         select(Account).where(
             Account.user_id == user_id,
             Account.is_system == True,  # noqa: E712
-            Account.code == "3199",
+            Account.code == OPENING_BALANCE_EQUITY_CODE,
         )
     )
     # Tolerant fetch: a rare duplicate (e.g. concurrent first-time creates without
@@ -159,7 +167,7 @@ async def get_or_create_opening_balance_equity_account(
         account = Account(
             user_id=user_id,
             name="Opening Balance Equity",
-            code="3199",
+            code=OPENING_BALANCE_EQUITY_CODE,
             type=AccountType.EQUITY,
             currency=normalized_currency,
             is_system=True,

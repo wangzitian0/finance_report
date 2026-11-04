@@ -19,7 +19,7 @@ every document.
 | CI, preview, staging, and production gate semantics | `common/testing/ci-cd.md` (CI pipeline), `common/runtime/ci-cd.md` (deploy) |
 | Boot/runtime health validation | `common/runtime/readme.md`, `apps/backend/src/boot.py`, `apps/backend/src/main.py` |
 | App observability runtime contract | `common/observability/observability.md`, `apps/backend/src/observability/runtime.py` |
-| Staging/production health and version smoke | `tools/health_check.sh`, `tools/production_infra_smoke.py`, `common/runtime/production_infra_smoke.py` |
+| Staging/production health and version smoke | `tools/smoke_test.sh`, `common/runtime/shell/smoke_test.sh` |
 | Delivery-engine evidence and optimization recommendations | `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` |
 | Infra alerting, Lark delivery, watchdogs | [infra2 alerting SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.alerting.md) |
 | Availability history and stability windows | [infra2 availability ledger](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.availability-ledger.md) |
@@ -51,7 +51,7 @@ rewriting docs or rerunning broad test suites.
 
 | Symptom | First proof | Failure domain | Owner |
 |---|---|---|---|
-| HTTP `000`, timeout, or DNS/TLS failure | `tools/health_check.sh` route probes and infra alert samples | `route` | Deployment + infra alerting |
+| HTTP `000`, timeout, or DNS/TLS failure | `tools/smoke_test.sh` route probes and infra alert samples | `route` | Deployment + infra alerting |
 | Repeated `/api/health` `404` | Health script `route_probe` output for `/api/health`, `/api/ping`, and `/` | `route` | Deployment routing |
 | `502 Bad Gateway` | Backend container state, startup checkpoint logs, and `/api/ping` reachability | `crash` | App startup/deploy |
 | `/api/health` returns `503` | Health payload `checks` object and Bootloader mode | `dependency` | App dependency config, then infra service |
@@ -84,7 +84,7 @@ Required app-side proof:
 - `/api/health.git_sha` or `/api/health.version` matches the intended
   deployment target.
 - Required dependency checks in `/api/health.checks` are green.
-- Production release recovery runs `production_infra_smoke.py` or records why
+- Production release recovery runs `tools/smoke_test.sh` or records why
   the production smoke result is not applicable.
 - App observability fields match `common/observability/observability.md`: service
   `finance-report-backend`, alert rule `FinanceReportBackendErrorLogs`, and
@@ -97,7 +97,7 @@ Required stability-window proof:
 - No watchdog or availability-ledger evidence of `flapping`.
 
 The hard production release gate is still the production release workflow and
-`production_infra_smoke.py`. The infra2 availability ledger and watchdog are
+`tools/smoke_test.sh`. The infra2 availability ledger and watchdog are
 the positive stability proof for repeated incidents. If that proof is not yet
 automated in a release lane, capture it as manual incident-closure evidence
 instead of duplicating the procedure in app docs.
