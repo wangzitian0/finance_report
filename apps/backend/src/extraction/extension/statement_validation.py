@@ -28,7 +28,7 @@ from src.extraction.extension.transaction_identity import (
 )
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger.extension.account_service import CROSS_PERIOD_GAP_PLUG_TOLERANCE
+from src.ledger import account_service
 
 # Single-owned by the promotion gate (#930); kept as a local alias for readability.
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
@@ -323,7 +323,7 @@ async def validate_balance_chain(
         result["previous_closing_balance"] = str(prev_statement.closing_balance)
         result["previous_period_end"] = prev_statement.period_end.isoformat() if prev_statement.period_end else None
         result["cross_period_delta"] = str(cross_period_delta)
-        result["cross_period_match"] = abs(cross_period_delta) <= CROSS_PERIOD_GAP_PLUG_TOLERANCE
+        result["cross_period_match"] = abs(cross_period_delta) <= account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE
         result["has_date_gap"] = has_date_gap
     return result
 
