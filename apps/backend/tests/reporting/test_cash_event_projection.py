@@ -717,12 +717,11 @@ async def test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stoc
     """AC-reporting.2832.1: System cross_period_gap_plug journal lines are classified as opening_stock_adjustment
     (or beginning_cash on start_date) so multi-period cash flow bridges reconcile with proof_state == 'proven'
     and zero unclassified_cash across statement gaps."""
-    from src.ledger import initialize_opening_positions, submit_system_journal_entry
-    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
+    from src.ledger import account_service, initialize_opening_positions, submit_system_journal_entry
 
     cash = await _account(db, test_user.id, "DBS Checking", AccountType.ASSET)
     salary = await _account(db, test_user.id, "Salary", AccountType.INCOME)
-    gap_equity = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "SGD")
+    gap_equity = await account_service.get_or_create_unexplained_gap_equity_account(db, test_user.id, "SGD")
 
     # Opening balance on Jan 1: 10,000
     await initialize_opening_positions(
@@ -772,14 +771,14 @@ async def test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stoc
                 "direction": Direction.DEBIT,
                 "amount": Decimal("3000.00"),
                 "currency": "SGD",
-                "event_type": "cross_period_gap_plug",
+                "event_type": account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
             },
             {
                 "account_id": gap_equity.id,
                 "direction": Direction.CREDIT,
                 "amount": Decimal("3000.00"),
                 "currency": "SGD",
-                "event_type": "cross_period_gap_plug",
+                "event_type": account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
             },
         ],
         base_currency="SGD",

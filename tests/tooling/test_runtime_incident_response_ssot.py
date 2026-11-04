@@ -40,11 +40,13 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
         "`secrets`",
         "`stale-version`",
         "`flapping`",
-        "production_infra_smoke.py",
-        "tools/health_check.sh",
+        "tools/smoke_test.sh",
+        "common/runtime/shell/smoke_test.sh",
     ]
     for token in required_runtime_tokens:
         assert token in runtime
+    for retired_token in ("production_infra_smoke.py", "tools/health_check.sh"):
+        assert retired_token not in runtime
 
     concepts = load_computed_concepts(ROOT, MANIFEST)
     concept = concepts["runtime_incident_response"]

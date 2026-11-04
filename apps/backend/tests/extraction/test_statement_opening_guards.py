@@ -480,6 +480,24 @@ async def test_AC_extraction_2832_2_reconcile_statement_chain_anchors_out_of_ord
     assert await calculate_account_balance(db, account.id, test_user.id) == Decimal("18000.00")
 
 
+def test_statement_chain_ssot_constants_and_effective_opening() -> None:
+    """AC-extraction.posting.2: Cross-period gap constants and effective opening balance have one source (#2832)."""
+    from src.extraction.extension import statement_posting, statement_validation
+    from src.ledger import account_service
+
+    assert not hasattr(statement_validation, "_get_opening_balance")
+    assert (
+        account_service.OPENING_BALANCE_EQUITY_CODE,
+        account_service.UNEXPLAINED_GAP_EQUITY_CODE,
+        statement_posting.account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE,
+        statement_posting.account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+    ) == ("3199", "3198", Decimal("0.10"), "cross_period_gap_plug")
+    stmt = StatementSummaryFactory.build(opening_balance=Decimal("100.00"), manual_opening_balance=None)
+    assert stmt.effective_opening_balance() == Decimal("100.00")
+    stmt.manual_opening_balance = Decimal("250.00")
+    assert stmt.effective_opening_balance() == Decimal("250.00")
+
+
 async def test_AC_extraction_2832_3_reconcile_chain_retirement_and_fx_plug_guards(db, test_user):
     """AC-extraction.2832.3: Cover retiring all statements on an account (voiding plugs and opening entries),
     retiring earlier S_0 to promote S_1, and foreign-currency gap plug FX rate resolution and error guards."""

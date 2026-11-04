@@ -85,9 +85,12 @@ from src.ledger import (
     JournalEntryStatus,
     JournalLine,
     ValidationError,
+    account_service,
     active_journal_entry_filter,
     current_anchored_journal_entries,
     fit_journal_memo,
+    initialize_opening_positions,
+    list_opening_positions,
     submit_system_journal_entry,
     void_journal_entry,
 )
@@ -680,9 +683,8 @@ async def validate_statement_period_unique(
         )
 
 
-#: Materiality threshold for cross-period statement balance gap calibration (#2832).
-CROSS_PERIOD_GAP_PLUG_TOLERANCE = Decimal("0.10")
-CROSS_PERIOD_GAP_PLUG_EVENT_TYPE = "cross_period_gap_plug"
+def _signed_line_amount(line: JournalLine, *, debit_normal: bool) -> Decimal:
+    return line.amount if (line.direction == Direction.DEBIT) == debit_normal else -line.amount
 
 
 async def void_statement_posted_entries(
@@ -743,7 +745,7 @@ async def _active_gap_plug_entries_for_account(
                 JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
                 ~JournalEntry.memo.startswith("VOID: "),
                 JournalLine.account_id == account_id,
-                JournalLine.event_type == CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+                JournalLine.event_type == account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
             )
             .order_by(JournalEntry.entry_date, JournalEntry.id)
         )
@@ -776,15 +778,14 @@ async def _non_plug_account_movement_between(
         )
     ).all()
     debit_normal = account.type in (AccountType.ASSET, AccountType.EXPENSE)
-    movement = Decimal("0")
-    for entry, line in rows:
-        if entry.id in opening_entry_ids:
-            continue
-        if line.event_type == CROSS_PERIOD_GAP_PLUG_EVENT_TYPE:
-            continue
-        signed = line.amount if (line.direction == Direction.DEBIT) == debit_normal else -line.amount
-        movement += signed
-    return movement
+    return sum(
+        (
+            _signed_line_amount(line, debit_normal=debit_normal)
+            for entry, line in rows
+            if entry.id not in opening_entry_ids and line.event_type != account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE
+        ),
+        Decimal("0"),
+    )
 
 
 async def reconcile_account_statement_chain(
@@ -802,7 +803,6 @@ async def reconcile_account_statement_chain(
     """
     from src.audit.money import to_money
     from src.extraction.extension.statement_contribution import resolve_statement_contribution
-    from src.ledger import account_service, initialize_opening_positions, list_opening_positions
 
     account = await db.scalar(select(Account).where(Account.id == account_id, Account.user_id == user_id))
     if account is None:
@@ -834,13 +834,7 @@ async def reconcile_account_statement_chain(
             and candidate_statement.status != BankStatementStatus.RETIRED
         ):
             approved_rows.append(candidate_statement)
-            approved_rows.sort(
-                key=lambda s: (
-                    s.period_start or date.min,
-                    s.period_end or s.period_start or date.min,
-                    str(s.id),
-                )
-            )
+            approved_rows.sort(key=StatementSummary.chain_sort_key)
 
     base_currency = await get_effective_base_currency(db, user_id=user_id)
     existing_plugs = await _active_gap_plug_entries_for_account(db, user_id, account_id)
@@ -876,9 +870,7 @@ async def reconcile_account_statement_chain(
         return changed
 
     earliest = approved_rows[0]
-    earliest_opening = (
-        earliest.manual_opening_balance if earliest.manual_opening_balance is not None else earliest.opening_balance
-    )
+    earliest_opening = earliest.effective_opening_balance()
     if earliest_opening is None or earliest.period_start is None:
         raise ValueError("Statement opening balance, date, and account are required before posting")
 
@@ -957,9 +949,7 @@ async def reconcile_account_statement_chain(
         s_next = approved_rows[idx + 1]
         if s_prev.closing_balance is None or s_prev.period_end is None or s_next.period_start is None:
             continue
-        next_open = (
-            s_next.manual_opening_balance if s_next.manual_opening_balance is not None else s_next.opening_balance
-        )
+        next_open = s_next.effective_opening_balance()
         if next_open is None:
             continue
         non_plug_movement = await _non_plug_account_movement_between(
@@ -971,7 +961,7 @@ async def reconcile_account_statement_chain(
             opening_entry_ids=opening_entry_ids,
         )
         delta = to_money(next_open - s_prev.closing_balance - non_plug_movement)
-        if abs(delta) > CROSS_PERIOD_GAP_PLUG_TOLERANCE:
+        if abs(delta) > account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE:
             plug_date = max(
                 s_prev.period_end + timedelta(days=1),
                 s_next.period_start - timedelta(days=1),
@@ -986,7 +976,7 @@ async def reconcile_account_statement_chain(
     for entry, line in existing_plugs:
         tags = line.tags if isinstance(line.tags, dict) else {}
         pair_key = (str(tags.get("gap_from_statement_id") or ""), str(tags.get("gap_to_statement_id") or ""))
-        signed_existing = line.amount if (line.direction == Direction.DEBIT) == debit_normal else -line.amount
+        signed_existing = _signed_line_amount(line, debit_normal=debit_normal)
         desired = desired_plugs.get(pair_key)
         if (
             desired is not None
@@ -1049,7 +1039,7 @@ async def reconcile_account_statement_chain(
                     "amount": abs(delta),
                     "currency": acct_currency,
                     "fx_rate": fx_rate,
-                    "event_type": CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+                    "event_type": account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
                     "tags": plug_tags,
                 },
                 {
@@ -1058,7 +1048,7 @@ async def reconcile_account_statement_chain(
                     "amount": abs(delta),
                     "currency": acct_currency,
                     "fx_rate": fx_rate,
-                    "event_type": CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+                    "event_type": account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
                     "tags": plug_tags,
                 },
             ],
