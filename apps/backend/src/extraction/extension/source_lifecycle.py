@@ -88,12 +88,27 @@ async def retire_statement(
     if statement is None:
         raise ValueError("Statement not found or access denied")
 
+    was_approved = statement.status == BankStatementStatus.APPROVED
     statement.status = BankStatementStatus.RETIRED
     if statement.uploaded_document_id is not None:
         document = await db.get(UploadedDocument, statement.uploaded_document_id)
         if document is not None and document.user_id == command.user_id:
             document.status = DocumentStatus.RETIRED
     await db.flush()
+    if was_approved or statement.account_id is not None:
+        from src.extraction.extension.statement_posting import (
+            reconcile_account_statement_chain,
+            void_statement_posted_entries,
+        )
+
+        await void_statement_posted_entries(db, statement, command.user_id, reason="Statement retired")
+        if statement.account_id is not None:
+            await reconcile_account_statement_chain(
+                db,
+                user_id=command.user_id,
+                account_id=statement.account_id,
+            )
+        await db.flush()
     return statement
 
 

@@ -80,4 +80,23 @@ describe("SourceEnvelopeConfirmation inline account creation (#2477)", () => {
     fireEvent.change(screen.getByLabelText(new RegExp(`^${label}`)), { target: { value } })
     expect(results).toEqual([{ ...draft, [key]: value }])
   })
+
+  it("AC-extraction.2832.3 filters custody accounts by currency and offers inline creation when no account matches the statement currency", () => {
+    const onCreateAccount = vi.fn()
+    renderEnvelope({
+      onCreateAccount,
+      envelopeDraft: { ...draft, currency: "USD" },
+      custodyAccounts: [{ id: "sgd-1", name: "DBS Savings", currency: "SGD" }],
+      defaultAccountName: "Chase Checking",
+    })
+
+    // The SGD account is filtered out of the USD statement's dropdown
+    const select = screen.getByLabelText("Custody account") as HTMLSelectElement
+    expect(Array.from(select.options).map((o) => o.text)).toEqual(["Select an asset account"])
+
+    // And the inline Create account section is shown for USD!
+    expect(screen.getByText(/No USD asset account exists yet/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }))
+    expect(onCreateAccount).toHaveBeenCalledWith("Chase Checking")
+  })
 })

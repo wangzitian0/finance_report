@@ -16,7 +16,9 @@ from src.extraction.base.types import StatementPostingOutcome, StatementPostingS
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     auto_create_posted_entries_for_statement,
+    reconcile_account_statement_chain,
     try_auto_post_statement_opening_balance,
+    void_statement_posted_entries,
 )
 from src.extraction.extension.statement_validation import (
     approve_statement,
@@ -60,6 +62,9 @@ async def reject_statement_workflow(
     transition stays a pure, committed unit.
     """
     statement = await reject_statement(db, statement_id, user_id, reason=reason)
+    await void_statement_posted_entries(db, statement, user_id, reason=reason or "Statement rejected")
+    if statement.account_id is not None:
+        await reconcile_account_statement_chain(db, user_id=user_id, account_id=statement.account_id)
     await db.commit()
     await db.refresh(statement)
     return statement

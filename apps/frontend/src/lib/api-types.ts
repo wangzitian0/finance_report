@@ -2055,12 +2055,22 @@ export interface components {
             closing_delta: string;
             /** Closing Match */
             closing_match: boolean;
+            /** Cross Period Delta */
+            cross_period_delta?: string | null;
+            /** Cross Period Match */
+            cross_period_match?: boolean | null;
+            /** Has Date Gap */
+            has_date_gap?: boolean | null;
             /** Opening Balance */
             opening_balance: string;
             /** Opening Delta */
             opening_delta: string;
             /** Opening Match */
             opening_match: boolean;
+            /** Previous Closing Balance */
+            previous_closing_balance?: string | null;
+            /** Previous Period End */
+            previous_period_end?: string | null;
             /** Validated At */
             validated_at: string;
         };

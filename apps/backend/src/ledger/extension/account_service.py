@@ -20,6 +20,9 @@ _ACCOUNT_CREATION_LOCK = text("SELECT pg_advisory_xact_lock(hashtextextended(:ke
 #: How long the own transaction waits for any lock. The lock of another creator lasts milliseconds.
 ACCOUNT_CREATION_LOCK_TIMEOUT = "5s"
 
+#: System equity account code for cross-period statement gap calibration (#2832).
+UNEXPLAINED_GAP_EQUITY_CODE = "3198"
+
 
 class AccountServiceError(Exception):
     """Base exception for account service errors."""
@@ -161,6 +164,44 @@ async def get_or_create_opening_balance_equity_account(
             currency=normalized_currency,
             is_system=True,
             description="System-managed equity account for year-start opening balance entries",
+        )
+        db.add(account)
+        await db.flush()
+        await db.refresh(account)
+    return account
+
+
+async def get_or_create_unexplained_gap_equity_account(
+    db: AsyncSession,
+    user_id: UUID,
+    currency: str,
+) -> Account:
+    """Get or create the Unexplained Statement Gap Equity account for a user (#2832).
+
+    Cross-period statement gap plugs offset into this system-managed equity account
+    so every approved statement's opening and closing balances tie out on the
+    Balance Sheet while unexplained inter-statement movement is isolated and
+    automatically shrinks as intermediate statements are uploaded.
+    """
+    normalized_currency = Currency.of(currency).code
+    result = await db.execute(
+        select(Account).where(
+            Account.user_id == user_id,
+            Account.is_system == True,  # noqa: E712
+            Account.code == UNEXPLAINED_GAP_EQUITY_CODE,
+            Account.currency == normalized_currency,
+        )
+    )
+    account = result.scalars().first()
+    if not account:
+        account = Account(
+            user_id=user_id,
+            name="Unexplained Statement Gap Equity",
+            code=UNEXPLAINED_GAP_EQUITY_CODE,
+            type=AccountType.EQUITY,
+            currency=normalized_currency,
+            is_system=True,
+            description="System-managed equity account for cross-period statement balance gap calibration",
         )
         db.add(account)
         await db.flush()

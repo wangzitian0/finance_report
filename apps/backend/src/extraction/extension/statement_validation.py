@@ -280,7 +280,7 @@ async def validate_balance_chain(
         }
 
     opening_balance = await _get_opening_balance(db, statement)
-    opening_delta = abs((statement.opening_balance or Decimal("0")) - opening_balance)
+    opening_delta = Decimal("0.00")
 
     txn_sum = Decimal("0")
     for txn in transactions:
@@ -294,7 +294,8 @@ async def validate_balance_chain(
     closing_known = statement.closing_balance is not None
     closing_delta = abs((statement.closing_balance or Decimal("0")) - calculated_closing)
 
-    return {
+    prev_statement = await _get_previous_approved_statement(db, statement)
+    result: dict = {
         "opening_balance": str(opening_balance),
         # #1390: a missing closing balance is unknown, not "matched". Report it as
         # null (not the literal string "None"), and don't claim a chain match when
@@ -313,32 +314,47 @@ async def validate_balance_chain(
         "per_currency": [],
         "validated_at": datetime.now(UTC).isoformat(),
     }
+    if prev_statement is not None and prev_statement.closing_balance is not None:
+        cross_period_delta = opening_balance - prev_statement.closing_balance
+        has_date_gap = bool(
+            statement.period_start
+            and prev_statement.period_end
+            and (statement.period_start - prev_statement.period_end).days > 1
+        )
+        result["previous_closing_balance"] = str(prev_statement.closing_balance)
+        result["previous_period_end"] = prev_statement.period_end.isoformat() if prev_statement.period_end else None
+        result["cross_period_delta"] = str(cross_period_delta)
+        result["cross_period_match"] = abs(cross_period_delta) <= BALANCE_TOLERANCE
+        result["has_date_gap"] = has_date_gap
+    return result
 
 
-async def _get_opening_balance(db: AsyncSession, statement: StatementSummary) -> Decimal:
-    if statement.manual_opening_balance is not None:
-        return statement.manual_opening_balance
-
+async def _get_previous_approved_statement(db: AsyncSession, statement: StatementSummary) -> StatementSummary | None:
+    if not statement.period_start:
+        return None
     filters = [
         StatementSummary.user_id == statement.user_id,
         StatementSummary.status == BankStatementStatus.APPROVED,
+        StatementSummary.period_end < statement.period_start,
     ]
     if statement.account_id is not None:
         filters.append(StatementSummary.account_id == statement.account_id)
     else:
         filters.append(StatementSummary.account_id.is_(None))
-
-    if statement.period_start:
-        filters.append(StatementSummary.period_end < statement.period_start)
+        if statement.institution:
+            filters.append(StatementSummary.institution == statement.institution)
+        if statement.account_last4:
+            filters.append(StatementSummary.account_last4 == statement.account_last4)
 
     prev_result = await db.execute(
         select(StatementSummary).where(and_(*filters)).order_by(desc(StatementSummary.period_end)).limit(1)
     )
-    prev_statement = prev_result.scalar_one_or_none()
+    return prev_result.scalar_one_or_none()
 
-    if prev_statement and prev_statement.closing_balance is not None:
-        return prev_statement.closing_balance
 
+async def _get_opening_balance(db: AsyncSession, statement: StatementSummary) -> Decimal:
+    if statement.manual_opening_balance is not None:
+        return statement.manual_opening_balance
     return statement.opening_balance or Decimal("0")
 
 

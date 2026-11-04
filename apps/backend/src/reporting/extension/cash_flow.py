@@ -637,10 +637,17 @@ async def _build_cash_flow(
         opening_lines = tuple(
             (line, account)
             for line, account in event.cash_lines
-            if (position := proven_openings.get((event.entry.id, account.id))) is not None
-            and position.effective_date == event.entry.entry_date
-            and position.currency == line.currency
-            and position.amount == _cash_delta(line)
+            if (
+                (position := proven_openings.get((event.entry.id, account.id))) is not None
+                and position.effective_date == event.entry.entry_date
+                and position.currency == line.currency
+                and position.amount == _cash_delta(line)
+            )
+            or (
+                line.event_type == "cross_period_gap_plug"
+                and event.entry.source_type == JournalEntrySourceType.SYSTEM
+                and event.has_authoritative_decision
+            )
         )
         opening_amount = sum(
             (converted_delta(line, event.entry.entry_date) for line, _account in opening_lines), Decimal("0")

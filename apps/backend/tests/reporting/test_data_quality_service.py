@@ -129,7 +129,7 @@ async def test_compute_personal_data_quality_temporal_gap(
         currency="SGD",
         period_start=date(2026, 3, 1),
         period_end=date(2026, 3, 31),
-        opening_balance=Decimal("1200.00"),
+        opening_balance=Decimal("1350.00"),
         closing_balance=Decimal("1500.00"),
         status=BankStatementStatus.APPROVED,
     )
@@ -313,7 +313,7 @@ async def test_compute_personal_data_quality_multi_gap_and_unlinked_documents(
         currency="SGD",
         period_start=date(2026, 4, 1),
         period_end=date(2026, 4, 30),
-        opening_balance=Decimal("1200.00"),
+        opening_balance=Decimal("1350.00"),
         closing_balance=Decimal("1500.00"),
         status=BankStatementStatus.APPROVED,
     )
@@ -456,7 +456,7 @@ async def test_AC_reporting_2726_3_timeline_anchors_at_latest_statement_period_e
         currency="SGD",
         period_start=date(2025, 3, 1),
         period_end=date(2025, 3, 31),
-        opening_balance=Decimal("12000.00"),
+        opening_balance=Decimal("13500.00"),
         closing_balance=Decimal("15000.00"),
         status=BankStatementStatus.APPROVED,
     )
@@ -559,3 +559,163 @@ async def test_AC_reporting_2822_1_pending_stage1_statement_does_not_fail_reconc
     action_types = [a.action_type for a in res.action_items]
     assert "REVIEW_STATEMENT" in action_types
     assert "RECONCILE_TRANSACTIONS" not in action_types
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_2832_2_zero_change_gap_verified_and_material_gaps_ranked_by_delta(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC-reporting.2832.2: Zero-change gaps (|delta| <= 0.10) incur zero gap penalty and no upload prompt;
+    tiny gaps (< 0.1%) are absorbed without P1 nag; material gaps (>= 0.1%) emit UPLOAD_STATEMENT actions
+    ranked by |delta| descending with account name, missing period, unexplained amount, and precision boost."""
+    from src.ledger import Account, AccountType
+
+    acc_dormant = Account(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="OCBC Dormant Savings",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    acc_small = Account(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="UOB Cash",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    acc_large = Account(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="DBS Multiplier",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add_all([acc_dormant, acc_small, acc_large])
+    await db.flush()
+
+    # 1. Only dormant account has Jan & Mar statements with identical 5,000.00 balance (zero change across Feb)
+    st_dormant_jan = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc_dormant.id,
+        file_hash="dormant_jan",
+        institution="OCBC",
+        account_last4="1111",
+        currency="SGD",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        opening_balance=Decimal("5000.00"),
+        closing_balance=Decimal("5000.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    st_dormant_mar = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc_dormant.id,
+        file_hash="dormant_mar",
+        institution="OCBC",
+        account_last4="1111",
+        currency="SGD",
+        period_start=date(2026, 3, 1),
+        period_end=date(2026, 3, 31),
+        opening_balance=Decimal("5000.00"),
+        closing_balance=Decimal("5000.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add_all([st_dormant_jan, st_dormant_mar])
+    await db.flush()
+
+    res_zero = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 3, 31),
+        currency="SGD",
+    )
+    feb_zero = next(b for b in res_zero.timeline if b.month == "2026-02")
+    assert feb_zero.has_gap is False
+    assert feb_zero.status == "HEALTHY"
+    assert res_zero.temporal_continuity_invariant.is_healthy is True
+    assert [a for a in res_zero.action_items if a.action_type == "UPLOAD_STATEMENT"] == []
+
+    # 2. Add two accounts with material gaps across Feb: UOB (+400 SGD) and DBS (+4,600 SGD)
+    db.add_all(
+        [
+            StatementSummary(
+                id=uuid4(),
+                user_id=test_user.id,
+                account_id=acc_small.id,
+                file_hash="uob_jan",
+                institution="UOB",
+                account_last4="2222",
+                currency="SGD",
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+                opening_balance=Decimal("2000.00"),
+                closing_balance=Decimal("2000.00"),
+                status=BankStatementStatus.APPROVED,
+            ),
+            StatementSummary(
+                id=uuid4(),
+                user_id=test_user.id,
+                account_id=acc_small.id,
+                file_hash="uob_mar",
+                institution="UOB",
+                account_last4="2222",
+                currency="SGD",
+                period_start=date(2026, 3, 1),
+                period_end=date(2026, 3, 31),
+                opening_balance=Decimal("2400.00"),
+                closing_balance=Decimal("2500.00"),
+                status=BankStatementStatus.APPROVED,
+            ),
+            StatementSummary(
+                id=uuid4(),
+                user_id=test_user.id,
+                account_id=acc_large.id,
+                file_hash="dbs_jan",
+                institution="DBS",
+                account_last4="3333",
+                currency="SGD",
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+                opening_balance=Decimal("10000.00"),
+                closing_balance=Decimal("10000.00"),
+                status=BankStatementStatus.APPROVED,
+            ),
+            StatementSummary(
+                id=uuid4(),
+                user_id=test_user.id,
+                account_id=acc_large.id,
+                file_hash="dbs_mar",
+                institution="DBS",
+                account_last4="3333",
+                currency="SGD",
+                period_start=date(2026, 3, 1),
+                period_end=date(2026, 3, 31),
+                opening_balance=Decimal("14600.00"),
+                closing_balance=Decimal("15000.00"),
+                status=BankStatementStatus.APPROVED,
+            ),
+        ]
+    )
+    await db.flush()
+
+    res_ranked = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 3, 31),
+        currency="SGD",
+    )
+    assert res_ranked.temporal_continuity_invariant.is_healthy is False
+    upload_actions = [a for a in res_ranked.action_items if a.action_type == "UPLOAD_STATEMENT"]
+    assert len(upload_actions) == 2
+    # Ranked by |delta| descending: DBS (+4600, 92% of 5000 total gap) first, UOB (+400, 8%) second
+    assert "DBS Multiplier (*3333)" in upload_actions[0].title
+    assert "2026-02" in upload_actions[0].title
+    assert "+4600.00 SGD" in upload_actions[0].description
+    assert "92%" in upload_actions[0].description
+    assert "UOB Cash (*2222)" in upload_actions[1].title
+    assert "+400.00 SGD" in upload_actions[1].description
+    assert "8%" in upload_actions[1].description

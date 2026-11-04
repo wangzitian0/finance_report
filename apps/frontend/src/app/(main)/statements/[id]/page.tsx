@@ -460,7 +460,7 @@ export default function StatementDetailPage() {
           <button onClick={resumePolling} className="btn-secondary text-sm">Resume Auto-Refresh</button>
         </div>
       )}
-      <StatementHeader statement={statement} canImport={canImport} canRetry={canRetry} canDelete={statement.status !== "approved"} importLoading={importLoading} retryLoading={retryLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onRetry={handleRetry} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
+      <StatementHeader statement={statement} canImport={canImport} canRetry={canRetry} canDelete={true} importLoading={importLoading} retryLoading={retryLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onRetry={handleRetry} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
       {isParsed && !review && reviewLoading && (
         <div role="status" className="mb-4 text-xs text-muted text-right">
           Loading balance verification...
@@ -485,11 +485,17 @@ export default function StatementDetailPage() {
                 className="input py-1.5 text-sm min-w-[220px]"
               >
                 <option value="">Auto-create ({statement.institution || "Statement Account"})</option>
-                {(custodyAccountsData?.items ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.currency})
-                  </option>
-                ))}
+                {(custodyAccountsData?.items ?? [])
+                  .filter(
+                    (a) =>
+                      !statement.currency ||
+                      a.currency?.toUpperCase() === statement.currency.toUpperCase(),
+                  )
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.currency})
+                    </option>
+                  ))}
               </select>
             </label>
           )}

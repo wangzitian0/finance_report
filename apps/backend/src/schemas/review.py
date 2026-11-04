@@ -25,6 +25,11 @@ class BalanceValidationResult(BaseModel):
     opening_match: bool
     closing_match: bool
     validated_at: str
+    previous_closing_balance: str | None = None
+    previous_period_end: str | None = None
+    cross_period_delta: str | None = None
+    cross_period_match: bool | None = None
+    has_date_gap: bool | None = None
 
 
 class ReviewedStatementEnvelopeRequest(BaseModel):

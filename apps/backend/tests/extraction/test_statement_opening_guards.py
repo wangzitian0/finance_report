@@ -281,3 +281,200 @@ async def test_void_journal_entry_annihilates_balance_cleanly(db, test_user):
     bs = await generate_balance_sheet(db, test_user.id, as_of_date=date(2026, 1, 31), currency="SGD")
     asset_line = next((line for line in bs["assets"] if line["account_id"] == account.id), None)
     assert asset_line is None or asset_line["amount"] == Decimal("0")
+
+
+async def test_AC_ledger_2832_1_unexplained_gap_equity_account_and_superseding_opening_position(db, test_user):
+    """AC-ledger.2832.1: get_or_create_unexplained_gap_equity_account provisions system equity account 3198
+    per currency, and initialize_opening_positions(..., allow_supersede=True) supports re-anchoring an
+    account opening position when statement chains are re-anchored."""
+    from src.ledger.extension.account_service import (
+        UNEXPLAINED_GAP_EQUITY_CODE,
+        get_or_create_unexplained_gap_equity_account,
+    )
+
+    gap_sgd_1 = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "SGD")
+    gap_sgd_2 = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "sgd")
+    gap_usd = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "USD")
+
+    assert gap_sgd_1.id == gap_sgd_2.id
+    assert gap_sgd_1.code == UNEXPLAINED_GAP_EQUITY_CODE == "3198"
+    assert gap_sgd_1.type == AccountType.EQUITY
+    assert gap_sgd_1.is_system is True
+    assert gap_sgd_1.currency == "SGD"
+    assert gap_usd.id != gap_sgd_1.id
+    assert gap_usd.currency == "USD"
+
+    account = Account(user_id=test_user.id, name="SGD Checking", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+
+    jan_entry = await initialize_opening_positions(
+        db,
+        test_user.id,
+        entry_date=date(2025, 1, 1),
+        balances={account.id: Decimal("1000.00")},
+        currency="SGD",
+        base_currency="SGD",
+    )
+    assert jan_entry is not None
+    assert jan_entry.status == JournalEntryStatus.POSTED
+
+    # Re-anchoring to a later date (e.g. after retiring the Jan statement) succeeds when allow_supersede=True
+    jun_entry = await initialize_opening_positions(
+        db,
+        test_user.id,
+        entry_date=date(2025, 6, 1),
+        balances={account.id: Decimal("1500.00")},
+        currency="SGD",
+        base_currency="SGD",
+        allow_supersede=True,
+    )
+    assert jun_entry is not None
+    assert jun_entry.status == JournalEntryStatus.POSTED
+    await db.refresh(jan_entry)
+    assert jan_entry.status == JournalEntryStatus.VOID
+
+    positions = await list_opening_positions(db, user_id=test_user.id, as_of=date.max)
+    assert len(positions) == 1
+    assert positions[0].effective_date == date(2025, 6, 1)
+    assert positions[0].amount == Decimal("1500.00")
+    assert await calculate_account_balance(db, account.id, test_user.id) == Decimal("1500.00")
+
+
+async def test_AC_extraction_2832_2_reconcile_statement_chain_anchors_out_of_order_and_gap_plugs(db, test_user):
+    """AC-extraction.2832.2: Out-of-order statement approvals (June first, January second, February gap-fill third,
+    then retiring January) anchor S_0 to 3199 Opening Balance Equity and calibrate inter-statement gaps in 3198
+    Unexplained Statement Gap Equity so every approved statement's opening and closing balances tie out on the
+    Balance Sheet."""
+    from src.extraction.base.source_vocabulary import BankStatementStatus
+    from src.extraction.base.types import RetireStatementCommand
+    from src.extraction.extension.source_lifecycle import retire_statement
+    from src.extraction.extension.statement_posting import reconcile_account_statement_chain
+    from src.ledger import Direction, submit_system_journal_entry
+    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
+
+    account = Account(user_id=test_user.id, name="DBS Multiplier", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([account, income])
+    await db.flush()
+
+    # 1. User uploads & approves June 2025 first (opening 15,000, +3,000 net txns, closing 18,000)
+    stmt_jun = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=account.id,
+        institution="DBS",
+        account_last4="8888",
+        currency="SGD",
+        opening_balance=Decimal("15000.00"),
+        closing_balance=Decimal("18000.00"),
+        period_start=date(2025, 6, 1),
+        period_end=date(2025, 6, 30),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(stmt_jun)
+    await db.flush()
+    await submit_system_journal_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2025, 6, 15),
+        memo="June salary",
+        lines_data=[
+            {"account_id": account.id, "direction": Direction.DEBIT, "amount": Decimal("3000.00"), "currency": "SGD"},
+            {"account_id": income.id, "direction": Direction.CREDIT, "amount": Decimal("3000.00"), "currency": "SGD"},
+        ],
+        base_currency="SGD",
+        operation="test-june-txn",
+    )
+    await try_auto_post_statement_opening_balance(db, stmt_jun, test_user.id)
+
+    bs_jun_only = await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 6, 30), currency="SGD")
+    assert bs_jun_only["is_balanced"] is True
+    assert next(a["amount"] for a in bs_jun_only["assets"] if a["account_id"] == account.id) == Decimal("18000.00")
+
+    # 2. User next uploads & approves January 2025 (opening 10,000, +2,000 net txns, closing 12,000)
+    stmt_jan = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=account.id,
+        institution="DBS",
+        account_last4="8888",
+        currency="SGD",
+        opening_balance=Decimal("10000.00"),
+        closing_balance=Decimal("12000.00"),
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(stmt_jan)
+    await db.flush()
+    await submit_system_journal_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2025, 1, 15),
+        memo="Jan salary",
+        lines_data=[
+            {"account_id": account.id, "direction": Direction.DEBIT, "amount": Decimal("2000.00"), "currency": "SGD"},
+            {"account_id": income.id, "direction": Direction.CREDIT, "amount": Decimal("2000.00"), "currency": "SGD"},
+        ],
+        base_currency="SGD",
+        operation="test-jan-txn",
+    )
+    await try_auto_post_statement_opening_balance(db, stmt_jan, test_user.id)
+
+    # Check anchors at Jan 1 (10,000), Jan 31 (12,000), Jun 1 (15,000), Jun 30 (18,000) via Balance Sheet
+    for anchor_date, expected_bal in (
+        (date(2025, 1, 1), Decimal("10000.00")),
+        (date(2025, 1, 31), Decimal("12000.00")),
+        (date(2025, 6, 1), Decimal("15000.00")),
+        (date(2025, 6, 30), Decimal("18000.00")),
+    ):
+        bs = await generate_balance_sheet(db, test_user.id, as_of_date=anchor_date, currency="SGD")
+        assert bs["is_balanced"] is True
+        assert next(a["amount"] for a in bs["assets"] if a["account_id"] == account.id) == expected_bal
+
+    gap_equity = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "SGD")
+    assert await calculate_account_balance(db, gap_equity.id, test_user.id) == Decimal("3000.00")
+
+    # 3. User uploads & approves February 2025 (opening 12,000, +1,200 net txns, closing 13,200)
+    stmt_feb = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=account.id,
+        institution="DBS",
+        account_last4="8888",
+        currency="SGD",
+        opening_balance=Decimal("12000.00"),
+        closing_balance=Decimal("13200.00"),
+        period_start=date(2025, 2, 1),
+        period_end=date(2025, 2, 28),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(stmt_feb)
+    await db.flush()
+    await submit_system_journal_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2025, 2, 15),
+        memo="Feb salary",
+        lines_data=[
+            {"account_id": account.id, "direction": Direction.DEBIT, "amount": Decimal("1200.00"), "currency": "SGD"},
+            {"account_id": income.id, "direction": Direction.CREDIT, "amount": Decimal("1200.00"), "currency": "SGD"},
+        ],
+        base_currency="SGD",
+        operation="test-feb-txn",
+    )
+    await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=account.id)
+
+    # Now (Jan, Feb) has 0 gap, and (Feb, Jun) has +1,800 gap! 3198 shrank from 3,000 to 1,800!
+    assert await calculate_account_balance(db, gap_equity.id, test_user.id) == Decimal("1800.00")
+    bs_feb = await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 2, 28), currency="SGD")
+    assert bs_feb["is_balanced"] is True
+    assert next(a["amount"] for a in bs_feb["assets"] if a["account_id"] == account.id) == Decimal("13200.00")
+    bs_jun = await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 6, 30), currency="SGD")
+    assert bs_jun["is_balanced"] is True
+    assert next(a["amount"] for a in bs_jun["assets"] if a["account_id"] == account.id) == Decimal("18000.00")
+
+    # 4. Retiring February preserves the June anchor (15,000 opening, 18,000 closing) cleanly
+    await retire_statement(db, RetireStatementCommand(statement_id=stmt_feb.id, user_id=test_user.id))
+    bs_jun_open = await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 6, 1), currency="SGD")
+    assert bs_jun_open["is_balanced"] is True
+    assert next(a["amount"] for a in bs_jun_open["assets"] if a["account_id"] == account.id) == Decimal("15000.00")
+    assert await calculate_account_balance(db, account.id, test_user.id) == Decimal("18000.00")

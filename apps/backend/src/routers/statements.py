@@ -953,6 +953,11 @@ async def get_statement_for_review(
             opening_match=validation_result["opening_match"],
             closing_match=validation_result["closing_match"],
             validated_at=validation_result["validated_at"],
+            previous_closing_balance=validation_result.get("previous_closing_balance"),
+            previous_period_end=validation_result.get("previous_period_end"),
+            cross_period_delta=validation_result.get("cross_period_delta"),
+            cross_period_match=validation_result.get("cross_period_match"),
+            has_date_gap=validation_result.get("has_date_gap"),
         ),
     )
 

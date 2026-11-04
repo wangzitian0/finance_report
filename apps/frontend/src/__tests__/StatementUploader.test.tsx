@@ -551,4 +551,10 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     });
     expect(onUploadComplete).toHaveBeenCalledTimes(1);
   });
+
+  it("AC-extraction.2832.3 hides AI model selector and skips fetchAiModels when kind is csv", () => {
+    render(<StatementUploader kind="csv" />);
+    expect(screen.queryByLabelText(/ai model/i)).toBeNull();
+    expect(fetchAiModels).not.toHaveBeenCalled();
+  });
 });

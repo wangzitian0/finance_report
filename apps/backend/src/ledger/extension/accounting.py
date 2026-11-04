@@ -73,6 +73,7 @@ async def initialize_opening_positions(
     fx_rates: dict[str, Decimal] | None = None,
     source_decision_id: UUID | None = None,
     trace_emitter: TraceEmitter | None = None,
+    allow_supersede: bool = False,
 ) -> JournalEntry | None:
     """Initialize signed account stock; repeated identical requests are idempotent.
 
@@ -136,7 +137,7 @@ async def initialize_opening_positions(
                 if previous.journal_entry_id:
                     existing_entries.add(previous.journal_entry_id)
                 continue
-            if entry_date < previous.effective_date:
+            if entry_date < previous.effective_date or allow_supersede:
                 if previous.journal_entry_id:
                     await void_journal_entry(
                         db,
@@ -162,19 +163,20 @@ async def initialize_opening_positions(
         return await db.get(JournalEntry, next(iter(existing_entries))) if existing_entries else None
     # Opening stock must precede activity. Same-date activity is allowed: the
     # opening evidence distinguishes the start of that day from its flows.
-    prior = await db.scalar(
-        select(JournalLine.id)
-        .join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
-        .where(
-            JournalLine.account_id.in_(new),
-            JournalEntry.user_id == user_id,
-            active_journal_entry_filter(JournalEntry),
-            JournalEntry.entry_date < entry_date,
+    if not allow_supersede:
+        prior = await db.scalar(
+            select(JournalLine.id)
+            .join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
+            .where(
+                JournalLine.account_id.in_(new),
+                JournalEntry.user_id == user_id,
+                active_journal_entry_filter(JournalEntry),
+                JournalEntry.entry_date < entry_date,
+            )
+            .limit(1)
         )
-        .limit(1)
-    )
-    if prior is not None:
-        raise ValidationError("Opening balances must precede all activity for the affected accounts")
+        if prior is not None:
+            raise ValidationError("Opening balances must precede all activity for the affected accounts")
     lines = []
     net = Decimal("0")
     for aid, amount in new.items():

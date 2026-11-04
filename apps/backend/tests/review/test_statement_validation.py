@@ -440,7 +440,7 @@ class TestApproveStatement:
             await approve_statement(db, stmt.id, user_id)
 
     async def test_approve_with_opening_mismatch_raises(self, db, user_id):
-        """AC16.22.1 AC16.31.2: Approval requires both opening and closing balance validation."""
+        """AC16.22.1 AC16.31.2: Intra-statement balance mismatch (opening + txns != closing) blocks approval, while cross-period delta is reported as metadata."""
         account = Account(
             id=uuid4(),
             user_id=user_id,
@@ -476,10 +476,13 @@ class TestApproveStatement:
         )
 
         validation = await validate_balance_chain(db, current.id)
-        assert validation["opening_match"] is False
-        assert validation["closing_match"] is True
+        # Intra-statement: 120.00 + 50.00 = 170.00 != 150.00 => closing_match is False
+        assert validation["opening_match"] is True
+        assert validation["closing_match"] is False
+        assert validation["cross_period_delta"] == "20.00"
+        assert validation["cross_period_match"] is False
 
-        with pytest.raises(ValueError, match="Opening balance mismatch"):
+        with pytest.raises(ValueError, match="Balance mismatch"):
             await approve_statement(db, current.id, user_id)
 
 
@@ -594,7 +597,7 @@ class TestValidateBalanceChainEdgeCases:
         assert result["closing_match"] is True
 
     async def test_opening_balance_from_prev_statement(self, db, user_id):
-        """AC-extraction.stage1-validation.4: AC16.3.3 _get_opening_balance uses prev statement closing_balance when available."""
+        """AC-extraction.stage1-validation.4: _get_opening_balance uses the statement's own opening_balance for intra-statement validation while exposing cross-period delta against prev statement closing_balance (#2832)."""
         await _make_statement(
             db,
             user_id,
@@ -608,7 +611,7 @@ class TestValidateBalanceChainEdgeCases:
             user_id,
             file_hash="hash_curr_new",
             opening_balance=Decimal("999.00"),
-            closing_balance=Decimal("1350.00"),
+            closing_balance=Decimal("1149.00"),
             period_start=date(2024, 2, 1),
             period_end=date(2024, 2, 29),
         )
@@ -622,10 +625,16 @@ class TestValidateBalanceChainEdgeCases:
         )
 
         result = await validate_balance_chain(db, curr_stmt.id)
-        # Opening balance comes from prev stmt closing_balance (1200.00)
-        assert result["opening_balance"] == "1200.00"
-        assert result["calculated_closing"] == "1350.00"
+        # Intra-statement validation uses curr_stmt.opening_balance (999.00 + 150.00 == 1149.00)
+        assert result["opening_balance"] == "999.00"
+        assert result["calculated_closing"] == "1149.00"
+        assert result["opening_match"] is True
         assert result["closing_match"] is True
+        assert result["balance_valid"] is True
+        # Cross-period metadata exposes difference against prev closing_balance (999.00 - 1200.00 = -201.00)
+        assert result["previous_closing_balance"] == "1200.00"
+        assert result["cross_period_delta"] == "-201.00"
+        assert result["cross_period_match"] is False
 
     async def test_get_statement_for_update_wrong_user_raises(self, db, user_id, statement_with_transactions):
         """AC-extraction.stage1-validation.7: AC16.3.6 AC16.22.6: pending_review mutations enforce user_id ownership (_get_statement_for_update raises ValueError for a mismatched user_id)."""
@@ -779,3 +788,71 @@ class TestEditAndApproveSelectiveFields:
                 user_id,
                 [{"txn_id": str(txn.id), "txn_date": date(2024, 1, 9), "reference": "R-9"}],
             )
+
+
+async def test_AC_extraction_2832_1_non_consecutive_statement_validates_intra_statement_and_reports_cross_period_delta(
+    db, user_id
+):
+    """AC-extraction.2832.1: A non-consecutive statement (e.g. March after January, skipping February)
+    passes validate_balance_chain and approve_statement when internally self-consistent, while exposing
+    cross_period_delta, cross_period_match, previous_closing_balance, and has_date_gap."""
+    account = Account(
+        id=uuid4(),
+        user_id=user_id,
+        name="DBS Checking",
+        type=AccountType.ASSET,
+        currency="USD",
+    )
+    db.add(account)
+    await db.flush()
+
+    await _make_statement(
+        db,
+        user_id,
+        file_hash="hash_jan_2025",
+        account_id=account.id,
+        opening_balance=Decimal("10000.00"),
+        closing_balance=Decimal("12000.00"),
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        status=BankStatementStatus.APPROVED,
+        stage1_status=Stage1Status.APPROVED,
+    )
+    mar_stmt = await _make_statement(
+        db,
+        user_id,
+        file_hash="hash_mar_2025",
+        account_id=account.id,
+        opening_balance=Decimal("15000.00"),
+        closing_balance=Decimal("18000.00"),
+        period_start=date(2025, 3, 1),
+        period_end=date(2025, 3, 31),
+    )
+    await _add_txn(
+        db,
+        mar_stmt,
+        amount=Decimal("3000.00"),
+        direction=TransactionDirection.IN,
+        txn_date=date(2025, 3, 15),
+        description="March net deposit",
+    )
+
+    result = await validate_balance_chain(db, mar_stmt.id)
+    assert result["opening_balance"] == "15000.00"
+    assert result["calculated_closing"] == "18000.00"
+    assert result["opening_delta"] == "0.00"
+    assert result["closing_delta"] == "0.00"
+    assert result["opening_match"] is True
+    assert result["closing_match"] is True
+    assert result["balance_valid"] is True
+    assert result["previous_closing_balance"] == "12000.00"
+    assert result["previous_period_end"] == "2025-01-31"
+    assert result["cross_period_delta"] == "3000.00"
+    assert result["cross_period_match"] is False
+    assert result["has_date_gap"] is True
+
+    approved = await approve_statement(db, mar_stmt.id, user_id)
+    assert approved.status == BankStatementStatus.APPROVED
+    assert approved.stage1_status == Stage1Status.APPROVED
+    assert approved.balance_validation_result is not None
+    assert approved.balance_validation_result["balance_valid"] is True
