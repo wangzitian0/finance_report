@@ -397,6 +397,11 @@ STAGING_CORE_E2E_STAGE = "staging_core_e2e"
 STAGING_CORE_E2E_MARKER = "(smoke or e2e) and not llm"
 STAGING_CORE_E2E_PARALLELISM = 4
 
+PREVIEW_MINIMUM_E2E_STAGE = "preview_minimum_e2e"
+PREVIEW_MINIMUM_E2E_MARKER = STAGING_CORE_E2E_MARKER
+
+STAGING_AI_OCR_STAGE = "staging_ai_ocr"
+
 
 def staging_core_e2e_selection() -> tuple[str, ...]:
     """Derive the Staging Batch non-LLM E2E set from E2E_ROWS."""
@@ -407,13 +412,38 @@ def staging_core_e2e_selection() -> tuple[str, ...]:
     return tuple(nodes)
 
 
+def preview_minimum_e2e_selection() -> tuple[str, ...]:
+    """Derive the Preview minimum non-LLM E2E set from E2E_ROWS."""
+    return staging_core_e2e_selection()
+
+
+def staging_ai_ocr_selection(corpus: str = "all") -> tuple[str, ...]:
+    """Derive the Staging AI/OCR E2E set for ``corpus`` from the replay contract."""
+    from common.testing import staging_ai_ocr_gate_contract
+
+    return tuple(staging_ai_ocr_gate_contract.corpus_files(corpus))
+
+
 SELECTIONS = {
+    PREVIEW_MINIMUM_E2E_STAGE: preview_minimum_e2e_selection,
     STAGING_CORE_E2E_STAGE: staging_core_e2e_selection,
+    STAGING_AI_OCR_STAGE: staging_ai_ocr_selection,
 }
 
 
-def emit_shell(stage: str) -> str:
-    """Emit bash assignments for a stage's selection (eval'd by workflows)."""
+def emit_shell(stage: str, *, corpus: str = "all") -> str:
+    """Emit bash assignments for a stage's selection (eval'd by workflows and hooks)."""
+    if stage == PREVIEW_MINIMUM_E2E_STAGE:
+        nodes = preview_minimum_e2e_selection()
+        if not nodes:
+            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
+        tests = " ".join(shlex.quote(node) for node in nodes)
+        return "\n".join(
+            [
+                f"PREVIEW_MINIMUM_E2E_TESTS=({tests})",
+                f"PREVIEW_MINIMUM_E2E_MARKER={shlex.quote(PREVIEW_MINIMUM_E2E_MARKER)}",
+            ]
+        )
     if stage == STAGING_CORE_E2E_STAGE:
         nodes = staging_core_e2e_selection()
         if not nodes:
@@ -424,6 +454,18 @@ def emit_shell(stage: str) -> str:
                 f"STAGING_CORE_E2E_TESTS=({tests})",
                 f"STAGING_CORE_E2E_MARKER={shlex.quote(STAGING_CORE_E2E_MARKER)}",
                 f"STAGING_CORE_E2E_PARALLELISM={STAGING_CORE_E2E_PARALLELISM}",
+            ]
+        )
+    if stage == STAGING_AI_OCR_STAGE:
+        from common.testing import staging_ai_ocr_gate_contract
+
+        files = list(staging_ai_ocr_selection(corpus))
+        if not files:
+            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
+        return "\n".join(
+            [
+                staging_ai_ocr_gate_contract.emit_shell(files),
+                f"STAGING_AI_OCR_MARKER={shlex.quote(STAGING_AI_OCR_GATE_MARKER)}",
             ]
         )
     known = ", ".join(sorted(SELECTIONS))

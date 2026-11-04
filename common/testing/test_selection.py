@@ -21,6 +21,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--stage", help="Selection stage to emit (e.g. staging_core_e2e)."
     )
+    parser.add_argument(
+        "--corpus",
+        default="all",
+        help="AI/OCR corpus selector when --stage=staging_ai_ocr (all, canary, audit_replay, core_journey).",
+    )
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
     parser.add_argument(
         "--emit-matrix",
@@ -66,9 +71,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     if args.shell:
-        print(matrix.emit_shell(args.stage))
+        print(matrix.emit_shell(args.stage, corpus=args.corpus))
         return 0
 
-    for node in selection():
+    nodes = (
+        selection(args.corpus)
+        if args.stage == matrix.STAGING_AI_OCR_STAGE
+        else selection()
+    )
+    for node in nodes:
         print(node)
     return 0
