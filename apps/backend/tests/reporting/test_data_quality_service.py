@@ -728,12 +728,23 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
 ):
     """AC-reporting.2832.3: Cover tiny plug (< 0.1% of scale) and same-month gap diagnostic branches
     in compute_personal_data_quality."""
-    # 1. Two unlinked APPROVED statements (account_id=None) with tiny plug
-    # (delta = 0.50 on 10,000.00 -> rel_ratio = 0.00005 < 0.001, lines 248-249, 257, 367-369)
+    from src.ledger import Account, AccountType
+
+    acc = Account(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="Citibank Checking",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(acc)
+    await db.flush()
+
+    # 1. Two APPROVED statements with a tiny plug (delta = 0.50 on 10,000.00 -> rel_ratio < 0.1%)
     st_tiny_jan = StatementSummary(
         id=uuid4(),
         user_id=test_user.id,
-        account_id=None,
+        account_id=acc.id,
         file_hash="tiny_jan",
         institution="Citibank",
         account_last4="9999",
@@ -747,7 +758,7 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
     st_tiny_mar = StatementSummary(
         id=uuid4(),
         user_id=test_user.id,
-        account_id=None,
+        account_id=acc.id,
         file_hash="tiny_mar",
         institution="Citibank",
         account_last4="9999",
@@ -770,11 +781,11 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
     assert res_tiny.temporal_continuity_invariant.is_healthy is True
     assert "minor cross-period rounding absorbed" in res_tiny.temporal_continuity_invariant.summary
 
-    # 2. Same-month gap on Citibank (Mar 31 to Mar 31 / contiguous month with material jump so total_gaps == 0 before line 345)
+    # 2. Same-month material jump on Citibank so a material gap is recorded without a missing calendar month bucket
     st_tiny_mar_late = StatementSummary(
         id=uuid4(),
         user_id=test_user.id,
-        account_id=None,
+        account_id=acc.id,
         file_hash="citi_mar_late",
         institution="Citibank",
         account_last4="9999",
