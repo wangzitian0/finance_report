@@ -15,15 +15,15 @@ description: Finance Report Deploy Evidence & Reality Guard. Automates Touch Rea
 
 ## 2. Four-Phase Verification Protocol
 
-### Phase 1: App-to-infra2 Deployment Request
-Finance Report never checks out or runs infra2 source directly. Deployments cross the versioned request boundary:
-1. `tools/app_deploy_request.py` renders a canonical `DeployRequest`.
-2. `tools/app_deploy_transport.py` dispatches the request with `INFRA2_PAT`.
-3. The transport waits for success and confirms the request id in logs.
+### Phase 1: App-to-infra2 Release Coordinate and Runtime Hooks
+Finance Report never checks out or runs infra2 source directly. Deployments cross the versioned release train and hook manifest boundary:
+1. `runtime-hooks.manifest.json` declares the four runtime verification hook slots (`smoke`, `preview_gate`, `staging_gate`, `scheduled_audit`).
+2. `common/runtime/deployment.md` documents the release tag coordinate in infra2.
+3. Verify the hook manifest locally with `python -m infra2_sdk.manifests --check-hooks runtime-hooks.manifest.json`.
 
 ### Phase 2: Staging Soak and Observability
 Confirm the release tag triggered staging reconcile and passed soak:
-1. Check staging deployment run status via `gh run list --workflow deploy.yml`.
+1. Check staging reconcile run status in infra2 (`reconcile-iac-inputs.yml`).
 2. Verify staging health endpoint:
 ```bash
 curl -fsS https://report-staging.zitian.party/api/health
