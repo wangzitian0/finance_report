@@ -708,3 +708,92 @@ async def test_AC_reporting_cash_events_12_statement_balance_sheet_categories_cl
     assert lineage_by_entry[investment_purchase.id]["activity"] == "Investing"
     assert lineage_by_entry[brokerage_sale.id]["activity"] is None
     assert lineage_by_entry[mismatched_loan.id]["activity"] is None
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stock_adjustment(
+    db: AsyncSession, test_user
+):
+    """AC-reporting.2832.1: System cross_period_gap_plug journal lines are classified as opening_stock_adjustment
+    (or beginning_cash on start_date) so multi-period cash flow bridges reconcile with proof_state == 'proven'
+    and zero unclassified_cash across statement gaps."""
+    from src.ledger import initialize_opening_positions, submit_system_journal_entry
+    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
+
+    cash = await _account(db, test_user.id, "DBS Checking", AccountType.ASSET)
+    salary = await _account(db, test_user.id, "Salary", AccountType.INCOME)
+    gap_equity = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "SGD")
+
+    # Opening balance on Jan 1: 10,000
+    await initialize_opening_positions(
+        db,
+        test_user.id,
+        entry_date=date(2026, 1, 1),
+        balances={cash.id: Decimal("10000.00")},
+        currency="SGD",
+        base_currency="SGD",
+    )
+
+    # Jan salary inflow: +2,000
+    await submit_system_journal_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 1, 10),
+        memo="January Salary",
+        lines_data=[
+            {
+                "account_id": cash.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("2000.00"),
+                "currency": "SGD",
+                "event_type": "bank_txn",
+            },
+            {
+                "account_id": salary.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("2000.00"),
+                "currency": "SGD",
+                "event_type": "bank_txn",
+            },
+        ],
+        base_currency="SGD",
+        operation="jan-salary",
+    )
+
+    # Cross-period gap plug on Jan 25 (e.g. bridging missing mid-period statement gap): +3,000
+    await submit_system_journal_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 1, 25),
+        memo="Unexplained statement gap adjustment",
+        lines_data=[
+            {
+                "account_id": cash.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("3000.00"),
+                "currency": "SGD",
+                "event_type": "cross_period_gap_plug",
+            },
+            {
+                "account_id": gap_equity.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("3000.00"),
+                "currency": "SGD",
+                "event_type": "cross_period_gap_plug",
+            },
+        ],
+        base_currency="SGD",
+        operation="cross-period-gap-test",
+    )
+    await db.flush()
+
+    report = await _report(db, test_user.id, {cash.id})
+    assert report["proof_state"] == "proven"
+    assert report["proof_reasons"] == []
+    assert report["summary"]["beginning_cash"] == Decimal("10000.00")
+    assert report["summary"]["operating_activities"] == Decimal("2000.00")
+    assert report["summary"]["net_cash_flow"] == Decimal("2000.00")
+    assert report["summary"]["ending_cash"] == Decimal("15000.00")
+    assert report["cash_bridge"]["opening_stock_adjustment"] == Decimal("3000.00")
+    assert report["cash_bridge"]["unclassified_cash"] == Decimal("0.00")
+    assert report["cash_bridge"]["reconciles"] is True

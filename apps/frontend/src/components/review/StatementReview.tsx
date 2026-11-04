@@ -62,24 +62,41 @@ export function BalanceIndicator({ openingBalance, closingBalance, validationRes
   const openingValid = validationResult?.opening_match ?? false;
   const closingValid = validationResult?.closing_match ?? false;
   const closingKnown = (validationResult?.closing_balance ?? null) !== null;
+  const valAny = validationResult as (BalanceValidationResult & {
+    cross_period_match?: boolean | null;
+    cross_period_delta?: string | null;
+    previous_closing_balance?: string | null;
+    previous_period_end?: string | null;
+    has_date_gap?: boolean | null;
+  }) | null;
+  const hasCrossPeriodGap = valAny?.cross_period_match === false && Boolean(valAny?.cross_period_delta);
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
-      <div className="card p-4"><div className="text-xs text-muted mb-1">Opening Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(openingBalance ?? 0, currency)}</div></div>
-      <div className="card p-4"><div className="text-xs text-muted mb-1">Closing Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(closingBalance ?? 0, currency)}</div></div>
-      <div className="card p-4"><div className="text-xs text-muted mb-1">Calculated Closing</div><div className="text-lg font-semibold">{formatCurrencyLocale(validationResult ? validationResult.calculated_closing : 0, currency)}</div></div>
-      <div className="card p-4">
-        <div className="text-xs text-muted mb-2">Balance Validation</div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <span className={`text-sm font-medium ${openingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>Opening {openingValid ? "Valid" : "Mismatch"}</span>
-            <span className="text-xs text-muted">Opening Δ: {validationResult?.opening_delta || "?"}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className={`text-sm font-medium ${!closingKnown ? "text-muted" : closingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>Closing {!closingKnown ? "Unknown" : closingValid ? "Valid" : "Mismatch"}</span>
-            <span className="text-xs text-muted">Closing Δ: {validationResult?.closing_delta || "?"}</span>
+    <div className="mb-4 space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className="card p-4"><div className="text-xs text-muted mb-1">Opening Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(openingBalance ?? 0, currency)}</div></div>
+        <div className="card p-4"><div className="text-xs text-muted mb-1">Closing Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(closingBalance ?? 0, currency)}</div></div>
+        <div className="card p-4"><div className="text-xs text-muted mb-1">Calculated Closing</div><div className="text-lg font-semibold">{formatCurrencyLocale(validationResult ? validationResult.calculated_closing : 0, currency)}</div></div>
+        <div className="card p-4">
+          <div className="text-xs text-muted mb-2">Balance Validation</div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className={`text-sm font-medium ${openingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>Opening {openingValid ? "Valid" : "Mismatch"}</span>
+              <span className="text-xs text-muted">Opening Δ: {validationResult?.opening_delta || "?"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className={`text-sm font-medium ${!closingKnown ? "text-muted" : closingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>Closing {!closingKnown ? "Unknown" : closingValid ? "Valid" : "Mismatch"}</span>
+              <span className="text-xs text-muted">Closing Δ: {validationResult?.closing_delta || "?"}</span>
+            </div>
           </div>
         </div>
       </div>
+      {hasCrossPeriodGap && (
+        <div role="note" className="rounded-md border border-[var(--accent)]/30 bg-[var(--background-muted)]/50 px-3 py-2 text-xs text-muted">
+          Cross-period gap from prior closing balance{valAny?.previous_period_end ? ` (${valAny.previous_period_end})` : ""}:{" "}
+          <span className="font-medium text-[var(--foreground)]">{valAny?.cross_period_delta} {currency}</span>.{" "}
+          Statement balances are anchored directly; any inter-statement gap is tracked in Unexplained Statement Gap Equity (3198) until intermediate statements are uploaded.
+        </div>
+      )}
     </div>
   );
 }
@@ -155,7 +172,11 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
   requiresEnvelopeConfirmation: boolean; requiresOtherSourceReview: boolean; sourceMissingFacts: string[]; missingFactLabels: Record<string, string>; envelopeDraft: EnvelopeDraft; onDraftChange: (u: (p: EnvelopeDraft) => EnvelopeDraft) => void; custodyAccounts: CustodyAccount[]; onConfirm: () => void; isPending: boolean; reviewedEnvelope?: unknown | null; onCreateAccount?: (name: string) => void; isCreatingAccount?: boolean; defaultAccountName?: string;
 }) {
   const [newAccountName, setNewAccountName] = useState(defaultAccountName);
-  const canCreateAccount = Boolean(onCreateAccount) && custodyAccounts.length === 0;
+  const targetCurrency = envelopeDraft.currency.trim().toUpperCase();
+  const matchingCustodyAccounts = targetCurrency
+    ? custodyAccounts.filter((a) => a.currency?.toUpperCase() === targetCurrency)
+    : custodyAccounts;
+  const canCreateAccount = Boolean(onCreateAccount) && matchingCustodyAccounts.length === 0;
   const isComplete = Boolean(envelopeDraft.accountId && envelopeDraft.currency && envelopeDraft.periodStart && envelopeDraft.periodEnd && envelopeDraft.openingBalance && envelopeDraft.closingBalance && envelopeDraft.rationale.trim());
   const missingText = sourceMissingFacts.map((f) => missingFactLabels[f] || f).join(", ");
   return (
@@ -170,12 +191,16 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
             <label className="text-sm font-medium" htmlFor="custody-account">Custody account
               <select id="custody-account" value={envelopeDraft.accountId} onChange={(e) => onDraftChange((c) => ({ ...c, accountId: e.target.value }))} className="input mt-1 w-full">
                 <option value="">Select an asset account</option>
-                {custodyAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
+                {matchingCustodyAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
               </select>
             </label>
             {canCreateAccount && (
               <div className="rounded-md border border-[var(--border)] p-2 text-sm md:col-span-2">
-                <span className="block text-xs text-muted">You have no asset account yet. Create one for this statement{envelopeDraft.currency ? ` in ${envelopeDraft.currency}` : ""}.</span>
+                <span className="block text-xs text-muted">
+                  {custodyAccounts.length === 0
+                    ? `You have no asset account yet. Create one for this statement${targetCurrency ? ` in ${targetCurrency}` : ""}.`
+                    : `No ${targetCurrency} asset account exists yet. Create one for this statement in ${targetCurrency}.`}
+                </span>
                 <span className="mt-2 flex gap-2">
                   <input id="new-custody-account-name" aria-label="New account name" value={newAccountName} onChange={(e) => setNewAccountName(e.target.value)} className="input w-full" placeholder="e.g., DBS Savings" />
                   <button type="button" onClick={() => onCreateAccount?.(newAccountName.trim())} disabled={isCreatingAccount || !newAccountName.trim() || !envelopeDraft.currency} className="btn-secondary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">{isCreatingAccount ? "Creating..." : "Create account"}</button>

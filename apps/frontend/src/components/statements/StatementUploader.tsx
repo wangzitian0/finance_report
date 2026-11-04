@@ -79,9 +79,14 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
   const [models, setModels] = useState<AiModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [modelLoading, setModelLoading] = useState(true);
-  const isCsvFile = files.length > 0 && files.every((f) => getFileExtension(f.name) === "csv");
+  const isCsvFile =
+    kind === "csv" || (files.length > 0 && files.every((f) => getFileExtension(f.name) === "csv"));
 
   useEffect(() => {
+    if (kind === "csv") {
+      setModelLoading(false);
+      return;
+    }
     let active = true;
     async function loadModels(): Promise<void> {
       try {
@@ -119,7 +124,7 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
     }
     void loadModels();
     return () => { active = false; };
-  }, []);
+  }, [kind]);
 
   const validateAndSetFiles = useCallback(
     (incoming: FileList | File[]): void => {

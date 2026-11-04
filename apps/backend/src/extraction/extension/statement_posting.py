@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -79,11 +79,17 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
     AccountType,
+    Direction,
     JournalEntry,
     JournalEntryAuthorityState,
     JournalEntryStatus,
+    JournalLine,
     ValidationError,
+    active_journal_entry_filter,
     current_anchored_journal_entries,
+    fit_journal_memo,
+    submit_system_journal_entry,
+    void_journal_entry,
 )
 from src.observability import get_logger
 from src.pricing import ExchangeRateLookup
@@ -674,6 +680,392 @@ async def validate_statement_period_unique(
         )
 
 
+#: Materiality threshold for cross-period statement balance gap calibration (#2832).
+CROSS_PERIOD_GAP_PLUG_TOLERANCE = Decimal("0.10")
+CROSS_PERIOD_GAP_PLUG_EVENT_TYPE = "cross_period_gap_plug"
+
+
+async def void_statement_posted_entries(
+    db: AsyncSession,
+    statement: StatementSummary,
+    user_id: UUID,
+    *,
+    reason: str = "Statement retired",
+) -> int:
+    """Void all active journal entries posted for a statement's transactions (#2832)."""
+    transactions = await resolve_statement_transactions(db, statement)
+    txn_ids = [txn.id for txn in transactions]
+    if not txn_ids:
+        return 0
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    active_entries = (
+        (
+            await db.execute(
+                select(JournalEntry)
+                .where(
+                    JournalEntry.user_id == user_id,
+                    JournalEntry.source_id.in_(txn_ids),
+                    JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+                )
+                .order_by(JournalEntry.entry_date, JournalEntry.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    voided = 0
+    for entry in active_entries:
+        await void_journal_entry(
+            db,
+            entry.id,
+            reason=reason,
+            user_id=user_id,
+            allow_reconciled=True,
+            base_currency=base_currency,
+        )
+        voided += 1
+    return voided
+
+
+async def _active_gap_plug_entries_for_account(
+    db: AsyncSession,
+    user_id: UUID,
+    account_id: UUID,
+) -> list[tuple[JournalEntry, JournalLine]]:
+    rows = (
+        await db.execute(
+            select(JournalEntry, JournalLine)
+            .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.source_type == JournalEntrySourceType.SYSTEM,
+                JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+                ~JournalEntry.memo.startswith("VOID: "),
+                JournalLine.account_id == account_id,
+                JournalLine.event_type == CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+            )
+            .order_by(JournalEntry.entry_date, JournalEntry.id)
+        )
+    ).all()
+    return [(entry, line) for entry, line in rows]
+
+
+async def _non_plug_account_movement_between(
+    db: AsyncSession,
+    user_id: UUID,
+    account: Account,
+    *,
+    after_date: date,
+    before_date: date,
+    opening_entry_ids: set[UUID],
+) -> Decimal:
+    if before_date <= after_date + timedelta(days=1):
+        return Decimal("0")
+    rows = (
+        await db.execute(
+            select(JournalEntry, JournalLine)
+            .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+            .where(
+                JournalEntry.user_id == user_id,
+                active_journal_entry_filter(JournalEntry),
+                JournalLine.account_id == account.id,
+                JournalEntry.entry_date > after_date,
+                JournalEntry.entry_date < before_date,
+            )
+        )
+    ).all()
+    debit_normal = account.type in (AccountType.ASSET, AccountType.EXPENSE)
+    movement = Decimal("0")
+    for entry, line in rows:
+        if entry.id in opening_entry_ids:
+            continue
+        if line.event_type == CROSS_PERIOD_GAP_PLUG_EVENT_TYPE:
+            continue
+        signed = line.amount if (line.direction == Direction.DEBIT) == debit_normal else -line.amount
+        movement += signed
+    return movement
+
+
+async def reconcile_account_statement_chain(
+    db: AsyncSession,
+    user_id: UUID,
+    account_id: UUID,
+    *,
+    dependencies: StatementPostingDependencies | None = None,
+    candidate_statement: StatementSummary | None = None,
+) -> bool:
+    """Idempotently anchor S_0 to 3199 and calibrate inter-statement gaps to 3198 (#2832).
+
+    Returns True when an opening position or gap plug journal entry was created or updated,
+    and False when the chain was already up to date with no new entry posted.
+    """
+    from src.audit.money import to_money
+    from src.extraction.extension.statement_contribution import resolve_statement_contribution
+    from src.ledger import initialize_opening_positions, list_opening_positions
+    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
+
+    account = await db.scalar(select(Account).where(Account.id == account_id, Account.user_id == user_id))
+    if account is None:
+        return False
+
+    approved_rows = list(
+        (
+            await db.execute(
+                select(StatementSummary)
+                .where(
+                    StatementSummary.user_id == user_id,
+                    StatementSummary.account_id == account_id,
+                    StatementSummary.status == BankStatementStatus.APPROVED,
+                    StatementSummary.period_start.is_not(None),
+                )
+                .order_by(
+                    StatementSummary.period_start.asc(), StatementSummary.period_end.asc(), StatementSummary.id.asc()
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if candidate_statement is not None and candidate_statement.account_id == account_id:
+        if (
+            candidate_statement.period_start is not None
+            and candidate_statement.opening_balance is not None
+            and all(row.id != candidate_statement.id for row in approved_rows)
+            and candidate_statement.status != BankStatementStatus.RETIRED
+        ):
+            approved_rows.append(candidate_statement)
+            approved_rows.sort(
+                key=lambda s: (
+                    s.period_start or date.min,
+                    s.period_end or s.period_start or date.min,
+                    str(s.id),
+                )
+            )
+
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    existing_plugs = await _active_gap_plug_entries_for_account(db, user_id, account_id)
+    positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
+    existing_opening = next((p for p in positions if p.account_id == account_id), None)
+
+    if not approved_rows:
+        changed = False
+        for entry, _line in existing_plugs:
+            await void_journal_entry(
+                db,
+                entry.id,
+                reason="All statements for account retired",
+                user_id=user_id,
+                allow_reconciled=True,
+                base_currency=base_currency,
+            )
+            changed = True
+        if existing_opening is not None and existing_opening.journal_entry_id is not None:
+            await void_journal_entry(
+                db,
+                existing_opening.journal_entry_id,
+                reason="All statements for account retired",
+                user_id=user_id,
+                allow_reconciled=True,
+                base_currency=base_currency,
+            )
+            changed = True
+        return changed
+
+    earliest = approved_rows[0]
+    earliest_opening = (
+        earliest.manual_opening_balance if earliest.manual_opening_balance is not None else earliest.opening_balance
+    )
+    if earliest_opening is None or earliest.period_start is None:
+        raise ValueError("Statement opening balance, date, and account are required before posting")
+
+    currency = normalize_currency_code(earliest.currency or account.currency or "")
+    changed = False
+
+    need_opening_post = True
+    allow_supersede = False
+    if existing_opening is not None:
+        if existing_opening.state != "authoritative":
+            raise ValueError("Opening balance authority needs review")
+        if existing_opening.effective_date < earliest.period_start:
+            # Determine whether existing_opening came from a retired statement or a manual opening balance
+            retired_at_existing = await db.scalar(
+                select(StatementSummary.id)
+                .where(
+                    StatementSummary.user_id == user_id,
+                    StatementSummary.account_id == account_id,
+                    StatementSummary.status == BankStatementStatus.RETIRED,
+                    StatementSummary.period_start == existing_opening.effective_date,
+                )
+                .limit(1)
+            )
+            if retired_at_existing is not None:
+                allow_supersede = True
+            else:
+                need_opening_post = False
+        elif existing_opening.effective_date == earliest.period_start:
+            if abs(earliest_opening - existing_opening.amount) <= STATEMENT_BALANCE_TOLERANCE:
+                need_opening_post = False
+            else:
+                raise ValueError("Opening balance conflicts with existing opening position for the same date")
+
+    if need_opening_post:
+        source_decision_id = None
+        if earliest.current_extraction_result_id is not None:
+            contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=earliest.id)
+            if contribution.state != "authoritative" or contribution.decision is None:
+                raise ValueError("Statement opening balance requires current source authority")
+            source_decision_id = contribution.decision.decision_id
+        fx_rates: dict[str, Decimal] = {}
+        if currency != base_currency and earliest_opening != 0:
+            if dependencies is None:
+                raise ValueError("FX rate provider required for statement opening balance")
+            try:
+                fx_rates[currency] = await dependencies.fx_rate_provider(
+                    db, currency, base_currency, earliest.period_start, lazy_load=True
+                )
+            except dependencies.fx_rate_error as exc:
+                raise ValueError("FX rate required for statement opening balance") from exc
+        try:
+            await initialize_opening_positions(
+                db,
+                user_id,
+                entry_date=earliest.period_start,
+                balances={account_id: earliest_opening},
+                currency=currency,
+                base_currency=base_currency,
+                fx_rates=fx_rates,
+                source_decision_id=source_decision_id,
+                trace_emitter=dependencies.trace_emitter_factory(db) if dependencies is not None else None,
+                memo="Opening balance (statement import)",
+                allow_supersede=allow_supersede,
+            )
+            changed = True
+        except ValidationError as exc:
+            raise ValueError(str(exc)) from exc
+
+    # Re-fetch current opening entry IDs so gap movement calculation excludes opening entries
+    updated_positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
+    opening_entry_ids = {p.journal_entry_id for p in updated_positions if p.journal_entry_id is not None}
+
+    desired_plugs: dict[tuple[str, str], tuple[StatementSummary, StatementSummary, date, Decimal]] = {}
+    for idx in range(len(approved_rows) - 1):
+        s_prev = approved_rows[idx]
+        s_next = approved_rows[idx + 1]
+        if s_prev.closing_balance is None or s_prev.period_end is None or s_next.period_start is None:
+            continue
+        next_open = (
+            s_next.manual_opening_balance if s_next.manual_opening_balance is not None else s_next.opening_balance
+        )
+        if next_open is None:
+            continue
+        non_plug_movement = await _non_plug_account_movement_between(
+            db,
+            user_id,
+            account,
+            after_date=s_prev.period_end,
+            before_date=s_next.period_start,
+            opening_entry_ids=opening_entry_ids,
+        )
+        delta = to_money(next_open - s_prev.closing_balance - non_plug_movement)
+        if abs(delta) > CROSS_PERIOD_GAP_PLUG_TOLERANCE:
+            plug_date = max(
+                s_prev.period_end + timedelta(days=1),
+                s_next.period_start - timedelta(days=1),
+            )
+            if plug_date > s_next.period_start:
+                plug_date = s_next.period_start
+            pair_key = (str(s_prev.id), str(s_next.id))
+            desired_plugs[pair_key] = (s_prev, s_next, plug_date, delta)
+
+    debit_normal = account.type in (AccountType.ASSET, AccountType.EXPENSE)
+    kept_pairs: set[tuple[str, str]] = set()
+    for entry, line in existing_plugs:
+        tags = line.tags if isinstance(line.tags, dict) else {}
+        pair_key = (str(tags.get("gap_from_statement_id") or ""), str(tags.get("gap_to_statement_id") or ""))
+        signed_existing = line.amount if (line.direction == Direction.DEBIT) == debit_normal else -line.amount
+        desired = desired_plugs.get(pair_key)
+        if (
+            desired is not None
+            and pair_key not in kept_pairs
+            and entry.entry_date == desired[2]
+            and abs(signed_existing - desired[3]) <= STATEMENT_BALANCE_TOLERANCE
+        ):
+            kept_pairs.add(pair_key)
+            continue
+        await void_journal_entry(
+            db,
+            entry.id,
+            reason="Superseded by statement chain reconciliation",
+            user_id=user_id,
+            allow_reconciled=True,
+            base_currency=base_currency,
+        )
+        changed = True
+
+    for pair_key, (s_prev, s_next, plug_date, delta) in desired_plugs.items():
+        if pair_key in kept_pairs:
+            continue
+        acct_currency = normalize_currency_code(account.currency or currency)
+        fx_rate: Decimal | None = None
+        if acct_currency != base_currency:
+            if dependencies is not None:
+                try:
+                    fx_rate = await dependencies.fx_rate_provider(
+                        db, acct_currency, base_currency, plug_date, lazy_load=True
+                    )
+                except dependencies.fx_rate_error as exc:
+                    raise ValueError(f"FX rate required for cross-period gap plug in {acct_currency}") from exc
+            else:
+                from src.pricing import PricingError, get_exchange_rate
+
+                try:
+                    fx_rate = await get_exchange_rate(db, acct_currency, base_currency, plug_date, lazy_load=True)
+                except PricingError as exc:
+                    raise ValueError(f"FX rate required for cross-period gap plug in {acct_currency}") from exc
+        gap_equity = await get_or_create_unexplained_gap_equity_account(db, user_id, acct_currency)
+        debit_custody = debit_normal if delta > 0 else not debit_normal
+        custody_direction = Direction.DEBIT if debit_custody else Direction.CREDIT
+        equity_direction = Direction.CREDIT if debit_custody else Direction.DEBIT
+        plug_tags = {
+            "gap_from_statement_id": str(s_prev.id),
+            "gap_to_statement_id": str(s_next.id),
+            "gap_start": s_prev.period_end.isoformat() if s_prev.period_end else "",
+            "gap_end": s_next.period_start.isoformat() if s_next.period_start else "",
+        }
+        memo = fit_journal_memo(f"Unexplained statement gap adjustment ({s_prev.period_end} to {s_next.period_start})")
+        await submit_system_journal_entry(
+            db,
+            user_id=user_id,
+            entry_date=plug_date,
+            memo=memo,
+            lines_data=[
+                {
+                    "account_id": account.id,
+                    "direction": custody_direction,
+                    "amount": abs(delta),
+                    "currency": acct_currency,
+                    "fx_rate": fx_rate,
+                    "event_type": CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+                    "tags": plug_tags,
+                },
+                {
+                    "account_id": gap_equity.id,
+                    "direction": equity_direction,
+                    "amount": abs(delta),
+                    "currency": acct_currency,
+                    "fx_rate": fx_rate,
+                    "event_type": CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+                    "tags": plug_tags,
+                },
+            ],
+            base_currency=base_currency,
+            operation="cross-period-gap",
+        )
+        changed = True
+
+    return changed
+
+
 async def try_auto_post_statement_opening_balance(
     db: AsyncSession,
     statement: StatementSummary,
@@ -681,65 +1073,16 @@ async def try_auto_post_statement_opening_balance(
     *,
     dependencies: StatementPostingDependencies | None = None,
 ) -> bool:
-    """Establish source starting stock once; missing evidence is an actionable error."""
-    from datetime import date
-
-    from src.extraction.extension.statement_contribution import resolve_statement_contribution
-    from src.ledger import initialize_opening_positions, list_opening_positions
-
+    """Establish source starting stock and reconcile the account's statement chain (#2832)."""
     if statement.opening_balance is None or statement.period_start is None or statement.account_id is None:
         raise ValueError("Statement opening balance, date, and account are required before posting")
-    existing = next(
-        (
-            position
-            for position in await list_opening_positions(db, user_id=user_id, as_of=date.max)
-            if position.account_id == statement.account_id
-        ),
-        None,
+    return await reconcile_account_statement_chain(
+        db,
+        user_id=user_id,
+        account_id=statement.account_id,
+        dependencies=dependencies,
+        candidate_statement=statement,
     )
-    if existing is not None:
-        if existing.state != "authoritative":
-            raise ValueError("Opening balance authority needs review")
-        if existing.effective_date < statement.period_start:
-            return False
-        if existing.effective_date == statement.period_start:
-            if abs(statement.opening_balance - existing.amount) <= STATEMENT_BALANCE_TOLERANCE:
-                return False
-            raise ValueError("Opening balance conflicts with existing opening position for the same date")
-    source_decision_id = None
-    if statement.current_extraction_result_id is not None:
-        contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=statement.id)
-        if contribution.state != "authoritative" or contribution.decision is None:
-            raise ValueError("Statement opening balance requires current source authority")
-        source_decision_id = contribution.decision.decision_id
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
-    currency = normalize_currency_code(statement.currency or "")
-    fx_rates = {}
-    if currency != base_currency and statement.opening_balance != 0:
-        if dependencies is None:
-            raise ValueError("FX rate provider required for statement opening balance")
-        try:
-            fx_rates[currency] = await dependencies.fx_rate_provider(
-                db, currency, base_currency, statement.period_start, lazy_load=True
-            )
-        except dependencies.fx_rate_error as exc:
-            raise ValueError("FX rate required for statement opening balance") from exc
-    try:
-        await initialize_opening_positions(
-            db,
-            user_id,
-            entry_date=statement.period_start,
-            balances={statement.account_id: statement.opening_balance},
-            currency=currency,
-            base_currency=base_currency,
-            fx_rates=fx_rates,
-            source_decision_id=source_decision_id,
-            trace_emitter=dependencies.trace_emitter_factory(db) if dependencies is not None else None,
-            memo="Opening balance (statement import)",
-        )
-    except ValidationError as exc:
-        raise ValueError(str(exc)) from exc
-    return True
 
 
 async def try_auto_approve_high_confidence_statement(

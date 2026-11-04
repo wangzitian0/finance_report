@@ -674,6 +674,8 @@ CONTRACT = PackageContract(
         ac('AC-ledger.anchored-batch.8', 'post_journal_entries applies the checks of post_journal_entry to each entry and flushes once.', 'apps/backend/tests/ledger/test_anchored_batch.py::test_AC_ledger_anchored_batch_8_post_journal_entries_checks_each_entry_like_post_journal_entry', priority='P1'),
         ac('AC-ledger.anchored-batch.9', 'The existence read of a batch names at most one chunk of targets in each statement and refuses a target with two owners.', 'apps/backend/tests/ledger/test_anchored_batch.py::test_AC_ledger_anchored_batch_9_target_read_is_chunked_and_refuses_two_owners', priority='P1'),
         ac('AC-ledger.80.5', 'Bypassing the authoritative ledger submission gateway and attempting direct database insertion triggers physical constraint or deferred trigger rejection with zero journal state pollution (#2052).', 'apps/backend/tests/ledger/test_ledger_authority_boundary.py::test_AC_ledger_80_5_direct_database_bypass_interception', proof_kind='exact'),
+        # ── group 2832: system equity account 3198 Unexplained Statement Gap Equity and superseding opening positions (#2832) ──
+        ac('AC-ledger.2832.1', 'get_or_create_unexplained_gap_equity_account provisions system equity account 3198 (Unexplained Statement Gap Equity) per currency, and initialize_opening_positions(..., allow_supersede=True) supports re-anchoring an account opening position when statement chains are re-anchored (#2832).', 'apps/backend/tests/extraction/test_statement_opening_guards.py::test_AC_ledger_2832_1_unexplained_gap_equity_account_and_superseding_opening_position', priority='P1', proof_kind='exact'),
     ],
     concepts=[
         ConceptRecord(
