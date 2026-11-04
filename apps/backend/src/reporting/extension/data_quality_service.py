@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.ratio import Ratio
 from src.config_app import get_effective_base_currency
 from src.extraction import BankStatementStatus, StatementSummary
 from src.ledger import Account, JournalEntry, JournalEntryStatus
@@ -72,7 +73,7 @@ class AccountGapDiagnostic:
     delta: Decimal
     abs_delta: Decimal
     scale: Decimal
-    relative_ratio: Decimal
+    relative_ratio: Ratio
     tier: Literal["zero_change", "tiny_plug", "material_gap"]
 
 
@@ -230,12 +231,12 @@ async def compute_personal_data_quality(
                 delta = next_open - prev_close
                 abs_delta = abs(delta)
                 scale = max(abs(prev_close), abs(next_open), Decimal("100"))
-                rel_ratio = abs_delta / scale
+                rel_ratio = Ratio.fraction(abs_delta, scale)
             else:
                 delta = Decimal("0")
                 abs_delta = Decimal("0")
                 scale = Decimal("100")
-                rel_ratio = Decimal("0")
+                rel_ratio = Ratio.zero()
 
             if not has_date_gap and abs_delta <= Decimal("0.10"):
                 continue
@@ -243,7 +244,7 @@ async def compute_personal_data_quality(
             if abs_delta <= Decimal("0.10"):
                 tier: Literal["zero_change", "tiny_plug", "material_gap"] = "zero_change"
                 zero_change_verified_months.update(missing_months)
-            elif rel_ratio < Decimal("0.001"):
+            elif rel_ratio.value < Decimal("0.001"):
                 tier = "tiny_plug"
                 tiny_plug_months.update(missing_months or (next_month,))
             else:
@@ -275,7 +276,7 @@ async def compute_personal_data_quality(
 
     material_gaps = sorted(
         [g for g in gap_diagnostics if g.tier == "material_gap"],
-        key=lambda g: (g.abs_delta, g.relative_ratio),
+        key=lambda g: (g.abs_delta, g.relative_ratio.value),
         reverse=True,
     )
     tiny_gaps = [g for g in gap_diagnostics if g.tier == "tiny_plug"]
@@ -388,7 +389,7 @@ async def compute_personal_data_quality(
             if len(top_gap.missing_months) == 1
             else f"{top_gap.missing_months[0]}..{top_gap.missing_months[-1]}"
         )
-        pct_str = f"{(top_gap.relative_ratio * Decimal('100')):.2f}%"
+        pct_str = top_gap.relative_ratio.format_percent()
         temporal_summary = f"{total_gaps} missing month gap(s) detected in financial timeline"
         temporal_detail = (
             f"Statement missing for {gap_period_str} on {top_gap.account_label} "
@@ -573,11 +574,14 @@ async def compute_personal_data_quality(
         for gap_diag in material_gaps:
             first_m = gap_diag.missing_months[0]
             period_label = first_m if len(gap_diag.missing_months) == 1 else f"{first_m}..{gap_diag.missing_months[-1]}"
-            share_pct = (
-                (gap_diag.abs_delta / total_unexplained * Decimal("100")) if total_unexplained > 0 else Decimal("100")
+            share_ratio = (
+                Ratio.fraction(gap_diag.abs_delta, total_unexplained)
+                if total_unexplained > 0
+                else Ratio.from_percent(100)
             )
-            rel_pct = gap_diag.relative_ratio * Decimal("100")
-            priority_val: Literal["P0", "P1", "P2"] = "P1" if gap_diag.relative_ratio >= Decimal("0.01") else "P2"
+            share_pct = share_ratio.to_percent(dp=0)
+            rel_pct = gap_diag.relative_ratio.to_percent()
+            priority_val: Literal["P0", "P1", "P2"] = "P1" if gap_diag.relative_ratio.value >= Decimal("0.01") else "P2"
             action_items.append(
                 QualityActionItem(
                     id=f"upload_statement_{gap_diag.account_key}_{first_m}",
@@ -585,8 +589,8 @@ async def compute_personal_data_quality(
                     title=f"Upload Statement for {period_label} ({gap_diag.account_label})",
                     description=(
                         f"Missing statement for {period_label} on {gap_diag.account_label} leaves "
-                        f"{gap_diag.delta:+.2f} {gap_diag.currency} ({rel_pct:.2f}% of balance) in "
-                        f"3198 Unexplained Statement Gap Equity. Uploading it resolves {share_pct:.0f}% "
+                        f"{gap_diag.delta:+.2f} {gap_diag.currency} ({rel_pct}% of balance) in "
+                        f"3198 Unexplained Statement Gap Equity. Uploading it resolves {share_pct}% "
                         "of unexplained cash flow and P&L variance."
                     ),
                     score_boost=10,
