@@ -287,7 +287,7 @@ async def compute_personal_data_quality(
             status_val: ContinuityStatus = "PENDING_PROCESSING" if has_pending else "HEALTHY"
 
             # Sum net movements or extract opening / closing
-            open_bal = st_list[0].opening_balance
+            open_bal = st_list[0].effective_opening_balance()
             close_bal = st_list[-1].closing_balance
             net_mov = None
             if open_bal is not None and close_bal is not None:

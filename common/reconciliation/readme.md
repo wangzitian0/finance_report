@@ -290,10 +290,11 @@ against the original document.
 
 1. Parse statement → `status=PARSED`.
 2. User reviews transactions with PDF preview.
-3. Balance chain validation (tolerance: 0.001 USD):
-   `opening_delta = abs(stated_opening - derived_opening)`,
+3. Intra-statement balance chain validation (tolerance: 0.001 USD, `#2832`):
+   `opening_delta = 0.00` (anchored to `statement.effective_opening_balance()`),
    `closing_delta = abs(stated_closing - calculated_closing)`,
    `valid = (opening_delta <= 0.001) AND (closing_delta <= 0.001)`.
+   Any difference from the previous approved statement's closing balance (`cross_period_delta`) is surfaced as a non-blocking `Prior Gap (3198)` diagnostic (`cross_period_match = abs(cross_period_delta) <= 0.10`) and calibrated in `3198 Unexplained Statement Gap Equity`.
 4. Approve → `stage1_status=APPROVED`, `status=APPROVED`.
 5. Reject → `stage1_status=REJECTED`, `status=REJECTED`.
 

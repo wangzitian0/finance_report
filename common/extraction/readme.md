@@ -872,9 +872,13 @@ status, and period-level continuity issues.
 Coverage checks compare monthly statement periods within each account/currency:
 
 - adjacent monthly statements must have `previous.closing_balance ==
-  current.opening_balance` within `BALANCE_TOLERANCE`;
-- gaps, overlaps, and duplicate monthly periods are emitted as issues before a
-  dashboard can treat the account as complete;
+  current.effective_opening_balance()` within `BALANCE_TOLERANCE`;
+- inter-statement date gaps (`current.period_start > previous.period_end + 1 day`)
+  where `|current.effective_opening_balance() - previous.closing_balance| <=
+  CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) are treated as verified zero-change
+  periods without emitting a `GAP` issue (`#2832`);
+- non-zero gaps (`|delta| > 0.10`), overlaps, and duplicate monthly periods are
+  emitted as issues before a dashboard can treat the account as complete;
 - one-day broker snapshots may override the latest confirmed source date and
   balance without requiring daily statement continuity.
 
@@ -891,7 +895,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |
 | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
 
-Manual and automatic source posting initialize the same ledger-owned starting stock in their posting unit of work. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings. Missing opening facts or rates block posting atomically. Follow-up periods reuse authoritative per-account stock, and source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.
+Manual and automatic source posting reconcile each account's approved statement chain (`reconcile_account_statement_chain`, `#2832`) in their posting unit of work: the earliest approved statement $S_0$ anchors to `3199 Opening Balance Equity` (`initialize_opening_positions(..., allow_supersede=True)` when an earlier statement is approved later or when $S_0$ is retired), and any adjacent statement pair $(S_i, S_{i+1})$ whose opening-minus-closing gap exceeds `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) is calibrated via a system `cross_period_gap_plug` journal entry against `3198 Unexplained Statement Gap Equity` (`get_or_create_unexplained_gap_equity_account`). Uploading intermediate statements or retiring a statement automatically voids superseded gap-plug and statement entries and re-calibrates the remaining chain so every approved statement's opening and closing balances tie out on the Balance Sheet. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings and foreign gap plugs. Missing opening facts or rates block posting atomically. Source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.
 
 Source ingestion calls `DeduplicationService.upsert_scoped_atomic_transaction`
 with a typed `ExtractedTransactionRow` and explicit custody; it resolves versioned

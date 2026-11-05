@@ -785,11 +785,25 @@ A first opening evidenced strictly inside the requested period does not prove
 cash at the earlier report start. The report remains unproven with
 `opening_coverage_starts_after_period`, discloses its
 `cash_bridge.opening_stock_adjustment`, and excludes this stock from
-`net_cash_flow`. The bridge is classified activity + unclassified cash + FX
+`net_cash_flow`. System `cross_period_gap_plug` journal lines (`3198 Unexplained
+Statement Gap Equity`, `#2832`) dated inside the period are also classified as
+`opening_stock_adjustment` (or `beginning_cash` on `start_date`) so multi-period
+cash flow bridges reconcile with `proof_state == "proven"` across statement gaps.
+The bridge is classified activity + unclassified cash + FX
 + opening stock adjustment = ending cash - beginning cash. Selecting a period
 whose start is covered resolves that coverage limitation without inventing
 historical wealth or current-period receipts. Missing field values on old
 snapshots remain absent during serialization so frozen exports stay compatible.
+
+In `compute_personal_data_quality` (`GET /api/reports/data-quality`, `#2832`),
+adjacent approved statements per account are evaluated by materiality:
+zero-change gaps (`|delta| <= 0.10`) incur zero gap penalty and emit no upload
+prompt (their intermediate timeline months are marked `HEALTHY`); tiny gaps
+(`< 0.1%` of reference balance) are absorbed in `3198 Unexplained Statement Gap
+Equity` without a P1 upload prompt; material gaps (`>= 0.1%`) emit `UPLOAD_STATEMENT`
+action items ranked by `|delta|` descending with the account name, missing period,
+unexplained amount, and precision boost, followed by P2 trailing-staleness prompts
+for accounts whose latest statement trails the timeline end.
 
 The cash-flow page, package summary and standalone CSV disclose any opening
 balance adjustment during the period. A coverage gap labels beginning cash as

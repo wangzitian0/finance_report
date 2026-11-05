@@ -273,7 +273,7 @@ export function InvariantChecksGrid({
 }) {
   const cards = [
     { invariant: equationInvariant, icon: Scale, fallbackName: "Accounting Equation Balance", proofFormula: "Assets = Liabilities + Equity (Δ = 0.00)" },
-    { invariant: temporalInvariant, icon: History, fallbackName: "Monthly Statement Continuity", proofFormula: "Consecutive Monthly Statements (Mn+1 ≡ Mn)" },
+    { invariant: temporalInvariant, icon: History, fallbackName: "Temporal Continuity & Rollforward", proofFormula: "Statement Anchors + 3198 Gap Calibration" },
     { invariant: reconciliationInvariant, icon: CreditCard, fallbackName: "Reconciliation & Debt Clearance", proofFormula: "Liability Settlement Check (0 Unmatched Transfers)" },
     { invariant: lineageInvariant, icon: Link2, fallbackName: "Evidence Lineage & Traceability Anchors", proofFormula: "Immutable Source Document Anchoring" },
   ];
@@ -327,7 +327,7 @@ export function TemporalTimelineGrid({ timeline }: { timeline: MonthContinuityBu
       <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
         <div>
           <h3 className="text-base font-semibold">Monthly Statement Timeline</h3>
-          <p className="text-xs text-muted">12-month statement coverage & consecutive monthly balance continuity</p>
+          <p className="text-xs text-muted">12-month statement coverage & anchor-verified balance continuity</p>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-muted">
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[var(--success)]" /> Continuous</span>
@@ -380,6 +380,8 @@ export function TemporalTimelineGrid({ timeline }: { timeline: MonthContinuityBu
                     <span>{bucket.statement_count} statement{bucket.statement_count > 1 ? "s" : ""}</span>
                   ) : isGap ? (
                     <span className="font-medium text-[var(--warning)]">Missing Period</span>
+                  ) : isHealthy ? (
+                    <span className="text-[var(--success)]">Zero-change verified</span>
                   ) : (
                     <span>No statements</span>
                   )}
