@@ -37,6 +37,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Exit 1 if common/testing/data/test-execution-matrix.yaml drifted from the code.",
     )
+    parser.add_argument(
+        "--touched-files",
+        nargs="*",
+        default=None,
+        help="Emit affected non-LLM staging_core_e2e journeys for the given changed repo-relative paths (#2670).",
+    )
     args = parser.parse_args(argv)
 
     if args.check_matrix:
@@ -58,8 +64,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"wrote {MATRIX_YAML.relative_to(ROOT_DIR)}")
         return 0
 
+    if args.touched_files is not None:
+        if args.shell:
+            print(matrix.emit_touched_e2e_shell(args.touched_files))
+            return 0
+        for node in matrix.select_touched_e2e(args.touched_files):
+            print(node)
+        return 0
+
     if not args.stage:
-        parser.error("--stage is required unless using --emit-matrix/--check-matrix")
+        parser.error(
+            "--stage is required unless using --emit-matrix/--check-matrix/--touched-files"
+        )
 
     selection = matrix.SELECTIONS.get(args.stage)
     if selection is None:
