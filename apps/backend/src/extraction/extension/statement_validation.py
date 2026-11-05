@@ -574,6 +574,9 @@ async def set_opening_balance(
 ) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.manual_opening_balance = opening_balance
-
     await db.flush()
+    if statement.status == BankStatementStatus.APPROVED and statement.account_id is not None:
+        from src.extraction.extension.statement_posting import reconcile_account_statement_chain
+
+        await reconcile_account_statement_chain(db, user_id=user_id, account_id=statement.account_id)
     return statement

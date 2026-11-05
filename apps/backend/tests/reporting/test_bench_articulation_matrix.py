@@ -711,6 +711,43 @@ class TestBenchDomain1Ingestion:
         bs_jun = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 6, 30), currency="SGD")
         _check_bs(bs_jun, "18000.00", "0.00", "13000.00", "5000.00")
 
+        # 4. Progressive backfill: upload intermediate Feb-May statement (opening 12,000, +3,000 salary, closing 15,000)
+        # -> 3198 shrinks from 3,000 to 0 while June ending balance stays anchored at 18,000
+        stmt_mid = StatementSummaryFactory.build(
+            user_id=test_user_id,
+            account_id=cash.id,
+            institution="DBS",
+            currency="SGD",
+            period_start=date(2025, 2, 1),
+            period_end=date(2025, 5, 31),
+            opening_balance=Decimal("12000.00"),
+            closing_balance=Decimal("15000.00"),
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add(stmt_mid)
+        await db.flush()
+        await submit_system_journal_entry(
+            db,
+            user_id=test_user_id,
+            entry_date=date(2025, 3, 15),
+            memo="Spring salary",
+            lines_data=[
+                {"account_id": cash.id, "direction": Direction.DEBIT, "amount": Decimal("3000.00"), "currency": "SGD"},
+                {
+                    "account_id": salary.id,
+                    "direction": Direction.CREDIT,
+                    "amount": Decimal("3000.00"),
+                    "currency": "SGD",
+                },
+            ],
+            base_currency="SGD",
+            operation="bench-flow2-mid",
+        )
+        await try_auto_post_statement_opening_balance(db, stmt_mid, test_user_id)
+        assert await calculate_account_balance(db, gap_equity.id, test_user_id) == Decimal("0.00")
+        bs_jun_converged = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 6, 30), currency="SGD")
+        _check_bs(bs_jun_converged, "18000.00", "0.00", "10000.00", "8000.00")
+
     async def test_flow_3_custom_csv_column_mapping_and_ledger_posting(self, db: AsyncSession, test_user_id) -> None:
         """Flow 3: All mapped rows have valid txn_date, description, and Decimal amount."""
         raw_csv_rows = [

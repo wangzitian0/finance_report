@@ -640,3 +640,94 @@ async def test_AC_extraction_2832_3_reconcile_chain_retirement_and_fx_plug_guard
 
     # 4. void_statement_posted_entries with empty transactions returns 0
     assert await void_statement_posted_entries(db, s_sgd_mar, test_user.id) == 0
+
+
+async def test_audit_completeness_reconcile_chain_lifecycle_and_manual_override_guards(db, test_user):
+    """AC-extraction.2832.2: Verify the completeness gaps found in /audit:
+    1) set_statement_opening_balance on an APPROVED statement re-runs reconcile_account_statement_chain and supersedes 3199/3198;
+    2) reject_statement_workflow on a zero-transaction APPROVED statement re-runs reconcile_account_statement_chain;
+    3) retiring or rejecting the earliest statement when a gap plug precedes the new earliest statement voids the obsolete plug
+       before initialize_opening_positions checks for prior activity.
+    """
+    from src.extraction.base.source_vocabulary import BankStatementStatus
+    from src.extraction.extension.statement_posting import reconcile_account_statement_chain
+    from src.extraction.extension.statement_workflow import reject_statement_workflow
+    from src.ledger import calculate_account_balance, list_opening_positions
+    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
+    from src.routers import statements as statements_router
+    from src.schemas.review import SetOpeningBalanceRequest
+
+    acc = Account(user_id=test_user.id, name="OCBC 360", type=AccountType.ASSET, currency="SGD")
+    db.add(acc)
+    await db.flush()
+
+    # (1) Approve statement with opening_balance=2000.00, manual_opening_balance=2500.00 -> anchors at 2500.00
+    stmt_manual = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=acc.id,
+        institution="OCBC",
+        account_last4="1111",
+        currency="SGD",
+        opening_balance=Decimal("2000.00"),
+        manual_opening_balance=Decimal("2500.00"),
+        closing_balance=Decimal("2500.00"),
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(stmt_manual)
+    await db.flush()
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=acc.id) is True
+    assert await calculate_account_balance(db, acc.id, test_user.id) == Decimal("2500.00")
+
+    # Updating manual_opening_balance on an APPROVED statement updates the 3199 anchor on the ledger
+    await statements_router.set_statement_opening_balance(
+        statement_id=stmt_manual.id,
+        request=SetOpeningBalanceRequest(opening_balance=Decimal("3200.00")),
+        db=db,
+        user_id=test_user.id,
+    )
+    assert await calculate_account_balance(db, acc.id, test_user.id) == Decimal("3200.00")
+
+    # (2) Rejecting a zero-transaction APPROVED statement voids its 3199 opening anchor via reconcile_account_statement_chain
+    await reject_statement_workflow(db, stmt_manual.id, test_user.id, reason="Dormant statement rejected")
+    assert await calculate_account_balance(db, acc.id, test_user.id) == Decimal("0.00")
+    assert len(await list_opening_positions(db, user_id=test_user.id, as_of=date.max)) == 0
+
+    # (3) Retiring the earliest statement (March) when a gap plug (2025-05-31) precedes the new earliest (June)
+    stmt_mar = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=acc.id,
+        institution="OCBC",
+        account_last4="1111",
+        currency="SGD",
+        opening_balance=Decimal("4000.00"),
+        closing_balance=Decimal("4000.00"),
+        period_start=date(2025, 3, 1),
+        period_end=date(2025, 3, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    stmt_jun = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=acc.id,
+        institution="OCBC",
+        account_last4="1111",
+        currency="SGD",
+        opening_balance=Decimal("5000.00"),
+        closing_balance=Decimal("5000.00"),
+        period_start=date(2025, 6, 1),
+        period_end=date(2025, 6, 30),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add_all([stmt_mar, stmt_jun])
+    await db.flush()
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=acc.id) is True
+    gap_eq = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "SGD")
+    assert await calculate_account_balance(db, gap_eq.id, test_user.id) == Decimal("1000.00")
+
+    # Retire March -> June becomes earliest; obsolete plug on 2025-05-31 must be voided BEFORE June's 3199 anchor is posted
+    stmt_mar.status = BankStatementStatus.RETIRED
+    await db.flush()
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=acc.id) is True
+    assert await calculate_account_balance(db, gap_eq.id, test_user.id) == Decimal("0.00")
+    assert await calculate_account_balance(db, acc.id, test_user.id) == Decimal("5000.00")
