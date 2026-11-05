@@ -22,6 +22,10 @@ from common.testing.benchmarks.statement_generators import (
     generate_standard_operations_csv,
 )
 
+# The disposition post triggers a journal entry write plus two follow-up refresh
+# queries (list_unmatched + list_accounts); under 4-worker xdist load next to
+# the vision hard gate (93 s in CI vs 25-29 s locally, #2745), 15 s is too tight.
+DISPOSITION_POST_REFRESH_TIMEOUT_MS = 30_000
 APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 
 
@@ -146,6 +150,8 @@ async def test_reconciliation_unmatched_interactive_disposition(page: Page):
     await expect(confirm_btn).to_be_enabled()
     await confirm_btn.click()
 
-    # 8. Assert: posted transaction is removed from unmatched list after refresh
-    await expect(page.get_by_text("3 records")).to_be_visible(timeout=15_000)
+    # 8. Assert: posted transaction is removed from unmatched list after refresh (#2745)
+    await expect(page.get_by_text("3 records")).to_be_visible(
+        timeout=DISPOSITION_POST_REFRESH_TIMEOUT_MS
+    )
     await expect(txn_item).to_have_count(0)

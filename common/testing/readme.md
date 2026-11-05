@@ -81,6 +81,17 @@ preserving any earlier assertion failure. Query strings are never included in
 the evidence. This makes exhausted shared-IP capacity attributable instead of
 misreporting it as an authentication, business, or locator regression.
 
+When a browser-based E2E journey fails (`#2745`), `tests/e2e/conftest.py`
+captures three diagnostic files into
+`test-results/e2e-failures/<sanitized-nodeid>/` before the page closes:
+`screenshot.png` (full-page PNG), `page-text.txt` (visible body text truncated
+to 4 KB with authentication headers and cookies redacted), and
+`page-errors.txt` (`console.error` and `pageerror` entries with secrets
+redacted). For path-scoped PR and local verification (`#2670`),
+`matrix.select_touched_e2e` and `tools/test_selection.py --touched-files` map
+changed `tests/e2e/**` specs and `E2E_ROWS` `frontend_paths` to the affected
+non-LLM `staging_core_e2e` journeys.
+
 ### Fast interception
 
 The matrix is SSOT'd in this package — not in prose, not in workflow YAML —
