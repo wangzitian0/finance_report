@@ -364,7 +364,6 @@ so there is no 7-day token to renew or repair — the agent re-authenticates its
 |----------|-------|
 | Auth method | AppRole (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`) |
 | Secrets file path | `/secrets/.env` (vault-agent renders to `/vault/secrets`; shared volume mounts into the app as `/secrets`) |
-| Staleness threshold | 1 hour (bootloader warning) |
 
 The AppRole creds are owned by infra2 and injected into the Dokploy compose env.
 Finance Report never holds a Vault token of any kind: nobody on the app side
@@ -389,10 +388,7 @@ runtime deployment record). For database sidecars use `--service=postgres` or
 `--service=redis`. Nothing in this repository — no workflow, no tool — needs or
 receives a Vault token to make that happen.
 
-**Monitoring**: Bootloader `_check_vault_secrets()` runs in FULL mode and reports:
-1. Missing secrets file → Warning with regeneration instructions
-2. Stale secrets file (>1 hour old) → Warning
-3. Fresh secrets file → OK
+**Boot validation**: `Bootloader._check_static_config()` validates the environment manifest via `infra2_sdk.runtime.config_schema.assert_environment` and fails closed at startup in protected runtimes when any required injected setting (`SECRET_KEY`, `DATABASE_URL`, `S3_SECRET_KEY`, `S3_ACCESS_KEY`, `S3_ENDPOINT`, `S3_BUCKET`, `NEXT_PUBLIC_APP_URL`) is missing, empty, or set to a development default.
 
 ---
 
