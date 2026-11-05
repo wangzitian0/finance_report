@@ -252,7 +252,11 @@ class Bootloader:
             if not field.injected:
                 continue
             if field.empty_ok:
-                effective_environ.setdefault(field.env, "__empty_ok__")
+                # #2874: the compose may set an empty_ok field to "" (`${VAR:-}`).
+                # The SDK treats a blank value as absent, so a blank value gets the placeholder.
+                names = (field.env, *field.aliases)
+                if not any(effective_environ.get(name, "").strip() for name in names):
+                    effective_environ[field.env] = "__empty_ok__"
                 continue
             val = getattr(settings, field.field, None)
             if isinstance(val, str):
