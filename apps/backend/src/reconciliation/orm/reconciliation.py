@@ -11,7 +11,7 @@ now that ``AtomicTransaction`` has moved into ``extraction/orm/layer2.py``).
 from enum import Enum
 from uuid import UUID
 
-from sqlalchemy import Enum as SQLEnum, ForeignKey, Index, Integer, String, text
+from sqlalchemy import DDL, Enum as SQLEnum, ForeignKey, Index, Integer, String, event, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -109,6 +109,15 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
     )
     # No relationship() to extraction's AtomicTransaction: resolve
     # atomic_txn_id by an explicit query (#1675 D4 ruling).
+
+
+event.listen(
+    ReconciliationMatch.__table__,
+    "after_create",
+    DDL(
+        "ALTER TABLE reconciliation_matches SET (autovacuum_analyze_scale_factor = 0.02, autovacuum_analyze_threshold = 50)"
+    ).execute_if(dialect="postgresql"),
+)
 
 
 class ReconciliationMatchJournalEntry(Base, TimestampMixin):

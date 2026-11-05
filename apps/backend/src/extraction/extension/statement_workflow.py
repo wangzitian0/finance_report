@@ -47,6 +47,8 @@ async def analyze_tenant_tables(db: AsyncSession) -> None:
     if bind is not None and bind.dialect.name == "postgresql":
         tables_sql = ", ".join(TENANT_ANALYZE_TABLES)
         await db.execute(text(f"ANALYZE {tables_sql}"))
+        if hasattr(db, "commit"):
+            await db.commit()
 
 
 async def approve_statement_workflow(

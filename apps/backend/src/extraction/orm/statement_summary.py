@@ -19,6 +19,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import (
+    DDL,
     CheckConstraint,
     Date,
     DateTime,
@@ -31,6 +32,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -181,3 +183,12 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         """Return canonical chronological ordering key for per-account statement chains."""
         start = self.period_start or date.min
         return (start, self.period_end or start, str(self.id))
+
+
+event.listen(
+    StatementSummary.__table__,
+    "after_create",
+    DDL(
+        "ALTER TABLE statement_summaries SET (autovacuum_analyze_scale_factor = 0.02, autovacuum_analyze_threshold = 50)"
+    ).execute_if(dialect="postgresql"),
+)

@@ -1068,17 +1068,20 @@ def test_AC8_13_34_main_ci_budget_is_enforced_by_a_non_required_job() -> None:
     """AC-testing.ci-structure.4: a main run past its budget fails a non-required job (#2688)."""
     jobs = yaml.safe_load(read(".github/workflows/ci.yml"))["jobs"]
     budget = jobs["pipeline-budget"]
-    [_, enforce] = _timing_commands(budget)
+    [verdict, enforce] = _timing_commands(budget)
+    assert verdict.get("continue-on-error") is not True
+    assert enforce.get("continue-on-error") is not True
     assert "pipeline-budget" not in jobs["finish"]["needs"]
     assert budget["needs"] == ["finish"]
     failure_comment_steps = [
         step
         for step in budget["steps"]
         if isinstance(step, dict)
-        and "failure()" in str(step.get("if", ""))
-        and "<!-- pipeline-budget-alert -->" in str(step.get("run", ""))
+        and str(step.get("if", "")).strip() == "failure()"
+        and "<!-- pipeline-budget-alert" in str(step.get("run", ""))
     ]
     assert len(failure_comment_steps) == 1
+    assert "2688" in str(failure_comment_steps[0].get("env", {}).get("TARGET_ISSUE", ""))
 
 
 def test_ci_shard_and_context_artifact_uploads_set_overwrite_true() -> None:

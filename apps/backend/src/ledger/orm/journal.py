@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from sqlalchemy import (
+    DDL,
     DECIMAL,
     CheckConstraint,
     ColumnElement,
@@ -263,6 +264,22 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"
+
+
+event.listen(
+    JournalEntry.__table__,
+    "after_create",
+    DDL(
+        "ALTER TABLE journal_entries SET (autovacuum_analyze_scale_factor = 0.02, autovacuum_analyze_threshold = 50)"
+    ).execute_if(dialect="postgresql"),
+)
+event.listen(
+    JournalLine.__table__,
+    "after_create",
+    DDL(
+        "ALTER TABLE journal_lines SET (autovacuum_analyze_scale_factor = 0.02, autovacuum_analyze_threshold = 50)"
+    ).execute_if(dialect="postgresql"),
+)
 
 
 class JournalAuditLog(Base, UUIDMixin):

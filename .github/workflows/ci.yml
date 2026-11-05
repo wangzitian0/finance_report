@@ -42,6 +42,7 @@ jobs:
       tools_changed: ${{ steps.classify.outputs.tools_changed }}
       common_changed: ${{ steps.classify.outputs.common_changed }}
       coverage_gate_components: ${{ steps.classify.outputs.coverage_gate_components }}
+      touched_e2e_tests: ${{ steps.classify.outputs.touched_e2e_tests }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -209,12 +210,19 @@ jobs:
       - name: Audit frontend production dependencies
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           if [ "${EVENT_NAME}" = "pull_request" ]; then
-            git fetch --no-tags --depth=50 origin "${BASE_REF}" || git fetch --no-tags origin "${BASE_REF}"
-            changed_files="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+            base_sha="${BASE_SHA:-}"
+            head_sha="${HEAD_SHA:-}"
+            if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+              base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
+            fi
+            if ! changed_files="$(git diff --name-only "$base_sha...$head_sha" 2>/dev/null)"; then
+              changed_files="$(git diff --name-only "$base_sha" "$head_sha")"
+            fi
             if ! printf '%s\n' "${changed_files}" | grep -Eq '^(apps/frontend/package(-lock)?\.json|package-lock\.json)$'; then
               echo "Skipping frontend security audit on PR: no frontend dependency files changed."
               exit 0
@@ -1751,7 +1759,6 @@ jobs:
 
       - name: Print the time budget verdict
         if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1777,23 +1784,23 @@ jobs:
             --enforce \
             --comment
 
-      - name: Report pipeline budget failure on PR
-        if: failure() && github.event_name == 'pull_request'
+      - name: Report pipeline budget failure
+        if: failure()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TARGET_ISSUE: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '2688' }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          marker="<!-- pipeline-budget-alert -->"
+          marker="<!-- pipeline-budget-alert:${GITHUB_RUN_ID} -->"
           body="${marker}
           ⚠️ **Pipeline Budget Alert**: The \`pipeline-budget\` job failed (budget violation, unmeasured run, script crash, or SDK install flake) on [run ${GITHUB_RUN_ID}](${RUN_URL})."
-          existing_id="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n 1 || true)"
+          existing_id="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${TARGET_ISSUE}/comments" --jq ".[] | select(.body | contains(\"<!-- pipeline-budget-alert\")) | .id" | head -n 1 || true)"
           if [ -n "$existing_id" ]; then
             gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing_id}" -f body="$body"
           else
-            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
+            gh issue comment "$TARGET_ISSUE" --repo "$GITHUB_REPOSITORY" --body "$body"
           fi
 
   promote-release-images:

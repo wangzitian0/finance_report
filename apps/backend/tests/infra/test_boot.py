@@ -52,8 +52,16 @@ def mock_settings():
         mock.small_model = "test-model"
         mock.multimodal_model = "test-vision-model"
         mock.cors_origin_regex = ".*"
-        mock.otel_exporter_otlp_endpoint = None
+        mock.cors_origins_str = "http://localhost:3000"
+        mock.otel_exporter_otlp_endpoint = "http://otel:4318"
+        mock.otel_resource_attributes = "deployment.environment=test"
         mock.otel_service_name = "test"
+        mock.openpanel_api_url = "https://openpanel.zitian.party/api"
+        mock.prefect_api_url = "http://prefect:4200/api"
+        mock.s3_public_endpoint = "https://s3.zitian.party"
+        mock.s3_presign_expiry_seconds = 300
+        mock.api_rate_limit_requests = 300
+        mock.git_commit_sha = "deadbeef"
         mock.ai_base_url = ZAI_CODING_BASE_URL
         yield mock
 
@@ -615,6 +623,7 @@ class TestBootloaderNoVaultSecretsResidueAndFailClosedEnv:
         assert not hasattr(Bootloader, "_check_vault_secrets")
         assert not hasattr(boot_module, "VAULT_SECRETS_FILE_PATH")
         assert not hasattr(boot_module, "VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS")
+        assert not hasattr(boot_module, "PROTECTED_REQUIRED_INJECTED_FIELDS")
 
     @pytest.mark.parametrize(
         "attr_name",

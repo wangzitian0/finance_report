@@ -341,32 +341,32 @@ def _sum_leaf_scan_rows_read(node: dict) -> int:
     return sum(_sum_leaf_scan_rows_read(child) for child in plans)
 
 
-async def test_set_based_filter_scales_linearly_at_year_scale(db, test_user):
-    """#2630: 12 statements x 80 rows (960 txns) reads < 30,000 total rows and < 20 rows/txn."""
-    account = AccountFactory.build(user_id=test_user.id, currency="SGD")
+async def _seed_and_measure_scale(db, user_id, *, num_statements: int, txns_per_statement: int, prefix: str) -> int:
+    account = AccountFactory.build(user_id=user_id, currency="SGD")
     db.add(account)
     await db.flush()
 
-    num_statements = 12
-    txns_per_statement = 80
-    total_expected = num_statements * txns_per_statement
+    doc_ids: list = []
+    summaries: list = []
+    fact_hashes_by_stmt: list[list[str]] = []
 
     for s_idx in range(num_statements):
         doc_id = uuid4()
+        doc_ids.append(doc_id)
         db.add(
             UploadedDocument(
                 id=doc_id,
-                user_id=test_user.id,
-                file_path=f"synthetic/bench_{s_idx}.pdf",
+                user_id=user_id,
+                file_path=f"synthetic/{prefix}_{s_idx}.pdf",
                 file_hash=hashlib.sha256(doc_id.bytes).hexdigest(),
-                original_filename=f"bench_{s_idx}.pdf",
+                original_filename=f"{prefix}_{s_idx}.pdf",
                 document_type=DocumentType.BANK_STATEMENT,
             )
         )
         summary_id = uuid4()
         summary = StatementSummaryFactory.build(
             id=summary_id,
-            user_id=test_user.id,
+            user_id=user_id,
             uploaded_document_id=doc_id,
             file_hash=hashlib.sha256(doc_id.bytes).hexdigest(),
             account_id=account.id,
@@ -379,39 +379,58 @@ async def test_set_based_filter_scales_linearly_at_year_scale(db, test_user):
             status=BankStatementStatus.APPROVED,
             stage1_status=Stage1Status.APPROVED,
         )
+        summaries.append(summary)
         db.add(summary)
-        await db.flush()
-        fact_hashes: list[str] = []
-        txns: list[AtomicTransaction] = []
+        fact_hashes_by_stmt.append([])
+    await db.flush()
+
+    txns: list[AtomicTransaction] = []
+    for s_idx in range(num_statements):
+        doc_id = doc_ids[s_idx]
+        next_doc_id = doc_ids[(s_idx + 1) % num_statements]
         for t_idx in range(txns_per_statement):
-            dedup_hash = hashlib.sha256(f"{test_user.id}:{s_idx}:{t_idx}".encode()).hexdigest()
-            fact_hashes.append(dedup_hash)
+            dedup_hash = hashlib.sha256(f"{user_id}:{prefix}:{s_idx}:{t_idx}".encode()).hexdigest()
+            fact_hashes_by_stmt[s_idx].append(dedup_hash)
+            # Every 10th transaction is multi-source (2 compatible statements) to exercise compatible_source_counts
+            if t_idx % 10 == 0:
+                source_docs = [
+                    {"doc_id": str(doc_id), "doc_type": "bank_statement"},
+                    {"doc_id": str(next_doc_id), "doc_type": "bank_statement"},
+                ]
+            else:
+                source_docs = [{"doc_id": str(doc_id), "doc_type": "bank_statement"}]
             txns.append(
                 AtomicTransaction(
                     id=uuid4(),
-                    user_id=test_user.id,
+                    user_id=user_id,
                     txn_date=date(2025, (s_idx % 12) + 1, (t_idx % 28) + 1),
                     amount=Decimal("10.00") + Decimal(t_idx),
                     direction=TransactionDirection.OUT,
-                    description=f"Bench txn {s_idx}-{t_idx}",
+                    description=f"Bench txn {prefix}-{s_idx}-{t_idx}",
                     currency="SGD",
                     dedup_hash=dedup_hash,
-                    source_documents=[{"doc_id": str(doc_id), "doc_type": "bank_statement"}],
+                    source_documents=source_docs,
                 )
             )
-        db.add_all(txns)
+    db.add_all(txns)
+    await db.flush()
+
+    results: list[StatementExtractionResultRecord] = []
+    for s_idx in range(num_statements):
+        doc_id = doc_ids[s_idx]
+        summary = summaries[s_idx]
         result_id = uuid4()
         payload = {
             "schema_version": 1,
             "currency": "SGD",
             "balances": [{"currency": "SGD", "opening": "1000", "closing": "2000"}],
-            "transactions": [{"fact_id": h, "currency": "SGD"} for h in fact_hashes],
+            "transactions": [{"fact_id": h, "currency": "SGD"} for h in fact_hashes_by_stmt[s_idx]],
         }
-        db.add(
+        results.append(
             StatementExtractionResultRecord(
                 id=result_id,
-                user_id=test_user.id,
-                statement_id=summary_id,
+                user_id=user_id,
+                statement_id=summary.id,
                 content_digest=hashlib.sha256(result_id.bytes).hexdigest(),
                 source_content_digest=hashlib.sha256(doc_id.bytes).hexdigest(),
                 schema_version="1",
@@ -421,13 +440,14 @@ async def test_set_based_filter_scales_linearly_at_year_scale(db, test_user):
                 created_at=datetime.now(UTC),
             )
         )
-        await db.flush()
         summary.current_extraction_result_id = result_id
+    db.add_all(results)
     await db.flush()
 
+    total_expected = num_statements * txns_per_statement
     stmt = select(func.count(AtomicTransaction.id)).where(
-        AtomicTransaction.user_id == test_user.id,
-        effective_statement_transaction_filter(test_user.id),
+        AtomicTransaction.user_id == user_id,
+        effective_statement_transaction_filter(user_id),
     )
     count = await db.scalar(stmt)
     assert count == total_expected
@@ -435,15 +455,44 @@ async def test_set_based_filter_scales_linearly_at_year_scale(db, test_user):
     compiled = stmt.compile(dialect=db.bind.dialect, compile_kwargs={"literal_binds": True})
     explain_rows = (await db.execute(text(f"EXPLAIN (ANALYZE, FORMAT JSON) {compiled}"))).scalar_one()
     plan_root = explain_rows[0]["Plan"]
-    rows_read = _sum_leaf_scan_rows_read(plan_root)
-    assert rows_read < 19_200, (
-        f"Expected < 19,200 leaf rows read (< 20 rows/txn) for {total_expected} txns, got {rows_read}"
+    return _sum_leaf_scan_rows_read(plan_root)
+
+
+async def test_set_based_filter_scales_linearly_at_year_scale(db, test_user):
+    """#2630: 12 statements (960 txns) vs 120 statements (9,600 txns) scales O(transactions) (< 20 rows/txn)."""
+    from src.identity import User
+
+    rows_12 = await _seed_and_measure_scale(
+        db,
+        test_user.id,
+        num_statements=12,
+        txns_per_statement=80,
+        prefix="s12",
     )
-    assert (rows_read / total_expected) < 20.0
+    assert rows_12 < 19_200, f"Expected < 19,200 leaf rows read (< 20 rows/txn) for 960 txns, got {rows_12}"
+    assert (rows_12 / 960) < 20.0
+
+    user_120 = User(id=uuid4(), email=f"scale120-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(user_120)
+    await db.flush()
+
+    rows_120 = await _seed_and_measure_scale(
+        db,
+        user_120.id,
+        num_statements=120,
+        txns_per_statement=80,
+        prefix="s120",
+    )
+    assert rows_120 < 192_000, f"Expected < 192,000 leaf rows read (< 20 rows/txn) for 9,600 txns, got {rows_120}"
+    assert (rows_120 / 9600) < 20.0
+    assert (rows_120 / 9600) <= (rows_12 / 960) * 1.5, (
+        f"Expected linear O(transactions) scaling between 12 and 120 statements, "
+        f"got {rows_120 / 9600:.2f} rows/txn vs {rows_12 / 960:.2f} rows/txn"
+    )
 
 
 async def test_source_documents_gin_index_and_analyze_helper(db, monkeypatch):
-    """#2630 & #2629: GIN jsonb_path_ops index is registered on atomic_transactions and analyze helper runs cleanly."""
+    """#2630 & #2629: GIN jsonb_path_ops index, pg_class.reloptions, and analyze helper commit hygiene."""
     from src.config import settings
 
     index_def = await db.scalar(
@@ -456,11 +505,28 @@ async def test_source_documents_gin_index_and_analyze_helper(db, monkeypatch):
     assert "USING gin" in index_def
     assert "jsonb_path_ops" in index_def
 
+    reloptions_rows = (
+        await db.execute(
+            text(
+                "SELECT c.relname, coalesce(c.reloptions, ARRAY[]::text[]) "
+                "FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace "
+                "WHERE n.nspname = 'public' AND c.relname = ANY(:tables)"
+            ),
+            {"tables": list(TENANT_ANALYZE_TABLES)},
+        )
+    ).all()
+    reloptions_by_table = {row[0]: set(row[1]) for row in reloptions_rows}
+    assert set(reloptions_by_table) == set(TENANT_ANALYZE_TABLES)
+    for table, opts in reloptions_by_table.items():
+        assert "autovacuum_analyze_scale_factor=0.02" in opts, (table, opts)
+        assert "autovacuum_analyze_threshold=50" in opts, (table, opts)
+
     # In testing environment, analyze_tenant_tables is a no-op to preserve worker DB reltuples == -1 (#2398)
     monkeypatch.setattr(settings, "environment", "testing")
     spy_testing_session = AsyncMock()
     await analyze_tenant_tables(spy_testing_session)
     spy_testing_session.execute.assert_not_awaited()
+    spy_testing_session.commit.assert_not_awaited()
 
     monkeypatch.setattr(settings, "environment", "production")
     monkeypatch.setenv("ENVIRONMENT", "production")
@@ -470,6 +536,7 @@ async def test_source_documents_gin_index_and_analyze_helper(db, monkeypatch):
     pg_session.get_bind = MagicMock(return_value=pg_bind)
     await analyze_tenant_tables(pg_session)
     pg_session.execute.assert_awaited_once()
+    pg_session.commit.assert_awaited_once()
     executed_sql = str(pg_session.execute.call_args.args[0])
     assert executed_sql == f"ANALYZE {', '.join(TENANT_ANALYZE_TABLES)}"
 
@@ -479,6 +546,7 @@ async def test_source_documents_gin_index_and_analyze_helper(db, monkeypatch):
     sqlite_session.get_bind = MagicMock(return_value=sqlite_bind)
     await analyze_tenant_tables(sqlite_session)
     sqlite_session.execute.assert_not_awaited()
+    sqlite_session.commit.assert_not_awaited()
 
     from importlib.util import module_from_spec, spec_from_file_location
     from pathlib import Path

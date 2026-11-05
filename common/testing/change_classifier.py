@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from common.testing import matrix
+
 
 class Environment(StrEnum):
     LOCAL = "local"
@@ -329,6 +331,7 @@ class ChangeClassification:
     image_build_files: tuple[str, ...]
     image_build_required: bool
     component_changed: Mapping[str, bool]
+    touched_e2e_tests: tuple[str, ...] = ()
 
     @property
     def staging_files(self) -> tuple[str, ...]:
@@ -544,6 +547,7 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         image_build_files=image_build_files,
         image_build_required=image_build_required,
         component_changed=_classify_components(files),
+        touched_e2e_tests=tuple(matrix.select_touched_e2e(files)),
     )
 
 
@@ -587,6 +591,9 @@ def write_github_outputs(
             if classification.component_changed[name]
         )
         fh.write(f"coverage_gate_components={changed_components}\n")
+        fh.write(
+            f"touched_e2e_tests={_json_output(list(classification.touched_e2e_tests))}\n"
+        )
         # The structured Env x Stage / provider-gate JSON above is the sole
         # machine-readable gate contract. Every workflow consumer (ci.yml)
         # normalizes its own scalar from that matrix, so the legacy per-env
@@ -665,6 +672,10 @@ def write_github_summary(
         for name in COMPONENT_PREFIXES:
             changed = classification.component_changed[name]
             fh.write(f"| `{name}` | `{str(changed).lower()}` |\n")
+        if classification.touched_e2e_tests:
+            fh.write("\n### Touched Non-LLM E2E Journeys (#2670)\n\n")
+            for path in classification.touched_e2e_tests:
+                fh.write(f"- `{path}`\n")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
