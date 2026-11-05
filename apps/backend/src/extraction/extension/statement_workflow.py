@@ -8,11 +8,13 @@ router sequences — same service calls, same commit point, same ordering.
 
 from __future__ import annotations
 
+import os
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.extraction.base.types import StatementPostingOutcome, StatementPostingStatus
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
@@ -39,6 +41,8 @@ TENANT_ANALYZE_TABLES: tuple[str, ...] = (
 
 async def analyze_tenant_tables(db: AsyncSession) -> None:
     """Refresh PostgreSQL planner statistics on core tenant tables after bulk statement approval (#2629)."""
+    if settings.environment == "testing" or os.environ.get("ENVIRONMENT") == "testing":
+        return
     bind = db.get_bind()
     if bind is not None and bind.dialect.name == "postgresql":
         tables_sql = ", ".join(TENANT_ANALYZE_TABLES)
