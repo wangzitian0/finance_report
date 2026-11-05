@@ -264,6 +264,19 @@ class DividendEventResponse(BaseModel):
     reinvested: bool = False
 
 
+class PerformanceMetricsResponse(BaseModel):
+    """Schema for portfolio performance metrics."""
+
+    xirr: Annotated[Decimal | None, Field(default=None, decimal_places=2, description="XIRR percentage.")] = None
+    time_weighted_return: Annotated[
+        Decimal | None, Field(default=None, decimal_places=2, description="TWR percentage.")
+    ] = None
+    money_weighted_return: Annotated[
+        Decimal | None, Field(default=None, decimal_places=2, description="MWR percentage.")
+    ] = None
+    unavailable_reasons: dict[str, str] = Field(default_factory=dict, description="Per-metric unavailability reason.")
+
+
 class RealizedLotResponse(BaseModel):
     """Lot-level realized P&L row for a holding detail page."""
 

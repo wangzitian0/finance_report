@@ -611,7 +611,7 @@ export interface paths {
         put?: never;
         /**
          * Create Holding Dividend
-         * @description Record dividend income for an existing current-user holding.
+         * @description Record dividend income for an existing current-user holding via InvestmentAccountingService.
          */
         post: operations["create_holding_dividend_portfolio__ticker__dividends_post"];
         delete?: never; options?: never; head?: never; patch?: never; trace?: never;
@@ -3026,13 +3026,31 @@ export interface components {
         DividendCreateRequest: {
             /** Amount */
             amount: number | string;
+            /** Cash Account Id */
+            cash_account_id?: string | null;
             /** Currency */
             currency: string;
+            /** Dividend Income Account Id */
+            dividend_income_account_id?: string | null;
+            /**
+             * Dividend Type
+             * @default ordinary
+             */
+            dividend_type: string;
+            /** Notes */
+            notes?: string | null;
             /**
              * Payment Date
              * Format: date
              */
             payment_date: string;
+            /**
+             * Withholding Tax
+             * @default 0.00
+             */
+            withholding_tax: number | string;
+            /** Withholding Tax Account Id */
+            withholding_tax_account_id?: string | null;
         };
         /**
          * DividendEventResponse
@@ -4668,14 +4686,33 @@ export interface components {
          * @enum {string}
          */
         PackageSnapshotExportFormat: "json" | "csv" | "zip";
-        /** PerformanceMetricsResponse */
+        /**
+         * PerformanceMetricsResponse
+         * @description Schema for portfolio performance metrics.
+         */
         PerformanceMetricsResponse: {
-            /** Money Weighted Return */
-            money_weighted_return: string;
-            /** Time Weighted Return */
-            time_weighted_return: string;
-            /** Xirr */
-            xirr: string;
+            /**
+             * Money Weighted Return
+             * @description MWR percentage.
+             */
+            money_weighted_return?: string | null;
+            /**
+             * Time Weighted Return
+             * @description TWR percentage.
+             */
+            time_weighted_return?: string | null;
+            /**
+             * Unavailable Reasons
+             * @description Per-metric unavailability reason.
+             */
+            unavailable_reasons?: {
+                [key: string]: string;
+            };
+            /**
+             * Xirr
+             * @description XIRR percentage.
+             */
+            xirr?: string | null;
         };
         /**
          * PersonalDataQualityHealthResponse

@@ -1049,28 +1049,140 @@ async def test_allocation_with_as_of_date(client: AsyncClient, portfolio_with_da
     assert response.status_code == 200
 
 
-async def test_performance_metrics_response_format(client: AsyncClient, portfolio_with_data):
+async def test_performance_metrics_response_format(
+    client: AsyncClient, db: AsyncSession, test_user, portfolio_with_data
+):
     """AC-portfolio.api.16: AC17.6.18: GET /portfolio/performance returns string-formatted metrics.
 
-    Verify that xirr, twr, mwr are returned as strings.
+    Verify that xirr, twr, mwr are returned as strings when sufficient data and period are provided.
     """
-    response = await client.get("/portfolio/performance")
+    position = portfolio_with_data["position"]
+    start_date = date.today() - timedelta(days=60)
+    db.add_all(
+        [
+            InvestmentTransaction(
+                user_id=test_user.id,
+                position_id=position.id,
+                transaction_date=start_date,
+                transaction_type=InvestmentTransactionType.BUY,
+                asset_identifier="AAPL",
+                quantity=Decimal("100"),
+                unit_price=Decimal("100.00"),
+                gross_amount=Decimal("10000.00"),
+                fees=Decimal("0.00"),
+                currency="SGD",
+                cost_basis=Decimal("10000.00"),
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+            _make_atomic_position(
+                test_user.id,
+                "AAPL",
+                broker="Investment Account",
+                quantity=Decimal("100"),
+                market_value=Decimal("10000.00"),
+                snapshot_date=start_date,
+                dedup_hash="aapl_start_perf_format",
+            ),
+        ]
+    )
+    await db.commit()
+
+    response = await client.get(f"/portfolio/performance?period_start={start_date.isoformat()}")
     assert response.status_code == 200
     data = response.json()
 
     for key in ["xirr", "time_weighted_return", "money_weighted_return"]:
         assert key in data
         assert isinstance(data[key], str)
+    assert data.get("unavailable_reasons") == {}
 
 
 async def test_get_performance_insufficient_data(client: AsyncClient):
-    """AC-portfolio.api.17: AC17.6.19: InsufficientDataError on empty portfolio -> xirr/mwr default to 0."""
+    """AC-portfolio.api.17: AC17.6.19: InsufficientDataError on empty portfolio returns null metrics and unavailable_reasons (#2673)."""
     response = await client.get("/portfolio/performance")
     assert response.status_code == 200
     data = response.json()
-    assert data["xirr"] == "0.00"
-    assert data["money_weighted_return"] == "0.00"
-    assert data["time_weighted_return"] == "0.00"
+    assert data["xirr"] is None
+    assert data["money_weighted_return"] is None
+    assert data["time_weighted_return"] is None
+    assert "xirr" in data["unavailable_reasons"]
+    assert "money_weighted_return" in data["unavailable_reasons"]
+    assert "time_weighted_return" in data["unavailable_reasons"]
+
+    # Also verify with explicit period_start on an empty portfolio: TWR is still null, not 0.00
+    start = (date.today() - timedelta(days=30)).isoformat()
+    end = date.today().isoformat()
+    period_resp = await client.get(f"/portfolio/performance?period_start={start}&period_end={end}")
+    assert period_resp.status_code == 200
+    period_data = period_resp.json()
+    assert period_data["time_weighted_return"] is None
+    assert "time_weighted_return" in period_data["unavailable_reasons"]
+
+
+async def test_AC_portfolio_2673_1_create_holding_dividend_posts_balanced_journal_entry(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    portfolio_with_data,
+):
+    """AC-portfolio.2673.1: POST /portfolio/{ticker}/dividends routes through InvestmentAccountingService.post_dividend (#2673)."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus
+
+    pay_date = date(date.today().year, 3, 15)
+    response = await client.post(
+        "/portfolio/AAPL/dividends",
+        json={
+            "payment_date": pay_date.isoformat(),
+            "amount": "85.50",
+            "currency": "SGD",
+            "dividend_type": "ordinary",
+            "notes": "Quarterly cash dividend",
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["amount"] == "85.50"
+    assert payload["currency"] == "SGD"
+    assert payload["pay_date"] == pay_date.isoformat()
+
+    dividend = await db.scalar(select(DividendIncome).where(DividendIncome.id == payload["id"]))
+    assert dividend is not None
+    assert dividend.amount == Decimal("85.50")
+
+    inv_txn = await db.scalar(
+        select(InvestmentTransaction)
+        .where(InvestmentTransaction.user_id == test_user.id)
+        .where(InvestmentTransaction.position_id == dividend.position_id)
+        .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.DIVIDEND)
+        .where(InvestmentTransaction.transaction_date == pay_date)
+    )
+    assert inv_txn is not None
+    assert inv_txn.journal_entry_id is not None
+    assert inv_txn.gross_amount == Decimal("85.50")
+
+    entry = await db.scalar(
+        select(JournalEntry)
+        .where(JournalEntry.id == inv_txn.journal_entry_id)
+        .options(selectinload(JournalEntry.lines))
+    )
+    assert entry is not None
+    assert entry.status == JournalEntryStatus.POSTED
+    debits = sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
+    credits = sum(line.amount for line in entry.lines if line.direction == Direction.CREDIT)
+    assert debits == Decimal("85.50")
+    assert credits == Decimal("85.50")
+
+    income_account = await db.scalar(
+        select(Account)
+        .where(Account.user_id == test_user.id)
+        .where(Account.type == AccountType.INCOME)
+        .where(Account.code == "4210")
+    )
+    assert income_account is not None
+    assert any(line.account_id == income_account.id and line.direction == Direction.CREDIT for line in entry.lines)
 
 
 async def test_get_performance_xirr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):

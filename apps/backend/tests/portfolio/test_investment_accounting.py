@@ -663,3 +663,97 @@ async def test_investment_accounting_rejects_invalid_account_and_position_helper
             account_id=account_id,
             asset_identifier="MISSING",
         )
+
+
+async def test_AC_portfolio_2427_1_balance_sheet_disposition_honors_trade_account_and_skips_duplicate_trade(
+    db: AsyncSession,
+    test_user,
+    svc: InvestmentAccountingService,
+    chart: dict[str, Account],
+):
+    """AC-portfolio.2427.1: _balance_sheet_disposition_for resolves code-keyed default accounts, honors suggestion.account_id, and prevents duplicate trade booking (#2427)."""
+    from src.composition import _balance_sheet_disposition_for, _get_or_create_default_counter_account
+    from src.extraction.base.disposition import EconomicIntent
+    from src.extraction.base.source_vocabulary import TransactionDirection
+    from src.extraction.extension.transaction_classification import ClassificationSuggestion, TransactionCategory
+    from src.extraction.orm.layer2 import AtomicTransaction
+
+    # 1. Code-keyed default counter account resolution survives account renames without creating duplicates
+    default_loan = await _get_or_create_default_counter_account(
+        db,
+        test_user.id,
+        AccountType.LIABILITY,
+        "SGD",
+        name="Loans Payable (SGD)",
+    )
+    assert default_loan.code == "2210"
+    default_loan.name = "OCBC Home Mortgage (SGD)"
+    await db.flush()
+    db.info.pop("_default_account_cache", None)
+
+    resolved_again = await _get_or_create_default_counter_account(
+        db,
+        test_user.id,
+        AccountType.LIABILITY,
+        "SGD",
+        name="Loans Payable (SGD)",
+    )
+    assert resolved_again.id == default_loan.id
+
+    # 2. _balance_sheet_disposition_for honors a user-owned active suggestion.account_id of matching type and currency
+    custom_broker_account = Account(
+        user_id=test_user.id,
+        name="IBKR Brokerage Assets",
+        code="1325",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(custom_broker_account)
+    await db.flush()
+
+    buy_stmt_txn = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date(2026, 2, 10),
+        amount=Decimal("1005.00"),
+        currency="SGD",
+        direction=TransactionDirection.OUT,
+        description="IBKR Buy 10 VWRA",
+        source_documents={},
+        dedup_hash="stmt_ibkr_buy_vwra",
+    )
+    db.add(buy_stmt_txn)
+    await db.flush()
+
+    suggestion_with_account = ClassificationSuggestion(
+        atomic_txn_id=buy_stmt_txn.id,
+        category=TransactionCategory.INVESTMENT_TRADE.value,
+        confidence=92,
+        account_id=custom_broker_account.id,
+        applied=False,
+        corrected=True,
+    )
+    disposition = await _balance_sheet_disposition_for(db, test_user.id, buy_stmt_txn, suggestion_with_account)
+    assert disposition is not None
+    intent, counter_account, category, _rationale = disposition
+    assert intent == EconomicIntent.INVESTMENT_PURCHASE
+    assert counter_account.id == custom_broker_account.id
+    assert category == TransactionCategory.INVESTMENT_TRADE.value
+
+    # 3. Duplicate booking prevention: once the portfolio trade is posted for the same date/amount,
+    # _balance_sheet_disposition_for returns None so statement approval does not double-book the trade.
+    await svc.post_buy(
+        db,
+        user_id=test_user.id,
+        transaction_date=date(2026, 2, 10),
+        asset_identifier="VWRA",
+        quantity=Decimal("10"),
+        unit_price=Decimal("100.00"),
+        fees=Decimal("5.00"),
+        currency="SGD",
+        cash_account_id=chart["cash"].id,
+        investment_account_id=custom_broker_account.id,
+    )
+    duplicate_disposition = await _balance_sheet_disposition_for(
+        db, test_user.id, buy_stmt_txn, suggestion_with_account
+    )
+    assert duplicate_disposition is None

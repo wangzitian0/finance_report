@@ -2,20 +2,22 @@
 
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from src.audit import Ratio, to_money
 from src.deps import CurrentUserId, DbSession
 from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.observability import get_logger
 from src.portfolio import (
     AssetNotFoundError,
     DividendIncome,
     InsufficientDataError,
+    InvestmentAccountingService,
+    InvestmentAccountingValidationError,
     InvestmentTransaction,
     InvestmentTransactionType,
     PerformanceError,
@@ -29,7 +31,7 @@ from src.portfolio import (
     get_sector_allocation as sector_allocation_breakdowns,
     portfolio_service,
 )
-from src.pricing import PricingError, convert_amount
+from src.pricing import PricingError
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -38,6 +40,7 @@ from src.schemas.portfolio import (
     DividendEventResponse,
     HoldingsListResponse,
     InvestmentPerformanceReportScheduleResponse,
+    PerformanceMetricsResponse,
     PortfolioSummaryDashboardResponse,
     PriceUpdateBatchResponse,
     PriceUpdateRequest,
@@ -47,13 +50,12 @@ from src.schemas.portfolio import (
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 logger = get_logger(__name__)
 
-# Default cap + bounds for portfolio list endpoints (issue #1007, AC17.30).
-# Matches the accounts module convention (limit default 100, ge=1, le=500).
 _DEFAULT_LIST_LIMIT = 100
 _MAX_LIST_LIMIT = 500
 
 _portfolio_service = portfolio_service
 _brokerage_import_service = BrokeragePositionImportService()
+_investment_accounting_service = InvestmentAccountingService()
 
 
 def _canonical_percent(value: Decimal) -> Decimal:
@@ -68,12 +70,6 @@ class AllocationBreakdownResponse(BaseModel):
     count: int
 
 
-class PerformanceMetricsResponse(BaseModel):
-    xirr: Decimal = Field(decimal_places=2)
-    time_weighted_return: Decimal = Field(decimal_places=2)
-    money_weighted_return: Decimal = Field(decimal_places=2)
-
-
 class PriceUpdateBatchRequest(BaseModel):
     updates: list[PriceUpdateRequest]
 
@@ -82,6 +78,12 @@ class DividendCreateRequest(BaseModel):
     payment_date: date
     amount: Decimal = Field(decimal_places=2, gt=0)
     currency: str = Field(min_length=3, max_length=3)
+    dividend_type: str = "ordinary"
+    notes: str | None = None
+    cash_account_id: UUID | None = None
+    dividend_income_account_id: UUID | None = None
+    withholding_tax: Decimal = Field(default=Decimal("0.00"), decimal_places=2, ge=0)
+    withholding_tax_account_id: UUID | None = None
 
 
 @router.post("/brokerage/import", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
@@ -117,15 +119,6 @@ async def get_holdings(
     wrapper plus ``warnings`` — a snapshot excluded from the page (no reconciled
     managed position as of the date) is disclosed to the caller, not just logged.
     """
-    logger.info(
-        "Getting holdings",
-        user_id=str(user_id),
-        as_of_date=as_of_date,
-        include_disposed=include_disposed,
-        limit=limit,
-        offset=offset,
-    )
-
     warnings: list[dict[str, str]] = []
     try:
         holdings = list(
@@ -138,11 +131,9 @@ async def get_holdings(
             )
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
-        # No holdings found — return an empty page instead of an error
         return HoldingsListResponse(items=[], total=0, warnings=warnings)
 
     page = holdings[offset : offset + limit]
-    logger.info("Retrieved holdings", count=len(page), total=len(holdings))
     return HoldingsListResponse(items=page, total=len(holdings), warnings=warnings)
 
 
@@ -153,60 +144,10 @@ async def get_portfolio_summary(
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
 ) -> PortfolioSummaryDashboardResponse:
     """Get portfolio summary with YTD realized P&L and dividend income."""
-    report_date = as_of_date or date.today()
     try:
-        summary = await _portfolio_service.get_portfolio_summary(db=db, user_id=user_id, as_of_date=as_of_date)
-    except (PortfolioNotFoundError, AssetNotFoundError):
-        z = Decimal("0.00")
-        return PortfolioSummaryDashboardResponse(
-            total_market_value=z,
-            total_cost_basis=z,
-            total_unrealized_pnl=z,
-            total_unrealized_pnl_percent=z,
-            total_realized_pnl=z,
-            total_realized_pnl_percent=z,
-            net_pnl=z,
-            net_pnl_percent=z,
-            holdings_count=0,
-            active_positions_count=0,
-            disposed_positions_count=0,
-            currency="SGD",
-            realized_pnl_ytd=z,
-            dividend_income_ytd=z,
-        )
-
-    year_start = date(report_date.year, 1, 1)
-    summary_currency = summary.currency.upper()
-    try:
-        realized_by_asset, _ = await _portfolio_service.get_realized_pnl_by_asset(
-            db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
-        )
-        dividend_by_asset = await _portfolio_service.get_dividend_income_by_asset(
-            db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
-        )
-        dividend_total = sum(dividend_by_asset.values(), Decimal("0.00"))
-        if dividend_total == Decimal("0.00"):
-            rows = await db.execute(
-                select(JournalLine, Account, JournalEntry.entry_date)
-                .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-                .join(Account, JournalLine.account_id == Account.id)
-                .where(JournalEntry.user_id == user_id, Account.user_id == user_id)
-                .where(active_journal_entry_filter(JournalEntry), Account.type == AccountType.INCOME)
-                .where(func.lower(Account.name).like("%dividend%"))
-                .where(JournalEntry.entry_date >= year_start, JournalEntry.entry_date <= report_date)
-            )
-            for line, account, entry_date in rows.all():
-                ccy = (line.currency or account.currency or summary_currency).upper()
-                amt = line.amount if line.direction == Direction.CREDIT else -line.amount
-                dividend_total += await convert_amount(db, amt, ccy, summary_currency, entry_date, lazy_load=True)
-            dividend_total = max(dividend_total, Decimal("0.00"))
+        return await _portfolio_service.get_portfolio_summary_dashboard(db=db, user_id=user_id, as_of_date=as_of_date)
     except PricingError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-
-    data = summary.model_dump()
-    data["realized_pnl_ytd"] = to_money(sum(realized_by_asset.values(), Decimal("0.00")))
-    data["dividend_income_ytd"] = to_money(dividend_total)
-    return PortfolioSummaryDashboardResponse(**data)
 
 
 @router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
@@ -248,25 +189,26 @@ async def create_holding_dividend(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> DividendEventResponse:
-    """Record dividend income for an existing current-user holding."""
-    position = await db.scalar(
-        select(ManagedPosition)
-        .where(ManagedPosition.user_id == user_id)
-        .where(ManagedPosition.asset_identifier == ticker)
-        .where(ManagedPosition.status == PositionStatus.ACTIVE)
-        .order_by(ManagedPosition.created_at.desc())
-    )
-    if position is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Holding not found")
+    """Record dividend income for an existing current-user holding via InvestmentAccountingService."""
+    try:
+        dividend = await _investment_accounting_service.record_holding_dividend(
+            db,
+            user_id=user_id,
+            ticker=ticker,
+            payment_date=request.payment_date,
+            amount=request.amount,
+            currency=request.currency,
+            dividend_type=request.dividend_type,
+            withholding_tax=request.withholding_tax,
+            cash_account_id=request.cash_account_id,
+            dividend_income_account_id=request.dividend_income_account_id,
+            withholding_tax_account_id=request.withholding_tax_account_id,
+        )
+    except PortfolioNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (InvestmentAccountingValidationError, PricingError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    dividend = DividendIncome(
-        user_id=user_id,
-        position_id=position.id,
-        payment_date=request.payment_date,
-        amount=request.amount,
-        currency=request.currency.upper(),
-    )
-    db.add(dividend)
     await db.commit()
     await db.refresh(dividend)
     return DividendEventResponse(
@@ -353,51 +295,58 @@ async def get_performance(
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
 ) -> PerformanceMetricsResponse:
     """Calculate portfolio performance metrics (XIRR, TWR, MWR)."""
-    logger.info(
-        "Calculating performance",
-        user_id=str(user_id),
-        period_start=period_start,
-        period_end=period_end,
-        as_of_date=as_of_date,
-    )
-
     as_of = as_of_date or date.today()
     p_end = period_end or date.today()
+    unavailable_reasons: dict[str, str] = {}
 
     try:
-        xirr = await calculate_xirr(db=db, user_id=user_id, as_of_date=as_of)
-    except InsufficientDataError:
-        xirr = Decimal("0")
+        xirr: Decimal | None = _canonical_percent(await calculate_xirr(db=db, user_id=user_id, as_of_date=as_of))
+    except InsufficientDataError as e:
+        xirr = None
+        unavailable_reasons["xirr"] = str(e)
     except (PerformanceError, PricingError) as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
     if period_start:
-        try:
-            twr = await calculate_time_weighted_return(
-                db=db,
-                user_id=user_id,
-                period_start=period_start,
-                period_end=p_end,
-            )
-        except InsufficientDataError:
-            twr = Decimal("0")
-        except PricingError as e:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+        has_position = await db.scalar(select(ManagedPosition.id).where(ManagedPosition.user_id == user_id).limit(1))
+        if has_position is None:
+            twr: Decimal | None = None
+            unavailable_reasons["time_weighted_return"] = "No positions found for time-weighted return calculation"
+        else:
+            try:
+                twr = _canonical_percent(
+                    await calculate_time_weighted_return(
+                        db=db,
+                        user_id=user_id,
+                        period_start=period_start,
+                        period_end=p_end,
+                    )
+                )
+            except InsufficientDataError as e:
+                twr = None
+                unavailable_reasons["time_weighted_return"] = str(e)
+            except PricingError as e:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     else:
-        twr = Decimal("0")
+        twr = None
+        unavailable_reasons["time_weighted_return"] = "period_start is required for time-weighted return calculation"
 
     try:
-        mwr = await calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
-    except InsufficientDataError:
-        mwr = Decimal("0")
+        mwr: Decimal | None = _canonical_percent(
+            await calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
+        )
+    except InsufficientDataError as e:
+        mwr = None
+        unavailable_reasons["money_weighted_return"] = str(e)
     except (PerformanceError, PricingError) as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
-    xirr = _canonical_percent(xirr)
-    twr = _canonical_percent(twr)
-    mwr = _canonical_percent(mwr)
-    logger.info("Performance calculated", xirr=float(xirr), twr=float(twr), mwr=float(mwr))
-    return PerformanceMetricsResponse(xirr=xirr, time_weighted_return=twr, money_weighted_return=mwr)
+    return PerformanceMetricsResponse(
+        xirr=xirr,
+        time_weighted_return=twr,
+        money_weighted_return=mwr,
+        unavailable_reasons=unavailable_reasons,
+    )
 
 
 @router.get("/performance/report-schedule", response_model=InvestmentPerformanceReportScheduleResponse)
@@ -450,10 +399,8 @@ async def get_sector_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get sector allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    logger.info("Getting sector allocation", user_id=str(user_id), as_of_date=as_of_date, limit=limit, offset=offset)
     breakdowns = await sector_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     page = list(breakdowns)[offset : offset + limit]
-    logger.info("Retrieved sector allocation", count=len(page), total=len(breakdowns))
     return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
 
 
@@ -466,10 +413,8 @@ async def get_geography_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get geography allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    logger.info("Getting geography allocation", user_id=str(user_id), as_of_date=as_of_date, limit=limit, offset=offset)
     breakdowns = await geography_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     page = list(breakdowns)[offset : offset + limit]
-    logger.info("Retrieved geography allocation", count=len(page), total=len(breakdowns))
     return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
 
 
@@ -482,12 +427,8 @@ async def get_asset_class_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get asset class allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    logger.info(
-        "Getting asset class allocation", user_id=str(user_id), as_of_date=as_of_date, limit=limit, offset=offset
-    )
     breakdowns = await asset_class_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     page = list(breakdowns)[offset : offset + limit]
-    logger.info("Retrieved asset class allocation", count=len(page), total=len(breakdowns))
     return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
 
 
@@ -498,8 +439,6 @@ async def update_prices(
     request: PriceUpdateBatchRequest,
 ) -> PriceUpdateBatchResponse:
     """Update market prices manually (batch)."""
-    logger.info("Updating market prices", user_id=str(user_id), count=len(request.updates))
     results = await _portfolio_service.update_market_prices(db=db, user_id=user_id, updates=request.updates)
     await db.commit()
-    logger.info("Market prices updated", updated_count=len(results))
     return PriceUpdateBatchResponse(updated_count=len(results), results=results)
