@@ -210,8 +210,8 @@ test.describe("AC-extraction.human-source-review.4 statement review click path",
           : page.getByTestId("stage1-mobile-transaction-list").locator("article").first();
       await expect(firstRow).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(firstRow).toContainText(LOW_DESCRIPTION);
-      // The pinned row states its position in the API order (date order): the last of six rows.
-      await expect(firstRow.getByTestId("date-row-number")).toHaveText("Row 6 of 6 by date");
+      // The pinned row states its position in the source statement order: the last of six rows.
+      await expect(firstRow.getByTestId("date-row-number")).toHaveText("Row 6 of 6");
       await expect(page.getByTestId("low-confidence-count")).toHaveText("1 low confidence · shown first");
       await expect(page.getByText("Prior Gap (3198)")).toBeVisible();
       await expect(page.getByText(/Unexplained Statement Gap Equity \(3198\)/i)).toBeVisible();

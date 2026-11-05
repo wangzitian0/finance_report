@@ -61,10 +61,14 @@ export interface BankStatementViewModel
 
 export type BankStatement = BankStatementViewModel;
 
-export type BankStatementListResponse = ListResponse<BankStatement>;
+export type BankStatementListItem = Schemas["BankStatementListItemResponse"];
+
+export type BankStatementListResponse = ListResponse<BankStatementListItem>;
 
 export function normalizeBankStatement(
-  statement: Schemas["BankStatementResponse"],
+  statement: Schemas["BankStatementListItemResponse"] & {
+    transactions?: readonly Schemas["AtomicTransactionResponse"][];
+  },
 ): BankStatement {
   return {
     ...statement,

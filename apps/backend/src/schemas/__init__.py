@@ -30,6 +30,7 @@ _LAZY = {
     "AnomalyResponse": ("src.schemas.reconciliation", "AnomalyResponse"),
     "AtomicTransactionResponse": ("src.schemas.extraction", "AtomicTransactionResponse"),
     "BalanceSheetResponse": ("src.schemas.reporting", "BalanceSheetResponse"),
+    "BankStatementListItemResponse": ("src.schemas.extraction", "BankStatementListItemResponse"),
     "BankStatementListResponse": ("src.schemas.extraction", "BankStatementListResponse"),
     "BankStatementResponse": ("src.schemas.extraction", "BankStatementResponse"),
     "BankStatementStatusEnum": ("src.schemas.extraction", "BankStatementStatusEnum"),
@@ -155,6 +156,7 @@ _LAZY = {
     "WorkflowReportReadinessResponse": ("src.schemas.workflow", "WorkflowReportReadinessResponse"),
     "WorkflowReportReadinessState": ("src.schemas.workflow", "WorkflowReportReadinessState"),
     "WorkflowStatusResponse": ("src.schemas.workflow", "WorkflowStatusResponse"),
+    "compose_statement_list_item_response": ("src.schemas.extraction", "compose_statement_list_item_response"),
     "compose_statement_response": ("src.schemas.extraction", "compose_statement_response"),
     "error_code_for_status": ("src.schemas.errors", "error_code_for_status"),
 }
@@ -179,6 +181,7 @@ __all__ = [
     "AnomalyResponse",
     "AtomicTransactionResponse",
     "BalanceSheetResponse",
+    "BankStatementListItemResponse",
     "BankStatementListResponse",
     "BankStatementResponse",
     "BankStatementStatusEnum",
@@ -298,6 +301,7 @@ __all__ = [
     "WorkflowReportReadinessResponse",
     "WorkflowReportReadinessState",
     "WorkflowStatusResponse",
+    "compose_statement_list_item_response",
     "compose_statement_response",
     "error_code_for_status",
 ]
@@ -352,6 +356,7 @@ if TYPE_CHECKING:  # pragma: no cover - static view of the lazy exports
     )
     from src.schemas.extraction import (
         AtomicTransactionResponse,
+        BankStatementListItemResponse,
         BankStatementListResponse,
         BankStatementResponse,
         BankStatementStatusEnum,
@@ -360,6 +365,7 @@ if TYPE_CHECKING:  # pragma: no cover - static view of the lazy exports
         ParsedStatementPreview,
         RetryParsingRequest,
         StatementDecisionRequest,
+        compose_statement_list_item_response,
         compose_statement_response,
     )
     from src.schemas.journal import (

@@ -75,17 +75,25 @@ async def test_AC_extraction_statement_list_1_sql_count_does_not_grow_with_state
 async def test_AC_extraction_statement_list_2_list_has_no_transactions_option(
     client, db, db_engine, test_user, openapi_schema
 ):
-    """AC-extraction.statement-list.2: the list has no include_transactions option and every item has an empty transactions list."""
+    """AC-extraction.statement-list.2: list endpoints return BankStatementListItemResponse items without a transactions field."""
     seeded = await _seed_statements(db, test_user.id, 3)
     assert all(len(item.transactions) == ROWS_PER_STATEMENT for item in seeded)
 
     parameters = openapi_schema["paths"]["/statements"]["get"].get("parameters", [])
     assert "include_transactions" not in {parameter["name"] for parameter in parameters}
+    list_item_schema = openapi_schema["components"]["schemas"]["BankStatementListItemResponse"]
+    assert "transactions" not in list_item_schema["properties"]
+    assert (
+        openapi_schema["components"]["schemas"]["ListResponse_BankStatementListItemResponse_"]["properties"]["items"][
+            "items"
+        ]["$ref"]
+        == "#/components/schemas/BankStatementListItemResponse"
+    )
 
     default_response, default_sql = await _count_sql(db_engine, client, "/statements")
     default_items = default_response.json()["items"]
     assert len(default_items) == 3
-    assert all(item["transactions"] == [] for item in default_items)
+    assert all("transactions" not in item for item in default_items)
     # The envelope fields stay complete so the page can still render a row.
     assert {item["original_filename"] for item in default_items} == {f"list_budget_{i:02d}.pdf" for i in range(3)}
     assert all(item["file_path"] for item in default_items)
@@ -96,8 +104,13 @@ async def test_AC_extraction_statement_list_2_list_has_no_transactions_option(
     )
     ignored_items = ignored_response.json()["items"]
     assert len(ignored_items) == 3
-    assert all(item["transactions"] == [] for item in ignored_items)
+    assert all("transactions" not in item for item in ignored_items)
     assert len(ignored_sql) == len(default_sql)
+
+    pending_response, _ = await _count_sql(db_engine, client, "/statements/pending-review")
+    pending_items = pending_response.json()["items"]
+    assert len(pending_items) == 3
+    assert all("transactions" not in item for item in pending_items)
 
 
 async def test_AC_extraction_statement_list_3_document_lookup_keeps_user_isolation_and_hash_fallback(
