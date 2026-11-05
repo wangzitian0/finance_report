@@ -10,9 +10,6 @@
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "run": "BASE_URL=\"$INFRA2_HOOK_APP_URL\" bash tools/smoke_test.sh && eval \"$(python tools/test_selection.py --stage preview_minimum_e2e --shell)\" && pytest \"${PREVIEW_MINIMUM_E2E_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$PREVIEW_MINIMUM_E2E_MARKER\"",
       "timeout_seconds": 600,
-      "required_env": [
-        "AI_API_KEY"
-      ],
       "optional_env": [
         "AI_PROVIDER",
         "AI_BASE_URL",

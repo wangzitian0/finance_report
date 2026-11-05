@@ -9,15 +9,22 @@ It is used by:
 """
 
 import asyncio
+import json
 import os
 import sys
-import time
+import tempfile
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
+from infra2_sdk.runtime.config_schema import (
+    EnvironmentConflictError,
+    assert_environment,
+    environment_manifest_from_model,
+)
 from infra2_sdk.runtime.health import DependencyStatus
 
-from src.config import PROTECTED_ENVIRONMENTS, settings
+from src.config import ENV_SOURCE_CLASSES, PROTECTED_ENVIRONMENTS, Settings, settings
 from src.observability import get_logger
 from src.runtime import (
     DEPENDENCY_MANIFEST,
@@ -35,13 +42,20 @@ from src.runtime import (
 
 logger = get_logger(__name__)
 
-VAULT_SECRETS_FILE_PATH = "/secrets/.env"
-VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS = 3600
 DEVELOPMENT_SECRET_KEY = "dev_secret_key_change_in_prod"
 DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
 DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
 # PROTECTED_ENVIRONMENTS is the single source of truth in src.config (imported above).
 LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
+PROTECTED_REQUIRED_INJECTED_FIELDS = (
+    ("SECRET_KEY", "secret_key"),
+    ("DATABASE_URL", "database_url"),
+    ("S3_SECRET_KEY", "s3_secret_key"),
+    ("S3_ACCESS_KEY", "s3_access_key"),
+    ("S3_ENDPOINT", "s3_endpoint"),
+    ("S3_BUCKET", "s3_bucket"),
+    ("NEXT_PUBLIC_APP_URL", "next_public_app_url"),
+)
 
 
 class BootMode(str, Enum):
@@ -136,7 +150,6 @@ class Bootloader:
                     service=name,
                     tier=tier.value,
                 )
-            results.append(Bootloader._check_vault_secrets())
 
         # 3. Report Results
         passed = True
@@ -236,9 +249,27 @@ class Bootloader:
         return app_url.startswith("https://") and "localhost" not in app_url and "127.0.0.1" not in app_url
 
     @staticmethod
+    def _assert_sdk_environment() -> None:
+        """Validate environment against the live Settings manifest via infra2_sdk."""
+        manifest = environment_manifest_from_model(
+            Settings,
+            source="apps/backend/src/config.py::Settings",
+            overrides=ENV_SOURCE_CLASSES,
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            manifest_path = Path(tmp_dir) / "required-env.generated.json"
+            manifest_path.write_text(json.dumps(manifest.to_dict()), encoding="utf-8")
+            assert_environment(
+                manifest_path,
+                environ=os.environ,
+                require_injected=False,
+            )
+
+    @staticmethod
     def _check_static_config() -> bool:
         """Verify presence of required environment variables."""
         try:
+            Bootloader._assert_sdk_environment()
             # Just accessing settings triggers validation
             database_url = settings.database_url
             environment = str(getattr(settings, "environment", "")).lower()
@@ -260,7 +291,19 @@ class Bootloader:
                 if str(getattr(settings, "s3_secret_key", "")).strip() == DEVELOPMENT_S3_SECRET_KEY:
                     logger.error("Default development S3_SECRET_KEY is forbidden", environment=environment)
                     return False
+                for env_name, attr_name in PROTECTED_REQUIRED_INJECTED_FIELDS:
+                    val = getattr(settings, attr_name, None)
+                    if not isinstance(val, str) or not val.strip():
+                        logger.error(
+                            "Required injected setting is missing in protected environment",
+                            setting=env_name,
+                            environment=environment,
+                        )
+                        return False
             return True
+        except EnvironmentConflictError as e:
+            logger.error("Environment variable conflict detected", error=str(e))
+            return False
         except Exception as e:
             logger.error("Configuration load failed", error=str(e))
             return False
@@ -343,48 +386,6 @@ class Bootloader:
         result = await MarketDataCheck(timeout_seconds=settings.market_data_yahoo_timeout_seconds).probe()
         status = "ok" if result.status is DependencyStatus.PRESENT else "error"
         return ServiceStatus("market_data", status, result.detail, result.duration_ms)
-
-    @staticmethod
-    def _check_vault_secrets() -> ServiceStatus:
-        """Check if Vault secrets file exists and is fresh (staging/production only)."""
-        start = time.perf_counter()
-
-        if not os.path.exists(VAULT_SECRETS_FILE_PATH):
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus(
-                "vault_secrets",
-                "warning",
-                f"Secrets file not found at {VAULT_SECRETS_FILE_PATH}. "
-                "If in staging/production, the vault-agent failed to render secrets. "
-                "Verify secrets provider or provision credentials for the deployment environment.",
-                duration_ms,
-            )
-
-        try:
-            stat = os.stat(VAULT_SECRETS_FILE_PATH)
-            file_age_seconds = time.time() - stat.st_mtime
-
-            if file_age_seconds > VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS:
-                duration_ms = (time.perf_counter() - start) * 1000
-                return ServiceStatus(
-                    "vault_secrets",
-                    "warning",
-                    f"Secrets file is {int(file_age_seconds / 3600)}h old. "
-                    "Vault-agent may have stopped refreshing. Check token expiry.",
-                    duration_ms,
-                )
-
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus(
-                "vault_secrets",
-                "ok",
-                f"Secrets file exists, last modified {int(file_age_seconds)}s ago",
-                duration_ms,
-            )
-
-        except OSError as e:
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("vault_secrets", "error", str(e), duration_ms)
 
 
 if __name__ == "__main__":
