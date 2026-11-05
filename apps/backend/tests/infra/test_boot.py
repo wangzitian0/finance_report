@@ -711,6 +711,48 @@ class TestStaticConfigInjectedValuesScope:
         assert "PREFECT_API_URL" in mock_logger.error.call_args.kwargs["error"]
 
 
+class TestStaticConfigEmptyOkSetButEmpty:
+    """#2874: production compose sets S3_PUBLIC_BUCKET to "" (`${S3_PUBLIC_BUCKET:-}`).
+
+    The manifest marks s3_public_bucket `empty_ok`, so a set-but-empty value must pass.
+    Every other injected field stays mandatory in production.
+    """
+
+    def _configure_production(self, mock_settings, monkeypatch) -> None:
+        monkeypatch.delenv("PREFECT_API_URL", raising=False)
+        monkeypatch.delenv("S3_PUBLIC_ENDPOINT", raising=False)
+        for field, value in _GUARD_STRONG_VALUES.items():
+            setattr(mock_settings, field, value)
+        mock_settings.environment = "production"
+        mock_settings.next_public_app_url = "https://report.zitian.party"
+        mock_settings.prefect_api_url = "http://prefect:4200/api"
+        mock_settings.s3_public_endpoint = "https://s3.zitian.party"
+        mock_settings.s3_public_bucket = None
+        monkeypatch.setenv("S3_PUBLIC_BUCKET", "")
+
+    def test_static_config_accepts_production_with_empty_s3_public_bucket(
+        self, mock_settings, mock_logger, monkeypatch
+    ):
+        """Production boots when S3_PUBLIC_BUCKET is set to an empty string."""
+        self._configure_production(mock_settings, monkeypatch)
+
+        assert Bootloader._check_static_config() is True
+        mock_logger.error.assert_not_called()
+
+    def test_static_config_rejects_production_without_prefect_api_url_when_s3_public_bucket_is_empty(
+        self, mock_settings, mock_logger, monkeypatch
+    ):
+        """Production refuses to boot when PREFECT_API_URL is missing, also with an empty S3_PUBLIC_BUCKET."""
+        self._configure_production(mock_settings, monkeypatch)
+        mock_settings.prefect_api_url = None
+
+        assert Bootloader._check_static_config() is False
+        mock_logger.error.assert_called_once()
+        error_text = mock_logger.error.call_args.kwargs["error"]
+        assert "PREFECT_API_URL" in error_text
+        assert "S3_PUBLIC_BUCKET" not in error_text
+
+
 def test_AC_runtime_3_1_required_checks_cover_the_tier_declaration():
     """AC-runtime.3.1 (#1577): the probed + unprobed split is exactly
     DEPENDENCY_MANIFEST.required_for(tier) — the set comes from the manifest,
