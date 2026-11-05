@@ -246,7 +246,6 @@ export function confidenceRank(txn: Pick<Transaction, "confidence_tier" | "confi
 export interface OrderedStatementRow<T> {
   txn: T;
   sourceRow: number;
-  datePosition: number;
   /** True for a low-confidence row: it is above the other rows. */
   pinned: boolean;
 }
@@ -267,7 +266,6 @@ export function pinLowConfidenceRows<
       return {
         txn,
         sourceRow,
-        datePosition: sourceRow,
         pinned: confidenceRank(txn) === 0,
         originalIndex: index,
       };

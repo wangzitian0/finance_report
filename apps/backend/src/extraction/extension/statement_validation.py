@@ -103,6 +103,7 @@ async def resolve_statement_transactions(
                 await db.execute(
                     select(AtomicTransactionIdentity.atomic_txn_id, AtomicTransactionIdentity.identity_hash).where(
                         AtomicTransactionIdentity.user_id == statement.user_id,
+                        AtomicTransactionIdentity.identity_version == "v2",
                         AtomicTransactionIdentity.identity_hash.in_(current_ids),
                     )
                 )
@@ -134,7 +135,7 @@ async def resolve_statement_transactions(
             ordinals_by_key.setdefault(key, []).append(ordinal)
 
         used_ordinals: set[int] = set()
-        for idx, row in enumerate(rows):
+        for row in rows:
             row_date = row.txn_date.isoformat()
             row_direction = row.direction.value if hasattr(row.direction, "value") else row.direction
             if (row.amount, row_date, row_direction, row.currency) not in fact_keys and (
@@ -178,9 +179,13 @@ async def resolve_statement_transactions(
                             break
                     if matched_ordinal is not None:
                         break
-            source_row = matched_ordinal if matched_ordinal is not None else idx + 1
-            used_ordinals.add(source_row)
-            setattr(row, "source_row", source_row)
+            if matched_ordinal is None:
+                fallback_ordinal = 1
+                while fallback_ordinal in used_ordinals:
+                    fallback_ordinal += 1
+                matched_ordinal = fallback_ordinal
+            used_ordinals.add(matched_ordinal)
+            setattr(row, "source_row", matched_ordinal)
         rows.sort(key=lambda r: (getattr(r, "source_row", 1), r.txn_date, r.created_at))
     else:
         for idx, row in enumerate(rows):
