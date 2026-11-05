@@ -241,34 +241,51 @@ export function confidenceRank(txn: Pick<Transaction, "confidence_tier" | "confi
 }
 
 /**
- * A row of the statement table with its 1-based position in the API order. The API sends the rows
- * in date order (transaction date, then creation time), not in the line order of the source file.
+ * A row of the statement table with its 1-based position in the source document (#2679).
  */
 export interface OrderedStatementRow<T> {
   txn: T;
+  sourceRow: number;
   datePosition: number;
   /** True for a low-confidence row: it is above the other rows. */
   pinned: boolean;
 }
 
 /**
- * The low-confidence rows on top, in date order, then every other row in date order (#2647).
+ * The low-confidence rows on top, in source-row order, then every other row in source-row order (#2647, #2679).
  * Only a low row moves. An unrated row is not low.
  */
-export function pinLowConfidenceRows<T extends Pick<Transaction, "confidence_tier" | "confidence">>(
+export function pinLowConfidenceRows<
+  T extends Pick<Transaction, "confidence_tier" | "confidence"> & { source_row?: number | null },
+>(
   rows: readonly T[],
 ): OrderedStatementRow<T>[] {
-  const numbered = rows.map((txn, index) => ({ txn, datePosition: index + 1, pinned: confidenceRank(txn) === 0 }));
+  const numbered = rows
+    .map((txn, index) => {
+      const sourceRow =
+        typeof txn.source_row === "number" && txn.source_row >= 1 ? txn.source_row : index + 1;
+      return {
+        txn,
+        sourceRow,
+        datePosition: sourceRow,
+        pinned: confidenceRank(txn) === 0,
+        originalIndex: index,
+      };
+    })
+    .sort((a, b) => a.sourceRow - b.sourceRow || a.originalIndex - b.originalIndex)
+    .map(({ originalIndex: _originalIndex, ...row }) => {
+      void _originalIndex;
+      return row;
+    });
   return [...numbered.filter((row) => row.pinned), ...numbered.filter((row) => !row.pinned)];
 }
 
 /**
- * The date-order position of a pinned row ("Row 6 of 6 by date"): the row no longer sits at that
- * position. It is not the line number of the source file.
+ * The 1-based source-row position of a pinned row ("Row 6 of 6", #2679).
  */
 function DateRowNumber({ row, total }: { row: OrderedStatementRow<Transaction>; total: number }) {
   if (!row.pinned) return null;
-  return <span data-testid="date-row-number" className="text-xs text-muted">{`Row ${row.datePosition} of ${total} by date`}</span>;
+  return <span data-testid="date-row-number" className="text-xs text-muted">{`Row ${row.sourceRow} of ${total}`}</span>;
 }
 
 export function TransactionTable({ transactions, currency, onSelectTransaction, statementStatus }: { transactions: Transaction[]; currency: string; onSelectTransaction?: (txn: Transaction) => void; statementStatus?: string }) {
@@ -282,8 +299,8 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
         <h3 className="text-sm font-medium">Transactions</h3>
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {lowCount > 0 && <span data-testid="low-confidence-count" className="badge badge-error">{`${lowCount} low confidence · shown first`}</span>}
-          {/* The other rows keep the API order: date order (#2647). */}
-          <span className="text-muted">{rows.length > 0 ? `${rows.length} total · by date` : "0 total"}</span>
+          {/* The other rows keep the source-document order (#2679). */}
+          <span className="text-muted">{rows.length > 0 ? `${rows.length} total · in statement order` : "0 total"}</span>
         </div>
       </div>
       {/* The mobile list grows with the page: one page scroll, no inner scroll box (#2647). */}

@@ -98,26 +98,43 @@ async def resolve_statement_transactions(
     if isinstance(facts, list):
         if len(rows) != len(facts):
             raise ValueError("Current source transaction identity requires review: incomplete persisted facts")
-        aliased_rows = set(
+        alias_pairs = list(
             (
-                await db.scalars(
-                    select(AtomicTransactionIdentity.atomic_txn_id).where(
+                await db.execute(
+                    select(AtomicTransactionIdentity.atomic_txn_id, AtomicTransactionIdentity.identity_hash).where(
                         AtomicTransactionIdentity.user_id == statement.user_id,
                         AtomicTransactionIdentity.identity_hash.in_(current_ids),
                     )
                 )
             ).all()
         )
-        fact_keys = {
-            (
+        aliased_rows = {txn_id for txn_id, _ in alias_pairs}
+        alias_hashes_by_row: dict[UUID, set[str]] = {}
+        for txn_id, identity_hash in alias_pairs:
+            alias_hashes_by_row.setdefault(txn_id, set()).add(identity_hash)
+
+        ordinals_by_hash: dict[str, list[int]] = {}
+        ordinals_by_key: dict[tuple[Decimal, str, str, str | None], list[int]] = {}
+        fact_keys: set[tuple[Decimal, str, str, str | None]] = set()
+        for idx, fact in enumerate(facts):
+            ordinal = idx + 1
+            fact_id = fact["fact_id"]
+            ordinals_by_hash.setdefault(fact_id, []).append(ordinal)
+            if fact.get("currency"):
+                v2_hash = versioned_transaction_hash(fact_id, fact["currency"], scope)
+                if v2_hash != fact_id:
+                    ordinals_by_hash.setdefault(v2_hash, []).append(ordinal)
+            key = (
                 Decimal(str(fact["amount"])),
                 fact["transaction_date"],
                 fact["direction"],
                 fact.get("currency"),
             )
-            for fact in facts
-        }
-        for row in rows:
+            fact_keys.add(key)
+            ordinals_by_key.setdefault(key, []).append(ordinal)
+
+        used_ordinals: set[int] = set()
+        for idx, row in enumerate(rows):
             row_date = row.txn_date.isoformat()
             row_direction = row.direction.value if hasattr(row.direction, "value") else row.direction
             if (row.amount, row_date, row_direction, row.currency) not in fact_keys and (
@@ -138,6 +155,36 @@ async def resolve_statement_transactions(
                 )
                 if resolved is None or resolved.id != row.id:
                     raise ValueError("Current source transaction identity requires review: legacy custody differs")
+
+            candidate_hashes = [row.dedup_hash, *sorted(alias_hashes_by_row.get(row.id, ()))]
+            if row.currency:
+                candidate_hashes.append(versioned_transaction_hash(row.dedup_hash, row.currency, scope))
+            matched_ordinal: int | None = None
+            for candidate_hash in candidate_hashes:
+                for ordinal in ordinals_by_hash.get(candidate_hash, ()):
+                    if ordinal not in used_ordinals:
+                        matched_ordinal = ordinal
+                        break
+                if matched_ordinal is not None:
+                    break
+            if matched_ordinal is None:
+                for key in (
+                    (row.amount, row_date, row_direction, row.currency),
+                    (row.amount, row_date, row_direction, None),
+                ):
+                    for ordinal in ordinals_by_key.get(key, ()):
+                        if ordinal not in used_ordinals:
+                            matched_ordinal = ordinal
+                            break
+                    if matched_ordinal is not None:
+                        break
+            source_row = matched_ordinal if matched_ordinal is not None else idx + 1
+            used_ordinals.add(source_row)
+            setattr(row, "source_row", source_row)
+        rows.sort(key=lambda r: (getattr(r, "source_row", 1), r.txn_date, r.created_at))
+    else:
+        for idx, row in enumerate(rows):
+            setattr(row, "source_row", idx + 1)
     return rows
 
 
