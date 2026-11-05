@@ -996,7 +996,7 @@ export interface paths {
          * List Statements
          * @description List all statements for the current user.
          *
-         *     Each item has an empty transactions list, and the list uses a fixed number of SQL statements.
+         *     Each item is a summary envelope without embedded transactions, and the list uses a fixed number of SQL statements.
          *     Use GET /statements/{id}/transactions to read the rows of one statement.
          */
         get: operations["list_statements_statements_get"];
@@ -1861,9 +1861,6 @@ export interface components {
         /**
          * AtomicTransactionResponse
          * @description Single Layer-2 atomic transaction (DWD fact) exposed to the review API.
-         *
-         *     Mapped from ``AtomicTransaction``; the ``statement_id`` is the owning
-         *     ``StatementSummary`` id so existing API consumers keep a statement anchor.
          */
         AtomicTransactionResponse: {
             /** Amount */
@@ -1894,6 +1891,11 @@ export interface components {
             proposed_category?: components["schemas"]["TransactionCategory"] | null;
             /** Reference */
             reference?: string | null;
+            /**
+             * Source Row
+             * @description 1-based row ordinal in the source statement document.
+             */
+            source_row?: number | null;
             /** Statement Id */
             statement_id?: string | null;
             /**
@@ -2075,13 +2077,72 @@ export interface components {
             validated_at: string;
         };
         /**
+         * BankStatementListItemResponse
+         * @description Statement envelope summary without embedded transactions (#2613).
+         */
+        BankStatementListItemResponse: {
+            /** Account Id */
+            account_id: string | null;
+            /** Account Last4 */
+            account_last4: string | null;
+            /** Balance Validated */
+            balance_validated: boolean | null;
+            /**
+             * Brokerage Import Failed
+             * @description True when the last brokerage positions import of this parsed or approved statement failed (#2648). Only a successful import clears it.
+             * @default false
+             */
+            brokerage_import_failed: boolean;
+            /**
+             * Brokerage Import Failure Reason
+             * @description The reason of the failed import when brokerage_import_failed is true (#2648).
+             */
+            brokerage_import_failure_reason?: string | null;
+            /** Closing Balance */
+            closing_balance: string | null;
+            /** Confidence Score */
+            confidence_score: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string | null;
+            /** File Path */
+            file_path: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Institution */
+            institution: string;
+            /** Opening Balance */
+            opening_balance: string | null;
+            /** Original Filename */
+            original_filename: string;
+            /** Period End */
+            period_end: string | null;
+            /** Period Start */
+            period_start: string | null;
+            status: components["schemas"]["BankStatementStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Validation Error */
+            validation_error: string | null;
+        };
+        /**
          * BankStatementResponse
          * @description Parsed statement envelope with its atomic transactions.
-         *
-         *     Composed from ``StatementSummary`` (the DWD conform), the linked
-         *     ``UploadedDocument`` (for ``file_path`` / ``original_filename``), and the
-         *     list of ``AtomicTransaction`` rows resolved via ``source_documents``. Use
-         *     :func:`compose_statement_response` to build instances.
          */
         BankStatementResponse: {
             /** Account Id */
@@ -3950,10 +4011,10 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** ListResponse[BankStatementResponse] */
-        ListResponse_BankStatementResponse_: {
+        /** ListResponse[BankStatementListItemResponse] */
+        ListResponse_BankStatementListItemResponse_: {
             /** Items */
-            items: components["schemas"]["BankStatementResponse"][];
+            items: components["schemas"]["BankStatementListItemResponse"][];
             /** Total */
             total: number;
         };
@@ -10408,7 +10469,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ListResponse_BankStatementResponse_"]; }; };
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ListResponse_BankStatementListItemResponse_"]; }; };
             /** @description Bad request */
             400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Unauthorized */
@@ -10555,7 +10616,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ListResponse_BankStatementResponse_"]; }; };
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ListResponse_BankStatementListItemResponse_"]; }; };
             /** @description Bad request */
             400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Unauthorized */

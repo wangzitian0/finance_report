@@ -869,3 +869,185 @@ async def test_repository_cached_decision_isolated_by_policy_registry(db):
     assert repo_empty_policy._cache is not repo_with_policy._cache
     with pytest.raises(TraceRecordPersistenceError, match="no registered decision policy"):
         await repo_empty_policy.get(decision.scope, decision.record_id)
+
+
+async def test_database_rejects_parent_link_attached_to_observation(db):
+    """#2627: validate_trace_record_links rejects parent links attached to an OBSERVATION."""
+    first_obs = observation(assertion_id="obs-child")
+    second_obs = observation(scope=first_obs.scope, assertion_id="obs-parent")
+    repository = SqlTraceRecordRepository(db)
+    await repository.append(first_obs)
+    await repository.append(second_obs)
+
+    with pytest.raises(DBAPIError, match="OBSERVATION cannot have parent links"):
+        async with db.begin_nested():
+            db.add(_parent_row(first_obs, second_obs))
+            await db.flush()
+            await db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+
+async def test_80_row_trace_creation_and_deferred_trigger_commit_budget(db):
+    """#2627: 80-row statement trace creation + deferred constraint check completes in < 300ms."""
+    import time
+    from datetime import UTC, datetime
+    from decimal import Decimal
+
+    from src.audit.base.trace import TraceCausality
+
+    index_names = set(
+        (
+            await db.scalars(
+                text(
+                    "SELECT indexname FROM pg_indexes "
+                    "WHERE schemaname = 'public' "
+                    "AND indexname IN ('ix_trace_records_supersedes_lookup', 'ix_trace_record_parents_parent_lookup')"
+                )
+            )
+        ).all()
+    )
+    assert index_names == {
+        "ix_trace_records_supersedes_lookup",
+        "ix_trace_record_parents_parent_lookup",
+    }
+
+    scope_id = str(uuid4())
+    now = datetime.now(UTC)
+    records: list[TraceRecordRow] = []
+    links: list[TraceRecordParentRow] = []
+
+    for i in range(80):
+        target_id = f"entry-{i}"
+        exec_id = f"exec-{i}"
+        obs_ids = [uuid4() for _ in range(5)]
+        inv_id = uuid4()
+        promo_id = uuid4()
+
+        for j, obs_id in enumerate(obs_ids):
+            records.append(
+                TraceRecordRow(
+                    id=obs_id,
+                    scope_kind=TraceScope.tenant(uuid4()).kind,
+                    scope_id=scope_id,
+                    schema_version="1",
+                    record_type=TraceRecordType.OBSERVATION,
+                    target_kind="journal_entry",
+                    target_id=target_id,
+                    target_version="1",
+                    target_class=TraceTargetClass.FINANCIAL,
+                    assertion_kind="check",
+                    assertion_id=f"AC-ledger.1.{j}",
+                    assertion_version="v1",
+                    authority_package="ledger",
+                    authority_tier="CODE-ONLY",
+                    proof_kind="invariant",
+                    provenance="deterministic_code",
+                    execution_stage="runtime",
+                    assertion_owner_digest="a" * 64,
+                    producer_version="1",
+                    result=TraceResult.PASS,
+                    execution_id=exec_id,
+                    causality=None,
+                    evidence_manifest_digest="b" * 64,
+                    parent_count=0,
+                    occurred_at=now,
+                    supersedes_id=None,
+                    score=Decimal("1"),
+                    reason_code="ok",
+                    content_digest=f"{scope_id[:8]}-{i:04d}-obs-{j}".ljust(64, "0"),
+                )
+            )
+            links.append(
+                TraceRecordParentRow(
+                    scope_kind=records[-1].scope_kind,
+                    scope_id=scope_id,
+                    record_id=inv_id,
+                    parent_id=obs_id,
+                )
+            )
+
+        records.append(
+            TraceRecordRow(
+                id=inv_id,
+                scope_kind=records[-1].scope_kind,
+                scope_id=scope_id,
+                schema_version="1",
+                record_type=TraceRecordType.DECISION,
+                target_kind="journal_entry",
+                target_id=target_id,
+                target_version="1",
+                target_class=TraceTargetClass.FINANCIAL,
+                assertion_kind="invariant",
+                assertion_id="AC-ledger.1.inv",
+                assertion_version="v1",
+                authority_package="ledger",
+                authority_tier="CODE-ONLY",
+                proof_kind="invariant",
+                provenance="deterministic_code",
+                execution_stage="runtime",
+                assertion_owner_digest="a" * 64,
+                producer_version="1",
+                result=TraceResult.AUTHORITATIVE,
+                execution_id=exec_id,
+                causality=TraceCausality.DIRECT,
+                evidence_manifest_digest="b" * 64,
+                parent_count=5,
+                occurred_at=now,
+                supersedes_id=None,
+                score=None,
+                reason_code="ok",
+                content_digest=f"{scope_id[:8]}-{i:04d}-inv".ljust(64, "0"),
+            )
+        )
+        records.append(
+            TraceRecordRow(
+                id=promo_id,
+                scope_kind=records[-1].scope_kind,
+                scope_id=scope_id,
+                schema_version="1",
+                record_type=TraceRecordType.DECISION,
+                target_kind="journal_entry",
+                target_id=target_id,
+                target_version="1",
+                target_class=TraceTargetClass.FINANCIAL,
+                assertion_kind="promotion",
+                assertion_id="AC-ledger.1.promo",
+                assertion_version="v1",
+                authority_package="ledger",
+                authority_tier="CODE-ONLY",
+                proof_kind="invariant",
+                provenance="deterministic_code",
+                execution_stage="runtime",
+                assertion_owner_digest="a" * 64,
+                producer_version="1",
+                result=TraceResult.AUTHORITATIVE,
+                execution_id=exec_id,
+                causality=TraceCausality.DIRECT,
+                evidence_manifest_digest="b" * 64,
+                parent_count=1,
+                occurred_at=now,
+                supersedes_id=None,
+                score=None,
+                reason_code="ok",
+                content_digest=f"{scope_id[:8]}-{i:04d}-promo".ljust(64, "0"),
+            )
+        )
+        links.append(
+            TraceRecordParentRow(
+                scope_kind=records[-1].scope_kind,
+                scope_id=scope_id,
+                record_id=promo_id,
+                parent_id=inv_id,
+            )
+        )
+
+    db.add_all(records)
+    await db.flush()
+    db.add_all(links)
+    await db.flush()
+
+    t0 = time.perf_counter()
+    await db.execute(
+        text("SET CONSTRAINTS trace_records_validate_links, trace_record_parents_validate_links IMMEDIATE")
+    )
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    assert elapsed_ms < 300.0, f"Expected 80-row deferred trigger check < 300ms, got {elapsed_ms:.1f}ms"

@@ -21,26 +21,12 @@ BankStatementStatusEnum = BankStatementStatus
 
 
 class CurrencyBalance(BaseModel):
-    """One currency's opening/closing balance within a statement (#1123 AC1).
-
-    A statement may hold balances in several currencies (Wise / IBKR / Futu).
-    Each currency is an independent closed loop: ``open + ΣIN − ΣOUT ≈ close`` is
-    validated per currency and never summed across currencies. A single-currency
-    statement maps to a one-element array; the scalar ``opening_balance`` /
-    ``closing_balance`` columns stay populated for backward compatibility.
-
-    FX leg pairing, internal-transfer net-worth, and FX P&L (#1123 AC2/AC3/AC4)
-    are out of scope here and tracked as follow-up.
-    """
+    """One currency's opening/closing balance within a statement (#1123 AC1)."""
 
     currency: CurrencyCode = Field(description="ISO currency code (normalized upper-case)")
     opening: Decimal = Field(..., description="Opening balance in this currency")
     closing: Decimal = Field(..., description="Closing balance in this currency")
-
     model_config = ConfigDict(from_attributes=True)
-
-
-# --- Request Schemas ---
 
 
 class BankStatementUploadRequest(BaseModel):
@@ -63,18 +49,14 @@ class RetryParsingRequest(BaseModel):
     model: str | None = Field(None, description="Optional model override (e.g. gpt-4o)")
 
 
-# --- Response Schemas ---
-
-
 class AtomicTransactionResponse(BaseModel):
-    """Single Layer-2 atomic transaction (DWD fact) exposed to the review API.
-
-    Mapped from ``AtomicTransaction``; the ``statement_id`` is the owning
-    ``StatementSummary`` id so existing API consumers keep a statement anchor.
-    """
+    """Single Layer-2 atomic transaction (DWD fact) exposed to the review API."""
 
     id: UUID
     statement_id: UUID | None = None
+    source_row: int | None = Field(
+        default=None, ge=1, description="1-based row ordinal in the source statement document."
+    )
     txn_date: date
     description: str
     amount: Decimal
@@ -88,7 +70,6 @@ class AtomicTransactionResponse(BaseModel):
     confidence_tier: Literal["HIGH", "MEDIUM", "LOW"] | None = None
     created_at: datetime
     updated_at: datetime
-
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
@@ -97,11 +78,13 @@ class AtomicTransactionResponse(BaseModel):
         txn: AtomicTransaction,
         statement_id: UUID | None = None,
         suggestion: ClassificationSuggestion | None = None,
+        source_row: int | None = None,
     ) -> AtomicTransactionResponse:
         proposed_category: TransactionCategory | None = None
         category: TransactionCategory | None = None
         confidence_score: int | None = None
         confidence_tier: Literal["HIGH", "MEDIUM", "LOW"] | None = None
+        resolved_source_row = source_row if source_row is not None else getattr(txn, "source_row", None)
         if suggestion is not None:
             try:
                 proposed_category = TransactionCategory(suggestion.category)
@@ -119,6 +102,7 @@ class AtomicTransactionResponse(BaseModel):
         return cls(
             id=txn.id,
             statement_id=statement_id,
+            source_row=resolved_source_row,
             txn_date=txn.txn_date,
             description=txn.description,
             amount=txn.amount,
@@ -135,14 +119,8 @@ class AtomicTransactionResponse(BaseModel):
         )
 
 
-class BankStatementResponse(BaseModel):
-    """Parsed statement envelope with its atomic transactions.
-
-    Composed from ``StatementSummary`` (the DWD conform), the linked
-    ``UploadedDocument`` (for ``file_path`` / ``original_filename``), and the
-    list of ``AtomicTransaction`` rows resolved via ``source_documents``. Use
-    :func:`compose_statement_response` to build instances.
-    """
+class BankStatementListItemResponse(BaseModel):
+    """Statement envelope summary without embedded transactions (#2613)."""
 
     id: UUID
     user_id: UUID
@@ -171,34 +149,28 @@ class BankStatementResponse(BaseModel):
     )
     created_at: datetime
     updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BankStatementResponse(BankStatementListItemResponse):
+    """Parsed statement envelope with its atomic transactions."""
+
     transactions: list[AtomicTransactionResponse] = Field(
         default_factory=list, description="Extracted atomic transactions associated with this statement"
     )
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-def compose_statement_response(
+def compose_statement_list_item_response(
     summary: StatementSummary,
     uploaded_document: UploadedDocument | None,
-    atomic_txns: list[AtomicTransaction],
-    suggestions: Mapping[UUID, ClassificationSuggestion] | None = None,
-) -> BankStatementResponse:
-    """Compose a ``BankStatementResponse`` from the layered DWD records.
-
-    ``file_path`` / ``original_filename`` come from the linked ODS
-    ``UploadedDocument``. Before the document link is written by the ingestion
-    pipeline (e.g. the upload 202 response), the upload handler stashes the same
-    values as transient attributes on the summary, so fall back to those.
-    The transactions list is built from ``atomic_txns`` (already resolved by the
-    caller via ``UploadedDocument`` -> ``source_documents``).
-    """
+) -> BankStatementListItemResponse:
+    """Compose a ``BankStatementListItemResponse`` without transactions (#2613)."""
     file_path = uploaded_document.file_path if uploaded_document else getattr(summary, "file_path", None)
     original_filename = (
         uploaded_document.original_filename if uploaded_document else getattr(summary, "original_filename", None)
     )
     failure_reason = brokerage_import_failure_reason(summary)
-    return BankStatementResponse(
+    return BankStatementListItemResponse(
         id=summary.id,
         user_id=summary.user_id,
         account_id=summary.account_id,
@@ -219,18 +191,32 @@ def compose_statement_response(
         brokerage_import_failure_reason=failure_reason,
         created_at=summary.created_at,
         updated_at=summary.updated_at,
+    )
+
+
+def compose_statement_response(
+    summary: StatementSummary,
+    uploaded_document: UploadedDocument | None,
+    atomic_txns: list[AtomicTransaction],
+    suggestions: Mapping[UUID, ClassificationSuggestion] | None = None,
+) -> BankStatementResponse:
+    """Compose a ``BankStatementResponse`` from the layered DWD records."""
+    base_item = compose_statement_list_item_response(summary, uploaded_document)
+    return BankStatementResponse(
+        **base_item.model_dump(),
         transactions=[
             AtomicTransactionResponse.from_atomic(
-                txn, summary.id, suggestion=suggestions.get(txn.id) if suggestions else None
+                txn,
+                summary.id,
+                suggestion=suggestions.get(txn.id) if suggestions else None,
+                source_row=getattr(txn, "source_row", idx + 1),
             )
-            for txn in atomic_txns
+            for idx, txn in enumerate(atomic_txns)
         ],
     )
 
 
-BankStatementListResponse = ListResponse[BankStatementResponse]
-
-
+BankStatementListResponse = ListResponse[BankStatementListItemResponse]
 BankStatementTransactionListResponse = ListResponse[AtomicTransactionResponse]
 
 

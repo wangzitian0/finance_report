@@ -1735,3 +1735,84 @@ async def test_create_statement_account_from_confirmation_reuses_existing_active
     assert first_account.name == "Standard Chartered Bank"
     assert second_account.id == first_account.id
     assert second_stmt.account_id == first_account.id
+
+
+async def test_AC_extraction_statement_list_4_transactions_expose_source_row_in_source_order(
+    db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
+    """AC-extraction.statement-list.4: GET /statements/{id} and GET /statements/{id}/transactions expose 1-based source_row and preserve source document order across descending dates and same-day ties (#2679)."""
+    from datetime import UTC, datetime, timedelta
+
+    from src.extraction.extension.deduplication import DeduplicationService
+
+    def make_extracted_row(
+        txn_date_val: date, description: str, amount_str: str, direction: TransactionDirection
+    ) -> ExtractedTransactionRow:
+        amount = Decimal(amount_str)
+        return ExtractedTransactionRow(
+            user_id=test_user.id,
+            txn_date=txn_date_val,
+            description=description,
+            amount=amount,
+            direction=direction.value,
+            reference=None,
+            currency="SGD",
+            currency_unresolved=False,
+            balance_after=None,
+            occurrence_index=0,
+            dedup_hash=DeduplicationService.calculate_transaction_hash(
+                test_user.id,
+                txn_date_val,
+                amount,
+                direction,
+                description,
+            ),
+        )
+
+    # Source statement is in descending date order (2025-01-20 before 2025-01-10)
+    # and has a same-day tie on 2025-01-15 ("Same-day first in source" before "Same-day second in source").
+    source_rows = [
+        make_extracted_row(date(2025, 1, 20), "Latest date first in PDF", "40.00", TransactionDirection.OUT),
+        make_extracted_row(date(2025, 1, 15), "Same-day first in source", "25.00", TransactionDirection.OUT),
+        make_extracted_row(date(2025, 1, 15), "Same-day second in source", "15.00", TransactionDirection.OUT),
+        make_extracted_row(date(2025, 1, 10), "Earliest date last in PDF", "500.00", TransactionDirection.IN),
+    ]
+    _patch_parse_document(monkeypatch, test_user.id, transactions=source_rows)
+
+    upload_file = make_upload_file("descending-source.pdf", b"descending-source-pdf")
+    user_id = test_user.id
+    created = await statements_router.upload_statement(
+        file=upload_file,
+        institution="DBS",
+        account_id=None,
+        model="google/gemini-3-flash-preview",
+        db=db,
+        user_id=user_id,
+    )
+    await upload_file.close()
+    await wait_for_background_tasks()
+    statement_id = created.id
+
+    # Invert created_at on the same-day tie so (txn_date, created_at) order would put "Same-day second in source" first.
+    base_time = datetime(2025, 1, 31, 12, 0, tzinfo=UTC)
+    persisted_txns = (await db.scalars(select(AtomicTransaction).where(AtomicTransaction.user_id == user_id))).all()
+    by_desc = {t.description: t for t in persisted_txns}
+    by_desc["Same-day second in source"].created_at = base_time
+    by_desc["Same-day first in source"].created_at = base_time + timedelta(minutes=5)
+    await db.commit()
+    db.expire_all()
+
+    expected_descriptions = [
+        "Latest date first in PDF",
+        "Same-day first in source",
+        "Same-day second in source",
+        "Earliest date last in PDF",
+    ]
+
+    fetched = await statements_router.get_statement(statement_id=statement_id, db=db, user_id=user_id)
+    assert [t.description for t in fetched.transactions] == expected_descriptions
+    assert [t.source_row for t in fetched.transactions] == [1, 2, 3, 4]
+
+    listed_txns = await statements_router.list_statement_transactions(statement_id=statement_id, db=db, user_id=user_id)
+    assert [t.description for t in listed_txns.items] == expected_descriptions
+    assert [t.source_row for t in listed_txns.items] == [1, 2, 3, 4]
