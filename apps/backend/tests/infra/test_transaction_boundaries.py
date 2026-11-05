@@ -32,6 +32,9 @@ ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
     # transaction boundary at the service layer so the router stays thin.
     ("statement_workflow.py", "approve_statement_workflow"),
     ("statement_workflow.py", "reject_statement_workflow"),
+    # #2629: ANALYZE after statement parsing/approval commits immediately so the
+    # SQLAlchemy session does not remain idle in transaction.
+    ("statement_workflow.py", "analyze_tenant_tables"),
     # #2637: the pass after parse owns its session (a background task of the ingestion). Its single commit
     # writes the classification rows of one statement, the policy rule row that anchors them and the rows that
     # the pass supersedes or promotes. The commit releases the lock of that statement.

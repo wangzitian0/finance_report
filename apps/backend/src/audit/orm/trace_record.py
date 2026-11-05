@@ -181,6 +181,13 @@ sa.event.listen(TraceRecordRow, "before_update", _reject_trace_mutation)
 sa.event.listen(TraceRecordRow, "before_delete", _reject_trace_mutation)
 sa.event.listen(TraceRecordParentRow, "before_update", _reject_trace_mutation)
 sa.event.listen(TraceRecordParentRow, "before_delete", _reject_trace_mutation)
+sa.event.listen(
+    TraceRecordRow.__table__,
+    "after_create",
+    sa.DDL(
+        "ALTER TABLE trace_records SET (autovacuum_analyze_scale_factor = 0.02, autovacuum_analyze_threshold = 50)"
+    ).execute_if(dialect="postgresql"),
+)
 
 _CREATE_APPEND_ONLY_FUNCTION = sa.DDL(
     """

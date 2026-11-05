@@ -47,15 +47,6 @@ DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:543
 DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
 # PROTECTED_ENVIRONMENTS is the single source of truth in src.config (imported above).
 LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
-PROTECTED_REQUIRED_INJECTED_FIELDS = (
-    ("SECRET_KEY", "secret_key"),
-    ("DATABASE_URL", "database_url"),
-    ("S3_SECRET_KEY", "s3_secret_key"),
-    ("S3_ACCESS_KEY", "s3_access_key"),
-    ("S3_ENDPOINT", "s3_endpoint"),
-    ("S3_BUCKET", "s3_bucket"),
-    ("NEXT_PUBLIC_APP_URL", "next_public_app_url"),
-)
 
 
 class BootMode(str, Enum):
@@ -249,32 +240,52 @@ class Bootloader:
         return app_url.startswith("https://") and "localhost" not in app_url and "127.0.0.1" not in app_url
 
     @staticmethod
-    def _assert_sdk_environment() -> None:
+    def _assert_sdk_environment(*, is_protected: bool = False) -> None:
         """Validate environment against the live Settings manifest via infra2_sdk."""
         manifest = environment_manifest_from_model(
             Settings,
             source="apps/backend/src/config.py::Settings",
             overrides=ENV_SOURCE_CLASSES,
         )
+        effective_environ = dict(os.environ)
+        for field in manifest.fields:
+            if not field.injected:
+                continue
+            if field.empty_ok:
+                effective_environ.setdefault(field.env, "__empty_ok__")
+                continue
+            val = getattr(settings, field.field, None)
+            if isinstance(val, str):
+                if not val.strip():
+                    for candidate in (field.env, *field.aliases):
+                        effective_environ.pop(candidate, None)
+                elif field.env not in effective_environ:
+                    effective_environ[field.env] = val.strip()
+            elif val is None:
+                for candidate in (field.env, *field.aliases):
+                    effective_environ.pop(candidate, None)
+            elif not isinstance(val, str):
+                effective_environ.setdefault(field.env, str(val))
         with tempfile.TemporaryDirectory() as tmp_dir:
             manifest_path = Path(tmp_dir) / "required-env.generated.json"
             manifest_path.write_text(json.dumps(manifest.to_dict()), encoding="utf-8")
             assert_environment(
                 manifest_path,
-                environ=os.environ,
-                require_injected=False,
+                environ=effective_environ,
+                require_injected=is_protected,
             )
 
     @staticmethod
     def _check_static_config() -> bool:
         """Verify presence of required environment variables."""
         try:
-            Bootloader._assert_sdk_environment()
             # Just accessing settings triggers validation
             database_url = settings.database_url
             environment = str(getattr(settings, "environment", "")).lower()
+            is_protected = Bootloader._is_protected_runtime(environment)
+            Bootloader._assert_sdk_environment(is_protected=is_protected)
             secret_key = getattr(settings, "secret_key", "")
-            if Bootloader._is_protected_runtime(environment):
+            if is_protected:
                 if not isinstance(secret_key, str) or not secret_key.strip():
                     logger.error("SECRET_KEY is required in protected environments", environment=environment)
                     return False
@@ -291,15 +302,6 @@ class Bootloader:
                 if str(getattr(settings, "s3_secret_key", "")).strip() == DEVELOPMENT_S3_SECRET_KEY:
                     logger.error("Default development S3_SECRET_KEY is forbidden", environment=environment)
                     return False
-                for env_name, attr_name in PROTECTED_REQUIRED_INJECTED_FIELDS:
-                    val = getattr(settings, attr_name, None)
-                    if not isinstance(val, str) or not val.strip():
-                        logger.error(
-                            "Required injected setting is missing in protected environment",
-                            setting=env_name,
-                            environment=environment,
-                        )
-                        return False
             return True
         except EnvironmentConflictError as e:
             logger.error("Environment variable conflict detected", error=str(e))

@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    DDL,
     Boolean,
     CheckConstraint,
     Date,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     false as sa_false,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
@@ -126,6 +128,15 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<AtomicTransaction {self.txn_date} {self.direction.value} {self.amount} {self.currency}>"
+
+
+event.listen(
+    AtomicTransaction.__table__,
+    "after_create",
+    DDL(
+        "ALTER TABLE atomic_transactions SET (autovacuum_analyze_scale_factor = 0.02, autovacuum_analyze_threshold = 50)"
+    ).execute_if(dialect="postgresql"),
+)
 
 
 class AtomicTransactionIdentity(Base):

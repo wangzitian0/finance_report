@@ -667,6 +667,13 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="PREVIEW_MINIMUM_E2E_TESTS",
     ),
     WorkflowPytestContract(
+        stage="preview_touched_e2e",
+        workflow="runtime-hooks.manifest.json",
+        marker=None,
+        paths=('"${TOUCHED_E2E_TESTS[@]}"',),
+        anchor="TOUCHED_E2E_TESTS",
+    ),
+    WorkflowPytestContract(
         stage="staging_core_e2e",
         workflow="runtime-hooks.manifest.json",
         marker=None,  # runtime-derived: eval tools/test_selection.py --stage staging_core_e2e --shell
