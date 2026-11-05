@@ -40,8 +40,31 @@ M4_EXPECTED_OPENING = Decimal("21300.00")
 M4_EXPECTED_CLOSING = Decimal("24200.00")
 
 
+def _set_verdict(
+    details: dict[str, Any] | None,
+    key: str,
+    passed: bool,
+) -> bool:
+    if details is not None:
+        verdicts = details.setdefault("assertion_verdicts", {})
+        verdicts[key] = "passed" if passed else "failed"
+    return passed
+
+
+def _check_verdict(
+    details: dict[str, Any] | None,
+    key: str,
+    passed: bool,
+    message: str,
+) -> None:
+    _set_verdict(details, key, passed)
+    assert passed, message
+
+
 def _upload_month1_statement(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any], str, str]:
     print("  [2/9] Uploading Month 1 (Jan 2025) deterministic CSV statement...")
     m1_bytes = generate_consecutive_month1_csv()
@@ -57,11 +80,14 @@ def _upload_month1_statement(
         f"        M1 parsed: Opening={m1_data['opening_balance']}, "
         f"Closing={m1_data['closing_balance']}, Txns={len(m1_data.get('transactions', []))}"
     )
-    assert Decimal(m1_data["opening_balance"]) == M1_EXPECTED_OPENING, (
-        f"M1 opening balance ({m1_data['opening_balance']}) != expected ({M1_EXPECTED_OPENING})"
-    )
-    assert Decimal(m1_data["closing_balance"]) == M1_EXPECTED_CLOSING, (
-        f"M1 closing balance ({m1_data['closing_balance']}) != expected ({M1_EXPECTED_CLOSING})"
+    if details is not None:
+        details["m1_closing_balance"] = str(m1_data["closing_balance"])
+    _check_verdict(
+        details,
+        "m1_closing_balance",
+        Decimal(m1_data["opening_balance"]) == M1_EXPECTED_OPENING
+        and Decimal(m1_data["closing_balance"]) == M1_EXPECTED_CLOSING,
+        f"M1 balances ({m1_data['opening_balance']} -> {m1_data['closing_balance']}) != expected ({M1_EXPECTED_OPENING} -> {M1_EXPECTED_CLOSING})",
     )
 
     runner.adjudicate_unmatched_items(client, m1_id)
@@ -81,6 +107,7 @@ def _ingest_chained_months(
     m1_closing: Decimal,
     m1_account_id: str,
     m1_institution: str,
+    details: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     # Month 2: generated with independent ground-truth opening balance (#2318 non-circular)
     m2_bytes = generate_consecutive_month2_csv(opening_balance=M2_EXPECTED_OPENING)
@@ -103,17 +130,17 @@ def _ingest_chained_months(
     )
     m2_opening = Decimal(m2_data["opening_balance"])
     m2_closing = Decimal(m2_data["closing_balance"])
-    assert m2_opening == m1_closing, (
-        f"Balance chain break: M1 closing ({m1_closing}) != M2 opening ({m2_opening})"
-    )
-    assert m2_opening == M2_EXPECTED_OPENING, (
-        f"M2 opening ({m2_opening}) != expected ({M2_EXPECTED_OPENING})"
-    )
-    assert m2_closing == M2_EXPECTED_CLOSING, (
-        f"M2 closing ({m2_closing}) != expected ({M2_EXPECTED_CLOSING})"
-    )
-    assert m2_data.get("balance_validated") is True, (
-        f"M2 balance not validated: {m2_data}"
+    if details is not None:
+        details["m2_opening_balance"] = str(m2_data["opening_balance"])
+        details["m2_closing_balance"] = str(m2_data["closing_balance"])
+    _check_verdict(
+        details,
+        "m2_closing_balance",
+        m2_opening == m1_closing
+        and m2_opening == M2_EXPECTED_OPENING
+        and m2_closing == M2_EXPECTED_CLOSING
+        and m2_data.get("balance_validated") is True,
+        f"M2 rollforward mismatch: {m2_opening} -> {m2_closing} (validated={m2_data.get('balance_validated')})",
     )
     runner.adjudicate_unmatched_items(client, m2_id)
     m2_app = runner.approve_statement(client, m2_id)
@@ -140,17 +167,17 @@ def _ingest_chained_months(
     )
     m3_opening = Decimal(m3_data["opening_balance"])
     m3_closing = Decimal(m3_data["closing_balance"])
-    assert m3_opening == m2_closing, (
-        f"Balance chain break: M2 closing ({m2_closing}) != M3 opening ({m3_opening})"
-    )
-    assert m3_opening == M3_EXPECTED_OPENING, (
-        f"M3 opening ({m3_opening}) != expected ({M3_EXPECTED_OPENING})"
-    )
-    assert m3_closing == M3_EXPECTED_CLOSING, (
-        f"M3 closing ({m3_closing}) != expected ({M3_EXPECTED_CLOSING})"
-    )
-    assert m3_data.get("balance_validated") is True, (
-        f"M3 balance not validated: {m3_data}"
+    if details is not None:
+        details["m3_opening_balance"] = str(m3_data["opening_balance"])
+        details["m3_closing_balance"] = str(m3_data["closing_balance"])
+    _check_verdict(
+        details,
+        "m3_closing_balance",
+        m3_opening == m2_closing
+        and m3_opening == M3_EXPECTED_OPENING
+        and m3_closing == M3_EXPECTED_CLOSING
+        and m3_data.get("balance_validated") is True,
+        f"M3 rollforward mismatch: {m3_opening} -> {m3_closing} (validated={m3_data.get('balance_validated')})",
     )
     runner.adjudicate_unmatched_items(client, m3_id)
     m3_app = runner.approve_statement(client, m3_id)
@@ -177,17 +204,17 @@ def _ingest_chained_months(
     )
     m4_opening = Decimal(m4_data["opening_balance"])
     m4_closing = Decimal(m4_data["closing_balance"])
-    assert m4_opening == m3_closing, (
-        f"Balance chain break: M3 closing ({m3_closing}) != M4 opening ({m4_opening})"
-    )
-    assert m4_opening == M4_EXPECTED_OPENING, (
-        f"M4 opening ({m4_opening}) != expected ({M4_EXPECTED_OPENING})"
-    )
-    assert m4_closing == M4_EXPECTED_CLOSING, (
-        f"M4 closing ({m4_closing}) != expected ({M4_EXPECTED_CLOSING})"
-    )
-    assert m4_data.get("balance_validated") is True, (
-        f"M4 balance not validated: {m4_data}"
+    if details is not None:
+        details["m4_opening_balance"] = str(m4_data["opening_balance"])
+        details["m4_closing_balance"] = str(m4_data["closing_balance"])
+    _check_verdict(
+        details,
+        "m4_closing_balance",
+        m4_opening == m3_closing
+        and m4_opening == M4_EXPECTED_OPENING
+        and m4_closing == M4_EXPECTED_CLOSING
+        and m4_data.get("balance_validated") is True,
+        f"M4 rollforward mismatch: {m4_opening} -> {m4_closing} (validated={m4_data.get('balance_validated')})",
     )
     runner.adjudicate_unmatched_items(client, m4_id)
     m4_app = runner.approve_statement(client, m4_id)
@@ -237,7 +264,9 @@ def _verify_flow_7_and_24_mismatch_and_diagnostics(
 
 
 def _verify_q1_checkpoint(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[Decimal, Decimal]:
     print("  [6/9] Verifying Q1 Balance Sheet as of 2025-03-31...")
     bs_q1 = runner.get_balance_sheet(client, as_of_date="2025-03-31")
@@ -248,11 +277,6 @@ def _verify_q1_checkpoint(
     print(
         f"        Q1 Balance Sheet: Assets={q1_assets}, Delta={q1_delta}, Balanced={q1_balanced}"
     )
-    assert q1_balanced is True, f"Q1 Balance sheet not balanced: delta={q1_delta}"
-    assert q1_delta == Decimal("0.00"), f"Q1 equation delta not zero: {q1_delta}"
-    assert q1_assets == Decimal("21300.00"), (
-        f"Expected Q1 total assets 21300.00, got {q1_assets}"
-    )
 
     print("  [7/9] Verifying Q1 Income Statement & Cash Flow...")
     inc_q1 = runner.get_income_statement(
@@ -260,25 +284,53 @@ def _verify_q1_checkpoint(
     )
     q1_net_income = Decimal(inc_q1["net_income"])
     print(f"        Q1 Net Income={q1_net_income}")
-    assert q1_net_income == Decimal("5849.25"), (
-        f"Expected Q1 cumulative net income 5849.25, got {q1_net_income}"
-    )
 
     cf_q1 = runner.get_cash_flow(client, start_date="2025-01-01", end_date="2025-03-31")
     cf_q1_s = cf_q1.get("summary", {})
     q1_beg_cash = Decimal(cf_q1_s.get("beginning_cash", "0"))
     q1_net_cash = Decimal(cf_q1_s.get("net_cash_flow", "0"))
     q1_end_cash = Decimal(cf_q1_s.get("ending_cash", "0"))
+
+    if details is not None:
+        details["q1_net_income"] = str(q1_net_income)
+        details["q1_assets"] = str(q1_assets)
+
+    q1_income_ok = (
+        q1_net_income == Decimal("5849.25")
+        and q1_beg_cash == Decimal("15450.75")
+        and q1_net_cash == Decimal("5849.25")
+        and q1_end_cash == Decimal("21300.00")
+        and q1_beg_cash + q1_net_cash == q1_end_cash
+        and q1_assets == Decimal("21300.00")
+        and q1_balanced is True
+        and q1_delta == Decimal("0.00")
+    )
+    _set_verdict(details, "q1_net_income", q1_income_ok)
+
+    assert q1_balanced is True, f"Q1 Balance sheet not balanced: delta={q1_delta}"
+    assert q1_delta == Decimal("0.00"), f"Q1 equation delta not zero: {q1_delta}"
+    assert q1_assets == Decimal("21300.00"), (
+        f"Expected Q1 total assets 21300.00, got {q1_assets}"
+    )
+    assert q1_net_income == Decimal("5849.25"), (
+        f"Expected Q1 cumulative net income 5849.25, got {q1_net_income}"
+    )
     assert q1_beg_cash == Decimal("15450.75"), f"Q1 beg cash: {q1_beg_cash}"
     assert q1_net_cash == Decimal("5849.25"), f"Q1 net cash: {q1_net_cash}"
     assert q1_end_cash == Decimal("21300.00"), f"Q1 end cash: {q1_end_cash}"
     assert q1_beg_cash + q1_net_cash == q1_end_cash, "Q1 cash rollforward mismatch"
-    assert_triple_accounting_articulation(bs_q1, inc_q1)
+    try:
+        assert_triple_accounting_articulation(bs_q1, inc_q1)
+    except AssertionError:
+        _set_verdict(details, "q1_net_income", False)
+        raise
     return q1_assets, q1_net_income
 
 
 def _verify_month4_checkpoint(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal, bool]:
     print("  [8/9] Verifying 4-Month Rollforward Balance Sheet as of 2025-04-30...")
     bs_m4 = runner.get_balance_sheet(client, as_of_date="2025-04-30")
@@ -292,6 +344,50 @@ def _verify_month4_checkpoint(
         f"        Month 4 Balance Sheet: Assets={total_assets}, Liab={total_liabilities}, "
         f"Equity={total_equity}, Delta={equation_delta}, Balanced={is_balanced}"
     )
+
+    print("  [9/9] Verifying 4-Month Cumulative Income Statement & Cash Flow...")
+    inc_4m = runner.get_income_statement(
+        client, start_date="2025-01-01", end_date="2025-04-30"
+    )
+    cum_net_income = Decimal(inc_4m["net_income"])
+    print(f"        4-Month Cumulative Net Income={cum_net_income}")
+
+    cf_4m = runner.get_cash_flow(client, start_date="2025-01-01", end_date="2025-04-30")
+    cf_4m_s = cf_4m.get("summary", {})
+    beg_cash = Decimal(cf_4m_s.get("beginning_cash", "0"))
+    net_cash = Decimal(cf_4m_s.get("net_cash_flow", "0"))
+    end_cash = Decimal(cf_4m_s.get("ending_cash", "0"))
+
+    if details is not None:
+        details.update(
+            {
+                "total_assets": str(total_assets),
+                "total_equity": str(total_equity),
+                "cumulative_net_income": str(cum_net_income),
+                "beginning_cash": str(beg_cash),
+                "ending_cash": str(end_cash),
+                "equation_delta": str(equation_delta),
+                "is_balanced": is_balanced,
+            }
+        )
+
+    cum_income_ok = (
+        cum_net_income == Decimal("8749.25")
+        and beg_cash == Decimal("15450.75")
+        and net_cash == Decimal("8749.25")
+        and end_cash == Decimal("24200.00")
+        and beg_cash + net_cash == end_cash
+    )
+    _set_verdict(details, "cumulative_net_income", cum_income_ok)
+
+    delta_ok = (
+        is_balanced is True
+        and equation_delta == Decimal("0.00")
+        and total_assets == Decimal("24200.00")
+        and total_equity == Decimal("15450.75")
+    )
+    _set_verdict(details, "equation_delta", delta_ok)
+
     assert is_balanced is True, (
         f"Month 4 Balance sheet not balanced: delta={equation_delta}"
     )
@@ -304,27 +400,18 @@ def _verify_month4_checkpoint(
     assert total_equity == Decimal("15450.75"), (
         f"Expected total equity (initial stock) 15450.75, got {total_equity}"
     )
-
-    print("  [9/9] Verifying 4-Month Cumulative Income Statement & Cash Flow...")
-    inc_4m = runner.get_income_statement(
-        client, start_date="2025-01-01", end_date="2025-04-30"
-    )
-    cum_net_income = Decimal(inc_4m["net_income"])
-    print(f"        4-Month Cumulative Net Income={cum_net_income}")
     assert cum_net_income == Decimal("8749.25"), (
         f"Expected 4-month net income 8749.25, got {cum_net_income}"
     )
-
-    cf_4m = runner.get_cash_flow(client, start_date="2025-01-01", end_date="2025-04-30")
-    cf_4m_s = cf_4m.get("summary", {})
-    beg_cash = Decimal(cf_4m_s.get("beginning_cash", "0"))
-    net_cash = Decimal(cf_4m_s.get("net_cash_flow", "0"))
-    end_cash = Decimal(cf_4m_s.get("ending_cash", "0"))
     assert beg_cash == Decimal("15450.75"), f"4-Month beg cash: {beg_cash}"
     assert net_cash == Decimal("8749.25"), f"4-Month net cash: {net_cash}"
     assert end_cash == Decimal("24200.00"), f"4-Month end cash: {end_cash}"
     assert beg_cash + net_cash == end_cash, "4-Month cash rollforward mismatch"
-    assert_triple_accounting_articulation(bs_m4, inc_4m)
+    try:
+        assert_triple_accounting_articulation(bs_m4, inc_4m)
+    except AssertionError:
+        _set_verdict(details, "equation_delta", False)
+        raise
     return (
         total_assets,
         total_equity,
@@ -346,39 +433,45 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
     print(f"🚀 RUNNING: {case_name}")
     print("=======================================================")
 
+    verdicts: dict[str, str] = {
+        "m1_closing_balance": "not_run",
+        "m2_closing_balance": "not_run",
+        "m3_closing_balance": "not_run",
+        "m4_closing_balance": "not_run",
+        "q1_net_income": "not_run",
+        "cumulative_net_income": "not_run",
+        "equation_delta": "not_run",
+    }
+    details: dict[str, Any] = {"assertion_verdicts": verdicts}
+
     try:
         client, user_email, _ = runner.create_ephemeral_client("case1")
         print(f"  [1/9] Registered test user: {user_email}")
 
         _, m1_data, m1_account_id, m1_institution = _upload_month1_statement(
-            runner, client
+            runner, client, details=details
         )
         m1_closing = Decimal(m1_data["closing_balance"])
 
-        m2_data, m3_data, m4_data = _ingest_chained_months(
-            runner, client, m1_closing, m1_account_id, m1_institution
+        _ingest_chained_months(
+            runner, client, m1_closing, m1_account_id, m1_institution, details=details
         )
 
         flow_7_blocked, flow_24_pending_triage = (
             _verify_flow_7_and_24_mismatch_and_diagnostics(runner, client)
         )
+        details["flow_7_mismatch_blocked"] = flow_7_blocked
+        details["flow_24_pending_triage_verified"] = flow_24_pending_triage
 
-        q1_assets, q1_net_income = _verify_q1_checkpoint(runner, client)
-        (
-            total_assets,
-            total_equity,
-            cum_net_income,
-            beg_cash,
-            end_cash,
-            equation_delta,
-            is_balanced,
-        ) = _verify_month4_checkpoint(runner, client)
+        _verify_q1_checkpoint(runner, client, details=details)
+        _verify_month4_checkpoint(runner, client, details=details)
 
         coverage = runner.get_report_coverage(client, as_of_date="2025-04-30")
         coverage_start = str(coverage["coverage_start"])
         assert coverage_start == "2025-01-01", (
             f"Expected continuous 4-month coverage_start 2025-01-01, got {coverage_start}"
         )
+        details["coverage_start"] = coverage_start
 
         # Flow 24: Accounting Equation Out-of-Balance Diagnostic Triage
         diagnostics = runner.get_balance_sheet_diagnostics(
@@ -388,6 +481,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
             diagnostics.get("is_balanced") is True
             and str(diagnostics.get("primary_category") or "").lower() == "balanced"
         ), f"Expected balanced equation diagnostics in Case 1, got {diagnostics}"
+        details["flow_24_diagnostics_balanced"] = True
 
         # Flow 27: Financial Report to PDF Provenance Drilldown
         lineage = runner.get_account_lineage(
@@ -397,6 +491,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         assert len(lineage_lines) > 0, (
             f"Expected non-empty account lineage lines for {m1_account_id}, got {lineage}"
         )
+        details["flow_27_lineage_lines"] = len(lineage_lines)
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
@@ -405,29 +500,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="PASS",
             duration_seconds=duration,
-            details={
-                "m1_closing_balance": str(m1_closing),
-                "m2_opening_balance": str(m2_data["opening_balance"]),
-                "m2_closing_balance": str(m2_data["closing_balance"]),
-                "m3_opening_balance": str(m3_data["opening_balance"]),
-                "m3_closing_balance": str(m3_data["closing_balance"]),
-                "m4_opening_balance": str(m4_data["opening_balance"]),
-                "m4_closing_balance": str(m4_data["closing_balance"]),
-                "coverage_start": coverage_start,
-                "q1_net_income": str(q1_net_income),
-                "q1_assets": str(q1_assets),
-                "total_assets": str(total_assets),
-                "total_equity": str(total_equity),
-                "cumulative_net_income": str(cum_net_income),
-                "beginning_cash": str(beg_cash),
-                "ending_cash": str(end_cash),
-                "equation_delta": str(equation_delta),
-                "is_balanced": is_balanced,
-                "flow_7_mismatch_blocked": flow_7_blocked,
-                "flow_24_pending_triage_verified": flow_24_pending_triage,
-                "flow_24_diagnostics_balanced": True,
-                "flow_27_lineage_lines": len(lineage_lines),
-            },
+            details=details,
         )
     except Exception as exc:
         duration = time.time() - start_time
@@ -437,5 +510,6 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="FAIL",
             duration_seconds=duration,
+            details=details,
             error_message=str(exc),
         )

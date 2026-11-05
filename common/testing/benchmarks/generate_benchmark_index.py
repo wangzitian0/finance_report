@@ -24,7 +24,11 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from common.testing.benchmarks.benchmark_html_reporter import generate_index_dashboard
+from common.testing.benchmarks.benchmark_html_reporter import (
+    generate_index_dashboard,
+    sanitize_for_json,
+    write_utf8_atomic,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -83,19 +87,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"ℹ️ No summary.json found in {benchmarks_dir}. Writing empty dashboard.")
 
     # Sort newest first
-    summaries.sort(key=lambda x: x.get("run_at", ""), reverse=True)
+    summaries.sort(key=lambda x: str(x.get("run_at") or ""), reverse=True)
+    safe_summaries = sanitize_for_json(summaries)
 
     # 1. Write manifest.json
     manifest_path = benchmarks_dir / "manifest.json"
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        json.dump(summaries, f, indent=2)
-    print(f"✅ Manifest written: {manifest_path} ({len(summaries)} versions)")
+    write_utf8_atomic(manifest_path, json.dumps(safe_summaries, indent=2))
+    print(f"✅ Manifest written: {manifest_path} ({len(safe_summaries)} versions)")
 
     # 2. Render index.html
-    index_html = generate_index_dashboard(summaries)
+    index_html = generate_index_dashboard(safe_summaries)
     index_path = benchmarks_dir / "index.html"
-    with open(index_path, "w", encoding="utf-8") as f:
-        f.write(index_html)
+    write_utf8_atomic(index_path, index_html)
     print(f"✅ Dashboard written: {index_path} ({len(index_html)} bytes, <50KB)")
 
     return 0
