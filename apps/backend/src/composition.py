@@ -23,7 +23,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
@@ -71,7 +71,7 @@ from src.ledger import (
     ledger_trace_policy_registry,
     used_currencies,
 )
-from src.portfolio import active_stock_symbols, position_currencies
+from src.portfolio import InvestmentTransaction, InvestmentTransactionType, active_stock_symbols, position_currencies
 from src.pricing import MarketDataScopes, PricingError, get_exchange_rate
 from src.reconciliation import (
     NamedTransfer,
@@ -188,6 +188,12 @@ def compose_reviewed_disposition_dependencies(db: AsyncSession) -> ReviewedDispo
     )
 
 
+_DEFAULT_BALANCE_SHEET_CODES: dict[AccountType, tuple[str, str]] = {
+    AccountType.ASSET: ("Investments (", "1310"),
+    AccountType.LIABILITY: ("Loans Payable (", "2210"),
+}
+
+
 async def _get_or_create_default_counter_account(
     db: AsyncSession,
     user_id: UUID,
@@ -195,15 +201,56 @@ async def _get_or_create_default_counter_account(
     currency: str,
     *,
     name: str | None = None,
+    code: str | None = None,
 ) -> Account:
-    """The default counter account of a type and a currency. The classifier uses the same resolver (#2415)."""
-    return await get_or_create_account(
+    """The default counter account of a type and a currency. The classifier uses the same resolver (#2415, #2427)."""
+    resolved_name = name or general_account_name(account_type, currency)
+    resolved_code = code
+    if resolved_code is None:
+        prefix_and_code = _DEFAULT_BALANCE_SHEET_CODES.get(account_type)
+        if prefix_and_code is not None and resolved_name.startswith(prefix_and_code[0]):
+            resolved_code = prefix_and_code[1]
+    if resolved_code is None:
+        return await get_or_create_account(
+            db,
+            name=resolved_name,
+            account_type=account_type,
+            currency=currency,
+            user_id=user_id,
+        )
+
+    cache = db.info.setdefault("_default_account_cache", {})
+    cache_key = (user_id, resolved_name, account_type, currency)
+    if cache_key in cache:
+        return cache[cache_key]
+
+    async def find(session: AsyncSession) -> Account | None:
+        result = await session.execute(
+            select(Account)
+            .where(Account.type == account_type)
+            .where(Account.currency == currency)
+            .where(Account.user_id == user_id)
+            .where(Account.is_active.is_(True))
+            .where(or_(Account.code == resolved_code, Account.name == resolved_name))
+            .order_by((Account.code == resolved_code).desc(), Account.created_at, Account.id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    account = await account_service.find_or_create_account(
         db,
-        name=name or general_account_name(account_type, currency),
-        account_type=account_type,
-        currency=currency,
         user_id=user_id,
+        find=find,
+        build=lambda: Account(
+            user_id=user_id,
+            name=resolved_name,
+            code=resolved_code,
+            type=account_type,
+            currency=currency,
+        ),
     )
+    cache[cache_key] = account
+    return account
 
 
 def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):
@@ -239,20 +286,58 @@ def _suggestion_rationale(suggestion: ClassificationSuggestion) -> str:
     return f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
 
 
+async def _has_matching_posted_investment_trade(
+    db: AsyncSession,
+    user_id: UUID,
+    txn: AtomicTransaction,
+) -> bool:
+    """Return True when a non-void posted portfolio trade journal entry already covers this statement transaction."""
+    expected_type = (
+        InvestmentTransactionType.BUY if txn.direction == TransactionDirection.OUT else InvestmentTransactionType.SELL
+    )
+    stmt = (
+        select(InvestmentTransaction.id)
+        .join(JournalEntry, InvestmentTransaction.journal_entry_id == JournalEntry.id)
+        .where(InvestmentTransaction.user_id == user_id)
+        .where(InvestmentTransaction.transaction_date == txn.txn_date)
+        .where(InvestmentTransaction.currency == txn.currency)
+        .where(InvestmentTransaction.transaction_type == expected_type)
+        .where(InvestmentTransaction.gross_amount == txn.amount)
+        .where(JournalEntry.status.in_((JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)))
+        .limit(1)
+    )
+    return (await db.scalar(stmt)) is not None
+
+
 async def _balance_sheet_disposition_for(
     db: AsyncSession, user_id: UUID, txn: AtomicTransaction, suggestion: ClassificationSuggestion
 ) -> tuple[EconomicIntent, Account, str, str] | None:
-    """The reviewed disposition for a loan principal or an investment trade (#2415).
+    """The reviewed disposition for a loan principal or an investment trade (#2415, #2427).
 
-    The row posts to a default balance-sheet account: a liability for a loan, an asset for an investment.
+    The row posts to a balance-sheet account: a liability for a loan, an asset for an investment.
     Neither is income or expense. A loan repayment lowers the liability. A drawdown raises it. A purchase
-    raises the asset. A sale lowers it. Returns None for any other class.
+    raises the asset. A sale lowers it. Honors a user-owned active ``suggestion.account_id`` of the
+    expected type and currency, and skips duplicate booking when a portfolio trade is already posted.
     """
     booking = balance_sheet_booking(suggestion.category, txn.direction, txn.currency)
     if booking is None:
         return None
     intent, account_type, name = booking
-    account = await _get_or_create_default_counter_account(db, user_id, account_type, txn.currency, name=name)
+    if suggestion.booking == "investment_trade" and await _has_matching_posted_investment_trade(db, user_id, txn):
+        return None
+    account: Account | None = None
+    if suggestion.account_id is not None:
+        candidate = await db.get(Account, suggestion.account_id)
+        if (
+            candidate is not None
+            and candidate.user_id == user_id
+            and candidate.is_active
+            and candidate.type == account_type
+            and candidate.currency == txn.currency
+        ):
+            account = candidate
+    if account is None:
+        account = await _get_or_create_default_counter_account(db, user_id, account_type, txn.currency, name=name)
     return intent, account, suggestion.category, _suggestion_rationale(suggestion)
 
 
@@ -340,6 +425,11 @@ async def auto_fill_default_statement_dispositions(
             continue
         if suggestion is not None and suggestion.non_pnl:
             accepted = await _balance_sheet_disposition_for(db, user_id, txn, suggestion)
+            if accepted is None and suggestion.booking == "investment_trade":
+                await settle_drafts_after_posting(
+                    db, txn.id, accepted_id=suggestion.classification_id, accepted_by="system"
+                )
+                continue
         else:
             accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
         if accepted is not None:

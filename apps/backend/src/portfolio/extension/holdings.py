@@ -24,7 +24,7 @@ from src.audit.unit_price import UnitPrice
 from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
-from src.ledger import Account
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.observability import get_logger
 from src.portfolio.base.errors import (
     AssetNotFoundError,
@@ -35,6 +35,7 @@ from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, I
 from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_amount, convert_money
 from src.schemas.portfolio import (
     HoldingResponse,
+    PortfolioSummaryDashboardResponse,
     PortfolioSummaryResponse,
     PriceUpdateRequest,
     PriceUpdateResponse,
@@ -934,6 +935,65 @@ class PortfolioService:
             )
             by_asset[position.asset_identifier] = by_asset.get(position.asset_identifier, Decimal("0.00")) + amount
         return by_asset
+
+    async def get_portfolio_summary_dashboard(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        as_of_date: date | None = None,
+    ) -> PortfolioSummaryDashboardResponse:
+        """Build the portfolio summary dashboard with YTD realized P&L and dividend income."""
+        report_date = as_of_date or date.today()
+        try:
+            summary = await self.get_portfolio_summary(db=db, user_id=user_id, as_of_date=as_of_date)
+        except (PortfolioNotFoundError, AssetNotFoundError):
+            z = Decimal("0.00")
+            return PortfolioSummaryDashboardResponse(
+                total_market_value=z,
+                total_cost_basis=z,
+                total_unrealized_pnl=z,
+                total_unrealized_pnl_percent=z,
+                total_realized_pnl=z,
+                total_realized_pnl_percent=z,
+                net_pnl=z,
+                net_pnl_percent=z,
+                holdings_count=0,
+                active_positions_count=0,
+                disposed_positions_count=0,
+                currency="SGD",
+                realized_pnl_ytd=z,
+                dividend_income_ytd=z,
+            )
+
+        year_start = date(report_date.year, 1, 1)
+        summary_currency = summary.currency.upper()
+        realized_by_asset, _ = await self.get_realized_pnl_by_asset(
+            db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
+        )
+        dividend_by_asset = await self.get_dividend_income_by_asset(
+            db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
+        )
+        dividend_total = sum(dividend_by_asset.values(), Decimal("0.00"))
+        if dividend_total == Decimal("0.00"):
+            rows = await db.execute(
+                select(JournalLine, Account, JournalEntry.entry_date)
+                .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+                .join(Account, JournalLine.account_id == Account.id)
+                .where(JournalEntry.user_id == user_id, Account.user_id == user_id)
+                .where(active_journal_entry_filter(JournalEntry), Account.type == AccountType.INCOME)
+                .where(func.lower(Account.name).like("%dividend%"))
+                .where(JournalEntry.entry_date >= year_start, JournalEntry.entry_date <= report_date)
+            )
+            for line, account, entry_date in rows.all():
+                ccy = (line.currency or account.currency or summary_currency).upper()
+                amt = line.amount if line.direction == Direction.CREDIT else -line.amount
+                dividend_total += await convert_amount(db, amt, ccy, summary_currency, entry_date, lazy_load=True)
+            dividend_total = max(dividend_total, Decimal("0.00"))
+
+        data = summary.model_dump()
+        data["realized_pnl_ytd"] = to_money(sum(realized_by_asset.values(), Decimal("0.00")))
+        data["dividend_income_ytd"] = to_money(dividend_total)
+        return PortfolioSummaryDashboardResponse(**data)
 
 
 # Shared singleton instance reused by the portfolio router and the

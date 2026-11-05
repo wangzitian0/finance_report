@@ -22,15 +22,16 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Money, to_money
-from src.audit.quantity import Quantity
+from src.audit.money import Currency, Money, to_money
+from src.audit.quantity import Quantity, Unit
 from src.audit.unit_price import UnitPrice
+from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, post_entry
-from src.portfolio.base.errors import InvestmentAccountingValidationError
+from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, account_service, post_entry
+from src.portfolio.base.errors import InvestmentAccountingValidationError, PortfolioNotFoundError
 from src.portfolio.base.types import DividendEvent, TradeAccounts, TradeOrder
 from src.portfolio.orm.portfolio import (
     DividendIncome,
@@ -39,8 +40,11 @@ from src.portfolio.orm.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
 )
+from src.pricing import get_exchange_rate
 
 INVESTMENT_QUANTITY_UNIT = "units"
+DEFAULT_DIVIDEND_INCOME_CODE = "4210"
+DEFAULT_SETTLEMENT_CASH_CODE = "1120"
 
 
 @dataclass(frozen=True)
@@ -50,6 +54,7 @@ class InvestmentAccountingResult:
     transaction: InvestmentTransaction
     journal_entry: JournalEntry
     position: ManagedPosition
+    dividend: DividendIncome | None = None
 
 
 class InvestmentAccountingService:
@@ -138,7 +143,7 @@ class InvestmentAccountingService:
             acquisition_date=order.transaction_date,
             original_quantity=trade_quantity.value,
             remaining_quantity=trade_quantity.value,
-            unit_cost=UnitPrice.from_total(Money(amount, currency), trade_quantity).quantize().rate,
+            unit_cost=UnitPrice.from_total(Money(amount, Currency.of(currency)), trade_quantity).quantize().rate,
             currency=currency,
         )
         db.add(lot)
@@ -198,12 +203,13 @@ class InvestmentAccountingService:
         )
         realized_pnl = to_money(proceeds - cost_basis)
 
+        currency_obj = Currency.of(currency)
         sell_tags = {"asset_identifier": order.asset_identifier}
         legs = [
             Leg(
                 cash_account.id,
                 Direction.DEBIT,
-                Money(proceeds, currency),
+                Money(proceeds, currency_obj),
                 order.fx_rate,
                 "investment_sell",
                 sell_tags,
@@ -211,7 +217,7 @@ class InvestmentAccountingService:
             Leg(
                 investment_account.id,
                 Direction.CREDIT,
-                Money(cost_basis, currency),
+                Money(cost_basis, currency_obj),
                 order.fx_rate,
                 "investment_sell",
                 sell_tags,
@@ -222,7 +228,7 @@ class InvestmentAccountingService:
                 Leg(
                     pnl_account.id,
                     Direction.CREDIT,
-                    Money(realized_pnl, currency),
+                    Money(realized_pnl, currency_obj),
                     order.fx_rate,
                     "investment_realized_pnl",
                     sell_tags,
@@ -233,7 +239,7 @@ class InvestmentAccountingService:
                 Leg(
                     pnl_account.id,
                     Direction.DEBIT,
-                    Money(abs(realized_pnl), currency),
+                    Money(abs(realized_pnl), currency_obj),
                     order.fx_rate,
                     "investment_realized_pnl",
                     sell_tags,
@@ -251,8 +257,8 @@ class InvestmentAccountingService:
 
         position_quantity = (position.quantity_qty - trade_quantity).quantize()
         position.quantity = position_quantity.value
-        position.cost_basis = (position.cost_basis_money - Money(cost_basis, currency)).quantize().amount
-        position.realized_pnl = (position.realized_pnl_money + Money(realized_pnl, currency)).quantize().amount
+        position.cost_basis = (position.cost_basis_money - Money(cost_basis, currency_obj)).quantize().amount
+        position.realized_pnl = (position.realized_pnl_money + Money(realized_pnl, currency_obj)).quantize().amount
         position.cost_basis_method = CostBasisMethod(order.cost_basis_method)
         if position_quantity.is_zero():
             position.status = PositionStatus.DISPOSED
@@ -319,6 +325,7 @@ class InvestmentAccountingService:
         tax = to_money(withholding_tax)
         net_cash = to_money(gross - tax)
 
+        currency_obj = Currency.of(currency)
         div_tags = {"asset_identifier": event.asset_identifier}
         legs = []
         if net_cash > Decimal("0"):
@@ -326,7 +333,7 @@ class InvestmentAccountingService:
                 Leg(
                     cash_account.id,
                     Direction.DEBIT,
-                    Money(net_cash, currency),
+                    Money(net_cash, currency_obj),
                     event.fx_rate,
                     "investment_dividend",
                     div_tags,
@@ -337,7 +344,7 @@ class InvestmentAccountingService:
                 Leg(
                     tax_account.id,
                     Direction.DEBIT,
-                    Money(tax, currency),
+                    Money(tax, currency_obj),
                     event.fx_rate,
                     "investment_dividend_tax",
                     div_tags,
@@ -347,7 +354,7 @@ class InvestmentAccountingService:
             Leg(
                 income_account.id,
                 Direction.CREDIT,
-                Money(gross, currency),
+                Money(gross, currency_obj),
                 event.fx_rate,
                 "investment_dividend",
                 div_tags,
@@ -391,8 +398,121 @@ class InvestmentAccountingService:
         db.add_all([transaction, dividend])
         await db.flush()
         await db.refresh(transaction)
+        await db.refresh(dividend)
         await db.refresh(position)
-        return InvestmentAccountingResult(transaction=transaction, journal_entry=posted, position=position)
+        return InvestmentAccountingResult(
+            transaction=transaction,
+            journal_entry=posted,
+            position=position,
+            dividend=dividend,
+        )
+
+    async def record_holding_dividend(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        ticker: str,
+        payment_date: date,
+        amount: Decimal,
+        currency: str,
+        dividend_type: str = "ordinary",
+        withholding_tax: Decimal = Decimal("0.00"),
+        cash_account_id: UUID | None = None,
+        dividend_income_account_id: UUID | None = None,
+        withholding_tax_account_id: UUID | None = None,
+    ) -> DividendIncome:
+        """Resolve holding and default accounts, then post a dividend journal entry (#2673)."""
+        position = await db.scalar(
+            select(ManagedPosition)
+            .where(ManagedPosition.user_id == user_id)
+            .where(ManagedPosition.asset_identifier == ticker)
+            .where(ManagedPosition.status == PositionStatus.ACTIVE)
+            .order_by(ManagedPosition.created_at.desc())
+        )
+        if position is None:
+            raise PortfolioNotFoundError("Holding not found")
+
+        ccy = currency.upper()
+        resolved_cash_id = cash_account_id
+        if resolved_cash_id is None:
+            cash_acct = await self._resolve_default_account(
+                db,
+                user_id=user_id,
+                account_type=AccountType.ASSET,
+                code=DEFAULT_SETTLEMENT_CASH_CODE,
+                name=f"Brokerage Cash ({ccy})",
+                currency=ccy,
+            )
+            resolved_cash_id = cash_acct.id
+
+        resolved_income_id = dividend_income_account_id
+        if resolved_income_id is None:
+            income_acct = await self._resolve_default_account(
+                db,
+                user_id=user_id,
+                account_type=AccountType.INCOME,
+                code=DEFAULT_DIVIDEND_INCOME_CODE,
+                name=f"Dividend Income ({ccy})",
+                currency=ccy,
+            )
+            resolved_income_id = income_acct.id
+
+        base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
+        fx_rate: Decimal | None = None
+        if ccy != base_currency:
+            fx_rate = await get_exchange_rate(db, ccy, base_currency, payment_date, lazy_load=True)
+
+        result = await self.post_dividend(
+            db,
+            user_id=user_id,
+            event=DividendEvent(
+                payment_date=payment_date,
+                asset_identifier=position.asset_identifier,
+                gross_amount=Money(amount, Currency.of(ccy)),
+                withholding_tax=Money(withholding_tax, Currency.of(ccy)),
+                dividend_type=dividend_type,
+                fx_rate=fx_rate,
+            ),
+            accounts=TradeAccounts(
+                cash=resolved_cash_id,
+                investment=position.account_id,
+                dividend_income=resolved_income_id,
+                withholding_tax=withholding_tax_account_id,
+            ),
+        )
+        assert result.dividend is not None
+        return result.dividend
+
+    async def _resolve_default_account(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        account_type: AccountType,
+        code: str,
+        name: str,
+        currency: str,
+    ) -> Account:
+        async def find(session: AsyncSession) -> Account | None:
+            result = await session.execute(
+                select(Account)
+                .where(Account.user_id == user_id)
+                .where(Account.type == account_type)
+                .where(Account.currency == currency)
+                .where(Account.is_active.is_(True))
+                .where(or_(Account.code == code, Account.name == name))
+                .order_by((Account.code == code).desc(), Account.created_at, Account.id)
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+
+        return await account_service.find_or_create_account(
+            db,
+            user_id=user_id,
+            find=find,
+            build=lambda: Account(user_id=user_id, name=name, code=code, type=account_type, currency=currency),
+        )
 
     async def _get_account(
         self,
@@ -488,8 +608,10 @@ class InvestmentAccountingService:
         disposal_date: date,
     ) -> Decimal:
         lots = await self._open_lots(db, user_id=user_id, position_id=position.id, method=method)
-        zero_quantity = Quantity.zero(INVESTMENT_QUANTITY_UNIT)
-        lot_quantities = [(lot, Quantity(lot.remaining_quantity, INVESTMENT_QUANTITY_UNIT).quantize()) for lot in lots]
+        unit_obj = Unit.of(INVESTMENT_QUANTITY_UNIT)
+        currency_obj = Currency.of(position.currency)
+        zero_quantity = Quantity.zero(unit_obj)
+        lot_quantities = [(lot, Quantity(lot.remaining_quantity, unit_obj).quantize()) for lot in lots]
         total_available = sum((lot_quantity for _, lot_quantity in lot_quantities), zero_quantity)
         if total_available < quantity:
             raise InvestmentAccountingValidationError(
@@ -499,17 +621,17 @@ class InvestmentAccountingService:
         if method == CostBasisMethod.AVGCOST:
             total_cost = Money.sum(
                 (
-                    UnitPrice(lot.unit_cost, position.currency, INVESTMENT_QUANTITY_UNIT) * lot_quantity
+                    UnitPrice(lot.unit_cost, currency_obj, unit_obj) * lot_quantity
                     for lot, lot_quantity in lot_quantities
                 ),
-                currency=position.currency,
+                currency=currency_obj,
             )
             avg_unit_cost = UnitPrice.from_total(total_cost, total_available).quantize().rate
             for lot in lots:
                 lot.unit_cost = avg_unit_cost
 
         remaining_to_sell = quantity
-        cost_basis = Money.zero(position.currency)
+        cost_basis = Money.zero(currency_obj)
         for lot, lot_quantity in lot_quantities:
             if remaining_to_sell.is_zero():
                 break
@@ -517,7 +639,7 @@ class InvestmentAccountingService:
                 lot_quantity,
                 remaining_to_sell,
             )
-            cost_basis += UnitPrice(lot.unit_cost, position.currency, INVESTMENT_QUANTITY_UNIT) * consumed_quantity
+            cost_basis += UnitPrice(lot.unit_cost, currency_obj, unit_obj) * consumed_quantity
             lot_remaining = (lot_quantity - consumed_quantity).quantize()
             lot.remaining_quantity = lot_remaining.value
             if lot_remaining.is_zero():
