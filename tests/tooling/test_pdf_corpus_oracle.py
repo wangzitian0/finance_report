@@ -1,4 +1,4 @@
-"""Unit tests for the 20-PDF benchmark corpus, generators, and 3-statement mathematical oracle (#2852)."""
+"""AC-testing.benchmarks.7: Unit tests for the 20-PDF benchmark corpus, generators, and 3-statement mathematical oracle (#2852)."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_pdf_corpus_manifest_has_20_pdfs_across_5_mece_dimensions() -> None:
-    """Verify the 20-PDF corpus covers all 5 MECE dimensions with 5 external + 15 generated PDFs."""
+    """AC-testing.benchmarks.7: Verify the 20-PDF corpus covers all 5 MECE dimensions with 5 external + 15 generated PDFs."""
     corpus = load_pdf_benchmark_corpus(DEFAULT_MANIFEST_PATH, REPO_ROOT)
     assert len(corpus) == 20
 
