@@ -102,6 +102,15 @@ const mockHealthData: PersonalDataQualityHealthResponse = {
       net_movement: "100.00",
       status: "PENDING_PROCESSING",
     },
+    {
+      month: "2026-04",
+      statement_count: 0,
+      has_gap: false,
+      opening_balance: null,
+      closing_balance: null,
+      net_movement: null,
+      status: "HEALTHY",
+    },
   ],
   action_items: [
     {
@@ -198,6 +207,9 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(
         screen.getByText("Assets = Liabilities + Equity (Δ = 0.00)"),
       ).toBeInTheDocument();
+      expect(
+        screen.getByText("Statement Anchors + 3198 Gap Calibration"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -211,6 +223,9 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getByText("Upload")).toBeInTheDocument();
       expect(screen.getByText("2026-03")).toBeInTheDocument();
       expect(screen.getByText("Review")).toBeInTheDocument();
+      expect(screen.getByText("2026-04")).toBeInTheDocument();
+      expect(screen.getByText("Zero-change verified")).toBeInTheDocument();
+      expect(screen.getByTitle("Zero-change continuity verified across adjacent anchors")).toBeInTheDocument();
     });
   });
 

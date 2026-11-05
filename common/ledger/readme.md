@@ -874,11 +874,22 @@ be projected without rewriting their history. The projection reads current
 authority only for the decisions of its own facts: the opening records, their
 journal entries and the historical opening commands (#2602).
 
-Manual and automatic statement approval initialize the first trusted account
-position in the same transaction as source posting. A tenant-scoped database
+Manual and automatic statement approval reconcile each account's approved statement
+chain in the same transaction as source posting (`#2832`). A tenant-scoped database
 lock serializes concurrent initialization. Identical account/date/amount/currency
-retries reuse the existing position; conflicting initializations require the
-correction lifecycle. Later statements reuse the established account beginning.
+retries reuse the existing position; conflicting same-date initializations require the
+correction lifecycle. The earliest approved statement $S_0$ initializes the account's
+opening position against `3199 Opening Balance Equity` (`OPENING_BALANCE_EQUITY_CODE`);
+when an earlier statement is approved later or when $S_0$ is retired,
+`initialize_opening_positions(..., allow_supersede=True)` voids the superseded opening
+journal entry and re-anchors the account to the new earliest statement. Adjacent
+approved statements $(S_i, S_{i+1})$ whose opening-minus-closing gap exceeds
+`CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) are calibrated via system
+`cross_period_gap_plug` (`CROSS_PERIOD_GAP_PLUG_EVENT_TYPE`) journal entries against
+`3198 Unexplained Statement Gap Equity` (`UNEXPLAINED_GAP_EQUITY_CODE`,
+`get_or_create_unexplained_gap_equity_account`) so every approved statement's opening
+and closing balances tie out on the Balance Sheet while intermediate missing statements
+automatically shrink `3198` upon upload.
 A zero starting position records evidence without creating a zero-value journal.
 Negative source balances reverse the account's normal posting side.
 

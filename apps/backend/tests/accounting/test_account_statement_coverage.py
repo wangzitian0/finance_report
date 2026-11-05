@@ -386,17 +386,18 @@ async def test_account_coverage_flags_business_day_gap_even_if_weekend_included(
         opening_balance=Decimal("1000.00"),
         closing_balance=Decimal("1500.00"),
     )
-    # Statement 2: Skips February, starts March 1, 2025 with identical 1,500.00 (0 change -> no GAP issue)
-    await _create_statement(
+    # Statement 2: Skips February, starts March 1, 2025 with manual_opening_balance override matching 1,500.00 (0 change -> no GAP issue)
+    stmt_mar = await _create_statement(
         db,
         test_user.id,
         account,
         file_hash="gap-mar-zero",
         period_start=date(2025, 3, 1),
         period_end=date(2025, 3, 31),
-        opening_balance=Decimal("1500.00"),
+        opening_balance=Decimal("0.00"),
         closing_balance=Decimal("2000.00"),
     )
+    stmt_mar.manual_opening_balance = Decimal("1500.00")
     await db.commit()
 
     res_zero = await client.get("/accounts/coverage?as_of=2025-04-01&stale_after_days=45")

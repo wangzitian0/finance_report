@@ -75,9 +75,9 @@ The following diagram shows how a bank statement travels from upload through to 
 
 | From | Event | To | Guard |
 |------|-------|----|-------|
-| `parsed` | system auto-accept | `approved` | Score ≥ 85, balance delta ≤ 0.001 USD, confirmed active asset account in statement currency, non-overlapping source period |
+| `parsed` | system auto-accept | `approved` | Score ≥ 85, intra-statement balance delta ≤ 0.001 USD, confirmed active asset account in statement currency, non-overlapping source period |
 | `approved` | auto-post guard failure | `pending_review` | Guard failure during high-confidence auto-post; preserve parsed statement and transactions |
-| `pending_review` | `approve_statement()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD; duplicate and transfer-pair candidates are resolved |
+| `pending_review` | `approve_statement()` | `approved` | Intra-statement balance-chain checks pass within 0.001 USD (any cross-period difference from a prior statement's closing balance is surfaced as a non-blocking diagnostic and routed to `3198 Unexplained Statement Gap Equity`, `#2832`); duplicate and transfer-pair candidates are resolved |
 | `pending_review` | `reject_statement()` | `rejected` | — |
 | `rejected` | re-parse triggered | `pending_review` | — |
 
@@ -118,16 +118,21 @@ Stage 2 Transitions live in the reconciliation half:
 
 | Context | Tolerance | Source |
 |---------|-----------|--------|
-| Stage 1 balance chain validation | 0.001 USD | `src.audit.promotion.STATEMENT_BALANCE_TOLERANCE` (#930) |
+| Stage 1 intra-statement balance chain validation | 0.001 USD | `src.audit.promotion.STATEMENT_BALANCE_TOLERANCE` (#930) |
+| Cross-period statement gap plug calibration (`3198`) | 0.10 USD | `src.ledger.account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE` (#2832) |
 | Stage 2 reconciliation auto-accept / review | 85 / 60 | `src.audit.promotion.RECONCILIATION_AUTO_ACCEPT_SCORE` / `src.audit.promotion.RECONCILIATION_REVIEW_SCORE` (#930) |
 | Stage 2 reconciliation match (amount score) | 0.10 USD | AGENTS.md, [reconciliation.md](../reconciliation/reconciliation.md) |
 | Reconciliation statistics comparison | 1% | AGENTS.md |
 
 These tolerances are intentionally separate policies. Stage 1 document approval
-uses the strict 0.001 USD balance-chain threshold for both the opening continuity
-check and the closing transaction-sum check; extraction confidence and Stage 2
-matching may use wider scoring tolerances, but they cannot approve a Stage 1
-statement with either balance-chain check outside the 0.001 USD tolerance.
+uses the strict 0.001 USD balance-chain threshold for intra-statement self-consistency
+(`effective_opening_balance + Σ(IN) − Σ(OUT) == closing_balance`); cross-period
+differences between a statement's opening balance and the prior approved statement's
+closing balance are evaluated against `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) and
+calibrated in `3198 Unexplained Statement Gap Equity` (`#2832`) rather than blocking
+Stage 1 approval. Extraction confidence and Stage 2 matching may use wider scoring
+tolerances, but they cannot approve a Stage 1 statement whose intra-statement balance
+check is outside the 0.001 USD tolerance.
 
 ### <a id="confidence-tier-rollup"></a>Confidence Tier Rollup (resolves OD4)
 

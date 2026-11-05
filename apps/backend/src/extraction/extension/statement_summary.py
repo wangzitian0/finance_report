@@ -156,7 +156,7 @@ async def get_statement_coverage_rows(
             currency=statement.currency,
             period_start=statement.period_start,
             period_end=statement.period_end,
-            opening_balance=statement.opening_balance,
+            opening_balance=statement.effective_opening_balance(),
             closing_balance=statement.closing_balance,
             updated_at=statement.updated_at,
         )

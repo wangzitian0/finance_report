@@ -829,7 +829,7 @@ async def reconcile_account_statement_chain(
     if candidate_statement is not None and candidate_statement.account_id == account_id:
         if (
             candidate_statement.period_start is not None
-            and candidate_statement.opening_balance is not None
+            and candidate_statement.effective_opening_balance() is not None
             and all(row.id != candidate_statement.id for row in approved_rows)
             and candidate_statement.status != BankStatementStatus.RETIRED
         ):
@@ -1068,7 +1068,7 @@ async def try_auto_post_statement_opening_balance(
     dependencies: StatementPostingDependencies | None = None,
 ) -> bool:
     """Establish source starting stock and reconcile the account's statement chain (#2832)."""
-    if statement.opening_balance is None or statement.period_start is None or statement.account_id is None:
+    if statement.effective_opening_balance() is None or statement.period_start is None or statement.account_id is None:
         raise ValueError("Statement opening balance, date, and account are required before posting")
     return await reconcile_account_statement_chain(
         db,
