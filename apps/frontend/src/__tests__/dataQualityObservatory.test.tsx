@@ -225,6 +225,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getByText("Review")).toBeInTheDocument();
       expect(screen.getByText("2026-04")).toBeInTheDocument();
       expect(screen.getByText("Zero-change verified")).toBeInTheDocument();
+      expect(screen.getByTitle("Zero-change continuity verified across adjacent anchors")).toBeInTheDocument();
     });
   });
 

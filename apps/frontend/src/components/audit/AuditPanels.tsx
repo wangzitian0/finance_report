@@ -360,7 +360,7 @@ export function TemporalTimelineGrid({ timeline }: { timeline: MonthContinuityBu
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs font-semibold">{bucket.month}</span>
                   {isHealthy && (
-                    <span title="Continuous verified statement" className="flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-[var(--success)]">
+                    <span title={bucket.statement_count > 0 ? "Continuous verified statement" : "Zero-change continuity verified across adjacent anchors"} className="flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-[var(--success)]">
                       <Check className="h-3 w-3" />
                     </span>
                   )}
