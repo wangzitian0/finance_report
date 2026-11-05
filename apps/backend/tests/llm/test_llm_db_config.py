@@ -38,8 +38,17 @@ def _same_session_maker(session):
 
 async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
     """AC-llm.3.1: DbConfigSource decrypts the provider key and qualifies bindings by provider id."""
+    from uuid import uuid4
+
+    from src.identity import User
+
+    owner = User(email=f"owner-{uuid4()}@example.com", hashed_password="x")
+    db.add(owner)
+    await db.flush()
+
     sealed = cipher.encrypt("sk-db-secret")
     provider = LlmProvider(
+        user_id=owner.id,
         label="zai",
         protocol=ProtocolFamily.OPENAI_COMPATIBLE,
         api_key_ciphertext=sealed.ciphertext,
@@ -50,6 +59,7 @@ async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
     await db.flush()
     db.add(
         LlmSceneBinding(
+            user_id=owner.id,
             scene=Scene.EXTRACTION_JSON,
             provider_id=provider.id,
             model="glm-5.1",
@@ -59,7 +69,7 @@ async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
     )
     await db.flush()
 
-    source = DbConfigSource(session_maker=_same_session_maker(db), cipher=cipher)
+    source = DbConfigSource(user_id=owner.id, session_maker=_same_session_maker(db), cipher=cipher)
 
     providers = await source.list_providers()
     mine = [p for p in providers if p.id == str(provider.id)]

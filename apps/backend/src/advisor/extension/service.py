@@ -942,6 +942,9 @@ class AIAdvisorService:
             chunks.append(tail)
             yield tail
 
+        if not "".join(chunks).strip():
+            raise AIAdvisorError("AIStreamError: provider returned empty response")
+
         response_text = "".join(chunks)
         response_text = ensure_disclaimer(response_text, language)
         if response_text != "".join(chunks):

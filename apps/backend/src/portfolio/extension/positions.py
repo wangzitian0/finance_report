@@ -272,6 +272,7 @@ class PositionService:
                 .where(Account.user_id == user_id)
                 .where(Account.name == broker_name)
                 .where(Account.type == AccountType.ASSET)
+                .where(Account.is_active.is_(True))
                 .order_by(Account.created_at, Account.id)
                 .limit(1)
             )

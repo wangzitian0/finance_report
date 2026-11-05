@@ -58,8 +58,8 @@ class EnvConfigSource:
         return bool(cls._RETIRED_GLM4_MODEL_RE.match(bare))
 
     @classmethod
-    def resolve_scene_model(cls, scene: Scene, raw_model: str | None) -> str:
-        """Resolve a scene model binding through the three canonical roles (#2624)."""
+    def resolve_scene_model(cls, scene: Scene, raw_model: str | None, *, is_deployment_default: bool = False) -> str:
+        """Resolve a scene model binding through the three canonical roles (#2624, #2569)."""
         llm = settings.to_llm_settings()
         cleaned = (raw_model or "").strip()
         if not cleaned:
@@ -69,6 +69,15 @@ class EnvConfigSource:
             return llm.role_model(lowered)
         if cls.is_retired_scene_model(cleaned):
             return llm.role_model(cls.default_role_for_scene(scene))
+        if is_deployment_default:
+            approved = {
+                llm.role_model("large"),
+                llm.role_model("small"),
+                llm.role_model("multimodal"),
+            }
+            bare = cleaned.split("/")[-1]
+            if cleaned not in approved and bare not in approved:
+                return llm.role_model(cls.default_role_for_scene(scene))
         return cleaned
 
     def _provider(self) -> ProviderRef | None:

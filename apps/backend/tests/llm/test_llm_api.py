@@ -299,3 +299,32 @@ async def test_AC_llm_2624_1_scenes_enforce_three_roles_and_reject_retired_model
     assert (
         EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_VISION, "provider1/glm-4.6") == settings.multimodal_model
     )
+
+    # Verify that a legacy deployment-default (user_id IS NULL) binding with a non-role
+    # custom model (e.g. glm-5.1) resolves to the scene's canonical role model (#2569).
+    from src.llm.base import ProtocolFamily
+    from src.llm.orm.config import LlmProvider, LlmSceneBinding
+
+    sealed = cipher.encrypt("sk-deploy-default")
+    default_provider = LlmProvider(
+        user_id=None,
+        label="default-zai",
+        protocol=ProtocolFamily.OPENAI_COMPATIBLE,
+        api_key_ciphertext=sealed.ciphertext,
+        api_key_version=sealed.key_version,
+    )
+    db.add(default_provider)
+    await db.flush()
+    db.add(
+        LlmSceneBinding(
+            user_id=None,
+            scene=Scene.ADVISOR_CHAT,
+            provider_id=default_provider.id,
+            model="glm-5.1",
+        )
+    )
+    await db.commit()
+
+    default_binding = await get_config_source(None).get_binding(Scene.ADVISOR_CHAT)
+    assert default_binding is not None
+    assert default_binding.model_id == f"{default_provider.id}/{settings.large_model}"

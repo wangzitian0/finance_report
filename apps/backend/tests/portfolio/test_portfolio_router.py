@@ -196,6 +196,7 @@ async def test_holding_detail_dividends_realized_and_cost_basis_endpoints(
         "amount": "42.50",
         "currency": "SGD",
         "reinvested": False,
+        "journal_entry_id": None,
     }
 
     realized_response = await client.get("/portfolio/AAPL/realized")
@@ -963,6 +964,9 @@ async def test_get_asset_class_allocation_with_data(client: AsyncClient, portfol
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
+    assert len(data) >= 1
+    assert data[0]["count"] >= 1
+    assert Decimal(data[0]["value"]) > Decimal("0")
 
 
 async def test_update_prices_single(client: AsyncClient, portfolio_with_data):
@@ -984,7 +988,9 @@ async def test_update_prices_single(client: AsyncClient, portfolio_with_data):
     assert response.status_code == 200
     data = response.json()
     assert "updated_count" in data
-    assert data["updated_count"] >= 0
+    assert data["updated_count"] == 1
+    assert data["results"][0]["success"] is True
+    assert data["results"][0]["price"] == "155.50"
 
 
 async def test_update_prices_batch(client: AsyncClient, portfolio_with_data):
@@ -1147,6 +1153,13 @@ async def test_AC_portfolio_2673_1_create_holding_dividend_posts_balanced_journa
     assert payload["amount"] == "85.50"
     assert payload["currency"] == "SGD"
     assert payload["pay_date"] == pay_date.isoformat()
+    assert payload.get("journal_entry_id") is not None
+
+    list_resp = await client.get("/portfolio/AAPL/dividends")
+    assert list_resp.status_code == 200
+    list_items = list_resp.json()
+    matching_item = next(item for item in list_items if item["id"] == payload["id"])
+    assert matching_item["journal_entry_id"] == payload["journal_entry_id"]
 
     dividend = await db.scalar(select(DividendIncome).where(DividendIncome.id == payload["id"]))
     assert dividend is not None
