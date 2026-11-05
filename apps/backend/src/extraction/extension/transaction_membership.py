@@ -38,7 +38,17 @@ def effective_statement_transaction_filter(
             )
         ),
     )
-    known_source = select(StatementSummary.id).where(linked).correlate(AtomicTransaction).exists()
+    known_source_ids = (
+        select(AtomicTransaction.id)
+        .select_from(StatementSummary)
+        .join(
+            AtomicTransaction,
+            and_(
+                AtomicTransaction.user_id == user_id,
+                linked,
+            ),
+        )
+    )
     payload = case(
         (
             StatementSummary.current_extraction_result_id.is_(None),
@@ -89,7 +99,19 @@ def effective_statement_transaction_filter(
         ),
         else_=0,
     )
-    custody_proven = and_(source_count > 0, compatible_sources == source_count)
+    statement_currency_compatible = or_(
+        StatementSummary.currency == AtomicTransaction.currency,
+        StatementSummary.currency_balances.op("@>")(
+            func.jsonb_build_array(func.jsonb_build_object("currency", AtomicTransaction.currency))
+        ),
+    )
+    custody_proven = and_(
+        statement_currency_compatible,
+        or_(
+            source_count == 1,
+            and_(source_count > 1, compatible_sources == source_count),
+        ),
+    )
 
     def fact_match(identity):
         return or_(
@@ -116,8 +138,9 @@ def effective_statement_transaction_filter(
         .correlate(AtomicTransaction, StatementSummary, StatementExtractionResultRecord, UploadedDocument)
         .exists()
     )
-    eligible = (
-        select(StatementSummary.id)
+    eligible_ids = (
+        select(AtomicTransaction.id)
+        .select_from(StatementSummary)
         .join(UploadedDocument, UploadedDocument.id == StatementSummary.uploaded_document_id)
         .outerjoin(
             StatementExtractionResultRecord,
@@ -127,8 +150,14 @@ def effective_statement_transaction_filter(
                 StatementExtractionResultRecord.statement_id == StatementSummary.id,
             ),
         )
+        .join(
+            AtomicTransaction,
+            and_(
+                AtomicTransaction.user_id == user_id,
+                linked,
+            ),
+        )
         .where(
-            linked,
             UploadedDocument.user_id == user_id,
             (
                 StatementSummary.status.notin_([BankStatementStatus.RETIRED, BankStatementStatus.REJECTED])
@@ -138,14 +167,16 @@ def effective_statement_transaction_filter(
             custody_proven,
             or_(
                 and_(StatementSummary.current_extraction_result_id.is_(None), payload.is_(None)),
-                and_(custody_proven, or_(fact_match(AtomicTransaction.dedup_hash), alias_match)),
+                fact_match(AtomicTransaction.dedup_hash),
+                alias_match,
             ),
         )
     )
     if statement_id is not None:
-        eligible = eligible.where(StatementSummary.id == statement_id)
-    current_source = eligible.correlate(AtomicTransaction).exists()
+        eligible_ids = eligible_ids.where(StatementSummary.id == statement_id)
     return and_(
         AtomicTransaction.user_id == user_id,
-        current_source if statement_id is not None else or_(~known_source, current_source),
+        AtomicTransaction.id.in_(eligible_ids)
+        if statement_id is not None
+        else or_(AtomicTransaction.id.notin_(known_source_ids), AtomicTransaction.id.in_(eligible_ids)),
     )
