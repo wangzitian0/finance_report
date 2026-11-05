@@ -8,10 +8,13 @@ router sequences — same service calls, same commit point, same ordering.
 
 from __future__ import annotations
 
+import os
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.extraction.base.types import StatementPostingOutcome, StatementPostingStatus
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
@@ -25,6 +28,25 @@ from src.extraction.extension.statement_validation import (
     reject_statement,
 )
 from src.extraction.orm.statement_summary import StatementSummary
+
+TENANT_ANALYZE_TABLES: tuple[str, ...] = (
+    "journal_entries",
+    "journal_lines",
+    "atomic_transactions",
+    "reconciliation_matches",
+    "trace_records",
+    "statement_summaries",
+)
+
+
+async def analyze_tenant_tables(db: AsyncSession) -> None:
+    """Refresh PostgreSQL planner statistics on core tenant tables after bulk statement approval (#2629)."""
+    if settings.environment == "testing" or os.environ.get("ENVIRONMENT") == "testing":
+        return
+    bind = db.get_bind()
+    if bind is not None and bind.dialect.name == "postgresql":
+        tables_sql = ", ".join(TENANT_ANALYZE_TABLES)
+        await db.execute(text(f"ANALYZE {tables_sql}"))
 
 
 async def approve_statement_workflow(
@@ -49,6 +71,7 @@ async def approve_statement_workflow(
     if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
         await try_auto_post_statement_opening_balance(db, statement, user_id, dependencies=dependencies)
     await db.commit()
+    await analyze_tenant_tables(db)
     return outcome
 
 
