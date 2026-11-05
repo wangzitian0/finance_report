@@ -19,6 +19,10 @@ _meter: Any | None = None
 _meter_provider: Any | None = None
 _instruments: dict[str, Any] = {}
 _async_parse_in_flight = 0
+# One-shot processes (Prefect flow runs) export a new cumulative series once. PromQL
+# increase() needs two samples, so the first add of a series exports a 0 baseline first.
+_prime_new_series = False
+_primed_series: set[tuple[str, frozenset[tuple[str, str]]]] = set()
 _db_pool_observer: Callable[[], dict[str, int]] | None = None
 logger = get_logger(__name__)
 
@@ -51,8 +55,26 @@ def flush_otel_metrics(timeout_millis: int = 10000) -> None:
         logging.getLogger(__name__).warning("OTEL metric flush failed", exc_info=True)
 
 
+def enable_series_priming(enabled: bool = True) -> None:
+    global _prime_new_series
+    _prime_new_series = enabled
+
+
+def _add_counter(name: str, counter: Any, attributes: dict[str, str]) -> None:
+    """Add 1 to ``counter``; with priming on, first export a 0 baseline for a new series."""
+    if _prime_new_series:
+        key = (name, frozenset(attributes.items()))
+        if key not in _primed_series:
+            _primed_series.add(key)
+            counter.add(0, attributes)
+            flush_otel_metrics(timeout_millis=2000)
+    counter.add(1, attributes)
+
+
 def _clear_metrics_state() -> None:
     global _meter, _meter_provider
+    _primed_series.clear()
+    enable_series_priming(False)
     _meter = None
     _meter_provider = None
     _instruments.clear()
@@ -207,7 +229,7 @@ def increment_async_parse_in_flight(delta: int = 1) -> None:
 def record_async_parse_failure(*, error_type: str, task_name: str = "statement_parse") -> None:
     counter = _instruments.get("async_parse_failure")
     if counter is not None:
-        counter.add(1, {"task": task_name, "error_type": error_type})
+        _add_counter("async_parse_failure", counter, {"task": task_name, "error_type": error_type})
 
 
 async def run_with_async_parse_tracking(
@@ -316,7 +338,7 @@ def record_http_request(
 def record_statement_parse_outcome(*, outcome: str, parser: str = "default") -> None:
     counter = _instruments.get("statement_parse_outcome")
     if counter is not None:
-        counter.add(1, {"outcome": outcome, "parser": parser})
+        _add_counter("statement_parse_outcome", counter, {"outcome": outcome, "parser": parser})
 
 
 def record_statement_classification_outcome(*, outcome: str) -> None:

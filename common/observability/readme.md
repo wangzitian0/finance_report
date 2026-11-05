@@ -41,3 +41,7 @@ A Prefect flow run executes in the worker container, not in `src.main`, so
 `flow_run_telemetry` (`src.observability.worker_telemetry`) configures OTEL metrics, logs and traces for
 that process. The service name is `OTEL_SERVICE_NAME`, else `finance-report-worker`.
 The flow flushes all providers before it exits (`AC-observability.12.4`).
+Each flow-run process adds a random `service.instance.id` resource attribute and
+exports a zero baseline before the first increment of a counter series. PromQL
+`increase()` needs two samples per series; the baseline gives it two. The process
+also replaces the root-logger handlers that Prefect installs, so INFO events export.
