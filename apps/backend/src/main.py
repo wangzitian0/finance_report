@@ -281,9 +281,26 @@ app = FastAPI(
 _instrument_fastapi_app(app)
 
 
+# Liveness and readiness probe paths. The container HEALTHCHECK and the deploy gates call
+# ``/health`` on a schedule; a 2xx response to a probe writes no request log line, because
+# those lines made 94.5% of the production log volume (#2860). This is the only definition of
+# the set: the rate-limit exemption below builds on it.
+_PROBE_PATHS = frozenset({"/health"})
+
+
+def _is_successful_probe(path: str, status_code: int) -> bool:
+    """Return True when a request to a probe path ended with a 2xx status."""
+    return path in _PROBE_PATHS and 200 <= status_code < 300
+
+
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next: Any) -> Response:
-    """Middleware to inject Request-ID and log request details."""
+    """Middleware to inject Request-ID and log request details.
+
+    A successful probe request logs no line. A failed probe, any other request and any
+    exception keep their line. Request metrics and the response ``X-Request-ID`` header
+    apply to every request, probes included.
+    """
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     # The 500 handler runs in ServerErrorMiddleware, outside the task that binds the
     # contextvars below. It reads this same id from the request scope (#2649).
@@ -304,11 +321,12 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
         response = await call_next(request)
         duration = time.perf_counter() - start_time
 
-        logger.info(
-            "HTTP Request",
-            status_code=response.status_code,
-            duration_ms=round(duration * 1000, 2),
-        )
+        if not _is_successful_probe(request.url.path, response.status_code):
+            logger.info(
+                "HTTP Request",
+                status_code=response.status_code,
+                duration_ms=round(duration * 1000, 2),
+            )
         record_http_request(
             method=request.method,
             route=http_route_label_from_scope(request.scope),
@@ -336,10 +354,9 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
         raise
 
 
-# Paths exempt from global API rate limiting
-_RATE_LIMIT_EXEMPT_PATHS = frozenset(
+# Paths exempt from global API rate limiting: the probe paths plus the demo ping and the API docs
+_RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
     {
-        "/health",
         "/ping",
         "/docs",
         "/docs/oauth2-redirect",

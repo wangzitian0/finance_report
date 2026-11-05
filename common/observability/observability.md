@@ -240,6 +240,23 @@ ERROR) so the next regression is caught at PR time, not as Lark noise.
 5. Verify logs from `finance-report-backend` appear
 6. Verify alert rule `FinanceReportBackendErrorLogs` targets service `finance-report-backend`
 
+### 7.4 Request Log Line Contract
+
+The request middleware in `apps/backend/src/main.py` writes one `HTTP Request` INFO line per
+request, with the fields `request_id`, `method`, `path`, `status_code` and `duration_ms`.
+
+- A 2xx response to a probe path writes no line (`AC-observability.19.1`). The set of probe
+  paths is `_PROBE_PATHS` in `main.py`; it holds `/health`. The container HEALTHCHECK and the
+  deploy gates call that path on a schedule, and its lines made 94.5% of the production log
+  volume before #2860.
+- A non-2xx probe response or an exception still writes its line (`AC-observability.19.2`).
+- Every other request keeps its line unchanged (`AC-observability.19.3`).
+- The request metric and the `X-Request-ID` response header apply to probe requests too.
+
+To add a probe path, add it to `_PROBE_PATHS`; a test requires the path to be a served route.
+The uvicorn access log is separate: it writes one stdout line per request and does not reach the
+OTLP log export (`propagate: False` on `uvicorn.access`).
+
 ---
 
 ## 8. Runtime Incident Routing
