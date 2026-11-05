@@ -371,8 +371,8 @@ fixtures:
     license: "MIT"
     local_path: "common/testing/fixtures/pdf/generated/us_chase_checking_usd.pdf"
     expected_json_path: "common/testing/fixtures/pdf/generated/us_chase_checking_usd_expected.json"
-    sha256: "6bc68bfe64618e23f031fe0bbe25029c5c078b0b93026eed3888b96d13c98c6c"
-    file_size_bytes: 3231
+    sha256: "beb3657d9d35d9ffe351b531147ff408a9e3a576e98ad801a8a7f5ec53fa0882"
+    file_size_bytes: 3232
     doc_type: "bank_statement"
     institution: "Chase"
     currency: "USD"

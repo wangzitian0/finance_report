@@ -16,7 +16,7 @@ import time
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -75,10 +75,10 @@ NON_PNL_TRANSFER_CATEGORIES: frozenset[str] = frozenset(
 
 
 def _q2(value: Decimal) -> Decimal:
-    """Quantize a Decimal value to two decimal places with ROUND_HALF_UP."""
+    """Quantize a Decimal value to two decimal places with banker's rounding (ROUND_HALF_EVEN)."""
     if not isinstance(value, Decimal):
         raise TypeError(f"Monetary value must be Decimal, got {type(value).__name__}")
-    return value.quantize(PENNY, rounding=ROUND_HALF_UP)
+    return value.quantize(PENNY, rounding=ROUND_HALF_EVEN)
 
 
 def _to_dec(value: Decimal | str | int) -> Decimal:
@@ -88,6 +88,15 @@ def _to_dec(value: Decimal | str | int) -> Decimal:
     if isinstance(value, Decimal):
         return _q2(value)
     return _q2(Decimal(str(value)))
+
+
+def _to_rate_dec(value: Decimal | str | int) -> Decimal:
+    """Validate and return a full-precision Decimal FX rate without currency quantization."""
+    if isinstance(value, float):
+        raise TypeError("float is forbidden for FX rates; use Decimal or str")
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
 
 
 @dataclass(frozen=True)
@@ -400,10 +409,10 @@ def _convert_currency(
         raise ValueError(f"Missing fx_rates for conversion from {src} to {dst}")
     pair_key = f"{src}/{dst}"
     if pair_key in fx_rates:
-        rate = _to_dec(fx_rates[pair_key])
+        rate = _to_rate_dec(fx_rates[pair_key])
         return _q2(amount * rate)
     if src in fx_rates:
-        rate = _to_dec(fx_rates[src])
+        rate = _to_rate_dec(fx_rates[src])
         return _q2(amount * rate)
     raise ValueError(f"FX rate not found for {src} -> {dst}")
 
@@ -474,16 +483,7 @@ def compute_independent_three_statement_oracle(
         first_open_conv = _convert_currency(
             first_stmt.opening_balance, first_stmt.currency, target_ccy, fx_rates
         )
-        last_close_conv = _convert_currency(
-            last_stmt.closing_balance, last_stmt.currency, target_ccy, fx_rates
-        )
-
         opening_balance_equity_3199 = _q2(opening_balance_equity_3199 + first_open_conv)
-
-        if last_stmt.doc_type == "credit_card" and last_close_conv < ZERO:
-            total_liabilities = _q2(total_liabilities + abs(last_close_conv))
-        else:
-            ending_cash = _q2(ending_cash + last_close_conv)
 
         acc_gap = ZERO
         for prev_s, next_s in zip(chain[:-1], chain[1:], strict=True):
@@ -492,6 +492,29 @@ def compute_independent_three_statement_oracle(
             acc_gap = _q2(acc_gap + conv_gap)
         account_gap_deltas[acc_key] = acc_gap
         unexplained_gap_equity_3198 = _q2(unexplained_gap_equity_3198 + acc_gap)
+
+        # Compute ending balance from converted opening + converted gaps + converted transaction legs
+        # so double-entry ledger balance (Assets - Liabilities == Equity) is preserved under per-txn FX rounding
+        acc_ending_conv = _q2(first_open_conv + acc_gap)
+        for s in chain:
+            s_txns = s.transactions or _synthesize_envelope_transactions(
+                s.period_start,
+                s.period_end,
+                s.expected_inflows,
+                s.expected_outflows,
+            )
+            for t in s_txns:
+                if t.date > effective_as_of:
+                    continue
+                t_amt = _convert_currency(t.amount, s.currency, target_ccy, fx_rates)
+                acc_ending_conv = _q2(
+                    acc_ending_conv + (t_amt if t.direction == "IN" else -t_amt)
+                )
+
+        if last_stmt.doc_type == "credit_card" and acc_ending_conv < ZERO:
+            total_liabilities = _q2(total_liabilities + abs(acc_ending_conv))
+        else:
+            ending_cash = _q2(ending_cash + acc_ending_conv)
 
     # Compute cumulative P&L and non-cash asset movements up to effective_as_of,
     # and period-scoped Income Statement & Cash Flow over [effective_start, effective_end].

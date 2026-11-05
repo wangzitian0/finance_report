@@ -211,6 +211,17 @@ def test_credit_card_liability_and_fx_translation_oracle() -> None:
     assert fx_oracle.balance_sheet.ending_cash == Decimal("11527.86")
     assert fx_oracle.balance_sheet.accounting_equation_delta == ZERO
 
+    # Verify full-precision 4-decimal FX rate (e.g. 0.1850) is NOT truncated to 0.19
+    cny_fx_oracle = compute_independent_three_statement_oracle(
+        [corpus["pingan_statement_fixture"]],
+        report_currency="SGD",
+        fx_rates={"CNY/SGD": Decimal("0.1850")},
+        treat_transfers_as_clearing_asset=True,
+    )
+    assert cny_fx_oracle.balance_sheet.opening_balance_equity_3199 == Decimal("1480.00")
+    assert cny_fx_oracle.balance_sheet.ending_cash == Decimal("5757.58")
+    assert cny_fx_oracle.balance_sheet.accounting_equation_delta == ZERO
+
 
 def test_compare_oracle_with_platform_reports_verifies_all_7_invariants() -> None:
     """Verify pass and falsifiable failure detection for each of the 7 accounting invariants."""
@@ -286,6 +297,40 @@ def test_compare_oracle_with_platform_reports_verifies_all_7_invariants() -> Non
     )
     assert not r3.passed
     assert any("retained_earnings_to_net_income" in f for f in r3.failures)
+
+    # 4. Statement balance chain mismatch (Opening + Inflows - Outflows != Closing)
+    broken_chain_oracle = compute_independent_three_statement_oracle(
+        [
+            CorpusStatementSpec(
+                fixture_id="broken_chain_stmt",
+                dimension=dbs_jan.dimension,
+                source_platform=dbs_jan.source_platform,
+                local_path=dbs_jan.local_path,
+                sha256=dbs_jan.sha256,
+                institution=dbs_jan.institution,
+                account_key=dbs_jan.account_key,
+                doc_type=dbs_jan.doc_type,
+                currency=dbs_jan.currency,
+                period_start=dbs_jan.period_start,
+                period_end=dbs_jan.period_end,
+                opening_balance=dbs_jan.opening_balance,
+                closing_balance=Decimal("15000.00"),
+                expected_txn_count=dbs_jan.expected_txn_count,
+                expected_inflows=dbs_jan.expected_inflows,
+                expected_outflows=dbs_jan.expected_outflows,
+                net_movement=dbs_jan.net_movement,
+                transactions=dbs_jan.transactions,
+            )
+        ]
+    )
+    r4 = compare_oracle_with_platform_reports(
+        broken_chain_oracle,
+        balance_sheet=valid_bs,
+        income_statement=valid_is,
+        cash_flow=valid_cf,
+    )
+    assert not r4.passed
+    assert any("statement_balance_chain" in f for f in r4.failures)
 
     # 5. 3198 gap equity mismatch
     r5 = compare_oracle_with_platform_reports(
@@ -552,6 +597,13 @@ def test_pdf_corpus_oracle_edge_branches_and_live_cli(
 
     with pytest.raises(TypeError, match="Monetary value must be Decimal"):
         pco._q2("10.00")  # type: ignore[arg-type]
+
+    # Verify banker's rounding (ROUND_HALF_EVEN) on half-cent ties and float FX rejection
+    assert pco._q2(Decimal("2.005")) == Decimal("2.00")
+    assert pco._q2(Decimal("2.015")) == Decimal("2.02")
+    with pytest.raises(TypeError, match="float is forbidden for FX rates"):
+        pco._to_rate_dec(0.185)  # type: ignore[arg-type]
+    assert pco._to_rate_dec("0.1850") == Decimal("0.1850")
 
     with pytest.raises(ValueError, match="Invalid direction"):
         CorpusTransaction(

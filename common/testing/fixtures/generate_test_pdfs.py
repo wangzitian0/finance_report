@@ -356,7 +356,7 @@ def draw_chase_table(
     y -= 20
     pdf.setFont("Helvetica", 9)
     for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        sign = "" if txn.direction == "IN" else "-"
+        sign = "+" if txn.direction == "IN" else "-"
         pdf.drawString(48, y, mm_dd_yyyy(txn.date))
         pdf.drawString(126, y, txn.description)
         pdf.drawRightString(440, y, f"{sign}{money_with_commas(txn.amount)}")
