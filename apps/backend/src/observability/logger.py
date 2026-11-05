@@ -274,8 +274,13 @@ def _configure_otel_logging() -> None:
     logging.getLogger().addHandler(handler)
 
 
-def configure_logging() -> None:
-    """Configure structlog for structured logging and optional OTEL export."""
+def configure_logging(*, take_over_root: bool = False) -> None:
+    """Configure structlog for structured logging and optional OTEL export.
+
+    ``take_over_root`` detaches handlers that another library already put on the root
+    logger (Prefect installs a WARNING console handler on import) so that
+    ``logging.basicConfig`` takes effect. The flow-run process sets it.
+    """
     # Configure tracing first so trace context is available for logs
     _configure_otel_tracing()
 
@@ -295,6 +300,10 @@ def configure_logging() -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
+    if take_over_root:
+        root_logger = logging.getLogger()
+        for existing in list(root_logger.handlers):
+            root_logger.removeHandler(existing)
     logging.basicConfig(
         handlers=[handler],
         level=logging.DEBUG if settings.debug else logging.INFO,

@@ -11,8 +11,10 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
+from uuid import uuid4
 
 import src.config
+from src.observability import telemetry_metrics
 from src.observability.logger import configure_logging, flush_otel_logs_and_traces
 from src.observability.telemetry_metrics import configure_otel_metrics, flush_otel_metrics
 
@@ -36,8 +38,15 @@ def configure_worker_telemetry() -> bool:
     if _configured:
         return True
     settings.otel_service_name = os.environ.get("OTEL_SERVICE_NAME") or DEFAULT_WORKER_SERVICE_NAME
-    configure_logging()
+    # One series per flow-run process: PromQL increase() needs a series that grows, and
+    # a one-shot process cannot grow a series that other processes share.
+    instance = f"service.instance.id={uuid4()}"
+    settings.otel_resource_attributes = (
+        f"{settings.otel_resource_attributes},{instance}" if settings.otel_resource_attributes else instance
+    )
+    configure_logging(take_over_root=True)
     configure_otel_metrics()
+    telemetry_metrics.enable_series_priming()
     _configured = True
     return True
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import threading
+from collections import defaultdict
 from uuid import uuid4
 
 import pytest
@@ -57,6 +59,15 @@ class CapturingMetricExporter(MetricExporter):
         }
 
 
+def _fresh_process(monkeypatch) -> None:
+    """Model a new flow-run process: no worker config, no meter provider, no instruments."""
+    monkeypatch.setattr(worker_telemetry, "_configured", False)
+    # The global meter provider is set-once; reopen it so each process installs its own.
+    monkeypatch.setattr(otel_metrics._internal, "_METER_PROVIDER", None)
+    monkeypatch.setattr(otel_metrics._internal._METER_PROVIDER_SET_ONCE, "_done", False)
+    telemetry_metrics._clear_metrics_state()
+
+
 @pytest.fixture
 def worker_env(monkeypatch):
     """Point settings at a fake endpoint, swap in the capturing exporter, reset globals."""
@@ -66,12 +77,10 @@ def worker_env(monkeypatch):
     monkeypatch.setattr(metric_exporter_module, "OTLPMetricExporter", CapturingMetricExporter)
     monkeypatch.setattr(worker_telemetry.settings, "otel_exporter_otlp_endpoint", "http://collector:4318")
     monkeypatch.setattr(worker_telemetry.settings, "otel_service_name", "finance-report-backend")
-    monkeypatch.setattr(worker_telemetry, "_configured", False)
-    # The global meter provider is set-once; reopen it so each test installs its own.
-    monkeypatch.setattr(otel_metrics._internal, "_METER_PROVIDER", None)
-    monkeypatch.setattr(otel_metrics._internal._METER_PROVIDER_SET_ONCE, "_done", False)
+    monkeypatch.setattr(worker_telemetry.settings, "otel_resource_attributes", "deployment.environment=development")
+    _fresh_process(monkeypatch)
     # Logs and traces are not under test here: keep them off the network.
-    monkeypatch.setattr(worker_telemetry, "configure_logging", lambda: None)
+    monkeypatch.setattr(worker_telemetry, "configure_logging", lambda **_k: None)
     telemetry_metrics._clear_metrics_state()
     yield
     telemetry_metrics._clear_metrics_state()
@@ -110,7 +119,8 @@ async def test_flow_run_exports_parse_outcome_point_before_exit(worker_env, monk
 
     (exporter,) = CapturingMetricExporter.instances
     points = exporter.points(OUTCOME_METRIC)
-    assert [dict(p.attributes) for p in points] == [{"outcome": "success", "parser": "default"}]
+    assert {tuple(sorted(p.attributes.items())) for p in points} == {(("outcome", "success"), ("parser", "default"))}
+    assert [p.value for p in sorted(points, key=lambda p: p.time_unix_nano)] == [0, 1]
     assert exporter.service_names() == {"finance-report-worker"}
 
 
@@ -133,7 +143,10 @@ async def test_flow_run_flushes_async_failure_counter_when_the_parse_raises(work
 
     (exporter,) = CapturingMetricExporter.instances
     points = exporter.points("finance.async_parse.failure")
-    assert [dict(p.attributes) for p in points] == [{"task": "statement_parse", "error_type": "RuntimeError"}]
+    assert {tuple(sorted(p.attributes.items())) for p in points} == {
+        (("error_type", "RuntimeError"), ("task", "statement_parse"))
+    }
+    assert [p.value for p in sorted(points, key=lambda p: p.time_unix_nano)] == [0, 1]
 
 
 async def test_flow_run_without_endpoint_configures_and_flushes_nothing(worker_env, monkeypatch) -> None:
@@ -165,3 +178,158 @@ def test_flush_worker_telemetry_flushes_logs_and_traces_providers(monkeypatch) -
     worker_telemetry.flush_worker_telemetry()
 
     assert calls == ["metrics", "logs", "traces"]
+
+
+def _prom_increase(exporters, metric: str, **labels: str) -> float:
+    """Local model of ``sum(increase(metric{labels}[window]))`` over exported cumulative points.
+
+    A series is one resource plus one attribute set. PromQL needs two samples in the window
+    to produce a value, and counts a value drop as a counter reset.
+    """
+    series: dict[tuple, list[tuple[int, float]]] = defaultdict(list)
+    for exporter in exporters:
+        for batch in exporter.batches:
+            for resource_metrics in batch.resource_metrics:
+                resource = tuple(sorted((k, str(v)) for k, v in resource_metrics.resource.attributes.items()))
+                for scope_metrics in resource_metrics.scope_metrics:
+                    for metric_data in scope_metrics.metrics:
+                        if metric_data.name != metric:
+                            continue
+                        for point in metric_data.data.data_points:
+                            if any(point.attributes.get(k) != v for k, v in labels.items()):
+                                continue
+                            key = (resource, tuple(sorted(point.attributes.items())))
+                            series[key].append((point.time_unix_nano, point.value))
+    total = 0.0
+    for samples in series.values():
+        samples.sort()
+        previous = samples[0][1]
+        for _, value in samples[1:]:
+            total += value - previous if value >= previous else value
+            previous = value
+    return total
+
+
+async def test_three_flow_run_processes_each_failing_once_raise_the_p1_alert_increase_to_three(
+    worker_env, monkeypatch
+) -> None:
+    """AC-observability.12.4: sum(increase()) over three one-shot worker processes equals three.
+
+    Each process exports CUMULATIVE points once at exit. Without a per-process series and a
+    zero baseline, every process exports the same series with value 1, so PromQL increase()
+    over 1,1,1 is 0 and the P1 alerts never fire.
+    """
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+
+    class FailingUseCase:
+        async def execute(self, _job):
+            telemetry_metrics.record_statement_parse_outcome(outcome="failure")
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(statement_flow, "compose_statement_ingestion_use_case", lambda **_k: FailingUseCase())
+
+    for _ in range(3):
+        _fresh_process(monkeypatch)
+        with pytest.raises(RuntimeError, match="boom"):
+            await statement_flow.parse_statement_flow.fn(job=_job())
+
+    assert len(CapturingMetricExporter.instances) == 3
+    exporters = CapturingMetricExporter.instances
+    # Concurrent flow runs on one worker would interleave samples of a shared series
+    # (0,0,1,1 gives increase 1, not 2), so each process must export its own series.
+    instance_ids = {
+        rm.resource.attributes["service.instance.id"] for e in exporters for b in e.batches for rm in b.resource_metrics
+    }
+    assert len(instance_ids) == 3
+    assert _prom_increase(exporters, OUTCOME_METRIC, outcome="failure") == 3
+    assert _prom_increase(exporters, "finance.async_parse.failure") == 3
+
+
+def test_prom_increase_model_sees_no_increase_for_identical_single_sample_series() -> None:
+    """The model must return 0 for the pre-fix shape (same series, value 1, three times)."""
+    exporter = CapturingMetricExporter()
+    point = type("P", (), {"attributes": {"outcome": "failure"}, "value": 1, "time_unix_nano": 0})
+    for i in range(3):
+        p = point()
+        p.time_unix_nano = i
+        scope = type(
+            "S", (), {"metrics": [type("M", (), {"name": OUTCOME_METRIC, "data": type("D", (), {"data_points": [p]})})]}
+        )
+        resource = type("R", (), {"attributes": {"service.name": "finance-report-worker"}})
+        batch = type("B", (), {"resource_metrics": [type("RM", (), {"resource": resource, "scope_metrics": [scope]})]})
+        exporter.batches.append(batch)
+
+    assert _prom_increase([exporter], OUTCOME_METRIC, outcome="failure") == 0
+
+
+class CapturingLogExporter:
+    """Stands in for the OTLP log exporter and keeps every exported log record body."""
+
+    instances: list[CapturingLogExporter] = []
+
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        self.bodies: list[str] = []
+        CapturingLogExporter.instances.append(self)
+
+    def export(self, batch):
+        from opentelemetry.sdk._logs.export import LogExportResult
+
+        for item in batch:
+            record = getattr(item, "log_record", item)
+            self.bodies.append(str(record.body))
+        return LogExportResult.SUCCESS
+
+    def force_flush(self, timeout_millis: int = 10_000) -> bool:
+        return True
+
+    def shutdown(self) -> None:
+        return None
+
+
+@pytest.fixture
+def prefect_logging_env(worker_env, monkeypatch):
+    """Real Prefect logging setup active on the root logger, real configure_logging, fake log exporter."""
+    import opentelemetry.exporter.otlp.proto.http._log_exporter as log_exporter_module
+    import structlog
+    from prefect.logging.configuration import setup_logging
+
+    from src.observability import logger as logger_module
+
+    root = logging.getLogger()
+    saved_handlers, saved_level = list(root.handlers), root.level
+    for handler in saved_handlers:
+        root.removeHandler(handler)
+    root.setLevel(logging.WARNING)
+    setup_logging()  # what `import prefect` does in a flow-run process
+    CapturingLogExporter.instances.clear()
+    monkeypatch.setattr(log_exporter_module, "OTLPLogExporter", CapturingLogExporter)
+    monkeypatch.setattr(worker_telemetry, "configure_logging", logger_module.configure_logging)
+    monkeypatch.setattr(worker_telemetry.settings, "debug", False)
+    monkeypatch.setattr(logger_module, "_logger_provider", None)
+    monkeypatch.setattr(logger_module, "_tracer_provider", None)
+    monkeypatch.setattr(worker_telemetry.settings, "otel_exporter_otlp_endpoint", "http://collector:4318")
+    yield
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+    for handler in saved_handlers:
+        root.addHandler(handler)
+    root.setLevel(saved_level)
+    structlog.reset_defaults()
+
+
+async def test_flow_run_exports_info_log_events_with_prefect_logging_active(
+    prefect_logging_env, monkeypatch, capsys
+) -> None:
+    """AC-observability.12.4: INFO events of the flow reach the log exporter and stdout.
+
+    Prefect's setup leaves the root logger at WARNING with its own handler, so a plain
+    ``logging.basicConfig`` call does nothing and the INFO events vanish.
+    """
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    _install_fake_use_case(monkeypatch)
+
+    await statement_flow.parse_statement_flow.fn(job=_job())
+
+    (log_exporter,) = CapturingLogExporter.instances
+    assert any("statement.parse.flow_started" in body for body in log_exporter.bodies)
+    assert "statement.parse.flow_started" in capsys.readouterr().out
