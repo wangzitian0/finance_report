@@ -19,6 +19,7 @@ from src.ledger import (
     Direction,
     JournalEntry,
     JournalLine,
+    account_service,
 )
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
@@ -55,7 +56,16 @@ def _build_account_lines(
     provenance_by_account: dict[UUID, DataProvenance | None] | None = None,
     native_balances: dict[UUID, Decimal] | None = None,
 ) -> list[dict[str, Any]]:
-    items = [account for account in accounts if account.type == filter_type]
+    items = [
+        account
+        for account in accounts
+        if account.type == filter_type
+        and not (
+            account.is_system
+            and account.code == account_service.UNEXPLAINED_GAP_EQUITY_CODE
+            and _quantize_money(balances.get(account.id, Decimal("0"))) == Decimal("0.00")
+        )
+    ]
     items.sort(key=lambda acc: acc.name.lower())
     return [
         {

@@ -1,0 +1,116 @@
+%PDF-1.3
+%“Œ‹ž ReportLab Generated PDF document (opensource)
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/Contents 8 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 7 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+5 0 obj
+<<
+/PageMode /UseNone /Pages 7 0 R /Type /Catalog
+>>
+endobj
+6 0 obj
+<<
+/Author (finance-report-tests) /CreationDate (D:20000101000000+00'00') /Creator (generate_test_pdfs.py) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (ReportLab PDF Library - \(opensource\)) 
+  /Subject (Deterministic extraction test fixture) /Title (Barclays Statement Fixture) /Trapped /False
+>>
+endobj
+7 0 obj
+<<
+/Count 1 /Kids [ 4 0 R ] /Type /Pages
+>>
+endobj
+8 0 obj
+<<
+/Length 2051
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT /F1 16 Tf 19.2 TL ET
+BT 1 0 0 1 48 785.8898 Tm (BARCLAYS BANK UK PLC - CURRENT ACCOUNT STATEMENT) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 48 761.8898 Tm (Account Number: 20-00-00 ****5519) Tj T* ET
+BT 1 0 0 1 48 745.8898 Tm (Statement Period: 2025-03-01 to 2025-03-31) Tj T* ET
+BT 1 0 0 1 48 729.8898 Tm (Opening Balance: GBP 5100.00) Tj T* ET
+BT 1 0 0 1 48 713.8898 Tm (Closing Balance: GBP 6445.20) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 48 689.8898 Tm (Date) Tj T* ET
+BT 1 0 0 1 122 689.8898 Tm (Description) Tj T* ET
+BT 1 0 0 1 350 689.8898 Tm (Money Out) Tj T* ET
+BT 1 0 0 1 424 689.8898 Tm (Money In) Tj T* ET
+BT 1 0 0 1 496 689.8898 Tm (Balance) Tj T* ET
+n 48 685.8898 m 545 685.8898 l S
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 48 669.8898 Tm (03 Mar 2025) Tj T* ET
+BT 1 0 0 1 122 669.8898 Tm (BACS CREDIT THAMES TECH LTD PAYROLL) Tj T* ET
+BT 1 0 0 1 406 669.8898 Tm  T* ET
+BT 1 0 0 1 440.972 669.8898 Tm (3,800.00) Tj T* ET
+BT 1 0 0 1 504.972 669.8898 Tm (8,900.00) Tj T* ET
+BT 1 0 0 1 48 652.8898 Tm (05 Mar 2025) Tj T* ET
+BT 1 0 0 1 122 652.8898 Tm (STANDING ORDER CANARY WHARF LETTINGS) Tj T* ET
+BT 1 0 0 1 370.972 652.8898 Tm (1,850.00) Tj T* ET
+BT 1 0 0 1 476 652.8898 Tm  T* ET
+BT 1 0 0 1 504.972 652.8898 Tm (7,050.00) Tj T* ET
+BT 1 0 0 1 48 635.8898 Tm (10 Mar 2025) Tj T* ET
+BT 1 0 0 1 122 635.8898 Tm (CARD PAYMENT SAINSBURYS SUPERMARKET) Tj T* ET
+BT 1 0 0 1 378.478 635.8898 Tm (312.40) Tj T* ET
+BT 1 0 0 1 476 635.8898 Tm  T* ET
+BT 1 0 0 1 504.972 635.8898 Tm (6,737.60) Tj T* ET
+BT 1 0 0 1 48 618.8898 Tm (16 Mar 2025) Tj T* ET
+BT 1 0 0 1 122 618.8898 Tm (DIRECT DEBIT OCTOPUS ENERGY LTD) Tj T* ET
+BT 1 0 0 1 378.478 618.8898 Tm (198.40) Tj T* ET
+BT 1 0 0 1 476 618.8898 Tm  T* ET
+BT 1 0 0 1 504.972 618.8898 Tm (6,539.20) Tj T* ET
+BT 1 0 0 1 48 601.8898 Tm (23 Mar 2025) Tj T* ET
+BT 1 0 0 1 122 601.8898 Tm (CONTACTLESS TFL TRAVEL CHG LONDON) Tj T* ET
+BT 1 0 0 1 383.482 601.8898 Tm (94.00) Tj T* ET
+BT 1 0 0 1 476 601.8898 Tm  T* ET
+BT 1 0 0 1 504.972 601.8898 Tm (6,445.20) Tj T* ET
+ 
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000061 00000 n 
+0000000102 00000 n 
+0000000209 00000 n 
+0000000321 00000 n 
+0000000524 00000 n 
+0000000592 00000 n 
+0000000920 00000 n 
+0000000979 00000 n 
+trailer
+<<
+/ID 
+[<b4828415fec17f2ce44e91fd6f6f0b4d><b4828415fec17f2ce44e91fd6f6f0b4d>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 6 0 R
+/Root 5 0 R
+/Size 9
+>>
+startxref
+3081
+%%EOF

@@ -407,13 +407,20 @@ async def auto_fill_default_statement_dispositions(
         mode=DispositionMode(settings.statement_disposition_mode),
         policy=await statement_disposition_policy_for_user(db, user_id),
     )
+    base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
+    statement_currency = (statement.currency or "").upper()
     named_transfers: list[NamedTransfer] = []
 
     for txn in unmatched_txns:
         if txn.id in left_to_posting:
             continue
         suggestion = suggestions.get(txn.id)
-        if suggestion is not None and suggestion.booking == "processing_leg":
+        if (
+            suggestion is not None
+            and suggestion.booking == "processing_leg"
+            and (txn.currency or "").upper() == base_currency
+            and statement_currency in {"", base_currency}
+        ):
             named_transfers.append(
                 NamedTransfer(
                     transaction=txn,
@@ -482,7 +489,15 @@ async def auto_fill_default_statement_dispositions(
             ),
             dependencies=dependencies,
         )
-        await settle_drafts_after_posting(db, txn.id, accepted_id=None)
+        await settle_drafts_after_posting(
+            db,
+            txn.id,
+            accepted_id=(
+                suggestion.classification_id
+                if suggestion is not None and suggestion.booking == "processing_leg"
+                else None
+            ),
+        )
         resolved_count += 1
 
     if named_transfers:

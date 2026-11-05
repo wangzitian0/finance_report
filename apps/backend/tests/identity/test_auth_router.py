@@ -211,3 +211,64 @@ async def test_browser_logout_expires_cookie(public_client):
     assert (await public_client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})).status_code == 200
     assert (await public_client.post("/auth/login", json=payload)).status_code == 200
     assert (await public_client.get("/auth/me")).status_code == 200
+
+
+async def test_AC_identity_2674_1_soft_deleted_user_email_can_reregister(db: AsyncSession, public_client) -> None:
+    """AC-identity.2674.1: A soft-deleted user's email can be re-registered while active duplicates fail (#2674)."""
+    deleted_user = User(
+        email="reclaim@example.com",
+        hashed_password=hash_password("oldpassword123"),
+        is_deleted=True,
+    )
+    db.add(deleted_user)
+    await db.commit()
+
+    resp = await public_client.post(
+        "/auth/register",
+        json={"email": "Reclaim@Example.com", "password": "newpassword123", "name": "Reclaimed"},
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["email"] == "reclaim@example.com"
+
+    # Active duplicate still rejected
+    dup_resp = await public_client.post(
+        "/auth/register",
+        json={"email": "reclaim@example.com", "password": "anotherpassword123"},
+    )
+    assert dup_resp.status_code == 400
+    assert dup_resp.json()["detail"] == "Email already registered"
+
+
+def test_AC_identity_2674_2_get_client_ip_uses_rightmost_forwarded_ip_and_shares_helper(
+    monkeypatch,
+) -> None:
+    """AC-identity.2674.2: Global and auth rate limiters share get_client_ip and use rightmost XFF when trusted (#2674)."""
+    from starlette.requests import Request
+
+    import src.config
+    import src.main as main_module
+    from src.identity.extension.api import auth as auth_module
+    from src.platform import get_client_ip
+
+    assert not hasattr(auth_module, "TRUST_PROXY")
+    assert auth_module._get_client_ip is get_client_ip
+    assert main_module.get_client_ip is get_client_ip
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/auth/login",
+        "headers": [(b"x-forwarded-for", b"1.2.3.4, 198.51.100.77")],
+        "client": ("10.0.0.1", 12345),
+    }
+    request = Request(scope=scope)
+
+    # Untrusted proxy ignores X-Forwarded-For
+    monkeypatch.setattr(src.config.settings, "trust_proxy", False)
+    assert get_client_ip(request, trust_proxy=src.config.settings.trust_proxy) == "10.0.0.1"
+    assert auth_module._get_client_ip(request) == "10.0.0.1"
+
+    # Trusted proxy uses rightmost X-Forwarded-For entry (preventing client left-hand spoofing)
+    monkeypatch.setattr(src.config.settings, "trust_proxy", True)
+    assert get_client_ip(request, trust_proxy=src.config.settings.trust_proxy) == "198.51.100.77"
+    assert auth_module._get_client_ip(request) == "198.51.100.77"

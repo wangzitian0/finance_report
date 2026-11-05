@@ -862,7 +862,7 @@ async def test_many_to_one_pending_review_status(db: AsyncSession, test_user):
     )
 
     with patch(
-        "src.reconciliation.load_reconciliation_config",
+        "src.reconciliation.extension.matching.load_reconciliation_config",
         return_value=ReconciliationConfig(
             weight_amount=Decimal("0.40"),
             weight_date=Decimal("0.25"),
@@ -874,6 +874,7 @@ async def test_many_to_one_pending_review_status(db: AsyncSession, test_user):
             amount_percent=Decimal("0.005"),
             amount_absolute=Decimal("0.10"),
             date_days=7,
+            enable_ai_reconciliation=False,
         ),
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")

@@ -31,7 +31,7 @@ async def test_AC_extraction_ai_classification_default_1_new_user_settings_show_
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-extraction.ai-classification-default.1: a user with no override sees classification on, reconciliation off."""
+    """AC-extraction.ai-classification-default.1: a user with no override sees classification and reconciliation on."""
     monkeypatch.delenv("ENABLE_AI_CLASSIFICATION", raising=False)
     monkeypatch.delenv("ENABLE_AI_RECONCILIATION", raising=False)
     code_defaults = Settings(_env_file=None)
@@ -43,7 +43,7 @@ async def test_AC_extraction_ai_classification_default_1_new_user_settings_show_
 
     assert response.status_code == 200
     assert response.json() == {
-        "enable_ai_reconciliation": False,
+        "enable_ai_reconciliation": True,
         "enable_ai_classification": True,
         "auto_accept_ai_suggestions": True,
         "auto_accept_ai_suggestions_active": True,

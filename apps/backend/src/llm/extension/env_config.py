@@ -1,13 +1,14 @@
 """Env-backed ``ConfigSource`` (EPIC-023 EPIC A).
 
-A stopgap implementation that projects the existing provider-neutral env vars
-(``AI_PROVIDER`` / ``AI_BASE_URL`` / ``AI_API_KEY`` / ``*_MODEL`` / ``*_FALLBACK_MODELS``)
-onto the new scene×model contract, so the litellm client works with today's
-configuration and behaviour is preserved. EPIC B replaces it with a
-``DbConfigSource`` behind the same protocol.
+Projects the provider-neutral environment settings (``AI_PROVIDER`` /
+``AI_BASE_URL`` / ``AI_API_KEY``) and the three canonical model roles
+(``LARGE_MODEL``, ``SMALL_MODEL``, ``MULTIMODAL_MODEL``) onto the
+scene×model contract.
 """
 
 from __future__ import annotations
+
+import re
 
 import src.config
 from src.llm.base import ProtocolFamily, ProviderRef, ReasoningEffort, Scene, SceneBinding
@@ -34,6 +35,41 @@ def protocol_for(provider: str) -> ProtocolFamily:
 
 class EnvConfigSource:
     """Resolve providers/bindings from environment settings."""
+
+    CANONICAL_ROLES: frozenset[str] = frozenset({"large", "small", "multimodal"})
+    _RETIRED_GLM4_MODEL_RE = re.compile(r"^glm-?4(?:\.\d+)?v?$", re.IGNORECASE)
+
+    @classmethod
+    def default_role_for_scene(cls, scene: Scene) -> str:
+        """Return the canonical SDK role ('large', 'small', or 'multimodal') for a scene."""
+        if scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
+            return "multimodal"
+        if scene is Scene.ADVISOR_CHAT:
+            return "large"
+        return "small"
+
+    @classmethod
+    def is_retired_scene_model(cls, raw_model: str) -> bool:
+        """Return True when ``raw_model`` names a retired fourth-generation model (#2624)."""
+        cleaned = raw_model.strip()
+        if not cleaned:
+            return True
+        bare = cleaned.split("/")[-1]
+        return bool(cls._RETIRED_GLM4_MODEL_RE.match(bare))
+
+    @classmethod
+    def resolve_scene_model(cls, scene: Scene, raw_model: str | None) -> str:
+        """Resolve a scene model binding through the three canonical roles (#2624)."""
+        llm = settings.to_llm_settings()
+        cleaned = (raw_model or "").strip()
+        if not cleaned:
+            return llm.role_model(cls.default_role_for_scene(scene))
+        lowered = cleaned.lower()
+        if lowered in cls.CANONICAL_ROLES:
+            return llm.role_model(lowered)
+        if cls.is_retired_scene_model(cleaned):
+            return llm.role_model(cls.default_role_for_scene(scene))
+        return cleaned
 
     def _provider(self) -> ProviderRef | None:
         llm = settings.to_llm_settings()
@@ -73,13 +109,7 @@ def _binding_for(scene: Scene) -> SceneBinding:
     multimodal role. Every other scene uses the small role. There is no fallback chain.
     """
     llm = settings.to_llm_settings()
-
-    if scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
-        role = "multimodal"
-    elif scene is Scene.ADVISOR_CHAT:
-        role = "large"
-    else:
-        role = "small"
+    role = EnvConfigSource.default_role_for_scene(scene)
     return SceneBinding(
         scene,
         llm.role_model(role),

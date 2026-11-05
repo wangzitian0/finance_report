@@ -111,8 +111,8 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
     )[0]
-    assert "uv run ruff check src tests" in lint_block
-    assert "uv run ruff format src tests --check" in lint_block
+    assert "uv run --frozen ruff check src tests" in lint_block
+    assert "uv run --frozen ruff format src tests --check" in lint_block
     assert "tools/check_ci_metrics_contract.py" in lint_block
     assert "Tooling/Common Coverage" in tooling_coverage_block
     assert "Run tooling tests with coverage" in tooling_coverage_block

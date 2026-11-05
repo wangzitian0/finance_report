@@ -267,6 +267,8 @@ CONTRACT = PackageContract(
         "JournalLineContribution",
         "LedgerError",
         "Leg",
+        "MAX_JOURNAL_LINE_AMOUNT",
+        "MAX_JOURNAL_LINE_FX_RATE",
         "PROCESSING_ACCOUNT_CODE",
         "ProcessingAccount",
         "ProcessingCurrencyConflictError",
@@ -315,6 +317,9 @@ CONTRACT = PackageContract(
         "worst_confidence_tier",
         "validate_fx_rates",
         "validate_journal_balance",
+        "validate_journal_line_amount",
+        "validate_journal_line_fx_rate",
+        "validate_journal_line_tags",
         "validate_journal_posting_invariants",
         "validate_line_account_ownership",
         "verify_accounting_equation",
@@ -676,6 +681,9 @@ CONTRACT = PackageContract(
         ac('AC-ledger.80.5', 'Bypassing the authoritative ledger submission gateway and attempting direct database insertion triggers physical constraint or deferred trigger rejection with zero journal state pollution (#2052).', 'apps/backend/tests/ledger/test_ledger_authority_boundary.py::test_AC_ledger_80_5_direct_database_bypass_interception', proof_kind='exact'),
         # ── group 2832: system equity account 3198 Unexplained Statement Gap Equity and superseding opening positions (#2832) ──
         ac('AC-ledger.2832.1', 'get_or_create_unexplained_gap_equity_account provisions system equity account 3198 (Unexplained Statement Gap Equity) per currency, and initialize_opening_positions(..., allow_supersede=True) supports re-anchoring an account opening position when statement chains are re-anchored (#2832).', 'apps/backend/tests/extraction/test_statement_opening_guards.py::test_AC_ledger_2832_1_unexplained_gap_equity_account_and_superseding_opening_position', priority='P1', proof_kind='exact'),
+        # ── group 2674 & 2576: system account write protection, default account convergence, and journal wire bounds (#2674 #2576) ──
+        ac('AC-ledger.2674.1', 'System accounts (is_system=True) reject update and delete mutations in account_service and /accounts endpoints, and all system/default account creation paths (3199, 3198, BankRoundingDifference, AUTO-BANK, AUTO-ASSET) converge on find_or_create_account (#2674).', 'apps/backend/tests/accounting/test_accounts_endpoints.py::test_AC_ledger_2674_1_system_accounts_cannot_be_updated_or_deleted', priority='P1'),
+        ac('AC-ledger.2576.1', 'Manual journal line schemas bound amount (< 10^16, <= 2 decimal places) and fx_rate (< 10^12, <= 6 decimal places), and reject float values and NUL characters in tags at the wire boundary (#2576).', 'apps/backend/tests/ledger/test_journal_router_errors.py::test_AC_ledger_2576_1_journal_wire_bounds_and_tags_validation', priority='P1'),
     ],
     concepts=[
         ConceptRecord(

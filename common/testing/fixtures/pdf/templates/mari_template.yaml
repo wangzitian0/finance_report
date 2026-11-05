@@ -50,7 +50,7 @@ tables:
     header_style:
       background: "#CCCCCC"
       text_color: "#000000"
-  
+
   transaction_details:
     # Mari Bank format: DATE, TRANSACTION, OUTGOING (SGD), INCOMING (SGD)
     # Date format: DD MMM (e.g., "15 JAN")

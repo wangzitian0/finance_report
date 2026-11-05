@@ -34,6 +34,29 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from threading import Lock
 
+from starlette.requests import Request
+
+
+def get_client_ip(request: Request, *, trust_proxy: bool | None = None) -> str:
+    """Extract client IP from request, honoring the rightmost X-Forwarded-For entry when trusted.
+
+    When ``trust_proxy`` is True (or ``src.config.settings.trust_proxy`` when not explicitly passed),
+    the rightmost non-empty address in ``X-Forwarded-For`` is used — the address appended by the
+    nearest trusted reverse proxy — preventing a client from spoofing a left-hand XFF entry to
+    bypass rate limits (#2674).
+    """
+    if trust_proxy is None:
+        import src.config
+
+        trust_proxy = bool(src.config.settings.trust_proxy)
+    if trust_proxy:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            parts = [part.strip() for part in forwarded.split(",") if part.strip()]
+            if parts:
+                return parts[-1]
+    return request.client.host if request.client else "unknown"
+
 
 @dataclass
 class RateLimitConfig:

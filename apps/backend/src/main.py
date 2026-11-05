@@ -56,6 +56,7 @@ from src.platform import (
     RateLimitConfig,
     RateLimiter,
     SubscriberRegistry,
+    get_client_ip,
     platform_system_router,
 )
 from src.portfolio import PositionService
@@ -366,9 +367,7 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
     if path in _RATE_LIMIT_EXEMPT_PATHS or path.startswith("/docs") or path.startswith("/redoc"):
         return await call_next(request)
 
-    # Use the actual remote address only; honoring X-Forwarded-For requires a
-    # trusted-proxy setup and is intentionally deferred to a future config option.
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request, trust_proxy=settings.trust_proxy)
     allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
     if not allowed:
         request_id = request.headers.get("X-Request-ID", str(uuid4()))

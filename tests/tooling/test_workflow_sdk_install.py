@@ -113,7 +113,12 @@ def _runs_tool(command: str, tools: set[str]) -> str | None:
 
 
 def _installs_sdk(step: dict[str, object]) -> bool:
-    if str(step.get("uses", "")) == INSTALL_ACTION:
+    if step.get("if") or step.get("continue-on-error"):
+        return False
+    if str(step.get("uses", "")) in (
+        INSTALL_ACTION,
+        "./.github/actions/setup-backend-env",
+    ):
         return True
     command = str(step.get("run", ""))
     return any(pattern.search(command) for pattern in INSTALLERS)
@@ -191,12 +196,26 @@ def test_AC_runtime_sdk_install_1_every_job_installs_the_sdk_before_it_runs_a_to
             ],
             1,
         ),
+        (
+            [
+                {"uses": INSTALL_ACTION, "if": "false"},
+                {"run": "python tools/verify_release_images.py"},
+            ],
+            1,
+        ),
+        (
+            [
+                {"uses": INSTALL_ACTION, "continue-on-error": True},
+                {"run": "python tools/verify_release_images.py"},
+            ],
+            1,
+        ),
     ],
 )
 def test_AC_runtime_sdk_install_1_the_scan_catches_a_tool_that_runs_before_the_install(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    steps: list[dict[str, str]],
+    steps: list[dict[str, object]],
     expected: int,
 ) -> None:
     workflows = tmp_path / ".github" / "workflows"
@@ -207,3 +226,14 @@ def test_AC_runtime_sdk_install_1_the_scan_catches_a_tool_that_runs_before_the_i
     monkeypatch.setattr(f"{__name__}.WORKFLOWS", workflows)
 
     assert len(_jobs_without_sdk(_sdk_tools())) == expected
+
+
+def test_installs_sdk_rejects_conditional_or_soft_failing_steps() -> None:
+    """#2704: _installs_sdk rejects steps with `if` or `continue-on-error`."""
+    assert _installs_sdk({"uses": INSTALL_ACTION}) is True
+    assert _installs_sdk({"uses": INSTALL_ACTION, "if": "${{ always() }}"}) is False
+    assert _installs_sdk({"uses": INSTALL_ACTION, "continue-on-error": True}) is False
+    assert (
+        _installs_sdk({"run": "uv sync", "if": "github.event_name == 'push'"}) is False
+    )
+    assert _installs_sdk({"run": "uv sync", "continue-on-error": True}) is False

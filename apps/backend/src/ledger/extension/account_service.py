@@ -141,30 +141,33 @@ async def get_or_create_opening_balance_equity_account(
     db: AsyncSession,
     user_id: UUID,
     currency: str,
+    *,
+    match_currency: bool = False,
 ) -> Account:
-    """Get or create the Opening Balance Equity account for a user (#949).
+    """Get or create the Opening Balance Equity account for a user (#949, #2851).
 
     Guided opening balances offset into this system-managed equity account so a
     user's starting position is captured as a balanced journal entry and the
     accounting equation holds (Assets = Liabilities + Equity) from day one.
     """
-    result = await db.execute(
-        select(Account).where(
+    normalized_currency = Currency.of(currency).code
+
+    async def find(session: AsyncSession) -> Account | None:
+        stmt = select(Account).where(
             Account.user_id == user_id,
             Account.is_system == True,  # noqa: E712
             Account.code == OPENING_BALANCE_EQUITY_CODE,
         )
-    )
-    # Tolerant fetch: a rare duplicate (e.g. concurrent first-time creates without
-    # a DB uniqueness constraint) must not break opening-balance posting.
-    account = result.scalars().first()
-    normalized_currency = Currency.of(currency).code
-    if account and Currency.of(account.currency).code != normalized_currency:
-        raise ValidationError(
-            f"Opening Balance Equity account currency is {account.currency}; got base currency {normalized_currency}"
-        )
-    if not account:
-        account = Account(
+        if match_currency:
+            stmt = stmt.where(Account.currency == normalized_currency)
+        result = await session.execute(stmt.order_by(Account.created_at, Account.id).limit(1))
+        return result.scalars().first()
+
+    account = await find_or_create_account(
+        db,
+        user_id=user_id,
+        find=find,
+        build=lambda: Account(
             user_id=user_id,
             name="Opening Balance Equity",
             code=OPENING_BALANCE_EQUITY_CODE,
@@ -172,10 +175,12 @@ async def get_or_create_opening_balance_equity_account(
             currency=normalized_currency,
             is_system=True,
             description="System-managed equity account for year-start opening balance entries",
+        ),
+    )
+    if Currency.of(account.currency).code != normalized_currency:
+        raise ValidationError(
+            f"Opening Balance Equity account currency is {account.currency}; got base currency {normalized_currency}"
         )
-        db.add(account)
-        await db.flush()
-        await db.refresh(account)
     return account
 
 
@@ -192,17 +197,26 @@ async def get_or_create_unexplained_gap_equity_account(
     automatically shrinks as intermediate statements are uploaded.
     """
     normalized_currency = Currency.of(currency).code
-    result = await db.execute(
-        select(Account).where(
-            Account.user_id == user_id,
-            Account.is_system == True,  # noqa: E712
-            Account.code == UNEXPLAINED_GAP_EQUITY_CODE,
-            Account.currency == normalized_currency,
+
+    async def find(session: AsyncSession) -> Account | None:
+        result = await session.execute(
+            select(Account)
+            .where(
+                Account.user_id == user_id,
+                Account.is_system == True,  # noqa: E712
+                Account.code == UNEXPLAINED_GAP_EQUITY_CODE,
+                Account.currency == normalized_currency,
+            )
+            .order_by(Account.created_at, Account.id)
+            .limit(1)
         )
-    )
-    account = result.scalars().first()
-    if not account:
-        account = Account(
+        return result.scalars().first()
+
+    return await find_or_create_account(
+        db,
+        user_id=user_id,
+        find=find,
+        build=lambda: Account(
             user_id=user_id,
             name="Unexplained Statement Gap Equity",
             code=UNEXPLAINED_GAP_EQUITY_CODE,
@@ -210,11 +224,8 @@ async def get_or_create_unexplained_gap_equity_account(
             currency=normalized_currency,
             is_system=True,
             description="System-managed equity account for cross-period statement balance gap calibration",
-        )
-        db.add(account)
-        await db.flush()
-        await db.refresh(account)
-    return account
+        ),
+    )
 
 
 async def list_accounts(
@@ -257,6 +268,8 @@ async def get_account(db: AsyncSession, user_id: UUID, account_id: UUID) -> Acco
 
 async def update_account(db: AsyncSession, user_id: UUID, account_id: UUID, account_data: AccountUpdate) -> Account:
     account = await get_account(db, user_id, account_id)
+    if account.is_system:
+        raise ValidationError("System accounts cannot be modified or deleted")
     update_data = account_data.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():

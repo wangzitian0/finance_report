@@ -20,7 +20,7 @@ from src.audit.money.currency import normalize_currency_code
 from src.audit.quantity import Quantity, Unit
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
-from src.ledger import Account, AccountType
+from src.ledger import Account, AccountType, account_service
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -265,27 +265,31 @@ class PositionService:
         accounts keep their currency; ``USD`` remains the fallback when no
         snapshot currency is available.
         """
-        query = (
-            select(Account)
-            .where(Account.user_id == user_id)
-            .where(Account.name == broker_name)
-            .where(Account.type == AccountType.ASSET)
-        )
-        res = await db.execute(query)
-        account = res.scalar_one_or_none()
 
-        if not account:
-            account = Account(
+        async def _find_broker_account(session: AsyncSession) -> Account | None:
+            query = (
+                select(Account)
+                .where(Account.user_id == user_id)
+                .where(Account.name == broker_name)
+                .where(Account.type == AccountType.ASSET)
+                .order_by(Account.created_at, Account.id)
+                .limit(1)
+            )
+            res = await session.execute(query)
+            return res.scalar_one_or_none()
+
+        return await account_service.find_or_create_account(
+            db,
+            user_id=user_id,
+            find=_find_broker_account,
+            build=lambda: Account(
                 user_id=user_id,
                 name=broker_name,
                 type=AccountType.ASSET,
                 currency=normalize_currency_code(currency) or "USD",
                 code="AUTO-ASSET",
-            )
-            db.add(account)
-            await db.flush()
-
-        return account
+            ),
+        )
 
     def calculate_depreciation(
         self,

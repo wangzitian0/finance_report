@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.deps import CurrentUserId, DbSession
 from src.llm import (
+    EnvConfigSource,
     LitellmCatalog,
     LLMConfigError,
     LlmProvider,
@@ -184,6 +185,10 @@ async def put_scenes(
     for b in payload.bindings:
         if b.provider_id not in owned:
             raise_bad_request(f"Provider {b.provider_id} is not owned by the current user.")
+        if EnvConfigSource.is_retired_scene_model(b.model):
+            raise_bad_request(
+                f"Model {b.model} is retired; bind one of the three roles (large, small, multimodal) or a current model."
+            )
 
     await db.execute(delete(LlmSceneBinding).where(LlmSceneBinding.user_id == user_id))
     for b in payload.bindings:

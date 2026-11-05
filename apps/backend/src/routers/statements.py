@@ -63,6 +63,7 @@ from src.extraction import (
 from src.ledger import (
     Account,
     AccountType,
+    account_service,
 )
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
@@ -84,7 +85,7 @@ from src.schemas import (
     RetryParsingRequest,
     StatementDecisionRequest,
 )
-from src.schemas.extraction import compose_statement_response
+from src.schemas.extraction import compose_statement_list_item_response, compose_statement_response
 from src.schemas.portfolio import BrokerageImportResponse
 from src.schemas.review import (
     BalanceValidationResult,
@@ -303,38 +304,38 @@ async def _create_statement_account_from_confirmation(
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"
 
-    existing_result = await db.execute(
-        select(Account)
-        .where(Account.user_id == user_id)
-        .where(Account.name == account_name)
-        .where(Account.type == AccountType.ASSET)
-        .where(Account.currency == currency)
-        .where(Account.is_active.is_(True))
-        .order_by(Account.created_at, Account.id)
-        .limit(1)
-    )
-    existing_account = existing_result.scalar_one_or_none()
-    if existing_account is not None:
-        statement.account_id = existing_account.id
-        await db.flush()
-        return existing_account
-
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
 
-    account = Account(
+    async def _find_statement_account(session: AsyncSession) -> Account | None:
+        existing_result = await session.execute(
+            select(Account)
+            .where(Account.user_id == user_id)
+            .where(Account.name == account_name)
+            .where(Account.type == AccountType.ASSET)
+            .where(Account.currency == currency)
+            .where(Account.is_active.is_(True))
+            .order_by(Account.created_at, Account.id)
+            .limit(1)
+        )
+        return existing_result.scalar_one_or_none()
+
+    created_account = await account_service.find_or_create_account(
+        db,
         user_id=user_id,
-        name=account_name,
-        type=AccountType.ASSET,
-        currency=currency,
-        code="AUTO-BANK",
-        description=f"Created from confirmed statement import {source_filename}",
+        find=_find_statement_account,
+        build=lambda: Account(
+            user_id=user_id,
+            name=account_name,
+            type=AccountType.ASSET,
+            currency=currency,
+            code="AUTO-BANK",
+            description=f"Created from confirmed statement import {source_filename}",
+        ),
     )
-    db.add(account)
+    statement.account_id = created_account.id
     await db.flush()
-    statement.account_id = account.id
-    await db.flush()
-    return account
+    return created_account
 
 
 # --- Helper functions ---
@@ -598,7 +599,7 @@ async def list_statements(
 ) -> BankStatementListResponse:
     """List all statements for the current user.
 
-    Each item has an empty transactions list, and the list uses a fixed number of SQL statements.
+    Each item is a summary envelope without embedded transactions, and the list uses a fixed number of SQL statements.
     Use GET /statements/{id}/transactions to read the rows of one statement.
     """
     result = await db.execute(
@@ -622,7 +623,7 @@ async def list_statements(
     total = total_result.scalar() or 0
 
     documents = await _resolve_uploaded_documents(db, statements, user_id)
-    items = [compose_statement_response(s, documents[s.id], []) for s in statements]
+    items = [compose_statement_list_item_response(s, documents[s.id]) for s in statements]
     return BankStatementListResponse(items=items, total=total)
 
 
@@ -650,7 +651,8 @@ async def list_pending_review(
     )
     total = total_result.scalar() or 0
 
-    items = [await _compose_statement_response(db, s, user_id) for s in statements]
+    documents = await _resolve_uploaded_documents(db, statements, user_id)
+    items = [compose_statement_list_item_response(s, documents[s.id]) for s in statements]
     return BankStatementListResponse(items=items, total=total)
 
 
@@ -723,7 +725,13 @@ async def list_statement_transactions(
     transactions = await resolve_statement_transactions(db, statement)
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
     items = [
-        AtomicTransactionResponse.from_atomic(t, statement.id, suggestion=suggestions.get(t.id)) for t in transactions
+        AtomicTransactionResponse.from_atomic(
+            t,
+            statement.id,
+            suggestion=suggestions.get(t.id),
+            source_row=getattr(t, "source_row", idx + 1),
+        )
+        for idx, t in enumerate(transactions)
     ]
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
@@ -1064,7 +1072,13 @@ async def reject_statement_stage1(
 ) -> BankStatementResponse:
     """Stage 1: Reject statement."""
     try:
-        statement = await reject_statement_workflow(db, statement_id, user_id, reason=decision.notes)
+        statement = await reject_statement_workflow(
+            db,
+            statement_id,
+            user_id,
+            reason=decision.notes,
+            dependencies=compose_statement_posting_dependencies(),
+        )
         await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

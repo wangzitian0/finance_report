@@ -229,3 +229,15 @@ async def test_AC_runtime_7_3_plain_health_is_fast_liveness_without_external_io(
     assert mock_db_maker.call_count == 0
     assert "s3" not in body["checks"]
     assert "database" not in body["checks"]
+
+
+@pytest.mark.no_db
+def test_bootloader_and_health_have_no_vault_secrets_file_coupling() -> None:
+    """#2574 / #2684 / #2693: neither Bootloader nor /health couples to /secrets/.env freshness."""
+    import src.boot as boot_module
+    import src.runtime.extension.api.health as health_api
+
+    assert not hasattr(Bootloader, "_check_vault_secrets")
+    assert not hasattr(boot_module, "VAULT_SECRETS_FILE_PATH")
+    assert not hasattr(boot_module, "VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS")
+    assert not hasattr(health_api, "VAULT_SECRETS_FILE_PATH")

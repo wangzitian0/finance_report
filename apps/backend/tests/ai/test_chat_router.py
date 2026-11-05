@@ -645,3 +645,72 @@ async def test_chat_history_returns_empty_sessions_for_no_rows() -> None:
 
     response = await chat_history(session_id=None, limit=20, db=mock_db, user_id=uuid4())
     assert response.sessions == []
+
+
+@pytest.mark.no_db
+async def test_AC_advisor_2555_1_pre_first_chunk_stream_error_returns_503_not_empty_200() -> None:
+    """AC-advisor.2555.1: POST /api/chat fails closed with HTTP 503 when the provider fails before emitting a chunk."""
+    from fastapi import HTTPException
+
+    from src.llm import AIStreamError
+    from src.routers.chat import chat_message
+
+    mock_db = MagicMock()
+    mock_db.commit = AsyncMock()
+    mock_user_id = uuid4()
+
+    async def failing_stream():
+        raise AIAdvisorError("AIStreamError: status=429 code=1302") from AIStreamError(
+            message="AIStreamError: status=429 code=1302", retryable=True
+        )
+        yield  # pragma: no cover
+
+    with patch("src.routers.chat.AIAdvisorService") as MockService:
+        mock_stream_obj = MagicMock()
+        mock_stream_obj.session_id = uuid4()
+        mock_stream_obj.stream = failing_stream()
+        mock_stream_obj.model_name = "glm-5.2"
+        mock_stream_obj.cached = False
+        mock_stream_obj.metadata = None
+        mock_service = MagicMock()
+        mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj)
+        MockService.return_value = mock_service
+
+        payload = MagicMock()
+        payload.message = "What are my expenses?"
+        payload.session_id = None
+        payload.model = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await chat_message(payload, db=mock_db, user_id=mock_user_id)
+
+        assert exc_info.value.status_code == 503
+        assert "temporarily unavailable" in exc_info.value.detail.lower()
+        mock_db.commit.assert_not_awaited()
+
+    async def midstream_failing():
+        yield "Initial token"
+        yield " second token"
+        raise AIAdvisorError("AIStreamError: midstream reset") from AIStreamError(
+            message="AIStreamError: midstream reset", retryable=True
+        )
+
+    with patch("src.routers.chat.AIAdvisorService") as MockServiceMid:
+        mock_mid_obj = MagicMock()
+        mock_mid_obj.session_id = uuid4()
+        mock_mid_obj.stream = midstream_failing()
+        mock_mid_obj.model_name = "glm-5.2"
+        mock_mid_obj.cached = False
+        mock_mid_obj.metadata = None
+        mock_mid_service = MagicMock()
+        mock_mid_service.chat_stream = AsyncMock(return_value=mock_mid_obj)
+        MockServiceMid.return_value = mock_mid_service
+
+        payload = MagicMock()
+        payload.message = "What are my expenses?"
+        payload.session_id = None
+        payload.model = None
+
+        response = await chat_message(payload, db=mock_db, user_id=mock_user_id)
+        chunks = [chunk async for chunk in response.body_iterator]
+        assert chunks == ["Initial token", " second token", "\n\n[Stream interrupted — please retry]"]

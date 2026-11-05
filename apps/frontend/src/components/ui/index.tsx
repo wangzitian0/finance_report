@@ -207,7 +207,12 @@ export function PageHeader({ title, description, actions, className, ...props }:
 }
 
 export type ConfidenceTier =
-  "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | "DETERMINISTIC";
+  | "TRUSTED"
+  | "HIGH"
+  | "MEDIUM"
+  | "LOW"
+  | "DETERMINISTIC"
+  | "MANUAL_TRUSTED";
 
 interface ConfidenceBadgeProps extends Pick<
   HTMLAttributes<HTMLSpanElement>,
@@ -222,6 +227,7 @@ const TIER_VARIANTS: Record<ConfidenceTier, BadgeVariant> = {
   MEDIUM: "warning",
   LOW: "muted",
   DETERMINISTIC: "success",
+  MANUAL_TRUSTED: "success",
 };
 
 const TOOLTIP =

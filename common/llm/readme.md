@@ -36,7 +36,7 @@ runtime. The code-level contract is `apps/backend/src/llm/base`.
 | **Contract (types/protocols)** | `apps/backend/src/llm/base/` | Frozen value types + protocols both halves build against |
 | **Secret cipher** | `apps/backend/src/llm/base/secrets.py` | Fernet/MultiFernet encryption of provider API keys at rest |
 | **Encryption key** | `LLM_ENCRYPTION_KEYS` (env/Vault) | Project-level symmetric key(s), newest first |
-| **Provider instances + scene bindings** | DB tables `llm_provider`, `llm_scene_binding` (EPIC B) | Runtime-editable configuration values |
+| **Provider instances + scene bindings** | DB tables `llm_providers`, `llm_scene_bindings` (EPIC B) | Runtime-editable configuration values |
 | **Client / catalogue / usage impl** | `apps/backend/src/llm/` (EPIC A) | litellm-backed implementations of the protocols (usage meter counts requests/tokens, no cost) |
 
 `LitellmClient` is the production implementation of the scene-keyed
@@ -395,7 +395,7 @@ Commit the refreshed cassettes and the raised baseline together.
 ### 6.8 Real-statement corpus (source-referenced, PII-masked)
 
 Large/scanned statements are recorded as cassettes by
-`common/extraction/record_hf_cassettes.py` (engine: the coding-plan vision model in its `MODEL` constant, thinking disabled; its move to the SDK multimodal model is #2569;
+`common/extraction/record_hf_cassettes.py` (engine: the SDK multimodal role in its `MODEL` constant, thinking enabled;
 pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
 bloat and PII, **the source document is never committed** — the cassette stores a
 `source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the

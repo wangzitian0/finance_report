@@ -65,8 +65,10 @@ describe("frontend contract consolidation (EPIC-025 / #1158)", () => {
     const income: Schemas["IncomeStatementResponse"] | null = null;
     const cashFlow: Schemas["CashFlowResponse"] | null = null;
     const statement: Schemas["BankStatementResponse"] | null = null;
+    const statementListItem: Schemas["BankStatementListItemResponse"] | null = null;
 
-    expect([account, journal, balanceSheet, income, cashFlow, statement]).toEqual([
+    expect([account, journal, balanceSheet, income, cashFlow, statement, statementListItem]).toEqual([
+      null,
       null,
       null,
       null,

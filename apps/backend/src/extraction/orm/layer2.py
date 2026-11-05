@@ -62,6 +62,12 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_transactions_user_dedup_hash"),
         CheckConstraint("amount > 0", name="ck_atomic_transactions_amount_positive"),
+        Index(
+            "ix_atomic_transactions_source_documents_gin",
+            "source_documents",
+            postgresql_using="gin",
+            postgresql_ops={"source_documents": "jsonb_path_ops"},
+        ),
     )
 
     txn_date: Mapped[date] = mapped_column(Date, nullable=False)

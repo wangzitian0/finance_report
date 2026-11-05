@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from src.database import async_session_maker, get_test_session_maker
 from src.llm.base import Encrypted, ProviderRef, Scene, SceneBinding
 from src.llm.base.secrets import SecretCipher, build_cipher
+from src.llm.extension.env_config import EnvConfigSource
 
 if TYPE_CHECKING:
     from src.llm.orm.config import LlmProvider
@@ -131,10 +132,11 @@ class DbConfigSource:
             ).scalar_one_or_none()
         if row is None:
             return None
+        resolved_model = EnvConfigSource.resolve_scene_model(scene, row.model)
         return SceneBinding(
             scene=scene,
             # Qualify with the provider id so the client resolves the exact provider.
-            model_id=f"{row.provider_id}/{row.model}",
+            model_id=f"{row.provider_id}/{resolved_model}",
             reasoning=row.reasoning,
             max_tokens=row.max_tokens,
         )

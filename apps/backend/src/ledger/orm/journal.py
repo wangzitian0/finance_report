@@ -50,14 +50,15 @@ if TYPE_CHECKING:
     from src.ledger.orm.account import Account
 
 
-ConfidenceTier = Literal["DETERMINISTIC", "TRUSTED", "HIGH", "MEDIUM", "LOW"]
+ConfidenceTier = Literal["DETERMINISTIC", "TRUSTED", "MANUAL_TRUSTED", "HIGH", "MEDIUM", "LOW"]
 
 _CONFIDENCE_TIER_RANK: dict[str, int] = {
     "LOW": 0,
     "MEDIUM": 1,
     "HIGH": 2,
+    "MANUAL_TRUSTED": 3,
     "TRUSTED": 3,
-    "DETERMINISTIC": 3,
+    "DETERMINISTIC": 4,
 }
 
 

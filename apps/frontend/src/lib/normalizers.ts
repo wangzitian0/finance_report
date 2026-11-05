@@ -15,6 +15,7 @@ import type { JournalLine, MoneyValue } from "./types";
 export interface BankStatementTransactionViewModel {
   id: string;
   statement_id?: string | null;
+  source_row?: number | null;
   txn_date: string;
   description: string;
   amount: MoneyValue;
@@ -45,6 +46,10 @@ export function toTransactionViewModel(
   overrides?: Partial<BankStatementTransactionViewModel>,
 ): BankStatementTransactionViewModel {
   const isAtomic = "created_at" in raw;
+  const rawSourceRow =
+    "source_row" in raw
+      ? (raw as { source_row?: number | null }).source_row
+      : undefined;
   const rawConfidence = "confidence_tier" in raw ? raw.confidence_tier : undefined;
   const rawLegacyConfidence =
     "confidence" in raw
@@ -73,6 +78,7 @@ export function toTransactionViewModel(
   return {
     id: raw.id,
     statement_id: raw.statement_id ?? null,
+    source_row: overrides?.source_row ?? rawSourceRow ?? null,
     txn_date: "txn_date" in raw ? raw.txn_date : "",
     description: raw.description,
     amount: raw.amount,
@@ -126,6 +132,7 @@ export interface JournalEntryViewModel {
     | "MEDIUM"
     | "LOW"
     | "DETERMINISTIC"
+    | "MANUAL_TRUSTED"
     | null;
   status: Schemas["JournalEntryStatus"];
   lines: JournalLine[];

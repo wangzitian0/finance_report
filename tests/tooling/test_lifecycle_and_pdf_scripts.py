@@ -1086,9 +1086,22 @@ def test_dbs_raw_text_and_get_fixtures_and_build_expected_json(
     captured = fake_reportlab
     gtp = import_gtp_with_mocks(monkeypatch, tmp_path, captured)
     fixtures = gtp.get_fixtures()
-    assert len(fixtures) == 4
+    assert len(fixtures) == 14
     names = [f.institution for f in fixtures]
-    assert set(names) == {"DBS", "CMB", "GXS", "MariBank"}
+    assert {
+        "DBS",
+        "CMB",
+        "GXS",
+        "MariBank",
+        "ICBC",
+        "HSBC HK",
+        "Sparkasse",
+        "Barclays",
+        "Chase",
+        "Citi SG Card",
+        "Moomoo",
+        "Futu",
+    } <= set(names)
 
     # Test dbs_raw_text formatting for IN and OUT
     dbs = fixtures[0]

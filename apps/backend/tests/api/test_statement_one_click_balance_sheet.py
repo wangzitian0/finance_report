@@ -280,36 +280,90 @@ async def test_AC_extraction_accept_ai_suggestions_7_a_loan_or_a_trade_posts_to_
 async def test_AC_extraction_accept_ai_suggestions_2_a_foreign_currency_statement_waits_without_an_error(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.accept-ai-suggestions.2: base currency SGD, statement in CNY. The row stays; nothing fails.
+    """AC-extraction.accept-ai-suggestions.2: base currency SGD, statement in CNY.
 
-    A leg in a foreign currency fails at commit, because a later posting resets the base currency of the
-    transaction. The approval therefore leaves the row for a person and answers 409.
+    A Processing leg in a foreign currency cannot post against a base-currency Processing account,
+    so auto_fill_default_statement_dispositions falls back to the general counter-account in the
+    statement's currency and approves the statement without 409 intent_missing deadlock (#2851).
     """
     monkeypatch.setattr(settings, "enable_ai_classification", False)
+    from src.pricing import FxRate
+
+    db.add_all(
+        [
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.188304"),
+                rate_date=date(2025, 1, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.188304"),
+                rate_date=date(2025, 1, 5),
+                source="test",
+            ),
+        ]
+    )
     bank = Account(user_id=test_user.id, name="CNY bank", type=AccountType.ASSET, currency="CNY")
     db.add(bank)
     await db.flush()
     statement = build_statement(test_user.id, "hash_bs_cny", 95)
     statement.account_id = bank.id
     statement.currency = "CNY"
-    statement.closing_balance = Decimal("80.00")
+    statement.closing_balance = Decimal("60.00")
     db.add(statement)
     await db.flush()
-    txn = await add_txn(
-        db, statement, txn_date=date(2025, 1, 5), description="Opaque", amount=Decimal("20.00"), direction="OUT"
+    txn_transfer = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Opaque transfer",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+    txn_repayment = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Card repayment",
+        amount=Decimal("20.00"),
+        direction="OUT",
     )
     await db.flush()
-    await _classification(db, test_user.id, txn, category="TRANSFER", account=None, score=91)
+    await _classification(db, test_user.id, txn_transfer, category="TRANSFER", account=None, score=91)
+    await _classification(db, test_user.id, txn_repayment, category="CARD_REPAYMENT", account=None, score=88)
     await db.commit()
 
-    with pytest.raises(HTTPException) as error:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=CLICK, db=db, user_id=test_user.id
-        )
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=CLICK, db=db, user_id=test_user.id
+    )
 
-    assert error.value.status_code == 409
+    assert result.status == BankStatementStatus.APPROVED
     assert (await db.execute(select(Account.name).where(Account.code == PROCESSING_ACCOUNT_CODE))).first() is None
     assert (await db.execute(select(ReconciliationMatch))).first() is None
+    general_cny = (
+        await db.execute(
+            select(Account).where(Account.user_id == test_user.id, Account.name == "General Expense (CNY)")
+        )
+    ).scalar_one()
+    assert general_cny.currency == "CNY"
+    assert general_cny.type is AccountType.EXPENSE
+    drafts = (
+        (
+            await db.execute(
+                select(TransactionClassification).where(
+                    TransactionClassification.atomic_txn_id.in_([txn_transfer.id, txn_repayment.id])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(drafts) == 2
+    assert all(d.status is ClassificationStatus.APPLIED for d in drafts)
 
 
 async def test_AC_extraction_accept_ai_suggestions_2_a_class_that_the_user_chose_is_not_recorded_as_an_ai_score(

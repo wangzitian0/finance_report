@@ -29,31 +29,21 @@ from src.identity.extension.rate_limit import auth_rate_limiter, register_rate_l
 from src.identity.extension.security import create_access_token, hash_password, verify_password
 from src.identity.extension.sql import SqlUserRepository, User
 from src.observability import get_logger, log_security_warning, record_rate_limit_rejected
-from src.platform import RateLimiter, raise_bad_request, raise_not_found, raise_too_many_requests, raise_unauthorized
+from src.platform import (
+    RateLimiter,
+    get_client_ip,
+    raise_bad_request,
+    raise_not_found,
+    raise_too_many_requests,
+    raise_unauthorized,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = get_logger(__name__)
 
-# SECURITY: Only trust X-Forwarded-For from known proxies
-# Set TRUST_PROXY=true when behind a trusted reverse proxy (nginx, cloudflare, etc.)
-TRUST_PROXY = src.config.settings.trust_proxy
 COOKIE_SAFE_DEVELOPMENT_ENVS = {"development", "test", "ci"}
 
-
-def _get_client_ip(request: Request) -> str:
-    """Extract client IP from request, considering proxies.
-
-    NOTE: X-Forwarded-For is only trusted when TRUST_PROXY=true to prevent
-    IP spoofing attacks that could bypass rate limiting.
-    """
-    if TRUST_PROXY or src.config.settings.trust_proxy:
-        # Check X-Forwarded-For header (set by reverse proxy)
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            # Take the first IP (original client)
-            return forwarded.split(",")[0].strip()
-    # Fall back to direct connection
-    return request.client.host if request.client else "unknown"
+_get_client_ip = get_client_ip
 
 
 def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) -> None:
