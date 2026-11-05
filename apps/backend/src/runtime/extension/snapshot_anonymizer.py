@@ -338,6 +338,9 @@ REDACTED_SECRET = "!anonymized"
 #: original (an account code like "01") appears legitimately everywhere and
 #: would only produce false positives, while carrying no real information.
 _RESIDUAL_MIN_LENGTH = 3
+#: Short all-digit originals (e.g. 4-digit account_last4) require non-alphanumeric
+#: boundaries so they do not false-positive inside 24-hex/64-hex pseudonym digests (#2714).
+_SHORT_DIGIT_MAX_LENGTH = 6
 
 
 def _is_json_type(column_type: sa.types.TypeEngine) -> bool:
@@ -525,6 +528,15 @@ def _transform(
                 conn.execute(update_stmt, params[chunk_start : chunk_start + 5000])
 
 
+def _is_short_digit_original(value: str) -> bool:
+    return len(value) <= _SHORT_DIGIT_MAX_LENGTH and value.isascii() and value.isdigit()
+
+
+def _short_digit_regex(needles: list[str]) -> str:
+    alternation = "|".join(sorted(needles))
+    return f"(?<![0-9a-zA-Z])(?:{alternation})(?![0-9a-zA-Z])"
+
+
 def scan_for_residuals(
     conn: Connection,
     metadata: sa.MetaData,
@@ -537,15 +549,20 @@ def scan_for_residuals(
     snapshot back (fail closed) — see :class:`ResidualError`.
 
     Cost envelope: needles are the DISTINCT pseudonymized originals (min
-    length 3), OR-batched 200 per query with a LIMIT 1 short-circuit. This is
-    an offline, once-per-snapshot verification on a scratch database of a
-    personal-finance instance — completeness is the requirement here, not
-    latency; trading scan coverage for speed would hollow out the guarantee
-    (Good Taste 5).
+    length 3), OR-batched 200 per query with a LIMIT 1 short-circuit. Short
+    all-digit originals (<= 6 digits, e.g. ``account_last4``) require
+    non-alphanumeric boundaries so they do not false-positive inside hex
+    pseudonym digests while still catching standalone or token-bounded leaks
+    (#2714). This is an offline, once-per-snapshot verification on a scratch
+    database of a personal-finance instance — completeness is the requirement
+    here, not latency; trading scan coverage for speed would hollow out the
+    guarantee (Good Taste 5).
     """
     needles = sorted(v for v in original_values if len(v) >= _RESIDUAL_MIN_LENGTH)
     if not needles:
         return []
+    substring_needles = [n for n in needles if not _is_short_digit_original(n)]
+    short_digit_needles = [n for n in needles if _is_short_digit_original(n)]
     residuals: list[str] = []
     for table in metadata.sorted_tables:
         for column in table.columns:
@@ -553,12 +570,27 @@ def scan_for_residuals(
             if not (isinstance(ty, sa.String | sa.Text) or _is_json_type(ty)):
                 continue
             target = sa.cast(column, sa.Text)
-            for chunk_start in range(0, len(needles), 200):
-                chunk = needles[chunk_start : chunk_start + 200]
+            matched = False
+            for chunk_start in range(0, len(substring_needles), 200):
+                chunk = substring_needles[chunk_start : chunk_start + 200]
                 hit = conn.execute(
                     sa.select(sa.literal(1))
                     .select_from(table)
                     .where(sa.or_(*(target.contains(n, autoescape=True) for n in chunk)))
+                    .limit(1)
+                ).scalar()
+                if hit:
+                    residuals.append(f"{table.name}.{column.name}")
+                    matched = True
+                    break
+            if matched or not short_digit_needles:
+                continue
+            for chunk_start in range(0, len(short_digit_needles), 200):
+                chunk = short_digit_needles[chunk_start : chunk_start + 200]
+                hit = conn.execute(
+                    sa.select(sa.literal(1))
+                    .select_from(table)
+                    .where(target.op("~")(_short_digit_regex(chunk)))
                     .limit(1)
                 ).scalar()
                 if hit:

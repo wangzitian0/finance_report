@@ -185,26 +185,22 @@ jobs:
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose
-      - name: Cache Python venv
-        uses: actions/cache@v5
+      - name: Set up backend environment
+        uses: ./.github/actions/setup-backend-env
         with:
-          path: apps/backend/.venv
-          key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-
-      - name: Install dependencies
-        run: cd apps/backend && uv sync
+          uv-version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Run Lint
         run: |
           cd apps/backend
-          uv run ruff check src tests
-          uv run ruff format src tests --check
+          uv run --frozen ruff check src tests
+          uv run --frozen ruff format src tests --check
       - name: Detached Owner Shortcut Guard
         run: |
-          uv run python tools/check_detached_owner_shortcuts.py
+          uv run --frozen --directory apps/backend python ../../tools/check_detached_owner_shortcuts.py
       - name: Router Contract Maturity Guard
         run: |
-          uv run python tools/audit_router_contracts.py --check
+          uv run --frozen --directory apps/backend python ../../tools/audit_router_contracts.py --check
       - name: Install frontend dependencies
         run: npm ci
         working-directory: apps/frontend
@@ -220,7 +216,7 @@ jobs:
       - name: Generated API Reference Check
         run: |
           cd apps/backend
-          uv run python ../../tools/generate_api_reference.py --check
+          uv run --frozen python ../../tools/generate_api_reference.py --check
       - name: Generated OpenAPI Spec and API Types Check
         run: |
           # The committed apps/frontend/openapi.json and src/lib/api-types.ts must
@@ -229,7 +225,7 @@ jobs:
           # local pre-push run share one source. Needs the backend venv and the
           # frontend dependencies installed by the steps above.
           cd apps/backend
-          uv run python ../../tools/preflight.py --only openapi-spec --ci
+          uv run --frozen python ../../tools/preflight.py --only openapi-spec --ci
       - name: EPIC Status Pointer Check
         run: |
           # The EPIC-status numbers are a derived (not committed) view of the AC
@@ -275,7 +271,7 @@ jobs:
       - name: Package Contract Check
         run: |
           cd apps/backend
-          uv run python ../../tools/preflight.py --only package-contract --ci
+          uv run --frozen python ../../tools/preflight.py --only package-contract --ci
       - name: Tier Import Guard (CODE-ONLY must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule
@@ -368,10 +364,10 @@ jobs:
             echo "proof=alembic-upgrade-head-plus-alembic-check"
           } > ci-context/schema-migration-context.txt
           {
-            echo "[schema-migration] uv run alembic upgrade head"
-            uv run alembic upgrade head
-            echo "[schema-migration] uv run alembic check"
-            uv run alembic check
+            echo "[schema-migration] uv run --frozen alembic upgrade head"
+            uv run --frozen alembic upgrade head
+            echo "[schema-migration] uv run --frozen alembic check"
+            uv run --frozen alembic check
           } 2>&1 | tee test-results/schema-migration.log
 
       - name: Upload schema migration test context
@@ -382,6 +378,7 @@ jobs:
           path: |
             apps/backend/test-results/schema-migration.log
             apps/backend/ci-context/schema-migration-context.txt
+          overwrite: true
           retention-days: 14
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/${{ strategy.job-total }})
@@ -487,6 +484,7 @@ jobs:
         with:
           name: coverage-backend-${{ matrix.shard }}
           path: apps/backend/coverage-backend-${{ matrix.shard }}.lcov
+          overwrite: true
           retention-days: 14
 
       - name: Upload backend shard test context
@@ -498,6 +496,7 @@ jobs:
             apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml
             apps/backend/test-results/served-cassettes*.txt
             apps/backend/coverage-backend-${{ matrix.shard }}.lcov
+          overwrite: true
           retention-days: 14
 
   backend-integration:
@@ -574,6 +573,7 @@ jobs:
           path: |
             apps/backend/test-results/backend-integration.xml
             apps/backend/test-results/served-cassettes*.txt
+          overwrite: true
           retention-days: 14
 
       - name: Stage Contribution Summary (Behavioral proof only)
@@ -662,6 +662,7 @@ jobs:
         with:
           name: coverage-frontend
           path: apps/frontend/coverage/lcov.info
+          overwrite: true
           retention-days: 14
 
       - name: Upload frontend Vitest test context
@@ -672,6 +673,7 @@ jobs:
           path: |
             apps/frontend/test-results/
             apps/frontend/coverage/lcov.info
+          overwrite: true
           retention-days: 14
 
   frontend-playwright:
@@ -734,6 +736,7 @@ jobs:
           path: |
             apps/frontend/test-results/
             apps/frontend/playwright-report/
+          overwrite: true
           retention-days: 14
 
   frontend-telemetry-e2e:
@@ -799,6 +802,7 @@ jobs:
           path: |
             apps/frontend/test-results/
             apps/frontend/playwright-report/
+          overwrite: true
           retention-days: 14
 
   container-images:
@@ -1047,6 +1051,7 @@ jobs:
             coverage/tools-${{ matrix.shard }}.lcov
             coverage/backend-tooling-${{ matrix.shard }}.lcov
             coverage/tooling-junit-${{ matrix.shard }}.xml
+          overwrite: true
           retention-days: 14
 
   unified-coverage:
@@ -1572,15 +1577,11 @@ jobs:
           EOF
 
       - name: Set up Python for the timing summary
-        if: ${{ always() }}
-        continue-on-error: true
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install infra2-sdk for the timing summary
-        if: ${{ always() }}
-        continue-on-error: true
         uses: ./.github/actions/install-infra2-sdk
 
       - name: Write CI timing summary
@@ -1608,6 +1609,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check job status
+        if: ${{ always() }}
         run: |
           echo "Change Classification: ${{ needs.changes.result }}"
           echo "PR Env Required: ${{ needs.changes.outputs.pr_required }}"
@@ -1720,18 +1722,16 @@ jobs:
       actions: read
       contents: read
       issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
-        continue-on-error: true
 
       - name: Set up Python
-        continue-on-error: true
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install infra2-sdk
-        continue-on-error: true
         uses: ./.github/actions/install-infra2-sdk
 
       - name: Print the time budget verdict
@@ -1761,6 +1761,25 @@ jobs:
             --budget main \
             --enforce \
             --comment
+
+      - name: Report pipeline budget failure on PR
+        if: failure() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          marker="<!-- pipeline-budget-alert -->"
+          body="${marker}
+          ⚠️ **Pipeline Budget Alert**: The \`pipeline-budget\` job failed (budget violation, unmeasured run, script crash, or SDK install flake) on [run ${GITHUB_RUN_ID}](${RUN_URL})."
+          existing_id="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n 1 || true)"
+          if [ -n "$existing_id" ]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing_id}" -f body="$body"
+          else
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
+          fi
 
   promote-release-images:
     name: Promote Release Tag Images
