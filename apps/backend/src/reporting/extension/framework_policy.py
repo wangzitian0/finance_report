@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import canonical_json_digest
@@ -507,19 +507,7 @@ async def framework_policy_facts_for_user(
     """Build framework-neutral facts from existing source, ledger, and portfolio records."""
     facts: list[FrameworkPolicyFact] = []
 
-    account_result = await db.execute(
-        select(Account).where(
-            Account.user_id == user_id,
-            or_(
-                Account.is_system.is_(False),
-                and_(
-                    Account.is_system.is_(True),
-                    Account.code == ProcessingAccount().code,
-                    Account.type == AccountType.ASSET,
-                ),
-            ),
-        )
-    )
+    account_result = await db.execute(select(Account).where(Account.user_id == user_id))
     for account in account_result.scalars().all():
         mapping = _account_domain_and_instrument(account)
         if mapping is None:

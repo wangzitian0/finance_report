@@ -854,3 +854,32 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
     assert bucket_nov.statement_count == 0
     assert bucket_nov.status == "NO_DATA"
     assert bucket_dec.status == "NO_DATA"
+
+
+@pytest.mark.asyncio
+@patch("src.reporting.extension.data_quality_service.get_reconciliation_stats")
+async def test_AC_reporting_2564_1_recon_score_does_not_double_count_auto_accepted(
+    mock_recon: AsyncMock,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC-reporting.2564.1: matched_transactions already includes auto_accepted matches; recon_pts must not double-count auto_accepted."""
+    # 6 of 12 transactions matched (all 6 via AUTO_ACCEPTED), 6 unmatched -> ratio is 6/12 = 0.5 -> recon_pts = 10 (not 20).
+    mock_recon.return_value = ReconciliationStats(
+        total_transactions=12,
+        matched_transactions=6,
+        unmatched_transactions=6,
+        pending_review=0,
+        auto_accepted=6,
+        match_rate=0.5,
+    )
+
+    res = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 10, 1),
+        currency="SGD",
+    )
+
+    # eq_pts (40) + temporal_pts (15) + recon_pts (10) + lineage_pts (5) = 70 (would be 80 if auto_accepted were double-counted).
+    assert res.score == 70

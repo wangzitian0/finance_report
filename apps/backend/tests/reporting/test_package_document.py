@@ -841,3 +841,165 @@ async def test_AC_reporting_package_document_13_single_pass_traceability_and_unr
     assert document.sections.traceability_appendix is not None
     assert traceability_calls == 1
     assert balance_sheet_calls == 1
+
+
+def test_AC_reporting_2667_1_pre_2655_frozen_package_keeps_decision_ref_and_locks_bound_defaults() -> None:
+    """AC-reporting.2667.1: pre-2655 frozen package documents omit unset excluded_holdings and bound model defaults are locked."""
+    import json
+    import typing
+
+    from pydantic import BaseModel
+
+    fixture_path = REPOSITORY_ROOT / "apps/backend/tests/fixtures/package_document_main_shape.json"
+    post_2655_stored = json.loads(fixture_path.read_text())
+    pre_2655_stored = copy.deepcopy(post_2655_stored)
+    pre_2655_stored["sections"]["balance_sheet"].pop("excluded_holdings")
+
+    expected_pre_2655_target = personal_report_package_target(
+        snapshot_id=UUID(pre_2655_stored["snapshot_id"]),
+        context=pre_2655_stored["context"],
+        framework_policy=pre_2655_stored["framework_policy"],
+        statement_disposition_policy=pre_2655_stored["statement_disposition_policy"],
+        input_manifest=pre_2655_stored["input_manifest"],
+        sections=pre_2655_stored["sections"],
+    )
+
+    pre_2655_doc = PersonalReportPackageDocument.model_validate(pre_2655_stored)
+    assert "excluded_holdings" not in pre_2655_doc.sections.balance_sheet.model_fields_set
+    assert pre_2655_doc.model_dump(mode="json") == pre_2655_stored
+    assert personal_report_package_decision_ref(pre_2655_doc).target == expected_pre_2655_target
+
+    post_2655_doc = PersonalReportPackageDocument.model_validate(post_2655_stored)
+    assert "excluded_holdings" in post_2655_doc.sections.balance_sheet.model_fields_set
+    assert post_2655_doc.model_dump(mode="json") == post_2655_stored
+    assert (
+        personal_report_package_decision_ref(post_2655_doc).target.version
+        == "aacc713256b0f0411ce8c416598a2b75ddbb8a0634fe0e4036f773f2094da538"
+    )
+    assert personal_report_package_decision_ref(pre_2655_doc).target.version != (
+        personal_report_package_decision_ref(post_2655_doc).target.version
+    )
+
+    visited: set[type[BaseModel]] = set()
+    discovered_defaults: set[tuple[str, str]] = set()
+
+    def _walk(tp: object) -> None:
+        origin = typing.get_origin(tp)
+        if origin is not None:
+            for arg in typing.get_args(tp):
+                _walk(arg)
+            return
+        if isinstance(tp, type) and issubclass(tp, BaseModel) and tp not in visited:
+            visited.add(tp)
+            for field_name, field_info in tp.model_fields.items():
+                if not field_info.is_required():
+                    discovered_defaults.add((tp.__name__, field_name))
+                _walk(field_info.annotation)
+
+    for root_field in ("context", "framework_policy", "statement_disposition_policy", "input_manifest", "sections"):
+        _walk(PersonalReportPackageDocument.model_fields[root_field].annotation)
+
+    locked_bound_defaults = {
+        ("AnnualizedIncomeScheduleHolding", "unlock_date"),
+        ("AnnualizedIncomeScheduleHolding", "vesting_schedule"),
+        ("AnnualizedIncomeScheduleResponse", "restricted_fair_value_total_excludes"),
+        ("BalanceSheetResponse", "cta_adjustment"),
+        ("BalanceSheetResponse", "excluded_holdings"),
+        ("BalanceSheetResponse", "fx_warnings"),
+        ("BalanceSheetResponse", "net_income"),
+        ("BalanceSheetResponse", "net_worth_adjustment_gain_loss"),
+        ("BalanceSheetResponse", "opening_balance_warnings"),
+        ("BalanceSheetResponse", "portfolio_warnings"),
+        ("BalanceSheetResponse", "unrealized_fx_gain_loss"),
+        ("CashFlowBridge", "discrepancy"),
+        ("CashFlowBridge", "opening_stock_adjustment"),
+        ("CashFlowEventLineage", "decision_anchor_id"),
+        ("CashFlowEventLineage", "event_types"),
+        ("CashFlowEventLineage", "reason_code"),
+        ("CashFlowEventLineage", "source_id"),
+        ("CashFlowItem", "account_id"),
+        ("CashFlowItem", "description"),
+        ("CashFlowResponse", "cash_bridge"),
+        ("CashFlowResponse", "event_lineage"),
+        ("CashFlowResponse", "fx_warnings"),
+        ("ExcludedHoldingRow", "warnings"),
+        ("FrameworkPolicyDecision", "accepted_value"),
+        ("FrameworkPolicyDecision", "classification"),
+        ("FrameworkPolicyDecision", "disclosure"),
+        ("FrameworkPolicyDecision", "evidence_anchors"),
+        ("FrameworkPolicyDecision", "measurement"),
+        ("FrameworkPolicyDecision", "policy_field_name"),
+        ("FrameworkPolicyDecision", "presentation"),
+        ("FrameworkPolicyDecision", "provenance"),
+        ("FrameworkPolicyDecision", "recognition"),
+        ("FrameworkPolicyDecision", "review_state"),
+        ("FrameworkPolicyEvidenceAnchor", "description"),
+        ("FrameworkPolicyGap", "evidence_anchors"),
+        ("FrameworkPolicyResult", "gaps"),
+        ("IncomeStatementResponse", "fx_warnings"),
+        ("InvestmentPerformanceDataFreshness", "manual_override_basis"),
+        ("InvestmentPerformanceDataFreshness", "stale_holdings"),
+        ("InvestmentPerformanceReportScheduleResponse", "market_valuation_selections"),
+        ("PersonalReportPackageCompletenessWarning", "remediation"),
+        ("PersonalReportPackageContext", "include_restricted"),
+        ("PersonalReportPackageTraceabilityAnchor", "details"),
+        ("PersonalReportPackageTraceabilityAnchor", "entry_statuses"),
+        ("PersonalReportPackageTraceabilityAnchor", "identifier_fields"),
+        ("PersonalReportPackageTraceabilityAnchor", "identifiers"),
+        ("PersonalReportPackageTraceabilityAnchor", "source_types"),
+        ("PersonalReportPackageTraceabilityAnchor", "unavailable_reason"),
+        ("PersonalReportPackageTraceabilityLine", "amount_field"),
+        ("PersonalReportPackageTraceabilityLine", "anchor_count"),
+        ("PersonalReportPackageTraceabilityLine", "blocker_codes"),
+        ("PersonalReportPackageTraceabilityLine", "currency_field"),
+        ("ReportLine", "allocation_source_type"),
+        ("ReportLine", "line_id"),
+        ("ReportLine", "native_amount"),
+        ("ReportLine", "parent_id"),
+        ("ReportLine", "provenance"),
+        ("ReportLine", "source_currency"),
+    }
+    assert discovered_defaults == locked_bound_defaults
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_2623_1_system_accounts_receive_l1_policy_mappings(db, test_user) -> None:
+    """AC-reporting.2623.1: system accounts with posted lines receive deterministic L1 policy mappings."""
+    from datetime import date
+    from decimal import Decimal
+
+    from src.audit import Money
+    from src.ledger import Account, AccountType, Entry, post_entry
+    from src.reporting.extension.package_document import current_package_readiness
+
+    bank = Account(user_id=test_user.id, name="DBS Checking", type=AccountType.ASSET, currency="SGD")
+    sys_rounding = Account(
+        user_id=test_user.id,
+        name="Bank Rounding Difference",
+        code="SYS-ROUND",
+        type=AccountType.EXPENSE,
+        currency="SGD",
+        is_system=True,
+    )
+    sys_liability = Account(
+        user_id=test_user.id,
+        name="System Clearing Liability",
+        code="SYS-LIAB",
+        type=AccountType.LIABILITY,
+        currency="SGD",
+        is_system=True,
+    )
+    db.add_all((bank, sys_rounding, sys_liability))
+    await db.flush()
+
+    await post_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 7, 15),
+        memo="Rounding adjustment",
+        entry=Entry.transfer(debit=sys_rounding.id, credit=sys_liability.id, money=Money(Decimal("0.05"), "SGD")),
+    )
+    await db.flush()
+
+    readiness = await current_package_readiness(db, user_id=test_user.id, as_of_date=date(2026, 7, 31))
+    assert readiness.package_id == "personal-financial-report-package"

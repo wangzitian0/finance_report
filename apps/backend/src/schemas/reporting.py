@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
 
 from src.ledger import AccountType, Direction
 from src.platform import validate_internal_action_href
@@ -974,6 +974,17 @@ class PersonalReportPackageSections(BaseModel):
     annualized_income_long_term: AnnualizedIncomeScheduleResponse
     notes: PersonalReportPackageNotesResponse
     traceability_appendix: PersonalReportPackageTraceabilityResponse
+
+    @model_serializer(mode="wrap")
+    def _serialize_sections(self, handler):
+        data = handler(self)
+        if (
+            "excluded_holdings" not in self.balance_sheet.model_fields_set
+            and not self.balance_sheet.excluded_holdings
+            and isinstance(data.get("balance_sheet"), dict)
+        ):
+            data["balance_sheet"].pop("excluded_holdings", None)
+        return data
 
 
 class PersonalReportPackageDocument(BaseModel):

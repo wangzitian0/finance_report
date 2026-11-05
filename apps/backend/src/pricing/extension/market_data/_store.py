@@ -97,7 +97,7 @@ async def _load_stored_direct_or_inverse(
     requested_date: date,
 ) -> FxRateObservation | None:
     direct = await _load_stored_rate(db, base_currency, quote_currency, requested_date)
-    if direct is not None:
+    if direct is not None and direct.rate_date == requested_date:
         return FxRateObservation(
             base_currency=base_currency,
             quote_currency=quote_currency,
@@ -107,16 +107,23 @@ async def _load_stored_direct_or_inverse(
         )
 
     inverse = await _load_stored_rate(db, quote_currency, base_currency, requested_date)
-    if inverse is None:
-        return None
-
-    return FxRateObservation(
-        base_currency=base_currency,
-        quote_currency=quote_currency,
-        rate=_quantize_rate(Decimal("1") / inverse.rate),
-        rate_date=inverse.rate_date,
-        source=f"derived:inverse:{quote_currency}/{base_currency}",
-    )
+    if inverse is not None and inverse.rate > 0 and (direct is None or inverse.rate_date > direct.rate_date):
+        return FxRateObservation(
+            base_currency=base_currency,
+            quote_currency=quote_currency,
+            rate=_quantize_rate(Decimal("1") / inverse.rate),
+            rate_date=inverse.rate_date,
+            source=f"derived:inverse:{quote_currency}/{base_currency}",
+        )
+    if direct is not None:
+        return FxRateObservation(
+            base_currency=base_currency,
+            quote_currency=quote_currency,
+            rate=direct.rate,
+            rate_date=direct.rate_date,
+            source=direct.source,
+        )
+    return None
 
 
 async def _derive_from_bridge_rates(

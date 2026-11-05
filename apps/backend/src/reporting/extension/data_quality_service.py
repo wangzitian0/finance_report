@@ -485,7 +485,7 @@ async def compute_personal_data_quality(
     if stats.total_transactions == 0:
         recon_pts = 10 if has_unanchored_activity else 20
     else:
-        ratio = (stats.matched_transactions + stats.auto_accepted) / max(1, stats.total_transactions)
+        ratio = min(1.0, stats.matched_transactions / max(1, stats.total_transactions))
         recon_pts = int(round(20 * ratio))
         if stats.pending_review > 0:
             recon_pts = max(0, recon_pts - min(10, stats.pending_review * 2))

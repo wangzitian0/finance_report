@@ -148,6 +148,7 @@ CONTRACT = PackageContract(
         ac('AC-workflow.sync.4', 'The source fingerprint changes on a user, child, global, date, or settings change. It does not change on excluded tables or on rows of another user.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_4_fingerprint_changes_only_with_an_input'),
         ac('AC-workflow.sync.5', 'A workflow read reuses the last derivation only while its state is younger than 15 minutes. An older state derives again, so an external provider recovery reaches the events.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again'),
         ac('AC-workflow.sync.6', 'stored_package_readiness returns the readiness of the last derivation only while ensure_workflow_events_synced would reuse it, and None before a derivation, after a source change and after the max age. It sends two SQL statements and no write.', 'apps/backend/tests/workflow/test_stored_package_readiness.py::test_AC_workflow_sync_6_stored_readiness_is_returned_only_while_the_derivation_is_reusable', priority='P1'),
+        ac('AC-workflow.sync.7', 'sync_workflow_events_for_user and get_workflow_status catch ReportError during package readiness evaluation and surface a blocked readiness state instead of failing with HTTP 500 (#2623).', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_7_report_error_becomes_blocked_readiness_state', priority='P1'),
     ],
     concepts=[
         ConceptRecord(

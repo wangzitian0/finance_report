@@ -11,7 +11,12 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from src.extraction import get_statement_event_sources, get_uploaded_document_filenames
 from src.reconciliation import count_pending_review_items
-from src.reporting import current_package_readiness
+from src.reporting import ReportError, current_package_readiness
+from src.schemas.reporting import (
+    PersonalReportPackageReadinessBlocker,
+    PersonalReportPackageReadinessResponse,
+    PersonalReportPackageReadinessState,
+)
 from src.workflow.base.types import (
     WorkflowEventCountsResponse,
     WorkflowEventCreate,
@@ -329,7 +334,26 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     if pending_reconciliation_count:
         derived_payloads.append(build_reconciliation_review_event_payload(pending_reconciliation_count))
 
-    package_readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
+    try:
+        package_readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
+    except ReportError as exc:
+        package_readiness = PersonalReportPackageReadinessResponse(
+            package_id="personal-financial-report-package",
+            state=PersonalReportPackageReadinessState.BLOCKED,
+            label="Report package blocked",
+            action_href="/reports?tab=package",
+            blocking_count=1,
+            blockers=[
+                PersonalReportPackageReadinessBlocker(
+                    code="report_generation_error",
+                    label="Report package blocked",
+                    severity="blocking",
+                    count=1,
+                    reason=str(exc),
+                    action_href="/reports?tab=package",
+                )
+            ],
+        ).model_dump(mode="json")
     for blocker in package_readiness.get("blockers", []):
         derived_payloads.append(build_readiness_blocker_event_payload(blocker))
     report_state_payload = build_report_state_event_payload(package_readiness)
