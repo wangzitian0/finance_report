@@ -211,9 +211,11 @@ def _managed_obligations(graph: AcGraph) -> list[Obligation]:
 
     "Managed" means the AC is present in the structure (the graph enumerates it
     and the protection projection can score it), NOT that it has any test. An
-    all-zero/empty protection record is therefore VALID. This obligation only
-    fails on a structurally broken node, so a brand-new all-empty repo passes.
+    all-zero/empty protection record is therefore VALID. An empty graph (zero
+    AC nodes discovered) fails closed so a broken parser cannot pass vacuously.
     """
+    if not graph.nodes:
+        return [Obligation(False, "AC graph is empty: zero AC nodes discovered")]
     out: list[Obligation] = []
     for ac_id, node in graph.nodes.items():
         out.append(

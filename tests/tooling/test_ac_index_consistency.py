@@ -234,6 +234,14 @@ def test_AC8_13_140_every_ac_managed_with_empty_protection_passes() -> None:
     assert all("AC8.13.200" not in e for e in gate.check_integrity(graph))
 
 
+def test_AC8_13_140_empty_ac_graph_fails_closed() -> None:
+    """AC8.13.140: an empty AC graph (zero AC nodes discovered) fails closed."""
+    graph = _consistent_graph()
+    graph.nodes.clear()
+    errors = gate.check_integrity(graph)
+    assert "AC graph is empty: zero AC nodes discovered" in errors
+
+
 # ---------------------------------------------------------------------------
 # Gate B — per-type COUNT floor (monotonic, conflict-safe)
 # ---------------------------------------------------------------------------
@@ -259,12 +267,15 @@ def _floor_graph() -> AcGraph:
     return graph
 
 
-def test_AC8_13_140_count_floor_default_empty_passes(tmp_path) -> None:
-    """AC8.13.140: a missing/empty floor file is valid (brand-new repo passes)."""
+def test_AC8_13_140_count_floor_missing_file_fails_closed(tmp_path) -> None:
+    """AC8.13.140: a missing floor file fails closed with ValueError."""
+    import pytest
+
     missing = tmp_path / "no-such-floor.json"
-    result = protection.check_count_floor(_floor_graph(), missing)
-    assert result.errors == []
-    assert result.floor == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+    with pytest.raises(ValueError, match="protection floor file is missing"):
+        protection.load_floor(missing)
+    with pytest.raises(ValueError, match="protection floor file is missing"):
+        protection.check_count_floor(_floor_graph(), missing)
 
 
 def test_AC8_13_140_load_floor_rejects_malformed_value(tmp_path) -> None:

@@ -543,3 +543,27 @@ def test_AC_corpus_count_floor_update_raises_to_current_count_never_lowers(
         == 0
     )
     assert load_corpus_count_floor(floor_path) == real_count
+
+
+def test_AC23_8_3_missing_or_empty_ground_truth_dir_fails_closed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC-llm.8.3: check_cassette_graded_eval fails closed when --ground-truth-dir is missing or empty."""
+    from common.testing.check_cassette_graded_eval import main as gate_main
+
+    missing_dir = tmp_path / "no-such-ground-truth"
+    assert gate_main(["--ground-truth-dir", str(missing_dir)]) == 1
+    captured_missing = capsys.readouterr()
+    assert (
+        "::error title=Cassette graded eval::no ground-truth artifacts found in"
+        in captured_missing.err
+    )
+
+    empty_dir = tmp_path / "empty-ground-truth"
+    empty_dir.mkdir()
+    assert gate_main(["--ground-truth-dir", str(empty_dir)]) == 1
+    captured_empty = capsys.readouterr()
+    assert (
+        "::error title=Cassette graded eval::no ground-truth artifacts found in"
+        in captured_empty.err
+    )

@@ -25,6 +25,7 @@ vi.mock("@playwright/test", () => ({
 }));
 
 import playwrightConfig, {
+  buildPlaywrightConfig,
   MOBILE_LANE_SPECS,
   MOBILE_PROJECT_NAME,
 } from "../../playwright.config";
@@ -94,5 +95,40 @@ describe("playwright mobile viewport lane (#1827 G-mobile-lane)", () => {
 
   it("keeps the desktop chromium project alongside the mobile lane", () => {
     expect(findProject("chromium")).toBeDefined();
+  });
+
+  it("defaults reuseExistingServer to false unless PW_REUSE_SERVER=1 (#2669)", () => {
+    const defaultCfg = buildPlaywrightConfig({});
+    const defaultWebServer = defaultCfg.webServer as {
+      reuseExistingServer?: boolean;
+      url?: string;
+      command?: string;
+    };
+    expect(defaultWebServer.reuseExistingServer).toBe(false);
+    expect(defaultWebServer.url).toBe("http://127.0.0.1:3000");
+    expect(defaultCfg.use?.baseURL).toBe("http://127.0.0.1:3000");
+
+    const reuseCfg = buildPlaywrightConfig({ PW_REUSE_SERVER: "1" });
+    const reuseWebServer = reuseCfg.webServer as {
+      reuseExistingServer?: boolean;
+    };
+    expect(reuseWebServer.reuseExistingServer).toBe(true);
+  });
+
+  it("honors PORT in webServer.url, webServer.command, and use.baseURL (#2669)", () => {
+    const portCfg = buildPlaywrightConfig({ PORT: "3456" });
+    const portWebServer = portCfg.webServer as {
+      url?: string;
+      command?: string;
+    };
+    expect(portWebServer.url).toBe("http://127.0.0.1:3456");
+    expect(portWebServer.command).toBe(
+      "npm run build && npm run start -- --port 3456",
+    );
+    expect(portCfg.use?.baseURL).toBe("http://127.0.0.1:3456");
+
+    const ciPortCfg = buildPlaywrightConfig({ CI: "true", PORT: "3456" });
+    const ciWebServer = ciPortCfg.webServer as { command?: string };
+    expect(ciWebServer.command).toBe("npm run start -- --port 3456");
   });
 });

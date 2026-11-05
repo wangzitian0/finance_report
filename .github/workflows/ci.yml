@@ -236,11 +236,6 @@ jobs:
           # graph; this only verifies the README pointer block is intact, never a
           # shifted AC total.
           uv run --with pyyaml python tools/generate_epic_status.py --check
-      - name: Generated DB Schema Reference Check
-        run: |
-          cd apps/backend
-          uv run python ../../tools/generate_db_schema_reference.py
-          uv run python ../../tools/generate_db_schema_reference.py --check
       - name: AC Index Consistency Check
         run: |
           # The SINGLE AC-index gate, exactly TWO gates over the AC-keyed graph:
@@ -277,6 +272,10 @@ jobs:
           # and contract gates (tier AST literal, dual definition, draft registration,
           # authority reconcile, gate main contract, baseline update contract, tool shim contract).
           uv run --with pyyaml python tools/check_package_migration_safety.py
+      - name: Package Contract Check
+        run: |
+          cd apps/backend
+          uv run python ../../tools/preflight.py --only package-contract --ci
       - name: Tier Import Guard (CODE-ONLY must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule

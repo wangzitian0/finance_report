@@ -14,6 +14,7 @@ scene) by gating cassette integrity for the whole corpus on every PR.
 
 from __future__ import annotations
 
+import argparse
 import ast
 import json
 import sys
@@ -171,12 +172,31 @@ def statement_cassette_count(cassette_dir: Path = CASSETTE_DIR) -> int:
     return count
 
 
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="LLM cassette balance-chain integrity gate."
+    )
+    parser.add_argument("--cassette-dir", type=Path, default=CASSETTE_DIR)
+    return parser.parse_args(argv)
+
+
 def _run_command(argv: Sequence[str] | None = None) -> int:
-    if not CASSETTE_DIR.exists():
-        print(f"[CASSETTE] no cassette dir at {CASSETTE_DIR}; nothing to check.")
-        return 0
-    violations = check()
-    statement_count = statement_cassette_count()
+    args = parse_args(argv)
+    cassette_dir: Path = args.cassette_dir
+    if not cassette_dir.exists():
+        print(
+            f"::error title=LLM cassette integrity::no cassette directory found at {cassette_dir}",
+            file=sys.stderr,
+        )
+        return 1
+    statement_count = statement_cassette_count(cassette_dir)
+    if statement_count == 0:
+        print(
+            f"::error title=LLM cassette integrity::no statement cassettes found in {cassette_dir}",
+            file=sys.stderr,
+        )
+        return 1
+    violations = check(cassette_dir)
     if violations:
         for message in violations:
             print(f"::error title=LLM cassette integrity::{message}", file=sys.stderr)
@@ -187,7 +207,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    exempt = exempt_count()
+    exempt = exempt_count(cassette_dir)
     suffix = (
         f" ({exempt} balance-exempt via balance_reconciles=false — non-reconciling source, field-graded only)"
         if exempt

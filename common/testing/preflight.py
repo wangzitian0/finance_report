@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
 import os
 import subprocess
 import sys
@@ -256,6 +257,19 @@ CHECKS: tuple[Check, ...] = (
             ("npm", "--prefix", "apps/frontend", "run", "check:api-types"),
         ),
         why="router/schema changed: openapi.json and frontend api-types must remain in sync (#1004, #2134)",
+    ),
+    Check(
+        name="package-contract",
+        globs=(
+            "common/*/contract.py",
+            "common/meta/extension/check_package_contract.py",
+            "tools/check_package_contract.py",
+            "apps/backend/src/*/__init__.py",
+            "tests/tooling/*.py",
+            "apps/backend/tests/*.py",
+        ),
+        commands=((PY, "tools/check_package_contract.py"),),
+        why="package contract, published interface, or invariant test ref changed: validate all package contracts (#2713)",
     ),
     Check(
         name="package-migration-safety",
@@ -654,6 +668,37 @@ def _resolve(
     return resolved
 
 
+def _working_tree_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, str]:
+    """Capture ``git status --porcelain`` and SHA-256 digests of dirty/untracked files (#2712)."""
+    proc = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return {}
+    snapshot: dict[str, str] = {"__porcelain__": proc.stdout}
+    for line in proc.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        rel_path = line[3:]
+        if " -> " in rel_path:
+            rel_path = rel_path.split(" -> ", 1)[1]
+        full_path = repo_root / rel_path
+        if full_path.is_file():
+            try:
+                snapshot[rel_path] = hashlib.sha256(full_path.read_bytes()).hexdigest()
+            except OSError:
+                snapshot[rel_path] = "<unreadable>"
+        elif full_path.exists():
+            snapshot[rel_path] = "<dir>"
+        else:
+            snapshot[rel_path] = "<deleted>"
+    return snapshot
+
+
 def run_checks(
     checks: Sequence[Check],
     *,
@@ -662,12 +707,17 @@ def run_checks(
     python: str | None = None,
     ci: bool = False,
     quiet: bool = False,
+    repo_root: Path | None = None,
 ) -> list[CheckResult]:
     """Run each check's commands; a check fails fast on the first non-zero command."""
     python = python or sys.executable
+    root = repo_root or REPO_ROOT
+    guard_tree = (
+        runner in (_default_runner, _default_quiet_runner) or repo_root is not None
+    )
     results: list[CheckResult] = []
     for check in checks:
-        cwd = str(REPO_ROOT / check.cwd)
+        cwd = str(root / check.cwd)
         matching_paths = tuple(
             path
             for path in changed_files
@@ -675,6 +725,7 @@ def run_checks(
         )
         if ci and not quiet:
             print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
+        before_snapshot = _working_tree_snapshot(root) if guard_tree else {}
         ok = True
         for command in check.commands:
             if (
@@ -683,6 +734,15 @@ def run_checks(
             ):
                 ok = False
                 break
+        if guard_tree:
+            after_snapshot = _working_tree_snapshot(root)
+            if after_snapshot != before_snapshot:
+                ok = False
+                print(
+                    f"::error::Gate {check.name} mutated the working tree during execution",
+                    file=sys.stderr,
+                    flush=True,
+                )
         if ci:
             if not quiet:
                 print("::endgroup::", flush=True)

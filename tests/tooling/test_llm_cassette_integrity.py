@@ -166,3 +166,21 @@ def test_AC23_7_1_extracts_response_text_across_shapes() -> None:
     assert _response_text({"choices": [{"message": {"content": "deep"}}]}) == "deep"
     assert _response_text("raw") == "raw"
     assert _response_text({"nothing": 1}) is None
+
+
+def test_AC23_7_1_missing_or_empty_cassette_dir_fails_closed(
+    tmp_path: Path, capsys
+) -> None:
+    """AC-llm.7.1: check_llm_cassettes fails closed when --cassette-dir is missing or has zero statement cassettes."""
+    from common.testing.check_llm_cassettes import main as gate_main
+
+    missing_dir = tmp_path / "no-such-cassettes"
+    assert gate_main(["--cassette-dir", str(missing_dir)]) == 1
+    captured_missing = capsys.readouterr()
+    assert "::error title=LLM cassette integrity::" in captured_missing.err
+
+    empty_dir = tmp_path / "empty-cassettes"
+    empty_dir.mkdir()
+    assert gate_main(["--cassette-dir", str(empty_dir)]) == 1
+    captured_empty = capsys.readouterr()
+    assert "::error title=LLM cassette integrity::" in captured_empty.err
