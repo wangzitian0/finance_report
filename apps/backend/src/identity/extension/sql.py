@@ -36,8 +36,16 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "users"
 
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    __table_args__ = (Index("uq_users_email_normalized", func.lower(email), unique=True),)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    __table_args__ = (
+        Index(
+            "uq_users_email_normalized",
+            func.lower(email),
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     ai_settings: Mapped[dict[str, bool]] = mapped_column(JSONB, nullable=False, default=dict)

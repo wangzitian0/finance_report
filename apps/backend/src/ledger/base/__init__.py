@@ -27,12 +27,17 @@ from src.ledger.base.types import (
     UnbalancedEntryError,
 )
 from src.ledger.base.validators import (
+    MAX_JOURNAL_LINE_AMOUNT,
+    MAX_JOURNAL_LINE_FX_RATE,
     AccountingError,
     JournalEntryPostingProtocol,
     JournalLinePostingProtocol,
     ValidationError,
     validate_fx_rates,
     validate_journal_balance,
+    validate_journal_line_amount,
+    validate_journal_line_fx_rate,
+    validate_journal_line_tags,
     validate_journal_posting_invariants,
 )
 from src.ledger.base.vocabulary import (
@@ -59,6 +64,8 @@ __all__ = [
     "JournalLinePostingProtocol",
     "LedgerError",
     "Leg",
+    "MAX_JOURNAL_LINE_AMOUNT",
+    "MAX_JOURNAL_LINE_FX_RATE",
     "OpeningPosition",
     "PROCESSING_ACCOUNT_CODE",
     "ProcessingAccount",
@@ -73,5 +80,8 @@ __all__ = [
     "journal_command_target",
     "validate_fx_rates",
     "validate_journal_balance",
+    "validate_journal_line_amount",
+    "validate_journal_line_fx_rate",
+    "validate_journal_line_tags",
     "validate_journal_posting_invariants",
 ]

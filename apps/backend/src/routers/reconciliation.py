@@ -25,6 +25,7 @@ from src.ledger import (
     AccountType,
     JournalEntry,
     ValidationError,
+    account_service,
     calculate_reconciliation_adjustment,
     submit_system_journal_entry,
 )
@@ -597,31 +598,47 @@ async def post_reconciliation_adjustment(
         )
 
     preferred_type = AccountType.INCOME if adjustment.is_gain else AccountType.EXPENSE
-    stmt = select(Account).where(
-        Account.user_id == user_id,
-        Account.name == "BankRoundingDifference",
-        Account.currency == account.currency,
-        Account.type == preferred_type,
-    )
-    rounding_account = (await db.execute(stmt)).scalar_one_or_none()
-    if rounding_account is None:
-        alt_stmt = select(Account).where(
-            Account.user_id == user_id,
-            Account.name == "BankRoundingDifference",
-            Account.currency == account.currency,
-            Account.type.in_([AccountType.INCOME, AccountType.EXPENSE]),
+
+    async def _find_rounding_account(session: AsyncSession) -> Account | None:
+        stmt = (
+            select(Account)
+            .where(
+                Account.user_id == user_id,
+                Account.name == "BankRoundingDifference",
+                Account.currency == account.currency,
+                Account.type == preferred_type,
+            )
+            .order_by(Account.created_at, Account.id)
+            .limit(1)
         )
-        rounding_account = (await db.execute(alt_stmt)).scalars().first()
-    if rounding_account is None:
-        rounding_account = Account(
+        found = (await session.execute(stmt)).scalar_one_or_none()
+        if found is not None:
+            return found
+        alt_stmt = (
+            select(Account)
+            .where(
+                Account.user_id == user_id,
+                Account.name == "BankRoundingDifference",
+                Account.currency == account.currency,
+                Account.type.in_([AccountType.INCOME, AccountType.EXPENSE]),
+            )
+            .order_by(Account.created_at, Account.id)
+            .limit(1)
+        )
+        return (await session.execute(alt_stmt)).scalars().first()
+
+    rounding_account = await account_service.find_or_create_account(
+        db,
+        user_id=user_id,
+        find=_find_rounding_account,
+        build=lambda: Account(
             user_id=user_id,
             name="BankRoundingDifference",
             type=preferred_type,
             currency=account.currency,
             is_active=True,
-        )
-        db.add(rounding_account)
-        await db.flush()
+        ),
+    )
 
     base_currency = await get_effective_base_currency(db, user_id=user_id)
     if account.currency != base_currency and payload.fx_rate is None:

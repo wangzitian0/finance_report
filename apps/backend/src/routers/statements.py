@@ -63,6 +63,7 @@ from src.extraction import (
 from src.ledger import (
     Account,
     AccountType,
+    account_service,
 )
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
@@ -303,38 +304,38 @@ async def _create_statement_account_from_confirmation(
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"
 
-    existing_result = await db.execute(
-        select(Account)
-        .where(Account.user_id == user_id)
-        .where(Account.name == account_name)
-        .where(Account.type == AccountType.ASSET)
-        .where(Account.currency == currency)
-        .where(Account.is_active.is_(True))
-        .order_by(Account.created_at, Account.id)
-        .limit(1)
-    )
-    existing_account = existing_result.scalar_one_or_none()
-    if existing_account is not None:
-        statement.account_id = existing_account.id
-        await db.flush()
-        return existing_account
-
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
 
-    account = Account(
+    async def _find_statement_account(session: AsyncSession) -> Account | None:
+        existing_result = await session.execute(
+            select(Account)
+            .where(Account.user_id == user_id)
+            .where(Account.name == account_name)
+            .where(Account.type == AccountType.ASSET)
+            .where(Account.currency == currency)
+            .where(Account.is_active.is_(True))
+            .order_by(Account.created_at, Account.id)
+            .limit(1)
+        )
+        return existing_result.scalar_one_or_none()
+
+    created_account = await account_service.find_or_create_account(
+        db,
         user_id=user_id,
-        name=account_name,
-        type=AccountType.ASSET,
-        currency=currency,
-        code="AUTO-BANK",
-        description=f"Created from confirmed statement import {source_filename}",
+        find=_find_statement_account,
+        build=lambda: Account(
+            user_id=user_id,
+            name=account_name,
+            type=AccountType.ASSET,
+            currency=currency,
+            code="AUTO-BANK",
+            description=f"Created from confirmed statement import {source_filename}",
+        ),
     )
-    db.add(account)
+    statement.account_id = created_account.id
     await db.flush()
-    statement.account_id = account.id
-    await db.flush()
-    return account
+    return created_account
 
 
 # --- Helper functions ---

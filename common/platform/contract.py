@@ -152,6 +152,7 @@ CONTRACT = PackageContract(
         "TimestampMixin",
         "UUIDMixin",
         "UserOwnedMixin",
+        "get_client_ip",
         "get_owned_or_404",
         "paginate",
         "raise_bad_request",
