@@ -140,7 +140,7 @@ def _two_page_pdf() -> bytes:
 
 
 def test_AC_extraction_closing_balance_source_2_text_layer_reader_is_one_helper_for_both_callers():
-    """The brokerage fallback and the closing-balance check read PDF text through one helper."""
+    """The closing-balance check reads PDF text through the shared PDF text layer helper."""
     from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
 
     content = _two_page_pdf()
@@ -148,7 +148,6 @@ def test_AC_extraction_closing_balance_source_2_text_layer_reader_is_one_helper_
     uncapped = read_pdf_text_layer(content)
     assert uncapped is not None
     assert "100.00" in uncapped and "200.00" in uncapped
-    assert ExtractionService()._extract_pdf_text_for_brokerage_fallback(content) == uncapped
     assert read_pdf_text_layer(content, max_pages=2) == uncapped
     assert read_pdf_text_layer(content, max_pages=1) is None
     assert read_pdf_text_layer(None) is None

@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from src.audit import Currency, Money, to_money
@@ -343,7 +343,17 @@ async def reconcile_positions(
     try:
         result = await _positions.reconcile_positions(db, user_id)
         await db.commit()
-    except (PositionServiceError, ValuationServiceError) as e:
+    except PositionServiceError as e:
+        await db.rollback()
+        if "unsupported currency" in str(e).lower():
+            logger.warning("Reconciliation rejected", error=str(e), user_id=str(user_id))
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(e),
+            ) from e
+        logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
+        raise_internal_error(str(e), cause=e)
+    except ValuationServiceError as e:
         logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
         await db.rollback()
         raise_internal_error(str(e), cause=e)

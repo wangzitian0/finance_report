@@ -576,10 +576,11 @@ async def test_AC_reporting_2646_2_a_reparse_that_clears_the_summary_period_keep
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """AC-reporting.2646.2: a confirmed envelope, not approved, then a retry of the same source
-    (``POST /statements/{id}/retry``). The source has no period, so the re-parse writes no period
-    to the summary, but the result record and the envelope stay current and the package keeps the
-    statement. The custody query reads the envelope period, so the custody set still holds the
-    account and the readiness has no coverage blocker (the review probe of #2717)."""
+    (``POST /statements/{id}/retry``). The source has no period, so the raw parse produces no period,
+    while the result record and the confirmed envelope stay current (#2723 preserves the envelope
+    projection on the summary as well) and the package keeps the statement. Even if the summary
+    period is cleared directly, the custody query reads the envelope period, so the custody set still
+    holds the account and the readiness has no coverage blocker (the review probe of #2717)."""
     user_id = test_user.id
     _keep_the_statement_parsed(monkeypatch)
     bank = await _seed_first_bank_statement(db, user_id, monkeypatch)
@@ -610,10 +611,13 @@ async def test_AC_reporting_2646_2_a_reparse_that_clears_the_summary_period_keep
     reparsed = await db.get(StatementSummary, statement_id)
     assert reparsed is not None
     envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement_id)
-    # The preconditions of the probe: same result, no summary period, a current envelope period.
-    assert (reparsed.current_extraction_result_id, reparsed.period_start) == (result_before, None)
+    assert (reparsed.current_extraction_result_id, reparsed.period_start) == (result_before, date(2026, 6, 5))
     assert envelope is not None
     assert envelope.period_start == date(2026, 6, 5)
+    # Also verify the custody query fallback when the summary period is cleared directly (#2717).
+    reparsed.period_start = None
+    reparsed.period_end = None
+    await db.commit()
 
     package_cash, custody = await _package_cash_and_custody(db, user_id, as_of)
     assert bank_id in package_cash
