@@ -854,17 +854,11 @@ async def reconcile_account_statement_chain(
             )
             changed = True
         if existing_opening is not None and existing_opening.journal_entry_id is not None:
-            inactive_at_opening = await db.scalar(
-                select(StatementSummary.id)
-                .where(
-                    StatementSummary.user_id == user_id,
-                    StatementSummary.account_id == account_id,
-                    StatementSummary.status.in_((BankStatementStatus.RETIRED, BankStatementStatus.REJECTED)),
-                    StatementSummary.period_start == existing_opening.effective_date,
-                )
-                .limit(1)
+            entry_obj = await db.get(JournalEntry, existing_opening.journal_entry_id)
+            is_statement_import_opening = existing_opening.source_decision is not None or (
+                entry_obj is not None and entry_obj.memo == "Opening balance (statement import)"
             )
-            if existing_opening.source_decision is not None or inactive_at_opening is not None:
+            if is_statement_import_opening:
                 await void_journal_entry(
                     db,
                     existing_opening.journal_entry_id,
@@ -891,6 +885,14 @@ async def reconcile_account_statement_chain(
             raise ValueError("Opening balance authority needs review")
         if existing_opening.effective_date < earliest.period_start:
             # Determine whether existing_opening came from a retired/rejected statement or a manual opening balance
+            existing_entry_obj = (
+                await db.get(JournalEntry, existing_opening.journal_entry_id)
+                if existing_opening.journal_entry_id is not None
+                else None
+            )
+            is_statement_import_opening = existing_opening.source_decision is not None or (
+                existing_entry_obj is not None and existing_entry_obj.memo == "Opening balance (statement import)"
+            )
             inactive_at_existing = await db.scalar(
                 select(StatementSummary.id)
                 .where(
@@ -901,7 +903,7 @@ async def reconcile_account_statement_chain(
                 )
                 .limit(1)
             )
-            if inactive_at_existing is not None:
+            if is_statement_import_opening and inactive_at_existing is not None:
                 allow_supersede = True
             else:
                 need_opening_post = False
