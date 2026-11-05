@@ -482,7 +482,52 @@ class InvestmentAccountingService:
             ),
         )
         assert result.dividend is not None
+        result.dividend.journal_entry_id = result.journal_entry.id  # type: ignore[attr-defined]
         return result.dividend
+
+    async def list_holding_dividends(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        ticker: str,
+        limit: int,
+        offset: int,
+    ) -> list[DividendIncome]:
+        """List dividend rows for a holding and attach matching journal_entry_id (#2673)."""
+        result = await db.execute(
+            select(DividendIncome)
+            .join(ManagedPosition, DividendIncome.position_id == ManagedPosition.id)
+            .where(DividendIncome.user_id == user_id)
+            .where(ManagedPosition.user_id == user_id)
+            .where(ManagedPosition.asset_identifier == ticker)
+            .order_by(DividendIncome.payment_date.desc(), DividendIncome.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        dividends = list(result.scalars().all())
+        journal_by_key: dict[tuple[UUID, date, Decimal], UUID] = {}
+        if dividends:
+            position_ids = {d.position_id for d in dividends}
+            txn_rows = await db.execute(
+                select(InvestmentTransaction)
+                .where(InvestmentTransaction.user_id == user_id)
+                .where(InvestmentTransaction.position_id.in_(position_ids))
+                .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.DIVIDEND)
+                .where(InvestmentTransaction.journal_entry_id.is_not(None))
+                .order_by(InvestmentTransaction.created_at.desc())
+            )
+            for txn in txn_rows.scalars().all():
+                if txn.position_id is not None and txn.journal_entry_id is not None:
+                    journal_by_key.setdefault(
+                        (txn.position_id, txn.transaction_date, txn.gross_amount),
+                        txn.journal_entry_id,
+                    )
+        for dividend in dividends:
+            dividend.journal_entry_id = journal_by_key.get(  # type: ignore[attr-defined]
+                (dividend.position_id, dividend.payment_date, dividend.amount)
+            )
+        return dividends
 
     async def _resolve_default_account(
         self,

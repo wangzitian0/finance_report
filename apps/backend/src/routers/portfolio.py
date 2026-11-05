@@ -14,7 +14,6 @@ from src.extraction import BrokeragePositionImportService, ManagedPosition, Posi
 from src.observability import get_logger
 from src.portfolio import (
     AssetNotFoundError,
-    DividendIncome,
     InsufficientDataError,
     InvestmentAccountingService,
     InvestmentAccountingValidationError,
@@ -167,15 +166,8 @@ async def get_holding_dividends(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[DividendEventResponse]:
     """List dividend events for a holding ticker (bounded by limit/offset; see AC17.30)."""
-    result = await db.execute(
-        select(DividendIncome)
-        .join(ManagedPosition, DividendIncome.position_id == ManagedPosition.id)
-        .where(DividendIncome.user_id == user_id)
-        .where(ManagedPosition.user_id == user_id)
-        .where(ManagedPosition.asset_identifier == ticker)
-        .order_by(DividendIncome.payment_date.desc(), DividendIncome.id.desc())
-        .offset(offset)
-        .limit(limit)
+    dividends = await _investment_accounting_service.list_holding_dividends(
+        db, user_id=user_id, ticker=ticker, limit=limit, offset=offset
     )
     return [
         DividendEventResponse(
@@ -185,8 +177,9 @@ async def get_holding_dividends(
             amount=dividend.amount,
             currency=dividend.currency,
             reinvested=False,
+            journal_entry_id=getattr(dividend, "journal_entry_id", None),
         )
-        for dividend in result.scalars().all()
+        for dividend in dividends
     ]
 
 
@@ -217,6 +210,7 @@ async def create_holding_dividend(
     except (InvestmentAccountingValidationError, PricingError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
+    journal_entry_id = getattr(dividend, "journal_entry_id", None)
     await db.commit()
     await db.refresh(dividend)
     return DividendEventResponse(
@@ -226,6 +220,7 @@ async def create_holding_dividend(
         amount=dividend.amount,
         currency=dividend.currency,
         reinvested=False,
+        journal_entry_id=journal_entry_id,
     )
 
 

@@ -132,7 +132,11 @@ class DbConfigSource:
             ).scalar_one_or_none()
         if row is None:
             return None
-        resolved_model = EnvConfigSource.resolve_scene_model(scene, row.model)
+        resolved_model = EnvConfigSource.resolve_scene_model(
+            scene,
+            row.model,
+            is_deployment_default=(scope is None),
+        )
         return SceneBinding(
             scene=scene,
             # Qualify with the provider id so the client resolves the exact provider.

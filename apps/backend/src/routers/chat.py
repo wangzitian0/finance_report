@@ -61,6 +61,7 @@ async def chat_message(
                 raise_service_unavailable("Unable to validate requested model at this time.", cause=e)
         if not allowed:
             raise_bad_request("Invalid model selection.")
+    stream_iter = None
     try:
         stream = await service.chat_stream(
             db,
@@ -72,6 +73,8 @@ async def chat_message(
         stream_iter = aiter(stream.stream)
         first_chunk = await anext(stream_iter, None)
     except AIAdvisorError as exc:
+        if stream_iter is not None and hasattr(stream_iter, "aclose"):
+            await stream_iter.aclose()
         detail = str(exc)
         if "not found" in detail.lower():
             raise_not_found("Chat session", cause=exc)
@@ -84,20 +87,27 @@ async def chat_message(
             raise_service_unavailable("AI service temporarily unavailable.", cause=exc)
         raise_bad_request(detail, cause=exc)
 
+    if first_chunk is None or not str(first_chunk).strip():
+        if stream_iter is not None and hasattr(stream_iter, "aclose"):
+            await stream_iter.aclose()
+        raise_service_unavailable("AI service temporarily unavailable.")
+
     # Commit session creation, user message, and any refusal messages
     # that were flushed by the service layer.  For live-streaming responses,
     # _stream_and_store commits the assistant message after the generator completes.
     await db.commit()
 
     async def primed_stream() -> AsyncIterator[str]:
-        if first_chunk is not None:
-            yield first_chunk
         try:
+            yield first_chunk
             async for chunk in stream_iter:
                 yield chunk
         except (AIAdvisorError, LLMError) as exc:
             logger.warning("Chat stream interrupted after initial chunk", error=str(exc), exc_info=True)
             yield "\n\n[Stream interrupted — please retry]"
+        finally:
+            if hasattr(stream_iter, "aclose"):
+                await stream_iter.aclose()
 
     # Declare the streaming response's out-of-band payload (session id, model
     # name, grounding metadata) through the typed contract so the header

@@ -262,6 +262,7 @@ class DividendEventResponse(BaseModel):
     amount: MoneyAmount
     currency: CurrencyCode
     reinvested: bool = False
+    journal_entry_id: UUID | None = None
 
 
 class PerformanceMetricsResponse(BaseModel):

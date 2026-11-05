@@ -3132,6 +3132,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Journal Entry Id */
+            journal_entry_id?: string | null;
             /**
              * Pay Date
              * Format: date

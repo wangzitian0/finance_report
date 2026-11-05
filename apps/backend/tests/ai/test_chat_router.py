@@ -714,3 +714,39 @@ async def test_AC_advisor_2555_1_pre_first_chunk_stream_error_returns_503_not_em
         response = await chat_message(payload, db=mock_db, user_id=mock_user_id)
         chunks = [chunk async for chunk in response.body_iterator]
         assert chunks == ["Initial token", " second token", "\n\n[Stream interrupted — please retry]"]
+
+    # Also verify that when the stream yields 0 chunks without raising an exception,
+    # /api/chat still fails closed with HTTP 503 instead of committing HTTP 200 with an empty body.
+    closed_flag = False
+
+    async def empty_stream():
+        nonlocal closed_flag
+        try:
+            if False:
+                yield ""
+        finally:
+            closed_flag = True
+
+    mock_db.commit.reset_mock()
+    with patch("src.routers.chat.AIAdvisorService") as MockServiceEmpty:
+        mock_empty_obj = MagicMock()
+        mock_empty_obj.session_id = uuid4()
+        mock_empty_obj.stream = empty_stream()
+        mock_empty_obj.model_name = "glm-5.3-flash"
+        mock_empty_obj.cached = False
+        mock_empty_obj.metadata = None
+        mock_empty_service = MagicMock()
+        mock_empty_service.chat_stream = AsyncMock(return_value=mock_empty_obj)
+        MockServiceEmpty.return_value = mock_empty_service
+
+        payload = MagicMock()
+        payload.message = "What are my expenses?"
+        payload.session_id = None
+        payload.model = None
+
+        with pytest.raises(HTTPException) as empty_exc:
+            await chat_message(payload, db=mock_db, user_id=mock_user_id)
+
+        assert empty_exc.value.status_code == 503
+        assert closed_flag is True
+        mock_db.commit.assert_not_awaited()

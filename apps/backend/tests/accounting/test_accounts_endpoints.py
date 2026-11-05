@@ -97,3 +97,28 @@ async def test_AC_ledger_2674_1_system_accounts_cannot_be_updated_or_deleted(
     delete_resp = await client.delete(f"/accounts/{sys_account.id}")
     assert delete_resp.status_code == 400
     assert "System accounts cannot be modified or deleted" in delete_resp.json()["detail"]
+
+    # Also verify that PositionService._get_or_create_broker_account skips an inactive
+    # broker account of the same name and creates/returns an active one (#2674).
+    from src.ledger.orm.account import Account, AccountType
+    from src.portfolio.extension.positions import PositionService
+
+    inactive_broker = Account(
+        user_id=test_user.id,
+        name="Moomoo SG",
+        type=AccountType.ASSET,
+        currency="SGD",
+        code="AUTO-ASSET",
+        is_active=False,
+    )
+    db.add(inactive_broker)
+    await db.commit()
+
+    resolved_broker = await PositionService()._get_or_create_broker_account(
+        db,
+        user_id=test_user.id,
+        broker_name="Moomoo SG",
+        currency="SGD",
+    )
+    assert resolved_broker.id != inactive_broker.id
+    assert resolved_broker.is_active is True
