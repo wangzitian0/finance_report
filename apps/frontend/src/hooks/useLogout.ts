@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiOperation } from "@/lib/api-client";
@@ -8,6 +9,7 @@ import { clearUser } from "@/lib/auth";
 /** End browser cookie authority before reporting successful logout. */
 export function useLogout() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const inFlight = useRef(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -20,6 +22,7 @@ export function useLogout() {
     try {
       await apiOperation("logout_auth_logout_post");
       clearUser();
+      queryClient.clear();
       router.push("/login");
     } catch {
       setLogoutError("Could not log out. Please try again.");

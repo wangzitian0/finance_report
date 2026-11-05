@@ -18,3 +18,7 @@ class CorrectionLoopReplayResponse(BaseModel):
     proportion_before: Decimal
     proportion_after: Decimal
     reduced: bool
+    high_confidence_count: int = 0
+    medium_confidence_count: int = 0
+    low_confidence_count: int = 0
+    low_confidence_proportion: Decimal = Decimal("0")

@@ -21,3 +21,7 @@ async def test_AC18_14_4_replay_endpoint_surfaces_the_loop_effect(client):
     assert body["reduced"] is False
     assert body["proportion_before"] == "0"
     assert body["proportion_after"] == "0"
+    assert body["high_confidence_count"] == 0
+    assert body["medium_confidence_count"] == 0
+    assert body["low_confidence_count"] == 0
+    assert body["low_confidence_proportion"] == "0"

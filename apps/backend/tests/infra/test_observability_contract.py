@@ -444,3 +444,37 @@ def test_system_and_runtime_error_ids() -> None:
 
     assert ErrorIds.HEALTH_CHECK_FAILED == "ERR_SYS_001"
     assert ErrorIds.UNHANDLED_EXCEPTION == "ERR_SYS_002"
+
+
+def test_AC_observability_11_3_no_logger_call_slices_raw_content() -> None:
+    """AC-observability.11.3 (#2676): No logger.* call under apps/backend/src/ passes raw_preview or content[:...]."""
+    import ast
+
+    backend_src = REPO_ROOT / "apps" / "backend" / "src"
+    offenders: list[str] = []
+
+    for path in sorted(backend_src.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "logger"):
+                continue
+            rel = path.relative_to(REPO_ROOT)
+            for kw in node.keywords:
+                if kw.arg == "raw_preview":
+                    offenders.append(f"{rel}:{node.lineno} passes raw_preview=")
+                if (
+                    isinstance(kw.value, ast.Subscript)
+                    and isinstance(kw.value.value, ast.Name)
+                    and kw.value.value.id == "content"
+                ):
+                    offenders.append(f"{rel}:{node.lineno} slices content[...] in logger.{func.attr}")
+            for arg in node.args:
+                if isinstance(arg, ast.Subscript) and isinstance(arg.value, ast.Name) and arg.value.id == "content":
+                    offenders.append(f"{rel}:{node.lineno} slices content[...] in logger.{func.attr}")
+
+    assert not offenders, f"Logger calls must never emit raw model/statement content slices (#2676): {offenders}"

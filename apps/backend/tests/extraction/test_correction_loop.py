@@ -150,3 +150,47 @@ async def test_AC18_14_4_service_replay_measures_held_out_reduction(db, test_use
     assert result.grounded == 2
     assert result.reduced is True
     assert result.proportion_after < result.proportion_before
+
+
+@pytest.mark.asyncio
+async def test_AC18_14_4_service_replay_counts_real_statement_confidence_tiers(db, test_user):
+    """AC-extraction.1814.4 (#2676): replay surfaces real statement confidence tier counts and low-confidence proportion."""
+    from src.extraction import BankStatementStatus
+    from tests.factories import StatementSummaryFactory
+
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSED,
+        confidence_score=90,
+        balance_validated=True,
+    )
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSED,
+        confidence_score=75,
+        balance_validated=True,
+    )
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSED,
+        confidence_score=45,
+        balance_validated=False,
+    )
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=test_user.id,
+        status=BankStatementStatus.RETIRED,
+        confidence_score=10,
+        balance_validated=False,
+    )
+    await db.commit()
+
+    result = await CorrectionLoopService().replay(db, test_user.id)
+
+    assert result.high_confidence_count == 1
+    assert result.medium_confidence_count == 1
+    assert result.low_confidence_count == 1
+    assert result.low_confidence_proportion == Decimal("0.33333")

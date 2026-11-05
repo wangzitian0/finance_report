@@ -1,8 +1,18 @@
 """AC8.13.50: Authentication cookie helpers for E2E browser fixtures."""
 
 import json
+import re
 from typing import Any
 from urllib.parse import urlparse
+
+_AUTH_HEADER_RE = re.compile(r"(?i)\b(cookie|set-cookie|authorization)\s*:\s*[^\r\n]+")
+_ACCESS_TOKEN_COOKIE_RE = re.compile(r"(?i)\b(finance_access_token)\s*=\s*[^\s;'\"]+")
+
+
+def redact_playwright_auth_headers(text: str) -> str:
+    """Redact Cookie, Set-Cookie, Authorization headers, and standalone auth cookies (#2662)."""
+    redacted = _AUTH_HEADER_RE.sub(r"\1: [REDACTED]", text)
+    return _ACCESS_TOKEN_COOKIE_RE.sub(r"\1=[REDACTED]", redacted)
 
 
 def build_auth_cookie(app_url: str, access_token: str) -> dict[str, object]:

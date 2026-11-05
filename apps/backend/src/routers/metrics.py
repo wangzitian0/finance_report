@@ -30,4 +30,8 @@ async def get_correction_loop_replay(user_id: CurrentUserId, db: DbSession) -> C
         proportion_before=result.proportion_before,
         proportion_after=result.proportion_after,
         reduced=result.reduced,
+        high_confidence_count=result.high_confidence_count,
+        medium_confidence_count=result.medium_confidence_count,
+        low_confidence_count=result.low_confidence_count,
+        low_confidence_proportion=result.low_confidence_proportion,
     )

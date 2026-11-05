@@ -610,3 +610,49 @@ def test_sanitizing_log_record_processor_encodes_cleanly_for_otel() -> None:
     assert encoded_attr.string_value == "2025-04-30"
     encoded_body = _encode_value(record.body)
     assert encoded_body is not None
+
+
+def test_sanitize_event_dict_and_otel_processor_redact_pii_and_risky_keys() -> None:
+    """AC-observability.11.3 (#2676): structlog and OTel log processors redact detected PII and risky field keys."""
+    event_dict: dict[str, object] = {
+        "event": "Account 1234567890 failed for holder S1234567A",
+        "error": "Transfer to 9876543210 rejected for S7654321Z",
+        "raw_response": '{"account_number": "1234567890"}',
+        "Authorization": "Bearer secret-jwt-token",
+        "nested": {
+            "provider_response": "raw provider secret",
+            "note": "Contact holder S1234567A on account 1234567890",
+        },
+        "items": ["Account 1234567890", "S1234567A"],
+    }
+    processed = logger_module._sanitize_event_dict(None, "error", event_dict)  # type: ignore[arg-type]
+
+    assert "1234567890" not in str(processed)
+    assert "9876543210" not in str(processed)
+    assert "S1234567A" not in str(processed)
+    assert "S7654321Z" not in str(processed)
+    assert processed["event"] == "Account [BANK_ACCOUNT] failed for holder [NRIC]"
+    assert processed["error"] == "Transfer to [BANK_ACCOUNT] rejected for [NRIC]"
+    assert processed["raw_response"] == "[REDACTED]"
+    assert processed["Authorization"] == "[REDACTED]"
+    assert processed["nested"] == {
+        "provider_response": "[REDACTED]",
+        "note": "Contact holder [NRIC] on account [BANK_ACCOUNT]",
+    }
+    assert processed["items"] == ["Account [BANK_ACCOUNT]", "[NRIC]"]
+
+    class FakeOtelRecord:
+        def __init__(self) -> None:
+            self.attributes = {
+                "raw_response": "secret payload",
+                "detail": "Account 1234567890 for S1234567A",
+            }
+            self.body = "Account 1234567890 failed for S1234567A"
+
+    otel_record = FakeOtelRecord()
+    processor = logger_module.SanitizingLogRecordProcessor()
+    processor.on_emit(otel_record)
+
+    assert otel_record.attributes["raw_response"] == "[REDACTED]"
+    assert otel_record.attributes["detail"] == "Account [BANK_ACCOUNT] for [NRIC]"
+    assert otel_record.body == "Account [BANK_ACCOUNT] failed for [NRIC]"

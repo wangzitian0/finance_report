@@ -16,6 +16,7 @@ from structlog.stdlib import BoundLogger
 from structlog.types import Processor
 
 import src.config
+from src.observability.audit import RISKY_LOG_FIELD_NAMES, _redact_detected_pii
 
 # Bound from the bare published root (``import src.config``) to respect the
 # package-model cross-domain rule (config publishes no named symbols).
@@ -28,17 +29,23 @@ def _sanitize_value(val: Any) -> Any:
 
     OTel Protobuf encoder accepts only bool, str, int, float, bytes,
     and Sequences/Mappings thereof. Dates, datetimes, UUIDs, decimals,
-    exceptions, etc. must be converted to compliant types.
+    exceptions, etc. must be converted to compliant types, and string
+    values / risky keys are redacted (#2676).
     """
-    if val is None or isinstance(val, bool | str | int | float | bytes):
+    if val is None or isinstance(val, bool | int | float | bytes):
         return val
+    if isinstance(val, str):
+        return _redact_detected_pii(val)
     if isinstance(val, datetime.date | datetime.datetime):
         return val.isoformat()
     if isinstance(val, Mapping):
-        return {str(k): _sanitize_value(v) for k, v in val.items()}
+        return {
+            str(k): "[REDACTED]" if str(k).lower() in RISKY_LOG_FIELD_NAMES else _sanitize_value(v)
+            for k, v in val.items()
+        }
     if isinstance(val, list | tuple | set | frozenset | Sequence) and not isinstance(val, str | bytes):
         return [_sanitize_value(x) for x in val]
-    return str(val)
+    return _redact_detected_pii(str(val))
 
 
 def _sanitize_event_dict(
@@ -46,10 +53,13 @@ def _sanitize_event_dict(
     method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
-    """Structlog processor to sanitize non-primitive values in event_dict."""
+    """Structlog processor to redact risky keys, mask PII, and sanitize non-primitive values."""
     _ = (logger, method_name)
     for key, val in list(event_dict.items()):
-        event_dict[key] = _sanitize_value(val)
+        if str(key).lower() in RISKY_LOG_FIELD_NAMES:
+            event_dict[key] = "[REDACTED]"
+        else:
+            event_dict[key] = _sanitize_value(val)
     return event_dict
 
 
@@ -191,9 +201,12 @@ class SanitizingLogRecordProcessor:
         attrs = getattr(raw_record, "attributes", None)
         if attrs is not None and hasattr(attrs, "items"):
             for k, v in list(attrs.items()):
-                attrs[k] = _sanitize_value(v)
+                if str(k).lower() in RISKY_LOG_FIELD_NAMES:
+                    attrs[k] = "[REDACTED]"
+                else:
+                    attrs[k] = _sanitize_value(v)
         body = getattr(raw_record, "body", None)
-        if body is not None and not isinstance(body, bool | str | int | float | bytes):
+        if body is not None and not isinstance(body, bool | int | float | bytes):
             raw_record.body = _sanitize_value(body)
 
     def shutdown(self) -> None:
