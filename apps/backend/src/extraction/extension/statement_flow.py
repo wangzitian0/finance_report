@@ -13,7 +13,7 @@ from prefect import flow
 
 from src.database import async_session_maker
 from src.extraction.base.types import ParseJob
-from src.observability import get_logger, run_with_async_parse_tracking
+from src.observability import flow_run_telemetry, get_logger, run_with_async_parse_tracking
 
 logger = get_logger(__name__)
 
@@ -36,15 +36,16 @@ async def parse_statement_flow(
     then runs the existing parse logic. Idempotency is keyed on ``statement_id``
     (the underlying parse persists by statement id), so retries/re-runs are safe.
     """
-    parse_job = ParseJob.from_prefect_params(job)
-    logger.info(
-        "statement.parse.flow_started",
-        statement_id=str(parse_job.statement_id),
-        request_id=parse_job.request_id,
-    )
-    use_case = compose_statement_ingestion_use_case(session_maker=async_session_maker)
-    await run_with_async_parse_tracking(
-        use_case.execute(parse_job),
-        statement_id=parse_job.statement_id,
-        request_id=parse_job.request_id,
-    )
+    with flow_run_telemetry():
+        parse_job = ParseJob.from_prefect_params(job)
+        logger.info(
+            "statement.parse.flow_started",
+            statement_id=str(parse_job.statement_id),
+            request_id=parse_job.request_id,
+        )
+        use_case = compose_statement_ingestion_use_case(session_maker=async_session_maker)
+        await run_with_async_parse_tracking(
+            use_case.execute(parse_job),
+            statement_id=parse_job.statement_id,
+            request_id=parse_job.request_id,
+        )

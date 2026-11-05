@@ -62,6 +62,7 @@ CONTRACT = PackageContract(
         "configure_otel_metrics",
         "current_request_id",
         "ensure_request_id",
+        "flow_run_telemetry",
         "detect_pii",
         "get_logger",
         "get_observability_status",
@@ -145,6 +146,7 @@ CONTRACT = PackageContract(
         ac('AC-observability.12.1', 'Failed async statement parse tasks emit a low-cardinality failure metric and safe structured log context. Was EPIC-010 AC10.12.1.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_1_async_parse_tracking_records_failures'),
         ac('AC-observability.12.2', 'In-process fallback and Prefect flow wrappers pass statement/request context into async parse tracking. Was EPIC-010 AC10.12.2.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_2_async_parse_tracking_receives_statement_context'),
         ac('AC-observability.12.3', 'Parse failure handling rejects invalid sources, retains identity ambiguity for human review, and emits the existing safe statement.parse.failed contract. Was EPIC-010 AC10.12.3.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved'),
+        ac('AC-observability.12.4', 'A Prefect flow-run process configures OTEL metrics, logs and traces under its own service name (OTEL_SERVICE_NAME, default finance-report-worker) and flushes them before exit, so worker parse outcomes and async failures reach the collector. A statement the LLM-LED gate rejects records outcome=rejected. Closes #2850.', 'apps/backend/tests/infra/test_worker_telemetry.py::test_flow_run_exports_parse_outcome_point_before_exit', priority='P1'),
         # ── group 1 (extended): Backend logging configuration ──
         ac('AC-observability.1.4', "In debug mode, _select_renderer returns structlog's ConsoleRenderer for human-readable local output. Was EPIC-012 AC12.2.1.", 'apps/backend/tests/infra/test_logger.py::test_select_renderer_uses_console_in_debug'),
         ac('AC-observability.1.5', 'configure_logging() wires a working structlog configuration in debug mode without requiring an OTEL endpoint. Was EPIC-012 AC12.15.1.', 'apps/backend/tests/infra/test_logger.py::test_configure_logging_basic'),
