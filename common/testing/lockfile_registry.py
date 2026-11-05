@@ -90,16 +90,24 @@ def scan_lockfile(
         ]
 
     packages = payload.get("packages")
-    if not isinstance(packages, dict):
-        return []
+    if not isinstance(packages, dict) or not packages:
+        return [
+            LockfileRegistryFinding(
+                lockfile=rel_path,
+                package_path="<packages>",
+                resolved_url="lockfile 'packages' map is missing or empty",
+            )
+        ]
 
     findings: list[LockfileRegistryFinding] = []
+    resolved_count = 0
     for pkg_path, meta in sorted(packages.items()):
         if not isinstance(meta, dict):
             continue
         resolved = meta.get("resolved")
         if resolved is None:
             continue
+        resolved_count += 1
         if not isinstance(resolved, str) or not resolved.startswith(allowed_prefix):
             findings.append(
                 LockfileRegistryFinding(
@@ -108,6 +116,14 @@ def scan_lockfile(
                     resolved_url=str(resolved),
                 )
             )
+    if resolved_count == 0:
+        findings.append(
+            LockfileRegistryFinding(
+                lockfile=rel_path,
+                package_path="<packages>",
+                resolved_url="lockfile contains zero resolved package URLs",
+            )
+        )
     return findings
 
 

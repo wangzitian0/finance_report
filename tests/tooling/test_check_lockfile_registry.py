@@ -88,11 +88,25 @@ def test_private_mirror_registry_url_fails_and_lists_package(
 
 
 def test_invalid_json_or_missing_lockfiles_fail_closed(tmp_path: Path) -> None:
-    """AC-testing.preflight.1: #2668: missing lockfiles or malformed JSON fail closed rather than silently passing."""
+    """AC-testing.preflight.1: #2668: missing lockfiles, malformed JSON, or zero resolved URLs fail closed."""
     assert lockfile_registry.main(["--repo-root", str(tmp_path)]) == 1
 
     bad_lock = tmp_path / "package-lock.json"
     bad_lock.write_text("{not-valid-json", encoding="utf-8")
+    assert lockfile_registry.main(["--repo-root", str(tmp_path)]) == 1
+
+    bad_lock.write_text("{}\n", encoding="utf-8")
+    assert lockfile_registry.main(["--repo-root", str(tmp_path)]) == 1
+
+    bad_lock.write_text('{"packages": {}}\n', encoding="utf-8")
+    assert lockfile_registry.main(["--repo-root", str(tmp_path)]) == 1
+
+    _write_lockfile(
+        bad_lock,
+        {
+            "": {"name": "frontend", "version": "0.1.0"},
+        },
+    )
     assert lockfile_registry.main(["--repo-root", str(tmp_path)]) == 1
 
 

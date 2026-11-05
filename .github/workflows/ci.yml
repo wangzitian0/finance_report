@@ -217,7 +217,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${EVENT_NAME}" = "pull_request" ]; then
-            if ! git diff --name-only "origin/${BASE_REF}...HEAD" | grep -Eq '^(apps/frontend/package(-lock)?\.json|package-lock\.json)$'; then
+            git fetch --no-tags --depth=50 origin "${BASE_REF}" || git fetch --no-tags origin "${BASE_REF}"
+            changed_files="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+            if ! printf '%s\n' "${changed_files}" | grep -Eq '^(apps/frontend/package(-lock)?\.json|package-lock\.json)$'; then
               echo "Skipping frontend security audit on PR: no frontend dependency files changed."
               exit 0
             fi

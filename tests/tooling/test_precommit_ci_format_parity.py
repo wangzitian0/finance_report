@@ -124,4 +124,5 @@ def test_ci_frontend_prod_audit_is_scoped_to_dependency_changes_on_prs() -> None
     assert len(audit_steps) == 1
     run_script = str(audit_steps[0]["run"])
     assert "pull_request" in run_script
+    assert 'changed_files="$(git diff --name-only "origin/${BASE_REF}...HEAD")"' in run_script
     assert "^(apps/frontend/package(-lock)?\\.json|package-lock\\.json)$" in run_script
