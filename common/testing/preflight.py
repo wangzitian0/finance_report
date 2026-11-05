@@ -668,6 +668,13 @@ def _resolve(
     return resolved
 
 
+def _unquote_porcelain_path(raw: str) -> str:
+    """Unquote a C-quoted path emitted by ``git status --porcelain``."""
+    if len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
+        return raw[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+    return raw
+
+
 def _working_tree_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, str]:
     """Capture ``git status --porcelain`` and SHA-256 digests of dirty/untracked files (#2712)."""
     proc = subprocess.run(
@@ -677,25 +684,19 @@ def _working_tree_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, str]:
         text=True,
         check=False,
     )
-    if proc.returncode != 0:
+    if proc.returncode != 0:  # pragma: no cover - non-git dir fallback
         return {}
     snapshot: dict[str, str] = {"__porcelain__": proc.stdout}
     for line in proc.stdout.splitlines():
-        if len(line) < 4:
-            continue
         rel_path = line[3:]
         if " -> " in rel_path:
             rel_path = rel_path.split(" -> ", 1)[1]
+        rel_path = _unquote_porcelain_path(rel_path)
         full_path = repo_root / rel_path
         if full_path.is_file():
-            try:
-                snapshot[rel_path] = hashlib.sha256(full_path.read_bytes()).hexdigest()
-            except OSError:
-                snapshot[rel_path] = "<unreadable>"
-        elif full_path.exists():
-            snapshot[rel_path] = "<dir>"
+            snapshot[rel_path] = hashlib.sha256(full_path.read_bytes()).hexdigest()
         else:
-            snapshot[rel_path] = "<deleted>"
+            snapshot[rel_path] = "<non-file>"
     return snapshot
 
 

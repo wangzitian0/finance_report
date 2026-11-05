@@ -184,3 +184,7 @@ def test_AC23_7_1_missing_or_empty_cassette_dir_fails_closed(
     assert gate_main(["--cassette-dir", str(empty_dir)]) == 1
     captured_empty = capsys.readouterr()
     assert "::error title=LLM cassette integrity::" in captured_empty.err
+
+    assert gate_main([]) == 0
+    captured_ok = capsys.readouterr()
+    assert "[CASSETTE] PASSED:" in captured_ok.out

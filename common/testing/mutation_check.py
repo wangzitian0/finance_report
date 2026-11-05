@@ -108,8 +108,6 @@ def _materialise_scratch_tree(
         src_dir = repo_root / rel_dir
         dst_dir = scratch_root / rel_dir
         dst_dir.mkdir(parents=True, exist_ok=True)
-        if not src_dir.is_dir():
-            continue
         for child in src_dir.iterdir():
             child_rel = child.relative_to(repo_root)
             if child_rel in real_dirs or child_rel == target_rel:
@@ -127,9 +125,7 @@ def _materialise_scratch_tree(
 def _kill_process_group(pid: int) -> None:
     try:
         os.killpg(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    except PermissionError:  # pragma: no cover - defensive
+    except (ProcessLookupError, PermissionError):  # pragma: no cover - race on exit
         pass
 
 
@@ -178,7 +174,7 @@ def apply_and_run(
                 False,
                 f"the guard did not finish within {timeout:g}s — the property is unproven",
             )
-        except BaseException:
+        except BaseException:  # pragma: no cover - interrupted by signal
             _kill_process_group(proc.pid)
             proc.wait()
             raise

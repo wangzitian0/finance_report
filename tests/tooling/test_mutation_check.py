@@ -252,12 +252,16 @@ def test_main_and_run_only_and_timeout_paths(tmp_path: Path, monkeypatch):
     slow_mut = mutation_check.Mutation(
         id="sample/slow",
         guard="inline",
-        file="sample.py",
+        file="pkg/sample.py",
         find="VALUE = 10",
         replace="VALUE = 20",
         command=("{python}", "-c", "import time; time.sleep(5)"),
         cwd=".",
     )
+    (tmp_path / "pkg").mkdir(exist_ok=True)
+    pkg_file = tmp_path / "pkg" / "sample.py"
+    pkg_file.write_text(original_code, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", "/existing/pythonpath")
     caught_t, why_t = mutation_check.apply_and_run(
         slow_mut,
         repo_root=tmp_path,
@@ -266,7 +270,7 @@ def test_main_and_run_only_and_timeout_paths(tmp_path: Path, monkeypatch):
     )
     assert caught_t is False
     assert "did not finish within 0.1s" in why_t
-    assert src_file.read_text(encoding="utf-8") == original_code
+    assert pkg_file.read_text(encoding="utf-8") == original_code
 
 
 def test_sigkill_during_guard_leaves_repo_root_and_git_status_untouched(

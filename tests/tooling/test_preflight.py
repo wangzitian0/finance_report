@@ -975,23 +975,27 @@ def test_run_checks_fails_closed_when_gate_mutates_working_tree(tmp_path, capsys
         ["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True
     )
 
-    # Already dirty before preflight starts; gate mutates it further.
-    tracked.write_text("dirty-v1\n", encoding="utf-8")
+    # Already dirty before preflight starts (including a quoted path with a space and a deleted tracked file); gate mutates it further.
+    tracked.unlink()
+    spaced = tmp_path / "dirty file.txt"
+    spaced.write_text("spaced-v1\n", encoding="utf-8")
+    assert preflight._unquote_porcelain_path("plain.txt") == "plain.txt"
+    assert preflight._unquote_porcelain_path('"dirty file.txt"') == "dirty file.txt"
 
     mutating_check = preflight.Check(
         name="mutating-gate",
         globs=("*.txt",),
-        commands=(("touch", "tracked.txt"),),
+        commands=(("touch", "dirty file.txt"),),
         why="test working-tree guard",
     )
 
     def dirtying_runner(_argv, cwd):
-        (Path(cwd) / "tracked.txt").write_text("dirty-v2\n", encoding="utf-8")
+        (Path(cwd) / "dirty file.txt").write_text("spaced-v2\n", encoding="utf-8")
         return 0
 
     results = preflight.run_checks(
         [mutating_check],
-        changed_files=("tracked.txt",),
+        changed_files=("dirty file.txt",),
         runner=dirtying_runner,
         repo_root=tmp_path,
     )
