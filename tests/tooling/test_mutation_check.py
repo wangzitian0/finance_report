@@ -200,7 +200,6 @@ def test_apply_and_run_rejects_no_tests_collected_and_non_assertion_exit_codes(
 
 def test_main_and_run_only_and_timeout_paths(tmp_path: Path, monkeypatch):
     """Exercise main(), --only filtering, unknown --only id, all-caught path, and timeout handling."""
-    import subprocess
 
     src_file = tmp_path / "sample.py"
     original_code = "VALUE = 10\n"
@@ -250,16 +249,177 @@ def test_main_and_run_only_and_timeout_paths(tmp_path: Path, monkeypatch):
         == 0
     )
 
-    def raise_timeout(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd=args[0], timeout=1)
-
-    monkeypatch.setattr(subprocess, "run", raise_timeout)
+    slow_mut = mutation_check.Mutation(
+        id="sample/slow",
+        guard="inline",
+        file="pkg/sample.py",
+        find="VALUE = 10",
+        replace="VALUE = 20",
+        command=("{python}", "-c", "import time; time.sleep(5)"),
+        cwd=".",
+    )
+    (tmp_path / "pkg").mkdir(exist_ok=True)
+    pkg_file = tmp_path / "pkg" / "sample.py"
+    pkg_file.write_text(original_code, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", "/existing/pythonpath")
     caught_t, why_t = mutation_check.apply_and_run(
-        mutation_check.load(manifest)[0],
+        slow_mut,
         repo_root=tmp_path,
         python=sys.executable,
-        timeout=1,
+        timeout=0.1,
     )
     assert caught_t is False
-    assert "did not finish within 1s" in why_t
+    assert "did not finish within 0.1s" in why_t
+    assert pkg_file.read_text(encoding="utf-8") == original_code
+
+
+def test_sigkill_during_guard_leaves_repo_root_and_git_status_untouched(
+    tmp_path: Path,
+):
+    """#2712: Sending SIGKILL to check_mutations.py while its guard runs never leaves a mutated file in repo_root."""
+    import os
+    import signal
+    import subprocess
+    import time
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+
+    pkg_dir = tmp_path / "apps" / "backend" / "pkg"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+    src_file = pkg_dir / "sample.py"
+    original_code = "VALUE = 10\n"
+    src_file.write_text(original_code, encoding="utf-8")
+
+    marker_file = tmp_path / "guard_started.flag"
+    manifest = tmp_path / "mutations.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "mutations": [
+                    {
+                        "id": "sample/sigkill-safety",
+                        "guard": "inline",
+                        "file": "apps/backend/pkg/sample.py",
+                        "find": "VALUE = 10",
+                        "replace": "VALUE = 999",
+                        "command": [
+                            "{python}",
+                            "-c",
+                            (
+                                "import pathlib, time, pkg.sample; "
+                                f"pathlib.Path({str(marker_file)!r}).write_text(str(pkg.sample.VALUE)); "
+                                "time.sleep(30)"
+                            ),
+                        ],
+                        "cwd": "apps/backend",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        [
+            "git",
+            "add",
+            "apps/backend/pkg/__init__.py",
+            "apps/backend/pkg/sample.py",
+            "mutations.json",
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "initial"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+
+    runner_code = (
+        "import sys; "
+        f"sys.path.insert(0, {str(REPO_ROOT)!r}); "
+        "from pathlib import Path; "
+        "from common.testing import mutation_check; "
+        f"mutation_check.run(manifest=Path({str(manifest)!r}), repo_root=Path({str(tmp_path)!r}), python=sys.executable)"
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-c", runner_code],
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        deadline = time.monotonic() + 10.0
+        while not marker_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert marker_file.exists(), "guard subprocess never started"
+        assert marker_file.read_text(encoding="utf-8") == "999"
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait(timeout=5)
+    finally:
+        if proc.poll() is None:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait(timeout=5)
+        marker_file.unlink(missing_ok=True)
+
     assert src_file.read_text(encoding="utf-8") == original_code
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert status == ""
+
+
+def test_run_total_timeout_marks_remaining_mutations_unproven(tmp_path: Path, capsys):
+    """#2712: When total_timeout is exhausted, remaining mutations report unproven (total deadline exceeded)."""
+    src_file = tmp_path / "sample.py"
+    src_file.write_text("VALUE = 10\n", encoding="utf-8")
+    manifest = tmp_path / "mutations.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "mutations": [
+                    {
+                        "id": "sample/after-deadline",
+                        "guard": "inline",
+                        "file": "sample.py",
+                        "find": "VALUE = 10",
+                        "replace": "VALUE = 20",
+                        "command": ["{python}", "-c", "import sys; sys.exit(1)"],
+                        "cwd": ".",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rc = mutation_check.run(
+        manifest=manifest,
+        repo_root=tmp_path,
+        python=sys.executable,
+        total_timeout=0.0,
+    )
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "unproven (total deadline exceeded)" in captured.out

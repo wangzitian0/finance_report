@@ -14,6 +14,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestSelectChecks:
+    def test_AC_testing_preflight_1_package_contract_selected_on_contract_edit(self):
+        """#2713: Changing a package contract or published interface selects package-contract."""
+        for path in (
+            "common/runtime/contract.py",
+            "common/meta/extension/check_package_contract.py",
+            "tools/check_package_contract.py",
+            "apps/backend/src/ledger/__init__.py",
+            "tests/tooling/test_check_package_contract.py",
+            "apps/backend/tests/ledger/test_accounting_equation.py",
+        ):
+            names = {c.name for c in preflight.select_checks([path], tier="static")}
+            assert "package-contract" in names, (
+                f"{path} did not select package-contract"
+            )
+
     def test_epic_edit_selects_ac_traceability(self):
         names = [
             c.name
@@ -905,6 +920,88 @@ def test_AC_testing_preflight_2_ci_lint_job_runs_the_openapi_spec_gate():
     assert names.index("Install frontend dependencies") < matching[0]
     assert "if" not in step, "the openapi-spec step must run on every Lint run"
     assert not step.get("continue-on-error"), "the step must fail the Lint job"
+
+
+def test_AC_testing_preflight_2_ci_lint_job_runs_the_package_contract_gate():
+    """#2713: the CI Lint job runs the `package-contract` gate via preflight --only."""
+    steps = _lint_steps()
+    names = [step.get("name", "") for step in steps]
+    matching = [
+        i
+        for i, step in enumerate(steps)
+        if "--only package-contract" in step.get("run", "")
+    ]
+    assert len(matching) == 1, (
+        f"expected one package-contract step in Lint, got {matching}"
+    )
+    step = steps[matching[0]]
+    run_lines = [
+        line.strip()
+        for line in step["run"].splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    assert run_lines == [
+        "cd apps/backend",
+        "uv run python ../../tools/preflight.py --only package-contract --ci",
+    ]
+    assert names.index("Install dependencies") < matching[0]
+    assert "if" not in step, "the package-contract step must run on every Lint run"
+    assert not step.get("continue-on-error"), "the step must fail the Lint job"
+
+
+def test_run_checks_fails_closed_when_gate_mutates_working_tree(tmp_path, capsys):
+    """#2712: preflight fails closed if a gate changes git status or the digest of a dirty file."""
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("clean\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "tracked.txt"], cwd=tmp_path, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True
+    )
+
+    # Already dirty before preflight starts (including a quoted path with a space and a deleted tracked file); gate mutates it further.
+    tracked.unlink()
+    spaced = tmp_path / "dirty file.txt"
+    spaced.write_text("spaced-v1\n", encoding="utf-8")
+    assert preflight._unquote_porcelain_path("plain.txt") == "plain.txt"
+    assert preflight._unquote_porcelain_path('"dirty file.txt"') == "dirty file.txt"
+
+    mutating_check = preflight.Check(
+        name="mutating-gate",
+        globs=("*.txt",),
+        commands=(("touch", "dirty file.txt"),),
+        why="test working-tree guard",
+    )
+
+    def dirtying_runner(_argv, cwd):
+        (Path(cwd) / "dirty file.txt").write_text("spaced-v2\n", encoding="utf-8")
+        return 0
+
+    results = preflight.run_checks(
+        [mutating_check],
+        changed_files=("dirty file.txt",),
+        runner=dirtying_runner,
+        repo_root=tmp_path,
+    )
+    assert len(results) == 1
+    assert results[0].ok is False
+    assert "mutated the working tree" in capsys.readouterr().err
 
 
 def test_AC_testing_preflight_2_every_ci_only_gate_name_exists():

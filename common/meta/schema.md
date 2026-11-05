@@ -111,8 +111,7 @@ The generated DB schema reference is the public schema inventory:
 - [Generated DB Schema Reference](../../docs/reference/db-schema.md)
 - Command: `python tools/generate_db_schema_reference.py`
 - Build hook: `docs/hooks.py`
-- Drift gate: generate, then run `python tools/generate_db_schema_reference.py --check`
-- CI step: `Generated DB Schema Reference Check`
+- Verification: `tests/tooling/test_generate_db_schema_reference.py`
 - Git policy: the generated `docs/reference/db-schema.md` page is intentionally
   ignored; it is present in MkDocs output, not maintained in source control.
 

@@ -283,6 +283,10 @@ def test_resolve_test_branches(synthetic_repo: Path) -> None:
     assert _resolve_test("t/missing.py::test_real", synthetic_repo) is not None
     # file exists, func missing
     assert _resolve_test("t/test_ok.py::test_absent", synthetic_repo) is not None
+    # Class::method form is rejected because split("::", 1) requires a top-level function (#2713)
+    assert (
+        _resolve_test("t/test_ok.py::TestSuite::test_real", synthetic_repo) is not None
+    )
     # resolves: sync and async functions both count
     assert _resolve_test("t/test_ok.py::test_real", synthetic_repo) is None
     assert _resolve_test("t/test_ok.py::test_async_real", synthetic_repo) is None

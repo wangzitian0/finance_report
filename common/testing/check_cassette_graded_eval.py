@@ -53,7 +53,7 @@ def render(findings: dict[str, list[str]]) -> str:
     return "\n".join(lines)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Cassette graded field-accuracy ratchet."
     )
@@ -61,6 +61,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--corpus-count-baseline", type=Path, default=CORPUS_COUNT_BASELINE
     )
+    parser.add_argument("--ground-truth-dir", type=Path, default=GROUND_TRUTH_DIR)
     parser.add_argument(
         "--update",
         action="store_true",
@@ -71,18 +72,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def _run_command(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    ground_truth_dir: Path = args.ground_truth_dir
 
-    if not GROUND_TRUTH_DIR.exists() or not any(GROUND_TRUTH_DIR.glob("*.truth.json")):
-        print("[CASSETTE-EVAL] no ground-truth artifacts; nothing to grade.")
-        return 0
+    if not ground_truth_dir.exists() or not any(ground_truth_dir.glob("*.truth.json")):
+        print(
+            f"::error title=Cassette graded eval::no ground-truth artifacts found in {ground_truth_dir}",
+            file=sys.stderr,
+        )
+        return 1
 
-    cases = load_cases()
+    cases = load_cases(ground_truth_dir=ground_truth_dir)
     corpus_floor = load_corpus_count_floor(args.corpus_count_baseline)
     shrink = corpus_shrink_findings(
         cases, corpus_floor, baseline_path=args.corpus_count_baseline
     )
 
-    findings = evaluate(baseline_path=args.baseline)
+    findings = evaluate(baseline_path=args.baseline, ground_truth_dir=ground_truth_dir)
     findings["shrink"] = shrink
     # A regressed score, a vanished baseline line, or a corpus shrink blocks
     # BOTH paths — none of these should be silently adoptable by --update. An

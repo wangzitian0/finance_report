@@ -17,8 +17,7 @@ adding protection only RAISES the current count, which passes
 ``current >= floor`` without touching ``protection-floor.json``. The floor file
 is bumped ONLY by an explicit ``--update-floor`` ("lock in gains") action, so a
 normal protection-adding PR never edits it and it never becomes a merge-conflict
-hotspot. The default empty floor (all zeros / missing file) is VALID, so a
-brand-new repo passes.
+hotspot. A missing floor file fails closed.
 """
 
 from __future__ import annotations
@@ -66,15 +65,15 @@ def count_protection_types(graph: AcGraph) -> dict[str, int]:
 
 
 def load_floor(path: Path = DEFAULT_FLOOR) -> dict[str, int]:
-    """Load the committed per-type floor; a missing file is an all-zero floor.
+    """Load the committed per-type floor; a missing file is a hard error.
 
-    A missing TYPE defaults to 0 (so a brand-new repo / newly-added type passes),
-    but a PRESENT value that is not a non-negative integer is a hard error rather
-    than a silent coercion to 0: silently swallowing a malformed floor would
-    weaken the ratchet (a bad edit would let regressions pass unnoticed).
+    A missing TYPE defaults to 0 (so a newly-added type passes),
+    but a missing floor file or a PRESENT value that is not a non-negative
+    integer is a hard error rather than a silent coercion to 0: silently
+    swallowing a missing or malformed floor would weaken the ratchet.
     """
     if not path.exists():
-        return dict.fromkeys(PROTECTION_TYPES, 0)
+        raise ValueError(f"{path}: protection floor file is missing")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"{path}: protection floor must be a JSON object")
@@ -144,7 +143,11 @@ def write_floor(path: Path, floor: dict[str, int]) -> None:
 def update_floor(graph: AcGraph, floor_path: Path = DEFAULT_FLOOR) -> dict[str, int]:
     """Raise each floor to the current count (never lowers). Returns the new floor."""
     counts = count_protection_types(graph)
-    current_floor = load_floor(floor_path)
+    current_floor = (
+        load_floor(floor_path)
+        if floor_path.exists()
+        else dict.fromkeys(PROTECTION_TYPES, 0)
+    )
     raised = {
         ptype: max(current_floor[ptype], counts[ptype]) for ptype in PROTECTION_TYPES
     }

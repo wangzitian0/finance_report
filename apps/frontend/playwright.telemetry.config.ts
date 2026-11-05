@@ -49,7 +49,7 @@ export default defineConfig({
       ? `npm run start -- --port ${PORT}`
       : `npm run build && npm run start -- --port ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: process.env.PW_REUSE_SERVER === '1',
     timeout: 180_000,
     env: TELEMETRY_ENV,
   },
