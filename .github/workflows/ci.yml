@@ -112,6 +112,8 @@ jobs:
         uses: ./.github/actions/gitleaks-scan
       - name: Toolchain Contract Check
         run: python tools/check_toolchain_contract.py
+      - name: Lockfile Registry Check
+        run: python tools/check_lockfile_registry.py
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
@@ -209,8 +211,21 @@ jobs:
         run: npm ci
         working-directory: apps/frontend
       - name: Audit frontend production dependencies
-        run: npm run audit:prod
-        working-directory: apps/frontend
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            git fetch --no-tags --depth=50 origin "${BASE_REF}" || git fetch --no-tags origin "${BASE_REF}"
+            changed_files="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+            if ! printf '%s\n' "${changed_files}" | grep -Eq '^(apps/frontend/package(-lock)?\.json|package-lock\.json)$'; then
+              echo "Skipping frontend security audit on PR: no frontend dependency files changed."
+              exit 0
+            fi
+          fi
+          cd apps/frontend
+          npm run audit:prod
       - name: Run Frontend Lint
         run: npm run lint
         working-directory: apps/frontend
