@@ -1,4 +1,4 @@
-"""Playwright E2E error output redaction for authentication headers and cookies (#2662)."""
+"""AC-testing.e2e-auth-redaction.1: Playwright E2E error output redaction for authentication headers and cookies (#2662)."""
 
 from __future__ import annotations
 
@@ -114,7 +114,9 @@ def test_redact_playwright_auth_headers_scrubs_standalone_access_token_cookie() 
     assert "finance_access_token=[REDACTED]" in scrubbed
 
 
-def test_makereport_scrubs_string_and_structured_longrepr(monkeypatch) -> None:
+def test_AC_testing_e2e_auth_redaction_1_makereport_scrubs_string_and_structured_longrepr(
+    monkeypatch,
+) -> None:
     pytest_runtest_makereport = _load_e2e_conftest_without_optional_playwright(
         monkeypatch
     ).pytest_runtest_makereport
