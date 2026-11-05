@@ -724,3 +724,34 @@ def test_pdf_corpus_oracle_edge_branches_and_live_cli(
         )
         == 0
     )
+
+
+def test_git_diff_text_handles_non_utf8_pdf_bytes_safely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify git_diff_text passes encoding='utf-8' and errors='replace' so binary PDF diffs never raise UnicodeDecodeError."""
+    import subprocess as sp
+    from common.testing.coverage import diff_coverage
+
+    captured_kwargs: dict[str, Any] = {}
+    real_run = sp.run
+
+    def _inspecting_run(cmd: list[str], **kwargs: Any) -> Any:
+        captured_kwargs.update(kwargs)
+        return real_run(
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.buffer.write(b'diff --git a/x.pdf b/x.pdf\\n+%PDF-1.4\\n+%\\x93\\x8c\\x8b\\x9e\\n')",
+            ],
+            **kwargs,
+        )
+
+    import sys
+
+    monkeypatch.setattr(diff_coverage.subprocess, "run", _inspecting_run)
+    diff_out = diff_coverage.git_diff_text("origin/main", repo_root=tmp_path)
+    assert captured_kwargs.get("encoding") == "utf-8"
+    assert captured_kwargs.get("errors") == "replace"
+    assert "%PDF-1.4" in diff_out
+    assert "\ufffd" in diff_out

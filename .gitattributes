@@ -8,3 +8,7 @@ apps/frontend/src/lib/api-types.ts linguist-generated=true
 # PRs ratcheting DIFFERENT cases auto-merge by union; only same-case
 # edits conflict.
 common/testing/fixtures/cassette-eval-baseline.jsonl merge=union
+
+# Treat PDF fixtures as binary in git diff so binary header bytes (%PDF-1.4\n%\x93\x8c\x8b\x9e)
+# are never decoded as text diffs.
+*.pdf binary
