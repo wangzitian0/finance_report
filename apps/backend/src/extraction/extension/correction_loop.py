@@ -18,6 +18,7 @@ attempts is a separate EPIC.
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
@@ -62,8 +63,14 @@ class ReplayResult:
         return self.proportion_after < self.proportion_before
 
 
+class _ConfidenceRow(Protocol):
+    status: BankStatementStatus | str | None
+    confidence_score: int | None
+    balance_validated: bool | None
+
+
 def summarize_statement_confidence_tiers(
-    statements: Iterable[StatementSummary],
+    statements: Iterable[_ConfidenceRow],
 ) -> tuple[int, int, int, Decimal]:
     """Count non-retired statements by confidence tier (HIGH >=85, MEDIUM 60-84, LOW <60 or balance_validated=False)."""
     high = 0
@@ -173,12 +180,16 @@ class CorrectionLoopService:
         corpus = await self.build_corpus(db, user_id)
         replay = replay_low_confidence_reduction(corpus, train_ratio=train_ratio)
         stmt_result = await db.execute(
-            select(StatementSummary).where(
+            select(
+                StatementSummary.status,
+                StatementSummary.confidence_score,
+                StatementSummary.balance_validated,
+            ).where(
                 StatementSummary.user_id == user_id,
                 StatementSummary.status != BankStatementStatus.RETIRED,
             )
         )
-        high, medium, low, low_prop = summarize_statement_confidence_tiers(stmt_result.scalars().all())
+        high, medium, low, low_prop = summarize_statement_confidence_tiers(stmt_result.all())
         return ReplayResult(
             holdout_size=replay.holdout_size,
             grounded=replay.grounded,
