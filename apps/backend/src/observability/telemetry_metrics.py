@@ -122,11 +122,6 @@ def _create_instruments(meter: Any) -> None:
         unit="1",
         description="Reconciliation match outcomes.",
     )
-    _instruments["confidence_north_star"] = meter.create_histogram(
-        "finance.confidence_north_star",
-        unit="1",
-        description="Confidence north-star score observations.",
-    )
     _instruments["rate_limit_rejected"] = meter.create_counter(
         "finance.rate_limit.rejected",
         unit="1",
@@ -336,12 +331,6 @@ def record_reconciliation_match_outcome(*, outcome: str) -> None:
     counter = _instruments.get("reconciliation_match_outcome")
     if counter is not None:
         counter.add(1, {"outcome": outcome})
-
-
-def record_confidence_north_star(*, score: float, source: str = "scheduled") -> None:
-    histogram = _instruments.get("confidence_north_star")
-    if histogram is not None:
-        histogram.record(score, {"source": source})
 
 
 def record_rate_limit_rejected(*, scope: str) -> None:

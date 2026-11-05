@@ -1141,7 +1141,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
                     model=model,
                     error=str(e),
                     error_position=getattr(e, "pos", None),
-                    raw_preview=content[:500],
                     content_length=len(content),
                     looks_like_html=content.strip().startswith("<"),
                     looks_like_xml=content.strip().startswith("<?xml"),

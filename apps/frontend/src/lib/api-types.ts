@@ -2888,8 +2888,28 @@ export interface components {
         CorrectionLoopReplayResponse: {
             /** Grounded */
             grounded: number;
+            /**
+             * High Confidence Count
+             * @default 0
+             */
+            high_confidence_count: number;
             /** Holdout Size */
             holdout_size: number;
+            /**
+             * Low Confidence Count
+             * @default 0
+             */
+            low_confidence_count: number;
+            /**
+             * Low Confidence Proportion
+             * @default 0
+             */
+            low_confidence_proportion: string;
+            /**
+             * Medium Confidence Count
+             * @default 0
+             */
+            medium_confidence_count: number;
             /** Proportion After */
             proportion_after: string;
             /** Proportion Before */

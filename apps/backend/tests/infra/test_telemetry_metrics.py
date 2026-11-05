@@ -429,7 +429,7 @@ async def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved(
 
 
 def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
-    """AC-observability.10.4: parse, AI, reconciliation, and confidence helpers record metrics."""
+    """AC-observability.10.4: parse, AI, and reconciliation helpers record metrics."""
     meter = install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
@@ -446,7 +446,6 @@ def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
         duration_ms=321.0,
     )
     telemetry_metrics.record_reconciliation_match_outcome(outcome="accepted")
-    telemetry_metrics.record_confidence_north_star(score=0.98, source="scheduled")
 
     assert meter.counters["finance.statement_parse.outcome"].add_calls == [(1, {"outcome": "success", "parser": "csv"})]
     assert meter.histograms["finance.ai_provider.latency"].record_calls == [
@@ -456,7 +455,7 @@ def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
         )
     ]
     assert meter.counters["finance.reconciliation.match.outcome"].add_calls == [(1, {"outcome": "accepted"})]
-    assert meter.histograms["finance.confidence_north_star"].record_calls == [(0.98, {"source": "scheduled"})]
+    assert "finance.confidence_north_star" not in meter.histograms
 
 
 def test_AC_extraction_statement_classify_6_classification_outcome_counter_labels_each_outcome(monkeypatch) -> None:

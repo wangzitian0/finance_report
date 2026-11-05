@@ -18,12 +18,15 @@ attempts is a separate EPIC.
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.orm.correction import CorrectionLog
+from src.extraction.orm.statement_summary import StatementSummary
 
 _QUANT = Decimal("0.00001")
 
@@ -50,10 +53,43 @@ class ReplayResult:
     grounded: int
     proportion_before: Decimal
     proportion_after: Decimal
+    high_confidence_count: int = 0
+    medium_confidence_count: int = 0
+    low_confidence_count: int = 0
+    low_confidence_proportion: Decimal = Decimal("0")
 
     @property
     def reduced(self) -> bool:
         return self.proportion_after < self.proportion_before
+
+
+class _ConfidenceRow(Protocol):
+    status: BankStatementStatus | str | None
+    confidence_score: int | None
+    balance_validated: bool | None
+
+
+def summarize_statement_confidence_tiers(
+    statements: Iterable[_ConfidenceRow],
+) -> tuple[int, int, int, Decimal]:
+    """Count non-retired statements by confidence tier (HIGH >=85, MEDIUM 60-84, LOW <60 or balance_validated=False)."""
+    high = 0
+    medium = 0
+    low = 0
+    for stmt in statements:
+        if stmt.status == BankStatementStatus.RETIRED:
+            continue
+        score = stmt.confidence_score
+        balance_ok = stmt.balance_validated is not False
+        if score is not None and score >= 85 and balance_ok:
+            high += 1
+        elif score is not None and score >= 60 and balance_ok:
+            medium += 1
+        else:
+            low += 1
+    total = high + medium + low
+    proportion = (Decimal(low) / Decimal(total)).quantize(_QUANT) if total else Decimal("0")
+    return high, medium, low, proportion
 
 
 def build_corpus_from_corrections(corrections: Iterable[CorrectionLog]) -> list[CorrectionRecord]:
@@ -142,4 +178,25 @@ class CorrectionLoopService:
         stays a projection of ``CorrectionLog`` (no second source of truth).
         """
         corpus = await self.build_corpus(db, user_id)
-        return replay_low_confidence_reduction(corpus, train_ratio=train_ratio)
+        replay = replay_low_confidence_reduction(corpus, train_ratio=train_ratio)
+        stmt_result = await db.execute(
+            select(
+                StatementSummary.status,
+                StatementSummary.confidence_score,
+                StatementSummary.balance_validated,
+            ).where(
+                StatementSummary.user_id == user_id,
+                StatementSummary.status != BankStatementStatus.RETIRED,
+            )
+        )
+        high, medium, low, low_prop = summarize_statement_confidence_tiers(stmt_result.all())
+        return ReplayResult(
+            holdout_size=replay.holdout_size,
+            grounded=replay.grounded,
+            proportion_before=replay.proportion_before,
+            proportion_after=replay.proportion_after,
+            high_confidence_count=high,
+            medium_confidence_count=medium,
+            low_confidence_count=low,
+            low_confidence_proportion=low_prop,
+        )

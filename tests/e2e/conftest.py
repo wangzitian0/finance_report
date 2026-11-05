@@ -20,7 +20,10 @@ from common.testing.e2e_rate_limit import (
     fail_report_for_rate_limits,
     record_rate_limit_response,
 )
-from tests.e2e.auth_cookie import build_auth_cookie
+from tests.e2e.auth_cookie import (
+    build_auth_cookie,
+    redact_playwright_auth_headers,
+)
 from tests.e2e.critical_skip_gate import (
     CRITICAL_MARKER,
     critical_skip_failure_message,
@@ -150,6 +153,73 @@ def fail_or_skip_ai_ocr_gate(
     )
 
 
+def _scrub_pytest_longrepr_node(node: object) -> bool:
+    """Recursively scrub structured pytest longrepr nodes in place (#2662)."""
+    scrubbed = False
+    reprcrash = getattr(node, "reprcrash", None)
+    if reprcrash is not None and isinstance(getattr(reprcrash, "message", None), str):
+        reprcrash.message = redact_playwright_auth_headers(reprcrash.message)
+        scrubbed = True
+
+    reprtraceback = getattr(node, "reprtraceback", None)
+    reprentries = getattr(reprtraceback, "reprentries", None)
+    if isinstance(reprentries, list):
+        for entry in reprentries:
+            lines = getattr(entry, "lines", None)
+            if isinstance(lines, list):
+                entry.lines = [
+                    redact_playwright_auth_headers(line)
+                    if isinstance(line, str)
+                    else line
+                    for line in lines
+                ]
+                scrubbed = True
+            entry_reprcrash = getattr(entry, "reprfileloc", None)
+            if entry_reprcrash is not None and isinstance(
+                getattr(entry_reprcrash, "message", None), str
+            ):
+                entry_reprcrash.message = redact_playwright_auth_headers(
+                    entry_reprcrash.message
+                )
+                scrubbed = True
+
+    chain = getattr(node, "chain", None)
+    if isinstance(chain, list):
+        for element in chain:
+            if isinstance(element, tuple):
+                for part in element:
+                    if part is not None and _scrub_pytest_longrepr_node(part):
+                        scrubbed = True
+    return scrubbed
+
+
+def _scrub_report_longrepr(report: object) -> None:
+    """Ensure pytest report failure output contains zero unredacted auth headers/cookies (#2662)."""
+    longrepr = getattr(report, "longrepr", None)
+    if longrepr is None:
+        return
+    if isinstance(longrepr, str):
+        setattr(report, "longrepr", redact_playwright_auth_headers(longrepr))
+        return
+    if (
+        isinstance(longrepr, tuple)
+        and len(longrepr) == 3
+        and isinstance(longrepr[2], str)
+    ):
+        setattr(
+            report,
+            "longrepr",
+            (longrepr[0], longrepr[1], redact_playwright_auth_headers(longrepr[2])),
+        )
+        return
+    _scrub_pytest_longrepr_node(longrepr)
+    longreprtext = getattr(report, "longreprtext", None)
+    if isinstance(longreprtext, str):
+        redacted_text = redact_playwright_auth_headers(longreprtext)
+        if redacted_text != longreprtext:
+            setattr(report, "longrepr", redacted_text)
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     outcome = yield
@@ -172,6 +242,8 @@ def pytest_runtest_makereport(item, call):
         and fail_report_for_rate_limits(report, rate_limit_hits)
     ):
         setattr(item, "_e2e_rate_limit_reported", True)
+
+    _scrub_report_longrepr(report)
 
 
 class AuthState:
