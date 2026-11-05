@@ -328,8 +328,3 @@ class BrokerageImportResponse(BaseModel):
     # statement (statement.account_id); the user-scoped /portfolio import has no
     # statement context and just reports the reconciled account.
     account_id: UUID | None = None
-
-
-HoldingListResponse = ListResponse[HoldingResponse]
-RealizedPnLListResponse = ListResponse[RealizedPnLResponse]
-UnrealizedPnLListResponse = ListResponse[UnrealizedPnLResponse]

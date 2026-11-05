@@ -41,9 +41,6 @@ from src.platform import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = get_logger(__name__)
 
-# SECURITY: Only trust X-Forwarded-For from known proxies
-# Set TRUST_PROXY=true when behind a trusted reverse proxy (nginx, cloudflare, etc.)
-TRUST_PROXY = src.config.settings.trust_proxy
 COOKIE_SAFE_DEVELOPMENT_ENVS = {"development", "test", "ci"}
 
 _get_client_ip = get_client_ip
