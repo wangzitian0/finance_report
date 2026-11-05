@@ -77,6 +77,14 @@ def download_fixture(
         )
         return False
 
+    if fixture.get("source_platform") == "local_generator":
+        is_ok, msg = verify_fixture(fixture, root_dir)
+        if is_ok:
+            print(f"  [VERIFIED] {fixture['id']}: {msg}")
+            return True
+        print(f"  [ERROR] Local generated fixture invalid: {fixture['id']}: {msg}")
+        return False
+
     local_path.parent.mkdir(parents=True, exist_ok=True)
     url = fixture["download_url"]
     print(f"  [DOWNLOADING] {fixture['id']} from {url} ...")
@@ -128,6 +136,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.clean:
         print("Cleaning downloaded fixture files...")
         for f in fixtures:
+            if f.get("source_platform") == "local_generator":
+                continue
             p = REPO_ROOT / f["local_path"]
             if p.exists():
                 p.unlink()

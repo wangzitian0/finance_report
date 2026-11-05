@@ -309,6 +309,8 @@ def git_diff_text(base: str, repo_root: Path = ROOT_DIR) -> str:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         raise RuntimeError(f"git diff against {base!r} failed: {result.stderr.strip()}")
