@@ -24,7 +24,7 @@ def _write_lockfile(path: Path, packages: dict[str, dict[str, object]]) -> Path:
 
 
 def test_real_repository_lockfiles_pass_registry_check() -> None:
-    """#2668: all tracked package-lock.json files in the repository use official npm registry URLs."""
+    """AC-testing.preflight.1: #2668: all tracked package-lock.json files in the repository use official npm registry URLs."""
     discovered = lockfile_registry.discover_lockfiles(REPO_ROOT)
     rel_paths = {p.relative_to(REPO_ROOT).as_posix() for p in discovered}
     assert "apps/frontend/package-lock.json" in rel_paths
@@ -33,7 +33,7 @@ def test_real_repository_lockfiles_pass_registry_check() -> None:
 
 
 def test_clean_synthetic_lockfile_passes(tmp_path: Path) -> None:
-    """#2668: packages with official registry.npmjs.org resolved URLs or no resolved URL pass."""
+    """AC-testing.preflight.1: #2668: packages with official registry.npmjs.org resolved URLs or no resolved URL pass."""
     lockfile = _write_lockfile(
         tmp_path / "apps" / "frontend" / "package-lock.json",
         {
@@ -55,7 +55,7 @@ def test_clean_synthetic_lockfile_passes(tmp_path: Path) -> None:
 def test_private_mirror_registry_url_fails_and_lists_package(
     tmp_path: Path, capsys
 ) -> None:
-    """#2668: any private registry URL (e.g. npm.shopee.io or registry-NonPublic) fails closed."""
+    """AC-testing.preflight.1: #2668: any private registry URL (e.g. npm.shopee.io or registry-NonPublic) fails closed."""
     _write_lockfile(
         tmp_path / "apps" / "frontend" / "package-lock.json",
         {
@@ -88,7 +88,7 @@ def test_private_mirror_registry_url_fails_and_lists_package(
 
 
 def test_invalid_json_or_missing_lockfiles_fail_closed(tmp_path: Path) -> None:
-    """#2668: missing lockfiles or malformed JSON fail closed rather than silently passing."""
+    """AC-testing.preflight.1: #2668: missing lockfiles or malformed JSON fail closed rather than silently passing."""
     assert lockfile_registry.main(["--repo-root", str(tmp_path)]) == 1
 
     bad_lock = tmp_path / "package-lock.json"
@@ -97,7 +97,7 @@ def test_invalid_json_or_missing_lockfiles_fail_closed(tmp_path: Path) -> None:
 
 
 def test_preflight_and_ci_wire_lockfile_registry_gate() -> None:
-    """#2668: preflight (--tier=static) and CI lint both run check_lockfile_registry.py."""
+    """AC-testing.preflight.1: #2668: preflight (--tier=static) and CI lint both run check_lockfile_registry.py."""
     for path in (
         "package-lock.json",
         "apps/frontend/package-lock.json",

@@ -49,7 +49,7 @@ def _ci_ruff_format_targets(workflow: dict[str, Any]) -> tuple[str, list[str]]:
 
 
 def test_precommit_ruff_format_files_regex_matches_ci_scope() -> None:
-    """#2718: pre-commit ruff-format files regex matches CI and preflight backend-format scope."""
+    """AC-testing.toolchain.3: #2718: pre-commit ruff-format files regex matches CI and preflight backend-format scope."""
     precommit = _load_yaml(PRECOMMIT_CONFIG)
     workflow = _load_yaml(CI_WORKFLOW)
 
@@ -97,7 +97,7 @@ def test_precommit_ruff_format_files_regex_matches_ci_scope() -> None:
 
 
 def test_pdf_fixture_templates_have_no_trailing_whitespace() -> None:
-    """#2718: mari and moomoo PDF templates contain no trailing whitespace."""
+    """AC-testing.5.2: #2718: mari and moomoo PDF templates contain no trailing whitespace."""
     templates_dir = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf" / "templates"
     for name in ("mari_template.yaml", "moomoo_template.yaml"):
         path = templates_dir / name
@@ -113,7 +113,7 @@ def test_pdf_fixture_templates_have_no_trailing_whitespace() -> None:
 
 
 def test_ci_frontend_prod_audit_is_scoped_to_dependency_changes_on_prs() -> None:
-    """#2671: PR lint runs npm run audit:prod only when lockfiles or frontend package.json change."""
+    """AC-testing.ci-structure.1: #2671: PR lint runs npm run audit:prod only when lockfiles or frontend package.json change."""
     workflow = _load_yaml(CI_WORKFLOW)
     lint_steps = workflow["jobs"]["lint"]["steps"]
     audit_steps = [
