@@ -702,9 +702,11 @@ class Settings(BaseSettings):
 
     # Feature Flags for AI-Driven Pipeline (EPIC-018)
     enable_ai_reconciliation: bool = Field(
-        default=False,
+        default=True,
         validation_alias="ENABLE_AI_RECONCILIATION",
-        description=("EPIC-018: enable AI-assisted reconciliation scoring (default false, opt-in to avoid API costs)."),
+        description=(
+            "EPIC-018: enable AI-assisted reconciliation scoring (default true; a user can turn it off in the AI settings)."
+        ),
         json_schema_extra={"group": "Feature Flags"},
     )
     reconciliation_auto_accept_threshold: int | None = Field(

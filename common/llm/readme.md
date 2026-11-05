@@ -395,7 +395,7 @@ Commit the refreshed cassettes and the raised baseline together.
 ### 6.8 Real-statement corpus (source-referenced, PII-masked)
 
 Large/scanned statements are recorded as cassettes by
-`common/extraction/record_hf_cassettes.py` (engine: the coding-plan vision model in its `MODEL` constant, thinking disabled; its move to the SDK multimodal model is #2569;
+`common/extraction/record_hf_cassettes.py` (engine: the SDK multimodal role in its `MODEL` constant, thinking enabled;
 pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
 bloat and PII, **the source document is never committed** — the cassette stores a
 `source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the

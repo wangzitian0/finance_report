@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from types import ModuleType
 
+import src.config
 from src.observability import get_logger
 from src.reconciliation.base.config import DEFAULT_CONFIG, ReconciliationConfig
 
@@ -84,18 +84,13 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
                     error_type=type(e).__name__,
                 )
 
-    auto_accept_env = os.getenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD")
-    pending_review_env = os.getenv("RECONCILIATION_REVIEW_THRESHOLD")
-    enable_ai_env = os.getenv("ENABLE_AI_RECONCILIATION")
-    if auto_accept_env:
-        config = replace(config, auto_accept=int(auto_accept_env))
-    if pending_review_env:
-        config = replace(config, pending_review=int(pending_review_env))
-    if enable_ai_env is not None:
-        config = replace(
-            config,
-            enable_ai_reconciliation=enable_ai_env.lower() in {"1", "true", "yes", "on"},
-        )
+    env_settings = src.config.Settings(_env_file=None)
+    if env_settings.reconciliation_auto_accept_threshold is not None:
+        config = replace(config, auto_accept=env_settings.reconciliation_auto_accept_threshold)
+    if env_settings.reconciliation_review_threshold is not None:
+        config = replace(config, pending_review=env_settings.reconciliation_review_threshold)
+    if "enable_ai_reconciliation" in env_settings.model_fields_set:
+        config = replace(config, enable_ai_reconciliation=env_settings.enable_ai_reconciliation)
 
     _config_cache = config
     return config

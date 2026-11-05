@@ -126,6 +126,7 @@ export interface JournalEntryViewModel {
     | "MEDIUM"
     | "LOW"
     | "DETERMINISTIC"
+    | "MANUAL_TRUSTED"
     | null;
   status: Schemas["JournalEntryStatus"];
   lines: JournalLine[];

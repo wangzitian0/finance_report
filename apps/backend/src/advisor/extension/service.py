@@ -125,6 +125,19 @@ def _large_role_reasoning() -> ReasoningEffort:
     return ReasoningEffort(settings.to_llm_settings().role_reasoning_effort("large"))
 
 
+def _line_confidence_tier(line: dict[str, Any]) -> str | None:
+    """Derive a report line's confidence tier from explicit tier or provenance (#2598)."""
+    explicit = line.get("confidence_tier")
+    if explicit:
+        return str(explicit)
+    provenance = str(line.get("provenance") or "").strip().lower()
+    if provenance == "manual":
+        return "MANUAL_TRUSTED"
+    if provenance in ("imported", "derived"):
+        return "DETERMINISTIC"
+    return None
+
+
 class AIAdvisorService:
     """AI advisor service to answer financial questions."""
 
@@ -213,7 +226,7 @@ class AIAdvisorService:
                 user_id,
                 bound,
             ),
-            model_name=None,
+            model_name=model_key,
             cached=False,
             metadata=metadata,
         )
@@ -251,7 +264,22 @@ class AIAdvisorService:
             net_income_bs = Decimal(str(balance.get("net_income") or "0.00"))
             net_worth = total_assets - total_liabilities
             currency = str(balance.get("currency") or base_currency)
-            balance_sheet_confidence_tier = str(balance.get("confidence_tier") or "DETERMINISTIC")
+            bs_lines = [
+                *cast(list[dict[str, Any]], balance.get("assets") or []),
+                *cast(list[dict[str, Any]], balance.get("liabilities") or []),
+            ]
+            bs_explicit = balance.get("confidence_tier")
+            balance_sheet_confidence_tier = (
+                str(bs_explicit)
+                if bs_explicit
+                else (
+                    worst_confidence_tier(
+                        [_line_confidence_tier(line) for line in bs_lines],
+                        default="DETERMINISTIC",
+                    )
+                    or "DETERMINISTIC"
+                )
+            )
             ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
             total_assets = Decimal("0")
@@ -314,7 +342,7 @@ class AIAdvisorService:
                     expense_lines = cast(list[dict[str, Any]], income_statement.get("expenses") or [])
             income_statement_confidence_tier = (
                 worst_confidence_tier(
-                    [line.get("confidence_tier") for line in [*income_lines, *expense_lines]],
+                    [_line_confidence_tier(line) for line in [*income_lines, *expense_lines]],
                     default="DETERMINISTIC",
                 )
                 or "DETERMINISTIC"

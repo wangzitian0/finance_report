@@ -358,6 +358,10 @@ CONTRACT = PackageContract(
         ac('AC-advisor.fe-remainder-chat.2', 'Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links', 'apps/frontend/src/__tests__/advisorBrief.test.tsx::AC21.3.2 test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes'),
         ac('AC-advisor.fe-remainder-chat.3', 'Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior', 'apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC21.3.3 test_AC21_3_3_chat_panel_renders_contextual_advisor_brief'),
         ac('AC-advisor.fe-remainder-chat.4', 'Advisor Brief keeps desktop and mobile layouts free of horizontal overflow', 'apps/frontend/playwright/advisor-brief.spec.ts::${scenario.name} advisor-brief desktop and mobile layouts avoid horizontal overflow', priority='P1'),
+        # ── group 2555: POST /api/chat fails closed before HTTP 200 on pre-first-chunk stream error (#2555) ──
+        ac('AC-advisor.2555.1', 'POST /api/chat primes the first stream chunk before committing HTTP 200, returning HTTP 503 when the provider fails before emitting a chunk and setting X-Model-Name on live streamed responses (#2555).', 'apps/backend/tests/ai/test_chat_router.py::test_AC_advisor_2555_1_pre_first_chunk_stream_error_returns_503_not_empty_200', priority='P1', proof_kind='property'),
+        # ── group 2598: Advisor balance sheet and income statement confidence tiers derive from line provenance (#2598) ──
+        ac('AC-advisor.2598.1', '_get_financial_summary_context derives balance_sheet_confidence_tier and income_statement_confidence_tier from report line provenance so manual lines surface MANUAL_TRUSTED while imported or derived lines remain DETERMINISTIC (#2598).', 'apps/backend/tests/ai/test_ai_advisor_service.py::test_AC_advisor_2598_1_financial_context_derives_confidence_tiers_from_line_provenance', priority='P1', proof_kind='property'),
     ],
     concepts=[
         ConceptRecord(
