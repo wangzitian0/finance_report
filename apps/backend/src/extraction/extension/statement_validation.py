@@ -115,7 +115,6 @@ async def resolve_statement_transactions(
             alias_hashes_by_row.setdefault(txn_id, set()).add(identity_hash)
 
         ordinals_by_hash: dict[str, list[int]] = {}
-        ordinals_by_key: dict[tuple[Decimal, str, str, str | None], list[int]] = {}
         fact_keys: set[tuple[Decimal, str, str, str | None]] = set()
         for idx, fact in enumerate(facts):
             ordinal = idx + 1
@@ -125,14 +124,14 @@ async def resolve_statement_transactions(
                 v2_hash = versioned_transaction_hash(fact_id, fact["currency"], scope)
                 if v2_hash != fact_id:
                     ordinals_by_hash.setdefault(v2_hash, []).append(ordinal)
-            key = (
-                Decimal(str(fact["amount"])),
-                fact["transaction_date"],
-                fact["direction"],
-                fact.get("currency"),
+            fact_keys.add(
+                (
+                    Decimal(str(fact["amount"])),
+                    fact["transaction_date"],
+                    fact["direction"],
+                    fact.get("currency"),
+                )
             )
-            fact_keys.add(key)
-            ordinals_by_key.setdefault(key, []).append(ordinal)
 
         used_ordinals: set[int] = set()
         for row in rows:
@@ -160,32 +159,17 @@ async def resolve_statement_transactions(
             candidate_hashes = [row.dedup_hash, *sorted(alias_hashes_by_row.get(row.id, ()))]
             if row.currency:
                 candidate_hashes.append(versioned_transaction_hash(row.dedup_hash, row.currency, scope))
-            matched_ordinal: int | None = None
-            for candidate_hash in candidate_hashes:
-                for ordinal in ordinals_by_hash.get(candidate_hash, ()):
-                    if ordinal not in used_ordinals:
-                        matched_ordinal = ordinal
-                        break
-                if matched_ordinal is not None:
-                    break
-            if matched_ordinal is None:
-                for key in (
-                    (row.amount, row_date, row_direction, row.currency),
-                    (row.amount, row_date, row_direction, None),
-                ):
-                    for ordinal in ordinals_by_key.get(key, ()):
-                        if ordinal not in used_ordinals:
-                            matched_ordinal = ordinal
-                            break
-                    if matched_ordinal is not None:
-                        break
-            if matched_ordinal is None:
-                fallback_ordinal = 1
-                while fallback_ordinal in used_ordinals:
-                    fallback_ordinal += 1
-                matched_ordinal = fallback_ordinal
-            used_ordinals.add(matched_ordinal)
-            setattr(row, "source_row", matched_ordinal)
+            source_row = next(
+                (
+                    ordinal
+                    for candidate_hash in candidate_hashes
+                    for ordinal in ordinals_by_hash.get(candidate_hash, ())
+                    if ordinal not in used_ordinals
+                ),
+                next(ordinal for ordinal in range(1, len(rows) + 2) if ordinal not in used_ordinals),
+            )
+            used_ordinals.add(source_row)
+            setattr(row, "source_row", source_row)
         rows.sort(key=lambda r: (getattr(r, "source_row", 1), r.txn_date, r.created_at))
     else:
         for idx, row in enumerate(rows):
