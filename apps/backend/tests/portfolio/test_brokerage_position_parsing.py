@@ -1054,3 +1054,79 @@ async def test_AC_brokerage_import_10_decimal_string_payload_still_accepted(clie
         },
     )
     assert response.status_code == 200
+
+
+def test_AC_extraction_2672_1_moomoo_margin_history_nets_sell_rows_and_drops_disposed_positions():
+    """AC-extraction.2672.1: Moomoo margin history nets SELL rows against BUY rows and drops net-zero positions (#2672)."""
+    payload = {
+        "institution": "Moomoo",
+        "statement": {"period_end": "2026-01-31", "currency": "USD"},
+        "margin_history_rows": [
+            {
+                "Side": "BUY",
+                "Symbol": "PONY",
+                "Fill Qty": "30",
+                "Fill Amount": "300.00",
+                "Currency": "USD",
+                "Sector": "Technology",
+                "Geography": "US",
+            },
+            {
+                "Side": "SELL",
+                "Symbol": "PONY",
+                "Fill Qty": "10",
+                "Fill Amount": "150.00",
+                "Currency": "USD",
+            },
+            {
+                "Side": "BUY",
+                "Symbol": "CLOSED",
+                "Fill Qty": "15",
+                "Fill Amount": "150.00",
+                "Currency": "USD",
+            },
+            {
+                "Side": "SELL",
+                "Symbol": "CLOSED",
+                "Fill Qty": "15",
+                "Fill Amount": "180.00",
+                "Currency": "USD",
+            },
+        ],
+    }
+
+    snapshots = parse_brokerage_positions(payload, filename="moomoo-margin.csv")
+
+    assert len(snapshots) == 1
+    assert snapshots[0].asset_identifier == "PONY"
+    assert snapshots[0].quantity == Decimal("20")
+    assert snapshots[0].market_value == Decimal("200.00")
+    assert snapshots[0].currency == "USD"
+
+
+async def test_AC_extraction_2661_1_positions_csv_with_date_column_imports_without_422(client, db, test_user):
+    """AC-extraction.2661.1: brokerage positions CSV with a date column sets snapshot_date and period_end and imports (#2661)."""
+    from src.extraction import parse_brokerage_csv_payload
+
+    headers = ["Symbol", "Quantity", "Market Value", "Currency", "As-Of Date"]
+    rows = [
+        {"Symbol": "AAPL", "Quantity": "10", "Market Value": "1900.25", "Currency": "USD", "As-Of Date": "2026-05-15"},
+        {"Symbol": "MSFT", "Quantity": "5", "Market Value": "2150.00", "Currency": "USD", "As-Of Date": "2026-05-18"},
+    ]
+    payload = parse_brokerage_csv_payload(headers, rows, institution="Interactive Brokers", filename="positions.csv")
+
+    assert payload["period_start"] == "2026-05-15"
+    assert payload["period_end"] == "2026-05-18"
+    assert payload["snapshot_date"] == "2026-05-18"
+    assert payload["statement"]["period_end"] == "2026-05-18"
+    assert [pos["snapshot_date"] for pos in payload["positions"]] == ["2026-05-15", "2026-05-18"]
+
+    response = await client.post(
+        "/portfolio/brokerage/import",
+        json={"filename": "positions.csv", "payload": payload},
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["parsed_positions"] == 2
+    assert data["created_atomic_positions"] == 2
+    assert data["reconcile_created"] == 2

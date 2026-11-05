@@ -35,7 +35,6 @@ from src.extraction.extension._base import (
     logger,
     stream_ai_json,
 )
-from src.extraction.extension._brokerage import _BrokerageMixin
 from src.extraction.extension._coerce import _CoerceMixin
 from src.extraction.extension._csv import _CsvMixin
 from src.extraction.extension._llm_led_gate import evaluate_llm_led_extraction_gate
@@ -81,7 +80,7 @@ def _institution_class(*, is_brokerage: bool) -> str:
     return "brokerage" if is_brokerage else "bank"
 
 
-class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
+class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
     """Service for extracting structured data from financial documents."""
 
     def __init__(self) -> None:
@@ -111,7 +110,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
         force_model: str | None,
         user_id: UUID,
     ) -> dict[str, Any]:
-        extracted = await self._extract_with_balance_retry(
+        return await self._extract_with_balance_retry(
             file_content=source.content,
             institution=institution,
             file_type=file_type,
@@ -119,13 +118,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
             force_model=force_model,
             filename=source.filename,
             user_id=user_id,
-        )
-        return self._backfill_generated_brokerage_positions(
-            extracted,
-            file_content=source.content,
-            file_type=file_type,
-            filename=source.filename,
-            institution=institution,
         )
 
     async def parse_document(

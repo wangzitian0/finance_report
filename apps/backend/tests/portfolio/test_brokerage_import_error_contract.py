@@ -437,3 +437,32 @@ async def test_AC_portfolio_brokerage_import_11_undated_remedy_follows_the_sourc
     detail = response.json()["detail"]
     # Exactly one remedy, and it is the one for this source type.
     assert [text for text in (_CSV_REMEDY, _DOCUMENT_REMEDY, _PAYLOAD_REMEDY) if text in detail] == [remedy]
+
+
+@pytest.mark.parametrize(
+    ("source_document_id", "reason_text"),
+    [
+        ("doc-\x00-id", "source_document_id contains a NUL character"),
+        ("d" * 256, "source_document_id has 256 characters. The limit is 255."),
+    ],
+)
+async def test_AC_portfolio_brokerage_import_13_invalid_source_document_id_and_legacy_currency_return_422(
+    app_client, db, test_user, source_document_id, reason_text
+):
+    """AC-portfolio.brokerage-import.13: invalid source_document_id returns 422 brokerage_position_out_of_range, not 500 (#2661)."""
+    user_id = test_user.id
+    sent_request_id = f"issue-2661-{uuid4()}"
+    response = await app_client.post(
+        "/portfolio/brokerage/import",
+        json={
+            "filename": "positions.json",
+            "payload": _payload(),
+            "source_document_id": source_document_id,
+        },
+        headers={"X-Request-ID": sent_request_id},
+    )
+
+    assert response.status_code == 422, response.text
+    _assert_carries_request_id(response, sent_request_id=sent_request_id, error_id=_OUT_OF_RANGE)
+    assert reason_text in response.json()["detail"]
+    assert await _atomic_position_count(db, user_id) == 0

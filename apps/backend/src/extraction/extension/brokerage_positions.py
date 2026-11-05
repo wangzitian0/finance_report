@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from calendar import monthrange
 from dataclasses import dataclass, replace
-from datetime import date, datetime
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import text_digest
 from src.audit.money import Currency, InvalidCurrencyError, to_money
+from src.extraction.extension._base import _tolerant_parse_date
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.ledger import Account, AccountType
 from src.platform import BaseAppException
@@ -125,9 +126,6 @@ _MOOMOO_SUBSCRIPTION_RE = re.compile(
     r"(?P<quantity>[\d,.]+)\s+(?P<value>[\d,.]+)",
     re.IGNORECASE,
 )
-_GENERATED_ROW_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_GENERATED_PERIOD_RE = re.compile(r"Statement Period:\s*(?P<period>[A-Za-z]+\s+\d{4})", re.IGNORECASE)
-_GENERATED_ACCOUNT_LAST4_RE = re.compile(r"Account:\s*\*{2,}(?P<last4>[A-Za-z0-9]{4})", re.IGNORECASE)
 
 
 def _clean_decimal(value: Any, *, field: str = "amount", row: object | None = None) -> Decimal | None:
@@ -194,6 +192,19 @@ def _parse_date(value: Any) -> date | None:
         return date.fromisoformat(text[:10])
     except ValueError:
         return None
+
+
+def _coerce_date(value: Any) -> date | None:
+    """Parse ISO, YYYY-MM, or common non-ISO date strings into a date (#2661)."""
+    parsed = _parse_date(value)
+    if parsed is not None:
+        return parsed
+    if value is None:
+        return None
+    text = str(value).strip()
+    if re.fullmatch(r"\d{4}-\d{2}", text):
+        return None
+    return _tolerant_parse_date(text)
 
 
 def _statement_dict(payload: dict[str, Any]) -> dict[str, Any]:
@@ -421,7 +432,7 @@ def _parse_moomoo_margin_history_positions(
         if not isinstance(row, dict):
             continue
         side = str(row.get("Side") or row.get("side") or "").strip().upper()
-        if side != "BUY":
+        if side not in {"BUY", "SELL"}:
             continue
         identifier = row.get("Symbol") or row.get("symbol") or row.get("Ticker") or row.get("ticker")
         if not identifier:
@@ -438,22 +449,35 @@ def _parse_moomoo_margin_history_positions(
             continue
 
         asset_identifier = str(identifier).strip()
-        aggregate = aggregates.setdefault(
-            asset_identifier,
-            {
-                "quantity": Decimal("0"),
-                "market_value": Decimal("0"),
-                "currency": str(row.get("Currency") or row.get("currency") or default_currency).upper(),
-                "sector": str(row["Sector"]).strip() if row.get("Sector") else None,
-                "geography": str(row["Geography"]).strip() if row.get("Geography") else None,
-            },
-        )
-        aggregate["quantity"] += quantity
-        aggregate["market_value"] += market_value
-        if row.get("Sector") and not aggregate.get("sector"):
-            aggregate["sector"] = str(row["Sector"]).strip()
-        if row.get("Geography") and not aggregate.get("geography"):
-            aggregate["geography"] = str(row["Geography"]).strip()
+        if side == "BUY":
+            aggregate = aggregates.setdefault(
+                asset_identifier,
+                {
+                    "quantity": Decimal("0"),
+                    "market_value": Decimal("0"),
+                    "currency": str(row.get("Currency") or row.get("currency") or default_currency).upper(),
+                    "sector": str(row["Sector"]).strip() if row.get("Sector") else None,
+                    "geography": str(row["Geography"]).strip() if row.get("Geography") else None,
+                },
+            )
+            aggregate["quantity"] += quantity
+            aggregate["market_value"] += market_value
+            if row.get("Sector") and not aggregate.get("sector"):
+                aggregate["sector"] = str(row["Sector"]).strip()
+            if row.get("Geography") and not aggregate.get("geography"):
+                aggregate["geography"] = str(row["Geography"]).strip()
+        else:
+            existing_aggregate = aggregates.get(asset_identifier)
+            if existing_aggregate is None or existing_aggregate["quantity"] <= 0:
+                continue
+            prev_qty: Decimal = existing_aggregate["quantity"]
+            new_qty = prev_qty - quantity
+            if new_qty <= 0:
+                existing_aggregate["quantity"] = Decimal("0")
+                existing_aggregate["market_value"] = Decimal("0")
+            else:
+                existing_aggregate["quantity"] = new_qty
+                existing_aggregate["market_value"] = existing_aggregate["market_value"] * (new_qty / prev_qty)
 
     return [
         BrokeragePositionSnapshot(
@@ -468,6 +492,7 @@ def _parse_moomoo_margin_history_positions(
             geography=aggregate["geography"],
         )
         for asset_identifier, aggregate in aggregates.items()
+        if aggregate["quantity"] > 0
     ]
 
 
@@ -523,120 +548,6 @@ def _parse_futu_aggregate_position(
             asset_type=AssetType.OTHER,
         )
     ]
-
-
-def _clean_generated_amount(value: str) -> str | None:
-    amount = _clean_decimal(value)
-    if amount is None or amount <= 0:
-        return None
-    return f"{amount:.2f}"
-
-
-def _generated_statement_period_end(text: str) -> str | None:
-    match = _GENERATED_PERIOD_RE.search(text)
-    if not match:
-        return None
-    try:
-        parsed = datetime.strptime(match.group("period"), "%B %Y")
-    except ValueError:
-        return None
-    last_day = monthrange(parsed.year, parsed.month)[1]
-    return date(parsed.year, parsed.month, last_day).isoformat()
-
-
-def _generated_account_last4(text: str) -> str | None:
-    match = _GENERATED_ACCOUNT_LAST4_RE.search(text)
-    return match.group("last4") if match else None
-
-
-def _iter_generated_brokerage_rows(text: str) -> list[dict[str, str]]:
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    rows: list[dict[str, str]] = []
-    index = 0
-    while index <= len(lines) - 5:
-        if not _GENERATED_ROW_DATE_RE.fullmatch(lines[index]):
-            index += 1
-            continue
-        rows.append(
-            {
-                "date": lines[index],
-                "type": lines[index + 1],
-                "description": lines[index + 2],
-                "amount": lines[index + 3],
-                "currency": lines[index + 4].upper(),
-            }
-        )
-        index += 5
-    return rows
-
-
-def _generated_brokerage_positions_payload_from_text(
-    text: str,
-    *,
-    filename: str | None = None,
-    institution: str | None = None,
-) -> dict[str, Any] | None:
-    """Parse positions from the deterministic generated brokerage PDF text fallback.
-
-    The staging AI/OCR gate uses generated Moomoo/Futu PDFs whose brokerage value
-    is a table row. When the provider returns the right envelope but drops the
-    position row, this deterministic fallback recovers only those known synthetic
-    rows from the raw PDF text. It does not invent positions for arbitrary real
-    brokerage statements.
-    """
-    broker = detect_broker(filename=filename, institution=institution, text=text)
-    if broker not in {"Moomoo", "Futu"}:
-        return None
-
-    rows = _iter_generated_brokerage_rows(text)
-    positions: list[dict[str, str]] = []
-    for row in rows:
-        row_type = row["type"].strip().upper()
-        description = row["description"].strip()
-        market_value = _clean_generated_amount(row["amount"])
-        if market_value is None:
-            continue
-        if broker == "Moomoo":
-            if row_type != "SUBSCRIPTION" or "Fullerton SGD Money Market Fund" not in description:
-                continue
-            positions.append(
-                {
-                    "symbol": "Fullerton SGD Money Market Fund",
-                    "asset_identifier": "Fullerton SGD Money Market Fund",
-                    "quantity": "1",
-                    "market_value": market_value,
-                    "currency": row["currency"],
-                    "asset_type": "money_market",
-                }
-            )
-        elif broker == "Futu":
-            if row_type != "VALUATION" or "stock and options valuation" not in description.lower():
-                continue
-            positions.append(
-                {
-                    "symbol": "FUTU_STOCK_AND_OPTIONS",
-                    "asset_identifier": "FUTU_STOCK_AND_OPTIONS",
-                    "quantity": "1",
-                    "market_value": market_value,
-                    "currency": row["currency"],
-                    "asset_type": "other",
-                }
-            )
-
-    if not positions:
-        return None
-
-    snapshot_date = _generated_statement_period_end(text) or rows[0]["date"]
-    return {
-        "institution": broker,
-        "account_last4": _generated_account_last4(text),
-        "currency": positions[0]["currency"],
-        "snapshot_date": snapshot_date,
-        "period_start": rows[0]["date"],
-        "period_end": snapshot_date,
-        "positions": positions,
-        "transactions": [],
-    }
 
 
 class UnsupportedBrokerageCsvError(Exception):
@@ -708,6 +619,30 @@ def _find_csv_column(headers: list[str], candidates: tuple[str, ...]) -> str | N
     return None
 
 
+_CSV_DATE_COLUMN_CANDIDATES: tuple[str, ...] = (
+    "as of date",
+    "as of",
+    "asof date",
+    "asof",
+    "snapshot date",
+    "period end",
+    "statement date",
+    "report date",
+    "valuation date",
+    "date",
+)
+
+
+def _find_csv_date_column(headers: list[str]) -> str | None:
+    """Return the original-cased header matching a recognized date column (#2661)."""
+    normalized_pairs = [(header, re.sub(r"[^a-z0-9]+", " ", header.lower()).strip()) for header in headers if header]
+    for candidate in _CSV_DATE_COLUMN_CANDIDATES:
+        for header, normalized in normalized_pairs:
+            if normalized == candidate:
+                return header
+    return None
+
+
 def parse_brokerage_positions_csv_rows(
     headers: list[str],
     rows: list[dict[str, Any]],
@@ -732,6 +667,7 @@ def parse_brokerage_positions_csv_rows(
     price_col = _find_csv_column(headers, ("current price", "price", "mark price", "last price"))
     currency_col = _find_csv_column(headers, ("currency", "ccy"))
     asset_type_col = _find_csv_column(headers, ("asset type", "asset class", "type", "category"))
+    date_col = _find_csv_date_column(headers)
 
     positions: list[dict[str, Any]] = []
     for row in rows:
@@ -747,19 +683,21 @@ def parse_brokerage_positions_csv_rows(
         if quantity is None or market_value is None:
             continue
         currency = str(row.get(currency_col, "") or "").strip().upper() if currency_col else ""
-        positions.append(
-            {
-                "symbol": identifier,
-                "asset_identifier": identifier,
-                "quantity": str(quantity),
-                "market_value": str(to_money(market_value)),
-                "currency": currency or default_currency.upper(),
-                "asset_type": (
-                    str(row.get(asset_type_col)).strip() if asset_type_col and row.get(asset_type_col) else None
-                ),
-                "broker": broker,
-            }
-        )
+        row_date = _coerce_date(row.get(date_col)) if date_col else None
+        position_item: dict[str, Any] = {
+            "symbol": identifier,
+            "asset_identifier": identifier,
+            "quantity": str(quantity),
+            "market_value": str(to_money(market_value)),
+            "currency": currency or default_currency.upper(),
+            "asset_type": (
+                str(row.get(asset_type_col)).strip() if asset_type_col and row.get(asset_type_col) else None
+            ),
+            "broker": broker,
+        }
+        if row_date is not None:
+            position_item["snapshot_date"] = row_date.isoformat()
+        positions.append(position_item)
     return positions
 
 
@@ -807,13 +745,30 @@ def parse_brokerage_csv_payload(
             "found (need symbol, quantity, and market value columns with values)."
         )
     currency = positions[0]["currency"]
-    return {
+    payload: dict[str, Any] = {
         "institution": broker,
         "currency": currency,
         "positions": positions,
         "transactions": [],
         "balance_source": "brokerage_positions_csv",
     }
+    row_dates = sorted(
+        parsed_date.isoformat()
+        for pos in positions
+        if (parsed_date := _coerce_date(pos.get("snapshot_date"))) is not None
+    )
+    if row_dates:
+        earliest_date = row_dates[0]
+        latest_date = row_dates[-1]
+        payload["snapshot_date"] = latest_date
+        payload["period_start"] = earliest_date
+        payload["period_end"] = latest_date
+        payload["statement"] = {
+            "period_start": earliest_date,
+            "period_end": latest_date,
+            "currency": currency,
+        }
+    return payload
 
 
 def parse_brokerage_positions(
@@ -998,6 +953,17 @@ class BrokeragePositionImportService:
         # short reduces portfolio value instead of being skipped (which dropped real data)
         # or crashing the import (constraint violation → 500).
         snapshots = parse_brokerage_positions(payload, filename=filename)
+        if source_document_id is not None:
+            if "\x00" in source_document_id:
+                raise BrokerageImportRejectedError(
+                    BROKERAGE_POSITION_OUT_OF_RANGE,
+                    "The source_document_id contains a NUL character.",
+                )
+            if len(source_document_id) > 255:
+                raise BrokerageImportRejectedError(
+                    BROKERAGE_POSITION_OUT_OF_RANGE,
+                    f"The source_document_id has {len(source_document_id)} characters. The limit is 255.",
+                )
         undated = sum(1 for snapshot in snapshots if snapshot.snapshot_date is None)
         if undated:
             # The date must come from the source; this service never invents one (#2649).

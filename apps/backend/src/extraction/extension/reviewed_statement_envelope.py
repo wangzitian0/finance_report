@@ -205,6 +205,14 @@ async def persist_statement_extraction_result(
             statement.validation_error = "Source facts require reviewer confirmation: " + ", ".join(
                 result.missing_required_facts
             )
+    else:
+        current_envelope = await current_reviewed_statement_envelope(
+            db,
+            user_id=statement.user_id,
+            statement_id=statement.id,
+        )
+        if current_envelope is not None:
+            _apply_envelope_to_statement(statement, current_envelope)
     await db.flush()
     return source_record
 
@@ -347,6 +355,24 @@ def _require_projection_matches_source(
         raise ValueError("Statement projection diverges from its current source result")
 
 
+def _apply_envelope_to_statement(
+    statement: StatementSummary,
+    envelope: ReviewedStatementEnvelope,
+) -> None:
+    """Project a confirmed reviewed envelope onto the mutable StatementSummary."""
+    statement.account_id = envelope.account_id
+    statement.currency = envelope.currency
+    statement.period_start = envelope.period_start
+    statement.period_end = envelope.period_end
+    statement.opening_balance = envelope.opening_balance
+    statement.closing_balance = envelope.closing_balance
+    statement.manual_opening_balance = None
+    statement.status = BankStatementStatus.PARSED
+    statement.stage1_status = Stage1Status.PENDING_REVIEW
+    statement.balance_validated = True
+    statement.validation_error = None
+
+
 async def confirm_reviewed_statement_envelope(
     db: AsyncSession,
     *,
@@ -413,6 +439,8 @@ async def confirm_reviewed_statement_envelope(
         )
     ).scalar_one_or_none()
     if existing is not None:
+        _apply_envelope_to_statement(statement, existing)
+        await db.flush()
         return existing
 
     current_for_source = await current_reviewed_statement_envelope(
@@ -466,17 +494,7 @@ async def confirm_reviewed_statement_envelope(
 
     # This is a DWD conform projection, not source evidence. The immutable
     # source-result record/payload above remains unchanged and is the audit parent.
-    statement.account_id = account.id
-    statement.currency = command.currency
-    statement.period_start = command.period_start
-    statement.period_end = command.period_end
-    statement.opening_balance = command.opening_balance
-    statement.closing_balance = command.closing_balance
-    statement.manual_opening_balance = None
-    statement.status = BankStatementStatus.PARSED
-    statement.stage1_status = Stage1Status.PENDING_REVIEW
-    statement.balance_validated = True
-    statement.validation_error = None
+    _apply_envelope_to_statement(statement, envelope)
     await db.flush()
     return envelope
 

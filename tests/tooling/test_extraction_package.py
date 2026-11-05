@@ -54,7 +54,6 @@ def test_AC_extraction_1_2_converges_by_layer():
     for mod in (
         "service.py",
         "_base.py",
-        "_brokerage.py",
         "_coerce.py",
         "_csv.py",
         "_llm_led_gate.py",
@@ -70,8 +69,9 @@ def test_AC_extraction_1_2_converges_by_layer():
         "prompts/csv_mapping.py",
     ):
         assert (EXTRACTION / "extension" / mod).exists(), f"missing extension/{mod}"
-    # the OCR/vision mixin is gone: the multimodal role is the only model attribute (#2681)
+    # the OCR/vision mixin and fixture brokerage fallback mixin are gone (#2681, #2672)
     assert not (EXTRACTION / "extension" / "_ocr.py").exists()
+    assert not (EXTRACTION / "extension" / "_brokerage.py").exists()
     assert (EXTRACTION / "data/__init__.py").exists()
     # the pre-cutover homes are gone (zero residue)
     services = REPO / "apps/backend/src/services"

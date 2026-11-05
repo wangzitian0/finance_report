@@ -479,3 +479,55 @@ class TestPositionService:
         )
 
         assert result.accumulated_depreciation == Decimal("0.00")
+
+    async def test_AC_portfolio_brokerage_import_13_reconcile_normalizes_cnh_and_rejects_invalid_currency(
+        self, db, test_user
+    ):
+        """AC-portfolio.brokerage-import.13: reconcile_positions normalizes legacy CNH to CNY and raises PositionServiceError on invalid currency (#2661)."""
+        import pytest
+
+        from src.portfolio import PositionServiceError
+
+        service = PositionService()
+
+        cnh_snap = AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=date(2026, 1, 15),
+            asset_identifier="BABA",
+            broker="Futu",
+            quantity=Decimal("10.0"),
+            market_value=Decimal("7200.00"),
+            currency="CNH",
+            dedup_hash="hash_cnh",
+            source_documents={},
+        )
+        db.add(cnh_snap)
+        await db.flush()
+
+        result = await service.reconcile_positions(db, test_user.id)
+        assert result.created == 1
+
+        positions, _ = await service.get_positions(db, test_user.id)
+        assert len(positions) == 1
+        assert positions[0].asset_identifier == "BABA"
+        assert positions[0].currency == "CNY"
+        account = await db.get(Account, positions[0].account_id)
+        assert account is not None
+        assert account.currency == "CNY"
+
+        bad_snap = AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=date(2026, 1, 16),
+            asset_identifier="BADCCY",
+            broker="Futu",
+            quantity=Decimal("5.0"),
+            market_value=Decimal("100.00"),
+            currency="XYZ",
+            dedup_hash="hash_xyz",
+            source_documents={},
+        )
+        db.add(bad_snap)
+        await db.flush()
+
+        with pytest.raises(PositionServiceError, match="XYZ"):
+            await service.reconcile_positions(db, test_user.id)

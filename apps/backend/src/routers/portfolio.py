@@ -22,6 +22,7 @@ from src.portfolio import (
     InvestmentTransactionType,
     PerformanceError,
     PortfolioNotFoundError,
+    PositionServiceError,
     build_investment_performance_report_schedule,
     calculate_money_weighted_return,
     calculate_time_weighted_return,
@@ -93,14 +94,21 @@ async def import_brokerage_positions(
     user_id: CurrentUserId,
 ) -> BrokerageImportResponse:
     """Import parsed brokerage holdings into AtomicPosition and reconcile ManagedPosition."""
-    result = await _brokerage_import_service.import_positions(
-        db,
-        user_id=user_id,
-        payload=request.payload,
-        filename=request.filename,
-        source_document_id=request.source_document_id,
-    )
-    await db.commit()
+    try:
+        result = await _brokerage_import_service.import_positions(
+            db,
+            user_id=user_id,
+            payload=request.payload,
+            filename=request.filename,
+            source_document_id=request.source_document_id,
+        )
+        await db.commit()
+    except PositionServiceError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     return BrokerageImportResponse(**result.__dict__)
 
 

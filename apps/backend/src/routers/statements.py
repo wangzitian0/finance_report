@@ -74,6 +74,7 @@ from src.platform import (
     raise_service_unavailable,
     raise_too_large,
 )
+from src.portfolio import PositionServiceError
 from src.runtime import StorageError, StorageService
 from src.schemas import (
     AtomicTransactionResponse,
@@ -782,8 +783,9 @@ async def import_brokerage_statement_positions(
         await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
         await db.commit()
     except Exception as exc:
+        is_rejected = isinstance(exc, BrokerageImportRejectedError | PositionServiceError)
         # #2649: a rejected source (HTTP 422 with a reason) is a warning, not a server fault.
-        log = logger.warning if isinstance(exc, BrokerageImportRejectedError) else logger.exception
+        log = logger.warning if is_rejected else logger.exception
         log(
             "statement.brokerage_import.failed",
             audit_event="statement.brokerage_import.failed",
@@ -803,7 +805,9 @@ async def import_brokerage_statement_positions(
                 statement_id=statement_id,
                 user_id=user_id,
                 request_id=request_id,
-                reason=exc.message if isinstance(exc, BrokerageImportRejectedError) else None,
+                reason=exc.message
+                if isinstance(exc, BrokerageImportRejectedError)
+                else (str(exc) if is_rejected else None),
             )
             await db.commit()
         except Exception as record_exc:  # noqa: BLE001 - the import error below is the answer
@@ -814,6 +818,11 @@ async def import_brokerage_statement_positions(
                 statement_id=str(statement_id),
                 error_type=type(record_exc).__name__,
             )
+        if isinstance(exc, PositionServiceError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
         raise
     logger.info(
         "statement.brokerage_import.completed",

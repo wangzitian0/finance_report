@@ -15,9 +15,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Money, to_money
+from src.audit.money import Currency, InvalidCurrencyError, Money, to_money
 from src.audit.money.currency import normalize_currency_code
-from src.audit.quantity import Quantity
+from src.audit.quantity import Quantity, Unit
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
@@ -25,7 +25,20 @@ from src.observability import get_logger
 
 logger = get_logger(__name__)
 
-ASSET_QUANTITY_UNIT = "units"
+ASSET_QUANTITY_UNIT = Unit("units")
+_CURRENCY_ALIASES: dict[str, str] = {"CNH": "CNY"}
+
+
+def _resolve_snapshot_currency(raw_currency: str | None, *, asset_identifier: str) -> Currency:
+    """Normalize a snapshot currency (aliasing legacy CNH -> CNY) and validate ISO-4217 (#2661)."""
+    if raw_currency is None:
+        return Currency("USD")
+    normalized = normalize_currency_code(raw_currency)
+    canonical = _CURRENCY_ALIASES.get(normalized, normalized)
+    try:
+        return Currency(canonical)
+    except InvalidCurrencyError as exc:
+        raise PositionServiceError(f"Position {asset_identifier!r} has unsupported currency {raw_currency!r}") from exc
 
 
 class PositionServiceError(Exception):
@@ -163,7 +176,8 @@ class PositionService:
                     asset=snap.asset_identifier,
                 )
 
-            account = await self._get_or_create_broker_account(db, user_id, broker_name, snap.currency)
+            snapshot_currency = _resolve_snapshot_currency(snap.currency, asset_identifier=snap.asset_identifier)
+            account = await self._get_or_create_broker_account(db, user_id, broker_name, snapshot_currency.code)
 
             pos_query = (
                 select(ManagedPosition)
@@ -176,9 +190,12 @@ class PositionService:
             snapshot_quantity = Quantity(quantity, ASSET_QUANTITY_UNIT).quantize()
 
             if position:
+                position.currency = _resolve_snapshot_currency(
+                    position.currency, asset_identifier=position.asset_identifier
+                ).code
                 quantity_changed = position.quantity != quantity
                 # Money inequality compares amount AND currency in one go.
-                valuation_changed = position.cost_basis_money != Money(snap.market_value, snap.currency)
+                valuation_changed = position.cost_basis_money != Money(snap.market_value, snapshot_currency)
                 if quantity_changed or valuation_changed:
                     logger.info(
                         "Updating managed position from latest atomic snapshot",
@@ -188,7 +205,7 @@ class PositionService:
                     )
                     position.quantity = quantity
                     position.cost_basis = snap.market_value
-                    position.currency = snap.currency
+                    position.currency = snapshot_currency.code
                     position.position_metadata = {
                         **(position.position_metadata or {}),
                         "broker": snap.broker,
@@ -217,7 +234,7 @@ class PositionService:
                         cost_basis=snap.market_value,
                         acquisition_date=snap.snapshot_date,
                         status=PositionStatus.ACTIVE,
-                        currency=snap.currency,
+                        currency=snapshot_currency.code,
                         position_metadata={
                             "broker": snap.broker,
                             "latest_snapshot_date": snap.snapshot_date.isoformat(),

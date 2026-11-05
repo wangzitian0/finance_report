@@ -29,8 +29,8 @@ def _load_statement_prompt_module() -> ModuleType:
     return module
 
 
-def test_brokerage_prompt_maps_generated_broker_rows_to_positions() -> None:
-    """Generated brokerage fixtures must not yield empty positions."""
+def test_brokerage_prompt_excludes_fixture_specific_position_rules() -> None:
+    """Brokerage prompts emit positions without fixture-fitted prompt rules (#2672)."""
     statement_prompt = _load_statement_prompt_module()
 
     moomoo_prompt = statement_prompt.get_parsing_prompt(
@@ -38,11 +38,9 @@ def test_brokerage_prompt_maps_generated_broker_rows_to_positions() -> None:
     )
     futu_prompt = statement_prompt.get_parsing_prompt("Futu", document_kind="brokerage")
 
-    assert "SUBSCRIPTION" in moomoo_prompt
-    assert "Fullerton SGD Money Market Fund" in moomoo_prompt
-    assert "emit it as a position" in moomoo_prompt
-    assert "VALUATION" in futu_prompt
-    assert "Stock and options valuation" in futu_prompt
-    assert "emit it as a position" in futu_prompt
-    assert "do not assume HKD" in futu_prompt
-    assert "generated fixtures and some real statements may use SGD" in futu_prompt
+    assert "positions" in moomoo_prompt
+    assert "positions" in futu_prompt
+    assert "Fullerton SGD Money Market Fund" not in moomoo_prompt
+    assert "generated Moomoo PDF fixtures" not in moomoo_prompt
+    assert "generated Futu PDF fixtures" not in futu_prompt
+    assert "FUTU_STOCK_AND_OPTIONS" not in futu_prompt
