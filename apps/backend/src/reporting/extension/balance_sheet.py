@@ -384,24 +384,27 @@ async def generate_balance_sheet(
         raise ReportError(str(exc)) from exc
 
     net_income = _quantize_money(net_income_raw)
-    unrealized_fx = await _compute_unrealized_fx_gain_loss(
-        db,
-        user_id,
-        as_of_date=as_of_date,
-        target_currency=target_currency,
-        base_currency=base_curr,
-        fx_warnings=fx_warnings,
-    )
+    is_presentation_currency = target_currency.upper() != base_curr
+    is_multicurrency = bool(included_ledger_currencies - {target_currency})
+    if is_presentation_currency and not is_multicurrency:
+        unrealized_fx = Decimal("0.00")
+    else:
+        unrealized_fx = await _compute_unrealized_fx_gain_loss(
+            db,
+            user_id,
+            as_of_date=as_of_date,
+            target_currency=target_currency,
+            base_currency=base_curr,
+            fx_warnings=fx_warnings,
+        )
     net_worth_adjustment = _quantize_money(
         _line_total(portfolio_adjustments)
         + _line_total(valuation_assets)
         - _line_total(valuation_liabilities)
         + excluded_ledger_liabilities
     )
-    is_presentation_currency = target_currency.upper() != base_curr
-    is_multicurrency = bool(included_ledger_currencies - {target_currency})
 
-    if is_presentation_currency:
+    if is_presentation_currency and is_multicurrency:
         unadjusted_total = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
         cta_adjustment = _quantize_money(total_assets - unadjusted_total)
     elif is_multicurrency:

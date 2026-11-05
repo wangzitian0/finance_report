@@ -1072,7 +1072,13 @@ async def reject_statement_stage1(
 ) -> BankStatementResponse:
     """Stage 1: Reject statement."""
     try:
-        statement = await reject_statement_workflow(db, statement_id, user_id, reason=decision.notes)
+        statement = await reject_statement_workflow(
+            db,
+            statement_id,
+            user_id,
+            reason=decision.notes,
+            dependencies=compose_statement_posting_dependencies(),
+        )
         await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

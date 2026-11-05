@@ -74,6 +74,7 @@ async def initialize_opening_positions(
     source_decision_id: UUID | None = None,
     trace_emitter: TraceEmitter | None = None,
     allow_supersede: bool = False,
+    preserve_account_currency_equity: bool = False,
 ) -> JournalEntry | None:
     """Initialize signed account stock; repeated identical requests are idempotent.
 
@@ -195,21 +196,35 @@ async def initialize_opening_positions(
                 "fx_rate": rate,
             }
         )
-        converted = abs(amount) * (rate or Decimal("1"))
-        net += converted if debit else -converted
-    entry = None
-    if lines:
-        net = to_money(net)
-        if net != 0:
-            equity = await get_or_create_opening_balance_equity_account(db, user_id, normalized_base)
+        if preserve_account_currency_equity:
+            acct_currency = normalize_currency_code(account.currency)
+            equity = await get_or_create_opening_balance_equity_account(db, user_id, acct_currency, match_currency=True)
             lines.append(
                 {
                     "account_id": equity.id,
-                    "direction": Direction.CREDIT if net > 0 else Direction.DEBIT,
-                    "amount": abs(net),
-                    "currency": normalized_base,
+                    "direction": Direction.CREDIT if debit else Direction.DEBIT,
+                    "amount": abs(amount),
+                    "currency": acct_currency,
+                    "fx_rate": rate,
                 }
             )
+        else:
+            converted = abs(amount) * (rate or Decimal("1"))
+            net += converted if debit else -converted
+    entry = None
+    if lines:
+        if not preserve_account_currency_equity:
+            net = to_money(net)
+            if net != 0:
+                equity = await get_or_create_opening_balance_equity_account(db, user_id, normalized_base)
+                lines.append(
+                    {
+                        "account_id": equity.id,
+                        "direction": Direction.CREDIT if net > 0 else Direction.DEBIT,
+                        "amount": abs(net),
+                        "currency": normalized_base,
+                    }
+                )
         entry = await submit_system_journal_entry(
             db,
             user_id=user_id,

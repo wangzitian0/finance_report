@@ -125,3 +125,85 @@ async def test_multicurrency_cash_bridge_exposes_discrepancy_on_missing_activity
     )
     assert corrupted_report["cash_bridge"]["discrepancy"] == Decimal("135.00")
     assert corrupted_report["cash_bridge"]["reconciles"] is False
+
+
+@pytest.mark.asyncio
+async def test_multicurrency_cash_bridge_absorbs_per_line_fx_rounding_residue(db: AsyncSession, test_user) -> None:
+    """Per-event quantized foreign-currency line amounts do not leave a 0.01-0.02 rounding discrepancy (#2851)."""
+    user_id = test_user.id
+    cny_cash = Account(user_id=user_id, name="CNY Cash", type=AccountType.ASSET, currency="CNY", code="1012")
+    cny_exp = Account(user_id=user_id, name="CNY Expense", type=AccountType.EXPENSE, currency="CNY", code="5012")
+    db.add_all([cny_cash, cny_exp])
+    await db.flush()
+
+    db.add_all(
+        [
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.188304"),
+                rate_date=date(2024, 1, 15),
+                source="test",
+            ),
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.192490"),
+                rate_date=date(2024, 2, 28),
+                source="test",
+            ),
+        ]
+    )
+    await db.flush()
+
+    # Three 10.00 CNY outflows on 2024-01-15:
+    # Each line quantizes -10 * 0.188304 = -1.88304 -> -1.88 SGD (3 * -1.88 = -5.64 SGD).
+    # Unrounded sum is -30 * 0.188304 = -5.64912 SGD, while ending cash is -30 * 0.192490 = -5.7747 -> -5.77 SGD.
+    # Unrounded fx_effect is -30 * (0.192490 - 0.188304) = -0.12558 -> -0.13 SGD.
+    # Without translation rounding absorption, (-5.77) - (-5.64 + -0.13) = 0.00 or with 4 events:
+    # 4 * -1.88 = -7.52 SGD; ending = -40 * 0.192490 = -7.6996 -> -7.70 SGD;
+    # fx_effect = -40 * 0.004186 = -0.16744 -> -0.17 SGD; -7.52 + -0.17 = -7.69 != -7.70 (0.01 discrepancy!).
+    for idx in range(4):
+        entry = JournalEntry(
+            user_id=user_id,
+            entry_date=date(2024, 1, 15),
+            memo=f"CNY coffee {idx}",
+            status=JournalEntryStatus.POSTED,
+        )
+        db.add(entry)
+        await db.flush()
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=cny_exp.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("10.00"),
+                    currency="CNY",
+                    fx_rate=Decimal("0.188304"),
+                ),
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=cny_cash.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("10.00"),
+                    currency="CNY",
+                    fx_rate=Decimal("0.188304"),
+                ),
+            ]
+        )
+    await db.commit()
+
+    report = await generate_cash_flow(
+        db,
+        user_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 28),
+        currency="SGD",
+        cash_account_ids=frozenset([cny_cash.id]),
+    )
+    assert report["cash_bridge"]["classified_activity"] == Decimal("-7.52")
+    assert report["cash_bridge"]["cash_delta"] == Decimal("-7.70")
+    assert report["cash_bridge"]["fx_effect"] == Decimal("-0.18")
+    assert report["cash_bridge"]["discrepancy"] == Decimal("0.00")
+    assert report["cash_bridge"]["reconciles"] is True
