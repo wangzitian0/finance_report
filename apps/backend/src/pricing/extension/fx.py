@@ -107,13 +107,22 @@ async def get_exchange_rate(
     subject = PriceableSubject.currency_pair(base, quote)
     repo = SqlObservationRepository(db)
     candidates = await repo.candidates(subject, rate_date)
-    if not candidates and lazy_load:
+    should_resolve_missing = not candidates and lazy_load
+    if not should_resolve_missing and lazy_load and not any(c.as_of == rate_date for c in candidates):
+        inverse_observations = await repo.candidates(PriceableSubject.currency_pair(quote, base), rate_date)
+        best_direct = max((c.as_of for c in candidates), default=date.min)
+        best_inverse = max((c.as_of for c in inverse_observations), default=date.min)
+        should_resolve_missing = best_inverse > best_direct
+    if should_resolve_missing:
         # Deferred import: market_data composes this module's siblings, so a
         # module-level import would be a cycle waiting to happen.
         from src.pricing.extension.market_data.service import resolve_missing_fx_rate
 
         rate = await resolve_missing_fx_rate(db, base, quote, rate_date)
-        if rate is not None:
+        if rate is not None and not candidates:
+            return rate if isinstance(rate, Decimal) else Decimal(str(rate))
+        candidates = await repo.candidates(subject, rate_date)
+        if not candidates and rate is not None:
             return rate if isinstance(rate, Decimal) else Decimal(str(rate))
     try:
         observation = resolve(subject, rate_date, ResolutionPolicy(), candidates)
@@ -153,14 +162,30 @@ async def get_exchange_rate_series(
     repo = SqlObservationRepository(db)
     candidates = await repo.candidates(subject, ordered[-1])
     earliest = min((c.as_of for c in candidates), default=None)
-    uncovered = [d for d in ordered if earliest is None or d < earliest]
+    inverse_dates: list[date] = []
+    if lazy_load and candidates:
+        inverse_subject = PriceableSubject.currency_pair(quote, base)
+        inverse_observations = await repo.candidates(inverse_subject, ordered[-1])
+        inverse_dates = [c.as_of for c in inverse_observations]
+
+    def _needs_lazy_resolution(target_date: date) -> bool:
+        if earliest is None or target_date < earliest:
+            return True
+        if not lazy_load or not inverse_dates:
+            return False
+        best_direct = max((c.as_of for c in candidates if c.as_of <= target_date), default=date.min)
+        best_inverse = max((d for d in inverse_dates if d <= target_date), default=date.min)
+        return best_inverse > best_direct
+
+    uncovered = [d for d in ordered if _needs_lazy_resolution(d)]
+    uncovered_set = set(uncovered)
     rates: dict[date, Decimal] = {}
     for rate_date in uncovered:
         try:
             rates[rate_date] = await get_exchange_rate(db, base, quote, rate_date, lazy_load=lazy_load)
         except PricingError:
             continue
-    covered = ordered[len(uncovered) :]
+    covered = [d for d in ordered if d not in uncovered_set]
     if not covered:
         return rates
     if uncovered and lazy_load:

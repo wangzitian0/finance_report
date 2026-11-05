@@ -105,6 +105,20 @@ from src.schemas.reporting import (
 )
 
 
+def _decision_sections_dump(sections: Any) -> dict[str, Any]:
+    dumped = sections.model_dump(mode="json")
+    balance_sheet = getattr(sections, "balance_sheet", None)
+    if (
+        balance_sheet is not None
+        and hasattr(balance_sheet, "model_fields_set")
+        and "excluded_holdings" not in balance_sheet.model_fields_set
+        and not getattr(balance_sheet, "excluded_holdings", None)
+        and isinstance(dumped.get("balance_sheet"), dict)
+    ):
+        dumped["balance_sheet"].pop("excluded_holdings", None)
+    return dumped
+
+
 def personal_report_package_decision_ref(document: PersonalReportPackageDocument) -> TraceDecisionRef:
     """Reconstruct exact audit coordinates from one selected frozen document."""
     if document.schema_version != "2":
@@ -123,7 +137,7 @@ def personal_report_package_decision_ref(document: PersonalReportPackageDocument
             framework_policy=document.framework_policy.model_dump(mode="json"),
             statement_disposition_policy=document.statement_disposition_policy.model_dump(mode="json"),
             input_manifest=[item.model_dump(mode="json") for item in document.input_manifest],
-            sections=document.sections.model_dump(mode="json"),
+            sections=_decision_sections_dump(document.sections),
         ),
         assertion=PackageReadinessDecisionPolicy().assertion,
     )

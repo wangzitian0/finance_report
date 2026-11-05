@@ -346,3 +346,59 @@ async def test_AC_pricing_fx_4_rate_series_equals_one_lookup_per_date(db: AsyncS
     assert series[date(2026, 6, 5)] == Decimal("0.172414")
     assert series[date(2026, 6, 15)] == Decimal("0.171100")
     assert await get_exchange_rate_series(db, "sgd", "SGD", dates[:2]) == dict.fromkeys(dates[:2], Decimal("1"))
+
+
+@pytest.mark.asyncio
+async def test_AC_pricing_fx_6_derived_inverse_rate_does_not_shadow_newer_inverse_rate(db: AsyncSession) -> None:
+    """AC-pricing.fx.6: an earlier lazily derived inverse FX row does not hide a newer inverse rate on a later date (#2593)."""
+    from src.pricing.extension.fx import get_exchange_rate_series
+
+    db.add_all(
+        [
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.200000"),
+                rate_date=date(2025, 1, 10),
+                source="manual",
+            ),
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.250000"),
+                rate_date=date(2025, 1, 20),
+                source="manual",
+            ),
+        ]
+    )
+    await db.commit()
+
+    early_rate = await get_exchange_rate(db, "SGD", "CNY", date(2025, 1, 15), lazy_load=True)
+    assert early_rate == Decimal("5.000000")
+
+    later_rate = await get_exchange_rate(db, "SGD", "CNY", date(2025, 1, 25), lazy_load=True)
+    assert later_rate == Decimal("4.000000")
+
+    # Series lookup after an earlier derived row exists also resolves the newer inverse rate.
+    db.add(
+        FxRate(
+            base_currency="CNY",
+            quote_currency="SGD",
+            rate=Decimal("0.500000"),
+            rate_date=date(2025, 1, 28),
+            source="manual",
+        )
+    )
+    await db.commit()
+    series = await get_exchange_rate_series(
+        db,
+        "SGD",
+        "CNY",
+        [date(2025, 1, 15), date(2025, 1, 25), date(2025, 1, 30)],
+        lazy_load=True,
+    )
+    assert series == {
+        date(2025, 1, 15): Decimal("5.000000"),
+        date(2025, 1, 25): Decimal("4.000000"),
+        date(2025, 1, 30): Decimal("2.000000"),
+    }

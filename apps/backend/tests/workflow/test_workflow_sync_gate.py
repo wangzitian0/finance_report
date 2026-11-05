@@ -394,3 +394,33 @@ async def test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again(
     await ensure_workflow_events_synced(db, user_id=user_id)
     await db.commit()
     assert derivations == 2
+
+
+async def test_AC_workflow_sync_7_report_error_becomes_blocked_readiness_state(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-workflow.sync.7: ReportError during readiness evaluation becomes a BLOCKED readiness state (#2623)."""
+    import src.workflow.extension.events as workflow_events
+    from src.reporting import ReportError
+    from src.workflow import WorkflowPrimaryState, WorkflowReportReadinessState, get_workflow_status
+    from src.workflow.extension.events import stored_package_readiness
+
+    async def failing_readiness(db, *, user_id):
+        raise ReportError("No registered L1 mapping for ledger account 00000000-0000-0000-0000-000000000001")
+
+    monkeypatch.setattr(workflow_events, "current_package_readiness", failing_readiness)
+
+    status = await get_workflow_status(db, user_id=test_user.id)
+    assert status.primary_state == WorkflowPrimaryState.BLOCKED
+    assert status.report_readiness.state == WorkflowReportReadinessState.BLOCKED
+    assert status.report_readiness.blocking_count == 1
+    assert status.report_readiness.href == "/reports?tab=package"
+
+    cached = await stored_package_readiness(db, user_id=test_user.id)
+    assert cached is not None
+    assert cached["state"] == "blocked"
+    assert cached["blocking_count"] == 1
+    assert cached["blockers"][0]["code"] == "report_generation_error"
+    assert "No registered L1 mapping" in cached["blockers"][0]["reason"]
