@@ -673,6 +673,44 @@ class TestBootloaderNoVaultSecretsResidueAndFailClosedEnv:
         assert Bootloader._check_static_config() is False
 
 
+class TestStaticConfigInjectedValuesScope:
+    """#2872: injected manifest values are mandatory only in staging and production.
+
+    A preview sets ENVIRONMENT to an alias token (pr-<N>, main, commit-<sha7>)
+    and leaves PREFECT_API_URL and S3_PUBLIC_ENDPOINT unset on purpose.
+    """
+
+    def _configure_deployed(self, mock_settings, monkeypatch, environment: str, app_url: str) -> None:
+        monkeypatch.delenv("PREFECT_API_URL", raising=False)
+        monkeypatch.delenv("S3_PUBLIC_ENDPOINT", raising=False)
+        for field, value in _GUARD_STRONG_VALUES.items():
+            setattr(mock_settings, field, value)
+        mock_settings.environment = environment
+        mock_settings.next_public_app_url = app_url
+        mock_settings.prefect_api_url = None
+        mock_settings.s3_public_endpoint = None
+
+    def test_static_config_accepts_preview_alias_without_prefect_and_public_s3_endpoint(
+        self, mock_settings, mock_logger, monkeypatch
+    ):
+        """A pr-<N> preview boots without PREFECT_API_URL and S3_PUBLIC_ENDPOINT."""
+        self._configure_deployed(mock_settings, monkeypatch, "pr-123", "https://report-pr-123.zitian.party")
+
+        # The preview stays protected for the SECRET_KEY and default-credential checks.
+        assert Bootloader._is_protected_runtime("pr-123") is True
+        assert Bootloader._check_static_config() is True
+        mock_logger.error.assert_not_called()
+
+    def test_static_config_rejects_staging_without_prefect_api_url(self, mock_settings, mock_logger, monkeypatch):
+        """Staging refuses to boot when the injected PREFECT_API_URL is missing."""
+        self._configure_deployed(mock_settings, monkeypatch, "staging", "https://report-staging.zitian.party")
+        mock_settings.s3_public_endpoint = "https://s3.zitian.party"
+
+        assert Bootloader._check_static_config() is False
+        mock_logger.error.assert_called_once()
+        assert "PREFECT_API_URL" in mock_logger.error.call_args.kwargs["error"]
+
+
 def test_AC_runtime_3_1_required_checks_cover_the_tier_declaration():
     """AC-runtime.3.1 (#1577): the probed + unprobed split is exactly
     DEPENDENCY_MANIFEST.required_for(tier) — the set comes from the manifest,

@@ -283,7 +283,11 @@ class Bootloader:
             database_url = settings.database_url
             environment = str(getattr(settings, "environment", "")).lower()
             is_protected = Bootloader._is_protected_runtime(environment)
-            Bootloader._assert_sdk_environment(is_protected=is_protected)
+            # #2872: require injected values only in staging and production.
+            # Previews (alias environments such as pr-<N>) leave PREFECT_API_URL
+            # and S3_PUBLIC_ENDPOINT unset on purpose.
+            require_injected = environment.strip() in PROTECTED_ENVIRONMENTS
+            Bootloader._assert_sdk_environment(is_protected=require_injected)
             secret_key = getattr(settings, "secret_key", "")
             if is_protected:
                 if not isinstance(secret_key, str) or not secret_key.strip():
