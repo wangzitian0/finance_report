@@ -36,3 +36,8 @@ for a rejected source and an identity ambiguity retained for human review. The
 behavioral proof executes both recovery paths and verifies the persisted-state
 request, safe log fields, and failure metric; a source-code string is not proof
 of the runtime outcome (`AC-observability.12.3`).
+
+A Prefect flow run executes in the worker container, not in `src.main`, so
+`flow_run_telemetry` (`src.observability.worker_telemetry`) configures OTEL metrics, logs and traces for
+that process. The service name is `OTEL_SERVICE_NAME`, else `finance-report-worker`.
+The flow flushes all providers before it exits (`AC-observability.12.4`).

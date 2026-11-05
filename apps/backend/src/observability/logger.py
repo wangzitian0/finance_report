@@ -156,6 +156,25 @@ def _build_otel_resource() -> Any:
     return Resource.create(final_attrs)
 
 
+_tracer_provider: Any | None = None
+_logger_provider: Any | None = None
+
+
+def flush_otel_logs_and_traces(timeout_millis: int = 10000) -> None:
+    """Force-flush the log and trace providers this process configured.
+
+    A short-lived process (a Prefect flow run) calls this before it exits so the
+    batch processors keep their last records.
+    """
+    for provider in (_logger_provider, _tracer_provider):
+        if provider is None:
+            continue
+        try:
+            provider.force_flush(timeout_millis)
+        except Exception:
+            logging.getLogger(__name__).warning("OTEL flush failed", exc_info=True)
+
+
 def _configure_otel_tracing() -> None:
     """Configure OpenTelemetry tracing with OTLP export.
 
@@ -188,6 +207,8 @@ def _configure_otel_tracing() -> None:
     exporter = OTLPSpanExporter(endpoint=endpoint)
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
+    global _tracer_provider
+    _tracer_provider = provider
 
 
 class SanitizingLogRecordProcessor:
@@ -246,6 +267,8 @@ def _configure_otel_logging() -> None:
     )
     provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
     set_logger_provider(provider)
+    global _logger_provider
+    _logger_provider = provider
 
     handler = LoggingHandler(level=logging.INFO, logger_provider=provider)
     logging.getLogger().addHandler(handler)

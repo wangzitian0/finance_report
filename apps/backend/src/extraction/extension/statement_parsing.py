@@ -770,8 +770,12 @@ async def _execute_statement_ingestion(
                 transactions_count=len(extraction_result.transactions),
                 auto_posted_count=auto_posted_count,
             )
-            # AC-observability.10.4: business metric for the parse outcome (success path).
-            record_statement_parse_outcome(outcome="success")
+            # AC-observability.10.4: business metric for the parse outcome. A statement
+            # that the LLM-LED gate quarantined is persisted as REJECTED on this same
+            # path and must not count as a success (#2850).
+            record_statement_parse_outcome(
+                outcome="rejected" if statement.status is BankStatementStatus.REJECTED else "success"
+            )
             return StatementIngestionOutcome(
                 statement_id=statement_id,
                 status=StatementIngestionStatus.COMPLETED,

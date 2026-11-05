@@ -404,3 +404,45 @@ async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch
     )
 
     assert outcomes == ["success", "failure"]
+
+
+async def test_AC10_10_4_quarantined_statement_records_rejected_outcome(db, test_user, monkeypatch):
+    """AC-observability.10.4: a statement persisted as REJECTED by the LLM-LED gate
+    on the normal completion path records outcome=rejected, never success (#2850)."""
+    outcomes: list[str] = []
+    monkeypatch.setattr(
+        statement_parsing,
+        "record_statement_parse_outcome",
+        lambda *, outcome, parser="default": outcomes.append(outcome),
+    )
+    monkeypatch.setattr(
+        statement_parsing.StorageService,
+        "generate_presigned_url",
+        lambda *_args, **_kwargs: "https://example.com/audit.pdf",
+    )
+    statement = await _create_statement(db, test_user.id, file_hash="metric-rejected")
+
+    async def quarantining_parse_document(*args, **kwargs):
+        result = await _persist_fixture_result(db=kwargs["db"], statement_id=statement.id, source=args[1])
+        persisted = await kwargs["db"].get(StatementSummary, statement.id)
+        persisted.status = BankStatementStatus.REJECTED
+        return result
+
+    monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", quarantining_parse_document)
+    await parse_statement_background(
+        job=ParseJob(
+            statement_id=statement.id,
+            filename="audit.pdf",
+            institution="DBS",
+            user_id=test_user.id,
+            account_id=None,
+            file_hash="metric-rejected",
+            storage_key="statements/audit.pdf",
+            model="glm-5.1",
+            request_id="req-metric-rejected",
+        ),
+        content=b"%PDF-1.7",
+        session_maker=create_session_maker_from_db(db),
+    )
+
+    assert outcomes == ["rejected"]
