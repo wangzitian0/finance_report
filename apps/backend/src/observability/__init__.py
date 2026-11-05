@@ -60,6 +60,7 @@ from src.observability.telemetry_metrics import (
     record_statement_parse_outcome,
     run_with_async_parse_tracking,
 )
+from src.observability.worker_telemetry import flow_run_telemetry
 
 # The shared config singleton, surfaced at the package root so callers and tests
 # can read/patch it via ``observability.settings`` (mirroring the prior flat
@@ -75,6 +76,7 @@ __all__ = [
     "configure_otel_metrics",
     "current_request_id",
     "ensure_request_id",
+    "flow_run_telemetry",
     "detect_pii",
     "get_logger",
     "get_observability_status",

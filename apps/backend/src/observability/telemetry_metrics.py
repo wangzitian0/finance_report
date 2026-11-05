@@ -16,6 +16,7 @@ parse_key_value_pairs = src.config.parse_key_value_pairs
 
 _metrics_export_active = False
 _meter: Any | None = None
+_meter_provider: Any | None = None
 _instruments: dict[str, Any] = {}
 _async_parse_in_flight = 0
 _db_pool_observer: Callable[[], dict[str, int]] | None = None
@@ -40,9 +41,20 @@ def mark_metrics_export_active(active: bool = True) -> None:
     _metrics_export_active = active
 
 
+def flush_otel_metrics(timeout_millis: int = 10000) -> None:
+    """Force-flush the meter provider this process configured (no-op when none)."""
+    if _meter_provider is None:
+        return
+    try:
+        _meter_provider.force_flush(timeout_millis)
+    except Exception:
+        logging.getLogger(__name__).warning("OTEL metric flush failed", exc_info=True)
+
+
 def _clear_metrics_state() -> None:
-    global _meter
+    global _meter, _meter_provider
     _meter = None
+    _meter_provider = None
     _instruments.clear()
     mark_metrics_export_active(False)
 
@@ -53,7 +65,7 @@ def is_metrics_export_active() -> bool:
 
 def configure_otel_metrics() -> None:
     """Configure OTLP metric export when the shared OTEL endpoint is present."""
-    global _meter
+    global _meter, _meter_provider
     if not settings.otel_exporter_otlp_endpoint:
         _clear_metrics_state()
         return
@@ -77,6 +89,7 @@ def configure_otel_metrics() -> None:
     reader = PeriodicExportingMetricReader(exporter)
     provider = MeterProvider(resource=_build_otel_resource(), metric_readers=[reader])
     metrics.set_meter_provider(provider)
+    _meter_provider = provider
     _meter = metrics.get_meter("finance-report-backend")
     _create_instruments(_meter)
     mark_metrics_export_active(True)
