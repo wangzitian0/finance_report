@@ -16,5 +16,5 @@ def test_missing_migrations_check():
 
     assert "schema-migrations" in workflow
     assert "postgres:" in schema_block
-    assert "uv run alembic upgrade head" in schema_block
-    assert "uv run alembic check" in schema_block
+    assert "uv run --frozen alembic upgrade head" in schema_block or "uv run alembic upgrade head" in schema_block
+    assert "uv run --frozen alembic check" in schema_block or "uv run alembic check" in schema_block

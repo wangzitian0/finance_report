@@ -72,6 +72,16 @@ def test_AC_extraction_1_2_converges_by_layer():
     # the OCR/vision mixin and fixture brokerage fallback mixin are gone (#2681, #2672)
     assert not (EXTRACTION / "extension" / "_ocr.py").exists()
     assert not (EXTRACTION / "extension" / "_brokerage.py").exists()
+    for py in EXTRACTION.rglob("*.py"):
+        source = py.read_text(encoding="utf-8")
+        for forbidden in (
+            "_BrokerageMixin",
+            "_generated_brokerage_positions_payload_from_text",
+            "_backfill_generated_brokerage_positions",
+        ):
+            assert forbidden not in source, (
+                f"{py.relative_to(REPO)} still references {forbidden}"
+            )
     assert (EXTRACTION / "data/__init__.py").exists()
     # the pre-cutover homes are gone (zero residue)
     services = REPO / "apps/backend/src/services"

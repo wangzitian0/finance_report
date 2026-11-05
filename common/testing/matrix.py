@@ -27,6 +27,7 @@ restates the list. Charter: ``common/testing/readme.md``.
 from __future__ import annotations
 
 import shlex
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
@@ -163,6 +164,8 @@ class E2ERow:
     staging core stack; ``needs`` lists external dependencies. Selection
     requires audited AND no LLM provider AND not in CORE_JOURNEY_ONLY_FILES.
     ``nodes`` optionally narrows selection to explicit pytest node ids.
+    ``frontend_paths`` lists repo-relative frontend files or directory prefixes
+    whose changes select this journey under ``select_touched_e2e`` (#2670).
     """
 
     file: str
@@ -170,6 +173,7 @@ class E2ERow:
     audited: bool
     reason: str
     nodes: tuple[str, ...] = ()
+    frontend_paths: tuple[str, ...] = ()
 
     @property
     def staging_core_e2e(self) -> bool:
@@ -187,6 +191,7 @@ class E2ERow:
             "audited": self.audited,
             "reason": self.reason,
             "nodes": list(self.nodes),
+            "frontend_paths": list(self.frontend_paths),
             "staging_core_e2e": self.staging_core_e2e,
         }
 
@@ -200,6 +205,15 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "EPIC-022 everyday-user shell proof, relocated from the dead "
             "apps/backend/tests/e2e copy (backend_ci marker deselected it); "
             "authenticated browser + frontend shell only, no provider."
+        ),
+        frontend_paths=(
+            "apps/frontend/src/app/(main)/layout.tsx",
+            "apps/frontend/src/app/(main)/page.tsx",
+            "apps/frontend/src/components/AppShell.tsx",
+            "apps/frontend/src/components/AppNav.tsx",
+            "apps/frontend/src/components/navigation.ts",
+            "apps/frontend/src/components/shell/",
+            "apps/frontend/src/components/workflow/",
         ),
     ),
     E2ERow(
@@ -215,6 +229,12 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "intercepting pointer events over the upload button; fixed with "
             "placeholder provider wiring + an unroutable AI_BASE_URL "
             "(validates wiring, cannot spend quota)."
+        ),
+        frontend_paths=(
+            "apps/frontend/src/app/(main)/upload/",
+            "apps/frontend/src/app/(main)/statements/",
+            "apps/frontend/src/components/statements/",
+            "apps/frontend/src/components/review/",
         ),
     ),
     E2ERow(
@@ -330,24 +350,41 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         needs=(NEEDS_MARKET_DATA,),
         audited=True,
         reason="Calls the real market-data provider; staging responsibility.",
+        frontend_paths=(
+            "apps/frontend/src/app/(main)/portfolio/",
+            "apps/frontend/src/components/portfolio/",
+        ),
     ),
     E2ERow(
         "tests/e2e/test_production_readonly_smoke.py",
         needs=(NEEDS_DEPLOYED_ENV,),
         audited=True,
         reason="prod_safe read-only probe of a persistent deployed environment.",
+        frontend_paths=(
+            "apps/frontend/src/app/login/",
+            "apps/frontend/src/app/(main)/page.tsx",
+        ),
     ),
     E2ERow(
         "tests/e2e/test_frontend_observability_epic024.py",
         needs=(NEEDS_DEPLOYED_ENV,),
         audited=True,
         reason="Probes deployed telemetry wiring (prod_safe smoke).",
+        frontend_paths=(
+            "apps/frontend/src/components/FrontendTelemetry.tsx",
+            "apps/frontend/src/components/RootClients.tsx",
+            "apps/frontend/src/app/layout.tsx",
+        ),
     ),
     E2ERow(
         "tests/e2e/test_auth_flows.py",
         needs=(NEEDS_STATE_SENSITIVE,),
         audited=True,
         reason="Registration/auth state-sensitive workflow; staging responsibility per ci-cd.md.",
+        frontend_paths=(
+            "apps/frontend/src/app/login/",
+            "apps/frontend/src/app/frontend-version.json/",
+        ),
     ),
     E2ERow(
         "tests/e2e/test_version_check.py",
@@ -358,6 +395,7 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "with EXPECTED_SHA — both provided by the in-runner stack (GIT_COMMIT_SHA "
             "baked into images, EXPECTED_SHA set by the preview job)."
         ),
+        frontend_paths=("apps/frontend/src/app/frontend-version.json/",),
     ),
     E2ERow(
         "tests/e2e/test_journal_ui_journey.py",
@@ -366,6 +404,10 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason=(
             "Audited (#2158): Journal entry interactive browser UI journey; "
             "verifies form validation, debit/credit balance, and immediate posting."
+        ),
+        frontend_paths=(
+            "apps/frontend/src/app/(main)/journal/",
+            "apps/frontend/src/components/journal/",
         ),
     ),
     E2ERow(
@@ -376,6 +418,11 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "Audited (#2158, #2171): Reconciliation workbench and unmatched studio interactive journey; "
             "verifies workbench KPI surface, unmatched studio, and interactive disposition drawer posting."
         ),
+        frontend_paths=(
+            "apps/frontend/src/app/(main)/reconciliation/",
+            "apps/frontend/src/components/reconciliation/",
+            "apps/frontend/src/components/review/Stage2ReviewQueue.tsx",
+        ),
     ),
     E2ERow(
         "tests/e2e/test_accounts_and_statements_ui_journey.py",
@@ -384,6 +431,14 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason=(
             "Audited (#2171): Accounts and statements interactive browser UI journey; "
             "verifies account list, filter tabs, statement details, and review surface."
+        ),
+        frontend_paths=(
+            "apps/frontend/src/app/(main)/settings/",
+            "apps/frontend/src/app/(main)/statements/",
+            "apps/frontend/src/components/settings/",
+            "apps/frontend/src/components/accounts/",
+            "apps/frontend/src/components/statements/",
+            "apps/frontend/src/components/review/StatementReview.tsx",
         ),
     ),
 )
@@ -415,6 +470,69 @@ def staging_core_e2e_selection() -> tuple[str, ...]:
 def preview_minimum_e2e_selection() -> tuple[str, ...]:
     """Derive the Preview minimum non-LLM E2E set from E2E_ROWS."""
     return staging_core_e2e_selection()
+
+
+def _matches_frontend_path(changed_path: str, rule_path: str) -> bool:
+    """Return True when ``changed_path`` matches a file or directory prefix in ``frontend_paths``."""
+    norm_rule = rule_path.rstrip("/")
+    return changed_path == norm_rule or changed_path.startswith(f"{norm_rule}/")
+
+
+def select_touched_e2e(changed_files: Sequence[str]) -> list[str]:
+    """Map changed repo-relative paths to affected non-LLM ``staging_core_e2e`` journeys (#2670).
+
+    - Touching a non-LLM ``staging_core_e2e`` spec ``tests/e2e/test_*.py`` selects that journey.
+    - Touching shared E2E harness files under ``tests/e2e/`` (e.g. ``conftest.py``, fixtures,
+      helpers) selects all ``staging_core_e2e`` journeys.
+    - Touching a frontend route or component matching a row's ``frontend_paths`` selects that row.
+    - Journeys requiring ``NEEDS_LLM_PROVIDER`` are never selected.
+    """
+    eligible_rows = [row for row in E2E_ROWS if row.staging_core_e2e]
+    eligible_by_file = {row.file: row for row in eligible_rows}
+    all_e2e_spec_files = {row.file for row in E2E_ROWS}
+
+    selected_files: set[str] = set()
+    select_all = False
+
+    for raw_path in changed_files:
+        path = raw_path.strip().replace("\\", "/").lstrip("./")
+        if not path:
+            continue
+        if path in eligible_by_file:
+            selected_files.add(path)
+            continue
+        if path.startswith("tests/e2e/"):
+            if path in all_e2e_spec_files:
+                # Non-eligible (e.g. LLM-only or core_journey-only) spec touched directly.
+                continue
+            # Shared E2E harness/fixture/helper under tests/e2e/** touched.
+            select_all = True
+            continue
+        for row in eligible_rows:
+            if any(_matches_frontend_path(path, fp) for fp in row.frontend_paths):
+                selected_files.add(row.file)
+
+    if select_all:
+        return list(staging_core_e2e_selection())
+
+    selected: list[str] = []
+    for row in eligible_rows:
+        if row.file in selected_files:
+            selected.extend(row.nodes or (row.file,))
+    return selected
+
+
+def emit_touched_e2e_shell(changed_files: Sequence[str]) -> str:
+    """Emit bash assignments for touched non-LLM E2E journeys (#2670)."""
+    nodes = select_touched_e2e(changed_files)
+    tests = " ".join(shlex.quote(node) for node in nodes)
+    return "\n".join(
+        [
+            f"TOUCHED_E2E_TESTS=({tests})",
+            f"TOUCHED_E2E_MARKER={shlex.quote(STAGING_CORE_E2E_MARKER)}",
+            f"TOUCHED_E2E_COUNT={len(nodes)}",
+        ]
+    )
 
 
 def staging_ai_ocr_selection(corpus: str = "all") -> tuple[str, ...]:

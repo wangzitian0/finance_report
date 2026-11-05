@@ -27,6 +27,7 @@ repos:
       # Run formatter
       - id: ruff-format
         types_or: [python, pyi]
+        files: ^apps/backend/(src|tests)/
 
   # Type checking with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy

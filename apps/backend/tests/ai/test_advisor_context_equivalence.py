@@ -34,9 +34,31 @@ _UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 _DATETIME_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:\d{2}|Z)?")
 
 
+def _normalize_ephemeral(value: Any) -> Any:
+    """Normalize ephemeral session IDs before regex passes.
+
+    ``redact_sensitive`` masks 4x4 digit sequences inside ``workflow.active_session.id``
+    when a UUID contains 16 decimal digits across adjacent groups (e.g.
+    ``156b6e03-[REDACTED]f6e3273c``), which prevents ``_UUID_RE`` from matching (#2710).
+    """
+    if isinstance(value, dict):
+        result = {k: _normalize_ephemeral(v) for k, v in value.items()}
+        workflow = result.get("workflow")
+        if isinstance(workflow, dict):
+            active_session = workflow.get("active_session")
+            if isinstance(active_session, dict) and "id" in active_session:
+                active_session = {**active_session, "id": "<SESSION_UUID>"}
+                result["workflow"] = {**workflow, "active_session": active_session}
+        return result
+    if isinstance(value, list):
+        return [_normalize_ephemeral(item) for item in value]
+    return value
+
+
 def normalized(value: Any) -> Any:
     """Replace identifiers, timestamps and the run date, which change between runs."""
-    text = json.dumps(value, sort_keys=True, default=str)
+    text = json.dumps(_normalize_ephemeral(value), sort_keys=True, default=str)
+    text = text.replace("<SESSION_UUID>", "<uuid>")
     text = _UUID_RE.sub("<uuid>", text)
     text = _DATETIME_RE.sub("<datetime>", text)
     text = text.replace(date.today().isoformat(), "<today>")
@@ -232,3 +254,20 @@ def test_AC_advisor_context_5_suggestion_rules_read_only_reconciliation_summary_
         distinct = {key: f"SGD {(index + offset) * 1000 - 3000}.00" for index, key in enumerate(sorted(other_keys))}
         assert suggestions_for({**distinct, **reconciliation}) == expected, distinct
     assert suggestions_for(summary) == expected
+
+
+@pytest.mark.no_db
+def test_normalize_ephemeral_handles_redacted_active_session_uuid() -> None:
+    """#2710: when redact_sensitive partially masks workflow.active_session.id,
+    _normalize_ephemeral normalizes it to <SESSION_UUID> and normalized() maps it to <uuid>."""
+    payload = {
+        "workflow": {
+            "active_session": {
+                "id": "156b6e03-[REDACTED]f6e3273c",
+                "status": "active",
+            }
+        }
+    }
+    ephemeral = _normalize_ephemeral(payload)
+    assert ephemeral["workflow"]["active_session"]["id"] == "<SESSION_UUID>"
+    assert normalized(payload)["workflow"]["active_session"]["id"] == "<uuid>"

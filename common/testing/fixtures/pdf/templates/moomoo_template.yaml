@@ -44,7 +44,7 @@ tables:
     header_style:
       background: "#CCCCCC"
       text_color: "#000000"
-  
+
   transaction_details:
     # Moomoo format: Date, Type, Description, Amount, Currency
     # Transaction types: DEPOSIT, WITHDRAWAL, DIVIDEND, INTEREST, FEE

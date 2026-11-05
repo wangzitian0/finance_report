@@ -1071,3 +1071,38 @@ def test_AC8_13_34_main_ci_budget_is_enforced_by_a_non_required_job() -> None:
     [_, enforce] = _timing_commands(budget)
     assert "pipeline-budget" not in jobs["finish"]["needs"]
     assert budget["needs"] == ["finish"]
+    failure_comment_steps = [
+        step
+        for step in budget["steps"]
+        if isinstance(step, dict)
+        and "failure()" in str(step.get("if", ""))
+        and "<!-- pipeline-budget-alert -->" in str(step.get("run", ""))
+    ]
+    assert len(failure_comment_steps) == 1
+
+
+def test_ci_shard_and_context_artifact_uploads_set_overwrite_true() -> None:
+    """#2556: every shard and test-context artifact upload in ci.yml sets overwrite: true
+    so 'Re-run failed jobs' replaces attempt-1 artifacts instead of failing with 409 Conflict
+    or serving stale attempt-1 artifacts to fan-in gates."""
+    jobs = yaml.safe_load(read(".github/workflows/ci.yml"))["jobs"]
+    governed_jobs = (
+        "schema-migrations",
+        "backend",
+        "backend-integration",
+        "frontend-vitest",
+        "frontend-playwright",
+        "frontend-telemetry-e2e",
+        "tooling-coverage",
+    )
+    checked = 0
+    for job_id in governed_jobs:
+        for step in jobs[job_id]["steps"]:
+            if isinstance(step, dict) and str(step.get("uses", "")).startswith(
+                "actions/upload-artifact@"
+            ):
+                assert step.get("with", {}).get("overwrite") is True, (
+                    f"{job_id} step {step.get('name')!r} must set overwrite: true"
+                )
+                checked += 1
+    assert checked >= 8

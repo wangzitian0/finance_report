@@ -3,10 +3,10 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
+from pydantic import AfterValidator, BaseModel, Field, model_serializer, model_validator
 
 from src.ledger import AccountType, Direction
 from src.platform import validate_internal_action_href
@@ -23,10 +23,11 @@ from src.reporting import (
     ReportLineId,
     ReportType,
 )
-from src.schemas.base import CurrencyCode
+from src.schemas.base import BaseResponse, CurrencyCode
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.provenance import DataProvenance
 
+ActionHref = Annotated[str, AfterValidator(validate_internal_action_href)]
 _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})
 
 
@@ -554,12 +555,7 @@ class PersonalReportPackageReadinessBlocker(BaseModel):
     severity: str
     count: int
     reason: str
-    action_href: str
-
-    @field_validator("action_href")
-    @classmethod
-    def validate_action_href(cls, value: str) -> str:
-        return validate_internal_action_href(value)
+    action_href: ActionHref
 
 
 class PersonalReportPackageReadinessState(str, Enum):
@@ -627,7 +623,7 @@ class PersonalReportPackageReadinessResponse(BaseModel):
     package_id: str
     state: PersonalReportPackageReadinessState
     label: str
-    action_href: str
+    action_href: ActionHref
     blocking_count: int
     blockers: list[PersonalReportPackageReadinessBlocker] = Field(
         default_factory=list, description="Actionable conditions preventing package readiness."
@@ -636,11 +632,6 @@ class PersonalReportPackageReadinessResponse(BaseModel):
         default_factory=lambda: PersonalReportPackageInputCoverage(),
         description="Decision-backed coverage for contributing package inputs.",
     )
-
-    @field_validator("action_href")
-    @classmethod
-    def validate_action_href(cls, value: str) -> str:
-        return validate_internal_action_href(value)
 
 
 class PersonalReportPackageSnapshotSummary(BaseModel):
@@ -659,7 +650,7 @@ class PersonalReportPackageSnapshotSummary(BaseModel):
     created_at: datetime | None = Field(default=None, description="Snapshot creation timestamp")
 
 
-class ReportSnapshotSummary(BaseModel):
+class ReportSnapshotSummary(BaseResponse):
     """Typed metadata for a Layer-4 ``ReportSnapshot`` (#1008, AC18.4.2).
 
     Replaces the model-less ``list[dict]`` returned by
@@ -667,8 +658,6 @@ class ReportSnapshotSummary(BaseModel):
     OpenAPI and built from the ORM via ``from_attributes`` instead of a
     hand-rolled dict.
     """
-
-    model_config = {"from_attributes": True}
 
     id: UUID = Field(description="Report snapshot identifier")
     report_type: ReportType = Field(description="Report type this snapshot was generated for")

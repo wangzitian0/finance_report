@@ -35,12 +35,14 @@ def restore_original_s3_check():
 def mock_settings():
     with patch("src.boot.settings") as mock:
         mock.database_url = "postgresql+asyncpg://test:test@localhost/test"
+        mock.secret_key = "unit-test-" + "x" * 26
         mock.ai_api_key = None
         mock.s3_endpoint = "http://localhost:9000"
         mock.s3_access_key = "minio"
         mock.s3_secret_key = "minio123"
         mock.s3_region = "us-east-1"
         mock.s3_bucket = "statements"
+        mock.next_public_app_url = "http://localhost:3000"
         mock.debug = False
         mock.environment = "test"
         mock.base_currency = "USD"
@@ -555,22 +557,20 @@ class TestBootloaderFullMode:
         mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
         mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
 
-        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
-            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
-            with (
-                patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as m_cache,
-                patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as m_wf,
-                patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as m_tel,
-                patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as m_an,
-            ):
-                for name, m in {
-                    "cache": m_cache,
-                    "workflow_engine": m_wf,
-                    "telemetry": m_tel,
-                    "analytics": m_an,
-                }.items():
-                    m.return_value = ServiceStatus(name, "ok", "OK")
-                result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.STAGING)
+        with (
+            patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as m_cache,
+            patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as m_wf,
+            patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as m_tel,
+            patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as m_an,
+        ):
+            for name, m in {
+                "cache": m_cache,
+                "workflow_engine": m_wf,
+                "telemetry": m_tel,
+                "analytics": m_an,
+            }.items():
+                m.return_value = ServiceStatus(name, "ok", "OK")
+            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.STAGING)
 
         assert result is True
         mock_openrouter_check.assert_called_once()
@@ -581,11 +581,9 @@ class TestBootloaderFullMode:
         with (
             patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
             patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
-            patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
         ):
             mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
             mock_openrouter.return_value = ServiceStatus("ai_provider", "ok", "OK")
-            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
 
             result = await Bootloader.validate(BootMode.FULL)
 
@@ -599,11 +597,9 @@ class TestBootloaderFullMode:
         with (
             patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
             patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
-            patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
         ):
             mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
             mock_openrouter.return_value = ServiceStatus("ai_provider", "ok", "OK")
-            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
 
             result = await Bootloader.validate(BootMode.FULL)
 
@@ -611,52 +607,61 @@ class TestBootloaderFullMode:
         mock_logger.error.assert_called()
 
 
-class TestBootloaderVaultSecrets:
-    def test_vault_secrets_file_not_found(self):
-        with patch("os.path.exists", return_value=False):
-            status = Bootloader._check_vault_secrets()
+class TestBootloaderNoVaultSecretsResidueAndFailClosedEnv:
+    def test_bootloader_has_no_vault_secrets_file_residue(self):
+        """Guard (#2574 / #2693): /secrets/.env sidecar coupling stays deleted from src.boot."""
+        import src.boot as boot_module
 
-        assert status.status == "warning"
-        assert status.service == "vault_secrets"
-        assert "not found" in status.message
-        assert "Verify secrets provider" in status.message
+        assert not hasattr(Bootloader, "_check_vault_secrets")
+        assert not hasattr(boot_module, "VAULT_SECRETS_FILE_PATH")
+        assert not hasattr(boot_module, "VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS")
 
-    def test_vault_secrets_file_stale(self):
-        with (
-            patch("os.path.exists", return_value=True),
-            patch("os.stat") as mock_stat,
-            patch("time.time", return_value=10000),
-        ):
-            mock_stat.return_value.st_mtime = 10000 - 7200
+    @pytest.mark.parametrize(
+        "attr_name",
+        [
+            "secret_key",
+            "database_url",
+            "s3_secret_key",
+            "s3_access_key",
+            "s3_endpoint",
+            "s3_bucket",
+            "next_public_app_url",
+        ],
+    )
+    def test_static_config_fails_closed_when_required_injected_setting_missing_in_protected_runtime(
+        self, mock_settings, attr_name: str
+    ):
+        """Protected runtimes fail closed when any required injected setting is empty or missing."""
+        mock_settings.environment = "production"
+        mock_settings.secret_key = "unit-test-" + "x" * 26
+        mock_settings.database_url = "postgresql+asyncpg://finance:placeholder@db.internal:5432/finance_report"
+        mock_settings.s3_secret_key = "placeholder-" + "y" * 12
+        mock_settings.s3_access_key = "minio-prod"
+        mock_settings.s3_endpoint = "http://minio:9000"
+        mock_settings.s3_bucket = "statements"
+        mock_settings.next_public_app_url = "https://report.zitian.party"
+        setattr(mock_settings, attr_name, "   ")
 
-            status = Bootloader._check_vault_secrets()
+        assert Bootloader._check_static_config() is False
 
-        assert status.status == "warning"
-        assert "old" in status.message
-        assert "Check token expiry" in status.message
+    async def test_critical_boot_exits_when_required_injected_setting_missing_in_protected_runtime(self, mock_settings):
+        """BootMode.CRITICAL exits 1 when a required injected setting is empty in a protected runtime."""
+        mock_settings.environment = "production"
+        mock_settings.secret_key = "unit-test-" + "x" * 26
+        mock_settings.database_url = "postgresql+asyncpg://finance:placeholder@db.internal:5432/finance_report"
+        mock_settings.s3_secret_key = "placeholder-" + "y" * 12
+        mock_settings.s3_access_key = ""
 
-    def test_vault_secrets_file_fresh(self):
-        with (
-            patch("os.path.exists", return_value=True),
-            patch("os.stat") as mock_stat,
-            patch("time.time", return_value=10000),
-        ):
-            mock_stat.return_value.st_mtime = 10000 - 300
+        with pytest.raises(SystemExit) as exc_info:
+            await Bootloader.validate(BootMode.CRITICAL)
+        assert exc_info.value.code == 1
 
-            status = Bootloader._check_vault_secrets()
+    def test_static_config_fails_closed_on_conflicting_alias_env_vars(self, mock_settings, monkeypatch):
+        """assert_environment rejects conflicting alias values in os.environ (EnvironmentConflictError)."""
+        monkeypatch.setenv("AI_API_KEY", "key-one")
+        monkeypatch.setenv("ZAI_API_KEY", "key-two")
 
-        assert status.status == "ok"
-        assert "last modified" in status.message
-
-    def test_vault_secrets_os_error(self):
-        with (
-            patch("os.path.exists", return_value=True),
-            patch("os.stat", side_effect=OSError("Permission denied")),
-        ):
-            status = Bootloader._check_vault_secrets()
-
-        assert status.status == "error"
-        assert "Permission denied" in status.message
+        assert Bootloader._check_static_config() is False
 
 
 def test_AC_runtime_3_1_required_checks_cover_the_tier_declaration():
@@ -700,9 +705,7 @@ class TestManifestDrivenValidate:
         mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
         mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
 
-        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
-            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
-            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.GITHUB_CI)
+        result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.GITHUB_CI)
 
         assert result is True
         mock_db_check.assert_called_once()
@@ -721,18 +724,16 @@ class TestManifestDrivenValidate:
         mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
 
         extra = {}
-        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
-            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
-            with (
-                patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as extra["cache"],
-                patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as extra["workflow_engine"],
-                patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as extra["telemetry"],
-                patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as extra["analytics"],
-                patch.object(Bootloader, "_check_market_data", new_callable=AsyncMock) as extra["market_data"],
-            ):
-                for name, mock in extra.items():
-                    mock.return_value = ServiceStatus(name, "ok", "OK")
-                result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
+        with (
+            patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as extra["cache"],
+            patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as extra["workflow_engine"],
+            patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as extra["telemetry"],
+            patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as extra["analytics"],
+            patch.object(Bootloader, "_check_market_data", new_callable=AsyncMock) as extra["market_data"],
+        ):
+            for name, mock in extra.items():
+                mock.return_value = ServiceStatus(name, "ok", "OK")
+            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
 
         assert result is True
         for name, mock in extra.items():
@@ -748,24 +749,22 @@ class TestManifestDrivenValidate:
         mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
         mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
 
-        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
-            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
-            with (
-                patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as mock_cache,
-                patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as m_wf,
-                patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as m_tel,
-                patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as m_an,
-                patch.object(Bootloader, "_check_market_data", new_callable=AsyncMock) as m_md,
-            ):
-                mock_cache.return_value = ServiceStatus("cache", "error", "Connection refused")
-                for name, m in {
-                    "workflow_engine": m_wf,
-                    "telemetry": m_tel,
-                    "analytics": m_an,
-                    "market_data": m_md,
-                }.items():
-                    m.return_value = ServiceStatus(name, "ok", "OK")
-                result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
+        with (
+            patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as mock_cache,
+            patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as m_wf,
+            patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as m_tel,
+            patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as m_an,
+            patch.object(Bootloader, "_check_market_data", new_callable=AsyncMock) as m_md,
+        ):
+            mock_cache.return_value = ServiceStatus("cache", "error", "Connection refused")
+            for name, m in {
+                "workflow_engine": m_wf,
+                "telemetry": m_tel,
+                "analytics": m_an,
+                "market_data": m_md,
+            }.items():
+                m.return_value = ServiceStatus(name, "ok", "OK")
+            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
 
         assert result is False
 
@@ -776,11 +775,9 @@ class TestManifestDrivenValidate:
         with (
             patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
             patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
-            patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
         ):
             mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
             mock_openrouter.return_value = ServiceStatus("ai_provider", "ok", "OK")
-            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
             result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.STAGING)
 
         assert result is False

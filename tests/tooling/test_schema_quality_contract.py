@@ -33,8 +33,14 @@ def test_AC8_13_121_pr_ci_runs_schema_migration_contract() -> None:
     schema_block = workflow_text.split("  schema-migrations:", 1)[1].split(
         "  backend:", 1
     )[0]
-    assert "uv run alembic upgrade head" in schema_block
-    assert "uv run alembic check" in schema_block
+    assert (
+        "uv run --frozen alembic upgrade head" in schema_block
+        or "uv run alembic upgrade head" in schema_block
+    )
+    assert (
+        "uv run --frozen alembic check" in schema_block
+        or "uv run alembic check" in schema_block
+    )
     assert "schema-migration-context.txt" in schema_block
     assert "schema-migration-test-context" in schema_block
 
@@ -73,13 +79,17 @@ def test_AC8_13_123_schema_guardrails_scan_real_migration_directory() -> None:
     assert not (ROOT / "apps/backend/tests/migrations/versions").exists()
 
 
-def test_retire_bank_statement_migration_normalizes_uppercase_source_type_drift() -> None:
+def test_retire_bank_statement_migration_normalizes_uppercase_source_type_drift() -> (
+    None
+):
     """Enum rebuild tolerates prod rows written with legacy uppercase labels."""
 
     source = read("apps/backend/migrations/versions/0040_retire_bank_stmt_source.py")
 
     assert "lower(source_type::text) = 'bank_statement'" in source
-    assert "WHEN lower(source_type::text) = 'bank_statement' THEN 'auto_parsed'" in source
+    assert (
+        "WHEN lower(source_type::text) = 'bank_statement' THEN 'auto_parsed'" in source
+    )
     assert "ELSE lower(source_type::text)" in source
 
 

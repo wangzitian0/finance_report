@@ -88,7 +88,6 @@ def test_get_client_ip_with_x_forwarded_for_trusted(monkeypatch) -> None:
     import src.identity.extension.api.auth as auth_module
 
     monkeypatch.setattr(src.config.settings, "trust_proxy", True)
-    monkeypatch.setattr(auth_module, "TRUST_PROXY", True)
 
     request = _mock_request(client_ip="10.0.0.1", x_forwarded_for="203.0.113.50, 198.51.100.1")
     ip = auth_module._get_client_ip(request)

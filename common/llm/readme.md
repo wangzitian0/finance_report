@@ -36,7 +36,7 @@ runtime. The code-level contract is `apps/backend/src/llm/base`.
 | **Contract (types/protocols)** | `apps/backend/src/llm/base/` | Frozen value types + protocols both halves build against |
 | **Secret cipher** | `apps/backend/src/llm/base/secrets.py` | Fernet/MultiFernet encryption of provider API keys at rest |
 | **Encryption key** | `LLM_ENCRYPTION_KEYS` (env/Vault) | Project-level symmetric key(s), newest first |
-| **Provider instances + scene bindings** | DB tables `llm_provider`, `llm_scene_binding` (EPIC B) | Runtime-editable configuration values |
+| **Provider instances + scene bindings** | DB tables `llm_providers`, `llm_scene_bindings` (EPIC B) | Runtime-editable configuration values |
 | **Client / catalogue / usage impl** | `apps/backend/src/llm/` (EPIC A) | litellm-backed implementations of the protocols (usage meter counts requests/tokens, no cost) |
 
 `LitellmClient` is the production implementation of the scene-keyed

@@ -486,6 +486,18 @@ CHECKS: tuple[Check, ...] = (
         why="cassette graded accuracy eval ratchet",
     ),
     Check(
+        name="lockfile-registry",
+        globs=(
+            "package-lock.json",
+            "*package-lock.json",
+            "apps/frontend/package.json",
+            "tools/check_lockfile_registry.py",
+            "common/testing/lockfile_registry.py",
+        ),
+        commands=((PY, "tools/check_lockfile_registry.py"),),
+        why="lockfile or registry gate changed: every resolved package URL must use https://registry.npmjs.org/ (#2668)",
+    ),
+    Check(
         name="frontend-static",
         globs=(
             "apps/frontend/src/*",

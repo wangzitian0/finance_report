@@ -914,9 +914,9 @@ def test_AC_testing_preflight_2_ci_lint_job_runs_the_openapi_spec_gate():
     ]
     assert run_lines == [
         "cd apps/backend",
-        "uv run python ../../tools/preflight.py --only openapi-spec --ci",
+        "uv run --frozen python ../../tools/preflight.py --only openapi-spec --ci",
     ]
-    assert names.index("Install dependencies") < matching[0]
+    assert names.index("Set up backend environment") < matching[0]
     assert names.index("Install frontend dependencies") < matching[0]
     assert "if" not in step, "the openapi-spec step must run on every Lint run"
     assert not step.get("continue-on-error"), "the step must fail the Lint job"
@@ -942,9 +942,9 @@ def test_AC_testing_preflight_2_ci_lint_job_runs_the_package_contract_gate():
     ]
     assert run_lines == [
         "cd apps/backend",
-        "uv run python ../../tools/preflight.py --only package-contract --ci",
+        "uv run --frozen python ../../tools/preflight.py --only package-contract --ci",
     ]
-    assert names.index("Install dependencies") < matching[0]
+    assert names.index("Set up backend environment") < matching[0]
     assert "if" not in step, "the package-contract step must run on every Lint run"
     assert not step.get("continue-on-error"), "the step must fail the Lint job"
 

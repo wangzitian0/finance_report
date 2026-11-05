@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
+import tempfile
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -68,11 +71,87 @@ SUMMARY_FLAG_CASES = (
 # json.dumps with an indent raises RecursionError near 1000 levels.
 TELEMETRY_DEPTH_LIMIT = 50
 NO_FIGURES = "<p>No figures recorded. The case stopped before it recorded any.</p>"
+NO_TABLE_FIGURES = "<p>No assertion table figures recorded. Inspect Raw Adjudication Telemetry below.</p>"
 # A failed case does not show which check failed, so each row of its table says this.
 UNCONFIRMED = "❌ Unconfirmed"
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
+_SURROGATE = re.compile(r"[\ud800-\udfff]")
+_ISO_SUBSECOND = re.compile(r"(\d{2}:\d{2}:\d{2})\.\d+")
 # One row of a case table: label, recorded value or None, unit, verdict HTML.
 Row = tuple[str, str | None, str, str]
+
+
+def _clean_surrogates(text: str) -> str:
+    """Replace lone UTF-16 surrogates with the replacement character U+FFFD."""
+    return _SURROGATE.sub("\ufffd", text)
+
+
+def _safe_int_str(value: int) -> str:
+    """Convert an int to text without crashing on Python's 4300-digit str() limit."""
+    try:
+        return str(value)
+    except ValueError:
+        return hex(value)
+
+
+def sanitize_for_json(value: Any, _depth: int = 0) -> Any:
+    """Convert arbitrary in-process values into UTF-8 and JSON-safe primitives."""
+    if _depth > TELEMETRY_DEPTH_LIMIT:
+        return "<depth-limit-exceeded>"
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        try:
+            str(value)
+            return value
+        except ValueError:
+            return _safe_int_str(value)
+    if isinstance(value, float):
+        text = _number_text(value)
+        return value if text is not None else str(value)
+    if isinstance(value, Decimal):
+        return _clean_surrogates(str(value))
+    if isinstance(value, str):
+        return _clean_surrogates(value)
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            if isinstance(k, str):
+                key_str = _clean_surrogates(k)
+            elif isinstance(k, int) and not isinstance(k, bool):
+                key_str = _safe_int_str(k)
+            else:
+                try:
+                    key_str = _clean_surrogates(str(k))
+                except ValueError:
+                    key_str = repr(type(k).__name__)
+            out[key_str] = sanitize_for_json(v, _depth + 1)
+        return out
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [sanitize_for_json(item, _depth + 1) for item in value]
+    try:
+        return _clean_surrogates(str(value))
+    except ValueError:
+        return repr(type(value).__name__)
+
+
+def write_utf8_atomic(path: Path, content: str) -> None:
+    """Encode UTF-8 in memory (replacing any lone surrogates) and atomically replace `path`."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    clean_bytes = _clean_surrogates(content).encode("utf-8", errors="replace")
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent),
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(clean_bytes)
+        os.replace(tmp_path, path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def _fill(template: str, values: dict[str, str]) -> str:
@@ -115,15 +194,16 @@ def _number_text(value: Any) -> str | None:
     The text of a bool is no decimal syntax. The function never calls str() on a container,
     so a deep container cannot raise RecursionError.
     """
-    if not isinstance(value, (int, float, str, Decimal)):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str, Decimal)):
         return None
     try:
-        text = str(value).strip()
-        number = Decimal(text)
+        raw = str(value).strip()
+        cleaned = raw.replace(",", "") if isinstance(value, str) else raw
+        number = Decimal(cleaned)
     except (InvalidOperation, ValueError):
         # str() raises ValueError for an int with more digits than Python prints.
         return None
-    return text if number.is_finite() else None
+    return _clean_surrogates(cleaned) if number.is_finite() else None
 
 
 def _number(value: Any) -> Decimal | None:
@@ -139,7 +219,8 @@ def _text_value(value: Any) -> str | None:
     A bool, a container and None have no text.
     """
     if isinstance(value, str):
-        return value if value else None
+        cleaned = _clean_surrogates(value)
+        return cleaned if cleaned else None
     return _number_text(value)
 
 
@@ -213,10 +294,13 @@ def _duration_text(value: Any) -> str:
 
 
 def _total_seconds(results: list[dict[str, Any]]) -> float | None:
-    """The sum of the valid case durations, or None when no case recorded a valid one."""
+    """The sum of the case durations when every case recorded a valid duration, else None."""
+    if not results:
+        return None
     durations = [_seconds_or_none(r.get("duration_seconds")) for r in results]
-    valid = [seconds for seconds in durations if seconds is not None]
-    return sum(valid) if valid else None
+    if any(seconds is None for seconds in durations):
+        return None
+    return sum(seconds for seconds in durations if seconds is not None)
 
 
 def _href(url: str) -> str:
@@ -304,14 +388,32 @@ def _recorded_delta_count(results: list[dict[str, Any]]) -> int:
     return sum(1 for result in results if _recorded_deltas([result]))
 
 
+def _has_nonzero_delta(result: dict[str, Any]) -> bool:
+    """True when the case result recorded any non-zero equation delta."""
+    return any(size != 0 for size, _ in _recorded_deltas([result]))
+
+
+def _effective_case_status(result: dict[str, Any] | None) -> str | None:
+    """The effective status of a case record.
+
+    A record with status PASS that recorded a non-zero equation delta is FAIL.
+    """
+    if not result:
+        return None
+    status = _text_value(result.get("status"))
+    if status == PASS and _has_nonzero_delta(result):
+        return FAIL
+    return status
+
+
 def _verdict(cases: list[dict[str, Any] | None]) -> str:
     """The verdict of the case records behind a check: FAIL, NOT RUN or PASS.
 
-    FAIL when a record failed. NOT RUN when no record failed and a record is missing,
-    has no status or was skipped. PASS only when every record ran and passed.
-    No record gives NOT RUN.
+    FAIL when a record failed (or recorded a non-zero delta). NOT RUN when no record
+    failed and a record is missing, has no status or was skipped. PASS only when every
+    record ran and passed. No record gives NOT RUN.
     """
-    statuses = [case.get("status") if case else None for case in cases]
+    statuses = [_effective_case_status(case) for case in cases]
     if not statuses:
         return NOT_RUN
     if any(status not in (None, "SKIPPED", PASS) for status in statuses):
@@ -421,36 +523,77 @@ def _render_invariants_rows(by_id: dict[str, dict[str, Any]]) -> str:
     return out
 
 
-def _summary_of(report_data: dict[str, Any]) -> dict[str, Any]:
+def _summary_of(report_data: Any) -> dict[str, Any]:
     """The summary of a report, or an empty dict."""
+    if not isinstance(report_data, dict):
+        return {}
     summary = report_data.get("summary")
     return summary if isinstance(summary, dict) else {}
 
 
-def _results_of(report_data: dict[str, Any]) -> list[dict[str, Any]]:
+def _results_of(report_data: Any) -> list[dict[str, Any]]:
     """The case results of a report. An entry that is no dict is dropped."""
+    if not isinstance(report_data, dict):
+        return []
     results = report_data.get("results")
     if not isinstance(results, list):
         return []
     return [result for result in results if isinstance(result, dict)]
 
 
-def _report_counts(report_data: dict[str, Any]) -> dict[str, int]:
-    """Case counts of a report.
-
-    The summary wins when it holds a count. Else the case results give the count.
-    """
-    results = _results_of(report_data)
-    summary = _summary_of(report_data)
-    statuses = [result.get("status") for result in results]
+def _derived_counts(results: list[dict[str, Any]]) -> dict[str, int]:
+    """Case counts derived directly from the verified case result records."""
+    statuses = [_effective_case_status(result) for result in results]
     passed = statuses.count(PASS)
     skipped = statuses.count("SKIPPED")
-    derived = {
+    return {
         "total": len(results),
         "passed": passed,
         "skipped": skipped,
         "failed": len(results) - passed - skipped,
     }
+
+
+def _summary_disagreement(
+    report_data: Any, results: list[dict[str, Any]]
+) -> str | None:
+    """Describe any disagreement between summary counts/flags and verified result records."""
+    if not isinstance(report_data, dict) or not isinstance(
+        report_data.get("summary"), dict
+    ):
+        return None
+    summary = _summary_of(report_data)
+    derived = _derived_counts(results)
+    mismatches: list[str] = []
+    for key in ("total", "passed", "skipped", "failed"):
+        if key in summary and summary.get(key) is not None:
+            recorded = _whole_number(summary.get(key))
+            if recorded is None or recorded != derived[key]:
+                mismatches.append(
+                    f"summary.{key}={_text_value(summary.get(key)) or summary.get(key)!r} vs results.{key}={derived[key]}"
+                )
+    if summary.get("success") is True and (
+        derived["total"] == 0 or derived["passed"] == 0 or derived["failed"] > 0
+    ):
+        mismatches.append(
+            f"summary.success=True vs results(passed={derived['passed']}, failed={derived['failed']}, total={derived['total']})"
+        )
+    if not mismatches:
+        return None
+    return "; ".join(mismatches)
+
+
+def _report_counts(report_data: Any) -> dict[str, int]:
+    """Case counts of a report.
+
+    When result records are present, derived counts from verified results are authoritative.
+    When results are empty and summary counts agree with zero, summary counts are used.
+    """
+    results = _results_of(report_data)
+    derived = _derived_counts(results)
+    if results or _summary_disagreement(report_data, results) is not None:
+        return derived
+    summary = _summary_of(report_data)
     counts: dict[str, int] = {}
     for key, fallback in derived.items():
         recorded = _whole_number(summary.get(key))
@@ -460,21 +603,27 @@ def _report_counts(report_data: dict[str, Any]) -> dict[str, int]:
 
 def _not_passed_count(results: list[dict[str, Any]]) -> int:
     """How many case records did not pass."""
-    return sum(1 for result in results if result.get("status") != PASS)
+    return sum(1 for result in results if _effective_case_status(result) != PASS)
+
+
+def _failed_count(results: list[dict[str, Any]]) -> int:
+    """How many case records failed (excluding PASS and SKIPPED)."""
+    return sum(
+        1
+        for result in results
+        if _effective_case_status(result) not in (PASS, "SKIPPED")
+    )
 
 
 def _all_passed(
-    report_data: dict[str, Any],
+    report_data: Any,
     counts: dict[str, int],
     results: list[dict[str, Any]],
 ) -> bool:
-    """True only when the run recorded success and each count on the page agrees.
-
-    The run needs one case or more. Every case passed, no case failed and no case was
-    skipped. The case records hold no record that did not pass.
-    """
+    """True only when the run recorded success and every case passed with zero skips."""
     return (
         _summary_of(report_data).get("success") is True
+        and _summary_disagreement(report_data, results) is None
         and counts["total"] >= 1
         and counts["passed"] == counts["total"]
         and counts["failed"] == 0
@@ -483,27 +632,47 @@ def _all_passed(
     )
 
 
+def _run_passed(
+    report_data: Any,
+    counts: dict[str, int],
+    results: list[dict[str, Any]],
+) -> bool:
+    """True when the run recorded success, counts agree with results, at least one case passed, and none failed."""
+    return (
+        _summary_of(report_data).get("success") is True
+        and _summary_disagreement(report_data, results) is None
+        and counts["total"] >= 1
+        and counts["passed"] >= 1
+        and counts["failed"] == 0
+        and counts["passed"] + counts["skipped"] == counts["total"]
+        and _failed_count(results) == 0
+    )
+
+
 def _run_status(
-    report_data: dict[str, Any],
+    report_data: Any,
     counts: dict[str, int],
     results: list[dict[str, Any]],
 ) -> str:
     """PASS or FAIL as the page header decides, or UNKNOWN for a report without a summary."""
-    if not isinstance(report_data.get("summary"), dict):
+    if not isinstance(report_data, dict) or not isinstance(
+        report_data.get("summary"), dict
+    ):
         return UNKNOWN
-    return PASS if _all_passed(report_data, counts, results) else FAIL
+    return PASS if _run_passed(report_data, counts, results) else FAIL
 
 
-def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
+def extract_summary_data(report_data: Any) -> dict[str, Any]:
     """Extract machine-readable summary metrics from full benchmark report data.
 
     A value that the run did not record is None. The exceptions are run_at and app_url:
     they are "" then, because the index generator sorts the summaries by run_at text.
     """
-    results = _results_of(report_data)
-    counts = _report_counts(report_data)
+    report_dict = report_data if isinstance(report_data, dict) else {}
+    results = _results_of(report_dict)
+    counts = _report_counts(report_dict)
     by_id = _cases_by_id(results)
-    version = _text_value(report_data.get("version_ref"))
+    version = _text_value(report_dict.get("version_ref"))
     total_seconds = _total_seconds(results)
 
     passed_case_ids = {
@@ -517,11 +686,12 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "version": version,
-        "run_at": _text_value(report_data.get("run_at")) or "",
-        "app_url": _text_value(report_data.get("app_url")) or "",
-        "status": _run_status(report_data, counts, results),
+        "run_at": _text_value(report_dict.get("run_at")) or "",
+        "app_url": _text_value(report_dict.get("app_url")) or "",
+        "status": _run_status(report_dict, counts, results),
         "cases_total": counts["total"],
         "cases_passed": counts["passed"],
+        "cases_skipped": counts["skipped"],
         "cases_failed": counts["failed"],
         "duration_seconds": (
             None if total_seconds is None else round(total_seconds, 2)
@@ -637,28 +807,94 @@ def _render_diff_section(
     """
 
 
+def _row_verdict_state(
+    details: dict[str, Any],
+    passed: bool,
+    value_present: bool,
+    *keys: str,
+) -> str:
+    """Resolve the per-assertion verdict of a table row: 'passed', 'failed' or 'not_run'."""
+    verdicts = details.get("assertion_verdicts")
+    if isinstance(verdicts, dict):
+        for key in keys:
+            raw = verdicts.get(key)
+            if raw in ("passed", True):
+                return "passed" if value_present else "not_run"
+            if raw in ("failed", False):
+                return "failed"
+            if raw == "not_run":
+                return "not_run"
+        return "not_run"
+    if not value_present:
+        return "not_run"
+    return "passed" if passed else "failed"
+
+
+def _check_row(
+    details: dict[str, Any],
+    passed: bool,
+    confirmed: str,
+    value: Any,
+    *keys: str,
+) -> str:
+    """The verdict cell of a row, reading per-assertion verdicts when present."""
+    state = _row_verdict_state(details, passed, value is not None, *keys)
+    if state == "passed":
+        return html.escape(f"✅ {confirmed}")
+    if state == "failed":
+        return UNCONFIRMED
+    return MISSING
+
+
 def _check(passed: bool, confirmed: str) -> str:
     """The verdict cell of a row: the confirmed text for a passed case, else UNCONFIRMED."""
     return html.escape(f"✅ {confirmed}") if passed else UNCONFIRMED
 
 
 def _delta_badge(
-    delta: Decimal | None, unit: str, passed: bool, broken: str | None = None
+    delta: Decimal | None,
+    unit: str,
+    passed: bool,
+    broken: str | None = None,
+    *,
+    details: dict[str, Any] | None = None,
+    keys: tuple[str, ...] = ("equation_delta",),
 ) -> str:
     """The badge of a delta row.
 
-    A passed case states the recorded delta. A failed case claims a fault only for a
-    recorded delta that is not zero. A zero delta or a missing delta gets a neutral badge.
+    A non-zero delta is always a failed check. A zero delta on a passed row is Balanced.
     """
-    if passed:
-        if delta is None:
-            return _badge("pass", "Balanced (Δ not recorded)")
-        return _badge("pass", f"{_format_number(delta)} {unit} Balanced")
+    if delta is not None and delta != 0:
+        msg = (
+            f"{_format_number(delta)} {unit} {broken}"
+            if broken
+            else f"❌ {_format_number(delta)} {unit} Regression"
+        )
+        return _badge("fail", msg)
     if delta is None:
-        return _badge("skip", "Δ not recorded")
-    if delta == 0:
-        return _badge("skip", "No difference recorded")
-    return _badge("fail", broken or f"{_format_number(delta)} {unit} Regression")
+        if details is not None:
+            state = _row_verdict_state(details, passed, False, *keys)
+            if state == "failed":
+                return _badge("fail", f"❌ {unit} Equation Broken")
+        if passed:
+            return _badge("pass", f"Balanced ({unit} Δ not recorded)")
+        return _badge("skip", f"{unit} Δ not recorded")
+    # delta == 0
+    if details is not None:
+        state = _row_verdict_state(details, passed, True, *keys)
+        if state == "passed":
+            return _badge("pass", f"✅ {_format_number(delta)} {unit} Balanced")
+        if state == "failed":
+            msg = (
+                f"{_format_number(delta)} {unit} {broken}"
+                if broken
+                else f"❌ {_format_number(delta)} {unit} Unconfirmed"
+            )
+            return _badge("fail", msg)
+        return _badge("skip", f"{_format_number(delta)} {unit} No difference recorded")
+    if passed:
+        return _badge("pass", f"✅ {_format_number(delta)} {unit} Balanced")
+    return _badge("skip", f"{_format_number(delta)} {unit} No difference recorded")
 
 
 def _deltas(details: dict[str, Any], case_id: str) -> list[Decimal | None]:
@@ -668,16 +904,36 @@ def _deltas(details: dict[str, Any], case_id: str) -> list[Decimal | None]:
 
 def _cell(value: str | None, unit: str) -> str:
     """The escaped value cell of a row. A missing value shows "n/a"."""
-    text = MISSING if value is None else value
-    return html.escape(f"{text} {unit}" if unit else text)
+    if value is None:
+        return MISSING
+    return html.escape(f"{value} {unit}" if unit else value)
 
 
-def _table(headers: tuple[str, str, str], rows: list[Row], passed: bool) -> str:
+def _has_recorded_telemetry(details: dict[str, Any]) -> bool:
+    """True when `details` holds any recorded telemetry beyond `not_run` verdicts."""
+    for key, val in details.items():
+        if key == "assertion_verdicts":
+            if isinstance(val, dict) and any(v != "not_run" for v in val.values()):
+                return True
+            continue
+        if val is not None and val != "":
+            return True
+    return False
+
+
+def _table(
+    headers: tuple[str, str, str],
+    rows: list[Row],
+    passed: bool,
+    details: dict[str, Any] | None = None,
+) -> str:
     """A case table, or a note for a failed case that recorded no value in any row.
 
     A table of a case that stopped early would claim checks that the run never made.
     """
     if not passed and all(value is None for _, value, _, _ in rows):
+        if details and _has_recorded_telemetry(details):
+            return NO_TABLE_FIGURES
         return NO_FIGURES
     head = "".join(f"<th>{html.escape(name)}</th>" for name in headers)
     body = "".join(
@@ -696,152 +952,278 @@ def _table(headers: tuple[str, str, str], rows: list[Row], passed: bool) -> str:
 
 def _render_case_1_table(details: dict[str, Any], passed: bool) -> str:
     (delta,) = _deltas(details, "case_1")
+    m1 = _money(_figure(details, "m1_closing_balance", "month_1_ending_balance"))
+    m2 = _money(_figure(details, "m2_closing_balance", "month_2_ending_balance"))
+    m3 = _money(_figure(details, "m3_closing_balance", "month_3_ending_balance"))
+    m4 = _money(_figure(details, "m4_closing_balance", "month_4_ending_balance"))
+    q1 = _money(_figure(details, "q1_net_income"))
+    cum = _money(_figure(details, "cumulative_net_income"))
     return _table(
         ("Financial Assertion", "Value (SGD)", "Reconciliation Status"),
         [
             (
                 "Month 1 (Jan 2025) Ending Balance",
-                _money(
-                    _figure(details, "m1_closing_balance", "month_1_ending_balance")
-                ),
+                m1,
                 "",
-                _check(passed, "Anchor Confirmed"),
+                _check_row(
+                    details,
+                    passed,
+                    "Anchor Confirmed",
+                    m1,
+                    "m1_closing_balance",
+                    "month_1_ending_balance",
+                ),
             ),
             (
                 "Month 2 (Feb 2025) Ending Balance",
-                _money(
-                    _figure(details, "m2_closing_balance", "month_2_ending_balance")
-                ),
+                m2,
                 "",
-                _check(passed, "Exact Continuity Rollforward"),
+                _check_row(
+                    details,
+                    passed,
+                    "Exact Continuity Rollforward",
+                    m2,
+                    "m2_closing_balance",
+                    "month_2_ending_balance",
+                ),
             ),
             (
                 "Month 3 (Mar 2025 - Q1 Close) Ending Balance",
-                _money(
-                    _figure(details, "m3_closing_balance", "month_3_ending_balance")
-                ),
+                m3,
                 "",
-                _check(passed, "Q1 Continuity Confirmed"),
+                _check_row(
+                    details,
+                    passed,
+                    "Q1 Continuity Confirmed",
+                    m3,
+                    "m3_closing_balance",
+                    "month_3_ending_balance",
+                ),
             ),
             (
                 "Month 4 (Apr 2025 - Q2 Transition) Ending Balance",
-                _money(
-                    _figure(details, "m4_closing_balance", "month_4_ending_balance")
-                ),
+                m4,
                 "",
-                _check(passed, "4-Month Rollforward Intact"),
+                _check_row(
+                    details,
+                    passed,
+                    "4-Month Rollforward Intact",
+                    m4,
+                    "m4_closing_balance",
+                    "month_4_ending_balance",
+                ),
             ),
             (
                 "Q1 Cumulative Net Income",
-                _money(_figure(details, "q1_net_income")),
+                q1,
                 "",
-                _check(passed, "Articulated to Q1 Retained Earnings"),
+                _check_row(
+                    details,
+                    passed,
+                    "Articulated to Q1 Retained Earnings",
+                    q1,
+                    "q1_net_income",
+                ),
             ),
             (
                 "4-Month Cumulative Net Income",
-                _money(_figure(details, "cumulative_net_income")),
+                cum,
                 "",
-                _check(passed, "Articulated to Retained Earnings"),
+                _check_row(
+                    details,
+                    passed,
+                    "Articulated to Retained Earnings",
+                    cum,
+                    "cumulative_net_income",
+                ),
             ),
             (
                 "Balance Sheet Equation Delta (A - L - E)",
                 _money(_formatted(delta)),
-                "",
-                _delta_badge(delta, "SGD", passed),
+                "SGD",
+                _delta_badge(
+                    delta,
+                    "SGD",
+                    passed,
+                    details=details,
+                    keys=("equation_delta",),
+                ),
             ),
         ],
         passed,
+        details,
     )
 
 
 def _render_case_2_table(details: dict[str, Any], passed: bool) -> str:
     (delta,) = _deltas(details, "case_2")
+    h_cash = _money(_figure(details, "household_husband_cash"))
+    w_cash = _money(_figure(details, "household_wife_cash"))
+    inc = _money(_figure(details, "total_income"), signed=True)
+    exp = _money(_figure(details, "total_expenses"), signed=True)
+    net = _money(_figure(details, "net_income"), signed=True)
+    end_cash = _money(_figure(details, "ending_cash", "closing_balance"))
     return _table(
         ("Financial Assertion", "Value (SGD)", "Reconciliation Status"),
         [
             (
                 "Husband Account (DBS Bank) Ending Cash",
-                _money(_figure(details, "household_husband_cash")),
+                h_cash,
                 "",
-                _check(passed, "Source Account Reconciled"),
+                _check_row(
+                    details,
+                    passed,
+                    "Source Account Reconciled",
+                    h_cash,
+                    "household_husband_cash",
+                ),
             ),
             (
                 "Wife Account (Standard Chartered) Ending Cash",
-                _money(_figure(details, "household_wife_cash")),
+                w_cash,
                 "",
-                _check(passed, "Multi-PII Account Reconciled"),
+                _check_row(
+                    details,
+                    passed,
+                    "Multi-PII Account Reconciled",
+                    w_cash,
+                    "household_wife_cash",
+                ),
             ),
             (
                 "Consolidated Operating Revenue",
-                _money(_figure(details, "total_income"), signed=True),
+                inc,
                 "",
-                _check(passed, "Combined Inflow Reconciled"),
+                _check_row(
+                    details,
+                    passed,
+                    "Combined Inflow Reconciled",
+                    inc,
+                    "total_income",
+                ),
             ),
             (
                 "Consolidated Operating Expenses",
-                _money(_figure(details, "total_expenses"), signed=True),
+                exp,
                 "",
-                _check(passed, "Family Expenses Categorized"),
+                _check_row(
+                    details,
+                    passed,
+                    "Family Expenses Categorized",
+                    exp,
+                    "total_expenses",
+                ),
             ),
             (
                 "Consolidated Net Operating Income",
-                _money(_figure(details, "net_income"), signed=True),
+                net,
                 "",
-                _check(passed, "P&L Sum Reconciled"),
+                _check_row(
+                    details,
+                    passed,
+                    "P&L Sum Reconciled",
+                    net,
+                    "net_income",
+                ),
             ),
             (
                 "Consolidated Total Liquid Cash",
-                _money(_figure(details, "ending_cash", "closing_balance")),
+                end_cash,
                 "",
-                _check(passed, "Cash Flow Ending Cash Conserved"),
+                _check_row(
+                    details,
+                    passed,
+                    "Cash Flow Ending Cash Conserved",
+                    end_cash,
+                    "ending_cash",
+                    "closing_balance",
+                ),
             ),
             (
                 "Balance Sheet Equation Delta",
                 _money(_formatted(delta)),
-                "",
-                _delta_badge(delta, "SGD", passed),
+                "SGD",
+                _delta_badge(
+                    delta,
+                    "SGD",
+                    passed,
+                    details=details,
+                    keys=("equation_delta",),
+                ),
             ),
         ],
         passed,
+        details,
     )
 
 
 def _render_case_3_table(details: dict[str, Any], passed: bool) -> str:
     (delta,) = _deltas(details, "case_3")
+    spend = _money(_figure(details, "card_spend_recorded"), signed=True)
+    repay = _money(_figure(details, "bank_repayment"), signed=True)
+    cleared = _money(_figure(details, "credit_card_liability_cleared"))
+    cash = _money(_figure(details, "ending_bank_cash", "total_assets"))
     net_income = _figure(details, "net_income")
-    if passed:
-        pnl_badge = _badge("pass", "Zero Double-Counting (Pure Liability Clearance)")
-    elif net_income is None:
-        pnl_badge = _badge("skip", "Not recorded")
+    pnl_state = _row_verdict_state(
+        details, passed, net_income is not None, "net_income"
+    )
+    if pnl_state == "passed":
+        pnl_badge = _badge("pass", "✅ Zero Double-Counting (Pure Liability Clearance)")
+    elif pnl_state == "failed":
+        pnl_badge = _badge("fail", "❌ Unconfirmed")
     else:
-        # The report cannot tell why the case failed. It names no cause.
-        pnl_badge = _badge("fail", "Unconfirmed")
+        pnl_badge = MISSING
     return _table(
         ("Financial Assertion", "Value (SGD)", "Reconciliation Status"),
         [
             (
                 "Credit Card Incurred Charges (Liability Incurrence)",
-                _money(_figure(details, "card_spend_recorded"), signed=True),
+                spend,
                 "",
-                _check(passed, "Card Expense & Liability Tracked"),
+                _check_row(
+                    details,
+                    passed,
+                    "Card Expense & Liability Tracked",
+                    spend,
+                    "card_spend_recorded",
+                ),
             ),
             (
                 "Bank Account Settlement Payment Outflow",
-                _money(_figure(details, "bank_repayment"), signed=True),
+                repay,
                 "",
-                _check(passed, "Bank Cash Outflow Tracked"),
+                _check_row(
+                    details,
+                    passed,
+                    "Bank Cash Outflow Tracked",
+                    repay,
+                    "bank_repayment",
+                ),
             ),
             (
                 "Credit Card Liability Ending Balance",
-                _money(_figure(details, "credit_card_liability_cleared")),
+                cleared,
                 "",
-                _check(passed, "Liability Fully Cleared"),
+                _check_row(
+                    details,
+                    passed,
+                    "Liability Fully Cleared",
+                    cleared,
+                    "credit_card_liability_cleared",
+                ),
             ),
             (
                 "Ending Bank Liquid Cash Balance",
-                _money(_figure(details, "ending_bank_cash", "total_assets")),
+                cash,
                 "",
-                _check(passed, "Cash Balance Conserved"),
+                _check_row(
+                    details,
+                    passed,
+                    "Cash Balance Conserved",
+                    cash,
+                    "ending_bank_cash",
+                    "total_assets",
+                ),
             ),
             (
                 "P&L Double-Counting Prevention (Net Income)",
@@ -852,150 +1234,288 @@ def _render_case_3_table(details: dict[str, Any], passed: bool) -> str:
             (
                 "Balance Sheet Equation Delta",
                 _money(_formatted(delta)),
-                "",
-                _delta_badge(delta, "SGD", passed),
+                "SGD",
+                _delta_badge(
+                    delta,
+                    "SGD",
+                    passed,
+                    details=details,
+                    keys=("equation_delta",),
+                ),
             ),
         ],
         passed,
+        details,
     )
 
 
 def _render_case_4_table(details: dict[str, Any], passed: bool) -> str:
     sgd_delta, usd_delta = _deltas(details, "case_4")
+    sgd_bal = _figure(details, "sgd_closing_balance")
+    usd_bal = _figure(details, "usd_closing_balance")
+    hkd_bal = _figure(details, "hkd_closing_balance")
+    tot_sgd = _money(_figure(details, "total_assets_sgd"))
     return _table(
         ("Financial Assertion", "Amount", "Multi-Currency Status"),
         [
             (
                 "Singapore Jurisdiction (SGD Account)",
-                _figure(details, "sgd_closing_balance"),
+                sgd_bal,
                 "SGD",
-                _check(passed, "Local Inflow Verified"),
+                _check_row(
+                    details,
+                    passed,
+                    "Local Inflow Verified",
+                    sgd_bal,
+                    "sgd_closing_balance",
+                ),
             ),
             (
                 "United States Jurisdiction (USD Account)",
-                _figure(details, "usd_closing_balance"),
+                usd_bal,
                 "USD",
-                _check(passed, "Foreign Currency Inflow Verified"),
+                _check_row(
+                    details,
+                    passed,
+                    "Foreign Currency Inflow Verified",
+                    usd_bal,
+                    "usd_closing_balance",
+                ),
             ),
             (
                 "Hong Kong Jurisdiction (HKD Account)",
-                _figure(details, "hkd_closing_balance"),
+                hkd_bal,
                 "HKD",
-                _check(passed, "Foreign Currency Inflow Verified"),
+                _check_row(
+                    details,
+                    passed,
+                    "Foreign Currency Inflow Verified",
+                    hkd_bal,
+                    "hkd_closing_balance",
+                ),
             ),
             (
                 "Consolidated Total Assets (SGD Base)",
-                _money(_figure(details, "total_assets_sgd")),
+                tot_sgd,
                 "SGD",
-                _check(passed, "Unified Multi-Currency Conversion"),
+                _check_row(
+                    details,
+                    passed,
+                    "Unified Multi-Currency Conversion",
+                    tot_sgd,
+                    "total_assets_sgd",
+                ),
             ),
             (
                 "SGD Balance Sheet Equation Delta",
                 _money(_formatted(sgd_delta)),
-                "",
-                _delta_badge(sgd_delta, "SGD", passed),
+                "SGD",
+                _delta_badge(
+                    sgd_delta,
+                    "SGD",
+                    passed,
+                    details=details,
+                    keys=("equation_delta_sgd", "equation_delta"),
+                ),
             ),
             (
                 "USD Balance Sheet Equation Delta",
                 _money(_formatted(usd_delta)),
-                "",
-                _delta_badge(usd_delta, "USD", passed),
+                "USD",
+                _delta_badge(
+                    usd_delta,
+                    "USD",
+                    passed,
+                    details=details,
+                    keys=("equation_delta_usd",),
+                ),
             ),
         ],
         passed,
+        details,
     )
 
 
 def _render_case_5_table(details: dict[str, Any], passed: bool) -> str:
     (delta,) = _deltas(details, "case_5")
     appraisal = _text(details, "appraisal_source") or MISSING
+    symbols = _text(details, "symbols")
+    holdings = _figure(details, "holdings_count")
+    prop_val = _money(_figure(details, "property_valuation_usd"))
+    tax_status = _text(details, "tax_ecosystem_status")
+    tot_assets = _money(_figure(details, "total_assets"))
     return _table(
         ("Financial Assertion", "Value", "Portfolio Status"),
         [
             (
                 "Public Securities Tracked",
-                _text(details, "symbols"),
+                symbols,
                 "",
-                _check(passed, "Position Snapshots Recognized"),
+                _check_row(
+                    details,
+                    passed,
+                    "Position Snapshots Recognized",
+                    symbols,
+                    "symbols",
+                ),
             ),
             (
                 "Managed Holdings Count",
-                _figure(details, "holdings_count"),
+                holdings,
                 "Assets",
-                _check(passed, "Atomic & Managed Reconciliation Intact"),
+                _check_row(
+                    details,
+                    passed,
+                    "Atomic & Managed Reconciliation Intact",
+                    holdings,
+                    "holdings_count",
+                ),
             ),
             (
                 "Real Estate Property Appraisal",
-                _money(_figure(details, "property_valuation_usd")),
+                prop_val,
                 "USD",
-                _check(passed, appraisal),
+                _check_row(
+                    details,
+                    passed,
+                    appraisal,
+                    prop_val,
+                    "property_valuation_usd",
+                ),
             ),
             (
                 "Tax & Compensation Integration",
-                _text(details, "tax_ecosystem_status"),
+                tax_status,
                 "",
-                _check(passed, "DocuBench Tax Fixtures Integrated"),
+                _check_row(
+                    details,
+                    passed,
+                    "DocuBench Tax Fixtures Integrated",
+                    tax_status,
+                    "tax_ecosystem_status",
+                ),
             ),
             (
                 "Consolidated Wealth Valuation",
-                _money(_figure(details, "total_assets")),
+                tot_assets,
                 "SGD",
-                _check(passed, "Fair Market Valuation Reflected"),
+                _check_row(
+                    details,
+                    passed,
+                    "Fair Market Valuation Reflected",
+                    tot_assets,
+                    "total_assets",
+                ),
             ),
             (
                 "Balance Sheet Equation Delta",
                 _money(_formatted(delta)),
-                "",
-                _delta_badge(delta, "SGD", passed),
+                "SGD",
+                _delta_badge(
+                    delta,
+                    "SGD",
+                    passed,
+                    details=details,
+                    keys=("equation_delta",),
+                ),
             ),
         ],
         passed,
+        details,
     )
 
 
 def _render_case_6_table(details: dict[str, Any], passed: bool) -> str:
     (delta,) = _deltas(details, "case_6")
+    od_cash = _money(_figure(details, "overdraft_cash", "ending_cash_balance"))
+    cap_gain = _money(_figure(details, "capital_gain"), signed=True)
+    net_inc = _money(_figure(details, "net_income"))
+    tot_assets = _money(
+        _figure(details, "total_assets", "ending_cash", "ending_cash_balance")
+    )
+    tot_equity = _money(_figure(details, "total_equity"))
     return _table(
         ("Accounting Invariant", "Reported Metric", "Integrity Check"),
         [
             (
                 "Overdraft Checkpoint Cash Balance",
-                _money(_figure(details, "overdraft_cash")),
+                od_cash,
                 "SGD",
-                _check(passed, "Negative Balance Equation Validated"),
+                _check_row(
+                    details,
+                    passed,
+                    "Negative Balance Equation Validated",
+                    od_cash,
+                    "overdraft_cash",
+                    "ending_cash_balance",
+                ),
             ),
             (
                 "Realized Capital Gain from Art Disposal",
-                _money(_figure(details, "capital_gain"), signed=True),
+                cap_gain,
                 "SGD",
-                _check(passed, "Capital Gain Recognized in P&L"),
+                _check_row(
+                    details,
+                    passed,
+                    "Capital Gain Recognized in P&L",
+                    cap_gain,
+                    "capital_gain",
+                ),
             ),
             (
                 "Final Period Net Income",
-                _money(_figure(details, "net_income")),
+                net_inc,
                 "SGD",
-                _check(passed, "Expense Offset by Capital Gain"),
+                _check_row(
+                    details,
+                    passed,
+                    "Expense Offset by Capital Gain",
+                    net_inc,
+                    "net_income",
+                ),
             ),
             (
                 "Final Period Total Assets",
-                _money(_figure(details, "total_assets")),
+                tot_assets,
                 "SGD",
-                _check(passed, "Ending Assets Reconciled"),
+                _check_row(
+                    details,
+                    passed,
+                    "Ending Assets Reconciled",
+                    tot_assets,
+                    "total_assets",
+                    "ending_cash_balance",
+                    "ending_cash",
+                ),
             ),
             (
                 "Final Period Total Equity",
-                _money(_figure(details, "total_equity")),
+                tot_equity,
                 "SGD",
-                _check(passed, "Ending Equity Reconciled"),
+                _check_row(
+                    details,
+                    passed,
+                    "Ending Equity Reconciled",
+                    tot_equity,
+                    "total_equity",
+                ),
             ),
             (
                 "Balance Sheet Equation Delta",
                 _money(_formatted(delta)),
-                "",
-                _delta_badge(delta, "SGD", passed, broken="❌ Equation Broken"),
+                "SGD",
+                _delta_badge(
+                    delta,
+                    "SGD",
+                    passed,
+                    broken="❌ Equation Broken",
+                    details=details,
+                    keys=("equation_delta",),
+                ),
             ),
         ],
         passed,
+        details,
     )
 
 
@@ -1017,7 +1537,7 @@ def _nests_deeper_than(value: Any, limit: int) -> bool:
     pending = [(value, 1)]
     while pending:
         item, level = pending.pop()
-        if isinstance(item, (dict, list)):
+        if isinstance(item, (dict, list, tuple, set, frozenset)):
             if level > limit:
                 return True
             children = item.values() if isinstance(item, dict) else item
@@ -1031,7 +1551,8 @@ def _telemetry(details: dict[str, Any]) -> str:
         return (
             f"Not shown: the details nest deeper than {TELEMETRY_DEPTH_LIMIT} levels."
         )
-    return html.escape(json.dumps(details, indent=2))
+    safe_details = sanitize_for_json(details)
+    return html.escape(json.dumps(safe_details, indent=2))
 
 
 def _render_case_details(cid: str | None, details: dict[str, Any], status: Any) -> str:
@@ -1042,13 +1563,26 @@ def _render_case_details(cid: str | None, details: dict[str, Any], status: Any) 
     """
     if status == "SKIPPED":
         return "<p>Not run: the case did not run.</p>"
-    passed = status == PASS
+    passed = status == PASS and not any(
+        size != 0
+        for key in EQUATION_DELTA_KEYS
+        if (size := _number(details.get(key))) is not None
+    )
     render = CASE_TABLES.get(cid or "")
     if render is not None:
         return render(details, passed)
-    if not passed and not details:
+    if not passed and not _has_recorded_telemetry(details):
         return NO_FIGURES
     return f"<pre class='raw-json'>{_telemetry(details)}</pre>"
+
+
+def _status_badge_class(status_text: str) -> str:
+    """Badge CSS class for a case or run status."""
+    if status_text == PASS:
+        return "badge-pass"
+    if status_text in ("SKIPPED", UNKNOWN, NOT_RUN):
+        return "badge-skip"
+    return "badge-fail"
 
 
 def _render_scenario_cards(results: list[dict[str, Any]]) -> str:
@@ -1057,9 +1591,10 @@ def _render_scenario_cards(results: list[dict[str, Any]]) -> str:
     for r in results:
         cid = _case_id(r)
         cid_tag = html.escape(cid.upper()) if cid else UNKNOWN
-        status = r.get("status")
-        cstatus = html.escape(_text_value(status) or UNKNOWN)
-        cbadge = "badge-pass" if status == PASS else "badge-fail"
+        eff_status = _effective_case_status(r)
+        raw_status = _text_value(eff_status) or UNKNOWN
+        cstatus = html.escape(raw_status)
+        cbadge = _status_badge_class(raw_status)
         cdetails = _details_of(r)
         error = _text_value(r.get("error_message"))
         err_html = (
@@ -1081,7 +1616,7 @@ def _render_scenario_cards(results: list[dict[str, Any]]) -> str:
                 </div>
             </div>
             {err_html}
-            {_render_case_details(cid, cdetails, status)}
+            {_render_case_details(cid, cdetails, eff_status)}
             <details class="raw-details">
                 <summary>Inspect Raw Adjudication Telemetry</summary>
                 <pre class="raw-json">{_telemetry(cdetails)}</pre>
@@ -1092,14 +1627,24 @@ def _render_scenario_cards(results: list[dict[str, Any]]) -> str:
     return "".join(cards)
 
 
-def generate_html_report(report_data: dict[str, Any], baseline_data: Any = None) -> str:
+def generate_html_report(report_data: Any, baseline_data: Any = None) -> str:
     """Generate standalone single-file HTML report for a specific release run."""
-    results = _results_of(report_data)
-    counts = _report_counts(report_data)
+    report_dict = report_data if isinstance(report_data, dict) else {}
+    results = _results_of(report_dict)
+    counts = _report_counts(report_dict)
     by_id = _cases_by_id(results)
-    all_passed = _all_passed(report_data, counts, results)
+    all_passed = _all_passed(report_dict, counts, results)
+    run_passed = _run_passed(report_dict, counts, results)
+    disagreement = _summary_disagreement(report_dict, results)
 
-    if all_passed:
+    if disagreement is not None:
+        status_text = (
+            f"SUMMARY COUNT MISMATCH ({disagreement}) — "
+            f"{counts['passed']} OF {counts['total']} SCENARIOS PASSED"
+        )
+        if counts["skipped"]:
+            status_text += f", {counts['skipped']} SKIPPED"
+    elif all_passed:
         status_text = f"ALL {counts['total']} SCENARIOS PASSED"
     else:
         status_text = f"{counts['passed']} OF {counts['total']} SCENARIOS PASSED"
@@ -1110,11 +1655,11 @@ def generate_html_report(report_data: dict[str, Any], baseline_data: Any = None)
     return _fill(
         REPORT_HTML_TEMPLATE,
         {
-            "VERSION": _show(report_data.get("version_ref")),
-            "APP_URL": _show(report_data.get("app_url")),
-            "RUN_AT": _show(report_data.get("run_at")),
-            "STATUS_BADGE_CLASS": "badge-pass" if all_passed else "badge-fail",
-            "STATUS_TEXT": status_text,
+            "VERSION": _show(report_dict.get("version_ref")),
+            "APP_URL": _show(report_dict.get("app_url")),
+            "RUN_AT": _show(report_dict.get("run_at")),
+            "STATUS_BADGE_CLASS": "badge-pass" if run_passed else "badge-fail",
+            "STATUS_TEXT": html.escape(status_text),
             "PASSED_COUNT": str(counts["passed"]),
             "TOTAL_COUNT": str(counts["total"]),
             "TOTAL_DURATION_STR": (
@@ -1174,6 +1719,15 @@ def _report_href(run: dict[str, Any]) -> str:
     return _href(url)
 
 
+def _format_run_date(value: Any) -> str:
+    """Format a run_at timestamp for the history table while preserving its timezone offset."""
+    text = _text_value(value)
+    if text is None:
+        return MISSING
+    formatted = _ISO_SUBSECOND.sub(r"\1", text.replace("T", " "))
+    return html.escape(formatted)
+
+
 def _render_dashboard_table_rows(sorted_runs: list[dict[str, Any]]) -> str:
     """Render historical table rows for the multi-version dashboard."""
     table_rows = ""
@@ -1181,8 +1735,8 @@ def _render_dashboard_table_rows(sorted_runs: list[dict[str, Any]]) -> str:
         v = html.escape(_text_value(r.get("version")) or MISSING)
         status_text = _text_value(r.get("status")) or UNKNOWN
         status = html.escape(status_text)
-        badge_cls = "badge-pass" if status_text == PASS else "badge-fail"
-        run_date = _show((_text_value(r.get("run_at")) or "")[:19].replace("T", " "))
+        badge_cls = _status_badge_class(status_text)
+        run_date = _format_run_date(r.get("run_at"))
         env = _show(r.get("app_url"))
         cases_str = f"{_count(r.get('cases_passed'))} / {_count(r.get('cases_total'))}"
         dur_str = _duration_text(r.get("duration_seconds"))
@@ -1255,9 +1809,13 @@ def _render_dashboard_trend_svg(sorted_runs: list[dict[str, Any]]) -> str:
     """
 
 
-def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
+def generate_index_dashboard(manifest_data: Any) -> str:
     """Generate the root /benchmarks/index.html multi-version dashboard."""
-    runs = [run for run in manifest_data if isinstance(run, dict)]
+    runs = (
+        [run for run in manifest_data if isinstance(run, dict)]
+        if isinstance(manifest_data, (list, tuple))
+        else []
+    )
     sorted_runs = sorted(runs, key=_run_time_key, reverse=True)
 
     has_run = bool(sorted_runs)
@@ -1266,7 +1824,10 @@ def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
     latest_status_text = _text_value(latest_run.get("status")) or UNKNOWN
     passed = _count(latest_run.get("cases_passed"))
     total = _count(latest_run.get("cases_total"))
+    skipped_num = _whole_number(latest_run.get("cases_skipped"))
     counts = f"{passed} of {total} cases passed"
+    if skipped_num:
+        counts += f" ({skipped_num} skipped)"
     if not has_run:
         latest_summary = "The history holds no run yet"
     elif latest_status_text == PASS:
@@ -1284,9 +1845,7 @@ def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
     return _fill(
         DASHBOARD_HTML_TEMPLATE,
         {
-            "LATEST_BADGE_CLASS": (
-                "badge-pass" if latest_status_text == PASS else "badge-fail"
-            ),
+            "LATEST_BADGE_CLASS": _status_badge_class(latest_status_text),
             "LATEST_STATUS": html.escape(latest_status_text),
             "LATEST_VER": html.escape(latest_ver_text),
             "LATEST_REPORT_LINK": latest_report_link,

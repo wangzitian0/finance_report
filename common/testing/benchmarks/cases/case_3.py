@@ -22,6 +22,17 @@ if TYPE_CHECKING:
     )
 
 
+def _set_verdict(
+    details: dict[str, Any] | None,
+    key: str,
+    passed: bool,
+) -> bool:
+    if details is not None:
+        verdicts = details.setdefault("assertion_verdicts", {})
+        verdicts[key] = "passed" if passed else "failed"
+    return passed
+
+
 def _setup_card_liability_and_expenses(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -50,6 +61,7 @@ def _post_card_purchases(
     client: httpx.Client,
     cc_acc: dict[str, Any],
     exp_acc: dict[str, Any],
+    details: dict[str, Any] | None = None,
 ) -> None:
     print("  [3/6] Posting Credit Card purchases (1,200.00 SGD)...")
     lines = [
@@ -73,13 +85,19 @@ def _post_card_purchases(
         entry_date="2025-04-10",
         rationale="Benchmark credit card liability incurrence",
     )
+    if details is not None:
+        details["card_spend_recorded"] = "1200.00"
+    _set_verdict(details, "card_spend_recorded", True)
     print(
         "        Card purchases posted: Liability=+1,200.00 SGD, Expenses=+1,200.00 SGD"
     )
 
 
 def _upload_bank_card_repayment(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client, cc_acc: dict[str, Any]
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    cc_acc: dict[str, Any],
+    details: dict[str, Any] | None = None,
 ) -> None:
     print("  [4/6] Uploading Bank Statement with 1,200.00 SGD Card Payment...")
     csv_bytes = generate_credit_card_repayment_bank_csv(
@@ -104,11 +122,16 @@ def _upload_bank_card_repayment(
         non_pnl_counter_account_id=cc_acc["id"],
     )
     runner.approve_statement(client, stmt_id)
+    if details is not None:
+        details["bank_repayment"] = "1200.00"
+    _set_verdict(details, "bank_repayment", True)
     print("        Bank payment approved with intent=card_repayment.")
 
 
 def _verify_card_repayment_invariants(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal, Decimal, bool]:
     print("  [5/6] Verifying Balance Sheet Debt Clearance (as of 2025-04-30)...")
     bs = runner.get_balance_sheet(client, as_of_date="2025-04-30")
@@ -122,6 +145,55 @@ def _verify_card_repayment_invariants(
         f"        Balance Sheet: Total Assets={total_assets}, Total Liab={total_liabilities}, "
         f"Total Equity={total_equity}, Delta={equation_delta}, Balanced={is_balanced}"
     )
+
+    print("  [6/6] Verifying Zero Double-Counting on Income Statement...")
+    inc = runner.get_income_statement(
+        client, start_date="2025-04-01", end_date="2025-04-30"
+    )
+    total_income = Decimal(inc["total_income"])
+    total_expenses = Decimal(inc["total_expenses"])
+    net_income = Decimal(inc["net_income"])
+    print(
+        f"        Total Income={total_income}, Total Expenses={total_expenses}, Net Income={net_income}"
+    )
+
+    if details is not None:
+        details.update(
+            {
+                "ending_bank_cash": str(total_assets),
+                "credit_card_liability_cleared": str(total_liabilities),
+                "total_assets": str(total_assets),
+                "total_equity": str(total_equity),
+                "total_liabilities": str(total_liabilities),
+                "total_income": str(total_income),
+                "total_expenses": str(total_expenses),
+                "net_income": str(net_income),
+                "equation_delta": str(equation_delta),
+                "is_balanced": is_balanced,
+            }
+        )
+
+    _set_verdict(
+        details,
+        "credit_card_liability_cleared",
+        total_liabilities == Decimal("0.00"),
+    )
+    _set_verdict(details, "ending_bank_cash", total_assets == Decimal("8800.00"))
+    _set_verdict(
+        details,
+        "net_income",
+        total_income == Decimal("0.00")
+        and total_expenses == Decimal("1200.00")
+        and net_income == Decimal("-1200.00"),
+    )
+    _set_verdict(
+        details,
+        "equation_delta",
+        is_balanced is True
+        and equation_delta == Decimal("0.00")
+        and total_equity == Decimal("10000.00"),
+    )
+
     assert is_balanced is True, f"Balance sheet not balanced: delta={equation_delta}"
     assert equation_delta == Decimal("0.00"), (
         f"Equation delta not zero: {equation_delta}"
@@ -135,17 +207,6 @@ def _verify_card_repayment_invariants(
     assert total_equity == Decimal("10000.00"), (
         f"Expected total equity 10000.00, got {total_equity}"
     )
-
-    print("  [6/6] Verifying Zero Double-Counting on Income Statement...")
-    inc = runner.get_income_statement(
-        client, start_date="2025-04-01", end_date="2025-04-30"
-    )
-    total_income = Decimal(inc["total_income"])
-    total_expenses = Decimal(inc["total_expenses"])
-    net_income = Decimal(inc["net_income"])
-    print(
-        f"        Total Income={total_income}, Total Expenses={total_expenses}, Net Income={net_income}"
-    )
     assert total_income == Decimal("0.00"), (
         f"Expected total income 0.00, got {total_income}"
     )
@@ -155,7 +216,11 @@ def _verify_card_repayment_invariants(
     assert net_income == Decimal("-1200.00"), (
         f"Expected net income -1200.00, got {net_income}"
     )
-    assert_triple_accounting_articulation(bs, inc)
+    try:
+        assert_triple_accounting_articulation(bs, inc)
+    except AssertionError:
+        _set_verdict(details, "equation_delta", False)
+        raise
     return (
         total_assets,
         total_equity,
@@ -178,23 +243,24 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
     print(f"🚀 RUNNING: {case_name}")
     print("=======================================================")
 
+    verdicts: dict[str, str] = {
+        "card_spend_recorded": "not_run",
+        "bank_repayment": "not_run",
+        "credit_card_liability_cleared": "not_run",
+        "ending_bank_cash": "not_run",
+        "net_income": "not_run",
+        "equation_delta": "not_run",
+    }
+    details: dict[str, Any] = {"assertion_verdicts": verdicts}
+
     try:
         client, user_email, _ = runner.create_ephemeral_client("case3_card_liability")
         print(f"  [1/6] Registered test user: {user_email}")
 
         cc_acc, exp_acc = _setup_card_liability_and_expenses(runner, client)
-        _post_card_purchases(runner, client, cc_acc, exp_acc)
-        _upload_bank_card_repayment(runner, client, cc_acc)
-        (
-            total_assets,
-            total_equity,
-            total_liabilities,
-            total_income,
-            total_expenses,
-            net_income,
-            equation_delta,
-            is_balanced,
-        ) = _verify_card_repayment_invariants(runner, client)
+        _post_card_purchases(runner, client, cc_acc, exp_acc, details=details)
+        _upload_bank_card_repayment(runner, client, cc_acc, details=details)
+        _verify_card_repayment_invariants(runner, client, details=details)
 
         # Flow 15 & Flow 16: Inter-Account Transfer Automatic Pairing & Match Acceptance
         recon_run = runner.run_reconciliation(client)
@@ -226,11 +292,24 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
             f"Expected journal_entry_id for non-zero penny adjustment, got {adj}"
         )
         bs_after = runner.get_balance_sheet(client, as_of_date="2025-04-30")
+        post_balanced = bs_after["is_balanced"] is True and Decimal(
+            str(bs_after["equation_delta"])
+        ) == Decimal("0.00")
+        if not post_balanced:
+            _set_verdict(details, "equation_delta", False)
         assert bs_after["is_balanced"] is True, (
             f"Balance sheet unbalanced after Flow 18 adjustment: {bs_after}"
         )
         assert Decimal(str(bs_after["equation_delta"])) == Decimal("0.00"), (
             f"Non-zero equation_delta after Flow 18 adjustment: {bs_after}"
+        )
+
+        details.update(
+            {
+                "flow_15_matches_created": int(recon_run["matches_created"]),
+                "flow_16_matches_accepted": int(accepted_matches),
+                "flow_18_adjustment_difference": str(adj["difference"]),
+            }
         )
 
         duration = time.time() - start_time
@@ -240,23 +319,7 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="PASS",
             duration_seconds=duration,
-            details={
-                "card_spend_recorded": "1200.00",
-                "bank_repayment": "1200.00",
-                "ending_bank_cash": "8800.00",
-                "credit_card_liability_cleared": "0.00",
-                "total_assets": str(total_assets),
-                "total_equity": str(total_equity),
-                "total_liabilities": str(total_liabilities),
-                "total_income": str(total_income),
-                "total_expenses": str(total_expenses),
-                "net_income": str(net_income),
-                "equation_delta": str(equation_delta),
-                "is_balanced": is_balanced,
-                "flow_15_matches_created": int(recon_run["matches_created"]),
-                "flow_16_matches_accepted": int(accepted_matches),
-                "flow_18_adjustment_difference": str(adj["difference"]),
-            },
+            details=details,
         )
     except Exception as exc:
         duration = time.time() - start_time
@@ -266,5 +329,6 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="FAIL",
             duration_seconds=duration,
+            details=details,
             error_message=str(exc),
         )

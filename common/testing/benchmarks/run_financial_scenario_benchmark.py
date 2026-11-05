@@ -38,6 +38,8 @@ if str(REPO_ROOT) not in sys.path:
 from common.testing.benchmarks.benchmark_html_reporter import (  # noqa: E402
     extract_summary_data,
     generate_html_report,
+    sanitize_for_json,
+    write_utf8_atomic,
 )
 from common.testing.benchmarks.case_types import (  # noqa: E402
     DOMAIN_TO_CASES,
@@ -1090,10 +1092,9 @@ def _save_reports(
     args: argparse.Namespace,
     report_data: dict[str, Any],
 ) -> None:
+    safe_report = sanitize_for_json(report_data)
     if args.json_report:
-        args.json_report.parent.mkdir(parents=True, exist_ok=True)
-        with open(args.json_report, "w", encoding="utf-8") as f:
-            json.dump(report_data, f, indent=2)
+        write_utf8_atomic(args.json_report, json.dumps(safe_report, indent=2))
 
     baseline_data = None
     if args.baseline and args.baseline.exists():
@@ -1104,17 +1105,13 @@ def _save_reports(
             print(f"⚠️ Failed to read baseline {args.baseline}: {exc}", file=sys.stderr)
 
     if args.output_html:
-        args.output_html.parent.mkdir(parents=True, exist_ok=True)
-        html_report = generate_html_report(report_data, baseline_data=baseline_data)
-        with open(args.output_html, "w", encoding="utf-8") as f:
-            f.write(html_report)
+        html_report = generate_html_report(safe_report, baseline_data=baseline_data)
+        write_utf8_atomic(args.output_html, html_report)
         print(f"HTML report saved to: {args.output_html} ({len(html_report)} bytes)")
 
     if args.output_summary:
-        args.output_summary.parent.mkdir(parents=True, exist_ok=True)
-        summary_data = extract_summary_data(report_data)
-        with open(args.output_summary, "w", encoding="utf-8") as f:
-            json.dump(summary_data, f, indent=2)
+        summary_data = sanitize_for_json(extract_summary_data(safe_report))
+        write_utf8_atomic(args.output_summary, json.dumps(summary_data, indent=2))
         print(f"Summary JSON saved to: {args.output_summary}")
 
 

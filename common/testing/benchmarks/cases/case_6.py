@@ -19,6 +19,17 @@ if TYPE_CHECKING:
     )
 
 
+def _set_verdict(
+    details: dict[str, Any] | None,
+    key: str,
+    passed: bool,
+) -> bool:
+    if details is not None:
+        verdicts = details.setdefault("assertion_verdicts", {})
+        verdicts[key] = "passed" if passed else "failed"
+    return passed
+
+
 def _setup_overdraft_accounts(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
 ) -> tuple[
@@ -101,7 +112,9 @@ def _post_initial_deposit_and_overdraft(
 
 
 def _verify_overdraft_balance_sheet(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, bool]:
     print("  [4/6] Verifying Overdraft Balance Sheet as of 2025-05-10...")
     bs = runner.get_balance_sheet(client, as_of_date="2025-05-10", currency="SGD")
@@ -115,6 +128,17 @@ def _verify_overdraft_balance_sheet(
         f"        Overdraft State: Assets={total_assets}, Equity={total_equity}, "
         f"Net Income={net_income}, Delta={equation_delta}, Balanced={is_balanced}"
     )
+    if details is not None:
+        details["overdraft_cash"] = str(total_assets)
+    overdraft_ok = (
+        total_assets == Decimal("-1500.00")
+        and net_income == Decimal("-2500.00")
+        and total_equity == Decimal("1000.00")
+        and is_balanced is True
+        and equation_delta == Decimal("0.00")
+    )
+    _set_verdict(details, "overdraft_cash", overdraft_ok)
+
     assert total_assets == Decimal("-1500.00"), (
         f"Expected -1500.00 total assets, got {total_assets}"
     )
@@ -128,7 +152,11 @@ def _verify_overdraft_balance_sheet(
     assert equation_delta == Decimal("0.00"), (
         f"Equation delta not zero: {equation_delta}"
     )
-    assert_triple_accounting_articulation(bs)
+    try:
+        assert_triple_accounting_articulation(bs)
+    except AssertionError:
+        _set_verdict(details, "overdraft_cash", False)
+        raise
     return total_assets, total_equity, net_income, equation_delta, is_balanced
 
 
@@ -139,6 +167,7 @@ def _post_capital_injection_and_art_disposal(
     owner_equity: dict[str, Any],
     art_asset: dict[str, Any],
     capital_gain: dict[str, Any],
+    details: dict[str, Any] | None = None,
 ) -> None:
     print(
         "  [5/6] Posting Capital Injection (10k), Art Purchase (4k), and Art Disposal (6.5k)..."
@@ -214,10 +243,15 @@ def _post_capital_injection_and_art_disposal(
         ],
         rationale="Asset disposal with capital gain",
     )
+    if details is not None:
+        details["capital_gain"] = "2500.00"
+    _set_verdict(details, "capital_gain", True)
 
 
 def _verify_final_articulated_balance_sheet(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, bool]:
     print("  [6/6] Verifying Final Month-End Balance Sheet as of 2025-05-31...")
     bs = runner.get_balance_sheet(client, as_of_date="2025-05-31", currency="SGD")
@@ -231,6 +265,29 @@ def _verify_final_articulated_balance_sheet(
         f"        Final State: Assets={total_assets}, Equity={total_equity}, "
         f"Net Income={net_income}, Delta={equation_delta}, Balanced={is_balanced}"
     )
+    if details is not None:
+        details.update(
+            {
+                "ending_cash": str(total_assets),
+                "ending_cash_balance": str(total_assets),
+                "net_income": str(net_income),
+                "total_assets": str(total_assets),
+                "total_equity": str(total_equity),
+                "equation_delta": str(equation_delta),
+                "is_balanced": is_balanced,
+            }
+        )
+
+    assets_ok = total_assets == Decimal("11000.00")
+    equity_ok = total_equity == Decimal("11000.00")
+    net_income_ok = net_income == Decimal("0.00")
+    delta_ok = is_balanced is True and equation_delta == Decimal("0.00")
+    _set_verdict(details, "total_assets", assets_ok)
+    _set_verdict(details, "ending_cash_balance", assets_ok)
+    _set_verdict(details, "total_equity", equity_ok)
+    _set_verdict(details, "net_income", net_income_ok)
+    _set_verdict(details, "equation_delta", delta_ok)
+
     assert total_assets == Decimal("11000.00"), (
         f"Expected 11000.00 total assets, got {total_assets}"
     )
@@ -242,7 +299,11 @@ def _verify_final_articulated_balance_sheet(
     assert equation_delta == Decimal("0.00"), (
         f"Equation delta not zero: {equation_delta}"
     )
-    assert_triple_accounting_articulation(bs)
+    try:
+        assert_triple_accounting_articulation(bs)
+    except AssertionError:
+        _set_verdict(details, "equation_delta", False)
+        raise
     return total_assets, total_equity, net_income, equation_delta, is_balanced
 
 
@@ -256,6 +317,17 @@ def execute_case_6(runner: ScenarioBenchmarkRunner) -> CaseResult:
     print(f"🚀 RUNNING: {case_name}")
     print("=======================================================")
 
+    verdicts: dict[str, str] = {
+        "overdraft_cash": "not_run",
+        "capital_gain": "not_run",
+        "net_income": "not_run",
+        "total_assets": "not_run",
+        "ending_cash_balance": "not_run",
+        "total_equity": "not_run",
+        "equation_delta": "not_run",
+    }
+    details: dict[str, Any] = {"assertion_verdicts": verdicts}
+
     try:
         client, user_email, _ = runner.create_ephemeral_client("case6_overdraft")
         print(f"  [1/6] Registered test user: {user_email}")
@@ -266,32 +338,29 @@ def execute_case_6(runner: ScenarioBenchmarkRunner) -> CaseResult:
         _post_initial_deposit_and_overdraft(
             runner, client, checking, emergency_exp, owner_equity
         )
-        (
-            od_assets,
-            od_equity,
-            od_net_income,
-            od_delta,
-            od_balanced,
-        ) = _verify_overdraft_balance_sheet(runner, client)
+        _verify_overdraft_balance_sheet(runner, client, details=details)
 
         _post_capital_injection_and_art_disposal(
-            runner, client, checking, owner_equity, art_asset, capital_gain
+            runner,
+            client,
+            checking,
+            owner_equity,
+            art_asset,
+            capital_gain,
+            details=details,
         )
-        (
-            final_assets,
-            final_equity,
-            final_net_income,
-            final_delta,
-            final_balanced,
-        ) = _verify_final_articulated_balance_sheet(runner, client)
+        _verify_final_articulated_balance_sheet(runner, client, details=details)
 
         # Flow 24: Accounting Equation Out-of-Balance Diagnostic Triage
         diagnostics = runner.get_balance_sheet_diagnostics(
             client, as_of_date="2025-05-31", currency="SGD"
         )
+        if diagnostics.get("is_balanced") is not True:
+            _set_verdict(details, "equation_delta", False)
         assert diagnostics.get("is_balanced") is True, (
             f"Expected balanced equation diagnostics in Case 6, got {diagnostics}"
         )
+        details["flow_24_diagnostics_balanced"] = True
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
@@ -300,17 +369,7 @@ def execute_case_6(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="PASS",
             duration_seconds=duration,
-            details={
-                "overdraft_cash": str(od_assets),
-                "ending_cash": str(final_assets),
-                "capital_gain": "2500.00",
-                "net_income": str(final_net_income),
-                "total_assets": str(final_assets),
-                "total_equity": str(final_equity),
-                "equation_delta": str(final_delta),
-                "is_balanced": final_balanced,
-                "flow_24_diagnostics_balanced": True,
-            },
+            details=details,
         )
     except Exception as exc:
         duration = time.time() - start_time
@@ -320,5 +379,6 @@ def execute_case_6(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="FAIL",
             duration_seconds=duration,
+            details=details,
             error_message=str(exc),
         )
