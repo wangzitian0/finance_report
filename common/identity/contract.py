@@ -351,6 +351,9 @@ CONTRACT = PackageContract(
         ac('AC-identity.ai-suggestions.1', '``GET /ai/suggestions`` enforces a bounded page size: ``limit`` is declared with ``ge=1, le=200`` and an over-limit request is rejected with 422 instead of being accepted unbounded (#1864 S1).', 'apps/backend/tests/api/test_ai_feedback_router.py::test_AC_ai_suggestions_1_list_rejects_unbounded_limit', priority='P1'),
         # ── group 2478: preserve local session on aborted or transient /auth/me failure (#2478) ──
         ac('AC-identity.2478.1', 'useSessionBootstrap clears local session storage only when GET /api/auth/me returns an explicit identity-rejection status (401/403/404); aborted navigations and transient network errors preserve local session state (#2478).', 'apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC-identity.2478.1 keeps the local identity when /auth/me is aborted or the network fails', priority='P1'),
+        # ── group 2674: soft-deleted email re-registration & unified client IP extraction (#2674) ──
+        ac('AC-identity.2674.1', 'uq_users_email_normalized is a partial unique index scoped to is_deleted = false without an unconditional users_email_key constraint, so a soft-deleted user email can be re-registered while active duplicate emails are still rejected (#2674).', 'apps/backend/tests/identity/test_auth_router.py::test_AC_identity_2674_1_soft_deleted_user_email_can_reregister', priority='P1'),
+        ac('AC-identity.2674.2', 'Global and auth rate limiters extract the client IP through one shared get_client_ip helper that reads the rightmost X-Forwarded-For entry only when trust_proxy is enabled, preventing left-hand X-Forwarded-For spoofing (#2674).', 'apps/backend/tests/identity/test_auth_router.py::test_AC_identity_2674_2_get_client_ip_uses_rightmost_forwarded_ip_and_shares_helper', priority='P1'),
     ],
     concepts=[
         ConceptRecord(

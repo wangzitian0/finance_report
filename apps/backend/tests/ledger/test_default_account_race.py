@@ -239,3 +239,81 @@ async def test_AC_ledger_71_5_a_lock_that_the_caller_holds_makes_the_creation_fa
     finally:
         await caller.rollback()
         await caller.close()
+
+
+async def test_AC_ledger_2674_1_all_default_and_system_account_creators_route_through_find_or_create_account(
+    db, test_user, monkeypatch
+) -> None:
+    """AC-ledger.2674.1: All 5 default/system account creation sites converge on find_or_create_account (#2674)."""
+    from datetime import date
+    from decimal import Decimal
+    from uuid import UUID
+
+    from src.extraction import BankStatementStatus
+    from src.extraction.orm.statement_summary import StatementSummary
+    from src.ledger.extension import account_service
+    from src.portfolio.extension.positions import PositionService
+    from src.routers.reconciliation import post_reconciliation_adjustment
+    from src.routers.statements import _create_statement_account_from_confirmation
+    from src.schemas.reconciliation import ReconciliationAdjustmentRequest
+
+    calls: list[UUID] = []
+    original = account_service.find_or_create_account
+
+    async def spy_find_or_create(session, *, user_id, find, build):
+        calls.append(user_id)
+        return await original(session, user_id=user_id, find=find, build=build)
+
+    monkeypatch.setattr(account_service, "find_or_create_account", spy_find_or_create)
+
+    # 1. Opening Balance Equity (3199)
+    obe = await account_service.get_or_create_opening_balance_equity_account(db, test_user.id, "SGD")
+    assert obe.code == account_service.OPENING_BALANCE_EQUITY_CODE
+    assert len(calls) == 1
+
+    # 2. Unexplained Gap Equity (3198)
+    uge = await account_service.get_or_create_unexplained_gap_equity_account(db, test_user.id, "SGD")
+    assert uge.code == account_service.UNEXPLAINED_GAP_EQUITY_CODE
+    assert len(calls) == 2
+
+    # 3. AUTO-ASSET broker account in PositionService
+    pos_service = PositionService()
+    broker_acc = await pos_service._get_or_create_broker_account(db, test_user.id, "Interactive Brokers", "USD")
+    assert broker_acc.code == "AUTO-ASSET"
+    assert broker_acc.currency == "USD"
+    assert len(calls) == 3
+
+    # 4. AUTO-BANK statement account (account_last4=None hits AUTO-BANK fallback)
+    stmt = StatementSummary(
+        user_id=test_user.id,
+        file_hash="hash_auto_bank_2674",
+        institution="DBS Bank",
+        account_last4=None,
+        currency="SGD",
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("100.00"),
+        status=BankStatementStatus.PARSED,
+    )
+    db.add(stmt)
+    await db.flush()
+    bank_acc = await _create_statement_account_from_confirmation(db, stmt, test_user.id)
+    assert bank_acc.code == "AUTO-BANK"
+    assert stmt.account_id == bank_acc.id
+    assert len(calls) == 4
+
+    # 5. BankRoundingDifference in reconciliation adjustment
+    adj_resp = await post_reconciliation_adjustment(
+        payload=ReconciliationAdjustmentRequest(
+            account_id=bank_acc.id,
+            bank_balance=Decimal("100.02"),
+            book_balance=Decimal("100.00"),
+            threshold=Decimal("0.05"),
+            entry_date=date(2025, 1, 31),
+        ),
+        db=db,
+        user_id=test_user.id,
+    )
+    assert adj_resp.difference == Decimal("0.02")
+    assert len(calls) == 5

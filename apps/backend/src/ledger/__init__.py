@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.ledger.base import (
+        MAX_JOURNAL_LINE_AMOUNT,
+        MAX_JOURNAL_LINE_FX_RATE,
         PROCESSING_ACCOUNT_CODE,
         AccountingError,
         DecisionAnchor,
@@ -46,6 +48,9 @@ if TYPE_CHECKING:
         journal_command_target,
         validate_fx_rates,
         validate_journal_balance,
+        validate_journal_line_amount,
+        validate_journal_line_fx_rate,
+        validate_journal_line_tags,
         validate_journal_posting_invariants,
     )
     from src.ledger.data import (
@@ -130,6 +135,8 @@ __all__ = [
     "JournalLineContribution",
     "LedgerError",
     "Leg",
+    "MAX_JOURNAL_LINE_AMOUNT",
+    "MAX_JOURNAL_LINE_FX_RATE",
     "PROCESSING_ACCOUNT_CODE",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
@@ -177,6 +184,9 @@ __all__ = [
     "worst_confidence_tier",
     "validate_fx_rates",
     "validate_journal_balance",
+    "validate_journal_line_amount",
+    "validate_journal_line_fx_rate",
+    "validate_journal_line_tags",
     "validate_journal_posting_invariants",
     "validate_line_account_ownership",
     "verify_accounting_equation",
@@ -194,6 +204,8 @@ _BASE_NAMES = {
     "JournalLineContribution",
     "LedgerError",
     "Leg",
+    "MAX_JOURNAL_LINE_AMOUNT",
+    "MAX_JOURNAL_LINE_FX_RATE",
     "PROCESSING_ACCOUNT_CODE",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
@@ -207,6 +219,9 @@ _BASE_NAMES = {
     "journal_command_target",
     "validate_fx_rates",
     "validate_journal_balance",
+    "validate_journal_line_amount",
+    "validate_journal_line_fx_rate",
+    "validate_journal_line_tags",
     "validate_journal_posting_invariants",
 }
 _EXTENSION_NAMES = {

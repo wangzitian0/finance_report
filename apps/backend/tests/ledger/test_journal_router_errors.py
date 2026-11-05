@@ -150,3 +150,63 @@ class TestJournalRouterErrors:
         fake_id = uuid4()
         response = await client.delete(f"/journal-entries/{fake_id}")
         assert response.status_code == 404
+
+
+async def test_AC_ledger_2576_1_journal_wire_bounds_and_tags_validation(client, db, test_user) -> None:
+    """AC-ledger.2576.1: Manual journal line schemas bound amount/fx_rate and reject float or NUL in tags (#2576)."""
+    import pytest
+    from pydantic import ValidationError as PydanticValidationError
+
+    from src.schemas.journal import JournalLineCreate
+
+    cash = Account(user_id=test_user.id, name="Wire Cash", type=AccountType.ASSET, currency="SGD")
+    rev = Account(user_id=test_user.id, name="Wire Revenue", type=AccountType.INCOME, currency="SGD")
+    db.add_all([cash, rev])
+    await db.commit()
+
+    # Over-precision or overflow amount (>= 10^16) rejected at schema boundary (422)
+    for bad_amount in ["10000000000000000.00", "1E+20", "10.123"]:
+        with pytest.raises(PydanticValidationError):
+            JournalLineCreate(
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=bad_amount,
+                currency="SGD",
+            )
+
+    # Over-precision or overflow fx_rate (>= 10^12) rejected at schema boundary (422)
+    for bad_fx in ["1000000000000.000000", "1E+15", "1.1234567"]:
+        with pytest.raises(PydanticValidationError):
+            JournalLineCreate(
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount="100.00",
+                currency="USD",
+                fx_rate=bad_fx,
+            )
+
+    # Float in tags or NUL character in tags rejected at schema boundary (422)
+    for bad_tags in [{"rate": 1.25}, {"nested": [1, 1e16]}, {"bad\x00key": "ok"}, {"key": "bad\x00val"}]:
+        resp = await client.post(
+            "/journal-entries",
+            json={
+                "entry_date": str(date.today()),
+                "memo": "Bad tags",
+                "lines": [
+                    {
+                        "account_id": str(cash.id),
+                        "direction": "DEBIT",
+                        "amount": "100.00",
+                        "currency": "SGD",
+                        "tags": bad_tags,
+                    },
+                    {
+                        "account_id": str(rev.id),
+                        "direction": "CREDIT",
+                        "amount": "100.00",
+                        "currency": "SGD",
+                    },
+                ],
+            },
+        )
+        assert resp.status_code == 422, f"Expected 422 for tags={bad_tags!r}, got {resp.status_code}: {resp.text}"

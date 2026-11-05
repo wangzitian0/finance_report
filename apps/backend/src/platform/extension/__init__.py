@@ -33,6 +33,7 @@ from src.platform.extension.rate_limit import (
     RateLimitConfig,
     RateLimiter,
     RateLimitState,
+    get_client_ip,
 )
 from src.platform.extension.relay import OutboxRelay
 from src.platform.extension.sql import (
@@ -53,6 +54,7 @@ __all__ = [
     "STATUS_PENDING",
     "STATUS_PUBLISHED",
     "SqlOutboxRepository",
+    "get_client_ip",
     "get_owned_or_404",
     "paginate",
     "raise_bad_request",

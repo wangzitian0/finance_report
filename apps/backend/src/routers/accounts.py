@@ -263,6 +263,8 @@ async def update_account(
     except AccountNotFoundError as e:
         logger.debug("Account not found for update", account_id=str(account_id))
         raise_not_found("Account", cause=e)
+    except ValidationError as e:
+        raise_bad_request(str(e), cause=e)
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
@@ -282,6 +284,9 @@ async def delete_account(
     except AccountNotFoundError as e:
         logger.debug("Account not found for deletion", account_id=str(account_id))
         raise_not_found("Account", cause=e)
+
+    if account.is_system:
+        raise_bad_request("System accounts cannot be modified or deleted")
 
     result = await db.execute(select(JournalLine).where(JournalLine.account_id == account_id).limit(1))
     if result.scalar_one_or_none():

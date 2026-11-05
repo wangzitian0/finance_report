@@ -70,3 +70,30 @@ async def test_accounts_endpoints(client: AsyncClient) -> None:
         json={"name": "Missing"},
     )
     assert missing_update.status_code == 404
+
+
+async def test_AC_ledger_2674_1_system_accounts_cannot_be_updated_or_deleted(
+    client: AsyncClient, db, test_user
+) -> None:
+    """AC-ledger.2674.1: System accounts reject update and delete mutations in service and router (#2674)."""
+    import pytest
+
+    from src.ledger import ValidationError, account_service, get_or_create_processing_account
+    from src.schemas.account import AccountUpdate
+
+    sys_account = await get_or_create_processing_account(db, test_user.id, currency="SGD")
+    await db.commit()
+
+    with pytest.raises(ValidationError, match="System accounts cannot be modified or deleted"):
+        await account_service.update_account(db, test_user.id, sys_account.id, AccountUpdate(name="Renamed System"))
+
+    update_resp = await client.put(
+        f"/accounts/{sys_account.id}",
+        json={"name": "Renamed System"},
+    )
+    assert update_resp.status_code == 400
+    assert "System accounts cannot be modified or deleted" in update_resp.json()["detail"]
+
+    delete_resp = await client.delete(f"/accounts/{sys_account.id}")
+    assert delete_resp.status_code == 400
+    assert "System accounts cannot be modified or deleted" in delete_resp.json()["detail"]

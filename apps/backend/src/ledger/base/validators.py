@@ -19,13 +19,66 @@ DB-touching ownership check lives in the ``extension/`` adapter.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any, Protocol, runtime_checkable
 
 from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
 from src.ledger.base.vocabulary import DEFAULT_BASE_CURRENCY, Direction
+
+MAX_JOURNAL_LINE_AMOUNT = Decimal("10000000000000000")
+MAX_JOURNAL_LINE_FX_RATE = Decimal("1000000000000")
+
+
+def validate_journal_line_amount(value: Decimal) -> Decimal:
+    """Validate that a journal line amount is finite, positive, < 10^16, and <= 2 decimal places (#2576)."""
+    if not value.is_finite():
+        raise ValueError("amount must be finite")
+    if value <= 0 or value >= MAX_JOURNAL_LINE_AMOUNT:
+        raise ValueError(f"amount must be greater than 0 and less than {MAX_JOURNAL_LINE_AMOUNT}")
+    if value.quantize(Decimal("0.01")) != value:
+        raise ValueError("amount must have at most 2 decimal places")
+    return value
+
+
+def validate_journal_line_fx_rate(value: Decimal | None) -> Decimal | None:
+    """Validate that a journal line fx_rate is finite, positive, < 10^12, and <= 6 decimal places (#2576)."""
+    if value is None:
+        return None
+    if not value.is_finite():
+        raise ValueError("fx_rate must be finite")
+    if value <= 0 or value >= MAX_JOURNAL_LINE_FX_RATE:
+        raise ValueError(f"fx_rate must be greater than 0 and less than {MAX_JOURNAL_LINE_FX_RATE}")
+    if value.quantize(Decimal("0.000001")) != value:
+        raise ValueError("fx_rate must have at most 6 decimal places")
+    return value
+
+
+def validate_journal_line_tags(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Reject float values and NUL characters anywhere inside a JSONB tags payload (#2576)."""
+    if value is None:
+        return None
+
+    def _check_node(node: Any) -> None:
+        if isinstance(node, float):
+            raise ValueError("float values are not allowed in tags; use string or integer representations")
+        if isinstance(node, str):
+            if "\x00" in node:
+                raise ValueError("NUL characters are not allowed in tags")
+            return
+        if isinstance(node, Mapping):
+            for key, val in node.items():
+                if isinstance(key, str) and "\x00" in key:
+                    raise ValueError("NUL characters are not allowed in tag keys")
+                _check_node(val)
+            return
+        if isinstance(node, list | tuple):
+            for item in node:
+                _check_node(item)
+
+    _check_node(value)
+    return value
 
 
 class AccountingError(Exception):
