@@ -24,8 +24,21 @@ if TYPE_CHECKING:
     )
 
 
+def _set_verdict(
+    details: dict[str, Any] | None,
+    key: str,
+    passed: bool,
+) -> bool:
+    if details is not None:
+        verdicts = details.setdefault("assertion_verdicts", {})
+        verdicts[key] = "passed" if passed else "failed"
+    return passed
+
+
 def _upload_multicurrency_statements(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     # 1. SGD Statement
     print("  [2/6] Uploading SGD operating statement...")
@@ -34,6 +47,11 @@ def _upload_multicurrency_statements(
         client, sgd_bytes, "operations_sgd.csv", institution="DBS Singapore"
     )
     sgd_data = runner.wait_for_statement_parsed(client, sgd_id)
+    if details is not None:
+        details["sgd_closing_balance"] = str(sgd_data["closing_balance"])
+    _set_verdict(
+        details, "sgd_closing_balance", sgd_data.get("balance_validated") is True
+    )
     assert sgd_data.get("balance_validated") is True, f"SGD balance invalid: {sgd_data}"
     runner.adjudicate_unmatched_items(client, sgd_id)
     runner.approve_statement(client, sgd_id)
@@ -50,6 +68,11 @@ def _upload_multicurrency_statements(
         currency="USD",
     )
     usd_data = runner.wait_for_statement_parsed(client, usd_id)
+    if details is not None:
+        details["usd_closing_balance"] = str(usd_data["closing_balance"])
+    _set_verdict(
+        details, "usd_closing_balance", usd_data.get("balance_validated") is True
+    )
     assert usd_data.get("balance_validated") is True, f"USD balance invalid: {usd_data}"
     runner.adjudicate_unmatched_items(client, usd_id)
     runner.approve_statement(client, usd_id)
@@ -66,6 +89,11 @@ def _upload_multicurrency_statements(
         currency="HKD",
     )
     hkd_data = runner.wait_for_statement_parsed(client, hkd_id)
+    if details is not None:
+        details["hkd_closing_balance"] = str(hkd_data["closing_balance"])
+    _set_verdict(
+        details, "hkd_closing_balance", hkd_data.get("balance_validated") is True
+    )
     assert hkd_data.get("balance_validated") is True, f"HKD balance invalid: {hkd_data}"
     runner.adjudicate_unmatched_items(client, hkd_id)
     runner.approve_statement(client, hkd_id)
@@ -75,7 +103,9 @@ def _upload_multicurrency_statements(
 
 
 def _verify_multicurrency_balance_sheets(
-    runner: ScenarioBenchmarkRunner, client: httpx.Client
+    runner: ScenarioBenchmarkRunner,
+    client: httpx.Client,
+    details: dict[str, Any] | None = None,
 ) -> tuple[Decimal, Decimal, bool, Decimal, Decimal, bool]:
     # 4. Consolidated Balance Sheet in Base Currency (SGD)
     print("  [5/6] Verifying Consolidated Balance Sheet in SGD (as of 2025-04-30)...")
@@ -90,16 +120,6 @@ def _verify_multicurrency_balance_sheets(
         f"        SGD Balance Sheet: Assets={assets_sgd}, Liab={liab_sgd}, "
         f"Equity={equity_sgd}, Delta={delta_sgd}, Balanced={balanced_sgd}"
     )
-    assert assets_sgd > Decimal("12800.00"), (
-        "Multi-currency assets must be consolidated into SGD"
-    )
-    assert balanced_sgd is True, (
-        f"SGD balance sheet must be balanced under IAS 21 CTA: delta={delta_sgd}"
-    )
-    assert delta_sgd == Decimal("0.00"), (
-        f"SGD equation delta must be exactly zero: {delta_sgd}"
-    )
-    assert_triple_accounting_articulation(bs_sgd)
 
     # 5. Consolidated Balance Sheet in Target Currency (USD)
     print("  [6/6] Verifying Consolidated Balance Sheet in USD (as of 2025-04-30)...")
@@ -111,6 +131,51 @@ def _verify_multicurrency_balance_sheets(
     print(
         f"        USD Balance Sheet: Assets={assets_usd}, Delta={delta_usd}, Balanced={balanced_usd}"
     )
+
+    if details is not None:
+        details.update(
+            {
+                "currencies_consolidated": "SGD, USD, HKD",
+                "total_assets_sgd": str(assets_sgd),
+                "equation_delta_sgd": str(delta_sgd),
+                "is_balanced_sgd": balanced_sgd,
+                "total_assets_usd": str(assets_usd),
+                "equation_delta_usd": str(delta_usd),
+                "is_balanced_usd": balanced_usd,
+                "equation_delta": str(delta_sgd),
+                "is_balanced": balanced_sgd,
+            }
+        )
+
+    _set_verdict(details, "total_assets_sgd", assets_sgd > Decimal("12800.00"))
+    _set_verdict(
+        details,
+        "equation_delta_sgd",
+        balanced_sgd is True and delta_sgd == Decimal("0.00"),
+    )
+    _set_verdict(
+        details,
+        "equation_delta_usd",
+        assets_usd > Decimal("0.00")
+        and balanced_usd is True
+        and delta_usd == Decimal("0.00"),
+    )
+
+    assert assets_sgd > Decimal("12800.00"), (
+        "Multi-currency assets must be consolidated into SGD"
+    )
+    assert balanced_sgd is True, (
+        f"SGD balance sheet must be balanced under IAS 21 CTA: delta={delta_sgd}"
+    )
+    assert delta_sgd == Decimal("0.00"), (
+        f"SGD equation delta must be exactly zero: {delta_sgd}"
+    )
+    try:
+        assert_triple_accounting_articulation(bs_sgd)
+    except AssertionError:
+        _set_verdict(details, "equation_delta_sgd", False)
+        raise
+
     assert assets_usd > Decimal("0.00"), "Consolidated USD assets must be positive"
     assert balanced_usd is True, (
         f"USD balance sheet must be balanced under IAS 21 CTA: delta={delta_usd}"
@@ -118,7 +183,11 @@ def _verify_multicurrency_balance_sheets(
     assert delta_usd == Decimal("0.00"), (
         f"USD equation delta must be exactly zero: {delta_usd}"
     )
-    assert_triple_accounting_articulation(bs_usd)
+    try:
+        assert_triple_accounting_articulation(bs_usd)
+    except AssertionError:
+        _set_verdict(details, "equation_delta_usd", False)
+        raise
     return assets_sgd, delta_sgd, balanced_sgd, assets_usd, delta_usd, balanced_usd
 
 
@@ -132,19 +201,22 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
     print(f"🚀 RUNNING: {case_name}")
     print("=======================================================")
 
+    verdicts: dict[str, str] = {
+        "sgd_closing_balance": "not_run",
+        "usd_closing_balance": "not_run",
+        "hkd_closing_balance": "not_run",
+        "total_assets_sgd": "not_run",
+        "equation_delta_sgd": "not_run",
+        "equation_delta_usd": "not_run",
+    }
+    details: dict[str, Any] = {"assertion_verdicts": verdicts}
+
     try:
         client, user_email, _ = runner.create_ephemeral_client("case4")
         print(f"  [1/6] Registered test user: {user_email}")
 
-        sgd_data, usd_data, hkd_data = _upload_multicurrency_statements(runner, client)
-        (
-            assets_sgd,
-            delta_sgd,
-            balanced_sgd,
-            assets_usd,
-            delta_usd,
-            balanced_usd,
-        ) = _verify_multicurrency_balance_sheets(runner, client)
+        _upload_multicurrency_statements(runner, client, details=details)
+        _verify_multicurrency_balance_sheets(runner, client, details=details)
 
         # Flow 17: Multi-Currency Transfer Realized FX Gain/Loss Decomposition (post-window 2025-05-05)
         fx_source_acc = runner.create_account(
@@ -185,10 +257,25 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
         bs_post_fx = runner.get_balance_sheet(
             client, as_of_date="2025-05-31", currency="SGD"
         )
+        post_fx_ok = bs_post_fx["is_balanced"] is True and Decimal(
+            str(bs_post_fx["equation_delta"])
+        ) == Decimal("0.00")
+        if not post_fx_ok:
+            _set_verdict(details, "equation_delta_sgd", False)
         assert bs_post_fx["is_balanced"] is True, (
             f"Balance sheet unbalanced after Flow 17 FX entry: {bs_post_fx}"
         )
         assert Decimal(str(bs_post_fx["equation_delta"])) == Decimal("0.00")
+
+        details.update(
+            {
+                "flow_17_realized_fx_gain_sgd": "10.00",
+                "cta_variance_explained": (
+                    "Translation variance between spot rate balance sheet items and period-average "
+                    "net income is fully absorbed by the IAS 21 CTA equity reserve."
+                ),
+            }
+        )
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
@@ -197,25 +284,7 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="PASS",
             duration_seconds=duration,
-            details={
-                "currencies_consolidated": "SGD, USD, HKD",
-                "sgd_closing_balance": str(sgd_data["closing_balance"]),
-                "usd_closing_balance": str(usd_data["closing_balance"]),
-                "hkd_closing_balance": str(hkd_data["closing_balance"]),
-                "total_assets_sgd": str(assets_sgd),
-                "equation_delta_sgd": str(delta_sgd),
-                "is_balanced_sgd": balanced_sgd,
-                "total_assets_usd": str(assets_usd),
-                "equation_delta_usd": str(delta_usd),
-                "is_balanced_usd": balanced_usd,
-                "equation_delta": str(delta_sgd),
-                "is_balanced": balanced_sgd,
-                "flow_17_realized_fx_gain_sgd": "10.00",
-                "cta_variance_explained": (
-                    "Translation variance between spot rate balance sheet items and period-average "
-                    "net income is fully absorbed by the IAS 21 CTA equity reserve."
-                ),
-            },
+            details=details,
         )
     except Exception as exc:
         duration = time.time() - start_time
@@ -225,5 +294,6 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
             case_name=case_name,
             status="FAIL",
             duration_seconds=duration,
+            details=details,
             error_message=str(exc),
         )
