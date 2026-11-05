@@ -847,7 +847,7 @@ async def reconcile_account_statement_chain(
             await void_journal_entry(
                 db,
                 entry.id,
-                reason="All statements for account retired",
+                reason="All statements for account retired or rejected",
                 user_id=user_id,
                 allow_reconciled=True,
                 base_currency=base_currency,
@@ -862,7 +862,7 @@ async def reconcile_account_statement_chain(
                 await void_journal_entry(
                     db,
                     existing_opening.journal_entry_id,
-                    reason="All statements for account retired",
+                    reason="All statements for account retired or rejected",
                     user_id=user_id,
                     allow_reconciled=True,
                     base_currency=base_currency,
