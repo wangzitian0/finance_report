@@ -7,7 +7,7 @@
 - API title: `Finance Report API`
 - API version: `0.1.0`
 - Endpoint count: `141`
-- Schema count: `284`
+- Schema count: `285`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -262,8 +262,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/statements` | yes | - | - | `200` `ListResponse_BankStatementResponse_` | List Statements |
-| `GET` | `/statements/pending-review` | yes | - | - | `200` `ListResponse_BankStatementResponse_` | List Pending Review |
+| `GET` | `/statements` | yes | - | - | `200` `ListResponse_BankStatementListItemResponse_` | List Statements |
+| `GET` | `/statements/pending-review` | yes | - | - | `200` `ListResponse_BankStatementListItemResponse_` | List Pending Review |
 | `POST` | `/statements/upload` | yes | - | `Body_upload_statement_statements_upload_post` | `202` `BankStatementResponse` | Upload Statement |
 | `GET` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `200` `BankStatementResponse` | Get Statement |
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |

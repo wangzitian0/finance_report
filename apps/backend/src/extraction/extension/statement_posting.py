@@ -707,8 +707,9 @@ async def void_statement_posted_entries(
                 .where(
                     JournalEntry.user_id == user_id,
                     JournalEntry.source_id.in_(txn_ids),
-                    JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
+                    JournalEntry.source_type.in_((*STATEMENT_SOURCE_TYPES, JournalEntrySourceType.SYSTEM)),
                     JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+                    ~JournalEntry.memo.startswith("VOID: "),
                 )
                 .order_by(JournalEntry.entry_date, JournalEntry.id)
             )
@@ -939,14 +940,41 @@ async def reconcile_account_statement_chain(
             source_decision_id = contribution.decision.decision_id
         fx_rates: dict[str, Decimal] = {}
         if currency != base_currency and earliest_opening != 0:
-            if dependencies is None:
+            if dependencies is not None:
+                try:
+                    fx_rates[currency] = await dependencies.fx_rate_provider(
+                        db, currency, base_currency, earliest.period_start, lazy_load=True
+                    )
+                except dependencies.fx_rate_error as exc:
+                    raise ValueError("FX rate required for statement opening balance") from exc
+            elif candidate_statement is not None:
                 raise ValueError("FX rate provider required for statement opening balance")
-            try:
-                fx_rates[currency] = await dependencies.fx_rate_provider(
-                    db, currency, base_currency, earliest.period_start, lazy_load=True
+            else:
+                from src.pricing import PricingError, get_exchange_rate
+
+                try:
+                    fx_rates[currency] = await get_exchange_rate(
+                        db, currency, base_currency, earliest.period_start, lazy_load=True
+                    )
+                except PricingError as exc:
+                    raise ValueError("FX rate required for statement opening balance") from exc
+        trace_emitter = dependencies.trace_emitter_factory(db) if dependencies is not None else None
+        if trace_emitter is None and source_decision_id is not None:
+            from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry
+            from src.extraction import extraction_trace_policy_registry
+            from src.ledger import ledger_trace_policy_registry
+
+            trace_emitter = TraceEmitter(
+                SqlTraceRecordRepository(
+                    db,
+                    TraceDecisionPolicyRegistry(
+                        (
+                            *extraction_trace_policy_registry().policies,
+                            *ledger_trace_policy_registry().policies,
+                        )
+                    ),
                 )
-            except dependencies.fx_rate_error as exc:
-                raise ValueError("FX rate required for statement opening balance") from exc
+            )
         try:
             await initialize_opening_positions(
                 db,
@@ -957,9 +985,10 @@ async def reconcile_account_statement_chain(
                 base_currency=base_currency,
                 fx_rates=fx_rates,
                 source_decision_id=source_decision_id,
-                trace_emitter=dependencies.trace_emitter_factory(db) if dependencies is not None else None,
+                trace_emitter=trace_emitter,
                 memo="Opening balance (statement import)",
                 allow_supersede=allow_supersede,
+                preserve_account_currency_equity=True,
             )
             changed = True
         except ValidationError as exc:

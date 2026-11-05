@@ -85,7 +85,7 @@ from src.schemas import (
     RetryParsingRequest,
     StatementDecisionRequest,
 )
-from src.schemas.extraction import compose_statement_response
+from src.schemas.extraction import compose_statement_list_item_response, compose_statement_response
 from src.schemas.portfolio import BrokerageImportResponse
 from src.schemas.review import (
     BalanceValidationResult,
@@ -599,7 +599,7 @@ async def list_statements(
 ) -> BankStatementListResponse:
     """List all statements for the current user.
 
-    Each item has an empty transactions list, and the list uses a fixed number of SQL statements.
+    Each item is a summary envelope without embedded transactions, and the list uses a fixed number of SQL statements.
     Use GET /statements/{id}/transactions to read the rows of one statement.
     """
     result = await db.execute(
@@ -623,7 +623,7 @@ async def list_statements(
     total = total_result.scalar() or 0
 
     documents = await _resolve_uploaded_documents(db, statements, user_id)
-    items = [compose_statement_response(s, documents[s.id], []) for s in statements]
+    items = [compose_statement_list_item_response(s, documents[s.id]) for s in statements]
     return BankStatementListResponse(items=items, total=total)
 
 
@@ -651,7 +651,8 @@ async def list_pending_review(
     )
     total = total_result.scalar() or 0
 
-    items = [await _compose_statement_response(db, s, user_id) for s in statements]
+    documents = await _resolve_uploaded_documents(db, statements, user_id)
+    items = [compose_statement_list_item_response(s, documents[s.id]) for s in statements]
     return BankStatementListResponse(items=items, total=total)
 
 
@@ -724,7 +725,13 @@ async def list_statement_transactions(
     transactions = await resolve_statement_transactions(db, statement)
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
     items = [
-        AtomicTransactionResponse.from_atomic(t, statement.id, suggestion=suggestions.get(t.id)) for t in transactions
+        AtomicTransactionResponse.from_atomic(
+            t,
+            statement.id,
+            suggestion=suggestions.get(t.id),
+            source_row=getattr(t, "source_row", idx + 1),
+        )
+        for idx, t in enumerate(transactions)
     ]
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
@@ -1065,7 +1072,13 @@ async def reject_statement_stage1(
 ) -> BankStatementResponse:
     """Stage 1: Reject statement."""
     try:
-        statement = await reject_statement_workflow(db, statement_id, user_id, reason=decision.notes)
+        statement = await reject_statement_workflow(
+            db,
+            statement_id,
+            user_id,
+            reason=decision.notes,
+            dependencies=compose_statement_posting_dependencies(),
+        )
         await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -296,3 +296,57 @@ async def test_digit_suffix_mapping_is_bijective_and_fails_closed() -> None:
     for invalid in ("123", "12345", "12X4", "１２３４"):
         with pytest.raises(ValueError, match="four ASCII digits"):
             _pseudonym(SECRET, invalid, "digits4")
+
+
+async def test_short_digit_residual_scan_ignores_hex_pseudonym_substrings_but_catches_real_leaks(
+    db: AsyncSession, test_user
+) -> None:
+    """#2714: a short all-digit original (e.g. account_last4="9876") appearing inside
+    an anonymized hex digest (users.email or file_hash) does not false-positive,
+    while an un-anonymized "9876" or "Card 9876" is still caught."""
+    from src.extraction.orm.statement_summary import StatementSummary
+    from src.identity import User
+
+    seeded = await _seed(db, test_user)
+    binding_id = seeded["binding"].id
+    txn_id = seeded["txn"].id
+    account = await AccountFactory.create_async(db, user_id=test_user.id)
+    summary = StatementSummary(
+        user_id=test_user.id,
+        file_hash="real-statement-hash-9876",
+        institution="Generated Private Bank",
+        account_last4="9876",
+        currency="SGD",
+        account_id=account.id,
+    )
+    db.add(summary)
+    await db.flush()
+    summary_id = summary.id
+
+    connection = await db.connection()
+    report = await connection.run_sync(lambda conn: anonymize(conn, Base.metadata, secret=SECRET, scale_factor=FACTOR))
+    assert "9876" in report.original_values
+
+    # Force hex-pseudonym columns to contain "9876" embedded inside alphanumeric/hex tokens.
+    await db.execute(sa.update(User).where(User.id == test_user.id).values(email="anon-987600001111@snapshot.local"))
+    await db.execute(
+        sa.update(StatementSummary)
+        .where(StatementSummary.id == summary_id)
+        .values(file_hash="9876abcdef0123456789abcdef0123456789abcdef0123456789abcdef012345")
+    )
+    await db.flush()
+
+    residuals = await connection.run_sync(lambda conn: scan_for_residuals(conn, Base.metadata, report.original_values))
+    assert residuals == []
+
+    # Plant an exact un-anonymized account_last4="9876" and standalone token "Card 9876" -> both must be caught.
+    await db.execute(
+        sa.update(BankCustodyBinding).where(BankCustodyBinding.id == binding_id).values(account_last4="9876")
+    )
+    await db.execute(
+        sa.update(AtomicTransaction).where(AtomicTransaction.id == txn_id).values(description="Card 9876 payment")
+    )
+    await db.flush()
+
+    residuals = await connection.run_sync(lambda conn: scan_for_residuals(conn, Base.metadata, report.original_values))
+    assert sorted(residuals) == ["atomic_transactions.description", "bank_custody_bindings.account_last4"]

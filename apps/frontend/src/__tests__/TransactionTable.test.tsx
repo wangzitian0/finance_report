@@ -209,14 +209,14 @@ describe("TransactionTable (read-only)", () => {
     });
 
     // AC-extraction.fe-stage1-review.23
-    it("AC-extraction.fe-stage1-review.23 pins the low-confidence rows on top and keeps the other rows in date order", () => {
+    it("AC-extraction.fe-stage1-review.23 pins the low-confidence rows on top and keeps the other rows in statement order", () => {
         const row = (id: string, description: string, tier: BankStatementTransaction["confidence_tier"]): BankStatementTransaction => ({
             ...sample[0],
             id,
             description,
             confidence_tier: tier,
         });
-        // The API order of the #2647 October statement (date order): the LOW row was the last row.
+        // The October statement of #2647: six rows where the LOW rows are rows 4 and 6.
         const rows = [
             row("t-salary", "Salary", "HIGH"),
             row("t-grab", "Grab ride", "MEDIUM"),
@@ -227,23 +227,106 @@ describe("TransactionTable (read-only)", () => {
         ];
         render(<TransactionTable transactions={rows} currency="SGD" />);
 
-        // Only the LOW rows move. MEDIUM, HIGH and TRUSTED rows keep the API (date) order: no sort by tier.
+        // Only the LOW rows move. MEDIUM, HIGH and TRUSTED rows keep the statement order: no sort by tier.
         const expected = ["Card fee", "PayNow Transfer REF 4471", "Salary", "Grab ride", "Rent", "Groceries"];
         const region = screen.getByTestId("stage1-desktop-transaction-region");
         const desktopRows = within(region).getAllByRole("row").slice(1);
         expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(expected);
-        // A pinned row states its position in date order; the other rows sit at that position.
+        // A pinned row states its position in statement order; the other rows sit at that position.
         expect(desktopRows.map((tr) => tr.querySelector("[data-testid='date-row-number']")?.textContent ?? null)).toEqual([
-            "Row 4 of 6 by date", "Row 6 of 6 by date", null, null, null, null,
+            "Row 4 of 6", "Row 6 of 6", null, null, null, null,
         ]);
-        expect(screen.getByText("6 total · by date")).toBeInTheDocument();
+        expect(screen.getByText("6 total · in statement order")).toBeInTheDocument();
         const mobileCards = within(screen.getByTestId("stage1-mobile-transaction-list")).getAllByRole("article");
         expect(mobileCards.map((card) => card.getAttribute("data-testid")?.replace("stage1-mobile-transaction-card-", ""))).toEqual([
             "t-fee", "t-paynow", "t-salary", "t-grab", "t-rent", "t-groceries",
         ]);
-        expect(within(mobileCards[1]).getByTestId("date-row-number")).toHaveTextContent("Row 6 of 6 by date");
+        expect(within(mobileCards[1]).getByTestId("date-row-number")).toHaveTextContent("Row 6 of 6");
         expect(within(mobileCards[2]).queryByTestId("date-row-number")).toBeNull();
         expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("2 low confidence · shown first");
+    });
+
+    // AC-extraction.fe-stage1-review.23 (#2679)
+    it("AC-extraction.fe-stage1-review.23 orders rows by source_row when descending dates and same-day ties differ from date order", () => {
+        // Source statement has descending dates (2026-10-25 first, 2026-10-05 last) and a same-day tie on 2026-10-15.
+        // Pass the array in ascending date / inverted same-day order to prove the table sorts by source_row, not array or date order.
+        const wireRows: Schemas["AtomicTransactionResponse"][] = [
+            {
+                id: "t-oct05-low",
+                statement_id: "s1",
+                txn_date: "2026-10-05",
+                description: "Oct 5 bottom low row",
+                amount: "50.00",
+                direction: "OUT",
+                reference: null,
+                currency: "SGD",
+                confidence_tier: "LOW",
+                source_row: 4,
+                created_at: "2026-10-31T00:01:00Z",
+                updated_at: "2026-10-31T00:01:00Z",
+            },
+            {
+                id: "t-oct15-second",
+                statement_id: "s1",
+                txn_date: "2026-10-15",
+                description: "Oct 15 second on page",
+                amount: "20.00",
+                direction: "OUT",
+                reference: null,
+                currency: "SGD",
+                confidence_tier: "HIGH",
+                source_row: 3,
+                created_at: "2026-10-31T00:02:00Z",
+                updated_at: "2026-10-31T00:02:00Z",
+            },
+            {
+                id: "t-oct15-first-low",
+                statement_id: "s1",
+                txn_date: "2026-10-15",
+                description: "Oct 15 first on page (low)",
+                amount: "30.00",
+                direction: "OUT",
+                reference: null,
+                currency: "SGD",
+                confidence_tier: "LOW",
+                source_row: 2,
+                created_at: "2026-10-31T00:05:00Z",
+                updated_at: "2026-10-31T00:05:00Z",
+            },
+            {
+                id: "t-oct25-top",
+                statement_id: "s1",
+                txn_date: "2026-10-25",
+                description: "Oct 25 top of PDF",
+                amount: "100.00",
+                direction: "IN",
+                reference: null,
+                currency: "SGD",
+                confidence_tier: "HIGH",
+                source_row: 1,
+                created_at: "2026-10-31T00:04:00Z",
+                updated_at: "2026-10-31T00:04:00Z",
+            },
+        ];
+        const rows = wireRows.map((r) => toTransactionViewModel(r));
+        render(<TransactionTable transactions={rows} currency="SGD" />);
+
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const desktopRows = within(region).getAllByRole("row").slice(1);
+        // Pinned LOW rows follow source_row (Row 2 before Row 4), and unpinned rows follow source_row (Row 1 before Row 3).
+        expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual([
+            "Oct 15 first on page (low)",
+            "Oct 5 bottom low row",
+            "Oct 25 top of PDF",
+            "Oct 15 second on page",
+        ]);
+        expect(desktopRows.map((tr) => tr.querySelector("[data-testid='date-row-number']")?.textContent ?? null)).toEqual([
+            "Row 2 of 4",
+            "Row 4 of 4",
+            null,
+            null,
+        ]);
+        expect(screen.getByText("4 total · in statement order")).toBeInTheDocument();
     });
 
     // AC-extraction.fe-stage1-review.23

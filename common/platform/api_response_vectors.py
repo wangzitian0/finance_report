@@ -250,6 +250,7 @@ def build_statement_parsed_vector() -> dict[str, Any]:
             AtomicTransactionResponse(
                 id=UUID("00000000-0000-4000-8000-000000000621"),
                 statement_id=statement_id,
+                source_row=1,
                 txn_date=date(2026, 1, 10),
                 description="VECTOR PAYROLL",
                 amount=Decimal("200.50"),
@@ -262,6 +263,7 @@ def build_statement_parsed_vector() -> dict[str, Any]:
             AtomicTransactionResponse(
                 id=UUID("00000000-0000-4000-8000-000000000622"),
                 statement_id=statement_id,
+                source_row=2,
                 txn_date=date(2026, 1, 20),
                 description="VECTOR GROCERY",
                 amount=Decimal("50.00"),
