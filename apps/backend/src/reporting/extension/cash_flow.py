@@ -730,6 +730,27 @@ async def _build_cash_flow(
         opening_stock_adjustment=opening_stock_adjustment,
         fx_effect=fx_effect,
     )
+    if bool(fx_needs) and bridge.discrepancy != Decimal("0.00"):
+        from src.reporting.base.balance_sheet_calculator import absorb_translation_rounding
+
+        rounded_figure_count = len(operating_items) + len(investing_items) + len(financing_items) + 4
+        adjusted_fx_effect = absorb_translation_rounding(
+            cta_adjustment=fx_effect,
+            residual=bridge.discrepancy,
+            rounded_figure_count=rounded_figure_count,
+        )
+        if adjusted_fx_effect != fx_effect:
+            fx_effect = adjusted_fx_effect
+            bridge = calculate_cash_flow_bridge(
+                beginning_cash=beginning_cash,
+                ending_cash=ending_cash,
+                operating_total=operating_total,
+                investing_total=investing_total,
+                financing_total=financing_total,
+                unclassified_cash=unclassified_cash,
+                opening_stock_adjustment=opening_stock_adjustment,
+                fx_effect=fx_effect,
+            )
 
     document: dict[str, object] = {
         "start_date": start_date,
