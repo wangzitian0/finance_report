@@ -172,26 +172,32 @@ def test_generate_consecutive_months_replay_csv_identity() -> None:
 
 
 def test_benchmark_manifest_v2_fixtures_verified() -> None:
-    """AC-testing.benchmarks.7: manifest.yaml is version 2.1 and retires external PDF fixtures after Bench V2 de-LLM (#2817)."""
+    """AC-testing.benchmarks.7: manifest.yaml is version 2.2 and declares the 20-PDF corpus across 5 MECE dimensions (#2852)."""
     import yaml
 
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
     assert manifest_path.exists()
     data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
-    assert data["version"] == "2.1"
+    assert data["version"] == "2.2"
     assert "domains" not in data, "domains live only in thirty_flows_ssot.json"
 
     fixtures = data.get("fixtures", [])
-    assert fixtures == [], (
-        f"Bench V2 must not depend on external PDF fixtures (#2817); got: {fixtures}"
+    assert len(fixtures) == 20, (
+        f"Expected 20 PDF fixtures in manifest (#2852); got {len(fixtures)}"
     )
+    external = [f for f in fixtures if f.get("source_platform") == "github"]
+    generated = [f for f in fixtures if f.get("source_platform") == "local_generator"]
+    assert len(external) == 5
+    assert len(generated) == 15
+    for f in fixtures:
+        assert len(str(f.get("sha256", ""))) == 64
 
     cases_dir = REPO_ROOT / "common/testing/benchmarks/cases"
     case_files_content = "\n".join(
         p.read_text(encoding="utf-8") for p in cases_dir.glob("case_*.py")
     )
     assert "bsb_001_straits_capital.pdf" not in case_files_content, (
-        "Bench V2 cases must not reference retired external PDF fixtures (#2817)"
+        "Bench V2 CSV scenario cases must not hardcode external PDF filenames (#2817)"
     )
 
 
@@ -396,13 +402,13 @@ def test_benchmark_statement_generators_zero_orphan_contract() -> None:
 
 
 def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
-    """AC-testing.benchmarks.7: Fixture sync loads manifest v2.1 and verifies SHA-256 integrity."""
+    """AC-testing.benchmarks.7: Fixture sync loads manifest v2.2 and verifies SHA-256 integrity."""
     from common.testing.benchmarks import sync_benchmark_fixtures
 
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
     manifest = sync_benchmark_fixtures.load_manifest(manifest_path)
-    assert manifest["version"] == "2.1"
-    assert manifest["fixtures"] == []
+    assert manifest["version"] == "2.2"
+    assert len(manifest["fixtures"]) == 20
 
     # Test SHA-256 computation
     sample_bytes = b"hello finance report benchmark"
