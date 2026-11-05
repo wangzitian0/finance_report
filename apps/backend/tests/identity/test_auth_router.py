@@ -250,6 +250,7 @@ def test_AC_identity_2674_2_get_client_ip_uses_rightmost_forwarded_ip_and_shares
     from src.identity.extension.api import auth as auth_module
     from src.platform import get_client_ip
 
+    assert not hasattr(auth_module, "TRUST_PROXY")
     assert auth_module._get_client_ip is get_client_ip
     assert main_module.get_client_ip is get_client_ip
 

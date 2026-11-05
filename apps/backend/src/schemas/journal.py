@@ -43,16 +43,10 @@ class JournalLineBase(BaseModel):
     tags: JournalLineTags = None
 
 
-class JournalLineCreate(BaseModel):
+class JournalLineCreate(JournalLineBase):
     """Schema for creating a journal line."""
 
-    account_id: UUID
-    direction: Direction
-    amount: JournalLineAmount
-    currency: CurrencyCode | None = None
-    fx_rate: JournalLineFxRate = None
-    event_type: Annotated[str | None, Field(None, max_length=100)] = None
-    tags: JournalLineTags = None
+    currency: CurrencyCode | None = None  # type: ignore[assignment]
 
 
 class JournalLineResponse(JournalLineBase, BaseResponse):
