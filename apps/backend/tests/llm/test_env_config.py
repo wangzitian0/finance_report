@@ -104,3 +104,26 @@ def test_llm_cassette_and_live_settings_fields(monkeypatch) -> None:
     assert s.llm_cassette_engage is True
     assert s.llm_cassette_refresh is True
     assert s.llm_live is True
+
+
+@pytest.mark.no_db
+def test_AC_llm_2624_1_env_config_role_and_retired_model_resolution(monkeypatch) -> None:
+    """AC-llm.2624.1: EnvConfigSource resolves role aliases and maps retired fourth-generation models to role defaults."""
+    monkeypatch.setattr(settings, "large_model", "large-role-model")
+    monkeypatch.setattr(settings, "small_model", "small-role-model")
+    monkeypatch.setattr(settings, "multimodal_model", "multimodal-role-model")
+
+    assert EnvConfigSource.default_role_for_scene(Scene.ADVISOR_CHAT) == "large"
+    assert EnvConfigSource.default_role_for_scene(Scene.EXTRACTION_VISION) == "multimodal"
+    assert EnvConfigSource.default_role_for_scene(Scene.EXTRACTION_JSON) == "small"
+
+    assert EnvConfigSource.is_retired_scene_model("   ") is True
+    assert EnvConfigSource.is_retired_scene_model("glm-4.6") is True
+    assert EnvConfigSource.is_retired_scene_model("provider1/glm-4.6") is True
+    assert EnvConfigSource.is_retired_scene_model("glm-5.1") is False
+
+    assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, None) == "large-role-model"
+    assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, "large") == "large-role-model"
+    assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, "glm-4.6") == "large-role-model"
+    assert EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_VISION, "multimodal") == "multimodal-role-model"
+    assert EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_JSON, "glm-5.1") == "glm-5.1"

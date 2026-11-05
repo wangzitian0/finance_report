@@ -7,8 +7,8 @@ source PDF or its rendered images. So there is no document to leak (PII) and no 
 bloat, while the graded-eval (field accuracy) and balance-chain gates still run on the
 committed response.
 
-Engine: the infra2 SDK multimodal role (``LlmSettings().multimodal_model``, glm-5.3-flash) on the
-z.ai coding plan. GLM 5.3 requires enabled thinking; the reasoning text comes back in a separate
+Engine: the infra2 SDK multimodal role (``LlmSettings().multimodal_model``) on the
+z.ai coding plan. Reasoning-enabled models return thinking text in a separate
 field, so the visible answer is not truncated. Pages rendered as compressed JPEG so even scanned
 statements fit the context (a raw scanned render is ~22MB → 1261). Records both HF
 schemas (Type1/Type2, digital + scanned).
@@ -74,8 +74,8 @@ HF_TYPES = (
     "India_Bank_Statement_Scanned_Type2",
 )
 PER_TYPE = 5
-CODING_URL = "https://api.z.ai/api/coding/paas/v4/chat/completions"
 _ROLE = LlmSettings()
+CODING_URL = f"{(_ROLE.base_url or 'https://api.z.ai/api/coding/paas/v4').rstrip('/')}/{_ROLE.chat_completions_path.lstrip('/')}"
 MODEL = _ROLE.multimodal_model  # the SDK owns the model; no id is written here
 REASONING_EFFORT = _ROLE.multimodal_reasoning_effort
 MAX_TOKENS = 32768

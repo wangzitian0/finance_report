@@ -321,7 +321,7 @@ async def test_AC18_15_8_flag_off_skips_llm_not_deterministic_rules(db, test_use
 
 
 def test_AC_extraction_ai_classification_default_1_code_default_is_on(monkeypatch):
-    """AC-extraction.ai-classification-default.1: the code default is on; reconciliation stays opt-in."""
+    """AC-extraction.ai-classification-default.1: the code defaults of classification and reconciliation are on (#2677)."""
     from src.config import Settings
 
     monkeypatch.delenv("ENABLE_AI_CLASSIFICATION", raising=False)
@@ -330,7 +330,7 @@ def test_AC_extraction_ai_classification_default_1_code_default_is_on(monkeypatc
     defaults = Settings(_env_file=None)
 
     assert defaults.enable_ai_classification is True
-    assert defaults.enable_ai_reconciliation is False
+    assert defaults.enable_ai_reconciliation is True
 
 
 @pytest.mark.asyncio

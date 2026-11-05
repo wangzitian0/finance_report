@@ -94,11 +94,12 @@ async def test_score_single_flag_off_skips_ai_scoring(db) -> None:
     (also proves EPIC-018 AC18.3.3).
     """
     txn, entry = _hybrid_band_txn_and_entry()
+    config = replace(DEFAULT_CONFIG, enable_ai_reconciliation=False)
 
     mock_ai_score = AsyncMock(return_value=90)
 
     with patch("src.reconciliation.extension.matching.ai_semantic_score", mock_ai_score):
-        candidate = await score_single(db, txn, [entry], DEFAULT_CONFIG, uuid4(), history_score=0.0)
+        candidate = await score_single(db, txn, [entry], config, uuid4(), history_score=0.0)
         mock_ai_score.assert_not_called()
 
     assert candidate.score == 69

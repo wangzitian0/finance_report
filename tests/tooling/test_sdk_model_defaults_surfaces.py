@@ -55,9 +55,6 @@ EXEMPT_LINES = {
         '_GLM_53_FAMILY = re.compile(r"glm-5\\.3(-[a-z]+)?", re.IGNORECASE)',
     ),
 }
-# The manual cassette recorder calls the z.ai coding plan with thinking disabled,
-# which the glm-5.3 models reject; it records fixtures offline and is no app model
-# slot. Its migration needs a live check with the provider key (#2569).
 EXCLUDED_PARTS = (
     "node_modules",
     "__tests__",
@@ -66,12 +63,12 @@ EXCLUDED_PARTS = (
     ".venv",
     ".claude/",
     "llm_cassettes",
-    "common/extraction/record_hf_cassettes.py",
 )
 APP_SOURCE = (
     "apps/backend/src/**/*.py",
     "apps/frontend/src/**/*.ts",
     "apps/frontend/src/**/*.tsx",
+    "common/extraction/record_hf_cassettes.py",
 )
 NON_PRODUCTION_CONFIG = (
     ".github/workflows/*.yml",

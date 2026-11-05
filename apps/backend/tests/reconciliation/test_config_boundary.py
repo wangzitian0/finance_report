@@ -154,3 +154,34 @@ def test_entry_readers_preserve_money_and_candidate_semantics():
     assert not public._candidate_is_better(public.MatchCandidate(["manual"], 79, {}), parsed, entries)
     assert public._candidate_is_better(public.MatchCandidate(["parsed"], 81, {}), manual, entries)
     assert entry_reads._candidate_source_rank(public.MatchCandidate([], 0, {}), {}) == 0
+
+
+def test_AC_reconciliation_2677_1_ai_reconciliation_defaults_true_and_reads_settings(loader, monkeypatch):
+    """AC-reconciliation.2677.1: enable_ai_reconciliation defaults to True and resolves through Settings."""
+    import ast
+
+    from src.config import Settings
+    from src.reconciliation import DEFAULT_CONFIG, load_reconciliation_config
+
+    assert DEFAULT_CONFIG.enable_ai_reconciliation is True
+    assert Settings(_env_file=None).enable_ai_reconciliation is True
+    assert load_reconciliation_config(force_reload=True).enable_ai_reconciliation is True
+
+    monkeypatch.setenv("ENABLE_AI_RECONCILIATION", "false")
+    assert load_reconciliation_config(force_reload=True).enable_ai_reconciliation is False
+
+    monkeypatch.setenv("ENABLE_AI_RECONCILIATION", "true")
+    assert load_reconciliation_config(force_reload=True).enable_ai_reconciliation is True
+
+    source = Path(loader.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    getenv_args = [
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "getenv"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+    ]
+    assert "ENABLE_AI_RECONCILIATION" not in getenv_args

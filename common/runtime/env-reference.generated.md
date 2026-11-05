@@ -63,7 +63,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `TRUST_PROXY` | `false` |  |  | Security | Trust X-Forwarded-For headers from reverse proxies. |
 | `AUTO_ACCEPT_AI_SUGGESTIONS` | `true` |  |  | Feature Flags | Post every row of a statement without a person: the system accepts the AI suggestions at or above the review score, and a general account takes a row that the AI could not place (default true). A user can turn it off in the AI settings. Set false to turn it off for all users: this flag is a ceiling over the setting of each user. A compose file that does not set this variable keeps the code default. Needs enable_ai_classification. |
 | `ENABLE_AI_CLASSIFICATION` | `true` |  |  | Feature Flags | EPIC-018: enable AI-assisted transaction classification suggestions (default true). A user can turn it off in the AI settings. |
-| `ENABLE_AI_RECONCILIATION` | `false` |  |  | Feature Flags | EPIC-018: enable AI-assisted reconciliation scoring (default false, opt-in to avoid API costs). |
+| `ENABLE_AI_RECONCILIATION` | `true` |  |  | Feature Flags | EPIC-018: enable AI-assisted reconciliation scoring (default true; a user can turn it off in the AI settings). |
 | `ENABLE_STORAGE_SWEEP` | `true` |  |  | Feature Flags | Enable periodic background sweep for orphaned S3 objects. Set to false in test/CI environments to suppress background S3 network calls. |
 | `RECONCILIATION_AUTO_ACCEPT_THRESHOLD` |  |  |  | Feature Flags | Optional override for reconciliation auto-accept score threshold. |
 | `RECONCILIATION_REVIEW_THRESHOLD` |  |  |  | Feature Flags | Optional override for reconciliation pending-review score threshold. |

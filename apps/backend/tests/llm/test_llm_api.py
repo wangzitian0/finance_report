@@ -187,7 +187,7 @@ async def test_AC23_4_4_scenes_round_trip(client: AsyncClient, cipher) -> None:
             {
                 "scene": "advisor.chat",
                 "provider_id": provider["id"],
-                "model": "glm-4.6",
+                "model": "glm-5.1",
                 "reasoning": "medium",
                 "max_tokens": 2048,
             }
@@ -197,14 +197,14 @@ async def test_AC23_4_4_scenes_round_trip(client: AsyncClient, cipher) -> None:
     assert put.status_code == 200, put.text
     binding = put.json()["bindings"][0]
     assert binding["scene"] == "advisor.chat"
-    assert binding["model"] == "glm-4.6"
+    assert binding["model"] == "glm-5.1"
     assert binding["reasoning"] == "medium"
     assert binding["max_tokens"] == 2048
     assert "prefer_free" not in binding
     assert "fallback_model_ids" not in binding
 
     got = await client.get("/llm/scenes")
-    assert got.json()["bindings"][0]["model"] == "glm-4.6"
+    assert got.json()["bindings"][0]["model"] == "glm-5.1"
 
 
 async def test_AC23_4_4_scenes_rejects_foreign_provider(client: AsyncClient, cipher) -> None:
@@ -213,7 +213,7 @@ async def test_AC23_4_4_scenes_rejects_foreign_provider(client: AsyncClient, cip
 
     resp = await client.put(
         "/llm/scenes",
-        json={"bindings": [{"scene": "advisor.chat", "provider_id": str(uuid4()), "model": "glm-4.6"}]},
+        json={"bindings": [{"scene": "advisor.chat", "provider_id": str(uuid4()), "model": "glm-5.1"}]},
     )
     assert resp.status_code == 400
 
@@ -225,7 +225,7 @@ async def test_AC23_4_5_user_binding_drives_resolution(
     provider = await _create_provider(client)
     await client.put(
         "/llm/scenes",
-        json={"bindings": [{"scene": "advisor.chat", "provider_id": provider["id"], "model": "glm-4.6"}]},
+        json={"bindings": [{"scene": "advisor.chat", "provider_id": provider["id"], "model": "glm-5.1"}]},
     )
 
     from src.llm.extension.factory import get_config_source
@@ -233,10 +233,69 @@ async def test_AC23_4_5_user_binding_drives_resolution(
     binding = await get_config_source(test_user.id).get_binding(Scene.ADVISOR_CHAT)
     assert binding is not None
     # Qualified by the provider id so the client resolves the exact provider.
-    assert binding.model_id == f"{provider['id']}/glm-4.6"
+    assert binding.model_id == f"{provider['id']}/glm-5.1"
 
 
 async def test_AC23_4_6_legacy_ai_models_endpoint_removed(client: AsyncClient) -> None:
     """AC-llm.4.6: the legacy ``GET /ai/models`` catalogue is retired in favour of /llm/catalog."""
     resp = await client.get("/ai/models")
     assert resp.status_code == 404
+
+
+async def test_AC_llm_2624_1_scenes_enforce_three_roles_and_reject_retired_models(
+    client: AsyncClient, db: AsyncSession, test_user: User, cipher
+) -> None:
+    """AC-llm.2624.1: PUT /llm/scenes and DbConfigSource resolve role aliases and reject retired GLM-4 models."""
+    from src.config import settings
+    from src.llm.extension.factory import get_config_source
+
+    provider = await _create_provider(client)
+    put_role = await client.put(
+        "/llm/scenes",
+        json={
+            "bindings": [
+                {
+                    "scene": "advisor.chat",
+                    "provider_id": provider["id"],
+                    "model": "large",
+                    "reasoning": "high",
+                },
+                {
+                    "scene": "extraction.vision",
+                    "provider_id": provider["id"],
+                    "model": "multimodal",
+                    "reasoning": "low",
+                },
+            ]
+        },
+    )
+    assert put_role.status_code == 200, put_role.text
+    chat_binding = await get_config_source(test_user.id).get_binding(Scene.ADVISOR_CHAT)
+    vision_binding = await get_config_source(test_user.id).get_binding(Scene.EXTRACTION_VISION)
+    assert chat_binding is not None
+    assert chat_binding.model_id == f"{provider['id']}/{settings.large_model}"
+    assert vision_binding is not None
+    assert vision_binding.model_id == f"{provider['id']}/{settings.multimodal_model}"
+
+    rejected = await client.put(
+        "/llm/scenes",
+        json={
+            "bindings": [
+                {
+                    "scene": "advisor.chat",
+                    "provider_id": provider["id"],
+                    "model": "glm-4.6",
+                }
+            ]
+        },
+    )
+    assert rejected.status_code in (400, 422)
+
+    from src.llm.extension.env_config import EnvConfigSource
+
+    assert EnvConfigSource.is_retired_scene_model("   ") is True
+    assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, None) == settings.large_model
+    assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, "glm-4.6") == settings.large_model
+    assert (
+        EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_VISION, "provider1/glm-4.6") == settings.multimodal_model
+    )

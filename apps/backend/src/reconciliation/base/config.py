@@ -22,7 +22,7 @@ class ReconciliationConfig:
     amount_percent: Decimal
     amount_absolute: Decimal
     date_days: int
-    enable_ai_reconciliation: bool = False
+    enable_ai_reconciliation: bool = True
 
 
 @dataclass

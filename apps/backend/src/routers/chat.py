@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -19,7 +20,7 @@ from src.advisor import (
     detect_language,
 )
 from src.deps import CurrentUserId, DbSession
-from src.llm import LitellmCatalog
+from src.llm import LitellmCatalog, LLMError
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable
 from src.schemas.chat import (
@@ -68,11 +69,18 @@ async def chat_message(
             payload.session_id,
             payload.model,
         )
+        stream_iter = aiter(stream.stream)
+        first_chunk = await anext(stream_iter, None)
     except AIAdvisorError as exc:
         detail = str(exc)
         if "not found" in detail.lower():
             raise_not_found("Chat session", cause=exc)
-        if "api key" in detail.lower():
+        if (
+            "api key" in detail.lower()
+            or "aistreamerror" in detail.lower()
+            or "llmerror" in detail.lower()
+            or isinstance(exc.__cause__, LLMError)
+        ):
             raise_service_unavailable("AI service temporarily unavailable.", cause=exc)
         raise_bad_request(detail, cause=exc)
 
@@ -80,6 +88,16 @@ async def chat_message(
     # that were flushed by the service layer.  For live-streaming responses,
     # _stream_and_store commits the assistant message after the generator completes.
     await db.commit()
+
+    async def primed_stream() -> AsyncIterator[str]:
+        if first_chunk is not None:
+            yield first_chunk
+        try:
+            async for chunk in stream_iter:
+                yield chunk
+        except (AIAdvisorError, LLMError) as exc:
+            logger.warning("Chat stream interrupted after initial chunk", error=str(exc), exc_info=True)
+            yield "\n\n[Stream interrupted — please retry]"
 
     # Declare the streaming response's out-of-band payload (session id, model
     # name, grounding metadata) through the typed contract so the header
@@ -97,7 +115,7 @@ async def chat_message(
     )
 
     return StreamingResponse(
-        stream.stream,
+        primed_stream(),
         media_type=envelope.media_type.value,
         headers=envelope.to_headers(),
     )

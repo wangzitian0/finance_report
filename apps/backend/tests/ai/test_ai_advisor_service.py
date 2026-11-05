@@ -1266,3 +1266,64 @@ async def test_AC_advisor_context_7_financial_context_anchors_to_latest_active_m
     assert context["monthly_income"] == "SGD 6000.00"
     assert context["monthly_expenses"] == "SGD 2000.00"
     assert "Rent: SGD 2000.00" in context["top_expenses"]
+
+
+@pytest.mark.no_db
+async def test_AC_advisor_2598_1_financial_context_derives_confidence_tiers_from_line_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-advisor.2598.1: _get_financial_summary_context derives confidence tiers from report line provenance."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    service = AIAdvisorService()
+    user_id = uuid4()
+    fake_db = MagicMock()
+    fake_db.scalar = AsyncMock(return_value=0)
+    fake_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+
+    async def fake_base_currency(_db, *, user_id):
+        return "SGD"
+
+    async def fake_balance_sheet(*_args, **_kwargs):
+        return {
+            "total_assets": "15000.00",
+            "total_liabilities": "1000.00",
+            "total_equity": "14000.00",
+            "net_income": "0.00",
+            "currency": "SGD",
+            "unrealized_fx_gain_loss": "0.00",
+            "assets": [
+                {"name": "DBS Cash", "amount": "10000.00", "provenance": "imported"},
+                {"name": "Manual Art Valuation", "amount": "5000.00", "provenance": "manual"},
+            ],
+            "liabilities": [
+                {"name": "Card", "amount": "1000.00", "provenance": "derived"},
+                {"name": "Explicit Tier Line", "amount": "100.00", "confidence_tier": "MANUAL_TRUSTED"},
+                {"name": "Unlabeled Line", "amount": "50.00"},
+            ],
+        }
+
+    async def fake_income_statement(*_args, **_kwargs):
+        return {
+            "total_income": "5000.00",
+            "total_expenses": "1200.00",
+            "income": [{"name": "Salary", "amount": "5000.00", "provenance": "imported"}],
+            "expenses": [{"name": "Manual Expense Adjustment", "amount": "1200.00", "provenance": "manual"}],
+        }
+
+    async def fake_category_breakdown(*_args, **_kwargs):
+        return {"items": [{"category_name": "Rent", "total": "1200.00"}]}
+
+    async def fake_reconciliation_stats(*_args, **_kwargs):
+        return SimpleNamespace(unmatched_transactions=0, pending_review=0, match_rate=100.0)
+
+    monkeypatch.setattr(ai_advisor_service, "get_effective_base_currency", fake_base_currency)
+    monkeypatch.setattr(ai_advisor_service, "generate_balance_sheet", fake_balance_sheet)
+    monkeypatch.setattr(ai_advisor_service, "generate_income_statement", fake_income_statement)
+    monkeypatch.setattr(ai_advisor_service, "get_category_breakdown", fake_category_breakdown)
+    monkeypatch.setattr(ai_advisor_service, "get_reconciliation_stats", fake_reconciliation_stats)
+
+    context = await service._get_financial_summary_context(fake_db, user_id)
+
+    assert context["balance_sheet_confidence_tier"] == "MANUAL_TRUSTED"
+    assert context["income_statement_confidence_tier"] == "MANUAL_TRUSTED"

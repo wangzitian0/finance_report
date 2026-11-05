@@ -3783,7 +3783,7 @@ export interface components {
          */
         JournalEntryResponse: {
             /** Confidence Tier */
-            confidence_tier?: ("DETERMINISTIC" | "TRUSTED" | "HIGH" | "MEDIUM" | "LOW") | null;
+            confidence_tier?: ("DETERMINISTIC" | "TRUSTED" | "MANUAL_TRUSTED" | "HIGH" | "MEDIUM" | "LOW") | null;
             /**
              * Created At
              * Format: date-time
