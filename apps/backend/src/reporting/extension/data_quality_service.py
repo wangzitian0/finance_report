@@ -135,10 +135,13 @@ async def compute_personal_data_quality(
         delta=diag_result.equation_delta,
     )
 
-    # 2. Query user statements
+    # 2. Query active user statements (exclude RETIRED and REJECTED)
     stmt_query = (
         select(StatementSummary)
-        .where(StatementSummary.user_id == user_id)
+        .where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status.not_in((BankStatementStatus.RETIRED, BankStatementStatus.REJECTED)),
+        )
         .order_by(
             StatementSummary.period_start.asc().nulls_last(),
             StatementSummary.created_at.asc(),

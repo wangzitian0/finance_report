@@ -853,20 +853,27 @@ async def reconcile_account_statement_chain(
                 base_currency=base_currency,
             )
             changed = True
-        if (
-            existing_opening is not None
-            and existing_opening.journal_entry_id is not None
-            and existing_opening.source_decision is not None
-        ):
-            await void_journal_entry(
-                db,
-                existing_opening.journal_entry_id,
-                reason="All statements for account retired",
-                user_id=user_id,
-                allow_reconciled=True,
-                base_currency=base_currency,
+        if existing_opening is not None and existing_opening.journal_entry_id is not None:
+            inactive_at_opening = await db.scalar(
+                select(StatementSummary.id)
+                .where(
+                    StatementSummary.user_id == user_id,
+                    StatementSummary.account_id == account_id,
+                    StatementSummary.status.in_((BankStatementStatus.RETIRED, BankStatementStatus.REJECTED)),
+                    StatementSummary.period_start == existing_opening.effective_date,
+                )
+                .limit(1)
             )
-            changed = True
+            if existing_opening.source_decision is not None or inactive_at_opening is not None:
+                await void_journal_entry(
+                    db,
+                    existing_opening.journal_entry_id,
+                    reason="All statements for account retired",
+                    user_id=user_id,
+                    allow_reconciled=True,
+                    base_currency=base_currency,
+                )
+                changed = True
         return changed
 
     earliest = approved_rows[0]
@@ -883,28 +890,45 @@ async def reconcile_account_statement_chain(
         if existing_opening.state != "authoritative":
             raise ValueError("Opening balance authority needs review")
         if existing_opening.effective_date < earliest.period_start:
-            # Determine whether existing_opening came from a retired statement or a manual opening balance
-            retired_at_existing = await db.scalar(
+            # Determine whether existing_opening came from a retired/rejected statement or a manual opening balance
+            inactive_at_existing = await db.scalar(
                 select(StatementSummary.id)
                 .where(
                     StatementSummary.user_id == user_id,
                     StatementSummary.account_id == account_id,
-                    StatementSummary.status == BankStatementStatus.RETIRED,
+                    StatementSummary.status.in_((BankStatementStatus.RETIRED, BankStatementStatus.REJECTED)),
                     StatementSummary.period_start == existing_opening.effective_date,
                 )
                 .limit(1)
             )
-            if retired_at_existing is not None:
+            if inactive_at_existing is not None:
                 allow_supersede = True
             else:
                 need_opening_post = False
         elif existing_opening.effective_date == earliest.period_start:
             if abs(earliest_opening - existing_opening.amount) <= STATEMENT_BALANCE_TOLERANCE:
                 need_opening_post = False
+            elif earliest.manual_opening_balance is not None:
+                allow_supersede = True
             else:
                 raise ValueError("Opening balance conflicts with existing opening position for the same date")
 
     if need_opening_post:
+        remaining_plugs: list[tuple[JournalEntry, JournalLine]] = []
+        for entry, line in existing_plugs:
+            if entry.entry_date < earliest.period_start:
+                await void_journal_entry(
+                    db,
+                    entry.id,
+                    reason="Superseded by statement chain reconciliation",
+                    user_id=user_id,
+                    allow_reconciled=True,
+                    base_currency=base_currency,
+                )
+                changed = True
+            else:
+                remaining_plugs.append((entry, line))
+        existing_plugs = remaining_plugs
         source_decision_id = None
         if earliest.current_extraction_result_id is not None:
             contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=earliest.id)

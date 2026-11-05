@@ -807,3 +807,50 @@ async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branc
     )
     assert res_intra.temporal_continuity_invariant.is_healthy is False
     assert res_intra.temporal_continuity_invariant.delta == Decimal("1")
+
+    # 3. RETIRED and REJECTED statements must not pollute timeline buckets or earliest/latest statement span
+    st_retired_prev_year = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        file_hash="retired_2025_10",
+        institution="Citibank",
+        account_last4="9999",
+        currency="SGD",
+        period_start=date(2025, 10, 1),
+        period_end=date(2025, 10, 31),
+        opening_balance=Decimal("9000.00"),
+        closing_balance=Decimal("9000.00"),
+        status=BankStatementStatus.RETIRED,
+    )
+    st_rejected_nov = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        file_hash="rejected_2025_11",
+        institution="Citibank",
+        account_last4="9999",
+        currency="SGD",
+        period_start=date(2025, 11, 1),
+        period_end=date(2025, 11, 30),
+        opening_balance=Decimal("9000.00"),
+        closing_balance=Decimal("9000.00"),
+        status=BankStatementStatus.REJECTED,
+    )
+    db.add_all([st_retired_prev_year, st_rejected_nov])
+    await db.flush()
+
+    res_filtered = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 3, 31),
+        currency="SGD",
+    )
+    bucket_oct = next(b for b in res_filtered.timeline if b.month == "2025-10")
+    bucket_nov = next(b for b in res_filtered.timeline if b.month == "2025-11")
+    bucket_dec = next(b for b in res_filtered.timeline if b.month == "2025-12")
+    assert bucket_oct.statement_count == 0
+    assert bucket_oct.status == "NO_DATA"
+    assert bucket_nov.statement_count == 0
+    assert bucket_nov.status == "NO_DATA"
+    assert bucket_dec.status == "NO_DATA"
