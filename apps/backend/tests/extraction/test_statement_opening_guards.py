@@ -731,3 +731,202 @@ async def test_audit_completeness_reconcile_chain_lifecycle_and_manual_override_
     assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=acc.id) is True
     assert await calculate_account_balance(db, gap_eq.id, test_user.id) == Decimal("0.00")
     assert await calculate_account_balance(db, acc.id, test_user.id) == Decimal("5000.00")
+
+
+async def test_foreign_currency_opening_equity_retire_and_gap_zero_hidden(db, test_user):
+    """AC-extraction.2832.1, AC-extraction.2832.2: Foreign-currency statement opening balance
+    books 3199 in account currency (no native-currency BS distortion), retiring an approved
+    foreign-currency statement voids all-FX posted entries and re-anchors remaining statements
+    without HTTP 500, and converged 0.00 3198 gap equity rows are hidden from Balance Sheet (#2851).
+    """
+    from src.audit import JournalEntrySourceType
+    from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentStatus, DocumentType
+    from src.extraction.base.types import RetireStatementCommand
+    from src.extraction.extension.source_lifecycle import retire_statement
+    from src.extraction.extension.statement_posting import reconcile_account_statement_chain
+    from src.extraction.orm.layer1 import UploadedDocument
+    from src.extraction.orm.layer2 import AtomicTransaction
+    from src.ledger import Direction, submit_system_journal_entry
+    from src.ledger.extension.account_service import (
+        get_or_create_opening_balance_equity_account,
+        get_or_create_unexplained_gap_equity_account,
+    )
+    from src.pricing import FxRate
+
+    db.add_all(
+        [
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.188304"),
+                rate_date=date(2024, 1, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.190000"),
+                rate_date=date(2024, 2, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.192490"),
+                rate_date=date(2024, 2, 28),
+                source="test",
+            ),
+            FxRate(
+                base_currency="SGD",
+                quote_currency="CNY",
+                rate=Decimal("5.195075"),
+                rate_date=date(2024, 2, 28),
+                source="test",
+            ),
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.195000"),
+                rate_date=date(2024, 3, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="CNY",
+                quote_currency="SGD",
+                rate=Decimal("0.195000"),
+                rate_date=date(2024, 3, 31),
+                source="test",
+            ),
+        ]
+    )
+    cny_bank = Account(user_id=test_user.id, name="CMB Savings", type=AccountType.ASSET, currency="CNY")
+    cny_exp = Account(user_id=test_user.id, name="CNY Dining", type=AccountType.EXPENSE, currency="CNY")
+    db.add_all([cny_bank, cny_exp])
+    await db.flush()
+
+    doc_jan = UploadedDocument(
+        user_id=test_user.id,
+        file_path="statements/cmb_jan.pdf",
+        file_hash="cmb_jan_hash_2851",
+        original_filename="cmb_jan.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
+    )
+    doc_mar = UploadedDocument(
+        user_id=test_user.id,
+        file_path="statements/cmb_mar.pdf",
+        file_hash="cmb_mar_hash_2851",
+        original_filename="cmb_mar.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
+    )
+    db.add_all([doc_jan, doc_mar])
+    await db.flush()
+
+    stmt_jan = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        uploaded_document_id=doc_jan.id,
+        account_id=cny_bank.id,
+        institution="CMB",
+        account_last4="8888",
+        currency="CNY",
+        opening_balance=Decimal("38500.00"),
+        closing_balance=Decimal("38000.00"),
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 2, 28),
+        status=BankStatementStatus.APPROVED,
+    )
+    stmt_mar = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        uploaded_document_id=doc_mar.id,
+        account_id=cny_bank.id,
+        institution="CMB",
+        account_last4="8888",
+        currency="CNY",
+        opening_balance=Decimal("40000.00"),
+        closing_balance=Decimal("40000.00"),
+        period_start=date(2024, 3, 1),
+        period_end=date(2024, 3, 31),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add_all([stmt_jan, stmt_mar])
+    await db.flush()
+
+    txn_jan = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date(2024, 2, 1),
+        amount=Decimal("500.00"),
+        direction="OUT",
+        description="Hotpot Dinner",
+        currency="CNY",
+        dedup_hash="cmb_jan_txn_2851",
+        source_documents=[{"doc_id": str(doc_jan.id), "doc_type": "bank_statement"}],
+    )
+    db.add(txn_jan)
+    await db.flush()
+
+    # Post the foreign-currency transaction entry (both lines in CNY with fx_rate)
+    await submit_system_journal_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2024, 2, 1),
+        memo="Hotpot Dinner",
+        lines_data=[
+            {
+                "account_id": cny_exp.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("500.00"),
+                "currency": "CNY",
+                "fx_rate": Decimal("0.190000"),
+            },
+            {
+                "account_id": cny_bank.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("500.00"),
+                "currency": "CNY",
+                "fx_rate": Decimal("0.190000"),
+            },
+        ],
+        base_currency="SGD",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        source_id=txn_jan.id,
+        operation="statement-posting",
+    )
+
+    assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=cny_bank.id) is True
+
+    # Verify 3199 Opening Balance Equity is in CNY with exact 38,500.00 CNY balance
+    obe_cny = await get_or_create_opening_balance_equity_account(db, test_user.id, "CNY", match_currency=True)
+    assert obe_cny.currency == "CNY"
+    assert await calculate_account_balance(db, obe_cny.id, test_user.id) == Decimal("38500.00")
+
+    # Verify native CNY Balance Sheet on 2024-02-28 has exact 38,500.00 CNY Opening Balance Equity and 0 FX distortion
+    bs_cny = await generate_balance_sheet(db, test_user.id, as_of_date=date(2024, 2, 28), currency="CNY")
+    assert bs_cny["is_balanced"] is True
+    assert bs_cny["total_assets"] == Decimal("38000.00")
+    assert bs_cny["total_equity"] == Decimal("38500.00")
+    assert bs_cny["net_income"] == Decimal("-500.00")
+    assert bs_cny["unrealized_fx_gain_loss"] == Decimal("0.00")
+    assert bs_cny["cta_adjustment"] == Decimal("0.00")
+    # On 2024-02-28, the gap plug (dated 2024-03-01) has 0.00 balance as of Feb 28 and is hidden from equity lines
+    assert [line["name"] for line in bs_cny["equity"]] == ["Opening Balance Equity"]
+
+    # Now retire stmt_jan via retire_statement (without passing dependencies explicitly):
+    # 1) voids txn_jan's all-FX posted entry without ValidationError
+    # 2) voids the 2024-03-01 gap plug (3198 balance becomes 0.00)
+    # 3) re-anchors 3199 Opening Balance Equity to stmt_mar (40,000.00 CNY on 2024-03-01)
+    retired = await retire_statement(
+        db,
+        RetireStatementCommand(statement_id=stmt_jan.id, user_id=test_user.id),
+    )
+    assert retired.status == BankStatementStatus.RETIRED
+    gap_eq_cny = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "CNY")
+    assert await calculate_account_balance(db, gap_eq_cny.id, test_user.id) == Decimal("0.00")
+    assert await calculate_account_balance(db, cny_bank.id, test_user.id) == Decimal("40000.00")
+
+    bs_mar_cny = await generate_balance_sheet(db, test_user.id, as_of_date=date(2024, 3, 31), currency="CNY")
+    assert bs_mar_cny["is_balanced"] is True
+    assert bs_mar_cny["total_assets"] == Decimal("40000.00")
+    assert bs_mar_cny["total_equity"] == Decimal("40000.00")
+    # Converged 0.00 3198 Unexplained Statement Gap Equity is hidden from Balance Sheet lines
+    assert [line["name"] for line in bs_mar_cny["equity"]] == ["Opening Balance Equity"]

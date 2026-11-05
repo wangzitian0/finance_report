@@ -64,11 +64,18 @@ def _historical_reversal_base_currency(
     lines: list[JournalLine],
     *,
     fallback_base_currency: str | None,
+    stored_base_currency: str | None = None,
 ) -> str:
     """Recover the base currency under which the posted lines were validated."""
     fallback = Currency.of(fallback_base_currency or src.config.settings.base_currency).code
     fx_free_currencies = {Currency.of(line.currency or fallback).code for line in lines if line.fx_rate is None}
     if not fx_free_currencies:
+        line_currencies = {Currency.of(line.currency or fallback).code for line in lines}
+        candidate = Currency.of(stored_base_currency).code if stored_base_currency else fallback
+        if len(line_currencies) == 1 and candidate not in line_currencies:
+            validate_journal_balance(cast("list[JournalLinePostingProtocol]", lines), base_currency=candidate)
+            validate_fx_rates(cast("list[JournalLinePostingProtocol]", lines), base_currency=candidate)
+            return candidate
         raise ValidationError("Cannot determine historical base currency: all lines have FX rates")
     if len(fx_free_currencies) > 1:
         currencies = ", ".join(sorted(fx_free_currencies))
@@ -381,6 +388,7 @@ async def void_journal_entry(
     historical_base = _historical_reversal_base_currency(
         entry.lines,
         fallback_base_currency=base_currency,
+        stored_base_currency=entry.base_currency,
     )
     await _set_transaction_base_currency(db, historical_base)
 

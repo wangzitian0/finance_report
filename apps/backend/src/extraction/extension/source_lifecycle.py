@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -14,6 +14,9 @@ from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentS
 from src.extraction.base.types import RetireStatementCommand
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
+
+if TYPE_CHECKING:
+    from src.extraction.extension.statement_posting import StatementPostingDependencies
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -73,6 +76,8 @@ async def resolve_source_identity(
 async def retire_statement(
     db: AsyncSession,
     command: RetireStatementCommand,
+    *,
+    dependencies: StatementPostingDependencies | None = None,
 ) -> StatementSummary:
     """Retire product visibility while retaining source content and lineage."""
     statement = (
@@ -107,6 +112,7 @@ async def retire_statement(
                 db,
                 user_id=command.user_id,
                 account_id=statement.account_id,
+                dependencies=dependencies,
             )
         await db.flush()
     return statement

@@ -76,7 +76,12 @@ async def approve_statement_workflow(
 
 
 async def reject_statement_workflow(
-    db: AsyncSession, statement_id: UUID, user_id: UUID, *, reason: str | None = None
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+    *,
+    reason: str | None = None,
+    dependencies: StatementPostingDependencies | None = None,
 ) -> StatementSummary:
     """Reject a PARSED statement as one committed unit, returning the refreshed row.
 
@@ -88,7 +93,7 @@ async def reject_statement_workflow(
     await void_statement_posted_entries(db, statement, user_id, reason=reason or "Statement rejected")
     account_id = getattr(statement, "account_id", None)
     if account_id is not None:
-        await reconcile_account_statement_chain(db, user_id=user_id, account_id=account_id)
+        await reconcile_account_statement_chain(db, user_id=user_id, account_id=account_id, dependencies=dependencies)
     await db.commit()
     await db.refresh(statement)
     return statement
