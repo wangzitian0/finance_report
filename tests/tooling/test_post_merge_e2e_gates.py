@@ -1012,6 +1012,32 @@ def test_AC8_13_115_readiness_fail_fast() -> None:
     assert "wait_for_endpoint" in smoke
 
 
+def test_AC8_13_115_smoke_hook_slots_pass_the_app_url_as_first_argument() -> None:
+    """AC-testing.preview.14: AC8.13.115: Every hook slot that runs smoke_test.sh passes the app URL as its first positional argument (#2877)."""
+    import shlex
+
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    url_arguments = {"$INFRA2_HOOK_APP_URL", "$APP_URL"}
+    first_arguments: dict[str, str] = {}
+    for slot_name, slot in manifest.slots.items():
+        tokens = shlex.split(slot.run)
+        for index, token in enumerate(tokens):
+            if "smoke_test.sh" in token:
+                following = tokens[index + 1 : index + 2]
+                first_arguments[slot_name] = following[0] if following else ""
+    assert first_arguments, "no hook slot runs smoke_test.sh"
+    # smoke_test.sh reads BASE_URL="${1:-http://localhost:3000}": a BASE_URL
+    # environment variable is ignored and the hook checks localhost.
+    wrong = {
+        slot: argument
+        for slot, argument in first_arguments.items()
+        if argument not in url_arguments
+    }
+    assert not wrong, f"smoke_test.sh first argument is not the app URL: {wrong}"
+
+
 def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> None:
     """AC-runtime.deploy-request.4: AC-meta.infra-boundary.1: AC-meta.infra-boundary.2: repository has no infra2 submodule or git dependency and validates runtime-hooks.manifest.json via infra2_sdk.manifests."""
     from common.runtime import env_reference

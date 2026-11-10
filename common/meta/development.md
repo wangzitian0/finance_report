@@ -306,7 +306,7 @@ All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test li
 
 ```bash
 bash tools/smoke_test.sh                              # Local
-BASE_URL=https://report.zitian.party bash tools/smoke_test.sh  # Staging/prod
+bash tools/smoke_test.sh https://report.zitian.party  # Staging/prod
 ```
 
 Endpoints tested: `/`, `/api/health`, `/api/docs`, `/reconciliation`, `/api/ping`
@@ -352,8 +352,7 @@ moon run :test
 # Test smoke tests locally
 nohup moon run :dev -- --backend > /dev/null 2>&1 &
 sleep 10
-export BASE_URL="http://localhost:8000"
-bash tools/smoke_test.sh
+bash tools/smoke_test.sh "http://localhost:8000"
 
 # Check no orphan containers after tests
 podman ps | grep finance_report

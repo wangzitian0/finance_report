@@ -150,7 +150,7 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
 bash tools/smoke_test.sh
 
 # Against staging/prod
-BASE_URL=https://report.zitian.party bash tools/smoke_test.sh
+bash tools/smoke_test.sh https://report.zitian.party
 ```
 
 | Endpoint | Check |
