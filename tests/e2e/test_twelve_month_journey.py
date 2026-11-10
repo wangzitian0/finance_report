@@ -26,6 +26,7 @@ import asyncio
 import calendar
 import os
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import date
 from decimal import Decimal
 
@@ -98,8 +99,13 @@ async def _auth_headers(page: Page) -> dict[str, str]:
     return {"Cookie": f"finance_access_token={auth_cookie['value']}"}
 
 
-async def _assert_pinned_before_journey(page: Page, record_property) -> None:
-    """Prove the pinned deployment before the journey starts (#2370)."""
+async def _assert_pinned_before_journey(
+    page: Page, record_property, reconnects: ReconnectCount
+) -> None:
+    """Prove the pinned deployment before the journey starts (#2370).
+
+    The two GET requests use the reconnect of the journey (#2911).
+    """
     expected_version = os.getenv("EXPECTED_SHA")
     assert expected_version, "core-journey proof requires an explicit EXPECTED_SHA"
     expected_commit = resolve_expected_commit(expected_version)
@@ -107,10 +113,12 @@ async def _assert_pinned_before_journey(page: Page, record_property) -> None:
     async with httpx.AsyncClient(
         headers=headers, verify=False, timeout=120.0
     ) as client:
-        health = await client.get(_api_url("/health"))
+        health = await get_with_reconnect(client, _api_url("/health"), reconnects)
         assert health.status_code == 200
         assert_pinned_deployment(health.json(), expected_version, expected_commit)
-        frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json")
+        frontend = await get_with_reconnect(
+            client, f"{APP_URL.rstrip('/')}/frontend-version.json", reconnects
+        )
         assert frontend.status_code == 200, (
             "frontend deployment version must be observable"
         )
@@ -140,6 +148,17 @@ def _month_csv(
         "",
     ]
     return "\n".join(rows)
+
+
+def _reconnecting_get(
+    client: httpx.AsyncClient, reconnects: ReconnectCount
+) -> Callable[[str], Awaitable[httpx.Response]]:
+    """Return a getter for the fixture review helper. Its GET requests share the reconnect count (#2911)."""
+
+    async def get(url: str) -> httpx.Response:
+        return await get_with_reconnect(client, url, reconnects)
+
+    return get
 
 
 async def _wait_for_parsed(
@@ -183,11 +202,11 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
     Checkpoints proven: U12 (pinned revision), U9 (twelve consecutive months tie out).
     """
     page = authenticated_page_unique
-    await _assert_pinned_before_journey(page, record_property)
-
-    headers = await _auth_headers(page)
     reconnects = ReconnectCount()
     try:
+        await _assert_pinned_before_journey(page, record_property, reconnects)
+
+        headers = await _auth_headers(page)
         async with httpx.AsyncClient(
             headers=headers, verify=False, timeout=120.0
         ) as client:
@@ -265,6 +284,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
                     statement_id=statement_id,
                     transactions=parsed["transactions"],
                     dispositions=DISPOSITIONS,
+                    get=_reconnecting_get(client, reconnects),
                     envelope=FixtureEnvelope(
                         currency=CURRENCY,
                         period_start=period_start,
@@ -280,8 +300,10 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
                 running_balance = month_closing
 
             # 4. Verify the annual balance sheet as of 2026-12-31.
-            bs_resp = await client.get(
+            bs_resp = await get_with_reconnect(
+                client,
                 _api_url("/reports/balance-sheet"),
+                reconnects,
                 params={"as_of_date": YEAR_END, "currency": CURRENCY},
             )
             assert bs_resp.status_code == 200, f"balance sheet failed: {bs_resp.text}"
@@ -295,8 +317,10 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             )
 
             # 5. Verify the annual income statement for 2026.
-            inc_resp = await client.get(
+            inc_resp = await get_with_reconnect(
+                client,
                 _api_url("/reports/income-statement"),
+                reconnects,
                 params={
                     "start_date": YEAR_START,
                     "end_date": YEAR_END,
@@ -312,8 +336,10 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             assert Decimal(str(inc["net_income"])) == EXPECTED_NET_INCOME
 
             # 6. Verify the annual cash flow statement for 2026.
-            cf_resp = await client.get(
+            cf_resp = await get_with_reconnect(
+                client,
                 _api_url("/reports/cash-flow"),
+                reconnects,
                 params={
                     "start_date": YEAR_START,
                     "end_date": YEAR_END,
@@ -347,7 +373,9 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             pkg = pkg_resp.json()
             assert pkg["status"] == "trusted", f"package not trusted: {pkg}"
 
-            stmts_resp = await client.get(_api_url("/statements"))
+            stmts_resp = await get_with_reconnect(
+                client, _api_url("/statements"), reconnects
+            )
             assert stmts_resp.status_code == 200, (
                 f"statements list failed: {stmts_resp.text}"
             )
@@ -415,6 +443,6 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             # 9. Record checkpoint U9.
             checkpoint(record_property, "U9")
     finally:
-        # Report reconnect count even when the journey fails (#2610).
-        record_property("poll_reconnects", reconnects.value)
-        print(f"twelve-month journey: poll reconnects = {reconnects.value}")
+        # Report the reconnect count of all GET requests even when the journey fails (#2610, #2911).
+        record_property("get_reconnects", reconnects.value)
+        print(f"twelve-month journey: GET reconnects = {reconnects.value}")

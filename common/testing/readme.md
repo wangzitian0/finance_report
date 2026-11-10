@@ -98,6 +98,25 @@ redacted). For path-scoped PR and local verification (`#2670`),
 changed `tests/e2e/**` specs and `E2E_ROWS` `frontend_paths` to the affected
 non-LLM `staging_core_e2e` journeys.
 
+Every idempotent GET request of `tests/e2e/test_twelve_month_journey.py` goes
+through `tests/e2e/transport_retry.py` (`AC-testing.e2e-poll-reconnect.2`,
+`#2911`). That includes the two lookups of `approve_statement_with_fixture_review`:
+the journey passes it a getter through the `get` parameter, and a journey that
+passes none keeps `client.get`. After a `ReadError` or `RemoteProtocolError`,
+the helper retries on a new connection, at most 3 times in a row. It never
+retries a timeout, a refused connection, an HTTP error status or a POST
+request. The journey prints the total as
+`twelve-month journey: GET reconnects = N`, also when it fails. After the
+target handshake, the session start of `tests/e2e/conftest.py` opens 6 new
+connections to the health URL and prints one path-quality line
+(`AC-testing.e2e-path-quality.1`). A line that starts with `WARNING` means that
+a connection failed or that the connections reached more than one edge
+location (the `cf-ray` suffix). A transport error in that run probably comes
+from the client network, and the session continues. A line without `WARNING`
+states the facts and means that the samples show no instability. It makes no
+claim about the next minute. Example:
+`e2e path quality: 6 new connections, 0 failed, edge location SIN`.
+
 ### Fast interception
 
 The matrix is SSOT'd in this package — not in prose, not in workflow YAML —

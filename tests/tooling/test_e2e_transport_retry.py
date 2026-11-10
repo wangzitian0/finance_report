@@ -1,4 +1,4 @@
-"""AC-testing.e2e-poll-reconnect.1 and .2: a journey GET reconnects on a closed connection, bounded and counted (#2610, #2911)."""
+"""AC-testing.e2e-poll-reconnect.1 and AC-testing.e2e-poll-reconnect.2: a journey GET reconnects on a closed connection, bounded and counted (#2610, #2911)."""
 
 import ast
 from pathlib import Path
@@ -220,6 +220,7 @@ def test_AC_testing_e2e_poll_reconnect_2_the_detector_finds_a_direct_get_and_ign
 
 
 def test_AC_testing_e2e_poll_reconnect_2_the_twelve_month_journey_makes_no_direct_get_call():
+    """AC-testing.e2e-poll-reconnect.2: the journey file holds no `client.get(...)` call and passes `get=` to the review helper."""
     source = TWELVE_MONTH_JOURNEY.read_text(encoding="utf-8")
 
     assert _direct_client_get_lines(source) == []
