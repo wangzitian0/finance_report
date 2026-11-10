@@ -1079,3 +1079,48 @@ def test_evaluate_three_statement_consistency_with_real_fastapi_payload_shapes()
         retirement_cleanup_statuses=[204],
     )
     assert res_silk.passed is True, f"Unexpected failures: {res_silk.failures}"
+
+    # 3b. bsb_004_silk_road with both HKD and USD custody rows on BS and combined 3199 Opening Balance Equity
+    silk_bs_multicustody = {
+        "as_of_date": "2025-01-31",
+        "currency": "HKD",
+        "assets": [
+            {
+                "name": "Silk Road \u2022\u20227323",
+                "type": "ASSET",
+                "amount": "18364.12",
+            },
+            {
+                "name": "Silk Road \u2022\u20227323 (USD)",
+                "type": "ASSET",
+                "amount": "1318669.09",
+            },
+        ],
+        "liabilities": [],
+        "equity": [
+            {
+                "name": "Opening Balance Equity",
+                "type": "EQUITY",
+                "amount": "1205080.00",
+            },
+            {"name": "Unexplained Statement Gap", "type": "EQUITY", "amount": "0.00"},
+        ],
+        "total_assets": "1337033.21",
+        "total_liabilities": "0.00",
+        "total_equity": "1205080.00",
+        "net_income": "-24215.88",
+        "unrealized_fx_gain_loss": "156169.09",
+        "equation_delta": "0.00",
+        "is_balanced": True,
+    }
+    res_silk_multi = evaluate_three_statement_consistency(
+        silk_oracle,
+        balance_sheet=silk_bs_multicustody,
+        income_statement=silk_is_native,
+        cash_flow=silk_cf_native,
+        translated_balance_sheet=silk_bs_sgd,
+        retirement_cleanup_statuses=[204],
+    )
+    assert res_silk_multi.passed is True, (
+        f"Unexpected multi-custody failures: {res_silk_multi.failures}"
+    )

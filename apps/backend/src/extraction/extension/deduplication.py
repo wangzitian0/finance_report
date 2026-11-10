@@ -567,6 +567,7 @@ async def _persist_conform_statement_summary(
         existing.period_end = statement.period_end
         existing.opening_balance = statement.opening_balance
         existing.closing_balance = statement.closing_balance
+        existing.currency_balances = statement.currency_balances
         existing.extraction_metadata = effective_metadata
         existing.confidence_score = statement.confidence_score
         existing.balance_validated = statement.balance_validated

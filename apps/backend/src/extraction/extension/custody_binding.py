@@ -96,7 +96,11 @@ async def coverage_bank_custody_account_ids(
             StatementSummary.user_id == user_id,
             StatementSummary.account_id.is_not(None),
             period_start <= as_of,
-            StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
+            or_(
+                StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
+                StatementExtractionResultRecord.payload["evidence_type"].astext
+                == StatementEvidenceType.TRANSACTION_LEDGER.value,
+            ),
         )
         .distinct()
         .cte("custody_accounts")

@@ -607,3 +607,160 @@ async def test_multicurrency_fallback_account_without_last4_and_custody_source_g
         dependencies=deps_with_fx,
     )
     assert changed is True
+
+
+async def test_persist_conform_statement_summary_preserves_currency_balances_on_existing_parsing_row(db, test_user):
+    """AC-extraction.source-routing.2: Pre-created StatementSummary (status=PARSING) receives currency_balances during conform persistence."""
+    import hashlib
+
+    from src.extraction.orm.statement_summary import StatementSummary
+
+    pdf_bytes = b"%PDF-1.4 silk road precreated"
+    file_hash = hashlib.sha256(pdf_bytes).hexdigest()
+    precreated = StatementSummary(
+        user_id=test_user.id,
+        file_hash=file_hash,
+        institution="Silk Road Banking",
+        status=BankStatementStatus.PARSING,
+        currency_balances=None,
+    )
+    db.add(precreated)
+    await db.flush()
+
+    service = ExtractionService()
+    payload = {
+        "institution": "Silk Road Banking",
+        "account_last4": "7323",
+        "currency": "HKD",
+        "period_start": "2025-01-01",
+        "period_end": "2025-01-31",
+        "opening_balance": "42580.00",
+        "closing_balance": "18364.12",
+        "balances": [
+            {"currency": "HKD", "opening": "42580.00", "closing": "18364.12"},
+            {"currency": "USD", "opening": "150000.00", "closing": "170150.85"},
+        ],
+        "transactions": [
+            {
+                "date": "2025-01-10",
+                "description": "HKD RENT PAYMENT",
+                "amount": "24215.88",
+                "direction": "OUT",
+                "balance_after": "18364.12",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-01-15",
+                "description": "USD TRADE SETTLEMENT",
+                "amount": "20150.85",
+                "direction": "IN",
+                "balance_after": "170150.85",
+                "currency": "USD",
+            },
+        ],
+    }
+    service._extract_vision_source = AsyncMock(return_value=payload)
+    source = DocumentSource.resolve(
+        path=Path("bsb_004_silk_road.pdf"),
+        content=pdf_bytes,
+    )
+    _, persisted_summary, _ = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        user_id=test_user.id,
+        institution="Silk Road Banking",
+        source=source,
+    )
+    assert persisted_summary.id == precreated.id
+    assert precreated.currency_balances is not None
+    by_ccy = {b.currency.code: b for b in precreated.typed_currency_balances()}
+    assert "HKD" in by_ccy
+    assert "USD" in by_ccy
+    assert by_ccy["HKD"].opening.amount == Decimal("42580.00")
+    assert by_ccy["HKD"].closing.amount == Decimal("18364.12")
+    assert by_ccy["USD"].opening.amount == Decimal("150000.00")
+    assert by_ccy["USD"].closing.amount == Decimal("170150.85")
+
+
+async def test_coverage_bank_custody_and_package_contribution_include_transaction_ledger_brokerage(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.source-routing.2: coverage_bank_custody_account_ids and _is_bank_statement_contribution include TRANSACTION_LEDGER brokerage statements."""
+    from types import SimpleNamespace
+
+    from src.extraction.extension.custody_binding import coverage_bank_custody_account_ids
+    from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
+    from src.reporting.extension.package_document import _is_bank_statement_contribution
+
+    service = ExtractionService()
+    raw_payload = {
+        "institution": "Moomoo Financial Singapore",
+        "account_last4": "7742",
+        "currency": "SGD",
+        "period_start": "2025-05-01",
+        "period_end": "2025-05-31",
+        "opening_balance": "10000.00",
+        "closing_balance": "15028.45",
+        "positions": [],
+        "transactions": [
+            {
+                "date": "2025-05-02",
+                "description": "FAST DEPOSIT",
+                "amount": "5028.45",
+                "direction": "IN",
+                "balance_after": "15028.45",
+                "currency": "SGD",
+            }
+        ],
+    }
+    service._extract_vision_source = AsyncMock(return_value=raw_payload)
+    monkeypatch.setattr(
+        "src.extraction.extension.service.read_pdf_text_layer",
+        lambda *_args, **_kwargs: "Opening Balance 10,000.00 Closing Balance 15,028.45",
+    )
+    source = DocumentSource.resolve(
+        path=Path("moomoo_statement_fixture.pdf"),
+        content=uuid4().bytes,
+    )
+    result, statement, _ = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        user_id=test_user.id,
+        institution="Moomoo Financial Singapore",
+        source=source,
+    )
+    assert result.source_type is StatementSourceType.BROKERAGE
+    assert result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+    assert statement.account_id is not None
+
+    await persist_statement_extraction_result(
+        db,
+        statement=statement,
+        result=result,
+        source_trace_record_id=uuid4(),
+    )
+
+    custody_ids = await coverage_bank_custody_account_ids(
+        db,
+        user_id=test_user.id,
+        as_of=date(2025, 5, 31),
+    )
+    assert statement.account_id in custody_ids
+
+    brokerage_ledger_contrib = SimpleNamespace(
+        contribution_type="statement_source",
+        payload=SimpleNamespace(source_result=result),
+    )
+    assert _is_bank_statement_contribution(brokerage_ledger_contrib) is True
+
+    brokerage_holdings_contrib = SimpleNamespace(
+        contribution_type="statement_source",
+        payload=SimpleNamespace(
+            source_result=SimpleNamespace(
+                source_type=StatementSourceType.BROKERAGE,
+                evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+            )
+        ),
+    )
+    assert _is_bank_statement_contribution(brokerage_holdings_contrib) is False
+    assert _is_bank_statement_contribution(SimpleNamespace(contribution_type="valuation")) is False
