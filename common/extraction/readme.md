@@ -74,6 +74,22 @@ unreferenced object after its grace period; extraction remains the owner of the
 canonical storage-reference query rather than duplicating a second cleanup
 mechanism.
 
+A reject or a retire of statement S releases only the rows that S owns (`AC-extraction.2888.1`,
+`AC-extraction.2888.2`). Another statement keeps a row when its current source membership still contains the row
+(`effective_statement_transaction_filter`). When S was `APPROVED` before a reject or a retire, only an `APPROVED`
+statement keeps the row. For any other earlier status of S, every statement that is not `RETIRED` and not `REJECTED`
+keeps the row. The release takes a transaction-scoped advisory lock per user, so two releases of one user decide
+ownership one after the other. Each released row passes two steps in this order. First,
+`release_transaction_dispositions` (reconciliation, reached through
+`StatementPostingDependencies.release_reconciliation`) sets the active matches of the row to `SUPERSEDED`. Second,
+the live entries whose `source_id` is the row become `VOID`. `retire_statement` runs both steps for a statement in any
+earlier status. The account chain reconcile still runs only for an `APPROVED` statement.
+A retire of a statement that was not approved skips the release and logs a warning when its rows cannot be resolved; an
+approved statement fails closed. `DELETE /statements/{id}` passes the composed posting dependencies, so the matches
+release too. Two limits remain. A journal entry of the user that a released match moved to `RECONCILED` stays
+`RECONCILED`, because the database guard forbids a return to `POSTED`. The surviving leg of a broken transfer pair
+cannot enter a new persisted pair, and the Processing views infer the pair from the ledger (`#2888`).
+
 ## Extraction Result And Economic Disposition
 
 Every transport receives the same `StatementExtractionResult`; it is the

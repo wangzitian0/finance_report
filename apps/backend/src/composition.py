@@ -81,6 +81,7 @@ from src.reconciliation import (
     ReviewedDispositionDependencies,
     accepted_transfer_txn_ids,
     post_named_transfer_legs,
+    release_transaction_dispositions,
     submit_reviewed_disposition,
     supersede_transaction_transfer_legs,
 )
@@ -168,6 +169,13 @@ async def _post_named_transfers_for_user(
     return len(legs)
 
 
+async def _release_reconciliation_for_user(
+    db: AsyncSession, user_id: UUID, transaction_ids: Sequence[UUID], reason: str
+) -> int:
+    """Supersede the active matches of the rows that a rejected or retired statement released (#2888)."""
+    return await release_transaction_dispositions(db, user_id=user_id, transaction_ids=transaction_ids, reason=reason)
+
+
 def compose_statement_posting_dependencies() -> StatementPostingDependencies:
     """Bind statement posting to reconciliation and pricing owner ports."""
     return StatementPostingDependencies(
@@ -177,6 +185,7 @@ def compose_statement_posting_dependencies() -> StatementPostingDependencies:
         trace_emitter_factory=compose_financial_trace_emitter,
         disposition_mode=DispositionMode(settings.statement_disposition_mode),
         post_named_transfers=_post_named_transfers_for_user,
+        release_reconciliation=_release_reconciliation_for_user,
     )
 
 
@@ -574,6 +583,7 @@ async def _repost_approved_statement_for_correction(
         trace_emitter_factory=base_deps.trace_emitter_factory,
         disposition_mode=DispositionMode.ENFORCE,
         post_named_transfers=base_deps.post_named_transfers,
+        release_reconciliation=base_deps.release_reconciliation,
     )
     await auto_create_posted_entries_for_statement(
         db,

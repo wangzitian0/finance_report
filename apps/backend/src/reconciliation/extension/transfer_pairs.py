@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -133,12 +133,32 @@ async def persist_transfer_pairs(
     return persisted
 
 
+def _current_pair_ids() -> Select[tuple[UUID]]:
+    """Ids of the pairs whose two leg dispositions are both current (#2888).
+
+    A superseded leg disposition breaks its pair for every reader. The pair rows stay as history.
+    """
+    return (
+        select(ReconciliationTransferPairLeg.pair_id)
+        .join(ReconciliationMatch, ReconciliationMatch.id == ReconciliationTransferPairLeg.disposition_id)
+        .where(
+            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
+        .group_by(ReconciliationTransferPairLeg.pair_id)
+        .having(func.count() == 2)
+    )
+
+
 async def paired_transfer_entry_ids(
     db: AsyncSession,
     *,
     user_id: UUID,
 ) -> set[UUID]:
-    """Return journal entry IDs for paired transfer legs of the given user."""
+    """Return journal entry IDs for paired transfer legs of the given user.
+
+    A pair counts only while both of its leg dispositions are current (#2888).
+    """
     stmt = (
         select(ReconciliationMatchJournalEntry.journal_entry_id)
         .join(
@@ -163,6 +183,7 @@ async def paired_transfer_entry_ids(
             ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             ReconciliationMatch.superseded_by_id.is_(None),
             ReconciliationTransferPair.review_state == TransferPairReviewState.PAIRED,
+            ReconciliationTransferPair.id.in_(_current_pair_ids()),
         )
     )
     result = await db.execute(stmt)
@@ -174,8 +195,13 @@ async def list_unpaired_transfer_dispositions(
     *,
     user_id: UUID,
 ) -> list[ReconciliationMatch]:
-    """Return current transfer dispositions absent from either pair side."""
-    paired_ids = select(ReconciliationTransferPairLeg.disposition_id)
+    """Return current transfer dispositions absent from either pair side.
+
+    A disposition counts as paired only while both legs of its pair are current (#2888).
+    """
+    paired_ids = select(ReconciliationTransferPairLeg.disposition_id).where(
+        ReconciliationTransferPairLeg.pair_id.in_(_current_pair_ids())
+    )
     result = await db.execute(
         select(ReconciliationMatch)
         .join(

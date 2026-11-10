@@ -67,7 +67,7 @@ COUNTERFACTUALS = (
     (
         "purge-boundary",
         "apps/backend/src/routers/statements.py",
-        "        await retire_statement(\n            db,\n            RetireStatementCommand(statement_id=statement_id, user_id=user_id),\n        )",
+        "        await retire_statement(\n            db,\n            RetireStatementCommand(statement_id=statement_id, user_id=user_id),\n            dependencies=compose_statement_posting_dependencies(),\n        )",
         "        await db.delete(statement)",
     ),
     (
