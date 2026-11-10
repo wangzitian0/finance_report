@@ -1,16 +1,1 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
-
-import ReconciliationPage from "@/app/(main)/reconciliation/page"
-
-vi.mock("@/components/reconciliation/Workbench", () => ({
-  default: () => <div>Mock Workbench</div>,
-}))
-
-describe("Reconciliation entry pages", () => {
-  // AC-reconciliation.fe-stage2-review.2
-  it("AC16.16.4 renders workbench in reconciliation page", () => {
-    render(<ReconciliationPage />)
-    expect(screen.getByText("Mock Workbench")).toBeInTheDocument()
-  })
-})
+import { render, screen } from "@testing-library/react"; import { describe, expect, it, vi } from "vitest"; import ReconciliationPage from "@/app/(main)/reconciliation/page"; vi.mock("@/components/reconciliation/Workbench", () => ({ default: () => <div>Mock Workbench</div>, })); describe("Reconciliation entry pages", () => { it("AC16.16.4 renders workbench in reconciliation page", () => { render(<ReconciliationPage />); expect(screen.getByText("Mock Workbench")).toBeInTheDocument() }) }) // AC-reconciliation.fe-stage2-review.2

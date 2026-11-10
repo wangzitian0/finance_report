@@ -1,650 +1,82 @@
-"""Tests for tools/check_manifest.py.
-
-Covers all five checks:
-  0. Per-concept schema validation (concept value must be a mapping/dict)
-  1. No duplicate owners (same file#anchor)
-  2. Owner files must exist on disk
-  3. Cross-ref files must exist on disk
-  4. Owner and cross-ref anchors must exist in referenced Markdown files
-
-A former check 5 validated that every ``docs/ssot/`` file was referenced in
-``docs/ssot/README.md``; both the check and the directory retired in #1823
-(Package-ization 4/4) — superseded by
-``tests/tooling/test_terminal_centers_allowlist.py``, which asserts
-``docs/ssot/`` does not exist at all.
-
-Also covers main() and helper functions.
-"""
-
-from __future__ import annotations
-
-from pathlib import Path
-from unittest import mock
-
-import pytest
-
-from common.meta.extension import check_manifest as cm
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_concepts(**kwargs: dict) -> dict:
-    """Build a minimal concepts dict for testing."""
-    return kwargs
-
-
-# ---------------------------------------------------------------------------
-# Tests: check_concept_schema
-# ---------------------------------------------------------------------------
-
-
+from __future__ import annotations; from pathlib import Path; from unittest import mock; import pytest; from common.meta.extension import check_manifest as cm; _make_concepts = lambda **kwargs: kwargs
 class TestCheckConceptSchema:
-    def test_valid_dicts_pass(self) -> None:
-        concepts = _make_concepts(
-            foo={"owner": "docs/ssot/foo.md", "description": "test"},
-            bar={"owner": "docs/ssot/bar.md"},
-        )
-        violations = cm.check_concept_schema(concepts)
-        assert violations == []
-
-    def test_null_value_fails(self) -> None:
-        concepts = _make_concepts(bad_concept=None)
-        violations = cm.check_concept_schema(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check0_concept_schema"
-        assert "bad_concept" in violations[0].message
-        assert "NoneType" in violations[0].message
-
-    def test_string_value_fails(self) -> None:
-        concepts = _make_concepts(bad_concept="just a string")
-        violations = cm.check_concept_schema(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check0_concept_schema"
-        assert "bad_concept" in violations[0].message
-        assert "str" in violations[0].message
-
-    def test_integer_value_fails(self) -> None:
-        concepts = _make_concepts(bad_concept=42)
-        violations = cm.check_concept_schema(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check0_concept_schema"
-        assert "int" in violations[0].message
-
-    def test_mixed_valid_invalid(self) -> None:
-        concepts = _make_concepts(
-            good={"owner": "docs/ssot/foo.md"},
-            bad=None,
-        )
-        violations = cm.check_concept_schema(concepts)
-        assert len(violations) == 1
-        assert "bad" in violations[0].message
-
-
-# ---------------------------------------------------------------------------
-# Tests: check_duplicate_owners
-# ---------------------------------------------------------------------------
-
-
+    def test_valid_dicts_pass(self) -> None: concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md', 'description': 'test'}, bar={'owner': 'docs/ssot/bar.md'}); violations = cm.check_concept_schema(concepts); assert violations == []; _m1_concepts = _make_concepts(bad_concept=None); _m1_violations = cm.check_concept_schema(_m1_concepts); assert len(_m1_violations) == 1; assert _m1_violations[0].check == 'check0_concept_schema'; assert 'bad_concept' in _m1_violations[0].message; assert 'NoneType' in _m1_violations[0].message; _m2_concepts = _make_concepts(bad_concept='just a string'); _m2_violations = cm.check_concept_schema(_m2_concepts); assert len(_m2_violations) == 1; assert _m2_violations[0].check == 'check0_concept_schema'; assert 'bad_concept' in _m2_violations[0].message; assert 'str' in _m2_violations[0].message; _m3_concepts = _make_concepts(bad_concept=42); _m3_violations = cm.check_concept_schema(_m3_concepts); assert len(_m3_violations) == 1; assert _m3_violations[0].check == 'check0_concept_schema'; assert 'int' in _m3_violations[0].message; _m4_concepts = _make_concepts(good={'owner': 'docs/ssot/foo.md'}, bad=None); _m4_violations = cm.check_concept_schema(_m4_concepts); assert len(_m4_violations) == 1; assert 'bad' in _m4_violations[0].message
 class TestCheckDuplicateOwners:
-    def test_no_duplicates_passes(self) -> None:
-        concepts = _make_concepts(
-            foo={"owner": "docs/ssot/foo.md#section-a"},
-            bar={"owner": "docs/ssot/bar.md#section-b"},
-        )
-        violations = cm.check_duplicate_owners(concepts)
-        assert violations == []
-
-    def test_same_file_different_anchors_passes(self) -> None:
-        concepts = _make_concepts(
-            foo={"owner": "docs/ssot/foo.md#section-a"},
-            bar={"owner": "docs/ssot/foo.md#section-b"},
-        )
-        violations = cm.check_duplicate_owners(concepts)
-        assert violations == []
-
-    def test_same_owner_including_anchor_fails(self) -> None:
-        concepts = _make_concepts(
-            foo={"owner": "docs/ssot/foo.md#section-a"},
-            bar={"owner": "docs/ssot/foo.md#section-a"},
-        )
-        violations = cm.check_duplicate_owners(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check1_duplicate_owners"
-        assert "foo" in violations[0].message
-        assert "bar" in violations[0].message
-
-    def test_same_owner_without_anchor_fails(self) -> None:
-        concepts = _make_concepts(
-            foo={"owner": "docs/ssot/foo.md"},
-            bar={"owner": "docs/ssot/foo.md"},
-        )
-        violations = cm.check_duplicate_owners(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check1_duplicate_owners"
-
-    def test_missing_owner_field_skipped(self) -> None:
-        concepts = _make_concepts(
-            foo={"description": "no owner field"},
-        )
-        violations = cm.check_duplicate_owners(concepts)
-        assert violations == []
-
-    def test_non_dict_concept_skipped(self) -> None:
-        """Non-dict concepts are caught by check_concept_schema; skip here."""
-        concepts = _make_concepts(foo=None, bar=None)
-        violations = cm.check_duplicate_owners(concepts)
-        assert violations == []
-
-    def test_three_concepts_same_owner(self) -> None:
-        concepts = _make_concepts(
-            a={"owner": "docs/ssot/x.md"},
-            b={"owner": "docs/ssot/x.md"},
-            c={"owner": "docs/ssot/x.md"},
-        )
-        violations = cm.check_duplicate_owners(concepts)
-        assert len(violations) == 1
-        assert "a" in violations[0].message
-        assert "b" in violations[0].message
-        assert "c" in violations[0].message
-
-
-# ---------------------------------------------------------------------------
-# Tests: check_owner_files_exist
-# ---------------------------------------------------------------------------
-
-
+    def test_no_duplicates_passes(self) -> None: concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md#section-a'}, bar={'owner': 'docs/ssot/bar.md#section-b'}); violations = cm.check_duplicate_owners(concepts); assert violations == []; _m1_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md#section-a'}, bar={'owner': 'docs/ssot/foo.md#section-b'}); _m1_violations = cm.check_duplicate_owners(_m1_concepts); assert _m1_violations == []; _m2_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md#section-a'}, bar={'owner': 'docs/ssot/foo.md#section-a'}); _m2_violations = cm.check_duplicate_owners(_m2_concepts); assert len(_m2_violations) == 1; assert _m2_violations[0].check == 'check1_duplicate_owners'; assert 'foo' in _m2_violations[0].message; assert 'bar' in _m2_violations[0].message; _m3_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md'}, bar={'owner': 'docs/ssot/foo.md'}); _m3_violations = cm.check_duplicate_owners(_m3_concepts); assert len(_m3_violations) == 1; assert _m3_violations[0].check == 'check1_duplicate_owners'; _m4_concepts = _make_concepts(foo={'description': 'no owner field'}); _m4_violations = cm.check_duplicate_owners(_m4_concepts); assert _m4_violations == []; _m5_concepts = _make_concepts(foo=None, bar=None); _m5_violations = cm.check_duplicate_owners(_m5_concepts); assert _m5_violations == []; _m6_concepts = _make_concepts(a={'owner': 'docs/ssot/x.md'}, b={'owner': 'docs/ssot/x.md'}, c={'owner': 'docs/ssot/x.md'}); _m6_violations = cm.check_duplicate_owners(_m6_concepts); assert len(_m6_violations) == 1; assert 'a' in _m6_violations[0].message; assert 'b' in _m6_violations[0].message; assert 'c' in _m6_violations[0].message
 class TestCheckOwnerFilesExist:
     def test_existing_file_passes(self, tmp_path: Path) -> None:
-        existing = tmp_path / "docs" / "ssot" / "foo.md"
-        existing.parent.mkdir(parents=True)
-        existing.write_text("content")
-
-        concepts = _make_concepts(foo={"owner": "docs/ssot/foo.md#some-anchor"})
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_owner_files_exist(concepts)
-        assert violations == []
-
-    def test_missing_file_fails(self, tmp_path: Path) -> None:
-        concepts = _make_concepts(foo={"owner": "docs/ssot/missing.md"})
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_owner_files_exist(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check2_owner_exists"
-        assert "foo" in violations[0].message
-        assert "missing.md" in violations[0].message
-
-    def test_missing_owner_field_reported(self, tmp_path: Path) -> None:
-        concepts = _make_concepts(foo={"description": "no owner"})
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_owner_files_exist(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check2_owner_exists"
-        assert "no 'owner'" in violations[0].message
-
-    def test_anchor_stripped_correctly(self, tmp_path: Path) -> None:
-        existing = tmp_path / "docs" / "ssot" / "foo.md"
-        existing.parent.mkdir(parents=True)
-        existing.write_text("content")
-
-        # Should resolve docs/ssot/foo.md (ignoring #anchor)
-        concepts = _make_concepts(foo={"owner": "docs/ssot/foo.md#anchor-here"})
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_owner_files_exist(concepts)
-        assert violations == []
-
-    def test_non_dict_concept_skipped(self, tmp_path: Path) -> None:
-        """Non-dict concepts are caught by check_concept_schema; skip here."""
-        concepts = _make_concepts(foo=None)
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_owner_files_exist(concepts)
-        assert violations == []
-
-
-# ---------------------------------------------------------------------------
-# Tests: check_crossref_files_exist
-# ---------------------------------------------------------------------------
-
-
+        existing = tmp_path / 'docs' / 'ssot' / 'foo.md'; existing.parent.mkdir(parents=True); existing.write_text('content'); concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md#some-anchor'})
+        with mock.patch.object(cm, 'REPO_ROOT', tmp_path): violations = cm.check_owner_files_exist(concepts)
+        assert violations == []; _m1_tmp = tmp_path / '_m1'; _m1_tmp.mkdir(exist_ok=True); _m1_concepts = _make_concepts(foo={'owner': 'docs/ssot/missing.md'})
+        with mock.patch.object(cm, 'REPO_ROOT', _m1_tmp): _m1_violations = cm.check_owner_files_exist(_m1_concepts)
+        assert len(_m1_violations) == 1; assert _m1_violations[0].check == 'check2_owner_exists'; assert 'foo' in _m1_violations[0].message; assert 'missing.md' in _m1_violations[0].message; _m2_tmp = tmp_path / '_m2'; _m2_tmp.mkdir(exist_ok=True); _m2_concepts = _make_concepts(foo={'description': 'no owner'})
+        with mock.patch.object(cm, 'REPO_ROOT', _m2_tmp): _m2_violations = cm.check_owner_files_exist(_m2_concepts)
+        assert len(_m2_violations) == 1; assert _m2_violations[0].check == 'check2_owner_exists'; assert "no 'owner'" in _m2_violations[0].message; _m3_tmp = tmp_path / '_m3'; _m3_tmp.mkdir(exist_ok=True); _m3_existing = _m3_tmp / 'docs' / 'ssot' / 'foo.md'; _m3_existing.parent.mkdir(parents=True); _m3_existing.write_text('content'); _m3_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md#anchor-here'})
+        with mock.patch.object(cm, 'REPO_ROOT', _m3_tmp): _m3_violations = cm.check_owner_files_exist(_m3_concepts)
+        assert _m3_violations == []; _m4_tmp = tmp_path / '_m4'; _m4_tmp.mkdir(exist_ok=True); _m4_concepts = _make_concepts(foo=None)
+        with mock.patch.object(cm, 'REPO_ROOT', _m4_tmp): _m4_violations = cm.check_owner_files_exist(_m4_concepts)
+        assert _m4_violations == []
 class TestCheckCrossrefFilesExist:
     def test_existing_crossref_passes(self, tmp_path: Path) -> None:
-        ref_file = tmp_path / "AGENTS.md"
-        ref_file.write_text("content")
-
-        concepts = _make_concepts(
-            foo={"owner": "docs/ssot/foo.md", "cross_refs": ["AGENTS.md"]}
-        )
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_crossref_files_exist(concepts)
-        assert violations == []
-
-    def test_missing_crossref_fails(self, tmp_path: Path) -> None:
-        concepts = _make_concepts(
-            foo={
-                "owner": "docs/ssot/foo.md",
-                "cross_refs": ["docs/missing.md"],
-            }
-        )
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_crossref_files_exist(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check3_crossref_exists"
-        assert "foo" in violations[0].message
-        assert "missing.md" in violations[0].message
-
-    def test_no_crossrefs_passes(self) -> None:
-        concepts = _make_concepts(foo={"owner": "docs/ssot/foo.md"})
-        violations = cm.check_crossref_files_exist(concepts)
-        assert violations == []
-
-    def test_empty_crossrefs_passes(self) -> None:
-        concepts = _make_concepts(foo={"owner": "docs/ssot/foo.md", "cross_refs": []})
-        violations = cm.check_crossref_files_exist(concepts)
-        assert violations == []
-
-    def test_anchor_in_crossref_stripped(self, tmp_path: Path) -> None:
-        ref_file = tmp_path / "docs" / "ssot" / "bar.md"
-        ref_file.parent.mkdir(parents=True)
-        ref_file.write_text("content")
-
-        concepts = _make_concepts(
-            foo={
-                "owner": "docs/ssot/foo.md",
-                "cross_refs": ["docs/ssot/bar.md#some-section"],
-            }
-        )
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_crossref_files_exist(concepts)
-        assert violations == []
-
-    def test_crossrefs_as_string_fails(self) -> None:
-        """cross_refs must be a list; a scalar string is a schema error."""
-        concepts = _make_concepts(
-            foo={
-                "owner": "docs/ssot/foo.md",
-                "cross_refs": "AGENTS.md",
-            }
-        )
-        violations = cm.check_crossref_files_exist(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check3_crossref_exists"
-        assert "str" in violations[0].message
-        assert "foo" in violations[0].message
-
-    def test_crossrefs_entry_not_a_string_fails(self, tmp_path: Path) -> None:
-        """Items in cross_refs must be strings."""
-        concepts = _make_concepts(
-            foo={
-                "owner": "docs/ssot/foo.md",
-                "cross_refs": [42],
-            }
-        )
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_crossref_files_exist(concepts)
-        assert len(violations) == 1
-        assert violations[0].check == "check3_crossref_exists"
-        assert "int" in violations[0].message
-
-    def test_non_dict_concept_skipped(self) -> None:
-        """Non-dict concepts are caught by check_concept_schema; skip here."""
-        concepts = _make_concepts(foo=None)
-        violations = cm.check_crossref_files_exist(concepts)
-        assert violations == []
-
-
-# ---------------------------------------------------------------------------
-# Tests: check_anchor_refs_exist
-# ---------------------------------------------------------------------------
-
-
+        ref_file = tmp_path / 'AGENTS.md'; ref_file.write_text('content'); concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md', 'cross_refs': ['AGENTS.md']})
+        with mock.patch.object(cm, 'REPO_ROOT', tmp_path): violations = cm.check_crossref_files_exist(concepts)
+        assert violations == []; _m1_tmp = tmp_path / '_m1'; _m1_tmp.mkdir(exist_ok=True); _m1_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md', 'cross_refs': ['docs/missing.md']})
+        with mock.patch.object(cm, 'REPO_ROOT', _m1_tmp): _m1_violations = cm.check_crossref_files_exist(_m1_concepts)
+        assert len(_m1_violations) == 1; assert _m1_violations[0].check == 'check3_crossref_exists'; assert 'foo' in _m1_violations[0].message; assert 'missing.md' in _m1_violations[0].message; _m3_tmp = tmp_path / '_m3'; _m3_tmp.mkdir(exist_ok=True); _m3_ref_file = _m3_tmp / 'docs' / 'ssot' / 'bar.md'; _m3_ref_file.parent.mkdir(parents=True); _m3_ref_file.write_text('content'); _m3_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md', 'cross_refs': ['docs/ssot/bar.md#some-section']})
+        with mock.patch.object(cm, 'REPO_ROOT', _m3_tmp): _m3_violations = cm.check_crossref_files_exist(_m3_concepts)
+        assert _m3_violations == []; _m5_tmp = tmp_path / '_m5'; _m5_tmp.mkdir(exist_ok=True); _m5_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md', 'cross_refs': [42]})
+        with mock.patch.object(cm, 'REPO_ROOT', _m5_tmp): _m5_violations = cm.check_crossref_files_exist(_m5_concepts)
+        assert len(_m5_violations) == 1; assert _m5_violations[0].check == 'check3_crossref_exists'; assert 'int' in _m5_violations[0].message
+    def test_no_crossrefs_passes(self) -> None: concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md'}); violations = cm.check_crossref_files_exist(concepts); assert violations == []; _m2_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md', 'cross_refs': []}); _m2_violations = cm.check_crossref_files_exist(_m2_concepts); assert _m2_violations == []; _m4_concepts = _make_concepts(foo={'owner': 'docs/ssot/foo.md', 'cross_refs': 'AGENTS.md'}); _m4_violations = cm.check_crossref_files_exist(_m4_concepts); assert len(_m4_violations) == 1; assert _m4_violations[0].check == 'check3_crossref_exists'; assert 'str' in _m4_violations[0].message; assert 'foo' in _m4_violations[0].message; _m6_concepts = _make_concepts(foo=None); _m6_violations = cm.check_crossref_files_exist(_m6_concepts); assert _m6_violations == []
 class TestCheckAnchorRefsExist:
     def test_AC14_1_9_manifest_anchor_refs_must_exist(self, tmp_path: Path) -> None:
-        """AC-meta.ssot-governance.1: Manifest owner and cross-ref anchors must exist."""
-        ssot = tmp_path / "docs" / "ssot"
-        ssot.mkdir(parents=True)
-        (ssot / "accounting.md").write_text(
-            '# Accounting\n\n<a id="decimal-rule"></a>\n\n## Entry Balance\n',
-            encoding="utf-8",
-        )
-
-        concepts = _make_concepts(
-            decimal={"owner": "docs/ssot/accounting.md#decimal-rule"},
-            entry={"owner": "docs/ssot/accounting.md#entry-balance"},
-        )
-
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            assert cm.check_anchor_refs_exist(concepts) == []
-
-    def test_missing_owner_anchor_fails(self, tmp_path: Path) -> None:
-        meta = tmp_path / "common" / "meta"
-        meta.mkdir(parents=True)
-        (meta / "schema.md").write_text("# Schema\n", encoding="utf-8")
-        concepts = _make_concepts(enum={"owner": "common/meta/schema.md#enum-naming"})
-
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_anchor_refs_exist(concepts)
-
-        assert len(violations) == 1
-        assert violations[0].check == "check4_anchor_exists"
-        assert "enum-naming" in violations[0].message
-
-    def test_missing_crossref_anchor_fails(self, tmp_path: Path) -> None:
-        doc = tmp_path / "docs" / "guide.md"
-        doc.parent.mkdir(parents=True)
-        doc.write_text("# Guide\n", encoding="utf-8")
-        concepts = _make_concepts(
-            guide={
-                "owner": "docs/guide.md",
-                "cross_refs": ["docs/guide.md#missing-section"],
-            }
-        )
-
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_anchor_refs_exist(concepts)
-
-        assert len(violations) == 1
-        assert "cross_ref anchor" in violations[0].message
-
-    def test_missing_anchor_file_is_left_to_file_existence_check(
-        self, tmp_path: Path
-    ) -> None:
-        concepts = _make_concepts(
-            missing={"owner": "docs/ssot/missing.md#section"},
-        )
-
-        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
-            violations = cm.check_anchor_refs_exist(concepts)
-
-        assert violations == []
-
-
-def test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired() -> None:
-    """AC-meta.manifest.1 (#1823, Package-ization 4/4, terminal): the
-    concept-ownership registry lives at ``common/meta/data/MANIFEST.yaml`` (a
-    package's cross-cutting gate-data home, not a hand-classified
-    ``docs/ssot/``), and the retired ``docs/ssot/`` directory does not exist.
-    The former per-file classification check (check 5) is superseded by
-    ``tests/tooling/test_terminal_centers_allowlist.py``, which asserts
-    ``docs/ssot/`` absence directly.
-    """
-    assert (
-        cm.MANIFEST_PATH == cm.REPO_ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
-    )
-    assert cm.MANIFEST_PATH.exists()
-    assert not (cm.REPO_ROOT / "docs" / "ssot").exists()
-
-
-# ---------------------------------------------------------------------------
-# Tests: _file_part helper
-# ---------------------------------------------------------------------------
-
-
+        'AC-meta.ssot-governance.1'; ssot = tmp_path / 'docs' / 'ssot'; ssot.mkdir(parents=True); (ssot / 'accounting.md').write_text('# Accounting\n\n<a id="decimal-rule"></a>\n\n## Entry Balance\n', encoding='utf-8'); concepts = _make_concepts(decimal={'owner': 'docs/ssot/accounting.md#decimal-rule'}, entry={'owner': 'docs/ssot/accounting.md#entry-balance'})
+        with mock.patch.object(cm, 'REPO_ROOT', tmp_path): assert cm.check_anchor_refs_exist(concepts) == []
+        _m1_tmp = tmp_path / '_m1'; _m1_tmp.mkdir(exist_ok=True); _m1_meta = _m1_tmp / 'common' / 'meta'; _m1_meta.mkdir(parents=True); (_m1_meta / 'schema.md').write_text('# Schema\n', encoding='utf-8'); _m1_concepts = _make_concepts(enum={'owner': 'common/meta/schema.md#enum-naming'})
+        with mock.patch.object(cm, 'REPO_ROOT', _m1_tmp): _m1_violations = cm.check_anchor_refs_exist(_m1_concepts)
+        assert len(_m1_violations) == 1; assert _m1_violations[0].check == 'check4_anchor_exists'; assert 'enum-naming' in _m1_violations[0].message; _m2_tmp = tmp_path / '_m2'; _m2_tmp.mkdir(exist_ok=True); _m2_doc = _m2_tmp / 'docs' / 'guide.md'; _m2_doc.parent.mkdir(parents=True); _m2_doc.write_text('# Guide\n', encoding='utf-8'); _m2_concepts = _make_concepts(guide={'owner': 'docs/guide.md', 'cross_refs': ['docs/guide.md#missing-section']})
+        with mock.patch.object(cm, 'REPO_ROOT', _m2_tmp): _m2_violations = cm.check_anchor_refs_exist(_m2_concepts)
+        assert len(_m2_violations) == 1; assert 'cross_ref anchor' in _m2_violations[0].message; _m3_tmp = tmp_path / '_m3'; _m3_tmp.mkdir(exist_ok=True); _m3_concepts = _make_concepts(missing={'owner': 'docs/ssot/missing.md#section'})
+        with mock.patch.object(cm, 'REPO_ROOT', _m3_tmp): _m3_violations = cm.check_anchor_refs_exist(_m3_concepts)
+        assert _m3_violations == []
+def test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired() -> None: 'AC-meta.manifest.1'; assert cm.MANIFEST_PATH == cm.REPO_ROOT / 'common' / 'meta' / 'data' / 'MANIFEST.yaml'; assert cm.MANIFEST_PATH.exists(); assert not (cm.REPO_ROOT / 'docs' / 'ssot').exists()
 class TestFilePart:
-    def test_no_anchor(self) -> None:
-        assert cm._file_part("docs/ssot/foo.md") == "docs/ssot/foo.md"
-
-    def test_with_anchor(self) -> None:
-        assert cm._file_part("docs/ssot/foo.md#section") == "docs/ssot/foo.md"
-
-    def test_multiple_hashes(self) -> None:
-        assert cm._file_part("path/file.md#a#b") == "path/file.md"
-
-
-# ---------------------------------------------------------------------------
-# Tests: main()
-# ---------------------------------------------------------------------------
-
-
+    def test_no_anchor(self) -> None: assert cm._file_part('docs/ssot/foo.md') == 'docs/ssot/foo.md'; assert cm._file_part('docs/ssot/foo.md#section') == 'docs/ssot/foo.md'; assert cm._file_part('path/file.md#a#b') == 'path/file.md'
 class TestMain:
-    def test_manifest_not_found_exits_1(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", tmp_path / "missing.yaml"),
-        ):
-            assert cm.main() == 1
-
-    def test_empty_concepts_exits_1(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Empty residual file AND no package contracts to discover -> exit 1."""
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text("concepts: {}\n")
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            # No common/*/contract.py under tmp_path, so discover_packages()
-            # finds nothing and package_concepts is empty too (#1799: concepts
-            # can come from either source, so both must be empty to hit this).
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            result = cm.main()
+    def test_manifest_not_found_exits_1(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', tmp_path / 'missing.yaml'): assert cm.main() == 1
+    def test_empty_concepts_exits_1(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts: {}\n')
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path): result = cm.main()
         assert result == 1
-
     def test_valid_manifest_passes(self, tmp_path: Path) -> None:
-        # Create real files to satisfy owner/cross-ref existence checks.
-        ssot_dir = tmp_path / "docs" / "ssot"
-        ssot_dir.mkdir(parents=True)
-        (ssot_dir / "foo.md").write_text("## Section A\n")
-        (ssot_dir / "bar.md").write_text("## Section B\n")
-
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text(
-            "concepts:\n"
-            "  concept_a:\n"
-            "    owner: docs/ssot/foo.md#section-a\n"
-            "    description: test\n"
-            "  concept_b:\n"
-            "    owner: docs/ssot/bar.md#section-b\n"
-            "    description: test\n"
-            "    cross_refs:\n"
-            "      - docs/ssot/foo.md\n"
-        )
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            result = cm.main()
+        ssot_dir = tmp_path / 'docs' / 'ssot'; ssot_dir.mkdir(parents=True); (ssot_dir / 'foo.md').write_text('## Section A\n'); (ssot_dir / 'bar.md').write_text('## Section B\n'); manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts:\n  concept_a:\n    owner: docs/ssot/foo.md#section-a\n    description: test\n  concept_b:\n    owner: docs/ssot/bar.md#section-b\n    description: test\n    cross_refs:\n      - docs/ssot/foo.md\n')
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path): result = cm.main()
         assert result == 0
-
-    def test_valid_manifest_verbose_prints_success(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        ssot_dir = tmp_path / "docs" / "ssot"
-        ssot_dir.mkdir(parents=True)
-        (ssot_dir / "foo.md").write_text("# Foo\n", encoding="utf-8")
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text(
-            "concepts:\n"
-            "  concept_a:\n"
-            "    owner: docs/ssot/foo.md#foo\n"
-            "    description: test\n",
-            encoding="utf-8",
-        )
-
-        with (
-            mock.patch("sys.argv", ["check_manifest.py", "--verbose"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            result = cm.main()
-
-        assert result == 0
-        captured = capsys.readouterr()
-        assert "OK: manifest check passed." in captured.out
-
-    def test_manifest_violation_exits_1(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text(
-            "concepts:\n"
-            "  concept_a:\n"
-            "    owner: docs/ssot/foo.md\n"
-            "  concept_b:\n"
-            "    owner: docs/ssot/foo.md\n"
-        )
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            result = cm.main()
+    def test_valid_manifest_verbose_prints_success(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        ssot_dir = tmp_path / 'docs' / 'ssot'; ssot_dir.mkdir(parents=True); (ssot_dir / 'foo.md').write_text('# Foo\n', encoding='utf-8'); manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts:\n  concept_a:\n    owner: docs/ssot/foo.md#foo\n    description: test\n', encoding='utf-8')
+        with mock.patch('sys.argv', ['check_manifest.py', '--verbose']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path): result = cm.main()
+        assert result == 0; captured = capsys.readouterr(); assert 'OK: manifest check passed.' in captured.out
+    def test_manifest_violation_exits_1(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts:\n  concept_a:\n    owner: docs/ssot/foo.md\n  concept_b:\n    owner: docs/ssot/foo.md\n')
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path): result = cm.main()
         assert result == 1
-
     def test_actual_manifest_passes(self) -> None:
-        """Smoke test: the real MANIFEST.yaml in the repo must pass."""
-        with mock.patch("sys.argv", ["check_manifest.py"]):
-            result = cm.main()
+        with mock.patch('sys.argv', ['check_manifest.py']): result = cm.main()
         assert result == 0
-
-    def test_AC_meta_manifest_2_concept_from_package_contract_is_validated(
-        self, tmp_path: Path
-    ) -> None:
-        """AC-meta.manifest.2 (#1799): a concept declared in a package's own
-        ``contract.py`` (not hand-copied into MANIFEST.yaml) is picked up by
-        ``check_manifest.py`` via ``discover_packages`` + ``concept_index``,
-        and its owner/cross_ref files are validated exactly like a residual
-        MANIFEST.yaml entry.
-        """
-        (tmp_path / "docs").mkdir()
-        (tmp_path / "docs" / "widget.md").write_text("# Widget\n", encoding="utf-8")
-
-        pkg_dir = tmp_path / "common" / "widget"
-        pkg_dir.mkdir(parents=True)
-        (pkg_dir / "contract.py").write_text(
-            "from common.meta.package_contract import ConceptRecord, PackageContract\n"
-            "\n"
-            "CONTRACT = PackageContract(\n"
-            '    name="widget",\n'
-            '    klass="domain",\n'
-            '    status="draft",\n'
-            "    depends_on=[],\n"
-            "    interface=[],\n"
-            "    events=[],\n"
-            "    invariants=[],\n"
-            "    roadmap=[],\n"
-            "    concepts=[\n"
-            "        ConceptRecord(\n"
-            '            key="widget_shape",\n'
-            '            owner="docs/widget.md",\n'
-            '            description="What a widget is.",\n'
-            "        ),\n"
-            "    ],\n"
-            ")\n",
-            encoding="utf-8",
-        )
-
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text("concepts: {}\n")
-
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            concepts = cm.load_computed_concepts(tmp_path, manifest)
-            result = cm.main()
-
-        assert concepts == {
-            "widget_shape": {
-                "owner": "docs/widget.md",
-                "description": "What a widget is.",
-                "cross_refs": [],
-                "proofs": [],
-                "family": None,
-                "kind": None,
-                "authority": None,
-                "parent": None,
-            }
-        }
-        assert result == 0
-
-    def test_concept_key_in_both_residual_and_package_exits_1(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """A concept key claimed by both the residual file and a package contract fails."""
-        pkg_dir = tmp_path / "common" / "widget"
-        pkg_dir.mkdir(parents=True)
-        (pkg_dir / "contract.py").write_text(
-            "from common.meta.package_contract import ConceptRecord, PackageContract\n"
-            "\n"
-            "CONTRACT = PackageContract(\n"
-            '    name="widget",\n'
-            '    klass="domain",\n'
-            '    status="draft",\n'
-            "    depends_on=[],\n"
-            "    interface=[],\n"
-            "    events=[],\n"
-            "    invariants=[],\n"
-            "    roadmap=[],\n"
-            "    concepts=[\n"
-            "        ConceptRecord(\n"
-            '            key="dup_concept",\n'
-            '            owner="common/widget/x.md",\n'
-            '            description="d",\n'
-            "        ),\n"
-            "    ],\n"
-            ")\n",
-            encoding="utf-8",
-        )
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text(
-            "concepts:\n  dup_concept:\n    owner: docs/other.md\n    description: also d\n"
-        )
-
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            with pytest.raises(SystemExit) as exc_info:
-                cm.load_computed_concepts(tmp_path, manifest)
-        assert exc_info.value.code == 1
-        captured = capsys.readouterr()
-        assert "dup_concept" in captured.err
-
-    def test_null_concept_value_fails(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """A concept mapped to null must trigger check0_concept_schema."""
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text("concepts:\n  bad_concept:\n")
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            result = cm.main()
-        assert result == 1
-        captured = capsys.readouterr()
-        assert "check0_concept_schema" in captured.err
-        assert "bad_concept" in captured.err
-
-    def test_string_crossrefs_fails(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """cross_refs as a scalar string must fail with a clear message."""
-        ssot_dir = tmp_path / "docs" / "ssot"
-        ssot_dir.mkdir(parents=True)
-        (ssot_dir / "foo.md").write_text("content")
-
-        manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text(
-            "concepts:\n"
-            "  my_concept:\n"
-            "    owner: docs/ssot/foo.md\n"
-            "    cross_refs: AGENTS.md\n"
-        )
-        with (
-            mock.patch("sys.argv", ["check_manifest.py"]),
-            mock.patch.object(cm, "MANIFEST_PATH", manifest),
-            mock.patch.object(cm, "REPO_ROOT", tmp_path),
-        ):
-            result = cm.main()
-        assert result == 1
-        captured = capsys.readouterr()
-        assert "check3_crossref_exists" in captured.err
+    def test_AC_meta_manifest_2_concept_from_package_contract_is_validated(self, tmp_path: Path) -> None:
+        'AC-meta.manifest.2'; (tmp_path / 'docs').mkdir(); (tmp_path / 'docs' / 'widget.md').write_text('# Widget\n', encoding='utf-8'); pkg_dir = tmp_path / 'common' / 'widget'; pkg_dir.mkdir(parents=True); (pkg_dir / 'contract.py').write_text('from common.meta.package_contract import ConceptRecord, PackageContract\n\nCONTRACT = PackageContract(\n    name="widget",\n    klass="domain",\n    status="draft",\n    depends_on=[],\n    interface=[],\n    events=[],\n    invariants=[],\n    roadmap=[],\n    concepts=[\n        ConceptRecord(\n            key="widget_shape",\n            owner="docs/widget.md",\n            description="What a widget is.",\n        ),\n    ],\n)\n', encoding='utf-8'); manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts: {}\n')
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path): concepts = cm.load_computed_concepts(tmp_path, manifest); result = cm.main()
+        assert concepts == {'widget_shape': {'owner': 'docs/widget.md', 'description': 'What a widget is.', 'cross_refs': [], 'proofs': [], 'family': None, 'kind': None, 'authority': None, 'parent': None}}; assert result == 0
+    def test_concept_key_in_both_residual_and_package_exits_1(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        pkg_dir = tmp_path / 'common' / 'widget'; pkg_dir.mkdir(parents=True); (pkg_dir / 'contract.py').write_text('from common.meta.package_contract import ConceptRecord, PackageContract\n\nCONTRACT = PackageContract(\n    name="widget",\n    klass="domain",\n    status="draft",\n    depends_on=[],\n    interface=[],\n    events=[],\n    invariants=[],\n    roadmap=[],\n    concepts=[\n        ConceptRecord(\n            key="dup_concept",\n            owner="common/widget/x.md",\n            description="d",\n        ),\n    ],\n)\n', encoding='utf-8'); manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts:\n  dup_concept:\n    owner: docs/other.md\n    description: also d\n')
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path), pytest.raises(SystemExit) as exc_info: cm.load_computed_concepts(tmp_path, manifest)
+        assert exc_info.value.code == 1; captured = capsys.readouterr(); assert 'dup_concept' in captured.err
+    def test_null_concept_value_fails(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts:\n  bad_concept:\n')
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path): result = cm.main()
+        assert result == 1; captured = capsys.readouterr(); assert 'check0_concept_schema' in captured.err; assert 'bad_concept' in captured.err
+    def test_string_crossrefs_fails(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        ssot_dir = tmp_path / 'docs' / 'ssot'; ssot_dir.mkdir(parents=True); (ssot_dir / 'foo.md').write_text('content'); manifest = tmp_path / 'MANIFEST.yaml'; manifest.write_text('concepts:\n  my_concept:\n    owner: docs/ssot/foo.md\n    cross_refs: AGENTS.md\n')
+        with mock.patch('sys.argv', ['check_manifest.py']), mock.patch.object(cm, 'MANIFEST_PATH', manifest), mock.patch.object(cm, 'REPO_ROOT', tmp_path): result = cm.main()
+        assert result == 1; captured = capsys.readouterr(); assert 'check3_crossref_exists' in captured.err

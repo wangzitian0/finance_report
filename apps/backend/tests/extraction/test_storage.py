@@ -1,217 +1,25 @@
-"""Tests for storage service."""
-
-from unittest.mock import MagicMock, patch
-
-import pytest
-from botocore.exceptions import ClientError
-
-from src.runtime import StorageError, StorageService, redact_presigned_url
-
-
+from unittest.mock import MagicMock, patch; import pytest; from botocore.exceptions import ClientError; from src.runtime import StorageError, StorageService, redact_presigned_url
 @pytest.fixture
 def mock_boto_client():
-    """Mock boto3 client."""
-    with patch("boto3.client") as mock:
-        yield mock
-
-
-def test_init(mock_boto_client):
-    """Test service initialization."""
-    StorageService._checked_buckets.clear()
-    service = StorageService(bucket="test-bucket")
-    assert service.bucket == "test-bucket"
-    assert mock_boto_client.call_count >= 1
-
-
-def test_upload_bytes_success(mock_boto_client):
-    """Test successful upload."""
-    mock_s3 = MagicMock()
-    mock_s3.head_bucket.return_value = None
-    mock_boto_client.return_value = mock_s3
-
-    service = StorageService(bucket="test-bucket")
-    StorageService._checked_buckets.clear()
-    service.upload_bytes(key="test/key.pdf", content=b"content", content_type="application/pdf")
-
-    mock_s3.put_object.assert_called_once_with(
-        Bucket="test-bucket", Key="test/key.pdf", Body=b"content", ContentType="application/pdf"
-    )
-
-
+    with patch('boto3.client') as mock: yield mock
+def test_init(mock_boto_client): StorageService._checked_buckets.clear(); service = StorageService(bucket='test-bucket'); assert service.bucket == 'test-bucket'; assert mock_boto_client.call_count >= 1
+def test_upload_bytes_success(mock_boto_client): mock_s3 = MagicMock(); mock_s3.head_bucket.return_value = None; mock_boto_client.return_value = mock_s3; service = StorageService(bucket='test-bucket'); StorageService._checked_buckets.clear(); service.upload_bytes(key='test/key.pdf', content=b'content', content_type='application/pdf'); mock_s3.put_object.assert_called_once_with(Bucket='test-bucket', Key='test/key.pdf', Body=b'content', ContentType='application/pdf')
 def test_upload_bytes_error(mock_boto_client):
-    """Test upload failure."""
-    mock_s3 = MagicMock()
-    mock_s3.head_bucket.return_value = None
-    mock_s3.put_object.side_effect = ClientError({"Error": {"Code": "500", "Message": "Error"}}, "put_object")
-    mock_boto_client.return_value = mock_s3
-
-    service = StorageService(bucket="test-bucket")
-    StorageService._checked_buckets.clear()
-
-    with pytest.raises(StorageError, match="Failed to upload"):
-        service.upload_bytes(key="test/key", content=b"content")
-
-
-def test_generate_presigned_url_success(mock_boto_client):
-    """Test presigned URL generation."""
-    mock_s3 = MagicMock()
-    mock_s3.head_bucket.return_value = None
-    mock_s3.generate_presigned_url.return_value = "https://example.com/signed"
-    mock_boto_client.return_value = mock_s3
-
-    service = StorageService(bucket="test-bucket")
-    StorageService._checked_buckets.clear()
-    url = service.generate_presigned_url(key="test/key")
-
-    assert url == "https://example.com/signed"
-    mock_s3.generate_presigned_url.assert_called_once()
-    call_args = mock_s3.generate_presigned_url.call_args
-    assert call_args[0][0] == "get_object"
-    assert call_args[1]["Params"]["Bucket"] == "test-bucket"
-    assert call_args[1]["Params"]["Key"] == "test/key"
-
-
-def test_redact_presigned_url_removes_query_and_fragment():
-    """Presigned URLs are bearer credentials and must be log-redacted."""
-    url = "https://s3.example.test/bucket/path/file.pdf?X-Amz-Signature=secret&token=abc#frag"
-
-    redacted = redact_presigned_url(url)
-
-    assert redacted == "https://s3.example.test/bucket/path/file.pdf?signature=<redacted>"
-    assert "secret" not in redacted
-    assert "token=abc" not in redacted
-    assert "#frag" not in redacted
-
-
-def test_redact_presigned_url_handles_empty_and_invalid_urls():
-    """AC-extraction.105.1: URL redaction handles edge cases without leaking credentials."""
-    assert redact_presigned_url(None) is None
-    assert redact_presigned_url("") == ""
-    assert redact_presigned_url("http://[::1") == "<invalid-url>"
-
-
+    mock_s3 = MagicMock(); mock_s3.head_bucket.return_value = None; mock_s3.put_object.side_effect = ClientError({'Error': {'Code': '500', 'Message': 'Error'}}, 'put_object'); mock_boto_client.return_value = mock_s3; service = StorageService(bucket='test-bucket'); StorageService._checked_buckets.clear()
+    with pytest.raises(StorageError, match='Failed to upload'): service.upload_bytes(key='test/key', content=b'content')
+def test_generate_presigned_url_success(mock_boto_client): mock_s3 = MagicMock(); mock_s3.head_bucket.return_value = None; mock_s3.generate_presigned_url.return_value = 'https://example.com/signed'; mock_boto_client.return_value = mock_s3; service = StorageService(bucket='test-bucket'); StorageService._checked_buckets.clear(); url = service.generate_presigned_url(key='test/key'); assert url == 'https://example.com/signed'; mock_s3.generate_presigned_url.assert_called_once(); call_args = mock_s3.generate_presigned_url.call_args; assert call_args[0][0] == 'get_object'; assert call_args[1]['Params']['Bucket'] == 'test-bucket'; assert call_args[1]['Params']['Key'] == 'test/key'
+def test_redact_presigned_url_removes_query_and_fragment(): url = 'https://s3.example.test/bucket/path/file.pdf?X-Amz-Signature=secret&token=abc#frag'; redacted = redact_presigned_url(url); assert redacted == 'https://s3.example.test/bucket/path/file.pdf?signature=<redacted>'; assert 'secret' not in redacted; assert 'token=abc' not in redacted; assert '#frag' not in redacted; 'AC-extraction.105.1'; 'AC-extraction.105.1'; assert redact_presigned_url(None) is None; assert redact_presigned_url('') == ''; assert redact_presigned_url('http://[::1') == '<invalid-url>'
 def test_generate_presigned_url_error(mock_boto_client):
-    """Test presigned URL generation failure."""
-    mock_s3 = MagicMock()
-    mock_s3.head_bucket.return_value = None
-    mock_s3.generate_presigned_url.side_effect = ClientError(
-        {"Error": {"Code": "500", "Message": "Error"}}, "generate_presigned_url"
-    )
-    mock_boto_client.return_value = mock_s3
-
-    service = StorageService(bucket="test-bucket")
-    StorageService._checked_buckets.clear()
-
-    with pytest.raises(StorageError, match="Failed to generate presigned URL"):
-        service.generate_presigned_url(key="test/key")
-
-
-def test_upload_bytes_creates_missing_bucket(mock_boto_client, monkeypatch):
-    """Missing bucket should be created before upload."""
-    mock_s3 = MagicMock()
-    mock_s3.head_bucket.side_effect = ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "head_bucket")
-    mock_boto_client.return_value = mock_s3
-    StorageService._checked_buckets.clear()
-
-    service = StorageService(bucket="test-bucket")
-    service.upload_bytes(key="test/key", content=b"content")
-
-    mock_s3.create_bucket.assert_called_once_with(Bucket="test-bucket")
-    mock_s3.put_object.assert_called_once()
-
-
-def test_upload_bytes_creates_bucket_with_region(mock_boto_client, monkeypatch):
-    """Missing bucket should include region configuration when needed."""
-    from src.runtime.extension import storage as storage_module
-
-    mock_s3 = MagicMock()
-    mock_s3.head_bucket.side_effect = ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "head_bucket")
-    mock_boto_client.return_value = mock_s3
-    StorageService._checked_buckets.clear()
-    monkeypatch.setattr(storage_module.settings, "s3_region", "ap-southeast-1")
-
-    service = StorageService(bucket="test-bucket")
-    service.upload_bytes(key="test/key", content=b"content")
-
-    mock_s3.create_bucket.assert_called_once_with(
-        Bucket="test-bucket",
-        CreateBucketConfiguration={"LocationConstraint": "ap-southeast-1"},
-    )
-    mock_s3.put_object.assert_called_once()
-
-
+    mock_s3 = MagicMock(); mock_s3.head_bucket.return_value = None; mock_s3.generate_presigned_url.side_effect = ClientError({'Error': {'Code': '500', 'Message': 'Error'}}, 'generate_presigned_url'); mock_boto_client.return_value = mock_s3; service = StorageService(bucket='test-bucket'); StorageService._checked_buckets.clear()
+    with pytest.raises(StorageError, match='Failed to generate presigned URL'): service.generate_presigned_url(key='test/key')
+def test_upload_bytes_creates_missing_bucket(mock_boto_client, monkeypatch): mock_s3 = MagicMock(); mock_s3.head_bucket.side_effect = ClientError({'Error': {'Code': '404', 'Message': 'Not Found'}}, 'head_bucket'); mock_boto_client.return_value = mock_s3; StorageService._checked_buckets.clear(); service = StorageService(bucket='test-bucket'); service.upload_bytes(key='test/key', content=b'content'); mock_s3.create_bucket.assert_called_once_with(Bucket='test-bucket'); mock_s3.put_object.assert_called_once()
+def test_upload_bytes_creates_bucket_with_region(mock_boto_client, monkeypatch): from src.runtime.extension import storage as storage_module; mock_s3 = MagicMock(); mock_s3.head_bucket.side_effect = ClientError({'Error': {'Code': '404', 'Message': 'Not Found'}}, 'head_bucket'); mock_boto_client.return_value = mock_s3; StorageService._checked_buckets.clear(); monkeypatch.setattr(storage_module.settings, 's3_region', 'ap-southeast-1'); service = StorageService(bucket='test-bucket'); service.upload_bytes(key='test/key', content=b'content'); mock_s3.create_bucket.assert_called_once_with(Bucket='test-bucket', CreateBucketConfiguration={'LocationConstraint': 'ap-southeast-1'}); mock_s3.put_object.assert_called_once()
 def test_upload_bytes_bucket_access_denied(mock_boto_client):
-    """Access denied when checking bucket should surface as StorageError."""
-    StorageService._checked_buckets.clear()
-    mock_s3 = MagicMock()
-    mock_s3.head_bucket.side_effect = ClientError({"Error": {"Code": "403", "Message": "Forbidden"}}, "head_bucket")
-    mock_boto_client.return_value = mock_s3
-
-    service = StorageService(bucket="test-bucket")
-    with pytest.raises(StorageError, match="Failed to access bucket"):
-        service.upload_bytes(key="test/key", content=b"content")
-
-
-def test_public_client_init(mock_boto_client, monkeypatch):
-    """Test public client initialization."""
-    from src.runtime.extension import storage as storage_module
-
-    monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
-    monkeypatch.setattr(storage_module.settings, "s3_public_access_key", "pub_key")
-    monkeypatch.setattr(storage_module.settings, "s3_public_secret_key", "pub_secret")
-    StorageService._checked_buckets.clear()
-
-    service = StorageService()
-    assert service.public_client is not None
-    assert mock_boto_client.call_count == 2
-
-    # Verify public client call args
-    call_args = mock_boto_client.call_args_list[1]
-    assert call_args[1]["endpoint_url"] == "https://public.s3"
-    assert call_args[1]["aws_access_key_id"] == "pub_key"
-
-
-def test_generate_presigned_url_public(mock_boto_client, monkeypatch):
-    """Test generating public presigned URL."""
-    from src.runtime.extension import storage as storage_module
-
-    monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
-
-    mock_s3_internal = MagicMock()
-    mock_s3_public = MagicMock()
-    mock_s3_public.generate_presigned_url.return_value = "https://public.s3/test-bucket/test/key"
-
-    # First call is internal, second is public
-    mock_boto_client.side_effect = [mock_s3_internal, mock_s3_public]
-
-    service = StorageService(bucket="test-bucket")
-    url = service.generate_presigned_url(key="test/key", public=True)
-
-    assert url == "https://public.s3/test-bucket/test/key"
-    mock_s3_public.generate_presigned_url.assert_called_once()
-
-    # Internal shouldn't be called for URL generation
-    mock_s3_internal.generate_presigned_url.assert_not_called()
-
-
+    StorageService._checked_buckets.clear(); mock_s3 = MagicMock(); mock_s3.head_bucket.side_effect = ClientError({'Error': {'Code': '403', 'Message': 'Forbidden'}}, 'head_bucket'); mock_boto_client.return_value = mock_s3; service = StorageService(bucket='test-bucket')
+    with pytest.raises(StorageError, match='Failed to access bucket'): service.upload_bytes(key='test/key', content=b'content')
+def test_public_client_init(mock_boto_client, monkeypatch): from src.runtime.extension import storage as storage_module; monkeypatch.setattr(storage_module.settings, 's3_public_endpoint', 'https://public.s3'); monkeypatch.setattr(storage_module.settings, 's3_public_access_key', 'pub_key'); monkeypatch.setattr(storage_module.settings, 's3_public_secret_key', 'pub_secret'); StorageService._checked_buckets.clear(); service = StorageService(); assert service.public_client is not None; assert mock_boto_client.call_count == 2; call_args = mock_boto_client.call_args_list[1]; assert call_args[1]['endpoint_url'] == 'https://public.s3'; assert call_args[1]['aws_access_key_id'] == 'pub_key'
+def test_generate_presigned_url_public(mock_boto_client, monkeypatch): from src.runtime.extension import storage as storage_module; monkeypatch.setattr(storage_module.settings, 's3_public_endpoint', 'https://public.s3'); mock_s3_internal = MagicMock(); mock_s3_public = MagicMock(); mock_s3_public.generate_presigned_url.return_value = 'https://public.s3/test-bucket/test/key'; mock_boto_client.side_effect = [mock_s3_internal, mock_s3_public]; service = StorageService(bucket='test-bucket'); url = service.generate_presigned_url(key='test/key', public=True); assert url == 'https://public.s3/test-bucket/test/key'; mock_s3_public.generate_presigned_url.assert_called_once(); mock_s3_internal.generate_presigned_url.assert_not_called()
 def test_public_url_fallback(mock_boto_client, monkeypatch):
-    """Test that missing public client raises StorageError."""
-    from src.runtime.extension import storage as storage_module
-
-    # Mock logger
-    mock_logger = MagicMock()
-    monkeypatch.setattr(storage_module, "logger", mock_logger)
-
-    # Ensure no public config
-    monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", None)
-    StorageService._checked_buckets.clear()
-
-    service = StorageService(bucket="test-bucket")
-
-    # Should raise StorageError instead of falling back
-    with pytest.raises(StorageError, match="Public storage client is not configured"):
-        service.generate_presigned_url(key="test/key", public=True)
-
-    # Verify error was logged
-    mock_logger.error.assert_called_once()
-    assert "no public S3 client configured" in mock_logger.error.call_args[0][0]
+    from src.runtime.extension import storage as storage_module; mock_logger = MagicMock(); monkeypatch.setattr(storage_module, 'logger', mock_logger); monkeypatch.setattr(storage_module.settings, 's3_public_endpoint', None); StorageService._checked_buckets.clear(); service = StorageService(bucket='test-bucket')
+    with pytest.raises(StorageError, match='Public storage client is not configured'): service.generate_presigned_url(key='test/key', public=True)
+    mock_logger.error.assert_called_once(); assert 'no public S3 client configured' in mock_logger.error.call_args[0][0]

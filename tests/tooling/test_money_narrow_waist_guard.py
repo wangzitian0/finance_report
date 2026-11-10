@@ -1,110 +1,13 @@
-"""Narrow-waist guard gate (AC-money.23.1, migrated from EPIC-002 AC2.23.1 into the
-money package roadmap; #1167 / #1172).
-
-Locks the money standard against erosion: the money modules stay float-free and
-every stack keeps a conformance suite. The hard test proves the guard actually
-bites — it flags an injected violation and passes on the real tree.
-"""
-
-from pathlib import Path
-
-import pytest
-
-from common.audit.money.guard import (
-    float_violations,
-    missing_conformance_suites,
-    python_money_module_paths,
-    scan_text_for_float,
-)
-from common.testing.ac_proof import ac_proof
-
-_CLEAN_SNIPPET = """
-from decimal import Decimal
-def f(amount: Decimal, currency: str) -> Decimal:
-    if isinstance(amount, float):
-        raise TypeError("no float")
-    return amount
-"""
-
-_VIOLATION_SNIPPET = """
-rate: float = 1.0  # money-shaped float at module level
-
-def bad(amount: float, currency: str) -> float:  # money-shaped float pair
-    total = float(amount)  # cast back to float
-    return total
-
-async def worse(*args: float, **kwargs: float) -> float:  # async + *args/**kwargs float
-    return 0
-"""
-
-
-@ac_proof(
-    proof_id="test_money_guard_flags_injected_violation",
-    ac_ids=["AC-money.23.1"],
-    ci_tier="pr_ci",
-    issue="#1172",
-)
-def test_AC2_23_1_guard_flags_injected_float_violation():
-    """AC-money.23.1: the guard reports money-shaped float on a violation, none on clean."""
-    hits = scan_text_for_float(_VIOLATION_SNIPPET)
-    assert hits, "guard must flag a money-shaped float violation"
-    assert any("cast" in h for h in hits)
-    assert any("annotation" in h for h in hits)
-    # The clean snippet (which *rejects* float via isinstance) is not flagged.
-    assert scan_text_for_float(_CLEAN_SNIPPET) == []
-
-
-@ac_proof(
-    proof_id="test_money_modules_are_float_free",
-    ac_ids=["AC-money.23.1"],
-    ci_tier="pr_ci",
-    issue="#1172",
-)
-def test_AC2_23_1_money_modules_are_float_free():
-    """AC-money.23.1: the real money modules contain no float in money type positions."""
-    scanned = python_money_module_paths()
-    # Anti-vacuity: an empty scan set means the guard is dead, not that the
-    # tree is clean (this happened once after the value→audit fold, #1419).
-    assert any(p.name == "money.py" for p in scanned), (
-        "money guard no longer scans the money module — fix MONEY_MODULE_ROOTS"
-    )
-    assert float_violations() == []
-
-
-@ac_proof(
-    proof_id="test_money_conformance_suite_per_stack",
-    ac_ids=["AC-money.23.1"],
-    ci_tier="pr_ci",
-    issue="#1172",
-)
-def test_AC2_23_1_conformance_suite_present_in_every_stack():
-    """AC-money.23.1: each stack keeps a conformance suite so the ends cannot drift."""
-    assert missing_conformance_suites() == []
-
-
-@ac_proof(
-    proof_id="test_money_guard_reports_violation_with_path",
-    ac_ids=["AC-money.23.1"],
-    ci_tier="pr_ci",
-    issue="#1172",
-)
-def test_AC2_23_1_float_violations_reports_offending_path(tmp_path: Path):
-    """AC-money.23.1: float_violations surfaces an offending money-module file by path."""
-    money_dir = tmp_path / "common" / "audit" / "money"
-    money_dir.mkdir(parents=True)
-    (tmp_path / "apps" / "backend" / "src" / "audit").mkdir(parents=True)
-    (money_dir / "bad.py").write_text("def f(x: float) -> None:\n    return None\n")
-    violations = float_violations(repo_root=tmp_path)
-    assert any("common/audit/money/bad.py" in v for v in violations)
-
-
-@ac_proof(
-    proof_id="test_money_guard_scan_roots_must_exist",
-    ac_ids=["AC-money.23.1"],
-    ci_tier="pr_ci",
-    issue="#1172",
-)
+'AC-money.23.1 AC2.23.1 EPIC-002'; from pathlib import Path; import pytest; from common.audit.money.guard import float_violations, missing_conformance_suites, python_money_module_paths, scan_text_for_float; from common.testing.ac_proof import ac_proof; _CLEAN_SNIPPET = '\nfrom decimal import Decimal\ndef f(amount: Decimal, currency: str) -> Decimal:\n    if isinstance(amount, float):\n        raise TypeError("no float")\n    return amount\n'; _VIOLATION_SNIPPET = '\nrate: float = 1.0  # money-shaped float at module level\n\ndef bad(amount: float, currency: str) -> float:  # money-shaped float pair\n    total = float(amount)  # cast back to float\n    return total\n\nasync def worse(*args: float, **kwargs: float) -> float:  # async + *args/**kwargs float\n    return 0\n'
+@ac_proof(proof_id='test_money_guard_flags_injected_violation', ac_ids=['AC-money.23.1'], ci_tier='pr_ci', issue='#1172')
+def test_AC2_23_1_guard_flags_injected_float_violation(): 'AC-money.23.1'; hits = scan_text_for_float(_VIOLATION_SNIPPET); assert hits, 'guard must flag a money-shaped float violation'; assert any(('cast' in h for h in hits)); assert any(('annotation' in h for h in hits)); assert scan_text_for_float(_CLEAN_SNIPPET) == []
+@ac_proof(proof_id='test_money_modules_are_float_free', ac_ids=['AC-money.23.1'], ci_tier='pr_ci', issue='#1172')
+def test_AC2_23_1_money_modules_are_float_free(): 'AC-money.23.1'; scanned = python_money_module_paths(); assert any((p.name == 'money.py' for p in scanned)), 'money guard no longer scans the money module — fix MONEY_MODULE_ROOTS'; assert float_violations() == []
+@ac_proof(proof_id='test_money_conformance_suite_per_stack', ac_ids=['AC-money.23.1'], ci_tier='pr_ci', issue='#1172')
+def test_AC2_23_1_conformance_suite_present_in_every_stack(): 'AC-money.23.1'; assert missing_conformance_suites() == []
+@ac_proof(proof_id='test_money_guard_reports_violation_with_path', ac_ids=['AC-money.23.1'], ci_tier='pr_ci', issue='#1172')
+def test_AC2_23_1_float_violations_reports_offending_path(tmp_path: Path): 'AC-money.23.1'; money_dir = tmp_path / 'common' / 'audit' / 'money'; money_dir.mkdir(parents=True); (tmp_path / 'apps' / 'backend' / 'src' / 'audit').mkdir(parents=True); (money_dir / 'bad.py').write_text('def f(x: float) -> None:\n    return None\n'); violations = float_violations(repo_root=tmp_path); assert any(('common/audit/money/bad.py' in v for v in violations))
+@ac_proof(proof_id='test_money_guard_scan_roots_must_exist', ac_ids=['AC-money.23.1'], ci_tier='pr_ci', issue='#1172')
 def test_AC2_23_1_missing_scan_root_is_loud(tmp_path: Path):
-    """AC-money.23.1: a vanished scan root fails loudly instead of passing vacuously."""
-    with pytest.raises(FileNotFoundError, match="scan root missing"):
-        python_money_module_paths(repo_root=tmp_path)
+    'AC-money.23.1'
+    with pytest.raises(FileNotFoundError, match='scan root missing'): python_money_module_paths(repo_root=tmp_path)

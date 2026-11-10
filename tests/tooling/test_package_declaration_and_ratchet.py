@@ -1,65 +1,11 @@
-"""Package test-root declarations + mirror-assertion ratchet (EPIC-008
-AC8.24, issue #1558)."""
-
-from __future__ import annotations
-
-from pathlib import Path
-
-import pytest
-
-from common.testing import matrix
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
+'EPIC-008'; from __future__ import annotations; from pathlib import Path; import pytest; from common.testing import matrix; ROOT = Path(__file__).resolve().parents[2]
 def test_AC8_24_1_seed_packages_declare_owned_test_roots() -> None:
-    """AC-testing.declarations.1: AC8.24.1: the seed packages' contract.py TEST_ROOTS aggregate into the
-    matrix ownership view; every declared root exists; the generated YAML
-    carries the view (so a dropped declaration fails the drift gate)."""
-    ownership = matrix.package_test_ownership()
-    assert set(ownership.values()) == set(matrix.PACKAGE_TEST_DECLARATIONS)
-    for root in ownership:
-        assert (ROOT / root).exists(), f"declared test root missing on disk: {root}"
-
-    yaml_text = (
-        ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
-    ).read_text(encoding="utf-8")
-    assert "ownership:" in yaml_text
-    for root, pkg in ownership.items():
-        assert f"  - path: {root}\n    package: {pkg}" in yaml_text
-
-
+    'AC-testing.declarations.1 AC8.24.1'; ownership = matrix.package_test_ownership(); assert set(ownership.values()) == set(matrix.PACKAGE_TEST_DECLARATIONS)
+    for root in ownership: assert (ROOT / root).exists(), f'declared test root missing on disk: {root}'
+    yaml_text = (ROOT / 'common' / 'testing' / 'data' / 'test-execution-matrix.yaml').read_text(encoding='utf-8'); assert 'ownership:' in yaml_text; assert all((f'  - path: {root}\n    package: {pkg}' in yaml_text for root, pkg in ownership.items()))
 def test_AC8_24_1_duplicate_declaration_is_rejected(monkeypatch) -> None:
-    """AC8.24.1: two packages declaring the same root is an aggregation error."""
-    # importlib, not a bound `import a.b.c as x`: the latter needs the parent
-    # package attribute set at bind time, which fails under the tooling job's
-    # minimal env import ordering (matrix aggregation itself uses importlib).
-    import importlib
-
-    ledger_contract = importlib.import_module("common.ledger.contract")
-
-    monkeypatch.setattr(
-        ledger_contract, "TEST_ROOTS", ("apps/backend/tests/infra/test_main.py",)
-    )
-    with pytest.raises(ValueError, match="declared by both"):
-        matrix.package_test_ownership()
-
-
+    'AC8.24.1'; import importlib; ledger_contract = importlib.import_module('common.ledger.contract'); monkeypatch.setattr(ledger_contract, 'TEST_ROOTS', ('apps/backend/tests/infra/test_main.py',))
+    with pytest.raises(ValueError, match='declared by both'): matrix.package_test_ownership()
 def test_AC8_24_2_e2e_stages_run_their_environment_precondition_first() -> None:
-    """AC-testing.declarations.2: AC8.24.2: contracts declaring a precondition (runtime's smoke gate)
-    must run it BEFORE the pytest invocation in the same workflow — a red
-    precondition is an environment failure, so the tests never start."""
-    with_precondition = [c for c in matrix.WORKFLOW_PYTEST_CONTRACTS if c.precondition]
-    assert {c.stage for c in with_precondition} == {
-        "staging_core_e2e",
-    }
-    for contract in with_precondition:
-        text = (ROOT / contract.workflow).read_text(encoding="utf-8")
-        assert contract.precondition in text, (
-            f"{contract.stage}: precondition {contract.precondition!r} not found "
-            f"in {contract.workflow}"
-        )
-        assert text.index(contract.precondition) < text.index(contract.anchor), (
-            f"{contract.stage}: precondition must run before the pytest "
-            f"invocation in {contract.workflow}"
-        )
+    'AC-testing.declarations.2 AC8.24.2'; with_precondition = [c for c in matrix.WORKFLOW_PYTEST_CONTRACTS if c.precondition]; assert {c.stage for c in with_precondition} == {'staging_core_e2e'}
+    for contract in with_precondition: text = (ROOT / contract.workflow).read_text(encoding='utf-8'); assert contract.precondition in text, f'{contract.stage}: precondition {contract.precondition!r} not found in {contract.workflow}'; assert text.index(contract.precondition) < text.index(contract.anchor), f'{contract.stage}: precondition must run before the pytest invocation in {contract.workflow}'

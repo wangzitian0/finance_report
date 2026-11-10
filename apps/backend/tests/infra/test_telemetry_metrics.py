@@ -1,524 +1,69 @@
-"""OTEL metrics contract tests for EPIC-010."""
-
-from __future__ import annotations
-
-import builtins
-import sys
-import types
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
-
-import pytest
-
-from src.observability import telemetry_metrics
-
-pytestmark = pytest.mark.no_db
-REPO_ROOT = Path(__file__).resolve().parents[4]
-
-
+'EPIC-010'; from __future__ import annotations; import builtins; import sys; import types; from pathlib import Path; from unittest.mock import AsyncMock, MagicMock; from uuid import uuid4; import pytest; from src.observability import telemetry_metrics; pytestmark = pytest.mark.no_db; REPO_ROOT = Path(__file__).resolve().parents[4]
 @pytest.fixture(autouse=True)
-def reset_metrics_state():
-    telemetry_metrics._clear_metrics_state()
-    telemetry_metrics.set_async_parse_in_flight(0)
-    telemetry_metrics.set_db_pool_observer(None)
-    yield
-    telemetry_metrics._clear_metrics_state()
-    telemetry_metrics.set_async_parse_in_flight(0)
-    telemetry_metrics.set_db_pool_observer(None)
-
-
+def reset_metrics_state(): telemetry_metrics._clear_metrics_state(); telemetry_metrics.set_async_parse_in_flight(0); telemetry_metrics.set_db_pool_observer(None); yield; telemetry_metrics._clear_metrics_state(); telemetry_metrics.set_async_parse_in_flight(0); telemetry_metrics.set_db_pool_observer(None)
 class FakeInstrument:
-    def __init__(self) -> None:
-        self.add_calls: list[tuple[int, dict[str, str]]] = []
-        self.record_calls: list[tuple[float, dict[str, str]]] = []
-
-    def add(self, value: int, attributes: dict[str, str]) -> None:
-        self.add_calls.append((value, attributes))
-
-    def record(self, value: float, attributes: dict[str, str]) -> None:
-        self.record_calls.append((value, attributes))
-
-
+    def __init__(self) -> None: self.add_calls: list[tuple[int, dict[str, str]]] = []; self.record_calls: list[tuple[float, dict[str, str]]] = []
+    def add(self, value: int, attributes: dict[str, str]) -> None: self.add_calls.append((value, attributes))
+    def record(self, value: float, attributes: dict[str, str]) -> None: self.record_calls.append((value, attributes))
 class FakeMeter:
-    def __init__(self) -> None:
-        self.counters: dict[str, FakeInstrument] = {}
-        self.histograms: dict[str, FakeInstrument] = {}
-        self.gauges: dict[str, object] = {}
-
-    def create_counter(self, name: str, **_kwargs: object) -> FakeInstrument:
-        instrument = FakeInstrument()
-        self.counters[name] = instrument
-        return instrument
-
-    def create_histogram(self, name: str, **_kwargs: object) -> FakeInstrument:
-        instrument = FakeInstrument()
-        self.histograms[name] = instrument
-        return instrument
-
-    def create_observable_gauge(self, name: str, **kwargs: object) -> None:
-        self.gauges[name] = kwargs["callbacks"]
-
-
+    def __init__(self) -> None: self.counters: dict[str, FakeInstrument] = {}; self.histograms: dict[str, FakeInstrument] = {}; self.gauges: dict[str, object] = {}
+    def create_counter(self, name: str, **_kwargs: object) -> FakeInstrument: instrument = FakeInstrument(); self.counters[name] = instrument; return instrument
+    def create_histogram(self, name: str, **_kwargs: object) -> FakeInstrument: instrument = FakeInstrument(); self.histograms[name] = instrument; return instrument
+    def create_observable_gauge(self, name: str, **kwargs: object) -> None: self.gauges[name] = kwargs['callbacks']
 def install_fake_otel(monkeypatch: pytest.MonkeyPatch) -> FakeMeter:
     meter = FakeMeter()
-
     class FakeResource:
         @staticmethod
-        def create(attributes: dict[str, str]) -> types.SimpleNamespace:
-            return types.SimpleNamespace(attributes=attributes)
-
+        def create(attributes: dict[str, str]) -> types.SimpleNamespace: return types.SimpleNamespace(attributes=attributes)
     class FakeExporter:
-        def __init__(self, endpoint: str) -> None:
-            self.endpoint = endpoint
-
+        def __init__(self, endpoint: str) -> None: self.endpoint = endpoint
     class FakeReader:
-        def __init__(self, exporter: FakeExporter) -> None:
-            self.exporter = exporter
-
+        def __init__(self, exporter: FakeExporter) -> None: self.exporter = exporter
     class FakeProvider:
-        def __init__(self, resource: object, metric_readers: list[FakeReader]) -> None:
-            self.resource = resource
-            self.metric_readers = metric_readers
-
-    def make_module(name: str, is_pkg: bool = False) -> types.ModuleType:
+        def __init__(self, resource: object, metric_readers: list[FakeReader]) -> None: self.resource = resource; self.metric_readers = metric_readers
+    def make_module(name: str, is_pkg: bool=False) -> types.ModuleType:
         module = types.ModuleType(name)
-        if is_pkg:
-            module.__path__ = []
-        monkeypatch.setitem(sys.modules, name, module)
-        return module
-
-    opentelemetry = make_module("opentelemetry", is_pkg=True)
-    metrics = make_module("opentelemetry.metrics")
-    metrics.get_meter = lambda _name: meter
-    metrics.set_meter_provider = lambda _provider: None
-    metrics.Observation = lambda value, attributes=None: (value, attributes or {})
-
-    exporter = make_module("opentelemetry.exporter", is_pkg=True)
-    otlp = make_module("opentelemetry.exporter.otlp", is_pkg=True)
-    proto = make_module("opentelemetry.exporter.otlp.proto", is_pkg=True)
-    http = make_module("opentelemetry.exporter.otlp.proto.http", is_pkg=True)
-    metric_exporter = make_module("opentelemetry.exporter.otlp.proto.http.metric_exporter")
-    metric_exporter.OTLPMetricExporter = FakeExporter
-
-    sdk = make_module("opentelemetry.sdk", is_pkg=True)
-    sdk_metrics = make_module("opentelemetry.sdk.metrics")
-    sdk_metrics.MeterProvider = FakeProvider
-    sdk_metrics_export = make_module("opentelemetry.sdk.metrics.export")
-    sdk_metrics_export.PeriodicExportingMetricReader = FakeReader
-    sdk_resources = make_module("opentelemetry.sdk.resources")
-    sdk_resources.Resource = FakeResource
-
-    opentelemetry.metrics = metrics
-    opentelemetry.exporter = exporter
-    exporter.otlp = otlp
-    otlp.proto = proto
-    proto.http = http
-    http.metric_exporter = metric_exporter
-    opentelemetry.sdk = sdk
-    sdk.metrics = sdk_metrics
-    sdk.resources = sdk_resources
-    sdk_metrics.export = sdk_metrics_export
-    return meter
-
-
-def observation_values(observations: list[object]) -> list[object]:
-    return [item[0] if isinstance(item, tuple) else getattr(item, "value") for item in observations]
-
-
-def test_AC10_10_1_configure_metrics_is_noop_without_endpoint(monkeypatch) -> None:
-    """AC-observability.10.1: metrics export is disabled when OTEL endpoint is absent."""
-    monkeypatch.setattr(telemetry_metrics.settings, "otel_exporter_otlp_endpoint", None)
-    telemetry_metrics.mark_metrics_export_active(True)
-
-    telemetry_metrics.configure_otel_metrics()
-
-    assert telemetry_metrics.is_metrics_export_active() is False
-    assert telemetry_metrics._instruments == {}
-
-
-def test_AC10_10_1_configure_metrics_creates_otlp_provider(monkeypatch) -> None:
-    """AC-observability.10.1: MeterProvider and OTLP exporter use the shared endpoint."""
-    meter = install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    monkeypatch.setattr(telemetry_metrics.settings, "otel_service_name", "finance-report-backend")
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_resource_attributes",
-        "deployment.environment=staging",
-    )
-
-    telemetry_metrics.configure_otel_metrics()
-
-    assert telemetry_metrics.is_metrics_export_active() is True
-    assert "http.server.request.count" in meter.counters
-    assert "http.server.request.duration" in meter.histograms
-    assert "db.pool.size" in meter.gauges
-    assert "finance.async_parse.in_flight" in meter.gauges
-
-
-def test_AC10_10_1_reconfigure_failure_clears_stale_instruments(monkeypatch) -> None:
-    """AC-observability.10.1: disabled or failed reconfiguration does not keep stale instruments."""
-    meter = install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    telemetry_metrics.configure_otel_metrics()
-    telemetry_metrics.record_http_request(
-        method="GET",
-        route="/api/health",
-        status_code=200,
-        duration_ms=1.0,
-    )
-    assert meter.counters["http.server.request.count"].add_calls
-
-    monkeypatch.setattr(telemetry_metrics.settings, "otel_exporter_otlp_endpoint", None)
-    telemetry_metrics.configure_otel_metrics()
-    telemetry_metrics.record_http_request(
-        method="GET",
-        route="/api/health",
-        status_code=200,
-        duration_ms=1.0,
-    )
-
-    assert telemetry_metrics.is_metrics_export_active() is False
-    assert telemetry_metrics._instruments == {}
-    assert len(meter.counters["http.server.request.count"].add_calls) == 1
-
-
+        if is_pkg: module.__path__ = []
+        monkeypatch.setitem(sys.modules, name, module); return module
+    opentelemetry = make_module('opentelemetry', is_pkg=True); metrics = make_module('opentelemetry.metrics'); metrics.get_meter = lambda _name: meter; metrics.set_meter_provider = lambda _provider: None; metrics.Observation = lambda value, attributes=None: (value, attributes or {}); exporter = make_module('opentelemetry.exporter', is_pkg=True); otlp = make_module('opentelemetry.exporter.otlp', is_pkg=True); proto = make_module('opentelemetry.exporter.otlp.proto', is_pkg=True); http = make_module('opentelemetry.exporter.otlp.proto.http', is_pkg=True); metric_exporter = make_module('opentelemetry.exporter.otlp.proto.http.metric_exporter'); metric_exporter.OTLPMetricExporter = FakeExporter; sdk = make_module('opentelemetry.sdk', is_pkg=True); sdk_metrics = make_module('opentelemetry.sdk.metrics'); sdk_metrics.MeterProvider = FakeProvider; sdk_metrics_export = make_module('opentelemetry.sdk.metrics.export'); sdk_metrics_export.PeriodicExportingMetricReader = FakeReader; sdk_resources = make_module('opentelemetry.sdk.resources'); sdk_resources.Resource = FakeResource; opentelemetry.metrics = metrics; opentelemetry.exporter = exporter; exporter.otlp = otlp; otlp.proto = proto; proto.http = http; http.metric_exporter = metric_exporter; opentelemetry.sdk = sdk; sdk.metrics = sdk_metrics; sdk.resources = sdk_resources; sdk_metrics.export = sdk_metrics_export; return meter
+observation_values = lambda observations: [item[0] if isinstance(item, tuple) else getattr(item, 'value') for item in observations]
+def test_AC10_10_1_configure_metrics_is_noop_without_endpoint(monkeypatch) -> None: 'AC-observability.10.1'; monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', None); telemetry_metrics.mark_metrics_export_active(True); telemetry_metrics.configure_otel_metrics(); assert telemetry_metrics.is_metrics_export_active() is False; assert telemetry_metrics._instruments == {}
+def test_AC10_10_1_configure_metrics_creates_otlp_provider(monkeypatch) -> None: 'AC-observability.10.1'; meter = install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); monkeypatch.setattr(telemetry_metrics.settings, 'otel_service_name', 'finance-report-backend'); monkeypatch.setattr(telemetry_metrics.settings, 'otel_resource_attributes', 'deployment.environment=staging'); telemetry_metrics.configure_otel_metrics(); assert telemetry_metrics.is_metrics_export_active() is True; assert 'http.server.request.count' in meter.counters; assert 'http.server.request.duration' in meter.histograms; assert 'db.pool.size' in meter.gauges; assert 'finance.async_parse.in_flight' in meter.gauges
+def test_AC10_10_1_reconfigure_failure_clears_stale_instruments(monkeypatch) -> None: 'AC-observability.10.1'; meter = install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); telemetry_metrics.configure_otel_metrics(); telemetry_metrics.record_http_request(method='GET', route='/api/health', status_code=200, duration_ms=1.0); assert meter.counters['http.server.request.count'].add_calls; monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', None); telemetry_metrics.configure_otel_metrics(); telemetry_metrics.record_http_request(method='GET', route='/api/health', status_code=200, duration_ms=1.0); assert telemetry_metrics.is_metrics_export_active() is False; assert telemetry_metrics._instruments == {}; assert len(meter.counters['http.server.request.count'].add_calls) == 1
 def test_AC10_10_1_import_failure_clears_stale_instruments(monkeypatch) -> None:
-    """AC-observability.10.1: importer failures also clear stale metric instruments."""
-    install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    telemetry_metrics.configure_otel_metrics()
-    assert telemetry_metrics._instruments
-
-    real_import = builtins.__import__
-
-    def fail_metric_exporter_import(name, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
-        if name == "opentelemetry.exporter.otlp.proto.http.metric_exporter":
-            raise ImportError("blocked")
+    'AC-observability.10.1'; install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); telemetry_metrics.configure_otel_metrics(); assert telemetry_metrics._instruments; real_import = builtins.__import__
+    def fail_metric_exporter_import(name, *args, **kwargs):
+        if name == 'opentelemetry.exporter.otlp.proto.http.metric_exporter': raise ImportError('blocked')
         return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fail_metric_exporter_import)
-    telemetry_metrics.configure_otel_metrics()
-
-    assert telemetry_metrics.is_metrics_export_active() is False
-    assert telemetry_metrics._instruments == {}
-
-
-def test_AC10_10_2_red_metrics_record_low_cardinality_labels(monkeypatch) -> None:
-    """AC-observability.10.2: HTTP RED metrics record route and status class."""
-    meter = install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    telemetry_metrics.configure_otel_metrics()
-
-    telemetry_metrics.record_http_request(
-        method="GET",
-        route="/api/health",
-        status_code=200,
-        duration_ms=12.5,
-    )
-
-    counter = meter.counters["http.server.request.count"]
-    histogram = meter.histograms["http.server.request.duration"]
-    assert counter.add_calls == [
-        (
-            1,
-            {
-                "http.request.method": "GET",
-                "http.route": "/api/health",
-                "http.response.status_code_class": "2xx",
-            },
-        )
-    ]
-    assert histogram.record_calls[0][0] == 12.5
-
-
-def test_AC10_10_2_unmatched_routes_use_low_cardinality_fallback() -> None:
-    """AC-observability.10.2: unmatched request paths do not become raw http.route labels."""
-    route = types.SimpleNamespace(path="/api/accounts/{account_id}")
-
-    assert telemetry_metrics.http_route_label_from_scope({"route": route}) == "/api/accounts/{account_id}"
-    assert telemetry_metrics.http_route_label_from_scope({"route": None}) == "__unmatched__"
-    assert telemetry_metrics.http_route_label_from_scope({}) == "__unmatched__"
-
-
-def test_AC10_10_3_saturation_gauges_observe_current_values(monkeypatch) -> None:
-    """AC-observability.10.3: async and DB pool gauges expose current saturation values."""
-    install_fake_otel(monkeypatch)
-    telemetry_metrics.set_async_parse_in_flight(3)
-    telemetry_metrics.set_db_pool_observer(lambda: {"size": 5, "checkedout": 2, "overflow": 1})
-
-    assert telemetry_metrics._observe_async_parse_in_flight() == [(3, {})]
-    assert telemetry_metrics._observe_db_pool_size() == [(5, {})]
-    assert telemetry_metrics._observe_db_pool_checkedout() == [(2, {})]
-    assert telemetry_metrics._observe_db_pool_overflow() == [(1, {})]
-
-    telemetry_metrics.set_db_pool_observer(None)
-
-
+    monkeypatch.setattr(builtins, '__import__', fail_metric_exporter_import); telemetry_metrics.configure_otel_metrics(); assert telemetry_metrics.is_metrics_export_active() is False; assert telemetry_metrics._instruments == {}
+def test_AC10_10_2_red_metrics_record_low_cardinality_labels(monkeypatch) -> None: 'AC-observability.10.2'; meter = install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); telemetry_metrics.configure_otel_metrics(); telemetry_metrics.record_http_request(method='GET', route='/api/health', status_code=200, duration_ms=12.5); counter = meter.counters['http.server.request.count']; histogram = meter.histograms['http.server.request.duration']; assert counter.add_calls == [(1, {'http.request.method': 'GET', 'http.route': '/api/health', 'http.response.status_code_class': '2xx'})]; assert histogram.record_calls[0][0] == 12.5
+def test_AC10_10_2_unmatched_routes_use_low_cardinality_fallback() -> None: 'AC-observability.10.2'; route = types.SimpleNamespace(path='/api/accounts/{account_id}'); assert telemetry_metrics.http_route_label_from_scope({'route': route}) == '/api/accounts/{account_id}'; assert telemetry_metrics.http_route_label_from_scope({'route': None}) == '__unmatched__'; assert telemetry_metrics.http_route_label_from_scope({}) == '__unmatched__'; 'AC-observability.10.3'; 'AC-observability.10.3'; _m1_pipeline = (REPO_ROOT / 'apps' / 'backend' / 'src' / 'extraction' / 'extension' / 'statement_pipeline.py').read_text(encoding='utf-8'); _m1_flow = (REPO_ROOT / 'apps' / 'backend' / 'src' / 'extraction' / 'extension' / 'statement_flow.py').read_text(encoding='utf-8'); assert 'run_with_async_parse_tracking' in _m1_pipeline; assert 'run_with_async_parse_tracking' in _m1_flow
+def test_AC10_10_3_saturation_gauges_observe_current_values(monkeypatch) -> None: 'AC-observability.10.3'; install_fake_otel(monkeypatch); telemetry_metrics.set_async_parse_in_flight(3); telemetry_metrics.set_db_pool_observer(lambda: {'size': 5, 'checkedout': 2, 'overflow': 1}); assert telemetry_metrics._observe_async_parse_in_flight() == [(3, {})]; assert telemetry_metrics._observe_db_pool_size() == [(5, {})]; assert telemetry_metrics._observe_db_pool_checkedout() == [(2, {})]; assert telemetry_metrics._observe_db_pool_overflow() == [(1, {})]; telemetry_metrics.set_db_pool_observer(None)
 def test_AC10_10_3_db_pool_gauges_bind_to_sqlalchemy_engine() -> None:
-    """AC-observability.10.3: DB pool gauges read the runtime SQLAlchemy pool."""
-
+    'AC-observability.10.3'
     class Pool:
-        def size(self) -> int:
-            return 7
-
-        def checkedout(self) -> int:
-            return 3
-
-        def overflow(self) -> int:
-            return 1
-
-    engine = types.SimpleNamespace(sync_engine=types.SimpleNamespace(pool=Pool()))
-
-    telemetry_metrics.configure_database_pool_metrics(engine)
-
-    assert observation_values(telemetry_metrics._observe_db_pool_size()) == [7]
-    assert observation_values(telemetry_metrics._observe_db_pool_checkedout()) == [3]
-    assert observation_values(telemetry_metrics._observe_db_pool_overflow()) == [1]
-
-
+        def size(self) -> int: return 7
+        def checkedout(self) -> int: return 3
+        def overflow(self) -> int: return 1
+    engine = types.SimpleNamespace(sync_engine=types.SimpleNamespace(pool=Pool())); telemetry_metrics.configure_database_pool_metrics(engine); assert observation_values(telemetry_metrics._observe_db_pool_size()) == [7]; assert observation_values(telemetry_metrics._observe_db_pool_checkedout()) == [3]; assert observation_values(telemetry_metrics._observe_db_pool_overflow()) == [1]
 async def test_AC10_10_3_async_parse_tracking_increments_until_done() -> None:
-    """AC-observability.10.3: async parse in-flight gauge follows the task lifecycle."""
-    observed: list[list[object]] = []
-
-    async def parse_work() -> None:
-        observed.append(observation_values(telemetry_metrics._observe_async_parse_in_flight()))
-
-    await telemetry_metrics.run_with_async_parse_tracking(parse_work())
-
-    assert observed == [[1]]
-    assert observation_values(telemetry_metrics._observe_async_parse_in_flight()) == [0]
-
-
+    'AC-observability.10.3'; observed: list[list[object]] = []
+    async def parse_work() -> None: observed.append(observation_values(telemetry_metrics._observe_async_parse_in_flight()))
+    await telemetry_metrics.run_with_async_parse_tracking(parse_work()); assert observed == [[1]]; assert observation_values(telemetry_metrics._observe_async_parse_in_flight()) == [0]
 async def test_AC10_12_1_async_parse_tracking_records_failures(monkeypatch) -> None:
-    """AC-observability.12.1: failed async parse tasks emit a metric and safe log context."""
-    meter = install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    telemetry_metrics.configure_otel_metrics()
-    exception_calls: list[tuple[str, dict[str, object]]] = []
-
-    def capture_exception(event: str, **kwargs: object) -> None:
-        exception_calls.append((event, kwargs))
-
-    monkeypatch.setattr(
-        telemetry_metrics,
-        "logger",
-        types.SimpleNamespace(exception=capture_exception),
-    )
-
-    async def parse_work() -> None:
-        raise RuntimeError("provider failed with a compact safe summary")
-
-    with pytest.raises(RuntimeError):
-        await telemetry_metrics.run_with_async_parse_tracking(
-            parse_work(),
-            statement_id="statement-123",
-            request_id="request-123",
-        )
-
-    assert observation_values(telemetry_metrics._observe_async_parse_in_flight()) == [0]
-    assert meter.counters["finance.async_parse.failure"].add_calls == [
-        (1, {"task": "statement_parse", "error_type": "RuntimeError"})
-    ]
-    assert exception_calls == [
-        (
-            "statement.parse.async_task.failed",
-            {
-                "audit_event": "statement.parse.async_task.failed",
-                "statement_id": "statement-123",
-                "request_id": "request-123",
-                "task_name": "statement_parse",
-                "error_type": "RuntimeError",
-                "safe_error_message": "provider failed with a compact safe summary",
-            },
-        )
-    ]
-
-
-def test_AC10_10_3_async_parse_tracking_has_runtime_call_sites() -> None:
-    """AC-observability.10.3: async parse tracking is wired outside tests."""
-    pipeline = (
-        REPO_ROOT / "apps" / "backend" / "src" / "extraction" / "extension" / "statement_pipeline.py"
-    ).read_text(encoding="utf-8")
-    flow = (REPO_ROOT / "apps" / "backend" / "src" / "extraction" / "extension" / "statement_flow.py").read_text(
-        encoding="utf-8"
-    )
-
-    assert "run_with_async_parse_tracking" in pipeline
-    assert "run_with_async_parse_tracking" in flow
-
-
-def test_AC10_12_2_async_parse_tracking_receives_statement_context() -> None:
-    """AC-observability.12.2: runtime async parse wrappers carry statement/request context."""
-    pipeline = (
-        REPO_ROOT / "apps" / "backend" / "src" / "extraction" / "extension" / "statement_pipeline.py"
-    ).read_text(encoding="utf-8")
-    flow = (REPO_ROOT / "apps" / "backend" / "src" / "extraction" / "extension" / "statement_flow.py").read_text(
-        encoding="utf-8"
-    )
-
-    assert "statement_id=job.statement_id" in pipeline
-    assert "request_id=job.request_id" in pipeline
-    assert "statement_id=parse_job.statement_id" in flow
-    assert "request_id=parse_job.request_id" in flow
-
-
-@pytest.mark.parametrize(
-    ("error_type", "status", "stage1"),
-    [("ExtractionError", "rejected", "rejected"), ("TransactionIdentityReviewRequired", "parsed", "pending_review")],
-)
-async def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved(
-    monkeypatch, error_type, status, stage1
-) -> None:
-    """AC-observability.12.3: execute recovery and inspect its state and safe log."""
-    from src.extraction.extension import statement_parsing
-    from src.extraction.orm.statement_summary import StatementSummary
-
-    statement = StatementSummary(id=uuid4(), confidence_score=90, balance_validated=True)
-    db = AsyncMock()
-    db.get.return_value = statement
-    warning = MagicMock()
-    metric = MagicMock()
-    monkeypatch.setattr(statement_parsing.logger, "warning", warning)
-    monkeypatch.setattr(statement_parsing, "record_statement_parse_outcome", metric)
-    message = "Generated failure for synthetic@example.com " + "x" * 400
-
-    await statement_parsing.handle_parse_failure(
-        statement, db, message=message, phase="extraction_started", error_type=error_type
-    )
-
-    assert statement.status.value == status
-    assert statement.stage1_status.value == stage1
-    assert statement.confidence_score == 0
-    assert statement.balance_validated is False
-    db.rollback.assert_awaited_once()
-    db.get.assert_awaited_once_with(StatementSummary, statement.id)
-    db.commit.assert_awaited_once()
-    warning.assert_called_once()
-    assert warning.call_args.args == ("statement.parse.failed",)
-    logged = warning.call_args.kwargs
-    assert logged["audit_event"] == "statement.parse.failed"
-    assert logged["statement_id"] == str(statement.id)
-    assert logged["phase"] == "extraction_started"
-    assert logged["error_type"] == error_type
-    assert len(logged["safe_error_message"]) <= 300
-    assert "synthetic@example.com" not in logged["safe_error_message"]
-    assert "synthetic@example.com" not in statement.validation_error
-    metric.assert_called_once_with(outcome="failure")
-
-
-def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
-    """AC-observability.10.4: parse, AI, and reconciliation helpers record metrics."""
-    meter = install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    telemetry_metrics.configure_otel_metrics()
-
-    telemetry_metrics.record_statement_parse_outcome(outcome="success", parser="csv")
-    telemetry_metrics.record_ai_provider_call(
-        provider="openrouter",
-        model="glm-5.1",
-        outcome="success",
-        duration_ms=321.0,
-    )
-    telemetry_metrics.record_reconciliation_match_outcome(outcome="accepted")
-
-    assert meter.counters["finance.statement_parse.outcome"].add_calls == [(1, {"outcome": "success", "parser": "csv"})]
-    assert meter.histograms["finance.ai_provider.latency"].record_calls == [
-        (
-            321.0,
-            {"provider": "openrouter", "model": "glm-5.1", "outcome": "success"},
-        )
-    ]
-    assert meter.counters["finance.reconciliation.match.outcome"].add_calls == [(1, {"outcome": "accepted"})]
-    assert "finance.confidence_north_star" not in meter.histograms
-
-
-def test_AC_extraction_statement_classify_6_classification_outcome_counter_labels_each_outcome(monkeypatch) -> None:
-    """AC-extraction.statement-classify.6: the pass after parse counts each outcome under its own label."""
-    meter = install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    telemetry_metrics.configure_otel_metrics()
-
-    telemetry_metrics.record_statement_classification_outcome(outcome="failed")
-    telemetry_metrics.record_statement_classification_outcome(outcome="classified")
-
-    assert meter.counters["finance.statement_classification.outcome"].add_calls == [
-        (1, {"outcome": "failed"}),
-        (1, {"outcome": "classified"}),
-    ]
-
-
-def test_AC10_11_1_rate_limit_rejections_record_alert_metric(monkeypatch) -> None:
-    """AC-observability.11.1: rate-limit rejections emit the metric used by saturation alerts."""
-    meter = install_fake_otel(monkeypatch)
-    monkeypatch.setattr(
-        telemetry_metrics.settings,
-        "otel_exporter_otlp_endpoint",
-        "http://collector:4318",
-    )
-    telemetry_metrics.configure_otel_metrics()
-
-    telemetry_metrics.record_rate_limit_rejected(scope="global_api")
-
-    assert meter.counters["finance.rate_limit.rejected"].add_calls == [(1, {"scope": "global_api"})]
-
-
-def test_build_otlp_metrics_endpoint_adds_suffix() -> None:
-    """Metrics endpoint appends /v1/metrics."""
-    assert telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318") == "http://collector:4318/v1/metrics"
-    assert (
-        telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/") == "http://collector:4318/v1/metrics"
-    )
-
-
-def test_build_otlp_metrics_endpoint_preserves_metrics_path() -> None:
-    """Metrics endpoint preserves /v1/metrics path if already present."""
-    assert (
-        telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/v1/metrics")
-        == "http://collector:4318/v1/metrics"
-    )
-
-
+    'AC-observability.12.1'; meter = install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); telemetry_metrics.configure_otel_metrics(); exception_calls: list[tuple[str, dict[str, object]]] = []
+    def capture_exception(event: str, **kwargs: object) -> None: exception_calls.append((event, kwargs))
+    monkeypatch.setattr(telemetry_metrics, 'logger', types.SimpleNamespace(exception=capture_exception))
+    async def parse_work() -> None: raise RuntimeError('provider failed with a compact safe summary')
+    with pytest.raises(RuntimeError): await telemetry_metrics.run_with_async_parse_tracking(parse_work(), statement_id='statement-123', request_id='request-123')
+    assert observation_values(telemetry_metrics._observe_async_parse_in_flight()) == [0]; assert meter.counters['finance.async_parse.failure'].add_calls == [(1, {'task': 'statement_parse', 'error_type': 'RuntimeError'})]; assert exception_calls == [('statement.parse.async_task.failed', {'audit_event': 'statement.parse.async_task.failed', 'statement_id': 'statement-123', 'request_id': 'request-123', 'task_name': 'statement_parse', 'error_type': 'RuntimeError', 'safe_error_message': 'provider failed with a compact safe summary'})]
+def test_AC10_12_2_async_parse_tracking_receives_statement_context() -> None: 'AC-observability.12.2'; pipeline = (REPO_ROOT / 'apps' / 'backend' / 'src' / 'extraction' / 'extension' / 'statement_pipeline.py').read_text(encoding='utf-8'); flow = (REPO_ROOT / 'apps' / 'backend' / 'src' / 'extraction' / 'extension' / 'statement_flow.py').read_text(encoding='utf-8'); assert 'statement_id=job.statement_id' in pipeline; assert 'request_id=job.request_id' in pipeline; assert 'statement_id=parse_job.statement_id' in flow; assert 'request_id=parse_job.request_id' in flow; assert telemetry_metrics._build_otlp_metrics_endpoint('http://collector:4318') == 'http://collector:4318/v1/metrics'; assert telemetry_metrics._build_otlp_metrics_endpoint('http://collector:4318/') == 'http://collector:4318/v1/metrics'; assert telemetry_metrics._build_otlp_metrics_endpoint('http://collector:4318/v1/metrics') == 'http://collector:4318/v1/metrics'
+@pytest.mark.parametrize(('error_type', 'status', 'stage1'), [('ExtractionError', 'rejected', 'rejected'), ('TransactionIdentityReviewRequired', 'parsed', 'pending_review')])
+async def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved(monkeypatch, error_type, status, stage1) -> None: 'AC-observability.12.3'; from src.extraction.extension import statement_parsing; from src.extraction.orm.statement_summary import StatementSummary; statement = StatementSummary(id=uuid4(), confidence_score=90, balance_validated=True); db = AsyncMock(); db.get.return_value = statement; warning = MagicMock(); metric = MagicMock(); monkeypatch.setattr(statement_parsing.logger, 'warning', warning); monkeypatch.setattr(statement_parsing, 'record_statement_parse_outcome', metric); message = 'Generated failure for synthetic@example.com ' + 'x' * 400; await statement_parsing.handle_parse_failure(statement, db, message=message, phase='extraction_started', error_type=error_type); assert statement.status.value == status; assert statement.stage1_status.value == stage1; assert statement.confidence_score == 0; assert statement.balance_validated is False; db.rollback.assert_awaited_once(); db.get.assert_awaited_once_with(StatementSummary, statement.id); db.commit.assert_awaited_once(); warning.assert_called_once(); assert warning.call_args.args == ('statement.parse.failed',); logged = warning.call_args.kwargs; assert logged['audit_event'] == 'statement.parse.failed'; assert logged['statement_id'] == str(statement.id); assert logged['phase'] == 'extraction_started'; assert logged['error_type'] == error_type; assert len(logged['safe_error_message']) <= 300; assert 'synthetic@example.com' not in logged['safe_error_message']; assert 'synthetic@example.com' not in statement.validation_error; metric.assert_called_once_with(outcome='failure')
+def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None: 'AC-observability.10.4'; meter = install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); telemetry_metrics.configure_otel_metrics(); telemetry_metrics.record_statement_parse_outcome(outcome='success', parser='csv'); telemetry_metrics.record_ai_provider_call(provider='openrouter', model='glm-5.1', outcome='success', duration_ms=321.0); telemetry_metrics.record_reconciliation_match_outcome(outcome='accepted'); assert meter.counters['finance.statement_parse.outcome'].add_calls == [(1, {'outcome': 'success', 'parser': 'csv'})]; assert meter.histograms['finance.ai_provider.latency'].record_calls == [(321.0, {'provider': 'openrouter', 'model': 'glm-5.1', 'outcome': 'success'})]; assert meter.counters['finance.reconciliation.match.outcome'].add_calls == [(1, {'outcome': 'accepted'})]; assert 'finance.confidence_north_star' not in meter.histograms
+def test_AC_extraction_statement_classify_6_classification_outcome_counter_labels_each_outcome(monkeypatch) -> None: 'AC-extraction.statement-classify.6'; meter = install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); telemetry_metrics.configure_otel_metrics(); telemetry_metrics.record_statement_classification_outcome(outcome='failed'); telemetry_metrics.record_statement_classification_outcome(outcome='classified'); assert meter.counters['finance.statement_classification.outcome'].add_calls == [(1, {'outcome': 'failed'}), (1, {'outcome': 'classified'})]
+def test_AC10_11_1_rate_limit_rejections_record_alert_metric(monkeypatch) -> None: 'AC-observability.11.1'; meter = install_fake_otel(monkeypatch); monkeypatch.setattr(telemetry_metrics.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); telemetry_metrics.configure_otel_metrics(); telemetry_metrics.record_rate_limit_rejected(scope='global_api'); assert meter.counters['finance.rate_limit.rejected'].add_calls == [(1, {'scope': 'global_api'})]
 def test_build_otlp_metrics_endpoint_delegates_to_public_sdk_helper(monkeypatch) -> None:
-    """Metrics endpoint is derived by the SDK's public ``signal_endpoint`` (infra2-sdk >= 2.4.0)."""
-    import infra2_sdk.runtime.otel as otel_mod
-
-    calls: list[tuple[str, str]] = []
-
-    def fake_endpoint_builder(base: str, signal: str) -> str:
-        calls.append((base, signal))
-        return "http://sentinel/metrics"
-
-    monkeypatch.setattr(otel_mod, "signal_endpoint", fake_endpoint_builder)
-
-    assert telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318") == "http://sentinel/metrics"
-    assert calls == [("http://collector:4318", "metrics")]
+    import infra2_sdk.runtime.otel as otel_mod; calls: list[tuple[str, str]] = []
+    def fake_endpoint_builder(base: str, signal: str) -> str: calls.append((base, signal)); return 'http://sentinel/metrics'
+    monkeypatch.setattr(otel_mod, 'signal_endpoint', fake_endpoint_builder); assert telemetry_metrics._build_otlp_metrics_endpoint('http://collector:4318') == 'http://sentinel/metrics'; assert calls == [('http://collector:4318', 'metrics')]

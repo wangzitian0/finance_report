@@ -1,296 +1,45 @@
-"""Migration-cleanup guards for base package adoption (EPIC-012 AC12.31)."""
-
-from __future__ import annotations
-
-import re
-import sys
-from decimal import Decimal
-from pathlib import Path
-
-import pytest
-
-from common.testing.ac_proof import ac_proof
-
-REPO = Path(__file__).resolve().parents[2]
-
-MONEY_FIXTURE_FILES = [
-    Path("tests/e2e/test_market_data_price_paths.py"),
-    Path("tests/e2e/test_personal_financial_report_package.py"),
-    Path("tests/e2e/test_four_asset_net_worth_golden_path.py"),
-    Path("tests/e2e/test_brokerage_upload_to_portfolio_value.py"),
-    Path("common/testing/fixtures/personal_report_package.py"),
-    Path("common/testing/fixtures/portfolio_audit_package.py"),
-]
-
-FRONTEND_PERCENT_FILES = [
-    # PerformanceCard and AllocationChart.
-    Path("apps/frontend/src/components/portfolio/PortfolioSummary.tsx"),
-    Path("apps/frontend/src/components/portfolio/InvestmentPerformanceSchedule.tsx"),
-    # HoldingsTable, HoldingDetail and PriceUpdateForm.
-    Path("apps/frontend/src/components/portfolio/Holdings.tsx"),
-    Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
-    # The savings rate of the three-statement cockpit (Home and the /reports Overview, #2621 LC).
-    Path("apps/frontend/src/components/reports/ReportShell.tsx"),
-    Path("apps/frontend/src/components/reconciliation/Workbench.tsx"),
-]
-
-BACKEND_MONEY_ADAPTER_FILES = [
-    Path("apps/backend/src/portfolio/extension/accounting.py"),
-    Path("apps/backend/src/portfolio/extension/performance_report.py"),
-]
-
-BACKEND_QUANTITY_ADAPTER_FILES = [
-    Path("apps/backend/src/portfolio/extension/positions.py"),
-    Path("apps/backend/src/portfolio/extension/accounting.py"),
-    Path("apps/backend/src/portfolio/extension/discovery.py"),
-    Path("apps/backend/src/portfolio/extension/holdings.py"),
-    Path("apps/backend/src/reporting"),
-]
-
-
+'EPIC-012'; from __future__ import annotations; import re; import sys; from decimal import Decimal; from pathlib import Path; import pytest; from common.testing.ac_proof import ac_proof; REPO = Path(__file__).resolve().parents[2]; MONEY_FIXTURE_FILES = [Path('tests/e2e/test_market_data_price_paths.py'), Path('tests/e2e/test_personal_financial_report_package.py'), Path('tests/e2e/test_four_asset_net_worth_golden_path.py'), Path('tests/e2e/test_brokerage_upload_to_portfolio_value.py'), Path('common/testing/fixtures/personal_report_package.py'), Path('common/testing/fixtures/portfolio_audit_package.py')]; FRONTEND_PERCENT_FILES = [Path('apps/frontend/src/components/portfolio/PortfolioSummary.tsx'), Path('apps/frontend/src/components/portfolio/InvestmentPerformanceSchedule.tsx'), Path('apps/frontend/src/components/portfolio/Holdings.tsx'), Path('apps/frontend/src/app/(main)/portfolio/page.tsx'), Path('apps/frontend/src/components/reports/ReportShell.tsx'), Path('apps/frontend/src/components/reconciliation/Workbench.tsx')]; BACKEND_MONEY_ADAPTER_FILES = [Path('apps/backend/src/portfolio/extension/accounting.py'), Path('apps/backend/src/portfolio/extension/performance_report.py')]; BACKEND_QUANTITY_ADAPTER_FILES = [Path('apps/backend/src/portfolio/extension/positions.py'), Path('apps/backend/src/portfolio/extension/accounting.py'), Path('apps/backend/src/portfolio/extension/discovery.py'), Path('apps/backend/src/portfolio/extension/holdings.py'), Path('apps/backend/src/reporting')]
 def _read(path: Path) -> str:
     target = REPO / path
-    if target.is_dir():
-        # Package directory: concatenate its modules so the checks are robust to
-        # a single-file module being split into a package.
-        return "\n".join(
-            p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
-        )
-    return target.read_text(encoding="utf-8")
-
-
+    if target.is_dir(): return '\n'.join((p.read_text(encoding='utf-8') for p in sorted(target.rglob('*.py'))))
+    return target.read_text(encoding='utf-8')
 def _ensure_backend_src_importable() -> None:
-    backend_path = str(REPO / "apps/backend")
-    if backend_path not in sys.path:
-        sys.path.insert(0, backend_path)
-    loaded_src = sys.modules.get("src")
-    if loaded_src is not None and not hasattr(loaded_src, "__path__"):
-        del sys.modules["src"]
-
-
-@ac_proof(
-    proof_id="test_base_package_money_fixture_cleanup",
-    ac_ids=["AC-audit.31.5"],
-    ci_tier="pr_ci",
-)
+    backend_path = str(REPO / 'apps/backend'); sys.path.insert(0, backend_path) if backend_path not in sys.path else None; loaded_src = sys.modules.get('src')
+    if loaded_src is not None and (not hasattr(loaded_src, '__path__')): del sys.modules['src']
+@ac_proof(proof_id='test_base_package_money_fixture_cleanup', ac_ids=['AC-audit.31.5'], ci_tier='pr_ci')
 def test_AC12_31_5_money_fixture_helpers_route_through_base_package():
-    """AC-audit.31.5: E2E/fixture money adapters use one shared Money-backed helper."""
-    helper = _read(Path("common/testing/base_values.py"))
-    assert "from common.audit.money import FloatNotAllowedError, Money" in helper
-    assert "Money(Decimal(str(value)), currency).quantize().amount" in helper
-
-    for path in MONEY_FIXTURE_FILES:
-        src = _read(path)
-        assert "from common.testing import money_amount" in src, (
-            f"{path} must import the shared helper"
-        )
-        assert "def _money(" not in src, f"{path} still defines a local money adapter"
-        assert 'Decimal(str(value)).quantize(Decimal("0.01"))' not in src, (
-            f"{path} still hand-rolls money quantization"
-        )
-
-    portfolio_audit_fixture = _read(
-        Path("common/testing/fixtures/portfolio_audit_package.py")
-    )
-    assert (
-        "report_package_market_value_sgd(self) -> Decimal:\n        return money_amount("
-        in portfolio_audit_fixture
-    )
-    assert "reporting_market_value_sgd=money_amount(" in portfolio_audit_fixture
-    assert portfolio_audit_fixture.count('currency="SGD"') >= 2
-
-
-@ac_proof(
-    proof_id="test_base_package_frontend_percent_cleanup",
-    ac_ids=["AC-audit.31.5"],
-    ci_tier="pr_ci",
-)
+    'AC-audit.31.5'; helper = _read(Path('common/testing/base_values.py')); assert 'from common.audit.money import FloatNotAllowedError, Money' in helper; assert 'Money(Decimal(str(value)), currency).quantize().amount' in helper
+    for path in MONEY_FIXTURE_FILES: src = _read(path); assert 'from common.testing import money_amount' in src, f'{path} must import the shared helper'; assert 'def _money(' not in src, f'{path} still defines a local money adapter'; assert 'Decimal(str(value)).quantize(Decimal("0.01"))' not in src, f'{path} still hand-rolls money quantization'
+    portfolio_audit_fixture = _read(Path('common/testing/fixtures/portfolio_audit_package.py')); assert 'report_package_market_value_sgd(self) -> Decimal:\n        return money_amount(' in portfolio_audit_fixture; assert 'reporting_market_value_sgd=money_amount(' in portfolio_audit_fixture; assert portfolio_audit_fixture.count('currency="SGD"') >= 2
+@ac_proof(proof_id='test_base_package_frontend_percent_cleanup', ac_ids=['AC-audit.31.5'], ci_tier='pr_ci')
 def test_AC12_31_5_frontend_percent_formatters_are_not_duplicated():
-    """AC-audit.31.5: frontend percent display/calculation calls Ratio format helpers directly."""
-    for path in FRONTEND_PERCENT_FILES:
-        src = _read(path)
-        assert "@/lib/audit/ratio/format" in src, (
-            f"{path} must use Ratio format helpers"
-        )
-        assert "function formatReturnPercent(" not in src
-        assert "function formatAllocationPercent(" not in src
-        assert "function formatPercent(" not in src
-        assert "function formatPnlPercent(" not in src
-        assert "Math.round((clean / total) * 100)" not in src
-        assert "Math.round(stats.match_rate" not in src
-        assert "Math.round((value / maxBucket) * 100)" not in src
-
-    allocation = _read(
-        Path("apps/frontend/src/components/portfolio/PortfolioSummary.tsx")
-    )
-    assert "formatPercentFromPercentValue(d.percentage, { dp: 1 })" in allocation
-    assert "formatAmount(d.percentage, 1)}%" not in allocation
-
-    ratio_format = _read(Path("apps/frontend/src/lib/audit/ratio/format.ts"))
-    assert "export function percentNumberFromParts(" in ratio_format
-
-
-@ac_proof(
-    proof_id="test_base_package_backend_money_adapter_cleanup",
-    ac_ids=["AC-audit.31.5"],
-    ci_tier="pr_ci",
-)
+    'AC-audit.31.5'
+    for path in FRONTEND_PERCENT_FILES: src = _read(path); assert '@/lib/audit/ratio/format' in src, f'{path} must use Ratio format helpers'; assert 'function formatReturnPercent(' not in src; assert 'function formatAllocationPercent(' not in src; assert 'function formatPercent(' not in src; assert 'function formatPnlPercent(' not in src; assert 'Math.round((clean / total) * 100)' not in src; assert 'Math.round(stats.match_rate' not in src; assert 'Math.round((value / maxBucket) * 100)' not in src
+    allocation = _read(Path('apps/frontend/src/components/portfolio/PortfolioSummary.tsx')); assert 'formatPercentFromPercentValue(d.percentage, { dp: 1 })' in allocation; assert 'formatAmount(d.percentage, 1)}%' not in allocation; ratio_format = _read(Path('apps/frontend/src/lib/audit/ratio/format.ts')); assert 'export function percentNumberFromParts(' in ratio_format
+@ac_proof(proof_id='test_base_package_backend_money_adapter_cleanup', ac_ids=['AC-audit.31.5'], ci_tier='pr_ci')
 def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
-    """AC-audit.31.5: backend services use the shared Money rounding adapter directly."""
-    for path in BACKEND_MONEY_ADAPTER_FILES:
-        src = _read(path)
-        assert re.search(r"from src\.audit\.money import [^\n]*to_money", src), (
-            f"{path} must import the backend Money adapter"
-        )
-        assert "def _money(" not in src, f"{path} still defines a local money adapter"
-        # Forbid a standalone local `_money(` adapter; allow any qualified
-        # `<identifier>_money(` (to_money, convert_money, …).
-        assert not re.search(r"(?<![A-Za-z0-9_])_money\(", src), (
-            f"{path} still calls a local money adapter"
-        )
-
-    performance_report = _read(
-        Path("apps/backend/src/portfolio/extension/performance_report.py")
-    )
-    assert "percentage=_percent(row.percentage)" in performance_report
-    assert "percentage=_money(row.percentage)" not in performance_report
-
-
-@ac_proof(
-    proof_id="test_base_package_confidence_percent_wrapper_retired",
-    ac_ids=["AC-audit.31.6"],
-    ci_tier="pr_ci",
-)
-def test_AC12_31_6_confidence_percent_wrapper_is_retired():
-    """AC-audit.31.6: correction-loop UI calls Ratio formatting directly, with no local percent facade."""
-    confidence = _read(Path("apps/frontend/src/lib/confidence.ts"))
-    page = _read(Path("apps/frontend/src/components/audit/AuditPanels.tsx"))
-
-    assert "formatProportionPercent" not in confidence
-    assert "formatProportionPercent" not in page
-    assert (
-        "formatPercentFromRatioValue(replay.proportion_before, { dp: 1 })" in confidence
-    )
-    assert "summarizeReplay(replay)" in page
-
-
-@ac_proof(
-    proof_id="test_base_package_ssot_fx_examples_use_money_exchange_rate",
-    ac_ids=["AC-audit.31.6"],
-    ci_tier="pr_ci",
-)
+    'AC-audit.31.5'
+    for path in BACKEND_MONEY_ADAPTER_FILES: src = _read(path); assert re.search('from src\\.audit\\.money import [^\\n]*to_money', src), f'{path} must import the backend Money adapter'; assert 'def _money(' not in src, f'{path} still defines a local money adapter'; assert not re.search('(?<![A-Za-z0-9_])_money\\(', src), f'{path} still calls a local money adapter'
+    performance_report = _read(Path('apps/backend/src/portfolio/extension/performance_report.py')); assert 'percentage=_percent(row.percentage)' in performance_report; assert 'percentage=_money(row.percentage)' not in performance_report
+@ac_proof(proof_id='test_base_package_confidence_percent_wrapper_retired', ac_ids=['AC-audit.31.6'], ci_tier='pr_ci')
+def test_AC12_31_6_confidence_percent_wrapper_is_retired(): 'AC-audit.31.6'; confidence = _read(Path('apps/frontend/src/lib/confidence.ts')); page = _read(Path('apps/frontend/src/components/audit/AuditPanels.tsx')); assert 'formatProportionPercent' not in confidence; assert 'formatProportionPercent' not in page; assert 'formatPercentFromRatioValue(replay.proportion_before, { dp: 1 })' in confidence; assert 'summarizeReplay(replay)' in page
+@ac_proof(proof_id='test_base_package_ssot_fx_examples_use_money_exchange_rate', ac_ids=['AC-audit.31.6'], ci_tier='pr_ci')
 def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
-    """AC-audit.31.6: SSOT examples teach the base-package FX primitive, not Decimal math.
-
-    market_data.md and reporting.md internalized into the `pricing` and
-    `reporting` package readmes (migration closeout wave 3, #1664); this
-    check follows the cutover.
-    """
-    for path in [Path("common/pricing/readme.md"), Path("common/reporting/readme.md")]:
-        src = _read(path)
-        assert "ExchangeRate(" in src, f"{path} must show typed FX rates"
-        assert "Money(" in src, f"{path} must show typed money conversion"
-        assert "amount * rate).quantize" not in src
-        assert "amount_sgd * fx_rate" not in src
-
-
-@ac_proof(
-    proof_id="test_base_package_backend_quantity_value_type_cleanup",
-    ac_ids=["AC-audit.31.7"],
-    ci_tier="pr_ci",
-)
+    'AC-audit.31.6'
+    for path in [Path('common/pricing/readme.md'), Path('common/reporting/readme.md')]: src = _read(path); assert 'ExchangeRate(' in src, f'{path} must show typed FX rates'; assert 'Money(' in src, f'{path} must show typed money conversion'; assert 'amount * rate).quantize' not in src; assert 'amount_sgd * fx_rate' not in src
+@ac_proof(proof_id='test_base_package_backend_quantity_value_type_cleanup', ac_ids=['AC-audit.31.7'], ci_tier='pr_ci')
 def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
-    """AC-audit.31.7: backend services hold Quantity objects in business calculations."""
-    quantity_api = _read(Path("apps/backend/src/audit/quantity/__init__.py"))
-    for helper in [
-        "quantized_quantity_value",
-        "quantity_is_zero",
-        "quantity_zero_value",
-    ]:
-        assert helper not in quantity_api
-
-    forbidden_local_adapters = [
-        "def _quantity(",
-        "def _quantity_is_zero(",
-        "def _quantity_value(",
-        "def _quantized_quantity(",
-        "def _quantity_zero(",
-    ]
+    'AC-audit.31.7'; quantity_api = _read(Path('apps/backend/src/audit/quantity/__init__.py')); assert all((helper not in quantity_api for helper in ['quantized_quantity_value', 'quantity_is_zero', 'quantity_zero_value'])); forbidden_local_adapters = ['def _quantity(', 'def _quantity_is_zero(', 'def _quantity_value(', 'def _quantized_quantity(', 'def _quantity_zero(']
     for path in BACKEND_QUANTITY_ADAPTER_FILES:
-        src = _read(path)
-        # value type used by direct import OR via a model .quantity_qty accessor
-        # (the #3 boundary push: reporting reads Quantity off the ORM accessor).
-        assert (
-            "from src.audit.quantity import Quantity" in src or ".quantity_qty" in src
-        ), f"{path} must use the Quantity value type (import or .quantity_qty accessor)"
-        for needle in forbidden_local_adapters:
-            assert needle not in src, (
-                f"{path} still defines local Quantity adapter {needle}"
-            )
-        for helper in [
-            "quantized_quantity_value",
-            "quantity_is_zero",
-            "quantity_zero_value",
-        ]:
-            assert helper not in src, (
-                f"{path} still calls package-level Decimal facade {helper}"
-            )
-
-    investment = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
-    assert "trade_quantity = order.quantity.quantize()" in investment
-    assert "trade_quantity.is_zero()" in investment
-    assert "quantity=trade_quantity.value" in investment
-    # unit price now flows through the UnitPrice value type (#1253 / AC12.32),
-    # keeping trade_quantity a Quantity object in the money calculation.
-    assert "buy_price * trade_quantity" in investment
-
-    portfolio = _read(Path("apps/backend/src/portfolio/extension/holdings.py"))
-    # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push).
-    assert "position_quantity = position.quantity_qty.quantize()" in portfolio
-    assert "snapshot_quantity.is_zero()" in portfolio
-
-    reporting = _read(Path("apps/backend/src/reporting"))
-    # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push).
-    assert "position_quantity = position.quantity_qty.quantize()" in reporting
-
-
-@ac_proof(
-    proof_id="test_base_package_backend_quantity_value_type_storage_edges",
-    ac_ids=["AC-audit.31.7"],
-    ci_tier="pr_ci",
-)
+        src = _read(path); assert 'from src.audit.quantity import Quantity' in src or '.quantity_qty' in src, f'{path} must use the Quantity value type (import or .quantity_qty accessor)'
+        for needle in forbidden_local_adapters: assert needle not in src, f'{path} still defines local Quantity adapter {needle}'
+        for helper in ['quantized_quantity_value', 'quantity_is_zero', 'quantity_zero_value']: assert helper not in src, f'{path} still calls package-level Decimal facade {helper}'
+    investment = _read(Path('apps/backend/src/portfolio/extension/accounting.py')); assert 'trade_quantity = order.quantity.quantize()' in investment; assert 'trade_quantity.is_zero()' in investment; assert 'quantity=trade_quantity.value' in investment; assert 'buy_price * trade_quantity' in investment; portfolio = _read(Path('apps/backend/src/portfolio/extension/holdings.py')); assert 'position_quantity = position.quantity_qty.quantize()' in portfolio; assert 'snapshot_quantity.is_zero()' in portfolio; reporting = _read(Path('apps/backend/src/reporting')); assert 'position_quantity = position.quantity_qty.quantize()' in reporting
+@ac_proof(proof_id='test_base_package_backend_quantity_value_type_storage_edges', ac_ids=['AC-audit.31.7'], ci_tier='pr_ci')
 def test_AC12_31_7_backend_quantity_value_type_handles_storage_edges():
-    """AC-audit.31.7: Quantity itself owns storage-edge rounding and zero semantics."""
-    _ensure_backend_src_importable()
-
-    from src.audit.quantity import FloatNotAllowedError, Quantity
-
-    assert Quantity(Decimal("1.2345675"), "units").quantize().value == Decimal(
-        "1.234568"
-    )
-    assert Quantity(1, "units").quantize().value == Decimal("1.000000")
-    assert Quantity.zero("units").quantize().value == Decimal("0.000000")
-    assert Quantity(Decimal("0.0000004"), "units").quantize().is_zero()
-    assert not Quantity(Decimal("0.0000005"), "units").quantize().is_zero()
-    with pytest.raises(FloatNotAllowedError):
-        Quantity(0.1, "units")
-    with pytest.raises(FloatNotAllowedError):
-        Quantity(True, "units")
-
-
+    'AC-audit.31.7'; _ensure_backend_src_importable(); from src.audit.quantity import FloatNotAllowedError, Quantity; assert Quantity(Decimal('1.2345675'), 'units').quantize().value == Decimal('1.234568'); assert Quantity(1, 'units').quantize().value == Decimal('1.000000'); assert Quantity.zero('units').quantize().value == Decimal('0.000000'); assert Quantity(Decimal('0.0000004'), 'units').quantize().is_zero(); assert not Quantity(Decimal('0.0000005'), 'units').quantize().is_zero()
+    with pytest.raises(FloatNotAllowedError): Quantity(0.1, 'units')
+    with pytest.raises(FloatNotAllowedError): Quantity(True, 'units')
 def test_legacy_duplicate_home_components_remain_deleted():
-    """Guard that redundant legacy Home KPI/onboarding components remain deleted."""
-    deleted_paths = [
-        Path("apps/frontend/src/components/home/HomeNetWorthBanner.tsx"),
-        Path("apps/frontend/src/components/home/HomeIncomeCards.tsx"),
-        Path("apps/frontend/src/components/home/OnboardingGuideCard.tsx"),
-        # #2621 LC: the analytics panel and the trust meter repeated the cockpit numbers.
-        Path("apps/frontend/src/components/home/ThreeStatementNav.tsx"),
-        Path("apps/frontend/src/components/home/HomeAnalyticsSection.tsx"),
-        Path("apps/frontend/src/components/home/TrustMeter.tsx"),
-    ]
-    for rel_path in deleted_paths:
-        assert not (REPO / rel_path).exists(), (
-            f"Redundant Home component {rel_path} must stay deleted; "
-            "StatementCockpit is the single Home statement surface."
-        )
+    deleted_paths = [Path('apps/frontend/src/components/home/HomeNetWorthBanner.tsx'), Path('apps/frontend/src/components/home/HomeIncomeCards.tsx'), Path('apps/frontend/src/components/home/OnboardingGuideCard.tsx'), Path('apps/frontend/src/components/home/ThreeStatementNav.tsx'), Path('apps/frontend/src/components/home/HomeAnalyticsSection.tsx'), Path('apps/frontend/src/components/home/TrustMeter.tsx')]
+    for rel_path in deleted_paths: assert not (REPO / rel_path).exists(), f'Redundant Home component {rel_path} must stay deleted; StatementCockpit is the single Home statement surface.'

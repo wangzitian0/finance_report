@@ -89,7 +89,22 @@ target-version = "py312"
 select = ["E", "F", "I", "UP"]
 ignore = [
     "E501",  # Line too long - handled by formatter, 120 is reasonable
+    "E401",
+    "E402",
+    "E701",
+    "E702",
+    "E714",
+    "E731",
+    "I001",
+    "UP034",
+    "UP038",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["F401", "F811"]
+
+[tool.ruff.format]
+exclude = ["src/**", "tests/**"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

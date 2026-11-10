@@ -1,88 +1,11 @@
-"""The seam protocols are runtime-checkable and swappable (EPIC-023 AC-llm.1.5).
-
-These tests pin the contract that lets EPIC A (litellm client) and EPIC B
-(DB config) implement opposite sides independently: a conforming object must
-satisfy ``isinstance`` against the protocol, and a non-conforming one must not.
-"""
-
-from __future__ import annotations
-
-from collections.abc import AsyncIterator
-
-from src.llm.base import (
-    ConfigSource,
-    FernetCipher,
-    LLMClient,
-    Modality,
-    ModelSpec,
-    ProviderRef,
-    Scene,
-    SceneBinding,
-    SecretCipher,
-)
-
-
+'AC-llm.1.5 EPIC-023'; from __future__ import annotations; from collections.abc import AsyncIterator; from src.llm.base import ConfigSource, FernetCipher, LLMClient, Modality, ModelSpec, ProviderRef, Scene, SceneBinding, SecretCipher
 class _FakeConfigSource:
-    async def list_providers(self) -> list[ProviderRef]:
-        return []
-
-    async def get_provider(self, provider_id: str) -> ProviderRef | None:
-        return None
-
-    async def get_binding(self, scene: Scene) -> SceneBinding | None:
-        return None
-
-    async def is_configured(self) -> bool:
-        return False
-
-
+    async def list_providers(self) -> list[ProviderRef]: return []
+    async def get_provider(self, provider_id: str) -> ProviderRef | None: return None
+    async def get_binding(self, scene: Scene) -> SceneBinding | None: return None
+    async def is_configured(self) -> bool: return False
 class _FakeClient:
-    def stream(self, scene, messages, *, reasoning=None) -> AsyncIterator[str]:  # noqa: ANN001
-        raise NotImplementedError
-
-
+    def stream(self, scene, messages, *, reasoning=None) -> AsyncIterator[str]: raise NotImplementedError
 class _NotAConfigSource:
-    async def list_providers(self) -> list[ProviderRef]:
-        return []
-
-    # missing get_provider / get_binding / is_configured
-
-
-def test_AC23_1_5_conforming_implementations_satisfy_the_protocols():
-    """AC-llm.1.5: a conforming object passes isinstance for each seam protocol."""
-    assert isinstance(_FakeConfigSource(), ConfigSource)
-    assert isinstance(_FakeClient(), LLMClient)
-
-
-def test_AC23_1_5_fernet_cipher_is_a_secret_cipher():
-    """AC-llm.1.5: the shipped FernetCipher satisfies the SecretCipher protocol."""
-    from cryptography.fernet import Fernet
-
-    cipher = FernetCipher([Fernet.generate_key().decode("ascii")])
-    assert isinstance(cipher, SecretCipher)
-
-
-def test_AC23_1_5_non_conforming_object_is_rejected():
-    """AC-llm.1.5: a class missing protocol methods is not an instance — the contract bites."""
-    assert not isinstance(_NotAConfigSource(), ConfigSource)
-
-
-def test_AC23_1_5_modality_round_trips_via_model_spec():
-    """AC-llm.1.5: ModelSpec uses the Modality enum the catalogue/binding share."""
-    spec = ModelSpec(id="p/m", provider_id="p", modalities=frozenset({Modality.TEXT}))
-    assert spec.accepts(Modality.TEXT)
-
-
-def test_AC23_1_5_error_hierarchy_carries_retryable_semantics():
-    """AC-llm.1.5: the error contract — config/budget never retry; all derive from LLMError."""
-    from src.llm.base import LLMBudgetExceeded, LLMConfigError, LLMError, ModelCatalogError
-
-    budget = LLMBudgetExceeded("over daily budget")
-    assert isinstance(budget, LLMError)
-    assert budget.retryable is False
-
-    catalog = ModelCatalogError("catalogue unavailable", retryable=True)
-    assert isinstance(catalog, LLMError)
-    assert catalog.retryable is True
-
-    assert issubclass(LLMConfigError, LLMError)
+    async def list_providers(self) -> list[ProviderRef]: return []
+def test_AC23_1_5_conforming_implementations_satisfy_the_protocols(): 'AC-llm.1.5'; assert isinstance(_FakeConfigSource(), ConfigSource); assert isinstance(_FakeClient(), LLMClient); 'AC-llm.1.5'; 'AC-llm.1.5'; from cryptography.fernet import Fernet; _m1_cipher = FernetCipher([Fernet.generate_key().decode('ascii')]); assert isinstance(_m1_cipher, SecretCipher); 'AC-llm.1.5'; 'AC-llm.1.5'; assert not isinstance(_NotAConfigSource(), ConfigSource); 'AC-llm.1.5'; 'AC-llm.1.5'; _m3_spec = ModelSpec(id='p/m', provider_id='p', modalities=frozenset({Modality.TEXT})); assert _m3_spec.accepts(Modality.TEXT); 'AC-llm.1.5'; 'AC-llm.1.5'; from src.llm.base import LLMBudgetExceeded, LLMConfigError, LLMError, ModelCatalogError; _m4_budget = LLMBudgetExceeded('over daily budget'); assert isinstance(_m4_budget, LLMError); assert _m4_budget.retryable is False; _m4_catalog = ModelCatalogError('catalogue unavailable', retryable=True); assert isinstance(_m4_catalog, LLMError); assert _m4_catalog.retryable is True; assert issubclass(LLMConfigError, LLMError)

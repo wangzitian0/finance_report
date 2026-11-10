@@ -1,130 +1,21 @@
-"""Behavioral locks for the CODE-ONLY runtime slice of #1867."""
-
-from __future__ import annotations
-
-import ast
-import io
-import json
-import urllib.error
-from datetime import UTC, datetime
-from pathlib import Path
-
-import pytest
-
-from common.runtime import (
-    github_api,
-    release_images,
-)
-from common.testing import github_workflow_timing_summary, wait_for_cheap_ci
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """AC-runtime.github-api.1: clients, UTC parsing, and output writing remain shared."""
-
-    assert wait_for_cheap_ci.GitHubActionsClient is github_api.GitHubActionsClient
-    assert wait_for_cheap_ci.urllib is github_api.urllib
-    assert release_images._write_github_output is github_api.write_github_output
-    assert (
-        github_workflow_timing_summary.parse_github_time is github_api.parse_github_time
-    )
-
-    helper_definitions: dict[str, list[str]] = {
-        "parse_github_time": [],
-        "write_github_output": [],
-        "_write_github_output": [],
-    }
-    for root_name in ("common", "tools"):
-        for path in sorted((ROOT / root_name).rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if node.name in helper_definitions:
-                        helper_definitions[node.name].append(
-                            path.relative_to(ROOT).as_posix()
-                        )
-    from infra2_sdk import ci as sdk_ci
-
-    assert github_api.parse_github_time is sdk_ci.parse_github_time
-    assert github_api.write_github_output is sdk_ci.write_github_output
-    assert helper_definitions == {
-        "parse_github_time": [],
-        "write_github_output": [],
-        "_write_github_output": [],
-    }
-
-    assert github_api.parse_github_time("2026-07-15T12:00:00Z") == datetime(
-        2026, 7, 15, 12, tzinfo=UTC
-    )
-    assert github_api.parse_github_time(None) is None
-
-    output = tmp_path / "github-output.txt"
-    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
-    github_api.write_github_output({"run_id": "123", "status": "success"})
-    assert output.read_text(encoding="utf-8") == "run_id=123\nstatus=success\n"
-
-    github_api.write_github_output(
-        {
-            "multiline": "before\nattacker=unsafe",
-            "carriage": "first\rsecond",
-        }
-    )
-    output_lines = output.read_text(encoding="utf-8").splitlines()
-    assert output_lines[:2] == ["run_id=123", "status=success"]
-    assert output_lines[2].startswith("multiline<<")
-    multiline_delimiter = output_lines[2].removeprefix("multiline<<")
-    assert output_lines[3:5] == ["before", "attacker=unsafe"]
-    assert output_lines[5] == multiline_delimiter
-    assert output_lines[6].startswith("carriage<<")
-    carriage_delimiter = output_lines[6].removeprefix("carriage<<")
-    assert output_lines[7:9] == ["first", "second"]
-    assert output_lines[9] == carriage_delimiter
-
-    with pytest.raises(ValueError, match="invalid GitHub output key"):
-        github_api.write_github_output({"not-a-key": "value"})
-
+from __future__ import annotations; import ast; import io; import json; import urllib.error; from datetime import UTC, datetime; from pathlib import Path; import pytest; from common.runtime import github_api, release_images; from common.testing import github_workflow_timing_summary, wait_for_cheap_ci; ROOT = Path(__file__).resolve().parents[2]
+def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    'AC-runtime.github-api.1'; assert wait_for_cheap_ci.GitHubActionsClient is github_api.GitHubActionsClient; assert wait_for_cheap_ci.urllib is github_api.urllib; assert release_images._write_github_output is github_api.write_github_output; assert github_workflow_timing_summary.parse_github_time is github_api.parse_github_time; helper_definitions: dict[str, list[str]] = {'parse_github_time': [], 'write_github_output': [], '_write_github_output': []}
+    for root_name in ('common', 'tools'):
+        for path in sorted((ROOT / root_name).rglob('*.py')): tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path)); [(helper_definitions[node.name].append(path.relative_to(ROOT).as_posix()) if node.name in helper_definitions else None) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) else None for node in ast.walk(tree)]
+    from infra2_sdk import ci as sdk_ci; assert github_api.parse_github_time is sdk_ci.parse_github_time; assert github_api.write_github_output is sdk_ci.write_github_output; assert helper_definitions == {'parse_github_time': [], 'write_github_output': [], '_write_github_output': []}; assert github_api.parse_github_time('2026-07-15T12:00:00Z') == datetime(2026, 7, 15, 12, tzinfo=UTC); assert github_api.parse_github_time(None) is None; output = tmp_path / 'github-output.txt'; monkeypatch.setenv('GITHUB_OUTPUT', str(output)); github_api.write_github_output({'run_id': '123', 'status': 'success'}); assert output.read_text(encoding='utf-8') == 'run_id=123\nstatus=success\n'; github_api.write_github_output({'multiline': 'before\nattacker=unsafe', 'carriage': 'first\rsecond'}); output_lines = output.read_text(encoding='utf-8').splitlines(); assert output_lines[:2] == ['run_id=123', 'status=success']; assert output_lines[2].startswith('multiline<<'); multiline_delimiter = output_lines[2].removeprefix('multiline<<'); assert output_lines[3:5] == ['before', 'attacker=unsafe']; assert output_lines[5] == multiline_delimiter; assert output_lines[6].startswith('carriage<<'); carriage_delimiter = output_lines[6].removeprefix('carriage<<'); assert output_lines[7:9] == ['first', 'second']; assert output_lines[9] == carriage_delimiter
+    with pytest.raises(ValueError, match='invalid GitHub output key'): github_api.write_github_output({'not-a-key': 'value'})
     requests: list[str] = []
-
     class FakeResponse:
-        def __init__(self, payload: dict[str, object]) -> None:
-            self.payload = payload
-
-        def __enter__(self) -> "FakeResponse":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return json.dumps(self.payload).encode("utf-8")
-
+        def __init__(self, payload: dict[str, object]) -> None: self.payload = payload
+        def __enter__(self) -> 'FakeResponse': return self
+        def __exit__(self, *_args: object) -> None: return None
+        def read(self) -> bytes: return json.dumps(self.payload).encode('utf-8')
     def fake_urlopen(request: object, *, timeout: int) -> FakeResponse:
-        assert timeout == 20
-        url = request.full_url  # type: ignore[attr-defined]
-        requests.append(url)
-        if "/jobs" in url:
-            return FakeResponse({"jobs": [{"id": 2}]})
-        return FakeResponse({"workflow_runs": [{"id": 1}]})
-
-    monkeypatch.setattr(github_api.urllib.request, "urlopen", fake_urlopen)
-    client = github_api.GitHubActionsClient(repository="owner/repo", token="secret")
-    assert client.get_workflow_runs("abc") == [{"id": 1}]
-    assert client.get_run_jobs(42) == [{"id": 2}]
-    assert any("head_sha=abc" in url for url in requests)
-
-    def raise_http_error(_request: object, *, timeout: int) -> FakeResponse:
-        raise urllib.error.HTTPError(
-            "https://api.github.com/example",
-            401,
-            "unauthorized",
-            {},
-            io.BytesIO(b"denied"),
-        )
-
-    monkeypatch.setattr(github_api.urllib.request, "urlopen", raise_http_error)
-    with pytest.raises(RuntimeError, match="GitHub API HTTP 401.*denied"):
-        client.get_workflow_runs("abc")
+        assert timeout == 20; url = request.full_url; requests.append(url)
+        if '/jobs' in url: return FakeResponse({'jobs': [{'id': 2}]})
+        return FakeResponse({'workflow_runs': [{'id': 1}]})
+    monkeypatch.setattr(github_api.urllib.request, 'urlopen', fake_urlopen); client = github_api.GitHubActionsClient(repository='owner/repo', token='secret'); assert client.get_workflow_runs('abc') == [{'id': 1}]; assert client.get_run_jobs(42) == [{'id': 2}]; assert any(('head_sha=abc' in url for url in requests))
+    def raise_http_error(_request: object, *, timeout: int) -> FakeResponse: raise urllib.error.HTTPError('https://api.github.com/example', 401, 'unauthorized', {}, io.BytesIO(b'denied'))
+    monkeypatch.setattr(github_api.urllib.request, 'urlopen', raise_http_error)
+    with pytest.raises(RuntimeError, match='GitHub API HTTP 401.*denied'): client.get_workflow_runs('abc')
