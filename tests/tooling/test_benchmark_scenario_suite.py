@@ -35,6 +35,25 @@ def test_staging_core_e2e_marker_contract() -> None:
     )
 
 
+def test_scheduled_audit_runs_live_pdf_corpus_oracle_and_30_flow_benchmark() -> None:
+    """AC-testing.benchmarks.7: scheduled_audit hook invokes live 20-PDF 3-statement oracle and 30-flow scenario benchmark."""
+    from infra2_sdk.manifests import load_hooks_manifest
+
+    manifest = load_hooks_manifest(REPO_ROOT / "runtime-hooks.manifest.json")
+    scheduled_spec = manifest.slots["scheduled_audit"]
+    scheduled_run = scheduled_spec.run
+    assert (
+        'python -m common.testing.benchmarks.pdf_corpus_oracle --app-url "$INFRA2_HOOK_APP_URL" --max-workers 1'
+        in scheduled_run
+    )
+    assert (
+        'python -m common.testing.benchmarks.run_financial_scenario_benchmark --app-url "$INFRA2_HOOK_APP_URL" --case 1,2,3,4,5,6'
+        in scheduled_run
+    )
+    assert scheduled_spec.timeout_seconds == 3600
+
+
+
 def test_generate_standard_operations_csv_identity() -> None:
     """Benchmark Case 2: standard operations CSV generation maintains strict 3-statement reconciliation."""
     opening = Decimal("10000.00")

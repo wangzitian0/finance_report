@@ -3,6 +3,12 @@
 Backend tests are organized by SSOT domain and must reference owning AC IDs
 unless they are listed in `docs/project/traceability-exceptions.md`.
 
+## Test Tiers
+
+1. **Pure unit/integration tests**: Deterministic fixtures, zero network (`-m "not slow and not e2e"`).
+2. **Cassette-backed replay tests**: Run with `LLM_CASSETTE_MODE=replay` in CI (`common/testing/fixtures/llm_cassettes/`); refreshed locally via `make llm-record`; never hand-authored ([`common/llm/readme.md#cassettes`](../../../common/llm/readme.md#cassettes)).
+3. **Staging live-token E2E & 3-statement oracle**: Live `AI_API_KEY` execution via `runtime-hooks.manifest.json` (`staging_gate` / `scheduled_audit`).
+
 ## Commands
 
 ```bash

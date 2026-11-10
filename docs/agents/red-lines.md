@@ -16,6 +16,7 @@
 | 4 | **NEVER use raw `fetch()` in frontend** — use `lib/api.ts` wrapper | `apps/frontend/src/lib/api.ts` |
 | 5 | **NEVER create `sa.Enum` without `name="..."`** parameter | `test_enums_have_explicit_names` |
 | 6 | **NEVER put real financial data in issues / PRs / reports / commits / logs** — real amounts, balances, account/card numbers, account holder names, local file paths, or real statement filenames. Use redacted or generated/anonymized values. | Issue/PR redaction checklist (issue + PR templates); generated-fixture rule in [orchestration.md](./orchestration.md); see "Financial-data hygiene" below |
+| 7 | **NEVER hand-write LLM cassettes or bypass extraction transport in replay** — every cassette under `common/testing/fixtures/llm_cassettes/` must be recorded from a real provider call (`make llm-record`), PR CI replays frozen cassettes with zero live tokens, and Staging runs live-token E2E/oracle checks (See: `common/llm/readme.md#cassettes`). | `tools/check_llm_cassettes.py`, `tools/check_cassette_graded_eval.py` |
 
 ### Financial-data hygiene
 
