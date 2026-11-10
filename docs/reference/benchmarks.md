@@ -1,102 +1,35 @@
 # Financial Reporting Benchmark Observatory
-
 Three-statement reconciliation and accounting invariant checks. Bench V2 runs on manual dispatch against staging.
-
 ## Architectural Boundary and Single Source of Truth
-
-Testing and observability enforce two separate layers with zero overlapping responsibility:
-
-1. **Bench V2 (Financial Reporting Benchmark Observatory)**:
-   - **Scope**: Mathematical assertions of double-entry accounting invariants and multi-period financial continuity ($\Delta = 0.00$ SGD across balance sheet, income statement, and cash flow).
-   - **Execution**: Pure in-memory or deterministic API replay (`tools/run_financial_scenario_benchmark.py`).
-   - **Single Source of Truth**: Governed by `common/meta/flows/thirty_flows_ssot.json` (30 canonical wealth flows in 7 domains).
-   - **Boundary**: Bench V2 does not execute browser UI user flows.
-2. **Core Journey (Core User Journey Board)**:
-   - **Scope**: Physical user journeys on deployed environments (statement upload, live OCR provider parsing, browser review and approval, opening balances, inter-account transfers, package listing/reopen/export, and source-to-report traceability).
-   - **Execution**: Browser actions via Playwright on deployed revisions (`tests/e2e/test_*_journey.py`).
-   - **Single Source of Truth**: Governed by `common/testing/data/core-journey-checkpoints.json` (checkpoints U1 to U14).
-   - **Surface**: Visualized per revision on the [Core Journey Board](../board/index.html).
-
-The system prohibits hybrid UI test suites between these two layers.
-
+Testing and observability enforce two separate layers with zero overlapping responsibility: 1. **Bench V2 (Financial Reporting Benchmark Observatory)**: - **Scope**: Mathematical assertions of double-entry accounting invariants and multi-period financial continuity ($\Delta = 0.00$ SGD across balance sheet, income statement, and cash flow). - **Execution**: Pure in-memory or deterministic API replay (`tools/run_financial_scenario_benchmark.py`).
+   - **Single Source of Truth**: Governed by `common/meta/flows/thirty_flows_ssot.json` (30 canonical wealth flows in 7 domains). - **Boundary**: Bench V2 does not execute browser UI user flows. 2. **Core Journey (Core User Journey Board)**: - **Scope**: Physical user journeys on deployed environments (statement upload, live OCR provider parsing, browser review and approval, opening balances, inter-account transfers, package listing/reopen/export, and source-to-report traceability).
+   - **Execution**: Browser actions via Playwright on deployed revisions (`tests/e2e/test_*_journey.py`). - **Single Source of Truth**: Governed by `common/testing/data/core-journey-checkpoints.json` (checkpoints U1 to U14). - **Surface**: Visualized per revision on the [Core Journey Board](../board/index.html). The system prohibits hybrid UI test suites between these two layers.
 ## Core Journey Board
-
 The [Core Journey Board](../board/index.html) shows the core user journey for each staging revision: upload, parse, review, ledger, report, saved package and traceability. Each staging deploy, core-journey run and audit replay publishes one record. The board blocks nothing. A production release shows the row of its own revision to the approving owner. The checkpoint map is `common/testing/data/core-journey-checkpoints.json`; the publisher is `.github/workflows/journey-board.yml` (#2370).
-
-<div class="admonition tip" style="padding: 16px; margin: 16px 0; border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.08); border-radius: 4px;">
-<p class="admonition-title" style="font-weight: bold; margin-bottom: 8px;">📊 Interactive Observatory Dashboard</p>
-<p>
-Access the standalone historical benchmark dashboard with interactive SVG latency and balance trendlines:
+<div class="admonition tip" style="padding: 16px; margin: 16px 0; border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.08); border-radius: 4px;"> <p class="admonition-title" style="font-weight: bold; margin-bottom: 8px;">📊 Interactive Observatory Dashboard</p> <p> Access the standalone historical benchmark dashboard with interactive SVG latency and balance trendlines:
 <br><br>
 <a href="../benchmarks/index.html" class="md-button md-button--primary" style="background-color: #3f51b5; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: 600;">
-Open Benchmark Observatory Dashboard →
-</a>
-</p>
-</div>
-
----
-
+Open Benchmark Observatory Dashboard → </a> </p> </div>
 ## 🛡️ Monitored Financial Invariants (The Proof)
-
-Each benchmark run executes multi-period accounting scenarios against the live application and asserts the accounting identities below:
-
-| Invariant | Mathematical Formulation | Acceptance Criteria |
+Each benchmark run executes multi-period accounting scenarios against the live application and asserts the accounting identities below: | Invariant | Mathematical Formulation | Acceptance Criteria |
 | :--- | :--- | :--- |
-| **Balance Sheet Identity** | $Assets \equiv Liabilities + Equity + Cumulative\,Net\,Income$ | Exact equality ($\Delta = 0.00$ SGD) across all reporting periods. |
-| **Temporal Multi-Period Rollforward** | $Month_{n+1}\,Opening\,Cash \equiv Month_n\,Closing\,Cash$ | Exact continuity without temporal drift or leakage across 4 consecutive months. |
-| **Multi-PII Household Operations** | $Assets_{household} \equiv \sum Assets_{member}, Equity_{initial} \equiv \sum Equity_{member}$ | Deduplication is source-scoped; multiple family accounts consolidate without collision. |
-| **Debt Clearance & Non-P&L Repayment** | $\Delta Liabilities \equiv -Repayment, \Delta P\&L = 0.00$ | Zero double-counting: credit card settlement clears liabilities without duplicating expenses. |
-| **Retained Earnings Articulation** | $Closing\,Equity = Opening\,Equity + Net\,Income$ | Net income articulates directly into balance sheet retained earnings. |
-| **Cash Flow Conservation** | $Beginning\,Cash + Net\,Cash\,Flow \equiv Ending\,Cash$ | Direct and indirect reconciliation equality. |
-| **Multi-Currency Consolidation** | $Assets_{base} \equiv \sum (Assets_i \times FX_i)$ | Consolidated balance sheet balances with $\Delta = 0.00$ across base and foreign currencies. |
-| **Holistic Multi-Asset Valuation** | $Net\,Worth \equiv Cash + Securities_{FMV} + Real\,Estate_{Appraisal}$ | Public equities and real estate appraisals integrate into consolidated net worth with $\Delta = 0.00$. |
-
----
-
+| **Balance Sheet Identity** | $Assets \equiv Liabilities + Equity + Cumulative\,Net\,Income$ | Exact equality ($\Delta = 0.00$ SGD) across all reporting periods. | | **Temporal Multi-Period Rollforward** | $Month_{n+1}\,Opening\,Cash \equiv Month_n\,Closing\,Cash$ | Exact continuity without temporal drift or leakage across 4 consecutive months. | | **Multi-PII Household Operations** | $Assets_{household} \equiv \sum Assets_{member}, Equity_{initial} \equiv \sum Equity_{member}$ | Deduplication is source-scoped; multiple family accounts consolidate without collision. |
+| **Debt Clearance & Non-P&L Repayment** | $\Delta Liabilities \equiv -Repayment, \Delta P\&L = 0.00$ | Zero double-counting: credit card settlement clears liabilities without duplicating expenses. | | **Retained Earnings Articulation** | $Closing\,Equity = Opening\,Equity + Net\,Income$ | Net income articulates directly into balance sheet retained earnings. |
+| **Cash Flow Conservation** | $Beginning\,Cash + Net\,Cash\,Flow \equiv Ending\,Cash$ | Direct and indirect reconciliation equality. | | **Multi-Currency Consolidation** | $Assets_{base} \equiv \sum (Assets_i \times FX_i)$ | Consolidated balance sheet balances with $\Delta = 0.00$ across base and foreign currencies. | | **Holistic Multi-Asset Valuation** | $Net\,Worth \equiv Cash + Securities_{FMV} + Real\,Estate_{Appraisal}$ | Public equities and real estate appraisals integrate into consolidated net worth with $\Delta = 0.00$. |
 ## 🔬 Physical Truth Oracles
-
-Four oracles in `common/testing/benchmarks/oracles.py` check the system against facts that the application code does not write itself.
-
-| Pillar | Check | Runs in |
+Four oracles in `common/testing/benchmarks/oracles.py` check the system against facts that the application code does not write itself. | Pillar | Check | Runs in |
 | :--- | :--- | :--- |
-| **1. AI semantic grounding** | The AI Advisor answer about net worth contains the expected figure and no discrepancy claim. A negated sentence such as "no discrepancy found" passes. | Case 1. The check is skipped when the AI service returns 503 or reports a missing API key. |
-| **2. Zero console errors** | Playwright visits the routes listed in `verify_browser_ui_hygiene`. Any console error, uncaught exception, HTTP error, navigation failure, or redirect to `/login` fails the run. | `--case all`, `--case ui`, or `--verify-ui`. Status is `SKIPPED` when Playwright is not installed. A `SKIPPED` case fails the run unless `--allow-skip` is set. |
-| **3. DOM hygiene** | Rendered page text contains no developer jargon (`FORBIDDEN_DOM_JARGON`). | Same run as Pillar 2. |
-| **4. Triple articulation** | `is_balanced` holds. Net worth equals equity plus net income plus FX, CTA and net-worth adjustments. The balance sheet and income statement agree on net income. | Cases 1 to 6. |
-
----
-
+| **1. AI semantic grounding** | The AI Advisor answer about net worth contains the expected figure and no discrepancy claim. A negated sentence such as "no discrepancy found" passes. | Case 1. The check is skipped when the AI service returns 503 or reports a missing API key. | | **2. Zero console errors** | Playwright visits the routes listed in `verify_browser_ui_hygiene`. Any console error, uncaught exception, HTTP error, navigation failure, or redirect to `/login` fails the run. | `--case all`, `--case ui`, or `--verify-ui`. Status is `SKIPPED` when Playwright is not installed. A `SKIPPED` case fails the run unless `--allow-skip` is set. |
+| **3. DOM hygiene** | Rendered page text contains no developer jargon (`FORBIDDEN_DOM_JARGON`). | Same run as Pillar 2. | | **4. Triple articulation** | `is_balanced` holds. Net worth equals equity plus net income plus FX, CTA and net-worth adjustments. The balance sheet and income statement agree on net income. | Cases 1 to 6. |
 ## 🧪 V2 Benchmark Scenarios Suite
-
-The V2 benchmark test matrix covers end-to-end multi-period accounting sufficiency:
-
-1. **Case 1: Consecutive 4-Month Rollforward & Q1 Articulation**
-   Chains 4 consecutive monthly statements (Jan 2025 Straits Capital PDF, Feb/Mar/Apr 2025 chained Standard Chartered PDFs). Validates $Month_{n+1} \equiv Month_n$, Q1 closing checkpoint ($Net\,Income = +5,849.25$ SGD, $Assets = 21,300.00$ SGD), and Month 4 transition into Q2 ($Net\,Income = +8,749.25$ SGD, $Assets = 24,200.00$ SGD).
-2. **Case 2: Multi-PII Household Operations & Category Reconciliation**
-   Simulates household multi-member operations: Husband's DBS Bank account (+5,000.00 revenue, -2,200.00 expenses) and Wife's Standard Chartered account (+3,500.00 salary, -400.00 living expenses). Validates source-scoped deduplication, multi-PII co-existence without collision, consolidated net operating income (+5,900.00 SGD), and 20,900.00 SGD ending cash.
-3. **Case 3: Credit Card Liability & Non-P&L Repayment Clearance**
-   Incurs 1,200.00 SGD in operating expenses on a credit card liability account, followed by a 1,200.00 SGD bank settlement payment outflow. Validates that the credit card liability is cleared to 0.00 SGD with zero double-counting of expenses (Net Income remains strictly -1,200.00 SGD).
-4. **Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet**
-   Processes statements across 3 sovereign jurisdictions: Singapore (SGD), United States (USD), and Hong Kong (HKD). Mathematically asserts consolidated balance sheet balance in base currency (SGD) and target currency (USD) with $\Delta = 0.00$.
-5. **Case 5: Holistic Multi-Asset & Tax Ecosystem**
-   Combines liquid securities (AAPL, VT) via Interactive Brokers import, illiquid real estate property appraisal (350,000.00 USD), and annual compensation / tax withholding verification via Form W-2 and Payslip structured entries. Asserts comprehensive wealth valuation integration on the balance sheet with $\Delta = 0.00$.
-6. **Case 6: Bank Overdraft (Negative Cash Balance) & Asset Disposal Capital Gains**
+The V2 benchmark test matrix covers end-to-end multi-period accounting sufficiency: 1. **Case 1: Consecutive 4-Month Rollforward & Q1 Articulation** Chains 4 consecutive monthly statements (Jan 2025 Straits Capital PDF, Feb/Mar/Apr 2025 chained Standard Chartered PDFs). Validates $Month_{n+1} \equiv Month_n$, Q1 closing checkpoint ($Net\,Income = +5,849.25$ SGD, $Assets = 21,300.00$ SGD), and Month 4 transition into Q2 ($Net\,Income = +8,749.25$ SGD, $Assets = 24,200.00$ SGD).
+2. **Case 2: Multi-PII Household Operations & Category Reconciliation** Simulates household multi-member operations: Husband's DBS Bank account (+5,000.00 revenue, -2,200.00 expenses) and Wife's Standard Chartered account (+3,500.00 salary, -400.00 living expenses). Validates source-scoped deduplication, multi-PII co-existence without collision, consolidated net operating income (+5,900.00 SGD), and 20,900.00 SGD ending cash.
+3. **Case 3: Credit Card Liability & Non-P&L Repayment Clearance** Incurs 1,200.00 SGD in operating expenses on a credit card liability account, followed by a 1,200.00 SGD bank settlement payment outflow. Validates that the credit card liability is cleared to 0.00 SGD with zero double-counting of expenses (Net Income remains strictly -1,200.00 SGD).
+4. **Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet** Processes statements across 3 sovereign jurisdictions: Singapore (SGD), United States (USD), and Hong Kong (HKD). Mathematically asserts consolidated balance sheet balance in base currency (SGD) and target currency (USD) with $\Delta = 0.00$. 5. **Case 5: Holistic Multi-Asset & Tax Ecosystem**
+   Combines liquid securities (AAPL, VT) via Interactive Brokers import, illiquid real estate property appraisal (350,000.00 USD), and annual compensation / tax withholding verification via Form W-2 and Payslip structured entries. Asserts comprehensive wealth valuation integration on the balance sheet with $\Delta = 0.00$. 6. **Case 6: Bank Overdraft (Negative Cash Balance) & Asset Disposal Capital Gains**
    Evaluates emergency cash depletion driving primary checking balance into negative territory (-1,500.00 SGD), emergency capital injection, and capital asset acquisition/disposal with realized capital gain (+2,500.00 SGD). Asserts zero-delta equation balance under boundary transitions.
-
----
-
 ## 🏛️ 30-Flow Canonical Architecture & Shift-Left Matrix
-
-Bench V2 covers 30 canonical wealth and accounting flows in 7 domains.
-
-- The registry `common/meta/flows/thirty_flows_ssot.json` owns the flows, their domains, their invariants, and their `benchmark_cases`. [thirty-wealth-flows.md](thirty-wealth-flows.md) renders it.
-- `common/testing/benchmarks/case_types.py` reads `FLOW_TO_DOMAIN` and `FLOW_TO_CASES` from it. The tooling suite fails when its flow ids differ from the registry.
-- Select a subset with `--domain 1,4` or `--flow 14,23`, and leave `--case` unset. An unknown case, domain or flow id exits with code 2.
-- `apps/backend/tests/reporting/test_bench_articulation_matrix.py` checks the same invariants in memory, without a live stack.
-
----
-
+Bench V2 covers 30 canonical wealth and accounting flows in 7 domains. - The registry `common/meta/flows/thirty_flows_ssot.json` owns the flows, their domains, their invariants, and their `benchmark_cases`. [thirty-wealth-flows.md](thirty-wealth-flows.md) renders it. - `common/testing/benchmarks/case_types.py` reads `FLOW_TO_DOMAIN` and `FLOW_TO_CASES` from it. The tooling suite fails when its flow ids differ from the registry.
+- Select a subset with `--domain 1,4` or `--flow 14,23`, and leave `--case` unset. An unknown case, domain or flow id exits with code 2. - `apps/backend/tests/reporting/test_bench_articulation_matrix.py` checks the same invariants in memory, without a live stack.
 ## 📜 Benchmark Releases & Observatory History
-
-- [v0.1.64 Detailed Benchmark Report](../benchmarks/v0.1.64/report.html) — 5-scenario comprehensive run (100% balanced, $\Delta = 0.00$).
-- [v0.1.52 Detailed Benchmark Report](../benchmarks/v0.1.52/report.html) — Historical baseline run.
+- [v0.1.64 Detailed Benchmark Report](../benchmarks/v0.1.64/report.html) — 5-scenario comprehensive run (100% balanced, $\Delta = 0.00$). - [v0.1.52 Detailed Benchmark Report](../benchmarks/v0.1.52/report.html) — Historical baseline run.

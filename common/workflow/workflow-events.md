@@ -1,495 +1,82 @@
 # Workflow Events SSOT
-
-> **SSOT Key**: `workflow-events`
-> **Authority**: This document defines the user-facing workflow event read
-> model used by EPIC-019. Workflow events describe product attention state; they
-> do not replace audit logs, ledger state, reconciliation state, or report
-> traceability.
-> **Cross-references**: [confirmation-workflow.md](../extraction/confirmation-workflow.md),
-> [reconciliation.md](../reconciliation/reconciliation.md), [reporting.md](../reporting/reporting.md),
-> [schema.md](../meta/schema.md), [EPIC-019](../../docs/project/EPIC-019.event-driven-upload-to-report-ux.md)
-
----
-
+> **SSOT Key**: `workflow-events` > **Authority**: This document defines the user-facing workflow event read > model used by EPIC-019. Workflow events describe product attention state; they > do not replace audit logs, ledger state, reconciliation state, or report > traceability. > **Cross-references**: [confirmation-workflow.md](../extraction/confirmation-workflow.md),
+> [reconciliation.md](../reconciliation/reconciliation.md), [reporting.md](../reporting/reporting.md), > [schema.md](../meta/schema.md), [EPIC-019](../../docs/project/EPIC-019.event-driven-upload-to-report-ux.md)
 ## 1. Source of Truth
-
 | Concern | Location |
 |---|---|
-| Event and session model | `apps/backend/src/workflow/orm/models.py` |
-| Event and session schemas | `apps/backend/src/schemas/workflow.py` |
-| Derivation/upsert service | `apps/backend/src/workflow/extension/events.py` |
-| Compact status/events API | `apps/backend/src/routers/workflow.py` |
-| Report package readiness fact source | `current_package_readiness` in `apps/backend/src/reporting/extension/package_document.py` |
-| Derivation source fingerprint | `apps/backend/src/workflow/extension/source_fingerprint.py` |
-| Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
-| Home action banner | `apps/frontend/src/components/home/HomeActionBanner.tsx` on `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
-| Upload-page workflow notices | `WorkflowNotices` in `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` on `/upload` (the `/events` route redirects here) |
-| Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
-| Desktop workflow navigation | `Sidebar` in `apps/frontend/src/components/AppNav.tsx` |
-| Mobile workflow navigation | `BottomTabBar` in `apps/frontend/src/components/AppShell.tsx` |
-| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py`, `apps/backend/migrations/versions/0069_workflow_sync_state.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/workflow/test_workflow_sync_gate.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/homeActionBanner.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
-
----
-
+| Event and session model | `apps/backend/src/workflow/orm/models.py` | | Event and session schemas | `apps/backend/src/schemas/workflow.py` | | Derivation/upsert service | `apps/backend/src/workflow/extension/events.py` | | Compact status/events API | `apps/backend/src/routers/workflow.py` | | Report package readiness fact source | `current_package_readiness` in `apps/backend/src/reporting/extension/package_document.py` |
+| Derivation source fingerprint | `apps/backend/src/workflow/extension/source_fingerprint.py` | | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` | | Home action banner | `apps/frontend/src/components/home/HomeActionBanner.tsx` on `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
+| Upload-page workflow notices | `WorkflowNotices` in `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` on `/upload` (the `/events` route redirects here) | | Workflow navigation IA | `apps/frontend/src/components/navigation.ts` | | Desktop workflow navigation | `Sidebar` in `apps/frontend/src/components/AppNav.tsx` | | Mobile workflow navigation | `BottomTabBar` in `apps/frontend/src/components/AppShell.tsx` |
+| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py`, `apps/backend/migrations/versions/0069_workflow_sync_state.py` | | Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/workflow/test_workflow_sync_gate.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/homeActionBanner.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
 ## 2. Purpose
-
-Workflow events are the product read model for the upload-to-report journey.
-They answer:
-
-- What happened?
-- Does the user need to act?
-- Where should the user go next?
-- Does this affect report readiness?
-
-They are intentionally separate from:
-
-- `JournalAuditLog`, which is audit proof for journal mutations.
-- `JournalLine.event_type`, which is accounting metadata.
-- `StatementSummary.status` and `StatementSummary.stage1_status`, which are
-  statement processing and Stage 1 review state.
-- `ReconciliationMatch.status`, which is Stage 2 matching state.
-- Report package traceability, which proves report line support.
-- PackageDocument readiness, which is owned by `common/reporting/readme.md` and
-  consumed through reporting's typed `current_package_readiness` port.
-
-Workflow events may summarize those sources, but they do not own them.
-Workflow status aggregation must consume package readiness as an input rather
-than reimplementing package blocker derivation.
-
-WorkflowSession is the EPIC-019 product object for the upload-to-report
-journey. A session starts when the user uploads or binds source work into the
-active upload-to-report flow and ends when the resulting report is generated or
-the session is archived. The current v1 implementation uses one active
-synthetic/default upload-to-report session per user so legacy records have a
-stable home; future upload-batch work may split sessions by batch without
-changing the event timeline contract.
-
-AI chat sessions are internal `/chat` UI state. They support model selection
-and conversation history inside the AI utility page, but they are not workflow
-session ownership and must not drive upload pipeline readiness, event
-actionability, or report blocker semantics.
-
----
-
+Workflow events are the product read model for the upload-to-report journey. They answer: - What happened? - Does the user need to act? - Where should the user go next? - Does this affect report readiness? They are intentionally separate from: - `JournalAuditLog`, which is audit proof for journal mutations. - `JournalLine.event_type`, which is accounting metadata.
+- `StatementSummary.status` and `StatementSummary.stage1_status`, which are statement processing and Stage 1 review state. - `ReconciliationMatch.status`, which is Stage 2 matching state. - Report package traceability, which proves report line support. - PackageDocument readiness, which is owned by `common/reporting/readme.md` and consumed through reporting's typed `current_package_readiness` port.
+Workflow events may summarize those sources, but they do not own them. Workflow status aggregation must consume package readiness as an input rather than reimplementing package blocker derivation. WorkflowSession is the EPIC-019 product object for the upload-to-report journey. A session starts when the user uploads or binds source work into the active upload-to-report flow and ends when the resulting report is generated or
+the session is archived. The current v1 implementation uses one active synthetic/default upload-to-report session per user so legacy records have a stable home; future upload-batch work may split sessions by batch without changing the event timeline contract. AI chat sessions are internal `/chat` UI state. They support model selection and conversation history inside the AI utility page, but they are not workflow
+session ownership and must not drive upload pipeline readiness, event actionability, or report blocker semantics.
 ## 3. Event Families
-
 Initial event families:
-
-```text
-source.uploaded
-source.parsing.started
-source.parsing.completed
-source.parsing.failed
-record.validation.passed
-record.validation.failed
-ledger.auto_posted
-review.required
-review.completed
-reconciliation.blocked
-report.processing
-report.ready
-report.blocked
-report.generated
-```
-
-The code owner is `WorkflowEventFamily` in
-`apps/backend/src/workflow/base/types.py`.
-
----
-
+```text source.uploaded  source.parsing.started  source.parsing.completed  source.parsing.failed  record.validation.passed  record.validation.failed  ledger.auto_posted  review.required  review.completed  reconciliation.blocked  report.processing  report.ready  report.blocked  report.generated ``` The code owner is `WorkflowEventFamily` in `apps/backend/src/workflow/base/types.py`.
 ## 4. Severity And Actionability
-
 | Severity | Meaning | UI treatment |
 |---|---|---|
-| `info` | Routine progress; no immediate user action | Low prominence |
-| `success` | Automation completed successfully | Summarizable/collapsible |
-| `warning` | User may need awareness, but not necessarily blocked | Medium prominence |
-| `action_required` | User input is required to continue | Badge/inbox prominent |
-| `blocked` | Report or workflow progress is blocked | Highest prominence |
-
-Successful automation should not create noisy primary UI. `action_required` and
-`blocked` events are the main attention drivers.
-
----
-
+| `info` | Routine progress; no immediate user action | Low prominence | | `success` | Automation completed successfully | Summarizable/collapsible | | `warning` | User may need awareness, but not necessarily blocked | Medium prominence | | `action_required` | User input is required to continue | Badge/inbox prominent | | `blocked` | Report or workflow progress is blocked | Highest prominence |
+Successful automation should not create noisy primary UI. `action_required` and `blocked` events are the main attention drivers.
 ## 5. Lifecycle
-
 Workflow event lifecycle is user-visible only:
-
-```text
-unread -> read -> archived
-```
-
-Rules:
-
-- New or newly-derived events start as `unread`.
-- Rerunning deterministic derivation must not reset an existing read or
-  archived event to unread.
-- Archive hides an event from default inbox views but does not delete proof or
-  underlying business state.
-- Lifecycle changes are scoped by `user_id`.
-
----
-
+```text unread -> read -> archived ``` Rules: - New or newly-derived events start as `unread`. - Rerunning deterministic derivation must not reset an existing read or archived event to unread. - Archive hides an event from default inbox views but does not delete proof or underlying business state. - Lifecycle changes are scoped by `user_id`.
 ## 6. Persistence Contract
-
-The session header table is `workflow_sessions`.
-
-Required `workflow_sessions` fields:
-
-| Field | Purpose |
+The session header table is `workflow_sessions`. Required `workflow_sessions` fields: | Field | Purpose |
 |---|---|
-| `id` | Session identity |
-| `user_id` | Owner and isolation boundary |
-| `status` | `active`, `generated`, or `archived` |
-| `title` | Short UI label |
-| `summary` | Plain-language session summary |
-| `dedupe_key` | Stable key for synthetic/default or future batch sessions |
-| `started_at` | Session start time |
-| `last_event_at` | Latest timeline event time |
-| `source_count` | Denormalized active event/source count for list surfaces |
-| `report_href` | Internal report route when generated |
-| `created_at` / `updated_at` | Model timestamps |
-
-Required `workflow_sessions` database rules:
-
-- `UNIQUE(user_id, dedupe_key)`
-- `INDEX(user_id, status, last_event_at)`
-- `CHECK(report_href)` only allows null or internal relative routes.
-
-Each event timeline belongs to exactly one workflow session after deterministic
-sync. Legacy rows may be nullable at the storage level during migration, but
-read services must bind derived/upload events to the active synthetic/default
-session before returning user-facing responses.
-
-The read model table is `workflow_events`.
-
-Required fields:
-
-| Field | Purpose |
+| `id` | Session identity | | `user_id` | Owner and isolation boundary | | `status` | `active`, `generated`, or `archived` | | `title` | Short UI label | | `summary` | Plain-language session summary | | `dedupe_key` | Stable key for synthetic/default or future batch sessions | | `started_at` | Session start time | | `last_event_at` | Latest timeline event time |
+| `source_count` | Denormalized active event/source count for list surfaces | | `report_href` | Internal report route when generated | | `created_at` / `updated_at` | Model timestamps | Required `workflow_sessions` database rules: - `UNIQUE(user_id, dedupe_key)` - `INDEX(user_id, status, last_event_at)` - `CHECK(report_href)` only allows null or internal relative routes.
+Each event timeline belongs to exactly one workflow session after deterministic sync. Legacy rows may be nullable at the storage level during migration, but read services must bind derived/upload events to the active synthetic/default session before returning user-facing responses. The read model table is `workflow_events`. Required fields: | Field | Purpose |
 |---|---|
-| `id` | Event identity |
-| `user_id` | Owner and isolation boundary |
-| `session_id` | Owning workflow session timeline |
-| `occurred_at` | Product event time |
-| `family` | Stable workflow family |
-| `severity` | User-facing actionability |
-| `status` | User-visible lifecycle |
-| `title` | Short UI label |
-| `summary` | Plain-language explanation |
-| `source_type` | Source domain, for example `bank_statement` |
-| `source_id` | Source record id |
-| `action_href` | Internal route for the next action or detail view |
-| `report_impact` | `none`, `processing`, `ready`, `blocked`, or `stale` |
-| `dedupe_key` | Stable deterministic key for idempotent upsert |
-| `created_at` / `updated_at` | Model timestamps |
-
-Required database rules:
-
-- `UNIQUE(user_id, dedupe_key)`
-- `INDEX(user_id, status, occurred_at)`
-- `INDEX(user_id, severity, occurred_at)`
-- `INDEX(user_id, family, occurred_at)`
-- `INDEX(user_id, source_type, source_id)`
-- `INDEX(user_id, session_id, occurred_at)`
-- `CHECK(action_href)` only allows internal relative routes: starts with `/`,
-  does not start with `//`, and does not contain `://`.
-
-All database enum types must have explicit names:
-
-- `workflow_event_family_enum`
-- `workflow_event_severity_enum`
-- `workflow_event_status_enum`
-- `workflow_report_impact_enum`
-- `workflow_session_status_enum`
-
----
-
+| `id` | Event identity | | `user_id` | Owner and isolation boundary | | `session_id` | Owning workflow session timeline | | `occurred_at` | Product event time | | `family` | Stable workflow family | | `severity` | User-facing actionability | | `status` | User-visible lifecycle | | `title` | Short UI label | | `summary` | Plain-language explanation |
+| `source_type` | Source domain, for example `bank_statement` | | `source_id` | Source record id | | `action_href` | Internal route for the next action or detail view | | `report_impact` | `none`, `processing`, `ready`, `blocked`, or `stale` | | `dedupe_key` | Stable deterministic key for idempotent upsert | | `created_at` / `updated_at` | Model timestamps |
+Required database rules: - `UNIQUE(user_id, dedupe_key)` - `INDEX(user_id, status, occurred_at)` - `INDEX(user_id, severity, occurred_at)` - `INDEX(user_id, family, occurred_at)` - `INDEX(user_id, source_type, source_id)` - `INDEX(user_id, session_id, occurred_at)` - `CHECK(action_href)` only allows internal relative routes: starts with `/`, does not start with `//`, and does not contain `://`.
+All database enum types must have explicit names: - `workflow_event_family_enum` - `workflow_event_severity_enum` - `workflow_event_status_enum` - `workflow_report_impact_enum` - `workflow_session_status_enum`
 ## 7. Dedupe Rules
-
-`dedupe_key` must be deterministic for the same user-visible event. Source
-derived events use:
-
-```text
-{source_type}:{source_id}:{family}
-```
-
-Examples:
-
-```text
-bank_statement:4ab1...:source.uploaded
-bank_statement:4ab1...:review.required
-```
-
-Rerunning derivation updates mutable display fields, but it must not create
-duplicates or reset lifecycle status.
-
-The `UNIQUE(user_id, dedupe_key)` constraint is the authoritative dedupe guard.
-Because the same user-visible event can be derived concurrently (overlapping
-requests and background parse tasks), the `select`-then-`insert` upsert is
-inherently racy: both callers can miss the pre-insert read and both insert.
-Every workflow-event insert therefore runs inside a SAVEPOINT
-(`db.begin_nested()`); on the resulting `IntegrityError`, only the nested
-transaction rolls back (the outer request transaction stays usable) and the
-caller re-fetches and updates the now-existing row. This mirrors the
-`uq_workflow_sessions_user_dedupe_key` guard and prevents a duplicate insert
-from poisoning the outer transaction and cascading 500s.
-
----
-
+`dedupe_key` must be deterministic for the same user-visible event. Source derived events use:
+```text {source_type}:{source_id}:{family} ``` Examples:
+```text bank_statement:4ab1...:source.uploaded  bank_statement:4ab1...:review.required ``` Rerunning derivation updates mutable display fields, but it must not create duplicates or reset lifecycle status. The `UNIQUE(user_id, dedupe_key)` constraint is the authoritative dedupe guard. Because the same user-visible event can be derived concurrently (overlapping
+requests and background parse tasks), the `select`-then-`insert` upsert is inherently racy: both callers can miss the pre-insert read and both insert. Every workflow-event insert therefore runs inside a SAVEPOINT (`db.begin_nested()`); on the resulting `IntegrityError`, only the nested transaction rolls back (the outer request transaction stays usable) and the
+caller re-fetches and updates the now-existing row. This mirrors the `uq_workflow_sessions_user_dedupe_key` guard and prevents a duplicate insert from poisoning the outer transaction and cascading 500s.
 ## 8. Action Links
-
 `action_href` must be an internal relative route. Valid examples:
-
-```text
-/statements/{statement_id}
-/audit
-/reconciliation?tab=review-queue
-/reconciliation?tab=unmatched
-/reports?tab=package
-```
-
-Invalid examples:
-
-```text
-https://example.com/review
-//example.com/review
-javascript:alert(1)
-statements/{statement_id}
-```
-
-External push, email, Slack, browser push, and proactive reminders are out of
-scope for EPIC-019.
-
----
-
+```text /statements/{statement_id}  /audit  /reconciliation?tab=review-queue  /reconciliation?tab=unmatched  /reports?tab=package ``` Invalid examples:
+```text https://example.com/review  //example.com/review  javascript:alert(1)  statements/{statement_id} ``` External push, email, Slack, browser push, and proactive reminders are out of scope for EPIC-019.
 ## 9. Read Path Rules
-
-Header badges and global attention indicators must not load the full event
-list. They should use compact status/count APIs owned by #636.
-
-Event inbox and status feed views may use paginated event lists. Default lists
-must be user-scoped, ordered by recent `occurred_at`, and bounded by a limit.
-
-The compact workflow API is:
-
-```text
-GET /workflow/status
-GET /workflow/events
-PATCH /workflow/events/{event_id}
-```
-
-`GET /workflow/status` returns:
-
-- `primary_state`: `empty`, `processing`, `needs_action`, `blocked`, or
-  `ready`.
-- `next_action`: `upload`, `wait`, `review_required`, `resolve_blocker`,
-  `open_report`, or `none`, plus a count, internal route, cockpit label, and
-  cockpit summary.
-- `report_readiness`: `none`, `processing`, `ready`, `blocked`, or `stale`,
-  plus a blocking count and `/reports?tab=package` route.
-- `event_counts`: unread, action-required, and blocked counts.
-- `active_session`: current active workflow session summary, or null when no
-  workflow state exists.
-
-Primary state priority is:
-
-```text
-blocked > needs_action > processing > ready > empty
-```
-
-The `report_readiness` field consumes PackageDocument readiness through
-`current_package_readiness` and collapses `draft -> none`,
-`blocked -> blocked`, and `ready -> ready` into workflow's compact vocabulary.
-Workflow does not query a readiness route or reconstruct package blockers.
-
-`GET /workflow/events` returns `{ items, total, sessions }`. It excludes
-archived events by default, supports a `status` filter when archived events are
-explicitly requested, and enforces a bounded `limit`. `items[].session_id`
-links every timeline event to a session summary in `sessions[]` when available.
-
-The `sessions[]` summaries are not an independent state source. The active
-session's `primary_state` and `report_readiness` are derived once by
-`get_workflow_status` (the single source of truth) and reused verbatim for the
-matching `sessions[]` entry. As a result `GET /workflow/events` can never report
-the active session as `ready`/`none` while `GET /workflow/status` reports it as
-`blocked` (or any other authoritative state).
-
-`PATCH /workflow/events/{event_id}` updates only the authenticated user's event
+Header badges and global attention indicators must not load the full event list. They should use compact status/count APIs owned by #636. Event inbox and status feed views may use paginated event lists. Default lists must be user-scoped, ordered by recent `occurred_at`, and bounded by a limit. The compact workflow API is:
+```text GET /workflow/status  GET /workflow/events  PATCH /workflow/events/{event_id} ``` `GET /workflow/status` returns: - `primary_state`: `empty`, `processing`, `needs_action`, `blocked`, or `ready`. - `next_action`: `upload`, `wait`, `review_required`, `resolve_blocker`, `open_report`, or `none`, plus a count, internal route, cockpit label, and
+  cockpit summary. - `report_readiness`: `none`, `processing`, `ready`, `blocked`, or `stale`, plus a blocking count and `/reports?tab=package` route. - `event_counts`: unread, action-required, and blocked counts. - `active_session`: current active workflow session summary, or null when no workflow state exists. Primary state priority is:
+```text blocked > needs_action > processing > ready > empty ``` The `report_readiness` field consumes PackageDocument readiness through `current_package_readiness` and collapses `draft -> none`, `blocked -> blocked`, and `ready -> ready` into workflow's compact vocabulary. Workflow does not query a readiness route or reconstruct package blockers. `GET /workflow/events` returns `{ items, total, sessions }`. It excludes
+archived events by default, supports a `status` filter when archived events are explicitly requested, and enforces a bounded `limit`. `items[].session_id` links every timeline event to a session summary in `sessions[]` when available. The `sessions[]` summaries are not an independent state source. The active session's `primary_state` and `report_readiness` are derived once by
+`get_workflow_status` (the single source of truth) and reused verbatim for the matching `sessions[]` entry. As a result `GET /workflow/events` can never report the active session as `ready`/`none` while `GET /workflow/status` reports it as `blocked` (or any other authoritative state). `PATCH /workflow/events/{event_id}` updates only the authenticated user's event
 lifecycle state. Missing or non-owned events return `404`.
-
----
-
 ## 10. In-App Notification Surfaces
-
-EPIC-019 notifications are in-app only. External push, email, Slack, browser
-push, proactive reminders, and event bus infrastructure are out of scope.
-
-The frontend notification surface is:
-
-```text
-WorkflowNotificationCenter
-  -> Header badge
-  -> Event inbox drawer
-
-WorkflowNotices (/upload)
-  -> WorkflowStatusFeed status summary
-  -> Workflow event timeline
-
-HomeActionBanner (/)
-  -> One workflow or confirmation action
-```
-
-Header badge rules:
-
-- It reads only `GET /api/workflow/status` through `lib/api.ts`.
-- It displays unread/action-required/blocked counts from `event_counts`.
-- It stays visually quiet when no workflow attention is required.
-- It opens the in-app Event inbox drawer.
-
-Event inbox and session history rules:
-
-- It reads `GET /api/workflow/events` only after the user opens the drawer or
-  page.
-- It groups notifications by workflow session first.
-- Each expanded session shows a timestamped event timeline.
-- Blocked and action-required events stay visually prominent inside the
-  session timeline; routine automation remains compact.
-- It supports lifecycle actions through `PATCH /api/workflow/events/{id}`.
-- Each event exposes exactly one primary internal action link from
-  `action_href`.
-- It must not show raw audit-log payloads, low-level ledger internals, or
-  source-table debugging fields as primary content.
-
-Status feed rules:
-
-- `WorkflowStatusFeed` summarizes the current upload-to-report state and report
-  readiness.
-- Blocked and action-required events are prominent.
-- Routine automation is summarized under `Routine automation` and is not the
-  primary attention driver.
-- Empty state says `No action required` and routes the user to upload when no
-  workflow state exists.
-
-Home action banner rules:
-
-- `/` is the authenticated home. The `/dashboard` route redirects to `/`.
-- `HomeActionBanner` shows one action at most. It shows nothing when no item
-  applies.
-- When the workflow is blocked or needs an action, the action uses
-  `workflow.status.next_action.href`, `workflow.status.next_action.label`, and
-  `workflow.status.next_action.summary`. An empty summary shows the
-  workflow-state sentence one time.
-- When no source exists, the action asks the user to upload the first
-  statement on `/upload`.
-- Otherwise, when items need confirmation, the action shows their count and
-  links to the Needs Confirmation queue on `/audit`.
-- A banner source that loads or fails shows no banner and no error. It must not
-  hide the statement cards of Home.
-
-Next-action routing rules of the workflow status:
-
-- Upload is the default label only when no higher-priority blocker or
-  action-required state wins the workflow priority.
-- Processing actions route to `/upload` so the user sees session history rather
-  than a raw statement list. Ready actions route directly to `/reports?tab=package`.
-
----
-
+EPIC-019 notifications are in-app only. External push, email, Slack, browser push, proactive reminders, and event bus infrastructure are out of scope. The frontend notification surface is:
+```text WorkflowNotificationCenter  -> Header badge  -> Event inbox drawer  WorkflowNotices (/upload)  -> WorkflowStatusFeed status summary  -> Workflow event timeline  HomeActionBanner (/)  -> One workflow or confirmation action ``` Header badge rules: - It reads only `GET /api/workflow/status` through `lib/api.ts`. - It displays unread/action-required/blocked counts from `event_counts`.
+- It stays visually quiet when no workflow attention is required. - It opens the in-app Event inbox drawer. Event inbox and session history rules: - It reads `GET /api/workflow/events` only after the user opens the drawer or page. - It groups notifications by workflow session first. - Each expanded session shows a timestamped event timeline. - Blocked and action-required events stay visually prominent inside the
+  session timeline; routine automation remains compact. - It supports lifecycle actions through `PATCH /api/workflow/events/{id}`. - Each event exposes exactly one primary internal action link from `action_href`. - It must not show raw audit-log payloads, low-level ledger internals, or source-table debugging fields as primary content. Status feed rules:
+- `WorkflowStatusFeed` summarizes the current upload-to-report state and report readiness. - Blocked and action-required events are prominent. - Routine automation is summarized under `Routine automation` and is not the primary attention driver. - Empty state says `No action required` and routes the user to upload when no workflow state exists. Home action banner rules:
+- `/` is the authenticated home. The `/dashboard` route redirects to `/`. - `HomeActionBanner` shows one action at most. It shows nothing when no item applies. - When the workflow is blocked or needs an action, the action uses `workflow.status.next_action.href`, `workflow.status.next_action.label`, and `workflow.status.next_action.summary`. An empty summary shows the
+  workflow-state sentence one time. - When no source exists, the action asks the user to upload the first statement on `/upload`. - Otherwise, when items need confirmation, the action shows their count and links to the Needs Confirmation queue on `/audit`. - A banner source that loads or fails shows no banner and no error. It must not hide the statement cards of Home.
+Next-action routing rules of the workflow status: - Upload is the default label only when no higher-priority blocker or action-required state wins the workflow priority. - Processing actions route to `/upload` so the user sees session history rather than a raw statement list. Ready actions route directly to `/reports?tab=package`.
 ## 11. Workflow Navigation
-
-The product navigation IA is owned by EPIC-022 and `apps/frontend/frontend-patterns.md`
-§9 (the mobile/PWA bottom tab bar — Home, Chat, Add, Audit, More). EPIC-019 no
-longer defines a primary/advanced navigation split; the earlier "Upload Pipeline
-/ Reports / AI / Advanced" model was superseded by EPIC-022 AC22.21. This section
-only records the workflow-events constraints the shell must honour, regardless of
-its form factor:
-
-- Navigation attention indicators must use `GET /api/workflow/status` through
-  `lib/api.ts`. The shell must not calculate separate review-badge semantics with
-  bespoke sidebar polling.
-- Workflow attention is surfaced through the notification bell plus the
-  Needs Confirmation queue on `/audit`; the accounting machinery (journal, reconciliation,
-  processing, statements, reports, package readiness) is reachable on demand via
-  the Audit hub and event `action_href` deep links.
-- Direct routes and event `action_href` links into review, reconciliation,
-  processing, statements, reports, and package readiness must continue to work.
-- Legacy routes must keep resolving: `/dashboard` redirects to `/` (the
+The product navigation IA is owned by EPIC-022 and `apps/frontend/frontend-patterns.md` §9 (the mobile/PWA bottom tab bar — Home, Chat, Add, Audit, More). EPIC-019 no longer defines a primary/advanced navigation split; the earlier "Upload Pipeline / Reports / AI / Advanced" model was superseded by EPIC-022 AC22.21. This section only records the workflow-events constraints the shell must honour, regardless of
+its form factor: - Navigation attention indicators must use `GET /api/workflow/status` through `lib/api.ts`. The shell must not calculate separate review-badge semantics with bespoke sidebar polling. - Workflow attention is surfaced through the notification bell plus the Needs Confirmation queue on `/audit`; the accounting machinery (journal, reconciliation,
+  processing, statements, reports, package readiness) is reachable on demand via the Audit hub and event `action_href` deep links. - Direct routes and event `action_href` links into review, reconciliation, processing, statements, reports, and package readiness must continue to work. - Legacy routes must keep resolving: `/dashboard` redirects to `/` (the
   authenticated Home) and `/events` redirects to `/upload`, where the workflow notices live.
-
----
-
 ## 12. Initial Derivation
-
-The first implementation derives `source.uploaded` from `StatementSummary` upload
-state. Workflow status and event reads run this deterministic sync before
-returning data when one of its inputs changed. Repeated reads must not
-duplicate events or reset read/archive lifecycle state.
-
-A read computes the source fingerprint of the derivation in one SQL statement
-(`source_fingerprint.py`). Per table, it holds the row count and the sum of the
-row timestamps in the user's scope. It also holds the current date and a
-digest of the settings. Every table in the model metadata is an input, except
-the tables that the derivation writes (`workflow_events`, `workflow_sessions`,
-`workflow_sync_states`) and the tables that it does not read (chat, AI
-feedback, counter, outbox, liveness ping). `workflow_sync_states` keeps the
-fingerprint and package readiness of the last derivation per user. When the
-fingerprint is equal and the state is younger than 15 minutes
-(`WORKFLOW_SYNC_STATE_MAX_AGE`), the read uses the stored readiness and writes
-nothing. The age bound exists because readiness can call an external FX
-provider when no stored rate exists: a provider miss changes no database row,
-so only the age bound makes a later recovery reach the events.
-When it differs, the read runs the derivation and stores the fingerprint that
-it computed before the derivation. Thus a change during the derivation makes
-the next read derive again (#2583). `stored_package_readiness` applies the same
-reuse rule without a derivation and without a write: it returns the stored
-readiness while the derivation is reusable, else None. The advisor context uses
-it and evaluates readiness itself when the result is None (#2583 S7). The synthetic active `WorkflowSession` creation path is
-concurrency-safe: overlapping status and event reads reuse the same
-`active-upload-to-report` session instead of surfacing duplicate-key 500s. If a
-historical synthetic row with the same dedupe key is no longer active, sync
-reactivates that row rather than failing on the user/dedupe uniqueness rule.
-
-AC19.12 completes the first lightweight user-facing derivation set. Workflow
-events are a product attention projection, not a low-level event log. Raw
-source, review, reconciliation, Processing account, report snapshot, and audit
-facts remain in their normalized owner tables. Workflow derivation only emits
-events that answer one of these user-facing questions:
-
-- What needs my action now?
-- What is blocking trusted report readiness?
-- Can I open a trusted report package?
-- What recent automation matters enough to summarize?
-
-The lightweight derivation set includes:
-
-- Stage 1 source review required and completed. Parsed statements with legacy
-  `NULL` Stage 1 status are treated as pending review.
-- Statement parsing failure when user action is needed. Stage 1 review
-  rejection is a review-completed outcome, not a parsing failure.
-- Reconciliation blockers that affect trusted report readiness.
-- Processing account blockers exposed through package readiness.
-- Report blocked and report ready states from package readiness.
-
-Workflow sync may archive mutable derived action/blocker events when the
-underlying condition is resolved so they no longer drive current inbox or
-status state. User read/archive lifecycle is otherwise preserved across
-repeated syncs, and sync must not unarchive a user-archived event.
-
-Future slices may add deterministic derivation for:
-
-- Additional routine automation summaries.
-- More granular source parsing progress when it is useful to users.
-
-Stage 2 run review uses workflow/session scope without changing event
-lifecycle semantics:
-
-- Route: `/audit?run_id={run_id}`.
-- Backend scope fields: `ReconciliationMatch.run_id` and
-  `ConsistencyCheck.run_id`.
-- Queue endpoint: `GET /api/statements/stage2/queue?run_id={run_id}`.
-- Approval endpoint: `POST /api/statements/batch-approve-matches` with
-  `run_id` in the request body. When present, only pending matches in that run
-  may transition to `accepted`; unresolved checks from another run must not
-  block or be included in the run-scoped queue.
+The first implementation derives `source.uploaded` from `StatementSummary` upload state. Workflow status and event reads run this deterministic sync before returning data when one of its inputs changed. Repeated reads must not duplicate events or reset read/archive lifecycle state. A read computes the source fingerprint of the derivation in one SQL statement
+(`source_fingerprint.py`). Per table, it holds the row count and the sum of the row timestamps in the user's scope. It also holds the current date and a digest of the settings. Every table in the model metadata is an input, except the tables that the derivation writes (`workflow_events`, `workflow_sessions`, `workflow_sync_states`) and the tables that it does not read (chat, AI
+feedback, counter, outbox, liveness ping). `workflow_sync_states` keeps the fingerprint and package readiness of the last derivation per user. When the fingerprint is equal and the state is younger than 15 minutes (`WORKFLOW_SYNC_STATE_MAX_AGE`), the read uses the stored readiness and writes nothing. The age bound exists because readiness can call an external FX
+provider when no stored rate exists: a provider miss changes no database row, so only the age bound makes a later recovery reach the events. When it differs, the read runs the derivation and stores the fingerprint that it computed before the derivation. Thus a change during the derivation makes the next read derive again (#2583). `stored_package_readiness` applies the same
+reuse rule without a derivation and without a write: it returns the stored readiness while the derivation is reusable, else None. The advisor context uses it and evaluates readiness itself when the result is None (#2583 S7). The synthetic active `WorkflowSession` creation path is concurrency-safe: overlapping status and event reads reuse the same `active-upload-to-report` session instead of surfacing duplicate-key 500s. If a
+historical synthetic row with the same dedupe key is no longer active, sync reactivates that row rather than failing on the user/dedupe uniqueness rule. AC19.12 completes the first lightweight user-facing derivation set. Workflow events are a product attention projection, not a low-level event log. Raw source, review, reconciliation, Processing account, report snapshot, and audit
+facts remain in their normalized owner tables. Workflow derivation only emits events that answer one of these user-facing questions: - What needs my action now? - What is blocking trusted report readiness? - Can I open a trusted report package? - What recent automation matters enough to summarize? The lightweight derivation set includes: - Stage 1 source review required and completed. Parsed statements with legacy
+  `NULL` Stage 1 status are treated as pending review. - Statement parsing failure when user action is needed. Stage 1 review rejection is a review-completed outcome, not a parsing failure. - Reconciliation blockers that affect trusted report readiness. - Processing account blockers exposed through package readiness. - Report blocked and report ready states from package readiness.
+Workflow sync may archive mutable derived action/blocker events when the underlying condition is resolved so they no longer drive current inbox or status state. User read/archive lifecycle is otherwise preserved across repeated syncs, and sync must not unarchive a user-archived event. Future slices may add deterministic derivation for: - Additional routine automation summaries.
+- More granular source parsing progress when it is useful to users. Stage 2 run review uses workflow/session scope without changing event lifecycle semantics: - Route: `/audit?run_id={run_id}`. - Backend scope fields: `ReconciliationMatch.run_id` and `ConsistencyCheck.run_id`. - Queue endpoint: `GET /api/statements/stage2/queue?run_id={run_id}`. - Approval endpoint: `POST /api/statements/batch-approve-matches` with
+  `run_id` in the request body. When present, only pending matches in that run may transition to `accepted`; unresolved checks from another run must not block or be included in the run-scoped queue.

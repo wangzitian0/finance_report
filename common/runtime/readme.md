@@ -1,232 +1,52 @@
 # `runtime` — the app↔external-world dependency boundary
-
-> **Status: active.** The boundary — value language, manifest, `DependencyCheck`
-> port + adapters — is shipped, and the smoke/health ACs are homed in
-> [`contract.py`](./contract.py)'s roadmap. Remaining work (manifest-driven
-> enforcement and substitutes) is complete and contract-backed below.
-> Model spec: [`../meta/readme.md`](../meta/readme.md).
-
+> **Status: active.** The boundary — value language, manifest, `DependencyCheck` > port + adapters — is shipped, and the smoke/health ACs are homed in > [`contract.py`](./contract.py)'s roadmap. Remaining work (manifest-driven > enforcement and substitutes) is complete and contract-backed below. > Model spec: [`../meta/readme.md`](../meta/readme.md).
 ## Why this package exists
-
-The application depends on external backends — object storage (S3), the LLM
-provider, cache (Redis), telemetry (OTel), analytics (OpenPanel), the database.
-Before this package, the boundary had no owner: boot checks, config keys, smoke
-scripts and tier definitions evolved separately and could degrade silently.
-The package now owns their contract and fail-closed dependency checks.
-
-`runtime` is the bounded context that owns that boundary: **what we depend on,
-how each environment provides or substitutes it, and the guarantee that a
-declared dependency is proven present — or the build/smoke fails.**
-
-Scope note (#1556): `runtime` is a **domain package like any other** — its
-domain happens to be environments/dependencies/**CD** (deploy execution,
-release evidence, rollback, environment tiering). Cross-cutting CI governance
-— which tests run where, and proof that they ran — belongs to
-[`common/testing`](../testing/readme.md); the responsibility split is defined
-in that package's charter. In the failure-attribution table there: dependency
-missing / env wrong / config drift → this package's contract; everything about
-test selection, execution, and reporting → `testing`.
-
-The cross-repository CD seam is a versioned data contract, not an infra2 source
-import. Finance Report pins `infra2-sdk`, and its side-effect-free renderer emits
-staging or Production `DeployRequest` values for immutable app releases. infra2
-remains the sole authority for IaC selection, credentials, and deployment
-execution. Staging, Production, and rollback all use the receiver transport and
-prove the correlated infra2 workflow run before App health gates begin.
-
+The application depends on external backends — object storage (S3), the LLM provider, cache (Redis), telemetry (OTel), analytics (OpenPanel), the database. Before this package, the boundary had no owner: boot checks, config keys, smoke scripts and tier definitions evolved separately and could degrade silently. The package now owns their contract and fail-closed dependency checks.
+`runtime` is the bounded context that owns that boundary: **what we depend on, how each environment provides or substitutes it, and the guarantee that a declared dependency is proven present — or the build/smoke fails.** Scope note (#1556): `runtime` is a **domain package like any other** — its domain happens to be environments/dependencies/**CD** (deploy execution,
+release evidence, rollback, environment tiering). Cross-cutting CI governance — which tests run where, and proof that they ran — belongs to [`common/testing`](../testing/readme.md); the responsibility split is defined in that package's charter. In the failure-attribution table there: dependency missing / env wrong / config drift → this package's contract; everything about
+test selection, execution, and reporting → `testing`. The cross-repository CD seam is a versioned data contract, not an infra2 source import. Finance Report pins `infra2-sdk`, and its side-effect-free renderer emits staging or Production `DeployRequest` values for immutable app releases. infra2 remains the sole authority for IaC selection, credentials, and deployment
+execution. Staging, Production, and rollback all use the receiver transport and prove the correlated infra2 workflow run before App health gates begin.
 ## Ubiquitous language
-
-`toolchain.toml` owns local and CI dependency image pins.
-`check_toolchain_contract.py` verifies tool configurations, Compose files, and workflow projections
-(AC-testing.toolchain.1, #2037). A green job cannot hide another job's stale pin.
-
-SDK bootstrap coordinates come from the backend dependency declaration and generated
-lock through `sdk_pin.py` (AC-runtime.sdk-pin.1, #2004). `tools/sdk_pin.py` is the
-workflow entry point; CI, staging and production acquisition share the same validated
-URL and digest while preserving their own download/retry policies.
-Malformed dependency/lock structures fail with the owning file and field named;
-the staging retry check also asserts that the verified wheel reaches pip install.
-The CLI boundary is exercised both in-process (one complete coordinate line on
-success, no partial stdout on invalid arguments or lock data) and in a Python
-subprocess without site packages. This retains standard-library bootstrap proof
-while including the workflow entrypoint in the tooling coverage measurement.
-
-- **Dependency** — an external backend the app talks to across a process edge.
-- **Kind** — how a dependency must be tested:
-  - **code-dominant** (e.g. S3, Redis): deterministic; a light substitute behaves
-    identically to the real backend, so it is behaviourally equivalent everywhere.
-  - **model-dominant** (e.g. the LLM): non-deterministic; output depends on the
-    real service. *Input changes ⇒ result changes* — so CI uses an **input-keyed
-    recording**, and the real behaviour is validated only against staging.
-- **Substitute** — the per-environment stand-in for a dependency. A *backend* may
-  differ per environment (in-memory ≠ minio ≠ real S3); that is expected and fine.
-- **Env tier** — one of the environments a dependency is declared for (Local Dev /
-  Local CI / GitHub CI / Preview / Staging / Production). CI and Preview use
-  **light substitutes** (Preview = same as CI but persistent); Staging and
-  Production use **real** backends. Preview is the infra2-provisioned preview
-  slot; the app owns no PR preview stack.
-- **Declared vs present** — each env *declares* its required dependencies (via env
-  vars, owned with `config`); a dependency is either **present** or **absent** —
-  there is no `skipped`.
-- **GitHub Actions transport** — `github_api.py` owns the small authenticated
-  Actions client, UTC timestamp parsing, and `GITHUB_OUTPUT` writing used by
-  release evidence, CI timing/wait helpers, and app-deploy transport. It is
-  shared infrastructure, not a second runtime backend or a testing-owned API.
-- **Deployed HTTP probe** — `http_probe.py` owns the response shape, URL fetch,
-  report rendering, and empty-safe abbreviated-SHA match used by both
-  `tier2_http_e2e.py` and `production_infra_smoke.py`. Workflow-facing files in
-  `tools/` only delegate to these package-owned commands.
-- **Deploy freshness** — `deploy_freshness.py` owns the daily age bound on what
-  an environment serves: it reads the release from `/api/health`, measures the
-  oldest `main` commit not deployed there against an explicit per-environment
-  bound (staging 3 days; production 7 days, because promotion through
-  `release.yml` is the owner's deliberate act), and reports whether the newest
-  `vX.Y.Z` tag is cut-but-unpromoted or the release lane is idle. The bound is
-  age, not commit count: a count measures how busy the repository has been, age
-  measures how long finished work has been invisible.
-  `.github/workflows/deploy-freshness.yml` runs it at 07:00 UTC and files or
-  updates one tracking issue per environment and breakage
-  (`deploy-freshness: <env> is stale` / `could not be measured`)
-  (AC-runtime.deploy-freshness.1; modelled on truealpha#560). The escalation
-  step runs only after the check step itself failed (AC-runtime.deploy-freshness.2).
-
+`toolchain.toml` owns local and CI dependency image pins. `check_toolchain_contract.py` verifies tool configurations, Compose files, and workflow projections (AC-testing.toolchain.1, #2037). A green job cannot hide another job's stale pin. SDK bootstrap coordinates come from the backend dependency declaration and generated lock through `sdk_pin.py` (AC-runtime.sdk-pin.1, #2004). `tools/sdk_pin.py` is the
+workflow entry point; CI, staging and production acquisition share the same validated URL and digest while preserving their own download/retry policies. Malformed dependency/lock structures fail with the owning file and field named; the staging retry check also asserts that the verified wheel reaches pip install. The CLI boundary is exercised both in-process (one complete coordinate line on
+success, no partial stdout on invalid arguments or lock data) and in a Python subprocess without site packages. This retains standard-library bootstrap proof while including the workflow entrypoint in the tooling coverage measurement. - **Dependency** — an external backend the app talks to across a process edge. - **Kind** — how a dependency must be tested:
+  - **code-dominant** (e.g. S3, Redis): deterministic; a light substitute behaves identically to the real backend, so it is behaviourally equivalent everywhere. - **model-dominant** (e.g. the LLM): non-deterministic; output depends on the real service. *Input changes ⇒ result changes* — so CI uses an **input-keyed recording**, and the real behaviour is validated only against staging.
+- **Substitute** — the per-environment stand-in for a dependency. A *backend* may differ per environment (in-memory ≠ minio ≠ real S3); that is expected and fine. - **Env tier** — one of the environments a dependency is declared for (Local Dev / Local CI / GitHub CI / Preview / Staging / Production). CI and Preview use **light substitutes** (Preview = same as CI but persistent); Staging and
+  Production use **real** backends. Preview is the infra2-provisioned preview slot; the app owns no PR preview stack. - **Declared vs present** — each env *declares* its required dependencies (via env vars, owned with `config`); a dependency is either **present** or **absent** — there is no `skipped`. - **GitHub Actions transport** — `github_api.py` owns the small authenticated
+  Actions client, UTC timestamp parsing, and `GITHUB_OUTPUT` writing used by release evidence, CI timing/wait helpers, and app-deploy transport. It is shared infrastructure, not a second runtime backend or a testing-owned API. - **Deployed HTTP probe** — `http_probe.py` owns the response shape, URL fetch, report rendering, and empty-safe abbreviated-SHA match used by both
+  `tier2_http_e2e.py` and `production_infra_smoke.py`. Workflow-facing files in `tools/` only delegate to these package-owned commands. - **Deploy freshness** — `deploy_freshness.py` owns the daily age bound on what an environment serves: it reads the release from `/api/health`, measures the oldest `main` commit not deployed there against an explicit per-environment
+  bound (staging 3 days; production 7 days, because promotion through `release.yml` is the owner's deliberate act), and reports whether the newest `vX.Y.Z` tag is cut-but-unpromoted or the release lane is idle. The bound is age, not commit count: a count measures how busy the repository has been, age measures how long finished work has been invisible.
+  `.github/workflows/deploy-freshness.yml` runs it at 07:00 UTC and files or updates one tracking issue per environment and breakage (`deploy-freshness: <env> is stale` / `could not be measured`) (AC-runtime.deploy-freshness.1; modelled on truealpha#560). The escalation step runs only after the check step itself failed (AC-runtime.deploy-freshness.2).
 ## Invariants (the contract)
-
-1. **Declared ⇒ asserted.** Every dependency an environment declares as required
-   has a check, a substitute, and a smoke assertion.
-2. **Absent ⇒ fail.** A declared dependency that is missing/unreachable fails
-   `/health` and the smoke test. No silent `skipped` / `warning` / fallback.
-3. **Substitute by tier.** CI/Preview run light substitutes; Staging/Production
-   run real backends. The *backend* may differ per env; the *presence* must not.
-4. **code-dominant ⇒ real adapter runs in CI.** The substitute fakes the
-   *backend* (in-memory), never the app's own adapter — so the real adapter code
-   executes in CI (no wrapper-stub like `DummyStorage`).
-5. **model-dominant ⇒ recorded in CI, real on staging.** CI replays an
-   input-keyed recording (changed input ⇒ recording miss); the real provider is
-   exercised only by the staging gate (which does **not** read recordings).
-6. **Smoke ↔ declaration parity.** The smoke test asserts exactly the declared set
-   for its tier (count == declared count); a release tag promotes only after the
-   **staging** smoke (real backends, real LLM) passes.
-7. **Prod-required ⇒ SLA-bearing (#1654, decided 2026-07-07).** A dependency
-   listed in `DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)` is a
-   platform SLA commitment — its continuous presence is watched out-of-band
-   (finance_report#1653), independent of whether the app *feature* consuming
-   it has shipped. Declaring `required_in` and deferring the feature that uses
-   it (e.g. EPIC-019 AC19.13's durable-orchestration deferral) are two
-   different decisions; the manifest never silently "catches up" to a feature
-   deferral by relaxing SLA scope. `tools/generate_sla_manifest.py` renders
-   this declaration machine-readably
-   (`common/runtime/sla-manifest.generated.json`) so infra2's periodic report
-   consumes it directly instead of hand-maintaining a second service list —
-   the 2026-07-06 incident (prod Prefect crash-looped 10 days, undetected)
-   is the gap this invariant closes.
-
+1. **Declared ⇒ asserted.** Every dependency an environment declares as required has a check, a substitute, and a smoke assertion. 2. **Absent ⇒ fail.** A declared dependency that is missing/unreachable fails `/health` and the smoke test. No silent `skipped` / `warning` / fallback. 3. **Substitute by tier.** CI/Preview run light substitutes; Staging/Production
+   run real backends. The *backend* may differ per env; the *presence* must not. 4. **code-dominant ⇒ real adapter runs in CI.** The substitute fakes the *backend* (in-memory), never the app's own adapter — so the real adapter code executes in CI (no wrapper-stub like `DummyStorage`). 5. **model-dominant ⇒ recorded in CI, real on staging.** CI replays an
+   input-keyed recording (changed input ⇒ recording miss); the real provider is exercised only by the staging gate (which does **not** read recordings). 6. **Smoke ↔ declaration parity.** The smoke test asserts exactly the declared set for its tier (count == declared count); a release tag promotes only after the **staging** smoke (real backends, real LLM) passes.
+7. **Prod-required ⇒ SLA-bearing (#1654, decided 2026-07-07).** A dependency listed in `DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)` is a platform SLA commitment — its continuous presence is watched out-of-band (finance_report#1653), independent of whether the app *feature* consuming it has shipped. Declaring `required_in` and deferring the feature that uses
+   it (e.g. EPIC-019 AC19.13's durable-orchestration deferral) are two different decisions; the manifest never silently "catches up" to a feature deferral by relaxing SLA scope. `tools/generate_sla_manifest.py` renders this declaration machine-readably (`common/runtime/sla-manifest.generated.json`) so infra2's periodic report consumes it directly instead of hand-maintaining a second service list —
+   the 2026-07-06 incident (prod Prefect crash-looped 10 days, undetected) is the gap this invariant closes.
 ## Shape (port / adapter, per the `base`/`extension`/`data` model)
-
-- **base** — the **DependencyManifest** (declared required dependencies per env tier)
-  + the value language (`Kind`, `EnvTier`). The `DependencyCheck` port and the
-  presence types (`ProbeResult`, `DependencyStatus` — binary, no `skipped`) are the
-  infra2-sdk types in `infra2_sdk.runtime.health`. Import them from there; `src.runtime`
-  does not re-export them.
-- **extension** — the per-dependency check/substitute adapters (db, s3, llm,
-  redis, telemetry). Each implements the port; an adapter may instead live in its
-  own domain package and implement this port (dependency inversion).
-- **api** — `boot.validate` and the **environment smoke test**
-  (`tools/smoke_test.sh`) are this package's boundary: `runtime` **owns** the
-  smoke test — the deployed-environment verification that every declared
-  dependency is present (invariants 2 and 6), plus the version-integrity /
-  routing / functional checks it composes. See *Environment verification* below.
-- **tooling adapters** — backend-only schema/env gates remain under
-  `apps/backend/src/runtime/extension/` because they import backend models, but
-  share `project_root.py` rather than calculating the repository location in
-  each command.
-
+- **base** — the **DependencyManifest** (declared required dependencies per env tier) + the value language (`Kind`, `EnvTier`). The `DependencyCheck` port and the presence types (`ProbeResult`, `DependencyStatus` — binary, no `skipped`) are the infra2-sdk types in `infra2_sdk.runtime.health`. Import them from there; `src.runtime` does not re-export them.
+- **extension** — the per-dependency check/substitute adapters (db, s3, llm, redis, telemetry). Each implements the port; an adapter may instead live in its own domain package and implement this port (dependency inversion). - **api** — `boot.validate` and the **environment smoke test** (`tools/smoke_test.sh`) are this package's boundary: `runtime` **owns** the
+  smoke test — the deployed-environment verification that every declared dependency is present (invariants 2 and 6), plus the version-integrity / routing / functional checks it composes. See *Environment verification* below. - **tooling adapters** — backend-only schema/env gates remain under `apps/backend/src/runtime/extension/` because they import backend models, but
+  share `project_root.py` rather than calculating the repository location in each command.
 ## Environment verification (the Three Gates)
-
-One validation engine (`apps/backend/src/boot.py`) runs across all environments — "one
-codebase, one standard" — at three gates of increasing strictness:
-
-| Gate | Mode | When | Scope | Failure |
+One validation engine (`apps/backend/src/boot.py`) runs across all environments — "one codebase, one standard" — at three gates of increasing strictness: | Gate | Mode | When | Scope | Failure |
 |------|------|------|-------|---------|
-| **1 Static** | `dry-run` | build / CI | config integrity (keys present) + code importable | build / CI fail |
-| **2 Startup** | `critical` | app start | database connectivity + schema/migration sync | crash-loop (refuse to serve) |
-| **3 Health** | `full` | runtime | full stack (Redis, S3, AI) + latency | alert / 503 (drain traffic) |
-
-Each environment maps to these gates with the same code: **Local** — Gate 2 on
-`moon run :dev`, Gate 3 via `python -m src.boot --mode full`; **CI** — Gate 1
-(`--mode dry-run`) + Gate 2 (pytest DB fixture); **Staging / Production** — Gate 2
-at container entrypoint (`main.py`), Gate 3 via the load balancer hitting
-`/health`. Two complementary checks: `src.boot` proves *internal connectivity*
-("can the app reach its dependencies?"); `tools/smoke_test.sh` proves *external
-availability* ("can a user reach the app?"). Deployed-service incident routing
-(502/503, stale version, secrets, flapping) lives in
-[`common/runtime/runtime-incident-response.md`](../../common/runtime/runtime-incident-response.md).
-
+| **1 Static** | `dry-run` | build / CI | config integrity (keys present) + code importable | build / CI fail | | **2 Startup** | `critical` | app start | database connectivity + schema/migration sync | crash-loop (refuse to serve) | | **3 Health** | `full` | runtime | full stack (Redis, S3, AI) + latency | alert / 503 (drain traffic) | Each environment maps to these gates with the same code: **Local** — Gate 2 on
+`moon run :dev`, Gate 3 via `python -m src.boot --mode full`; **CI** — Gate 1 (`--mode dry-run`) + Gate 2 (pytest DB fixture); **Staging / Production** — Gate 2 at container entrypoint (`main.py`), Gate 3 via the load balancer hitting `/health`. Two complementary checks: `src.boot` proves *internal connectivity* ("can the app reach its dependencies?"); `tools/smoke_test.sh` proves *external
+availability* ("can a user reach the app?"). Deployed-service incident routing (502/503, stale version, secrets, flapping) lives in [`common/runtime/runtime-incident-response.md`](../../common/runtime/runtime-incident-response.md).
 ## Empty environment values are not "unset"
-
-`Settings` (`apps/backend/src/config.py`) does not set `env_ignore_empty`, so an
-empty environment value is a **value**, never an absent one. Where a field is
-resolved through an `AliasChoices` chain the first name *present* wins, so a
-shipped `ZAI_API_KEY=` shadows the `GEMINI_API_KEY` a developer did fill in; the
-same mechanism turns `CORS_ORIGINS=` into an empty origin list instead of the
-default, and `API_RATE_LIMIT_REQUESTS=` into a `ValidationError` at import
-(`settings = Settings()` runs at module scope). **No artifact this repo ships may
-therefore assign an empty value** to an env name in an alias chain:
-`.env.example` documents such a key as a single commented canonical example
-(`# ZAI_API_KEY=`, emitted by `tools/generate_env_reference.py`), and the compose
-files use the pass-through form (`ZAI_API_KEY:` with no value), which sets the
-variable in the container only when the environment Compose runs with actually
-has it. `tests/tooling/test_env_empty_value_producers.py` enforces this across
-`.env.example` and the root `docker-compose*.yml` files, deriving the watched
-names from `required-env.generated.json` so a chain added later is covered
-without editing the guard (AC-runtime.env-empty-values.1). Making an empty value
-*mean* "unset" at the model level (`env_ignore_empty=True`) is the durable fix
-and is tracked separately in #2032 — it changes the resolution semantics of every
-settings field, so it needs a review of every affected package before it can land.
-
+`Settings` (`apps/backend/src/config.py`) does not set `env_ignore_empty`, so an empty environment value is a **value**, never an absent one. Where a field is resolved through an `AliasChoices` chain the first name *present* wins, so a shipped `ZAI_API_KEY=` shadows the `GEMINI_API_KEY` a developer did fill in; the same mechanism turns `CORS_ORIGINS=` into an empty origin list instead of the
+default, and `API_RATE_LIMIT_REQUESTS=` into a `ValidationError` at import (`settings = Settings()` runs at module scope). **No artifact this repo ships may therefore assign an empty value** to an env name in an alias chain: `.env.example` documents such a key as a single commented canonical example (`# ZAI_API_KEY=`, emitted by `tools/generate_env_reference.py`), and the compose
+files use the pass-through form (`ZAI_API_KEY:` with no value), which sets the variable in the container only when the environment Compose runs with actually has it. `tests/tooling/test_env_empty_value_producers.py` enforces this across `.env.example` and the root `docker-compose*.yml` files, deriving the watched names from `required-env.generated.json` so a chain added later is covered
+without editing the guard (AC-runtime.env-empty-values.1). Making an empty value *mean* "unset" at the model level (`env_ignore_empty=True`) is the durable fix and is tracked separately in #2032 — it changes the resolution semantics of every settings field, so it needs a review of every affected package before it can land.
 ## Boundaries with neighbouring packages
-
-- **`config`** — owns the env-var *mechanism*: the two-layer SSOT
-  (`config.py` ↔ `.env.example`), the pydantic `Settings`
-  reader, and schema validation — shared by every package. `runtime` owns the
-  *dependency layer* on top: the **manifest is the SSOT for which env vars are
-  external-dependency env vars** (`Dependency.env_vars`, bound to `Settings`),
-  each dependency's kind, its per-tier substitute, and the presence assertion.
-  (Only dependency env vars consolidate here — feature/security/domain env vars
-  stay with `config` and their domain packages.)
-- **`testing`** — owns proof *provenance* (`deterministic` / `golden_fixture` /
-  `live_llm`); `runtime`'s `Kind` maps onto it (code-dominant → deterministic,
-  model-dominant → live on staging).
-- **`platform`** — the *in-process* middleware substrate (event bus, rate limiter).
-  `runtime` is the complementary *outbound* substrate (the edges to the external
-  world). Distinct concerns; sibling `infra` packages.
-- **`observability`** — telemetry is itself a dependency `runtime` declares/asserts,
-  but its own emit/query logic stays in `observability`.
-
+- **`config`** — owns the env-var *mechanism*: the two-layer SSOT (`config.py` ↔ `.env.example`), the pydantic `Settings` reader, and schema validation — shared by every package. `runtime` owns the *dependency layer* on top: the **manifest is the SSOT for which env vars are external-dependency env vars** (`Dependency.env_vars`, bound to `Settings`),
+  each dependency's kind, its per-tier substitute, and the presence assertion. (Only dependency env vars consolidate here — feature/security/domain env vars stay with `config` and their domain packages.) - **`testing`** — owns proof *provenance* (`deterministic` / `golden_fixture` / `live_llm`); `runtime`'s `Kind` maps onto it (code-dominant → deterministic,
+  model-dominant → live on staging). - **`platform`** — the *in-process* middleware substrate (event bus, rate limiter). `runtime` is the complementary *outbound* substrate (the edges to the external world). Distinct concerns; sibling `infra` packages. - **`observability`** — telemetry is itself a dependency `runtime` declares/asserts, but its own emit/query logic stays in `observability`.
 ## Public vs internal
-
-The package publishes (`contract.interface`) the `base` value language + manifest
-and the `extension` adapters: `DependencyKind`, `EnvTier`
-(+ `APP_OWNED_TIERS` / `VPS_TIERS`), `Dependency` / `DependencyManifest` /
-`DEPENDENCY_MANIFEST`, and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
-The `DependencyCheck` port and the `DependencyStatus` / `ProbeResult` types are not
-published here. They live in `infra2_sdk.runtime.health`, and callers import them
-from there. The interface lists only names that this repo defines.
-`boot.Bootloader` delegates its checks to the adapters. New enforcement work
-must start in a GitHub issue and the package roadmap rather than a parallel list.
-
-Snapshot anonymization classifies opening-position amounts as money, preserving
-FX ratios and currency codes while pseudonymizing content digests. Versioned
-atomic identity hashes and custody scopes are pseudonymized; currency and the
-identity version are technical vocabulary. These classifications retain the
-fail-closed live-column census and common money scaling proof
-(`AC-runtime.snapshot-anonymizer.1`–`.3`).
-Immutable bank-custody bindings retain currency codes while pseudonymizing the
-institution and account suffix, so the new identity table cannot leak original
-bank details through a snapshot.
-
-Four-digit account suffixes use an HMAC-keyed cycle over the 10,000 ASCII digit
-strings, preserving custody uniqueness and cross-table equality without fixed
-points. The permutation is cached for one secret; unsupported suffix formats
-fail closed rather than silently collapsing distinct identities. The existing
+The package publishes (`contract.interface`) the `base` value language + manifest and the `extension` adapters: `DependencyKind`, `EnvTier` (+ `APP_OWNED_TIERS` / `VPS_TIERS`), `Dependency` / `DependencyManifest` / `DEPENDENCY_MANIFEST`, and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`. The `DependencyCheck` port and the `DependencyStatus` / `ProbeResult` types are not
+published here. They live in `infra2_sdk.runtime.health`, and callers import them from there. The interface lists only names that this repo defines. `boot.Bootloader` delegates its checks to the adapters. New enforcement work must start in a GitHub issue and the package roadmap rather than a parallel list. Snapshot anonymization classifies opening-position amounts as money, preserving
+FX ratios and currency codes while pseudonymizing content digests. Versioned atomic identity hashes and custody scopes are pseudonymized; currency and the identity version are technical vocabulary. These classifications retain the fail-closed live-column census and common money scaling proof (`AC-runtime.snapshot-anonymizer.1`–`.3`). Immutable bank-custody bindings retain currency codes while pseudonymizing the
+institution and account suffix, so the new identity table cannot leak original bank details through a snapshot. Four-digit account suffixes use an HMAC-keyed cycle over the 10,000 ASCII digit strings, preserving custody uniqueness and cross-table equality without fixed points. The permutation is cached for one secret; unsupported suffix formats fail closed rather than silently collapsing distinct identities. The existing
 residual scan remains mandatory before committing a scrubbed snapshot.

@@ -1,928 +1,128 @@
 # `extraction` — statement parsing bounded context
-
-> One package owning the whole document-extraction concept: the **prose SSOT for
-> the extraction pipeline** (this file) **and**, after the code cutover (#1421),
-> the conforming implementation. This readme is the single registered owner of
-> the extraction-pipeline rationale, the confidence-scoring tiers
-> ([§Confidence Scoring](#confidence-scoring)), and the audit-failed case
-> registry policy — internalized here from the retired `docs/ssot/extraction.md`
-> per the package-migration standard
-> ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
-> internalized").
->
-> The machine-readable audit-failed case registry is a sibling data file:
-> [`audit-failed-cases.yaml`](./audit-failed-cases.yaml). The conforming backend
-> implementation lives at
-> [`apps/backend/src/extraction/`](../../apps/backend/src/extraction)
-> and its siblings (the code cutover #1421 homes them under the package shape).
-
-This document defines the Single Source of Truth for the document extraction feature.
-
+> One package owning the whole document-extraction concept: the **prose SSOT for > the extraction pipeline** (this file) **and**, after the code cutover (#1421), > the conforming implementation. This readme is the single registered owner of > the extraction-pipeline rationale, the confidence-scoring tiers > ([§Confidence Scoring](#confidence-scoring)), and the audit-failed case > registry policy — internalized here from the retired `docs/ssot/extraction.md` > per the package-migration standard > ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT > internalized"). > > The machine-readable audit-failed case registry is a sibling data file: > [`audit-failed-cases.yaml`](./audit-failed-cases.yaml). The conforming backend > implementation lives at > [`apps/backend/src/extraction/`](../../apps/backend/src/extraction) > and its siblings (the code cutover #1421 homes them under the package shape). This document defines the Single Source of Truth for the document extraction feature.
 ## Overview
-
 The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use the multimodal role (`MULTIMODAL_MODEL`; default: the infra2 SDK default) for OCR and vision. One model serves both, so the service uses the vision OCR path directly. Text structuring and CSV mapping use the small role (`SMALL_MODEL`). Z.AI PDF vision extraction renders the uploaded PDF bytes lazily one 5-page batch (`PDF_VISION_MAX_PAGES`) at a time, shrinks the PyMuPDF image store after each page, adaptively downscales any page PNG above `PDF_VISION_MAX_PAGE_IMAGE_BYTES` (1.5 MB) to grayscale, enforces a `PDF_VISION_MAX_TOTAL_IMAGE_BYTES` (32 MiB) document ceiling, and releases each completed batch before rendering the next (#2595); short-lived external URLs are used only when no bytes are available. Small PDFs (at most `PDF_VISION_MAX_PAGES` pages) extract in a single shot. Multi-page PDFs above `PDF_VISION_MAX_PAGES` run two-stage vision extraction (#2813): Stage 1 renders the deduplicated head + tail pages (first 5 + last 5 pages) to extract document-level metadata (`institution`, `account_last4`, `currency`, `period_start`, `period_end`, `opening_balance`, `closing_balance` including final-page `Balance Carried Forward` summary totals, `balances`, and `snapshot_date`) in one shot; Stage 2 slices the body into 5-page batches (with page 1 as table-header context on continuation batches) to extract `transactions` and `positions` in page order, then merges Stage 1 metadata with Stage 2 rows. Inline base64 PDF payloads are reserved for non-Z.AI compatibility. JSON extraction requests minimal reasoning and defaults `AI_JSON_MAX_TOKENS` to `32768` so reasoning-enabled vision batches do not truncate mid-JSON, while `_repair_json_object` rejects truncated outer JSON objects containing an unclosed array instead of salvaging an inner transaction element (#2813). Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
-
 ## Statement ingestion application boundary
-
-`StatementIngestionUseCase` is the only production owner of load -> extract ->
-persist -> review/promotion -> posting sequencing. The API fallback and Prefect
-flow are transport adapters around the same object. The app composition root
-constructs it with immutable ports for the session maker, source-content loader,
-reconciliation transfer facts, FX lookup, brokerage review, and clock; importing
-`src.main` or mutating a package-global provider is never part of worker startup.
-
-The upload transaction first persists one ODS `UploadedDocument`, binds it to the
-`StatementSummary`, and materializes its source-evidence node before it dispatches
-asynchronous parsing. Parsing enriches the same artifact with its typed result and
-resolved bank/brokerage type; it never creates a second source document or relies
-on transient attributes of the DWD summary for a file path or display filename.
-
-Only a typed extraction/source failure may move a statement to `rejected`.
-Missing composition, storage/database failures, and unexpected application
-exceptions raise typed ingestion errors so durable execution can retry without
-misrepresenting infrastructure failure as bad user data. Retrying finalization
-is idempotent by statement and atomic-transaction identity.
-
+`StatementIngestionUseCase` is the only production owner of load -> extract -> persist -> review/promotion -> posting sequencing. The API fallback and Prefect flow are transport adapters around the same object. The app composition root constructs it with immutable ports for the session maker, source-content loader, reconciliation transfer facts, FX lookup, brokerage review, and clock; importing `src.main` or mutating a package-global provider is never part of worker startup. The upload transaction first persists one ODS `UploadedDocument`, binds it to the `StatementSummary`, and materializes its source-evidence node before it dispatches asynchronous parsing. Parsing enriches the same artifact with its typed result and resolved bank/brokerage type; it never creates a second source document or relies
+on transient attributes of the DWD summary for a file path or display filename. Only a typed extraction/source failure may move a statement to `rejected`. Missing composition, storage/database failures, and unexpected application exceptions raise typed ingestion errors so durable execution can retry without misrepresenting infrastructure failure as bad user data. Retrying finalization is idempotent by statement and atomic-transaction identity.
 ### Source lifecycle convergence
-
-`StatementSummary` and its `UploadedDocument` share one extraction-owned source
-lifecycle. Canonical identity is `(user_id, file_hash)`: insertion is isolated
-under a database savepoint, and a concurrent loser selects and continues with
-the unique database winner without poisoning the outer ingestion transaction.
-The uniqueness constraint, not an application pre-read, is the final lock.
-
-Stage-1 approval consumes `StatementSummary.currency_balances` through the typed
-`CurrencyBalances` container. Each declared currency independently proves
-`opening + IN - OUT = closing`; an undeclared transaction currency blocks
-approval. The scalar balance response remains only the backward-compatible
-projection when every transaction belongs to the statement's one explicitly
-declared currency. Missing or multiple transaction currency domains fail closed
-with per-currency findings and never govern approval through a nominal scalar
-sum.
-
-Ordinary `DELETE /statements/{id}` means **retire**, not physical purge. It
-atomically marks the statement and source reference retired, removes the item
-from normal product reads, and preserves the stored object, immutable extraction
-results, reviewed envelopes, atomic facts, and lineage. Repeating retirement is
-idempotent. Because retirement does not delete object content, an object-store
-outage cannot split database source truth from storage state. Physical
-purge/anonymization is a separately named cross-package operation governed by
+`StatementSummary` and its `UploadedDocument` share one extraction-owned source lifecycle. Canonical identity is `(user_id, file_hash)`: insertion is isolated under a database savepoint, and a concurrent loser selects and continues with the unique database winner without poisoning the outer ingestion transaction. The uniqueness constraint, not an application pre-read, is the final lock. Stage-1 approval consumes `StatementSummary.currency_balances` through the typed `CurrencyBalances` container. Each declared currency independently proves `opening + IN - OUT = closing`; an undeclared transaction currency blocks approval. The scalar balance response remains only the backward-compatible projection when every transaction belongs to the statement's one explicitly declared currency. Missing or multiple transaction currency domains fail closed with per-currency findings and never govern approval through a nominal scalar sum. Ordinary `DELETE /statements/{id}` means **retire**, not physical purge. It atomically marks the statement and source reference retired, removes the item from normal product reads, and preserves the stored object, immutable extraction
+results, reviewed envelopes, atomic facts, and lineage. Repeating retirement is idempotent. Because retirement does not delete object content, an object-store outage cannot split database source truth from storage state. Physical purge/anonymization is a separately named cross-package operation governed by
 #1898/#1848 and is not callable through ordinary statement APIs.
-If upload persists object bytes but database persistence and immediate cleanup
-both fail, the existing default-enabled runtime orphan sweep reconciles the
-unreferenced object after its grace period; extraction remains the owner of the
-canonical storage-reference query rather than duplicating a second cleanup
-mechanism.
-
-A reject or a retire of statement S releases only the rows that S owns (`AC-extraction.2888.1`,
-`AC-extraction.2888.2`). Another statement keeps a row when its current source membership still contains the row
-(`effective_statement_transaction_filter`). When S was `APPROVED` before a reject or a retire, only an `APPROVED`
-statement keeps the row. For any other earlier status of S, every statement that is not `RETIRED` and not `REJECTED`
-keeps the row. The release takes a transaction-scoped advisory lock per user, so two releases of one user decide
-ownership one after the other. Each released row passes two steps in this order. First,
-`release_transaction_dispositions` (reconciliation, reached through
-`StatementPostingDependencies.release_reconciliation`) sets the active matches of the row to `SUPERSEDED`. Second,
-the live entries whose `source_id` is the row become `VOID`. `retire_statement` runs both steps for a statement in any
-earlier status. The account chain reconcile still runs only for an `APPROVED` statement.
-A retire of a statement that was not approved skips the release and logs a warning when its rows cannot be resolved; an
-approved statement fails closed. `DELETE /statements/{id}` passes the composed posting dependencies, so the matches
-release too. Two limits remain. A journal entry of the user that a released match moved to `RECONCILED` stays
-`RECONCILED`, because the database guard forbids a return to `POSTED`. The surviving leg of a broken transfer pair
-cannot enter a new persisted pair, and the Processing views infer the pair from the ledger (`#2888`).
-
+If upload persists object bytes but database persistence and immediate cleanup both fail, the existing default-enabled runtime orphan sweep reconciles the unreferenced object after its grace period; extraction remains the owner of the canonical storage-reference query rather than duplicating a second cleanup mechanism. A reject or a retire of statement S releases only the rows that S owns (`AC-extraction.2888.1`, `AC-extraction.2888.2`). Another statement keeps a row when its current source membership still contains the row (`effective_statement_transaction_filter`). When S was `APPROVED` before a reject or a retire, only an `APPROVED` statement keeps the row. For any other earlier status of S, every statement that is not `RETIRED` and not `REJECTED` keeps the row. The release takes a transaction-scoped advisory lock per user, so two releases of one user decide
+ownership one after the other. Each released row passes two steps in this order. First, `release_transaction_dispositions` (reconciliation, reached through `StatementPostingDependencies.release_reconciliation`) sets the active matches of the row to `SUPERSEDED`. Second, the live entries whose `source_id` is the row become `VOID`. `retire_statement` runs both steps for a statement in any earlier status. The account chain reconcile still runs only for an `APPROVED` statement. A retire of a statement that was not approved skips the release and logs a warning when its rows cannot be resolved; an approved statement fails closed. `DELETE /statements/{id}` passes the composed posting dependencies, so the matches release too. Two limits remain. A journal entry of the user that a released match moved to `RECONCILED` stays
+`RECONCILED`, because the database guard forbids a return to `POSTED`. The surviving leg of a broken transfer pair cannot enter a new persisted pair, and the Processing views infer the pair from the ledger (`#2888`).
 ## Extraction Result And Economic Disposition
-
-Every transport receives the same `StatementExtractionResult`; it is the
-versioned source-to-fact record, not an ORM tuple. Its result identity and
-content digest anchor ODS/DWD projection and audit trace records. `source_type`
-states the institution class (bank or brokerage), while `evidence_type` states
-the required source shape (`transaction_ledger` or `position_snapshot`): this
-single entity owns the missing-fact and review-only decision. A brokerage cash
-ledger therefore never requires positions, and a position snapshot never
-manufactures cash balances. Schema-v1 metadata remains readable; schema-v2
-writes require explicit `evidence_type`. A source may truthfully omit facts:
-transaction-only CSV is `manual_trusted`, settlement-note lot/fee/dividend
-ingestion is currently a declared `gap`, and bank/brokerage statement extraction
-is `supported`. Capability declarations describe product semantics only;
-test-node coverage belongs to `common/testing`.
-
-`DispositionPolicy` is the only extraction-owned statement-to-ledger semantic
-boundary. It consumes one typed `IntentProposal`, a reviewed counter-account,
-and accepted-transfer context, then returns either a balanced command, an
-already-covered transfer decision, or a review reason. Each proposal records
-its closed origin: a reviewed deterministic rule, a live LLM proposal, an
-accepted reconciliation fact, or the manual adjudication of a person (the
-correction of a draft, #2405). Trace authority derives only from that origin;
-economic intent and cash direction never imply either economic meaning or
-authority. Income, expense, refund, and loan-interest may affect P&L; transfer,
-investment purchase/sale, loan principal, and card repayment require their
-matching asset/liability context and cannot be converted into income or expense
-by fallback. An accepted transfer match is a reconciliation fact: it already has
-its Processing entry, so it outranks every model or rule proposal and a second
-income or expense entry for the same leg is never posted (#2410). Only a person
-who adjudicates that one transaction can override it. The posting keeps a covered
-row covered, also when the person corrected its category (#2405). The product has
-no path to void an accepted match yet (#2423), so such a correction does not
-change the ledger. `off`, `observe`, and
-`enforce` calculate the same versioned
-decision; only `enforce` applies a command. Composition resolves the closed
-`STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override.
-Every decision also captures an immutable `StatementDispositionPolicySnapshot`:
-the policy/mode, machine and P&L confidence gates, unknown/ambiguous-review
-routes, live-proposal state, and deployment commit. Trace records bind that exact
-snapshot, while reporting receives the same published value object for frozen
-package disclosure instead of rebuilding policy facts from configuration.
-
-The AI category catalog is a versioned, append-only policy (`POLICY_VERSIONS`). Policy v1 holds
-18 income and expense classes and stays frozen, with its positional prompt. Policy v2 (#2411) adds
-four balance-sheet classes: `TRANSFER`, `CARD_REPAYMENT`, `LOAN_PRINCIPAL` and `INVESTMENT_TRADE`.
-The model may name them so that such a row is not filed under "Other". A proposal in one of them is
-never applied as profit or loss and creates no category account. It is stored as a draft row without
-an account, so that the class is visible. `OTHER_INCOME` and `OTHER_EXPENSE` mean "does not fit": a
-proposal in them is always a draft for a person, whatever its confidence. This describes the review path,
-the setting `auto_accept_ai_suggestions` off. With the setting on, the classifier applies these classes
-(see "Automatic acceptance").
-
-**Model call (#2419).** Policy v2 and later send at most 50 rows in one call, with at most four calls
-in flight. Each description is one JSON string. The model echoes the `index` of each row. Code maps the
-answer by that index. A different item count than rows, a non-dict item, an item without an index, an
-index outside the batch or a repeated index drops the answer for that batch. A row without a proposal
-goes to review. An item that the parser cannot read is no proposal. These items are unreadable: a
-missing or blank class, a missing or negative confidence, a confidence that is a word, and a class
-outside the catalog. The parser reads case, spaces, hyphens, a percent sign and a decimal score, also
-as a string. It cuts a decimal part and does not round it, so that 59.9 stays below the gate 60. A
-number above 100 counts as 100. When a batch holds a fraction and no number above 1, the model used
-the scale from 0 to 1, and the parser multiplies every number by 100. A batch without a fraction stays
-as it is. A fraction beside larger numbers is ambiguous (half a percent or fifty percent), so only
-that item is no proposal. The call carries the id of the statement owner, so it uses the provider of
-that user. The echo does not prove that the model numbered by the prompt and not by its own output
-order; a swap with a valid count and valid indexes is the residual risk of this design.
-
-**Versions.** A row that gets a live row under a newer policy version loses its older model rows: they
-become `superseded` and point to the newer row. A rule row of the user is never touched.
-
-**Decisions of the user (#2419).** `POST /ai/feedback` changes the draft classification or pending
-reconciliation match. A rejection supersedes the draft and every other live model row of the
-transaction, or marks a pending reconciliation match `rejected`. A correction replaces the category
-and the account of the draft, keeps the first original category and appends a `CorrectionLog` entry.
-An acceptance on a draft leaves it for the approval; an acceptance on a pending reconciliation match
-marks it `accepted`. The response names the effect (`accepted`, `rejected`, `corrected` or `recorded`).
-An id that is unknown, belongs to another user or is no longer pending is `recorded` and changes
-nothing. A decision outlives a later model pass: the sweep of older versions skips a corrected row,
-and a transaction with a rejected or corrected row is not classified again under any version.
-
-**One-click approval (#2415, #2419).** With the setting `auto_accept_ai_suggestions` off, a draft suggestion
-(the review band, 60 to 84) is not posted by itself. The one-click approval on the statement review page
-accepts it: the row posts to the suggested
-account and category as a reviewed disposition, and the draft becomes `applied`. A row that the posting
-will post from its applied classification is left to the posting. The disposition policy decides this,
-through `applied_rows_the_policy_accepts`, so the approval never disagrees with the posting. A row
-without a usable suggestion posts to the general account of its direction, and its drafts become
-`superseded`. The approval decides every balance-sheet class itself (#2415). A transfer or a card repayment
-posts as a Processing transfer leg through reconciliation's `post_named_transfer_legs`, because it moves
-money between own accounts and the other side clears it. A loan principal posts to the liability
-`Loans Payable (CUR)`, and an investment trade posts to the asset `Investments (CUR)`, by a reviewed
-disposition. These two accounts hold flows only: they have no opening balance and no cost basis. A sale
-credits `Investments (CUR)` with the proceeds, so the gain is not recorded and the account can show a credit
-balance. A loan instalment posts to `Loans Payable (CUR)` as principal. Their drafts are settled like the
-others. A leg posts only for a row in the effective base
-currency; a row in another currency, a row whose leg the ledger refuses and a row with an active match stay for
-a person. A statement without a linked account answers 400 before any row is read. Posting clears the note "Economic review required: ..." once every row has an entry.
-
-**Automatic acceptance (#2405).** The setting `auto_accept_ai_suggestions` is on by default, for a user who
-also has AI classification on. The owner rule is: the user uploads, and the system produces the base tables
-and the default three statements. The system therefore decides every row that the model answered:
-
-- A suggestion at the review score (60) or above is applied, including `OTHER_INCOME` and `OTHER_EXPENSE`.
-  An applied row that the review path would have held for a person (a score below 85, or an Other class)
-  carries the tag `auto_accepted`.
-- A row that the model answered but could not place goes to `General Income (CUR)` or `General Expense (CUR)`
-  by direction, with the category `UNCLASSIFIED` and the score 0. This covers a P&L class with a score below
-  60 and a class whose account side contradicts the direction. The row keeps the class and the score of the
-  model in `original_category` and `original_confidence`.
-- A row that the model did not answer gets no row and no general account. The statement waits, and the next
-  pass classifies the row. These cases are no answer: an outage or a dropped batch; an item that the parser
-  cannot read; a class outside the catalog; a score of 0 on a transfer, a card repayment, a loan or a trade;
-  a fraction beside larger numbers in the same batch. An outage, or a model that ignores the schema, must not
-  turn a statement into general entries. A dry run writes nothing.
-- A loan principal and an investment trade at the review score or above are applied to `Loans Payable (CUR)`
-  and `Investments (CUR)` with an explicit intent. Below the review score they wait in suspense: the draft
-  has no account and the tag `suspense`, and the posting books it as a Processing leg. A guess below the
-  review score cannot move net worth, and the row stays visible in the Processing account. It never becomes
-  income or expense. A transfer and a card repayment stay drafts at any score above 0. The posting posts
-  all of these drafts as Processing legs (base currency only, enforce mode only). The leg has
-  the status `auto_accepted`, or `accepted` when the user chose the class, and its draft has the tag of the
-  same name. A weak transfer is still a transfer, and the two sides of one transfer land in the same place.
-- The next pass applies the drafts that the review path left. A decision of the user outranks the setting: a
-  rejected draft stays superseded. A draft that the user corrected is applied as the decision of the user. It
-  keeps the flag `corrected_by_user` and gets no `auto_accepted` tag, and the posting records the user as the
-  decider (source type `user_confirmed`). A person who corrects a suspense draft chooses the class, so the
-  tag `suspense` goes away and the row books to the class that the person chose. A corrected draft that
-  contradicts its direction stays a draft, and the one-click approval posts that row to the general account.
-  A row that an accepted match covers stays covered, also when the person corrected it. The correction does
-  not change the ledger, because the product has no path to void an accepted match yet (#2423).
-- The disposition policy of such a user has the score gate 0 and the version `disposition-v1-accept-any-score`.
-  The policy snapshot and the personal report package record it. The entries have the source type
-  `auto_parsed`, which is the low confidence tier.
-- The one-click approval classifies the rows that have no classification before it reads the suggestions. A
-  statement that never ran through the classifier does not fall to the general account.
-- The classification backfill counts the candidates that got a row in the run. A row without a readable answer
-  stays a candidate.
-- The classifier asks the model only for the rows that have no row under the current policy version. A row that
-  has its row keeps it (the disposition `already_classified`). A retry asks again only for the rows that had no
-  answer. The one-click approval asks the model once for each row that gets an answer. A row without an answer
-  is asked again by the posting.
-- The ingestion classifies the rows of a statement once, after the commit that makes the statement `PARSED`
-  (`statement_preclassification.classify_parsed_statement`, #2637). The approval then asks the model for no row
-  that the pass answered. On staging `v0.2.27` the model call took 24 s of the 26 s of an approval of 80 rows. The
-  pass runs in the API task and in the Prefect flow, because both run the ingestion use case. Rules of the pass:
-  - It is best effort. A model error, an unexpected error or a timeout (180 s) is logged and counted in
-    `finance.statement_classification.outcome`. The rows stay unclassified, and the approval asks for them as
-    before. The ingestion stays `COMPLETED`. A pass that passes the deadline writes no row, unless the deadline falls inside its commit.
-  - It calls `classify_by_effective_policy`, so each row gets the policy of its own date. It writes no rule row,
-    and it does not ask the model for a row that a rule matches. The approval writes the rule rows, so a rule
-    that a user made after the parse still wins.
-  - It leaves out a statement that is not `PARSED`, a row that a posted entry covers, a row with an unresolved
-    currency (the account of an answer follows the currency) and every row of a user who turned the model off.
-  - A lock per statement (`pg_advisory_xact_lock`, key `statement_classification:<id>`) allows one reader and
-    writer of the answers of that statement at a time. The pass takes it without waiting and stops when the
-    approval holds it. The approve route and the one-click fill wait for it for 200 s, before any row lock. Then
-    they read the answers of the pass and ask the model only for the rows without an answer. When the wait limit
-    passes, the approval answers 409 and changes nothing.
-  - Two statements can share a row (a dedup hit adds a source document to an existing row). Their passes may ask
-    the model for that row both. The second writer waits for the policy lock, reads the rows of the first, and
-    skips the rows that now have an answer.
-  - The auto-approve of a high-confidence parse takes the lock without a wait. The parse already holds the
-    statement row, and a poll would hide a wait cycle with an approve request. A statement that the pass holds
-    stays in review.
-  - A setting that changes between the parse and the approval does not change the rows that the pass stored. The
-    approval keeps them and asks nothing. The disposition policy reads the setting at the approval, so a row
-    below its score gate goes to review: the approval answers 409 with the reason `intent_below_threshold`. A
-    row with a score of 85 or more posts from its stored answer, also when `enable_ai_classification` is off at
-    the approval. Main answers 409 with the reason `intent_missing` for every row in that case. The window is
-    the time between the parse and the approval.
-  - A user with auto-accept off gets no row for a score below the review score (a tail) and for a balance-sheet
-    class below it. The approval asks the model for these rows again, as it did before the pass.
-- The classifier and the one-click approval resolve a default account with one resolver
-  (`get_or_create_account`, AC `default-account.1`). An inactive account is not the default, because posting
-  refuses it. Two active rows with one name resolve to the oldest. The account commits in its own short
-  transaction, so several workers of one user never create two rows and never wait for each other.
-- The process flag `AUTO_ACCEPT_AI_SUGGESTIONS` is a ceiling. With the flag false, no user gets the automatic
-  path, whatever a stored choice says. With the flag true, a user can turn the setting off.
-- `GET /users/me/settings` shows two values. `auto_accept_ai_suggestions` is the choice of the user, and it is
-  true for a user who made no choice. `auto_accept_ai_suggestions_active` is the value that the system uses.
-  The settings panel saves only the choices that the user changed, so a save never stores a choice that the
-  user did not make.
-
-**Rollback.** A user turns the setting off in the AI settings, and the next pass of that user uses the review
-path. A rollback for all users is a production change that needs the approval of the owner. It has two
-ways: a release that changes the code default, or the variable `AUTO_ACCEPT_AI_SUGGESTIONS=false` in the
-compose environment of the deployment. The deployment sets the variable only when infra2 adds it to that
-environment. Without it, the code default applies. With the setting off, the score gates (60 and 85), the
+Every transport receives the same `StatementExtractionResult`; it is the versioned source-to-fact record, not an ORM tuple. Its result identity and content digest anchor ODS/DWD projection and audit trace records. `source_type` states the institution class (bank or brokerage), while `evidence_type` states the required source shape (`transaction_ledger` or `position_snapshot`): this single entity owns the missing-fact and review-only decision. A brokerage cash ledger therefore never requires positions, and a position snapshot never manufactures cash balances. Schema-v1 metadata remains readable; schema-v2 writes require explicit `evidence_type`. A source may truthfully omit facts: transaction-only CSV is `manual_trusted`, settlement-note lot/fee/dividend ingestion is currently a declared `gap`, and bank/brokerage statement extraction is `supported`. Capability declarations describe product semantics only; test-node coverage belongs to `common/testing`. `DispositionPolicy` is the only extraction-owned statement-to-ledger semantic boundary. It consumes one typed `IntentProposal`, a reviewed counter-account,
+and accepted-transfer context, then returns either a balanced command, an already-covered transfer decision, or a review reason. Each proposal records its closed origin: a reviewed deterministic rule, a live LLM proposal, an accepted reconciliation fact, or the manual adjudication of a person (the correction of a draft, #2405). Trace authority derives only from that origin; economic intent and cash direction never imply either economic meaning or authority. Income, expense, refund, and loan-interest may affect P&L; transfer, investment purchase/sale, loan principal, and card repayment require their matching asset/liability context and cannot be converted into income or expense by fallback. An accepted transfer match is a reconciliation fact: it already has its Processing entry, so it outranks every model or rule proposal and a second income or expense entry for the same leg is never posted (#2410). Only a person who adjudicates that one transaction can override it. The posting keeps a covered row covered, also when the person corrected its category (#2405). The product has no path to void an accepted match yet (#2423), so such a correction does not
+change the ledger. `off`, `observe`, and `enforce` calculate the same versioned decision; only `enforce` applies a command. Composition resolves the closed `STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override. Every decision also captures an immutable `StatementDispositionPolicySnapshot`: the policy/mode, machine and P&L confidence gates, unknown/ambiguous-review routes, live-proposal state, and deployment commit. Trace records bind that exact snapshot, while reporting receives the same published value object for frozen package disclosure instead of rebuilding policy facts from configuration. The AI category catalog is a versioned, append-only policy (`POLICY_VERSIONS`). Policy v1 holds 18 income and expense classes and stays frozen, with its positional prompt. Policy v2 (#2411) adds
+four balance-sheet classes: `TRANSFER`, `CARD_REPAYMENT`, `LOAN_PRINCIPAL` and `INVESTMENT_TRADE`. The model may name them so that such a row is not filed under "Other". A proposal in one of them is never applied as profit or loss and creates no category account. It is stored as a draft row without an account, so that the class is visible. `OTHER_INCOME` and `OTHER_EXPENSE` mean "does not fit": a proposal in them is always a draft for a person, whatever its confidence. This describes the review path, the setting `auto_accept_ai_suggestions` off. With the setting on, the classifier applies these classes (see "Automatic acceptance"). **Model call (#2419).** Policy v2 and later send at most 50 rows in one call, with at most four calls in flight. Each description is one JSON string. The model echoes the `index` of each row. Code maps the
+answer by that index. A different item count than rows, a non-dict item, an item without an index, an index outside the batch or a repeated index drops the answer for that batch. A row without a proposal goes to review. An item that the parser cannot read is no proposal. These items are unreadable: a missing or blank class, a missing or negative confidence, a confidence that is a word, and a class outside the catalog. The parser reads case, spaces, hyphens, a percent sign and a decimal score, also as a string. It cuts a decimal part and does not round it, so that 59.9 stays below the gate 60. A number above 100 counts as 100. When a batch holds a fraction and no number above 1, the model used the scale from 0 to 1, and the parser multiplies every number by 100. A batch without a fraction stays
+as it is. A fraction beside larger numbers is ambiguous (half a percent or fifty percent), so only that item is no proposal. The call carries the id of the statement owner, so it uses the provider of that user. The echo does not prove that the model numbered by the prompt and not by its own output order; a swap with a valid count and valid indexes is the residual risk of this design. **Versions.** A row that gets a live row under a newer policy version loses its older model rows: they become `superseded` and point to the newer row. A rule row of the user is never touched. **Decisions of the user (#2419).** `POST /ai/feedback` changes the draft classification or pending reconciliation match. A rejection supersedes the draft and every other live model row of the transaction, or marks a pending reconciliation match `rejected`. A correction replaces the category and the account of the draft, keeps the first original category and appends a `CorrectionLog` entry. An acceptance on a draft leaves it for the approval; an acceptance on a pending reconciliation match marks it `accepted`. The response names the effect (`accepted`, `rejected`, `corrected` or `recorded`).
+An id that is unknown, belongs to another user or is no longer pending is `recorded` and changes nothing. A decision outlives a later model pass: the sweep of older versions skips a corrected row, and a transaction with a rejected or corrected row is not classified again under any version. **One-click approval (#2415, #2419).** With the setting `auto_accept_ai_suggestions` off, a draft suggestion (the review band, 60 to 84) is not posted by itself. The one-click approval on the statement review page accepts it: the row posts to the suggested account and category as a reviewed disposition, and the draft becomes `applied`. A row that the posting will post from its applied classification is left to the posting. The disposition policy decides this, through `applied_rows_the_policy_accepts`, so the approval never disagrees with the posting. A row without a usable suggestion posts to the general account of its direction, and its drafts become `superseded`. The approval decides every balance-sheet class itself (#2415). A transfer or a card repayment posts as a Processing transfer leg through reconciliation's `post_named_transfer_legs`, because it moves
+money between own accounts and the other side clears it. A loan principal posts to the liability `Loans Payable (CUR)`, and an investment trade posts to the asset `Investments (CUR)`, by a reviewed disposition. These two accounts hold flows only: they have no opening balance and no cost basis. A sale credits `Investments (CUR)` with the proceeds, so the gain is not recorded and the account can show a credit balance. A loan instalment posts to `Loans Payable (CUR)` as principal. Their drafts are settled like the others. A leg posts only for a row in the effective base currency; a row in another currency, a row whose leg the ledger refuses and a row with an active match stay for a person. A statement without a linked account answers 400 before any row is read. Posting clears the note "Economic review required: ..." once every row has an entry.
+**Automatic acceptance (#2405).** The setting `auto_accept_ai_suggestions` is on by default, for a user who also has AI classification on. The owner rule is: the user uploads, and the system produces the base tables and the default three statements. The system therefore decides every row that the model answered: - A suggestion at the review score (60) or above is applied, including `OTHER_INCOME` and `OTHER_EXPENSE`. An applied row that the review path would have held for a person (a score below 85, or an Other class) carries the tag `auto_accepted`. - A row that the model answered but could not place goes to `General Income (CUR)` or `General Expense (CUR)` by direction, with the category `UNCLASSIFIED` and the score 0. This covers a P&L class with a score below 60 and a class whose account side contradicts the direction. The row keeps the class and the score of the model in `original_category` and `original_confidence`. - A row that the model did not answer gets no row and no general account. The statement waits, and the next pass classifies the row. These cases are no answer: an outage or a dropped batch; an item that the parser
+  cannot read; a class outside the catalog; a score of 0 on a transfer, a card repayment, a loan or a trade; a fraction beside larger numbers in the same batch. An outage, or a model that ignores the schema, must not turn a statement into general entries. A dry run writes nothing. - A loan principal and an investment trade at the review score or above are applied to `Loans Payable (CUR)` and `Investments (CUR)` with an explicit intent. Below the review score they wait in suspense: the draft has no account and the tag `suspense`, and the posting books it as a Processing leg. A guess below the review score cannot move net worth, and the row stays visible in the Processing account. It never becomes income or expense. A transfer and a card repayment stay drafts at any score above 0. The posting posts
+  all of these drafts as Processing legs (base currency only, enforce mode only). The leg has the status `auto_accepted`, or `accepted` when the user chose the class, and its draft has the tag of the same name. A weak transfer is still a transfer, and the two sides of one transfer land in the same place. - The next pass applies the drafts that the review path left. A decision of the user outranks the setting: a rejected draft stays superseded. A draft that the user corrected is applied as the decision of the user. It keeps the flag `corrected_by_user` and gets no `auto_accepted` tag, and the posting records the user as the decider (source type `user_confirmed`). A person who corrects a suspense draft chooses the class, so the tag `suspense` goes away and the row books to the class that the person chose. A corrected draft that
+  contradicts its direction stays a draft, and the one-click approval posts that row to the general account. A row that an accepted match covers stays covered, also when the person corrected it. The correction does not change the ledger, because the product has no path to void an accepted match yet (#2423). - The disposition policy of such a user has the score gate 0 and the version `disposition-v1-accept-any-score`. The policy snapshot and the personal report package record it. The entries have the source type `auto_parsed`, which is the low confidence tier. - The one-click approval classifies the rows that have no classification before it reads the suggestions. A statement that never ran through the classifier does not fall to the general account. - The classification backfill counts the candidates that got a row in the run. A row without a readable answer
+  stays a candidate. - The classifier asks the model only for the rows that have no row under the current policy version. A row that has its row keeps it (the disposition `already_classified`). A retry asks again only for the rows that had no answer. The one-click approval asks the model once for each row that gets an answer. A row without an answer is asked again by the posting. - The ingestion classifies the rows of a statement once, after the commit that makes the statement `PARSED` (`statement_preclassification.classify_parsed_statement`, #2637). The approval then asks the model for no row that the pass answered. On staging `v0.2.27` the model call took 24 s of the 26 s of an approval of 80 rows. The pass runs in the API task and in the Prefect flow, because both run the ingestion use case. Rules of the pass: - It is best effort. A model error, an unexpected error or a timeout (180 s) is logged and counted in `finance.statement_classification.outcome`. The rows stay unclassified, and the approval asks for them as before. The ingestion stays `COMPLETED`. A pass that passes the deadline writes no row, unless the deadline falls inside its commit.
+  - It calls `classify_by_effective_policy`, so each row gets the policy of its own date. It writes no rule row, and it does not ask the model for a row that a rule matches. The approval writes the rule rows, so a rule that a user made after the parse still wins. - It leaves out a statement that is not `PARSED`, a row that a posted entry covers, a row with an unresolved currency (the account of an answer follows the currency) and every row of a user who turned the model off. - A lock per statement (`pg_advisory_xact_lock`, key `statement_classification:<id>`) allows one reader and writer of the answers of that statement at a time. The pass takes it without waiting and stops when the approval holds it. The approve route and the one-click fill wait for it for 200 s, before any row lock. Then
+    they read the answers of the pass and ask the model only for the rows without an answer. When the wait limit passes, the approval answers 409 and changes nothing. - Two statements can share a row (a dedup hit adds a source document to an existing row). Their passes may ask the model for that row both. The second writer waits for the policy lock, reads the rows of the first, and skips the rows that now have an answer. - The auto-approve of a high-confidence parse takes the lock without a wait. The parse already holds the statement row, and a poll would hide a wait cycle with an approve request. A statement that the pass holds stays in review. - A setting that changes between the parse and the approval does not change the rows that the pass stored. The approval keeps them and asks nothing. The disposition policy reads the setting at the approval, so a row below its score gate goes to review: the approval answers 409 with the reason `intent_below_threshold`. A row with a score of 85 or more posts from its stored answer, also when `enable_ai_classification` is off at the approval. Main answers 409 with the reason `intent_missing` for every row in that case. The window is
+    the time between the parse and the approval. - A user with auto-accept off gets no row for a score below the review score (a tail) and for a balance-sheet class below it. The approval asks the model for these rows again, as it did before the pass. - The classifier and the one-click approval resolve a default account with one resolver (`get_or_create_account`, AC `default-account.1`). An inactive account is not the default, because posting refuses it. Two active rows with one name resolve to the oldest. The account commits in its own short transaction, so several workers of one user never create two rows and never wait for each other. - The process flag `AUTO_ACCEPT_AI_SUGGESTIONS` is a ceiling. With the flag false, no user gets the automatic path, whatever a stored choice says. With the flag true, a user can turn the setting off.
+- `GET /users/me/settings` shows two values. `auto_accept_ai_suggestions` is the choice of the user, and it is true for a user who made no choice. `auto_accept_ai_suggestions_active` is the value that the system uses. The settings panel saves only the choices that the user changed, so a save never stores a choice that the user did not make. **Rollback.** A user turns the setting off in the AI settings, and the next pass of that user uses the review path. A rollback for all users is a production change that needs the approval of the owner. It has two ways: a release that changes the code default, or the variable `AUTO_ACCEPT_AI_SUGGESTIONS=false` in the compose environment of the deployment. The deployment sets the variable only when infra2 adds it to that environment. Without it, the code default applies. With the setting off, the score gates (60 and 85), the
 draft rows and the one-click approval described above apply. The entries already posted stay.
-
 ## Upload-First Product Contract
-
-The user-facing input model is upload-first: users provide source documents and
-exports, and the system converts them into reviewed records before ledger/report
-use. `SourceCapability` is the semantic registry for every source class named by
-the product vision. Bank and brokerage statements are `supported`; CSV, ESOP/RSU,
-property, liability, and explicit manual records are `manual_trusted` inputs;
-settlement notes remain a `gap`. A recognized format is not automatically a
-supported parsing capability.
-
-Extraction owns parsing, source metadata, validation results, and lineage back
-to the original file. Downstream automation such as market-data refresh,
-portfolio valuation, ESOP schedule presentation, recurring accrual treatment,
-and report preparation is delegated to the owning SSOT documents and must not
+The user-facing input model is upload-first: users provide source documents and exports, and the system converts them into reviewed records before ledger/report use. `SourceCapability` is the semantic registry for every source class named by the product vision. Bank and brokerage statements are `supported`; CSV, ESOP/RSU, property, liability, and explicit manual records are `manual_trusted` inputs; settlement notes remain a `gap`. A recognized format is not automatically a supported parsing capability. Extraction owns parsing, source metadata, validation results, and lineage back to the original file. Downstream automation such as market-data refresh, portfolio valuation, ESOP schedule presentation, recurring accrual treatment, and report preparation is delegated to the owning SSOT documents and must not
 weaken extraction confidence or balance-validation rules.
-
 ## SourceCapability Registry
-
-Semantic source status, review requirements, produced facts, and traceability
-targets have one owner: extraction's
-[`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py).
-Testing derives proof
-requirements by joining those stable capability ids to co-located `@ac_proof`
-metadata; it has no second support registry and cannot redefine product
-support. Source-class changes start in extraction's contract, and the
-consolidated AC-index gate fails until the existing proof graph covers them.
-
+Semantic source status, review requirements, produced facts, and traceability targets have one owner: extraction's [`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py). Testing derives proof requirements by joining those stable capability ids to co-located `@ac_proof` metadata; it has no second support registry and cannot redefine product support. Source-class changes start in extraction's contract, and the consolidated AC-index gate fails until the existing proof graph covers them.
 ## Data Flow
-
-```mermaid
-flowchart TB
-    A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
-    S --> O[Create ODS Source Artifact]
-    O --> P[Bind PARSING Statement]
-    P --> B{File Type}
-    B -->|PDF/Image| C["Multimodal role: OCR path"]
-    C --> C2["Small role: JSON structuring"]
-    B -->|CSV| D[Structured Parser]
-    C2 --> E[Extract JSON]
-    D --> E
-    E --> F{Confidence Score}
-    F -->|≥85| G[Auto-Accept]
-    F -->|60-84| H[Review Queue]
-    F -->|<60| I[Manual Entry]
-    G --> J[(PostgreSQL)]
-    H --> J
-
-    %% EPIC-011 Direct Writes
-    F --> K[ODS: UploadedDocument]
-    F --> L[DWD: AtomicTransaction]
-    F --> N[DWD: StatementSummary]
-    K --> M[(PostgreSQL: ODS/DWD)]
-    L --> M
-    N --> M
-```
-
+```mermaid flowchart TB  A[Upload PDF/Image/CSV] --> S[Store to Object Storage]  S --> O[Create ODS Source Artifact]  O --> P[Bind PARSING Statement]  P --> B{File Type}  B -->|PDF/Image| C["Multimodal role: OCR path"]  C --> C2["Small role: JSON structuring"]  B -->|CSV| D[Structured Parser]  C2 --> E[Extract JSON]  D --> E  E --> F{Confidence Score}  F -->|≥85| G[Auto-Accept]  F -->|60-84| H[Review Queue]  F -->|<60| I[Manual Entry]  G --> J[(PostgreSQL)]  H --> J  %% EPIC-011 Direct Writes  F --> K[ODS: UploadedDocument]  F --> L[DWD: AtomicTransaction]  F --> N[DWD: StatementSummary]  K --> M[(PostgreSQL: ODS/DWD)]  L --> M  N --> M ```
 ## Data Models
-
 ### Pure source vocabulary
-
-`base/source_vocabulary.py` owns `DocumentType`, `DocumentStatus`,
-`TransactionDirection`, `RuleType`, `ClassificationStatus`, `BankStatementStatus`,
-and `Stage1Status`. Validation and disposition rules import these pure values;
-SQLAlchemy mappings consume them without defining another enum. External
-consumers use the published `src.extraction` names, whose string values and SQL
-enum bindings remain unchanged. The old `orm/statement_enums.py` owner is retired.
-Purity here describes the domain module's dependencies, not isolated package
-startup: `src.extraction.__init__` still eagerly loads its published adapters.
-Removing that bootstrap coupling remains part of the ORM export debt under
+`base/source_vocabulary.py` owns `DocumentType`, `DocumentStatus`, `TransactionDirection`, `RuleType`, `ClassificationStatus`, `BankStatementStatus`, and `Stage1Status`. Validation and disposition rules import these pure values; SQLAlchemy mappings consume them without defining another enum. External consumers use the published `src.extraction` names, whose string values and SQL enum bindings remain unchanged. The old `orm/statement_enums.py` owner is retired. Purity here describes the domain module's dependencies, not isolated package startup: `src.extraction.__init__` still eagerly loads its published adapters. Removing that bootstrap coupling remains part of the ORM export debt under
 #1863; this cutover does not claim dependency-free ordinary package imports.
-
-This is source/review vocabulary, not investment accounting. `AssetType`,
-`PositionStatus`, and `CostBasisMethod` remain outside this cutover; their
-portfolio ownership cleanup is part of the remaining package-local work under
+This is source/review vocabulary, not investment accounting. `AssetType`, `PositionStatus`, and `CostBasisMethod` remain outside this cutover; their portfolio ownership cleanup is part of the remaining package-local work under
 #1863. ORM entity exports likewise remain explicit debt, not pure domain types.
-
 ### Ingestion Writes (EPIC-011)
-
-Ingestion writes the ODS/DWD tables directly. A successful parse persists one
-`UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), a
-`StatementExtractionResultRecord` append-only snapshot, and a `StatementSummary`
-effective envelope (DWD). `parse_document` returns one immutable, versioned
-`StatementExtractionResult`: source digest/type, exact balance facts,
-transactions, positions, confidence, warnings/review reasons, and provenance.
-The summary points only to the current immutable result; reparse advances that
-pointer instead of overwriting prior source evidence. The persisted ODS/DWD rows
-are its explicit projection; callers that need those rows read them by result
-identity rather than receiving hidden ORM objects in a tuple. No pre-persistence
-metadata is hidden on transient ORM attributes. There
-is no legacy `BankStatement` write path and no dual-write flag.
-
-The upload, in-process worker, and durable Prefect worker share one frozen
-`ParseJob` value object. Only `ParseJob.to_prefect_params()` crosses the Prefect
-boundary, and `from_prefect_params()` reconstructs typed UUIDs in the worker;
-raw bytes and database sessions never enter the durable parameter payload.
-`DocumentSource` similarly resolves storage path, content, URL, content hash,
-and display filename once before `parse_document` dispatches to separate CSV or
-vision extraction paths. The parser and Layer-2 writer accept typed
-`AsyncSession` seams, and failure handling uses one explicit call contract
-rather than runtime signature reflection.
-
-**ODS: Raw Documents (`UploadedDocument`)**
-- Stores immutable metadata for every uploaded file
-- Maps to `DocumentType`: `bank_statement`, `brokerage_statement`, `esop_grant`, `property_appraisal`
-- Status tracking: `uploaded` → `processing` → `completed`
-
-**DWD: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
-- New transaction identities are versioned hashes of currency, custody scope,
-  and the legacy transaction fingerprint (user/date/amount/direction/description/
-  reference/running-balance/occurrence). A confirmed user-owned custody account
-  supplies the scope; without it, the source digest isolates the provisional
-  fact until review. Distinct currencies or accounts never share identity merely
-  because their transaction text and numeric amounts match.
-- `AtomicTransactionIdentity` is an additive compatibility mapping. It binds a
-  tenant/version/hash to an atomic UUID only after source custody and currency
-  agree. Legacy hashes, UUIDs, financial facts, and posted references remain
-  unchanged; ambiguous legacy lineage requires review. A transaction-scoped
-  database identity lock makes concurrent retries converge on one atomic fact.
-- Reparse retains historical atomic facts and source links. Statement reads use
-  the current immutable result's fact identities (with validated aliases), so
-  superseded rows remain auditable but do not enter current validation/posting.
-  A changed source with posted entries requires the correction/void lifecycle;
-  it cannot silently post a successor alongside the original.
-- Per-transaction fields (`txn_date`, `amount`, `direction`, `description`,
-  `reference`, `currency`, `balance_after`) live on `AtomicTransaction`. Atomic
-  rows are source-pure: they carry no per-transaction status, confidence, or
-  raw OCR text.
-- `source_documents` (JSONB) tracks lineage (which files contributed this record)
-- Immutable once written (except for appending sources)
-
-**DWD: Statement Envelope (`StatementSummary`)**
-- One effective envelope per parsed statement, carrying period, opening/closing
-  balances, institution metadata, `file_hash`, the resolved custody `account_id`,
-  and a pointer to the current immutable source result.
-- Carries review/workflow state: `status`, `stage1_status`,
-  `balance_validation_result`, `stage1_reviewed_at`, and `manual_opening_balance`.
-- Multi-currency statements (Wise / IBKR / Futu) additionally carry
-  `currency_balances` (JSONB `[{currency, opening, closing}]`) so each currency
-  has its own opening/closing pair. This is additive: the scalar
-  `opening_balance` / `closing_balance` stay populated for the single-currency
-  case, and reconciliation runs **per currency** (never summing across
-  currencies). See
-  [common/reconciliation/readme.md#per-currency-balance-reconciliation](../reconciliation/readme.md#per-currency-balance-reconciliation).
-  (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123
-  AC2/AC3/AC4.)
-- A multi-currency **brokerage position snapshot** never turns market values into
-  cash opening/closing balances. `currency_balances` is persisted only when the
-  source declares exact per-currency balance facts; otherwise the snapshot remains
-  review-only evidence. Declared multi-currency balances reconcile independently
-  and are never cross-summed. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
-- Enums `BankStatementStatus` and `Stage1Status` live in
-  `src/extraction/base/source_vocabulary.py`.
-
-When a parsed statement fails balance validation, `balance_validation_result`
-must preserve the mismatch note from the Decimal balance check. The statement
-must remain reviewable instead of silently hiding the reason it cannot be
-trusted for auto-accept.
-
-CSV transaction exports that do not contain source statement opening and closing
-balances remain missing those source facts. They cannot be auto-approved or
-silently completed from a zero/net-flow calculation; a reviewer must confirm the
-custody currency, source period, and opening/closing facts before approval.
-
+Ingestion writes the ODS/DWD tables directly. A successful parse persists one `UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), a `StatementExtractionResultRecord` append-only snapshot, and a `StatementSummary` effective envelope (DWD). `parse_document` returns one immutable, versioned `StatementExtractionResult`: source digest/type, exact balance facts, transactions, positions, confidence, warnings/review reasons, and provenance. The summary points only to the current immutable result; reparse advances that pointer instead of overwriting prior source evidence. The persisted ODS/DWD rows are its explicit projection; callers that need those rows read them by result identity rather than receiving hidden ORM objects in a tuple. No pre-persistence metadata is hidden on transient ORM attributes. There is no legacy `BankStatement` write path and no dual-write flag. The upload, in-process worker, and durable Prefect worker share one frozen `ParseJob` value object. Only `ParseJob.to_prefect_params()` crosses the Prefect boundary, and `from_prefect_params()` reconstructs typed UUIDs in the worker;
+raw bytes and database sessions never enter the durable parameter payload. `DocumentSource` similarly resolves storage path, content, URL, content hash, and display filename once before `parse_document` dispatches to separate CSV or vision extraction paths. The parser and Layer-2 writer accept typed `AsyncSession` seams, and failure handling uses one explicit call contract rather than runtime signature reflection. **ODS: Raw Documents (`UploadedDocument`)** - Stores immutable metadata for every uploaded file - Maps to `DocumentType`: `bank_statement`, `brokerage_statement`, `esop_grant`, `property_appraisal` - Status tracking: `uploaded` → `processing` → `completed` **DWD: Atomic Data (`AtomicTransaction`, `AtomicPosition`)** - New transaction identities are versioned hashes of currency, custody scope, and the legacy transaction fingerprint (user/date/amount/direction/description/ reference/running-balance/occurrence). A confirmed user-owned custody account supplies the scope; without it, the source digest isolates the provisional fact until review. Distinct currencies or accounts never share identity merely
+  because their transaction text and numeric amounts match. - `AtomicTransactionIdentity` is an additive compatibility mapping. It binds a tenant/version/hash to an atomic UUID only after source custody and currency agree. Legacy hashes, UUIDs, financial facts, and posted references remain unchanged; ambiguous legacy lineage requires review. A transaction-scoped database identity lock makes concurrent retries converge on one atomic fact. - Reparse retains historical atomic facts and source links. Statement reads use the current immutable result's fact identities (with validated aliases), so superseded rows remain auditable but do not enter current validation/posting. A changed source with posted entries requires the correction/void lifecycle; it cannot silently post a successor alongside the original. - Per-transaction fields (`txn_date`, `amount`, `direction`, `description`, `reference`, `currency`, `balance_after`) live on `AtomicTransaction`. Atomic rows are source-pure: they carry no per-transaction status, confidence, or raw OCR text. - `source_documents` (JSONB) tracks lineage (which files contributed this record)
+- Immutable once written (except for appending sources) **DWD: Statement Envelope (`StatementSummary`)** - One effective envelope per parsed statement, carrying period, opening/closing balances, institution metadata, `file_hash`, the resolved custody `account_id`, and a pointer to the current immutable source result. - Carries review/workflow state: `status`, `stage1_status`, `balance_validation_result`, `stage1_reviewed_at`, and `manual_opening_balance`. - Multi-currency statements (Wise / IBKR / Futu) additionally carry `currency_balances` (JSONB `[{currency, opening, closing}]`) so each currency has its own opening/closing pair. This is additive: the scalar `opening_balance` / `closing_balance` stay populated for the single-currency case, and reconciliation runs **per currency** (never summing across currencies). See [common/reconciliation/readme.md#per-currency-balance-reconciliation](../reconciliation/readme.md#per-currency-balance-reconciliation). (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123 AC2/AC3/AC4.) - A multi-currency **brokerage position snapshot** never turns market values into
+  cash opening/closing balances. `currency_balances` is persisted only when the source declares exact per-currency balance facts; otherwise the snapshot remains review-only evidence. Declared multi-currency balances reconcile independently and are never cross-summed. (#1139 AC-B3 / EPIC-017 AC17.4.13.) - Enums `BankStatementStatus` and `Stage1Status` live in `src/extraction/base/source_vocabulary.py`. When a parsed statement fails balance validation, `balance_validation_result` must preserve the mismatch note from the Decimal balance check. The statement must remain reviewable instead of silently hiding the reason it cannot be trusted for auto-accept. CSV transaction exports that do not contain source statement opening and closing balances remain missing those source facts. They cannot be auto-approved or silently completed from a zero/net-flow calculation; a reviewer must confirm the custody currency, source period, and opening/closing facts before approval.
 ### Reviewed statement envelope
-
-`ReviewedStatementEnvelope` is an append-only reviewer fact, never a mutation
-of `StatementExtractionResult`. `POST /api/statements/{id}/review/envelope`
-accepts one complete, typed command pinned to the current result digest: a
-user-owned asset account, ISO currency, ordered period, Decimal opening/closing
-balances, and a rationale. The service verifies the exact result version,
-account currency, every already-declared currency/period/balance fact, and the
-source transaction balance chain before it materializes
-the effective `StatementSummary` projection. It appends a review trace whose
-parent is the exact source-result observation.
-
-An identical retry returns the existing review fact. A different command for the
-same source result conflicts; after reparse, the prior review is not current and
-a new command appends an explicit successor. No parser default, transaction-date
-range, JSON sidecar, or in-place source edit can stand in for this decision.
-PostgreSQL triggers reject direct updates and deletes of both fact tables; their
-statement references are restrictive, so deletion requires an explicit owning
-domain purge rather than an implicit cross-domain cascade.
-A transaction-ledger result missing solely currency, period, or balances is
-envelope-reviewable. A complete, balanced, single-currency bank cash source below
-the shared auto-promotion confidence threshold is also eligible for explicit
-human confirmation. This includes an ordinary month with no transactions:
-confidence remains 75, missing facts remain empty, and the immutable source is
-unchanged. The command fills absent facts only; it cannot replace a declared
-1000 opening/closing balance with an equally balanced 9000 pair. Position or
-transaction-currency gaps remain blocked for their source-specific review path.
-The API exposes this capability, and the UI offers confirmation even when the
-missing-facts list is empty. Healthy high-confidence sources keep their existing
-approval flow.
-Stage-1 approval rechecks that the mutable projection still equals the current
-complete source result or its current reviewed envelope, so no route or worker
-can promote a diverged projection.
-
+`ReviewedStatementEnvelope` is an append-only reviewer fact, never a mutation of `StatementExtractionResult`. `POST /api/statements/{id}/review/envelope` accepts one complete, typed command pinned to the current result digest: a user-owned asset account, ISO currency, ordered period, Decimal opening/closing balances, and a rationale. The service verifies the exact result version, account currency, every already-declared currency/period/balance fact, and the source transaction balance chain before it materializes the effective `StatementSummary` projection. It appends a review trace whose parent is the exact source-result observation. An identical retry returns the existing review fact. A different command for the same source result conflicts; after reparse, the prior review is not current and
+a new command appends an explicit successor. No parser default, transaction-date range, JSON sidecar, or in-place source edit can stand in for this decision. PostgreSQL triggers reject direct updates and deletes of both fact tables; their statement references are restrictive, so deletion requires an explicit owning domain purge rather than an implicit cross-domain cascade. A transaction-ledger result missing solely currency, period, or balances is envelope-reviewable. A complete, balanced, single-currency bank cash source below the shared auto-promotion confidence threshold is also eligible for explicit human confirmation. This includes an ordinary month with no transactions: confidence remains 75, missing facts remain empty, and the immutable source is unchanged. The command fills absent facts only; it cannot replace a declared 1000 opening/closing balance with an equally balanced 9000 pair. Position or transaction-currency gaps remain blocked for their source-specific review path. The API exposes this capability, and the UI offers confirmation even when the missing-facts list is empty. Healthy high-confidence sources keep their existing
+approval flow. Stage-1 approval rechecks that the mutable projection still equals the current complete source result or its current reviewed envelope, so no route or worker can promote a diverged projection.
 ### Package-facing statement contributions (#1681)
-
-`resolve_statement_contribution()` and `list_statement_contributions()` are
-the only extraction interfaces a report package may use for statement source
-facts. A `ResolvedStatementContribution` contains the exact immutable current
-`StatementExtractionResult`, persisted source-result id, immutable
-uploaded-document reference when one is present, the confirmed custody
-`account_id`, input refs, and current
-promotion or reviewed-envelope `TraceRecord` decision. It carries transaction
-and position facts exactly as persisted; it never reconstructs a cassette or
-exposes `StatementSummary`, `AtomicTransaction`, or `AtomicPosition` rows to a
-consumer.
-
-The decision is published as audit's `TraceDecisionRef`, which pins the exact
-decision id, target version, and assertion version. Consumers must validate all
-three coordinates; the id is not a transferable authority label.
-
-The custody account is source-envelope identity, not an account classification.
-An authoritative bank-statement contribution requires it and publishes an exact
-`account:<uuid>` input ref; otherwise the contribution is `unproven`. Brokerage
-containers remain brokerage evidence and are not flattened into a binary cash
-or non-cash account role.
-
-The contribution is `authoritative` only when its exact source version has its
-current target-matching decision. An exact current human envelope takes precedence
-when present; a revoked human decision cannot fall back to machine promotion.
-A missing, non-authoritative, stale, cross-tenant, or target-mismatched decision
-returns `unproven`. Source type,
-parser confidence, import time, and provenance remain display/diagnostic facts,
-not an authority shortcut. Report assembly freezes the contribution's ids and
-digest; it never resolves a replacement after reopen or export.
-
-`StatementExtractionResult` separately preserves a scalar statement-declared currency.
-For a transaction ledger, a scalar declaration or an exact source-declared balance
-bucket is required; an individual transaction currency can never fill that gap. A
-multi-currency position snapshot does not require a scalar statement currency when
-each position declares its own.
-
+`resolve_statement_contribution()` and `list_statement_contributions()` are the only extraction interfaces a report package may use for statement source facts. A `ResolvedStatementContribution` contains the exact immutable current `StatementExtractionResult`, persisted source-result id, immutable uploaded-document reference when one is present, the confirmed custody `account_id`, input refs, and current promotion or reviewed-envelope `TraceRecord` decision. It carries transaction and position facts exactly as persisted; it never reconstructs a cassette or exposes `StatementSummary`, `AtomicTransaction`, or `AtomicPosition` rows to a consumer. The decision is published as audit's `TraceDecisionRef`, which pins the exact decision id, target version, and assertion version. Consumers must validate all three coordinates; the id is not a transferable authority label. The custody account is source-envelope identity, not an account classification. An authoritative bank-statement contribution requires it and publishes an exact `account:<uuid>` input ref; otherwise the contribution is `unproven`. Brokerage
+containers remain brokerage evidence and are not flattened into a binary cash or non-cash account role. The contribution is `authoritative` only when its exact source version has its current target-matching decision. An exact current human envelope takes precedence when present; a revoked human decision cannot fall back to machine promotion. A missing, non-authoritative, stale, cross-tenant, or target-mismatched decision returns `unproven`. Source type, parser confidence, import time, and provenance remain display/diagnostic facts, not an authority shortcut. Report assembly freezes the contribution's ids and digest; it never resolves a replacement after reopen or export. `StatementExtractionResult` separately preserves a scalar statement-declared currency. For a transaction ledger, a scalar declaration or an exact source-declared balance
+bucket is required; an individual transaction currency can never fill that gap. A multi-currency position snapshot does not require a scalar statement currency when each position declares its own.
 ## <a id="confidence-scoring"></a>Confidence Scoring
-
 | Factor | Weight |
 |--------|--------|
-| Balance validation | 35% |
-| Field completeness | 25% |
-| Format consistency | 15% |
-| Transaction count | 10% |
-| Balance progression | 10% |
-| Currency consistency | 5% |
-
-**Thresholds**:
-- ≥85: Auto-accept only after balance validation, account mapping, and source-period uniqueness pass
-- 60-84: Review queue
-- <60: Manual entry required
-
-**The ~90 ceiling.** The Balance Progression component (10%) is only awarded
-when transactions carry a per-line running `balance_after` chain. Statements
-that omit per-line balances (most bank/brokerage PDFs) therefore top out near 90
-even when every other factor is perfect. This is an inherent ceiling of the
-weighting, not a scoring defect — a higher score requires source data that
-exposes the running balance per row.
-
-**Under-extraction guard.** A brokerage statement that yields fewer than
-`BROKERAGE_MIN_PLAUSIBLE_TXNS` (2) transactions is a strong under-capture signal
-— comparable brokerage statements extract ~10 rows. `compute_confidence_score`
-caps such parses at `UNDER_EXTRACTION_SCORE_CAP` (60) so under-capture never
-presents as high confidence.
-
-If a high-confidence statement fails any Stage 1 posting guard, the parser must
-preserve the extracted statement and transactions, set the statement to parsed
-pending review, and expose the guard reason for human correction.
-
-**CSV without source balances never auto-approves.** A CSV export that carries
-no source statement opening/closing balances is parsed with
-`balance_source = missing_from_csv_export`; the parser forces the statement to
-`parsed` (review) with `balance_validated = false`, and the confidence score
-excludes the balance-validation component (`balance_proof_available = false`).
-No inferred `0 + transactions = closing` value is source proof or an approval
-precondition.
-
+| Balance validation | 35% | | Field completeness | 25% | | Format consistency | 15% | | Transaction count | 10% | | Balance progression | 10% | | Currency consistency | 5% | **Thresholds**: - ≥85: Auto-accept only after balance validation, account mapping, and source-period uniqueness pass - 60-84: Review queue - <60: Manual entry required **The ~90 ceiling.** The Balance Progression component (10%) is only awarded
+when transactions carry a per-line running `balance_after` chain. Statements that omit per-line balances (most bank/brokerage PDFs) therefore top out near 90 even when every other factor is perfect. This is an inherent ceiling of the weighting, not a scoring defect — a higher score requires source data that exposes the running balance per row. **Under-extraction guard.** A brokerage statement that yields fewer than `BROKERAGE_MIN_PLAUSIBLE_TXNS` (2) transactions is a strong under-capture signal — comparable brokerage statements extract ~10 rows. `compute_confidence_score` caps such parses at `UNDER_EXTRACTION_SCORE_CAP` (60) so under-capture never presents as high confidence. If a high-confidence statement fails any Stage 1 posting guard, the parser must preserve the extracted statement and transactions, set the statement to parsed
+pending review, and expose the guard reason for human correction. **CSV without source balances never auto-approves.** A CSV export that carries no source statement opening/closing balances is parsed with `balance_source = missing_from_csv_export`; the parser forces the statement to `parsed` (review) with `balance_validated = false`, and the confidence score excludes the balance-validation component (`balance_proof_available = false`). No inferred `0 + transactions = closing` value is source proof or an approval precondition.
 ## API Endpoints
-
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/statements/upload` | Upload document and enqueue parsing (202 Accepted) |
-| GET | `/api/statements` | Statement list. Each item has an empty `transactions` list. The list uses a fixed number of SQL statements (#2583) |
-| GET | `/api/statements/{id}` | Get statement with transactions |
-| GET | `/api/statements/{id}/transactions` | Transaction list |
-| GET | `/api/statements/pending-review` | List parsed items needing review, including legacy parsed rows with no `stage1_status` |
-| GET | `/api/accounts/coverage` | Account-level latest confirmed source date, stale status, and statement period continuity issues |
-| POST | `/api/statements/{id}/review/envelope` | Append a version-pinned reviewer confirmation for missing/corrected envelope facts |
-| POST | `/api/statements/{id}/review/approve` | Stage 1 approve with balance-chain validation (canonical) |
-| POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
-| POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
-| POST | `/api/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
+| POST | `/api/statements/upload` | Upload document and enqueue parsing (202 Accepted) | | GET | `/api/statements` | Statement list. Each item has an empty `transactions` list. The list uses a fixed number of SQL statements (#2583) | | GET | `/api/statements/{id}` | Get statement with transactions | | GET | `/api/statements/{id}/transactions` | Transaction list |
+| GET | `/api/statements/pending-review` | List parsed items needing review, including legacy parsed rows with no `stage1_status` | | GET | `/api/accounts/coverage` | Account-level latest confirmed source date, stale status, and statement period continuity issues | | POST | `/api/statements/{id}/review/envelope` | Append a version-pinned reviewer confirmation for missing/corrected envelope facts |
+| POST | `/api/statements/{id}/review/approve` | Stage 1 approve with balance-chain validation (canonical) | | POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) | | POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) | | POST | `/api/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
 | GET | `/api/llm/catalog` | Configured AI provider model catalog for UI selection (EPIC-023; supersedes the retired `/api/ai/models`) |
-
 ### Frontend observation lifecycle
-
-Statement-list and statement-detail parsing refreshes are single-flight: a
-timer tick never starts a second read while the prior read is unresolved.
-Upload-history refreshes after upload, deletion, or a failed-load retry, and
-statement-detail refreshes after an explicit parsing retry, supersede and abort
-the older polling read. Page teardown and statement-id changes also abort
-active reads, and only the currently owned request may update rows, status,
-errors, or toasts. These ownership checks remain necessary even when a
-transport ignores an abort and resolves late.
-
+Statement-list and statement-detail parsing refreshes are single-flight: a timer tick never starts a second read while the prior read is unresolved. Upload-history refreshes after upload, deletion, or a failed-load retry, and statement-detail refreshes after an explicit parsing retry, supersede and abort the older polling read. Page teardown and statement-id changes also abort active reads, and only the currently owned request may update rows, status, errors, or toasts. These ownership checks remain necessary even when a transport ignores an abort and resolves late.
 ## Supported Institutions
-
 | Institution | Format | Tier | Notes |
 |-------------|--------|------|-------|
-| DBS/POSB | PDF | v1 | Singapore bank, GIRO/PayNow |
-| CMB (China Merchants Bank) | PDF | v1 | Chinese statements |
-| Maybank | PDF | v1 | Malaysia bank |
-| Wise | PDF/CSV | v1 | Fintech wallet |
-| Brokerage (generic) | PDF/CSV | v1 | Covers Moomoo/IBKR style |
-| Insurance (generic) | PDF | v1 | Policy statements |
-| OCBC | PDF | Extended | Singapore bank |
-| MariBank | PDF | Extended | Digital bank |
-| GXS | PDF | Extended | Digital bank |
-| Futu (Futu Holdings) | PDF | Extended | HK brokerage |
-
+| DBS/POSB | PDF | v1 | Singapore bank, GIRO/PayNow | | CMB (China Merchants Bank) | PDF | v1 | Chinese statements | | Maybank | PDF | v1 | Malaysia bank | | Wise | PDF/CSV | v1 | Fintech wallet | | Brokerage (generic) | PDF/CSV | v1 | Covers Moomoo/IBKR style | | Insurance (generic) | PDF | v1 | Policy statements | | OCBC | PDF | Extended | Singapore bank |
+| MariBank | PDF | Extended | Digital bank | | GXS | PDF | Extended | Digital bank | | Futu (Futu Holdings) | PDF | Extended | HK brokerage |
 ## Brokerage Position Import
-
 Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/extraction/extension/brokerage_positions.py`.
-
 ### Producer routing & positions output schema (#1139)
-
-The single parsing prompt path is `ExtractionService.extract_financial_data` ->
-`get_parsing_prompt`. The default bank `SYSTEM_PROMPT` schema is balance/transaction-only
-(`institution`/`currency`/`opening_balance`/`closing_balance`/`transactions[]`) and has **no**
-positions field, so a brokerage statement parsed through it can never emit a holdings table —
-the consumer-side import (`_iter_structured_positions` -> `import_positions`) has nothing to
-consume.
-
-Routing to the brokerage prompt is therefore decided **before** the model call
-(`looks_like_brokerage_document(filename, institution)`), reusing the same broker keyword
-detection (`detect_broker`) as the post-parse `looks_like_brokerage_payload`. When the upload
-filename or institution matches a known broker, `get_parsing_prompt(..., document_kind="brokerage")`
-returns `BROKERAGE_POSITIONS_PROMPT`, which adds a top-level `positions[]` array. The bank prompt
-is left unchanged for bank documents.
-
-Each position item uses the shape the consumer already understands: an identifier
-(`symbol`/`ticker`/`isin`/`asset_identifier`), a `quantity`, a scalar `market_value`, and optional
-`price` (closing unit price), `currency`, `asset_type`, `sector`, and `geography`. Cash activity
-rows, when present, remain in `transactions[]` (bank shape); positions are the primary output. When
-a recognized brokerage document yields **zero** positions, the parsed statement is surfaced as a
-visible review flag — it carries a `validation_error` note **and** is routed to the Stage-1
-`pending_review` queue (`stage1_status = PENDING_REVIEW`) instead of silently settling with no
-holdings.
-
-**Scope note (#1139 vs #1123):** this slice emits a scalar `market_value` per position. A
-per-currency NAV / balance array is owned by issue #1123 and is intentionally **not** added here,
-to avoid colliding with that parallel slice. The scalar `opening_balance`/`closing_balance`
-representation is unchanged.
-
+The single parsing prompt path is `ExtractionService.extract_financial_data` -> `get_parsing_prompt`. The default bank `SYSTEM_PROMPT` schema is balance/transaction-only (`institution`/`currency`/`opening_balance`/`closing_balance`/`transactions[]`) and has **no** positions field, so a brokerage statement parsed through it can never emit a holdings table — the consumer-side import (`_iter_structured_positions` -> `import_positions`) has nothing to consume. Routing to the brokerage prompt is therefore decided **before** the model call (`looks_like_brokerage_document(filename, institution)`), reusing the same broker keyword detection (`detect_broker`) as the post-parse `looks_like_brokerage_payload`. When the upload filename or institution matches a known broker, `get_parsing_prompt(..., document_kind="brokerage")` returns `BROKERAGE_POSITIONS_PROMPT`, which adds a top-level `positions[]` array. The bank prompt is left unchanged for bank documents. Each position item uses the shape the consumer already understands: an identifier (`symbol`/`ticker`/`isin`/`asset_identifier`), a `quantity`, a scalar `market_value`, and optional
+`price` (closing unit price), `currency`, `asset_type`, `sector`, and `geography`. Cash activity rows, when present, remain in `transactions[]` (bank shape); positions are the primary output. When a recognized brokerage document yields **zero** positions, the parsed statement is surfaced as a visible review flag — it carries a `validation_error` note **and** is routed to the Stage-1 `pending_review` queue (`stage1_status = PENDING_REVIEW`) instead of silently settling with no holdings. **Scope note (#1139 vs #1123):** this slice emits a scalar `market_value` per position. A per-currency NAV / balance array is owned by issue #1123 and is intentionally **not** added here, to avoid colliding with that parallel slice. The scalar `opening_balance`/`closing_balance` representation is unchanged.
 ### Post-parse routing (intentional difference vs bank statements)
-
-Routing after parsing depends on the document class, on purpose (#981):
-
-- **Bank statements** route via `route_by_threshold(confidence, balance_valid)`:
-  - **Balance invalid** → `parsed` (review) regardless of confidence (#1141). The statement
-    parsed but its running balance does not reconcile, so it enters review carrying a
-    `validation_error` and `stage1_status = pending_review`. It never auto-approves and is
-    **never** parked in `uploaded`.
-  - **Balance valid + confidence ≥ 85** → can auto-approve (`approved`).
-  - **Balance valid + confidence ≥ 60** → `parsed` (review).
-  - **Balance valid + confidence < 60** → `uploaded` (genuinely low-signal parse → manual entry).
-  - CSV exports without source statement balances take the inferred-balance path
-    (`has_inferred_csv_balances`), which forces `parsed`/review with `balance_valid = False`.
-    CSV exports with declared balances that do not reconcile also land in `parsed` (review)
-    with `balance_validated = False` and are blocked at Stage-1 approval (#2504,
-    `AC-extraction.2504.1`), rather than being quarantined to `rejected`.
-- **Brokerage statements** always route to `parsed` (review) regardless of `balance_valid`,
-  because they reconcile via `AtomicPosition` position snapshots rather than a running-balance
-  chain — `balance_valid` is not a meaningful gating signal for them.
-
-So the "balance invalid" outcome now lands **both** a bank statement and a brokerage
-statement in `parsed`/review — a single deterministic, reviewable terminal state (#1141, folding
+Routing after parsing depends on the document class, on purpose (#981): - **Bank statements** route via `route_by_threshold(confidence, balance_valid)`: - **Balance invalid** → `parsed` (review) regardless of confidence (#1141). The statement parsed but its running balance does not reconcile, so it enters review carrying a `validation_error` and `stage1_status = pending_review`. It never auto-approves and is **never** parked in `uploaded`. - **Balance valid + confidence ≥ 85** → can auto-approve (`approved`). - **Balance valid + confidence ≥ 60** → `parsed` (review). - **Balance valid + confidence < 60** → `uploaded` (genuinely low-signal parse → manual entry). - CSV exports without source statement balances take the inferred-balance path (`has_inferred_csv_balances`), which forces `parsed`/review with `balance_valid = False`.
+    CSV exports with declared balances that do not reconcile also land in `parsed` (review) with `balance_validated = False` and are blocked at Stage-1 approval (#2504, `AC-extraction.2504.1`), rather than being quarantined to `rejected`. - **Brokerage statements** always route to `parsed` (review) regardless of `balance_valid`, because they reconcile via `AtomicPosition` position snapshots rather than a running-balance chain — `balance_valid` is not a meaningful gating signal for them. So the "balance invalid" outcome now lands **both** a bank statement and a brokerage statement in `parsed`/review — a single deterministic, reviewable terminal state (#1141, folding
 #1085). `uploaded` is reserved for genuinely low-signal valid-balance parses, not for
-parsed-but-unreconciled statements. Owner: `ExtractionService` status selection
-(`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
-
+parsed-but-unreconciled statements. Owner: `ExtractionService` status selection (`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
 ### Balance-mismatch lifecycle invariants (#1141)
-
-The single balance-mismatch terminal state (`parsed`, `stage1_status = pending_review`,
-`validation_error` set) is consistent across the lifecycle:
-
-- **Retry**: the retry endpoint (`POST /statements/{id}/retry`) accepts `parsed` (alongside
-  `rejected`/`parsing`), so a balance-mismatch statement is retriable. `uploaded` remains
-  non-retriable, which is now safe because balance-mismatch statements no longer rest there.
-  A retry retrieves the original source before clearing the validation error or
-  committing `parsing`. Missing source records and storage failures return 503
-  with the prior persisted status and error intact and no parsing task dispatched.
-- **Reporting authority**: a balance-invalid statement stays visible in extraction review, but
-  cannot contribute to a trusted `PackageDocument` until a current authoritative decision
-  establishes the exact input. Visibility is not authority.
-- **CSV intake** (#1087): CSV parsing cannot auto-detect the institution, so the upload route
-  rejects a CSV with a missing institution **synchronously** with HTTP 400 (actionable message)
-  instead of accepting (202) and rejecting asynchronously inside the parse worker. PDF/image
-  uploads keep institution optional (vision auto-detect).
-
-Parsing priority:
-1. Prefer structured `positions`, `holdings`, or `securities` arrays from OCR/LLM output.
-2. For Moomoo, recover money-market fund snapshots from subscription rows when no holdings table is available.
-3. For Futu, preserve aggregate securities valuation as `FUTU_STOCK_AND_OPTIONS` when the statement only exposes a portfolio total.
-4. For Interactive Brokers, consume structured position rows from CSV/PDF extraction payloads.
-
-Import entry points:
-- Automatic: successful statement background parsing stores brokerage OCR output in `BankStatement.extraction_metadata`, inspects the structured extraction payload, and imports positions when it contains brokerage `positions`, `holdings`, or `securities`, or when broker detection recognizes the filename/institution/content. The parser calls `BrokeragePositionImportService` with the current statement ID as `source_document_id`.
-- Statement-scoped manual: `POST /statements/{id}/brokerage/import` first reads the persisted `BankStatement.extraction_metadata` payload, then falls back to Layer 1 `UploadedDocument.extraction_metadata`, and finally reconstructs cash events from parsed statement transactions. This keeps structured holdings importable even when a brokerage PDF has no bank-style transaction rows.
-- Manual/API: `POST /portfolio/brokerage/import` remains available for parsed payload backfills and tests.
-- A failed statement-scoped import keeps the statement `parsed` and keeps `validation_error`. `record_brokerage_import_failure` (`extension/brokerage_import_failure.py`) writes `extraction_metadata["brokerage_import_failure"]` (`BROKERAGE_IMPORT_FAILURE_KEY`) in one SQL update of that key, in its own transaction: the reason of a rejected source (HTTP 422, #2649) or `BROKERAGE_IMPORT_FAILED_MESSAGE`, the request id and the time. `GET /statements` reports `brokerage_import_failed=true` and `brokerage_import_failure_reason` for a parsed or approved statement only (`brokerage_import_failure_reason`). `/upload` then shows "Import failed", the reason, Retry import and Delete. A write of `validation_error` (an envelope confirmation, a blocked approval) does not clear the record. Only a successful import removes it (`clear_brokerage_import_failure`, one SQL update that removes the key). Neither write rewrites the other metadata keys, so a concurrent re-parse is not lost, and an import that succeeds after another import failed removes that failure. The router checks the importable statuses with the one constant `BROKERAGE_IMPORTABLE_STATUSES`. A re-parse writes new extraction metadata, so the record of the old extraction goes with it. After a successful import the frontend marks every `/portfolio` read stale (`invalidatePortfolioQueries`: the `portfolio-` keys and `reports-net-worth-allocation`) (`AC-extraction.2648.1`, `AC-extraction.fe-upload-layout.3`, `.5`, #2648).
-
-Import behavior:
-- Creates immutable `AtomicPosition` rows with dedup hash `SHA256(user_id|snapshot_date|asset_identifier|broker)`.
-- Re-running the same payload is idempotent and does not create duplicate atomic rows. Automatic background parse import and statement-scoped manual import may overlap for the same statement; the second writer must be counted as an existing atomic position instead of surfacing a duplicate-key 500.
-- Brokerage payloads still run entry balance validation. When brokerage cash rows do not reconcile like a bank statement, the statement keeps `balance_validated=false` and a validation note, but routes to `parsed` so position import and asset reporting can continue.
-- Reconciliation runs after import to refresh portfolio's `ManagedPosition` projection with latest quantity, market value, currency, and snapshot metadata; extraction hosts its schema-preserving storage representation but does not own the investment-position aggregate.
-- A successful statement-scoped brokerage import must make the imported position visible through `GET /portfolio/holdings` and through the balance sheet's broker market valuation adjustment for the same as-of date.
-- Import failures do not discard the parsed statement; the statement remains visible and receives a sanitized `validation_error` noting that brokerage positions were not imported.
-- Each position needs an as-of date that the source states (statement period end or a per-row date). The import never invents a date. A source with no date gets HTTP 422 with `error_id = brokerage_snapshot_date_missing`, not 500 (#2649, `AC-portfolio.brokerage-import.11`). The remedy in the reason follows the file type: a CSV (the CSV import reads no date column), a PDF or image document (retry the parse), or another payload (add `period_end` or `snapshot_date`). `BrokerageImportRejectedError` carries this rejection.
+The single balance-mismatch terminal state (`parsed`, `stage1_status = pending_review`, `validation_error` set) is consistent across the lifecycle: - **Retry**: the retry endpoint (`POST /statements/{id}/retry`) accepts `parsed` (alongside `rejected`/`parsing`), so a balance-mismatch statement is retriable. `uploaded` remains non-retriable, which is now safe because balance-mismatch statements no longer rest there. A retry retrieves the original source before clearing the validation error or committing `parsing`. Missing source records and storage failures return 503 with the prior persisted status and error intact and no parsing task dispatched. - **Reporting authority**: a balance-invalid statement stays visible in extraction review, but cannot contribute to a trusted `PackageDocument` until a current authoritative decision
+  establishes the exact input. Visibility is not authority. - **CSV intake** (#1087): CSV parsing cannot auto-detect the institution, so the upload route rejects a CSV with a missing institution **synchronously** with HTTP 400 (actionable message) instead of accepting (202) and rejecting asynchronously inside the parse worker. PDF/image uploads keep institution optional (vision auto-detect). Parsing priority: 1. Prefer structured `positions`, `holdings`, or `securities` arrays from OCR/LLM output. 2. For Moomoo, recover money-market fund snapshots from subscription rows when no holdings table is available. 3. For Futu, preserve aggregate securities valuation as `FUTU_STOCK_AND_OPTIONS` when the statement only exposes a portfolio total. 4. For Interactive Brokers, consume structured position rows from CSV/PDF extraction payloads. Import entry points: - Automatic: successful statement background parsing stores brokerage OCR output in `BankStatement.extraction_metadata`, inspects the structured extraction payload, and imports positions when it contains brokerage `positions`, `holdings`, or `securities`, or when broker detection recognizes the filename/institution/content. The parser calls `BrokeragePositionImportService` with the current statement ID as `source_document_id`.
+- Statement-scoped manual: `POST /statements/{id}/brokerage/import` first reads the persisted `BankStatement.extraction_metadata` payload, then falls back to Layer 1 `UploadedDocument.extraction_metadata`, and finally reconstructs cash events from parsed statement transactions. This keeps structured holdings importable even when a brokerage PDF has no bank-style transaction rows. - Manual/API: `POST /portfolio/brokerage/import` remains available for parsed payload backfills and tests. - A failed statement-scoped import keeps the statement `parsed` and keeps `validation_error`. `record_brokerage_import_failure` (`extension/brokerage_import_failure.py`) writes `extraction_metadata["brokerage_import_failure"]` (`BROKERAGE_IMPORT_FAILURE_KEY`) in one SQL update of that key, in its own transaction: the reason of a rejected source (HTTP 422, #2649) or `BROKERAGE_IMPORT_FAILED_MESSAGE`, the request id and the time. `GET /statements` reports `brokerage_import_failed=true` and `brokerage_import_failure_reason` for a parsed or approved statement only (`brokerage_import_failure_reason`). `/upload` then shows "Import failed", the reason, Retry import and Delete. A write of `validation_error` (an envelope confirmation, a blocked approval) does not clear the record. Only a successful import removes it (`clear_brokerage_import_failure`, one SQL update that removes the key). Neither write rewrites the other metadata keys, so a concurrent re-parse is not lost, and an import that succeeds after another import failed removes that failure. The router checks the importable statuses with the one constant `BROKERAGE_IMPORTABLE_STATUSES`. A re-parse writes new extraction metadata, so the record of the old extraction goes with it. After a successful import the frontend marks every `/portfolio` read stale (`invalidatePortfolioQueries`: the `portfolio-` keys and `reports-net-worth-allocation`) (`AC-extraction.2648.1`, `AC-extraction.fe-upload-layout.3`, `.5`, #2648).
+Import behavior: - Creates immutable `AtomicPosition` rows with dedup hash `SHA256(user_id|snapshot_date|asset_identifier|broker)`. - Re-running the same payload is idempotent and does not create duplicate atomic rows. Automatic background parse import and statement-scoped manual import may overlap for the same statement; the second writer must be counted as an existing atomic position instead of surfacing a duplicate-key 500. - Brokerage payloads still run entry balance validation. When brokerage cash rows do not reconcile like a bank statement, the statement keeps `balance_validated=false` and a validation note, but routes to `parsed` so position import and asset reporting can continue. - Reconciliation runs after import to refresh portfolio's `ManagedPosition` projection with latest quantity, market value, currency, and snapshot metadata; extraction hosts its schema-preserving storage representation but does not own the investment-position aggregate.
+- A successful statement-scoped brokerage import must make the imported position visible through `GET /portfolio/holdings` and through the balance sheet's broker market valuation adjustment for the same as-of date. - Import failures do not discard the parsed statement; the statement remains visible and receives a sanitized `validation_error` noting that brokerage positions were not imported. - Each position needs an as-of date that the source states (statement period end or a per-row date). The import never invents a date. A source with no date gets HTTP 422 with `error_id = brokerage_snapshot_date_missing`, not 500 (#2649, `AC-portfolio.brokerage-import.11`). The remedy in the reason follows the file type: a CSV (the CSV import reads no date column), a PDF or image document (retry the parse), or another payload (add `period_end` or `snapshot_date`). `BrokerageImportRejectedError` carries this rejection.
 - Before any insert, the import checks each position against the `AtomicPosition` columns and the reconciler. The limits come from the ORM columns. These get HTTP 422 with `error_id = brokerage_position_out_of_range` and a reason that names the position and the field (`AC-portfolio.brokerage-import.12`): text longer than its column or with a NUL character, a currency that is not ISO-4217, a `NaN` or `Infinity` amount, and a quantity or market value too large for its column. CNH (offshore renminbi) is not ISO-4217, and `Currency`, the reconciler and the FX conversion cannot read it; its reason says to restate the amounts in CNY or the account currency. A row that is not a position (no symbol, a subtotal, a cash event) is skipped before its amounts are read. The import rounds the quantity to the column scale, half away from zero, as Postgres does, and checks the rounded value. Known 500s outside these cases are tracked in #2661.
-
 ## Configuration
-
 Required environment variables:
-```bash
-AI_PROVIDER=zai
-ZAI_API_KEY=<YOUR_ZAI_API_KEY>
-AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
-AI_CHAT_COMPLETIONS_PATH=/chat/completions
-# Model variables stay unset outside production: the infra2 SDK
-# (infra2_sdk.runtime.llm.LlmSettings) owns the defaults (#2566). Set them only
-# to customize production.
-# LARGE_MODEL= SMALL_MODEL= MULTIMODAL_MODEL=
-AI_JSON_TIMEOUT_SECONDS=360
-AI_JSON_MAX_TOKENS=8192
-AI_JSON_DISABLE_THINKING=true
-STATEMENT_DISPOSITION_MODE=enforce
-# Optional; off by default. Only set for models that accept a seed;
-# an older vision model rejected `seed` with HTTP 400.
-AI_JSON_SEED=
-S3_ENDPOINT=http://localhost:9000
-S3_ACCESS_KEY=minio
-S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>
-S3_BUCKET=statements
-S3_REGION=us-east-1
-S3_PUBLIC_ENDPOINT=https://s3.zitian.party
-S3_PUBLIC_BUCKET=statements
-S3_PRESIGN_EXPIRY_SECONDS=300
-```
-
+```bash AI_PROVIDER=zai  ZAI_API_KEY=<YOUR_ZAI_API_KEY>  AI_BASE_URL=https://api.z.ai/api/coding/paas/v4  AI_CHAT_COMPLETIONS_PATH=/chat/completions  # Model variables stay unset outside production: the infra2 SDK  # (infra2_sdk.runtime.llm.LlmSettings) owns the defaults (#2566). Set them only  # to customize production.  # LARGE_MODEL= SMALL_MODEL= MULTIMODAL_MODEL=  AI_JSON_TIMEOUT_SECONDS=360  AI_JSON_MAX_TOKENS=8192  AI_JSON_DISABLE_THINKING=true  STATEMENT_DISPOSITION_MODE=enforce  # Optional; off by default. Only set for models that accept a seed;  # an older vision model rejected `seed` with HTTP 400.  AI_JSON_SEED=  S3_ENDPOINT=http://localhost:9000  S3_ACCESS_KEY=minio  S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>  S3_BUCKET=statements  S3_REGION=us-east-1  S3_PUBLIC_ENDPOINT=https://s3.zitian.party  S3_PUBLIC_BUCKET=statements  S3_PRESIGN_EXPIRY_SECONDS=300 ```
 ## Source conservation and retry identity
-
-Every transaction-ledger row must become a structured fact or an explicit source
-failure. An unparseable date or amount is never silently skipped: offsetting
-omissions can preserve net balances while corrupting gross income and expenses.
-The source artifact and its storage key remain reachable for review/retry.
-
-Paged vision extraction merges balance facts by normalized currency, preserving
-later-page currency domains. Repeated identical facts are idempotent; conflicting
-balance facts or different account identifiers require source review rather than
-being overwritten. Consolidated same-currency multiple-account source splitting
-remains unsupported in this single-custody envelope.
-
-Persisted source type and evidence type govern bank/brokerage routing. An empty
-`positions` array in a typed bank result is not brokerage evidence; explicitly
-identified zero-position brokerage snapshots remain reviewable. Retry never
-promotes the provisional `Pending Detection` label into an institution override.
-Persistence checkpoints use the actual canonical statement/source identities.
-
+Every transaction-ledger row must become a structured fact or an explicit source failure. An unparseable date or amount is never silently skipped: offsetting omissions can preserve net balances while corrupting gross income and expenses. The source artifact and its storage key remain reachable for review/retry. Paged vision extraction merges balance facts by normalized currency, preserving later-page currency domains. Repeated identical facts are idempotent; conflicting balance facts or different account identifiers require source review rather than being overwritten. Consolidated same-currency multiple-account source splitting remains unsupported in this single-custody envelope. Persisted source type and evidence type govern bank/brokerage routing. An empty `positions` array in a typed bank result is not brokerage evidence; explicitly identified zero-position brokerage snapshots remain reviewable. Retry never promotes the provisional `Pending Detection` label into an institution override. Persistence checkpoints use the actual canonical statement/source identities.
 ## Parsing Resilience
-
-- **Deterministic decoding**: JSON extraction pins `temperature=0` and
-  `do_sample=false` so the same statement decodes reproducibly, keeping
-  `balance_validated`, `confidence_score`, and Stage-1 routing from flipping
-  between uploads of the same source (#989). An optional fixed request `seed`
-  (`AI_JSON_SEED`) can further pin decoding, but it is **off by default**: Z.AI/GLM
-  validates request params strictly and `seed` is rejected by some models
-  (an older vision model returned HTTP 400), so it is only safe to set for
-  models that accept a seed.
-- **Balance-aware self-consistency re-extract**: when a bank statement's
-  running-balance chain fails to reconcile, `_extract_with_balance_retry`
-  re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed —
-  configured seed, then +1, +2 …) and keeps the first parse that reconciles before
-  routing to `parsed`/review (#989 Step B, updated by #1141). Brokerage payloads are never retried; if no
-  attempt reconciles, the smallest-difference result is kept so routing is
-  unchanged. Only failing parses retry, so average cost is bounded; set
-  `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
-- **Running-balance chain-break detection** (#1140 / AC-extraction.120):
-  bank-statement *under-extraction* (a dropped or misparsed row) is caught by the
-  per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying
-  cause is **recall**, which is probabilistic (LLM). `detect_balance_chain_break`
-  (`src/extraction/base/validation.py`) walks the ordered transactions' running
-  `balance_after` chain and returns the exact index where
-  `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
-  `BALANCE_TOLERANCE`), pinpointing where a row went missing. After a failed scalar
-  self-check, `ExtractionService` logs the break and counts it as the `chain_break`
-  invariant violation; it never changes routing. The detector is pure and
-  `Decimal`-based (never `float`). **Extraction recall is a SOFT metric** — tracked
-  and logged, with **no hard CI gate** — while the balance self-check guard and the
-  chain-break detector stay hard-tested.
-- **Bucket auto-create**: storage ensures the bucket exists before upload.
-- **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
-- **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
-  `src/runtime/extension/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests. The grace period
-  (`STORAGE_SWEEP_GRACE_PERIOD_HOURS`, default 24h) and run interval
-  (`STORAGE_SWEEP_INTERVAL_SECONDS`, default 86400s = daily) are config-driven (issue #356);
-  objects younger than the grace period are never deleted.
-- **JSON-repair retry**: when a model returns an otherwise-valid object wrapped in
-  a markdown code fence or padded with prose, `_extract_json_with_model` performs
-  one deterministic repair pass (strip the fence, extract the outermost balanced
-  `{...}` object, tracking string literals) before counting a `json_parse` failure.
-  This keeps a single malformed-but-recoverable response from rejecting an
-  otherwise-valid upload (#982). The repair never invents data and falls back to the
-  `json_parse` failure when no object can be recovered.
-- **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
-  with a validation error so users can retry.
-- **Error handler rollback-first**: `_handle_parse_failure` calls `db.rollback()` before re-fetching
-  the statement, preventing `PendingRollbackError` cascades from leaving statements stuck.
-- **`account_last4` sanitization**: `_sanitize_account_last4()` strips non-alphanumeric characters
-  and takes the last 4, preventing `StringDataRightTruncationError` from the VARCHAR(4) column.
-
+- **Deterministic decoding**: JSON extraction pins `temperature=0` and `do_sample=false` so the same statement decodes reproducibly, keeping `balance_validated`, `confidence_score`, and Stage-1 routing from flipping between uploads of the same source (#989). An optional fixed request `seed` (`AI_JSON_SEED`) can further pin decoding, but it is **off by default**: Z.AI/GLM validates request params strictly and `seed` is rejected by some models (an older vision model returned HTTP 400), so it is only safe to set for models that accept a seed. - **Balance-aware self-consistency re-extract**: when a bank statement's running-balance chain fails to reconcile, `_extract_with_balance_retry` re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed — configured seed, then +1, +2 …) and keeps the first parse that reconciles before routing to `parsed`/review (#989 Step B, updated by #1141). Brokerage payloads are never retried; if no attempt reconciles, the smallest-difference result is kept so routing is unchanged. Only failing parses retry, so average cost is bounded; set `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
+- **Running-balance chain-break detection** (#1140 / AC-extraction.120): bank-statement *under-extraction* (a dropped or misparsed row) is caught by the per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying cause is **recall**, which is probabilistic (LLM). `detect_balance_chain_break` (`src/extraction/base/validation.py`) walks the ordered transactions' running `balance_after` chain and returns the exact index where `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within `BALANCE_TOLERANCE`), pinpointing where a row went missing. After a failed scalar self-check, `ExtractionService` logs the break and counts it as the `chain_break` invariant violation; it never changes routing. The detector is pure and `Decimal`-based (never `float`). **Extraction recall is a SOFT metric** — tracked and logged, with **no hard CI gate** — while the balance self-check guard and the chain-break detector stay hard-tested. - **Bucket auto-create**: storage ensures the bucket exists before upload. - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
+- **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by `src/runtime/extension/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests. The grace period (`STORAGE_SWEEP_GRACE_PERIOD_HOURS`, default 24h) and run interval (`STORAGE_SWEEP_INTERVAL_SECONDS`, default 86400s = daily) are config-driven (issue #356); objects younger than the grace period are never deleted. - **JSON-repair retry**: when a model returns an otherwise-valid object wrapped in a markdown code fence or padded with prose, `_extract_json_with_model` performs one deterministic repair pass (strip the fence, extract the outermost balanced `{...}` object, tracking string literals) before counting a `json_parse` failure. This keeps a single malformed-but-recoverable response from rejecting an otherwise-valid upload (#982). The repair never invents data and falls back to the `json_parse` failure when no object can be recovered. - **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected` with a validation error so users can retry.
+- **Error handler rollback-first**: `_handle_parse_failure` calls `db.rollback()` before re-fetching the statement, preventing `PendingRollbackError` cascades from leaving statements stuck. - **`account_last4` sanitization**: `_sanitize_account_last4()` strips non-alphanumeric characters and takes the last 4, preventing `StringDataRightTruncationError` from the VARCHAR(4) column.
 ## Audit-Failed Case Registry
-
-LLM/OCR is the polymorphic extraction layer for statement formats. The system
-does not expand deterministic parser rules just because one provider output or
-source layout fails audit. Instead, failed cases are captured in
-[`extraction_failed_case_registry`](./audit-failed-cases.yaml) with
-sanitized evidence and one of the approved failure categories:
-
-- `parse_schema_failure`
-- `balance_mismatch`
-- `low_confidence`
-- `ambiguous_account_mapping`
-- `model_timeout`
-- `provider_shape_changed`
-- `unsupported_layout`
-- `user_review_rejected`
-
-Real source documents, PII, credentials, and full raw statements must not be
-committed. A registry case can drive later prompt tuning, model selection,
-review workflow changes, or parser work only after a separate EPIC -> AC -> test
-slice is registered.
-
+LLM/OCR is the polymorphic extraction layer for statement formats. The system does not expand deterministic parser rules just because one provider output or source layout fails audit. Instead, failed cases are captured in [`extraction_failed_case_registry`](./audit-failed-cases.yaml) with sanitized evidence and one of the approved failure categories: - `parse_schema_failure` - `balance_mismatch` - `low_confidence` - `ambiguous_account_mapping` - `model_timeout` - `provider_shape_changed` - `unsupported_layout` - `user_review_rejected` Real source documents, PII, credentials, and full raw statements must not be committed. A registry case can drive later prompt tuning, model selection, review workflow changes, or parser work only after a separate EPIC -> AC -> test slice is registered.
 ## Model Selection
-
-- **Default**: Uses the multimodal role (`MULTIMODAL_MODEL`, the infra2 SDK default) on the vision OCR path. OCR and vision are the same model.
-- **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
-- **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the multimodal model uses the same vision OCR model.
-- **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
-- **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_
-- **No fallback models**: there is no fallback chain (owner rule, #2643). A transient provider error is retried on the same model. A non-retryable error (for example a provider `400`) rejects the upload with `ERR_EXT_003` and an error that names that one model.
-
+- **Default**: Uses the multimodal role (`MULTIMODAL_MODEL`, the infra2 SDK default) on the vision OCR path. OCR and vision are the same model. - **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used. - **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the multimodal model uses the same vision OCR model. - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode. - **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_ - **No fallback models**: there is no fallback chain (owner rule, #2643). A transient provider error is retried on the same model. A non-retryable error (for example a provider `400`) rejects the upload with `ERR_EXT_003` and an error that names that one model.
 ## Data Integrity & Typing
-
-The monetary-Decimal rule (never `float` for amounts) is owned by
-[ledger readme #decimal-rule](../ledger/readme.md#decimal-rule);
-extraction restates it for its parse boundary. See:
-common/ledger/readme.md#decimal-rule.
-
-To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing:
-
-1.  **AI Output**: The LLM prompt must request a strict JSON object (no markdown or extra text).
-2.  **Pydantic Validation**:
-    -   **NEVER** use `float` for `amount` fields.
-    -   Use `Decimal` with strict mode or string coercion. See: `apps/backend/tests/accounting/test_decimal_safety.py`
-    -   Example: `amount: Decimal = Field(decimal_places=2)`
-3.  **Database Storage**: Stored as `DECIMAL(18,2)`.
-4.  **String Field Sanitization**: AI-extracted string fields with DB length constraints (e.g. `account_last4 VARCHAR(4)`)
-    are sanitized before persistence to prevent truncation errors.
-
-> **Float Ban**: Any code found using `float` for currency calculation will be rejected by CI.
-
+The monetary-Decimal rule (never `float` for amounts) is owned by [ledger readme #decimal-rule](../ledger/readme.md#decimal-rule); extraction restates it for its parse boundary. See: common/ledger/readme.md#decimal-rule. To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing: 1.  **AI Output**: The LLM prompt must request a strict JSON object (no markdown or extra text). 2.  **Pydantic Validation**: -   **NEVER** use `float` for `amount` fields. -   Use `Decimal` with strict mode or string coercion. See: `apps/backend/tests/accounting/test_decimal_safety.py` -   Example: `amount: Decimal = Field(decimal_places=2)` 3.  **Database Storage**: Stored as `DECIMAL(18,2)`. 4.  **String Field Sanitization**: AI-extracted string fields with DB length constraints (e.g. `account_last4 VARCHAR(4)`)
+    are sanitized before persistence to prevent truncation errors. > **Float Ban**: Any code found using `float` for currency calculation will be rejected by CI.
 ## Statement Account Mapping
-
-Automatic journal posting from imported statements must never use a generic
-fallback account. Before Stage 1 approval creates posted journal entries, the
-statement must resolve to a user-owned asset account by one of these paths:
-
-1. The statement already has an explicit `account_id` selected by the user, and
-   that account is user-owned, active, `ASSET`, and in the statement currency.
-2. A previous approved statement for the same user has exactly one account
-   matching `institution`, `account_last4`, and `currency`.
-3. The user explicitly confirms first-upload account creation during Stage 1
-   approval; the created asset account is bound to the statement before posted
-   journal entries are created.
-
-If no confident match exists, or multiple accounts match the same metadata, the
-approval flow must block posting with a clear account-mapping action item. Draft
-candidate entries may still use legacy defaults in manual workflows, but posted
-entries cannot silently use `Bank - Main`.
-
-Before posted entries are created, the statement must also have a complete
-`period_start`/`period_end` source range that does not duplicate or overlap any
-approved statement for the same account and currency. High-confidence statements
-that fail account or source-period eligibility remain in Stage 1 review instead
-of posting automatically.
-
+Automatic journal posting from imported statements must never use a generic fallback account. Before Stage 1 approval creates posted journal entries, the statement must resolve to a user-owned asset account by one of these paths: 1. The statement already has an explicit `account_id` selected by the user, and that account is user-owned, active, `ASSET`, and in the statement currency. 2. A previous approved statement for the same user has exactly one account matching `institution`, `account_last4`, and `currency`. 3. The user explicitly confirms first-upload account creation during Stage 1 approval; the created asset account is bound to the statement before posted journal entries are created. If no confident match exists, or multiple accounts match the same metadata, the approval flow must block posting with a clear account-mapping action item. Draft candidate entries may still use legacy defaults in manual workflows, but posted entries cannot silently use `Bank - Main`. Before posted entries are created, the statement must also have a complete `period_start`/`period_end` source range that does not duplicate or overlap any
+approved statement for the same account and currency. High-confidence statements that fail account or source-period eligibility remain in Stage 1 review instead of posting automatically.
 ## Account Coverage Contract
-
-Approved statements are the only source for account-level statement coverage.
-`GET /api/accounts/coverage` returns one row per active account/currency pair
-with the latest confirmed source date, latest confirmed closing balance, stale
-status, and period-level continuity issues.
-
-Coverage checks compare monthly statement periods within each account/currency:
-
-- adjacent monthly statements must have `previous.closing_balance ==
-  current.effective_opening_balance()` within `BALANCE_TOLERANCE`;
-- inter-statement date gaps (`current.period_start > previous.period_end + 1 day`)
-  where `|current.effective_opening_balance() - previous.closing_balance| <=
-  CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) are treated as verified zero-change
-  periods without emitting a `GAP` issue (`#2832`);
-- non-zero gaps (`|delta| > 0.10`), overlaps, and duplicate monthly periods are
-  emitted as issues before a dashboard can treat the account as complete;
-- one-day broker snapshots may override the latest confirmed source date and
-  balance without requiring daily statement continuity.
-
+Approved statements are the only source for account-level statement coverage. `GET /api/accounts/coverage` returns one row per active account/currency pair with the latest confirmed source date, latest confirmed closing balance, stale status, and period-level continuity issues. Coverage checks compare monthly statement periods within each account/currency: - adjacent monthly statements must have `previous.closing_balance == current.effective_opening_balance()` within `BALANCE_TOLERANCE`; - inter-statement date gaps (`current.period_start > previous.period_end + 1 day`) where `|current.effective_opening_balance() - previous.closing_balance| <= CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) are treated as verified zero-change periods without emitting a `GAP` issue (`#2832`); - non-zero gaps (`|delta| > 0.10`), overlaps, and duplicate monthly periods are emitted as issues before a dashboard can treat the account as complete; - one-day broker snapshots may override the latest confirmed source date and balance without requiring daily statement continuity.
 ## Files
-
 | File | Purpose |
 |------|---------|
-| `src/extraction/base/source_vocabulary.py` | Pure source-document, transaction-direction, classification and review enums; SQL mappings are consumers |
-| `src/extraction/orm/` (`layer1.py`-`layer3.py`, `evidence.py`, `correction.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); reporting owns the former Layer-4 snapshot; cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
-| `src/schemas/extraction.py` | Pydantic schemas |
-| `src/extraction/extension/` (`service.py`, `_media.py`, `_llm_led_gate.py`, …) | Core extraction logic |
-| `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
-| `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
-| `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |
-| `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
-
-Manual and automatic source posting reconcile each account's approved statement chain (`reconcile_account_statement_chain`, `#2832`) in their posting unit of work: the earliest approved statement $S_0$ anchors to `3199 Opening Balance Equity` (`initialize_opening_positions(..., allow_supersede=True)` when an earlier statement is approved later or when $S_0$ is retired), and any adjacent statement pair $(S_i, S_{i+1})$ whose opening-minus-closing gap exceeds `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) is calibrated via a system `cross_period_gap_plug` journal entry against `3198 Unexplained Statement Gap Equity` (`get_or_create_unexplained_gap_equity_account`). Uploading intermediate statements or retiring a statement automatically voids superseded gap-plug and statement entries and re-calibrates the remaining chain so every approved statement's opening and closing balances tie out on the Balance Sheet. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings and foreign gap plugs. Missing opening facts or rates block posting atomically. Source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.
-
-Source ingestion calls `DeduplicationService.upsert_scoped_atomic_transaction`
-with a typed `ExtractedTransactionRow` and explicit custody; it resolves versioned
-identities through the identity owner.
-
-`resolve_transaction_identity` owns versioned identity adoption and its persisted `AtomicTransactionIdentity` alias rows; the alias table is an implementation detail of that domain service.
-
-Bank custody uses an extraction-owned persistent DIM binding keyed by exact institution, tenant, available account suffix, and currency. Account names are editable presentation. First allocation holds a transaction-scoped identity lock and the database enforces the same unique key. Explicit account selection still requires an owned, active, non-system asset account in the source currency and may not contradict an existing binding. No fuzzy institution matching is performed. The shared `is_bank_custody_source` predicate prefers typed evidence and centralizes the legacy document fallback for both explicit creation and posting. These bindings apply only to bank transaction ledgers; typed brokerage and position sources retain their separate import boundary. Immutable identity is consulted even when mutable statement metadata has drifted, so drift blocks adoption rather than hiding the original custody.
-
+| `src/extraction/base/source_vocabulary.py` | Pure source-document, transaction-direction, classification and review enums; SQL mappings are consumers | | `src/extraction/orm/` (`layer1.py`-`layer3.py`, `evidence.py`, `correction.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); reporting owns the former Layer-4 snapshot; cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
+| `src/schemas/extraction.py` | Pydantic schemas | | `src/extraction/extension/` (`service.py`, `_media.py`, `_llm_led_gate.py`, …) | Core extraction logic | | `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) | | `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
+| `src/extraction/extension/prompts/statement.py` | Parsing prompt templates | | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) | Manual and automatic source posting reconcile each account's approved statement chain (`reconcile_account_statement_chain`, `#2832`) in their posting unit of work: the earliest approved statement $S_0$ anchors to `3199 Opening Balance Equity` (`initialize_opening_positions(..., allow_supersede=True)` when an earlier statement is approved later or when $S_0$ is retired), and any adjacent statement pair $(S_i, S_{i+1})$ whose opening-minus-closing gap exceeds `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) is calibrated via a system `cross_period_gap_plug` journal entry against `3198 Unexplained Statement Gap Equity` (`get_or_create_unexplained_gap_equity_account`). Uploading intermediate statements or retiring a statement automatically voids superseded gap-plug and statement entries and re-calibrates the remaining chain so every approved statement's opening and closing balances tie out on the Balance Sheet. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings and foreign gap plugs. Missing opening facts or rates block posting atomically. Source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.
+Source ingestion calls `DeduplicationService.upsert_scoped_atomic_transaction` with a typed `ExtractedTransactionRow` and explicit custody; it resolves versioned identities through the identity owner. `resolve_transaction_identity` owns versioned identity adoption and its persisted `AtomicTransactionIdentity` alias rows; the alias table is an implementation detail of that domain service. Bank custody uses an extraction-owned persistent DIM binding keyed by exact institution, tenant, available account suffix, and currency. Account names are editable presentation. First allocation holds a transaction-scoped identity lock and the database enforces the same unique key. Explicit account selection still requires an owned, active, non-system asset account in the source currency and may not contradict an existing binding. No fuzzy institution matching is performed. The shared `is_bank_custody_source` predicate prefers typed evidence and centralizes the legacy document fallback for both explicit creation and posting. These bindings apply only to bank transaction ledgers; typed brokerage and position sources retain their separate import boundary. Immutable identity is consulted even when mutable statement metadata has drifted, so drift blocks adoption rather than hiding the original custody.
 Historical adoption requires one owned same-currency account, an owned uploaded document, and a current immutable extraction result whose identity and source digest agree with the retained statement. Ambiguous, archived, or contradictory history requires correction review. With no existing binding, explicitly selecting the one owned compatible legacy account resolves missing immutable history; multiple historical candidates still require governed correction. Unproven legacy history is never silently adopted; no posted accounts or historical facts are merged or rewritten. Rejected or rolled-back new allocations release their unused binding and any newly allocated account; existing bindings remain. Bindings use restrictive user and account references rather than cross-owner cascade deletion; explicit extraction-owned cleanup removes only unused new allocations. Archival retains the binding and blocks silent replacement.
-
-The available suffix is not a globally unique full bank account number. Two real accounts sharing the same institution, suffix, and currency cannot be disambiguated automatically by this contract; stronger source identity or explicit governed correction is required.
-
-On mobile viewports (`390x844`), `/upload` stacks statement card actions below the header, hides Opening/Closing/confidence placeholders while `status === "parsing"`, and renders `Transfers in flight` without horizontal clipping. On `/statements/[id]`, `Import to Portfolio` appears only on brokerage statements, `PdfPreviewPane` collapses its fixed height when inline preview is unavailable, and approved statements never display a `pending` row badge (`#2729`). Bank CSV profiles resolve optional row-level `Currency` and `Balance` (`balance_after`) columns so a declared-balance CSV export with currency and running-balance columns reaches authoritative confidence (`>= 85%`) without source-envelope confirmation (`#2822`). `POST /statements/{id}/review/approve` accepts an explicit `account_id` in `Stage1ApprovalRequest` to bind a user-owned active asset custody account before posting, and `GET /statements/{id}/review` exposes `preclassification_in_progress` while post-parse classification runs so `/statements/[id]` polls and suppresses unclassified warnings until completion (`#2822`, `#2823`). `StatementReviewResponse` inherits `BankStatementResponse` and delegates base field composition to `compose_statement_response`, `/statements/[id]` syncs `review` query updates directly into the rendered statement state, and unlinked parsed statements (`account_id === null`) expose custody account selection even when `source_envelope_reviewable` is `false` (`#2826`). `StatementUploader` supports multi-file batch selection and sequential upload (`#2823`).
+The available suffix is not a globally unique full bank account number. Two real accounts sharing the same institution, suffix, and currency cannot be disambiguated automatically by this contract; stronger source identity or explicit governed correction is required. On mobile viewports (`390x844`), `/upload` stacks statement card actions below the header, hides Opening/Closing/confidence placeholders while `status === "parsing"`, and renders `Transfers in flight` without horizontal clipping. On `/statements/[id]`, `Import to Portfolio` appears only on brokerage statements, `PdfPreviewPane` collapses its fixed height when inline preview is unavailable, and approved statements never display a `pending` row badge (`#2729`). Bank CSV profiles resolve optional row-level `Currency` and `Balance` (`balance_after`) columns so a declared-balance CSV export with currency and running-balance columns reaches authoritative confidence (`>= 85%`) without source-envelope confirmation (`#2822`). `POST /statements/{id}/review/approve` accepts an explicit `account_id` in `Stage1ApprovalRequest` to bind a user-owned active asset custody account before posting, and `GET /statements/{id}/review` exposes `preclassification_in_progress` while post-parse classification runs so `/statements/[id]` polls and suppresses unclassified warnings until completion (`#2822`, `#2823`). `StatementReviewResponse` inherits `BankStatementResponse` and delegates base field composition to `compose_statement_response`, `/statements/[id]` syncs `review` query updates directly into the rendered statement state, and unlinked parsed statements (`account_id === null`) expose custody account selection even when `source_envelope_reviewable` is `false` (`#2826`). `StatementUploader` supports multi-file batch selection and sequential upload (`#2823`).
