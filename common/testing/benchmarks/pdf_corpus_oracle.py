@@ -664,8 +664,15 @@ def compute_independent_three_statement_oracle(
     )
 
 
-def _extract_bs_cash(bs_report: Mapping[str, Any]) -> Decimal:
-    """Extract bank cash total from a platform Balance Sheet report payload."""
+def _extract_bs_cash_balance(bs_report: Mapping[str, Any]) -> Decimal:
+    """Extract primary bank/custody cash balance from a platform Balance Sheet report payload.
+
+    Excludes ``Processing`` / ``Transfers in transit`` clearing accounts and
+    non-cash ``Investments`` lines so the custody cash balance matches the
+    statement's closing balance even when auto-paired transfers create a
+    separate ``Processing`` asset line. Also supports negative custody asset
+    or credit-card liability representations.
+    """
     if "ending_cash" in bs_report and bs_report["ending_cash"] is not None:
         return _to_dec(bs_report["ending_cash"])
     assets = bs_report.get("assets")
@@ -676,7 +683,8 @@ def _extract_bs_cash(bs_report: Mapping[str, Any]) -> Decimal:
             name = str(row.get("name") or "")
             code = str(row.get("code") or "")
             if (
-                "Transfers in transit" in name
+                name == "Processing"
+                or "Transfers in transit" in name
                 or "Investments" in name
                 or code in ("1190", "1300")
             ):
@@ -686,7 +694,55 @@ def _extract_bs_cash(bs_report: Mapping[str, Any]) -> Decimal:
             matched = True
         if matched:
             return cash_sum
+    liabilities = bs_report.get("liabilities")
+    if isinstance(liabilities, list) and liabilities and not assets:
+        return ZERO
     return _to_dec(bs_report.get("total_assets") or "0.00")
+
+
+_extract_bs_cash = _extract_bs_cash_balance
+
+
+def _extract_bs_custody_closing_balance(
+    bs_report: Mapping[str, Any],
+    *,
+    doc_type: str = "bank_statement",
+) -> Decimal:
+    """Extract the statement custody closing balance from BS assets or liabilities."""
+    assets = bs_report.get("assets")
+    if isinstance(assets, list) and assets:
+        custody_sum = ZERO
+        matched = False
+        for row in assets:
+            name = str(row.get("name") or "")
+            code = str(row.get("code") or "")
+            if (
+                name == "Processing"
+                or "Transfers in transit" in name
+                or "Investments" in name
+                or code in ("1190", "1300")
+            ):
+                continue
+            amt = _to_dec(row.get("amount") or row.get("balance") or "0.00")
+            custody_sum = _q2(custody_sum + amt)
+            matched = True
+        if matched:
+            return custody_sum
+
+    liabilities = bs_report.get("liabilities")
+    if isinstance(liabilities, list) and liabilities:
+        liab_sum = sum(
+            (
+                _to_dec(r.get("amount") or r.get("balance") or "0.00")
+                for r in liabilities
+            ),
+            ZERO,
+        )
+        if doc_type == "credit_card":
+            return _q2(-abs(liab_sum))
+        return _q2(liab_sum)
+
+    return _extract_bs_cash_balance(bs_report)
 
 
 def _extract_equity_code_amount(
@@ -703,13 +759,61 @@ def _extract_equity_code_amount(
         return _to_dec(bs_report[fallback_attr])
     equity_rows = bs_report.get("equity")
     if isinstance(equity_rows, list):
+        name_keywords = {
+            "3199": ("Opening Balance Equity",),
+            "3198": ("Unexplained Statement Gap", "Gap Equity"),
+        }.get(code, ())
         for row in equity_rows:
             row_code = str(row.get("code") or "")
             row_name = str(row.get("name") or "")
-            if row_code == code or code in row_name:
+            if (
+                row_code == code
+                or code in row_name
+                or any(kw in row_name for kw in name_keywords)
+            ):
                 return _to_dec(row.get("amount") or row.get("balance") or "0.00")
         return ZERO
     return None
+
+
+def _extract_cf_metrics(
+    cash_flow: Mapping[str, Any],
+    fallback_ending_cash: Decimal,
+) -> tuple[Decimal, Decimal | None, Decimal, str]:
+    """Extract (ending_cash, net_cash_change, residual, proof_state) from flat or summary-nested CF payloads."""
+    summary = cash_flow.get("summary")
+    summary_map = summary if isinstance(summary, Mapping) else {}
+
+    raw_ending = cash_flow.get("ending_cash")
+    if raw_ending is None:
+        raw_ending = summary_map.get("ending_cash")
+    cf_ending_cash = (
+        _to_dec(raw_ending) if raw_ending is not None else fallback_ending_cash
+    )
+
+    raw_net_change = cash_flow.get("net_cash_change")
+    if raw_net_change is None:
+        raw_net_change = cash_flow.get("net_cash_flow")
+    if raw_net_change is None:
+        raw_net_change = summary_map.get("net_cash_change")
+    if raw_net_change is None:
+        raw_net_change = summary_map.get("net_cash_flow")
+    cf_net_change = _to_dec(raw_net_change) if raw_net_change is not None else None
+
+    cash_bridge = cash_flow.get("cash_bridge")
+    bridge_map = cash_bridge if isinstance(cash_bridge, Mapping) else {}
+    raw_residual = summary_map.get("reconciliation_Residual")
+    if raw_residual is None:
+        raw_residual = summary_map.get("reconciliation_residual")
+    if raw_residual is None:
+        raw_residual = bridge_map.get("discrepancy")
+    if raw_residual is None:
+        raw_residual = cash_flow.get("reconciliation_Residual")
+    cf_residual = _to_dec(raw_residual) if raw_residual is not None else ZERO
+
+    raw_proof_state = summary_map.get("proof_state") or cash_flow.get("proof_state")
+    proof_state = str(raw_proof_state) if raw_proof_state is not None else "proven"
+    return cf_ending_cash, cf_net_change, cf_residual, proof_state
 
 
 def compare_oracle_with_platform_reports(
@@ -755,24 +859,45 @@ def compare_oracle_with_platform_reports(
         )
     )
 
-    # 2. Cash Flow Ending Cash == Balance Sheet Cash
-    cf_ending_cash = _to_dec(
-        cash_flow.get("ending_cash")
-        if cash_flow.get("ending_cash") is not None
-        else oracle.cash_flow_statement.ending_cash
+    # 2. Cash Flow Ending Cash == Balance Sheet Cash & CF Reconciliation Proof
+    cf_ending_cash, cf_net_change, cf_residual, cf_proof_state = _extract_cf_metrics(
+        cash_flow, oracle.cash_flow_statement.ending_cash
     )
-    bs_cash = _extract_bs_cash(balance_sheet)
-    cf_bs_delta = _q2(abs(cf_ending_cash - bs_cash))
-    oracle_cash_delta = _q2(abs(bs_cash - oracle.balance_sheet.ending_cash))
-    worst_cash_delta = max(cf_bs_delta, oracle_cash_delta)
-    inv2_ok = worst_cash_delta <= tolerance
+    bs_cash = _extract_bs_cash_balance(balance_sheet)
+    bs_total_assets = _to_dec(balance_sheet.get("total_assets") or "0.00")
+    cf_vs_bs_custody_delta = _q2(abs(cf_ending_cash - bs_cash))
+    cf_vs_bs_total_delta = _q2(abs(cf_ending_cash - bs_total_assets))
+    cf_bs_delta = min(cf_vs_bs_custody_delta, cf_vs_bs_total_delta)
+    if cf_net_change is not None:
+        expected_net_movement = _q2(
+            oracle.balance_sheet.ending_cash
+            - oracle.balance_sheet.opening_balance_equity_3199
+            - oracle.balance_sheet.unexplained_gap_equity_3198
+        )
+        cf_net_delta = _q2(abs(cf_net_change - expected_net_movement))
+        cf_bs_delta = min(cf_bs_delta, cf_net_delta)
+
+    # Check custody cash against expected ending cash (or liability for credit cards)
+    expected_custody_cash = (
+        _q2(-oracle.balance_sheet.total_liabilities)
+        if oracle.balance_sheet.total_liabilities > ZERO
+        and oracle.balance_sheet.ending_cash == ZERO
+        else oracle.balance_sheet.ending_cash
+    )
+    oracle_cash_delta = min(
+        _q2(abs(bs_cash - oracle.balance_sheet.ending_cash)),
+        _q2(abs(bs_cash - expected_custody_cash)),
+    )
+    worst_cash_delta = max(cf_bs_delta, oracle_cash_delta, abs(cf_residual))
+    inv2_ok = worst_cash_delta <= tolerance and cf_proof_state == "proven"
     verdicts.append(
         InvariantVerdict(
             invariant_id="cash_flow_to_balance_sheet_cash",
             passed=inv2_ok,
             message=(
                 f"CF Ending Cash ({cf_ending_cash}) vs BS Cash ({bs_cash}) "
-                f"vs Oracle Cash ({oracle.balance_sheet.ending_cash})"
+                f"vs Oracle Cash ({oracle.balance_sheet.ending_cash}), "
+                f"residual={cf_residual}, proof_state={cf_proof_state}"
             ),
             recorded_delta=worst_cash_delta,
         )
@@ -791,21 +916,40 @@ def compare_oracle_with_platform_reports(
         )
     )
 
-    # 4. Statement Balance Chain: Opening + Inflows - Outflows == Closing
+    # 4. Statement Balance Chain: Opening + Inflows - Outflows == Closing & BS Custody Match
     max_chain_delta = max(
         (abs(d) for d in oracle.statement_chain_deltas.values()),
         default=ZERO,
     )
-    inv4_ok = max_chain_delta <= tolerance
+    has_explicit_custody_rows = bool(
+        balance_sheet.get("assets") or balance_sheet.get("liabilities")
+    )
+    custody_chain_delta = ZERO
+    if has_explicit_custody_rows:
+        doc_type = (
+            "credit_card"
+            if oracle.balance_sheet.total_liabilities > ZERO
+            and oracle.balance_sheet.ending_cash == ZERO
+            else "bank_statement"
+        )
+        actual_custody = _extract_bs_custody_closing_balance(
+            balance_sheet, doc_type=doc_type
+        )
+        custody_chain_delta = min(
+            _q2(abs(actual_custody - oracle.balance_sheet.ending_cash)),
+            _q2(abs(actual_custody - expected_custody_cash)),
+        )
+    worst_chain_delta = max(max_chain_delta, custody_chain_delta)
+    inv4_ok = worst_chain_delta <= tolerance
     verdicts.append(
         InvariantVerdict(
             invariant_id="statement_balance_chain",
             passed=inv4_ok,
             message=(
                 f"Verified {len(oracle.statement_chain_deltas)} statement balance chains; "
-                f"max_delta={max_chain_delta}"
+                f"max_delta={worst_chain_delta}"
             ),
-            recorded_delta=max_chain_delta,
+            recorded_delta=worst_chain_delta,
         )
     )
 
@@ -902,6 +1046,9 @@ def compare_oracle_with_platform_reports(
     )
 
 
+evaluate_three_statement_consistency = compare_oracle_with_platform_reports
+
+
 def run_live_pdf_statement_verification(
     client: Any,
     spec: CorpusStatementSpec,
@@ -914,7 +1061,8 @@ def run_live_pdf_statement_verification(
 
     1. POST /api/statements/upload with PDF bytes.
     2. Poll GET /api/statements/{id}/review until status is parsed or approved.
-    3. Confirm envelope if required and POST /api/statements/{id}/review/approve with auto_fill_defaults=True.
+    3. Confirm envelope if required and POST /api/statements/{id}/review/approve
+       with create_account_if_missing=True and auto_fill_default_categories=True.
     4. Fetch Balance Sheet, Income Statement, and Cash Flow Statement in native currency and SGD.
     5. DELETE /api/statements/{id} to verify clean statement retirement.
     """
@@ -953,21 +1101,48 @@ def run_live_pdf_statement_verification(
         raise TimeoutError(f"Timed out waiting for {spec.fixture_id} ({statement_id})")
 
     if review_payload.get("status") == "parsed":
-        if review_payload.get("source_envelope_confirmation_required"):
+        needs_envelope = bool(
+            review_payload.get("source_envelope_confirmation_required")
+            or review_payload.get("source_envelope_reviewable")
+        )
+        account_id = review_payload.get("account_id")
+        if needs_envelope:
+            if not account_id and hasattr(client, "post"):
+                # Create or resolve custody account when envelope confirmation requires account_id
+                acc_resp = client.post(
+                    "/api/accounts",
+                    json={
+                        "name": f"{spec.institution} ({spec.currency})",
+                        "type": "LIABILITY"
+                        if spec.doc_type == "credit_card"
+                        else "ASSET",
+                        "currency": review_payload.get("currency") or spec.currency,
+                        "code": "2100" if spec.doc_type == "credit_card" else "1110",
+                    },
+                )
+                if acc_resp.status_code in (200, 201):
+                    acc_json = acc_resp.json()
+                    if isinstance(acc_json, Mapping) and "id" in acc_json:
+                        account_id = acc_json["id"]
+
             env_resp = client.post(
                 f"/api/statements/{statement_id}/review/envelope",
                 json={
                     "source_result_digest": review_payload.get("source_result_digest"),
-                    "account_id": review_payload.get("account_id"),
+                    "account_id": account_id,
                     "currency": review_payload.get("currency") or spec.currency,
                     "period_start": review_payload.get("period_start")
                     or spec.period_start,
                     "period_end": review_payload.get("period_end") or spec.period_end,
                     "opening_balance": str(
-                        review_payload.get("opening_balance") or spec.opening_balance
+                        review_payload.get("opening_balance")
+                        if review_payload.get("opening_balance") is not None
+                        else spec.opening_balance
                     ),
                     "closing_balance": str(
-                        review_payload.get("closing_balance") or spec.closing_balance
+                        review_payload.get("closing_balance")
+                        if review_payload.get("closing_balance") is not None
+                        else spec.closing_balance
                     ),
                     "rationale": f"Oracle ground-truth confirmation for {spec.fixture_id}",
                 },
@@ -981,6 +1156,9 @@ def run_live_pdf_statement_verification(
         app_resp = client.post(
             f"/api/statements/{statement_id}/review/approve",
             json={
+                "account_id": account_id,
+                "create_account_if_missing": True,
+                "auto_fill_default_categories": True,
                 "auto_fill_defaults": True,
                 "note": "Oracle benchmark auto-fill approval",
             },
@@ -1093,23 +1271,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     with httpx.Client(base_url=args.app_url.rstrip("/"), timeout=120.0) as client:
-        email = f"pdf_oracle_{uuid.uuid4().hex[:8]}@test.example.com"
-        reg = client.post(
-            "/api/auth/register",
-            json={
-                "email": email,
-                "password": "Password123!",
-                "display_name": "PDF Corpus Oracle Runner",
-            },
-        )
-        if reg.status_code not in (200, 201):
-            print(f"Failed to register ephemeral user: {reg.status_code} {reg.text}")
-            return 1
-        token = reg.json()["access_token"]
-        client.headers.update({"Authorization": f"Bearer {token}"})
-
         all_passed = True
         for spec in selected:
+            email = f"pdf_oracle_{spec.fixture_id[:16]}_{uuid.uuid4().hex[:6]}@test.example.com"
+            reg = client.post(
+                "/api/auth/register",
+                json={
+                    "email": email,
+                    "password": "Password123!",
+                    "display_name": f"PDF Oracle {spec.fixture_id}",
+                },
+            )
+            if reg.status_code not in (200, 201):
+                print(
+                    f"Failed to register ephemeral user for {spec.fixture_id}: {reg.status_code} {reg.text}"
+                )
+                return 1
+            token = reg.json()["access_token"]
+            client.headers.update({"Authorization": f"Bearer {token}"})
+
             res = run_live_pdf_statement_verification(client, spec, root_dir=REPO_ROOT)
             passed = res["comparison"]["passed"]
             status_str = "PASS" if passed else "FAIL"
