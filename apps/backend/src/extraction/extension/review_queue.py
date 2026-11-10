@@ -21,6 +21,7 @@ from src.extraction.base.disposition import DispositionDecision, DispositionStat
 from src.extraction.base.source_vocabulary import DocumentType, TransactionDirection
 from src.extraction.base.types import extract_source_document_ids
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
+from src.extraction.extension.custody_binding import resolve_bank_custody_account
 from src.extraction.extension.disposition_trace import (
     FinancialCommandRequest,
     authorize_financial_command,
@@ -220,6 +221,24 @@ async def _plan_entry_command(
         raise ValueError("Account mapping required before statement posting")
     if bank_account.type is not AccountType.ASSET or not bank_account.is_active:
         raise ValueError("Statement posting account must be an active asset account")
+    if bank_account.currency != currency and statement is not None and len(statement.typed_currency_balances()) > 1:
+        if statement.institution and statement.account_last4:
+            bank_account = await resolve_bank_custody_account(
+                db,
+                user_id=user_id,
+                institution=statement.institution,
+                account_last4=statement.account_last4,
+                currency=currency,
+                create_if_missing=True,
+            )
+        else:
+            bank_account = await get_or_create_account(
+                db,
+                name=f"{statement.institution or 'Statement Account'} ({currency})",
+                account_type=AccountType.ASSET,
+                currency=currency,
+                user_id=user_id,
+            )
     if bank_account.currency != currency:
         raise ValueError("Statement posting account currency must match the transaction currency")
     if bank_account.code == PROCESSING_ACCOUNT_CODE:

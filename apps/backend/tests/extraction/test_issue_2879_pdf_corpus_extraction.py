@@ -1,0 +1,454 @@
+"""Tests for Issue #2879: brokerage cash-ledger classification, multi-currency posting, and credit-card sign normalization."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+from src.extraction import (
+    BankStatementStatus,
+    DocumentSource,
+    EconomicIntent,
+    StatementEvidenceType,
+    StatementSourceType,
+)
+from src.extraction.base.validation import (
+    bank_currency_balances,
+    normalize_statement_balance_payload,
+    validate_balance,
+    validate_balance_per_currency,
+)
+from src.extraction.extension.brokerage_positions import parse_brokerage_positions
+from src.extraction.extension.prompts.statement import get_parsing_prompt
+from src.extraction.extension.result_contract import statement_evidence_type
+from src.extraction.extension.review_queue import _plan_entry_command
+from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
+from src.extraction.extension.statement_posting import try_auto_post_statement_opening_balance
+from src.extraction.extension.statement_validation import validate_balance_chain
+from src.ledger import Account, AccountType, list_opening_positions
+from src.schemas.review import BalanceValidationResult
+from tests.statement_ingestion import (
+    parse_and_load_statement_projection,
+    posting_dependencies,
+    reviewed_posting_inputs,
+)
+
+
+def test_brokerage_prompt_includes_opening_and_closing_balances_and_cash_rules():
+    """Defect 1.1: BROKERAGE_POSITIONS_PROMPT includes opening_balance, closing_balance, and cash-only instructions."""
+    prompt = get_parsing_prompt("Moomoo", document_kind="brokerage")
+    assert '"opening_balance"' in prompt
+    assert '"closing_balance"' in prompt
+    assert '"balance_after"' in prompt
+    assert "omit `positions` or return an empty `positions` array" in prompt.lower()
+
+
+def test_statement_evidence_type_classifies_cash_only_brokerage_as_transaction_ledger():
+    """Defect 1.2: Empty positions=[] with non-empty transactions classifies as TRANSACTION_LEDGER."""
+    cash_only_payload = {
+        "institution": "Moomoo Financial Singapore Pte. Ltd.",
+        "account_last4": "7742",
+        "currency": "SGD",
+        "period_start": "2025-05-01",
+        "period_end": "2025-05-31",
+        "positions": [],
+        "transactions": [
+            {
+                "date": "2025-05-02",
+                "description": "FAST DEPOSIT - DBS BANK REF 99281736",
+                "amount": "5000.00",
+                "direction": "IN",
+                "balance_after": "15000.00",
+                "currency": "SGD",
+            },
+            {
+                "date": "2025-05-20",
+                "description": "MONEY MARKET FUND YIELD DISTRIBUTION",
+                "amount": "28.45",
+                "direction": "IN",
+                "balance_after": "15028.45",
+                "currency": "SGD",
+            },
+        ],
+    }
+    positions = parse_brokerage_positions(
+        cash_only_payload,
+        filename="moomoo_statement_fixture.pdf",
+        institution="Moomoo Financial Singapore Pte. Ltd.",
+    )
+    assert positions == []
+
+    evidence = statement_evidence_type(
+        is_brokerage=True,
+        provider_payload=cash_only_payload,
+        positions=positions,
+    )
+    assert evidence is StatementEvidenceType.TRANSACTION_LEDGER
+
+    futu_positions = parse_brokerage_positions(
+        {
+            **cash_only_payload,
+            "institution": "Futu Securities International (Hong Kong) Limited",
+            "currency": "HKD",
+        },
+        filename="futu_statement_fixture.pdf",
+        institution="Futu Securities International (Hong Kong) Limited",
+    )
+    assert futu_positions == []
+
+
+async def test_cash_only_brokerage_derives_balances_binds_custody_and_auto_approves(db, test_user, monkeypatch):
+    """Defect 1.2 & 1.3: Cash-only brokerage payload derives missing balances, binds custody, and auto-approves."""
+    service = ExtractionService()
+    raw_payload = {
+        "institution": "Futu Securities",
+        "account_last4": "8821",
+        "currency": "HKD",
+        "period_start": "2025-05-01",
+        "period_end": "2025-05-31",
+        "opening_balance": None,
+        "closing_balance": None,
+        "positions": [],
+        "transactions": [
+            {
+                "date": "2025-05-03",
+                "description": "EDDA DEPOSIT - HSBC HK",
+                "amount": "20000.00",
+                "direction": "IN",
+                "balance_after": "70000.00",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-05-12",
+                "description": "DIVIDEND - 00700 TENCENT",
+                "amount": "680.00",
+                "direction": "IN",
+                "balance_after": "70680.00",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-05-19",
+                "description": "PLATFORM USAGE FEE",
+                "amount": "15.00",
+                "direction": "OUT",
+                "balance_after": "70665.00",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-05-27",
+                "description": "FPS WITHDRAWAL TO BANK ACCOUNT",
+                "amount": "8000.00",
+                "direction": "OUT",
+                "balance_after": "62665.00",
+                "currency": "HKD",
+            },
+        ],
+    }
+    service._extract_vision_source = AsyncMock(return_value=raw_payload)
+    monkeypatch.setattr(
+        "src.extraction.extension.service.read_pdf_text_layer",
+        lambda *_args, **_kwargs: "Opening Balance 50,000.00 Closing Balance 62,665.00",
+    )
+
+    source = DocumentSource.resolve(
+        path=Path("futu_statement_fixture.pdf"),
+        content=b"%PDF-1.4 futu fixture",
+    )
+    result, statement, txns = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        user_id=test_user.id,
+        institution="Futu Securities",
+        source=source,
+    )
+    assert result.source_type is StatementSourceType.BROKERAGE
+    assert result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+    assert result.missing_required_facts == ()
+    assert statement.opening_balance == Decimal("50000.00")
+    assert statement.closing_balance == Decimal("62665.00")
+    assert statement.account_id is not None
+    assert statement.balance_validated is True
+    assert statement.status == BankStatementStatus.APPROVED
+    assert len(txns) == 4
+
+    await route_brokerage_for_review_if_present(
+        summary=statement,
+        db=db,
+        user_id=test_user.id,
+        filename="futu_statement_fixture.pdf",
+        institution="Futu Securities",
+        payload=raw_payload,
+    )
+    assert statement.validation_error is None
+
+
+def test_multicurrency_running_balance_synthesis_and_top_level_backfill():
+    """Defect 2.1: Multi-currency transactions without balances array synthesize per-currency balances."""
+    payload = {
+        "institution": "Silk Road Bank",
+        "account_last4": "6355",
+        "currency": "HKD",
+        "period_start": "2025-06-01",
+        "period_end": "2025-06-30",
+        "opening_balance": None,
+        "closing_balance": None,
+        "transactions": [
+            {
+                "date": "2025-06-05",
+                "description": "FPS TRANSFER IN",
+                "amount": "5000.00",
+                "direction": "IN",
+                "balance_after": "25000.00",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-06-12",
+                "description": "UTILITY BILL PAYMENT",
+                "amount": "800.00",
+                "direction": "OUT",
+                "balance_after": "24200.00",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-06-08",
+                "description": "USD WIRE DEPOSIT",
+                "amount": "1000.00",
+                "direction": "IN",
+                "balance_after": "3500.00",
+                "currency": "USD",
+            },
+            {
+                "date": "2025-06-18",
+                "description": "USD CARD SETTLEMENT",
+                "amount": "200.00",
+                "direction": "OUT",
+                "balance_after": "3300.00",
+                "currency": "USD",
+            },
+        ],
+    }
+    normalized = normalize_statement_balance_payload(payload)
+    assert normalized["opening_balance"] == "20000.00"
+    assert normalized["closing_balance"] == "24200.00"
+    assert normalized["balances"] == [
+        {"currency": "HKD", "opening": "20000.00", "closing": "24200.00"},
+        {"currency": "USD", "opening": "2500.00", "closing": "3300.00"},
+    ]
+
+    derived_buckets = bank_currency_balances(payload)
+    assert derived_buckets == [
+        {"currency": "HKD", "opening": "20000.00", "closing": "24200.00"},
+        {"currency": "USD", "opening": "2500.00", "closing": "3300.00"},
+    ]
+    per_ccy = validate_balance_per_currency(normalized)
+    assert per_ccy["balance_valid"] is True
+
+
+def test_balance_validation_result_allows_none_opening_balance():
+    """Defect 2.2: BalanceValidationResult accepts opening_balance=None without raising ValidationError."""
+    model = BalanceValidationResult(
+        opening_balance=None,
+        closing_balance=None,
+        calculated_closing="100.00",
+        opening_delta="0",
+        closing_delta="100.00",
+        opening_match=False,
+        closing_match=False,
+        validated_at="2025-06-30T00:00:00Z",
+    )
+    assert model.opening_balance is None
+
+
+async def test_multicurrency_statement_posts_per_currency_custody_accounts_and_opening_balances(db, test_user):
+    """Defect 2.3: Multi-currency statement resolves per-currency custody accounts and posts opening balances for each."""
+    service = ExtractionService()
+    payload = {
+        "institution": "Silk Road Bank",
+        "account_last4": "6355",
+        "currency": "HKD",
+        "period_start": "2025-06-01",
+        "period_end": "2025-06-30",
+        "opening_balance": None,
+        "closing_balance": None,
+        "transactions": [
+            {
+                "date": "2025-06-05",
+                "description": "HKD DEPOSIT",
+                "amount": "5000.00",
+                "direction": "IN",
+                "balance_after": "25000.00",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-06-10",
+                "description": "USD DEPOSIT",
+                "amount": "1000.00",
+                "direction": "IN",
+                "balance_after": "3500.00",
+                "currency": "USD",
+            },
+        ],
+    }
+    service._extract_vision_source = AsyncMock(return_value=payload)
+    source = DocumentSource.resolve(
+        path=Path("bsb_004_silk_road.pdf"),
+        content=uuid4().bytes,
+    )
+    _, statement, txns = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        user_id=test_user.id,
+        institution="Silk Road Bank",
+        source=source,
+    )
+    assert statement.status == BankStatementStatus.APPROVED
+    assert len(statement.typed_currency_balances()) == 2
+
+    hkd_txn = next(t for t in txns if t.currency == "HKD")
+    usd_txn = next(t for t in txns if t.currency == "USD")
+
+    fx_provider = AsyncMock(return_value=Decimal("1.35"))
+    hkd_decision, hkd_counter = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=hkd_txn,
+        intent=EconomicIntent.INCOME,
+    )
+    usd_decision, usd_counter = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=usd_txn,
+        intent=EconomicIntent.INCOME,
+    )
+    hkd_account = await db.get(Account, statement.account_id)
+    assert hkd_account is not None
+    assert hkd_account.currency == "HKD"
+
+    hkd_plan = await _plan_entry_command(
+        db,
+        hkd_txn,
+        user_id=test_user.id,
+        base_currency="SGD",
+        auto_post=True,
+        preloaded_statement=statement,
+        preloaded_bank_account=hkd_account,
+        fx_rate_provider=fx_provider,
+        disposition=hkd_decision,
+        counter_account=hkd_counter,
+    )
+    usd_plan = await _plan_entry_command(
+        db,
+        usd_txn,
+        user_id=test_user.id,
+        base_currency="SGD",
+        auto_post=True,
+        preloaded_statement=statement,
+        preloaded_bank_account=hkd_account,
+        fx_rate_provider=fx_provider,
+        disposition=usd_decision,
+        counter_account=usd_counter,
+    )
+    hkd_debit_account_id = hkd_plan.lines_data[0]["account_id"]
+    usd_debit_account_id = usd_plan.lines_data[0]["account_id"]
+    assert hkd_debit_account_id == hkd_account.id
+    assert usd_debit_account_id != hkd_account.id
+
+    usd_account = await db.get(Account, usd_debit_account_id)
+    assert usd_account is not None
+    assert usd_account.currency == "USD"
+    assert usd_account.type == AccountType.ASSET
+
+    deps = posting_dependencies()
+    deps_with_fx = replace(deps, fx_rate_provider=fx_provider)
+    changed = await try_auto_post_statement_opening_balance(
+        db,
+        statement,
+        test_user.id,
+        dependencies=deps_with_fx,
+    )
+    assert changed is True
+
+    positions = await list_opening_positions(db, user_id=test_user.id, as_of=date(2025, 12, 31))
+    by_account = {p.account_id: p for p in positions}
+    assert hkd_account.id in by_account
+    assert usd_account.id in by_account
+    assert by_account[hkd_account.id].amount == Decimal("20000.00")
+    assert by_account[usd_account.id].amount == Decimal("2500.00")
+
+
+async def test_credit_card_positive_balance_owed_sign_normalization(db, test_user):
+    """Defect 3: Credit-card statement with positive balance-owed convention normalizes to negative liability balances."""
+    cc_payload = {
+        "institution": "Liberty National Credit Card",
+        "account_last4": "4102",
+        "currency": "USD",
+        "period_start": "2025-03-01",
+        "period_end": "2025-03-31",
+        "opening_balance": "1847.32",
+        "closing_balance": "9532.91",
+        "transactions": [
+            {
+                "date": "2025-03-05",
+                "description": "AUTOPAY PAYMENT - THANK YOU",
+                "amount": "13.84",
+                "direction": "IN",
+                "balance_after": "1833.48",
+                "currency": "USD",
+            },
+            {
+                "date": "2025-03-14",
+                "description": "FLIGHT & HOTEL PURCHASE",
+                "amount": "7699.43",
+                "direction": "OUT",
+                "balance_after": "9532.91",
+                "currency": "USD",
+            },
+        ],
+    }
+    normalized = normalize_statement_balance_payload(cc_payload)
+    assert normalized["opening_balance"] == "-1847.32"
+    assert normalized["closing_balance"] == "-9532.91"
+    assert normalized["transactions"][0]["balance_after"] == "-1833.48"
+    assert normalized["transactions"][1]["balance_after"] == "-9532.91"
+
+    verdict = validate_balance(cc_payload)
+    assert verdict["balance_valid"] is True
+    assert verdict["expected_closing"] == "-9532.91"
+    assert verdict["actual_closing"] == "-9532.91"
+
+    service = ExtractionService()
+    service._extract_vision_source = AsyncMock(return_value=cc_payload)
+    source = DocumentSource.resolve(
+        path=Path("bsb_002_liberty_national.pdf"),
+        content=uuid4().bytes,
+    )
+    _, statement, txns = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        user_id=test_user.id,
+        institution="Liberty National Credit Card",
+        source=source,
+    )
+    assert statement.opening_balance == Decimal("-1847.32")
+    assert statement.closing_balance == Decimal("-9532.91")
+    assert statement.balance_validated is True
+
+    # Also verify validate_balance_chain normalizes a pre-existing positive-balance-owed statement in place.
+    statement.opening_balance = Decimal("1847.32")
+    statement.closing_balance = Decimal("9532.91")
+    chain_result = await validate_balance_chain(
+        db,
+        statement.id,
+        statement=statement,
+        transactions=txns,
+    )
+    assert chain_result["balance_valid"] is True
+    assert chain_result["opening_balance"] == "-1847.32"
+    assert chain_result["closing_balance"] == "-9532.91"
+    assert statement.opening_balance == Decimal("-1847.32")
+    assert statement.closing_balance == Decimal("-9532.91")

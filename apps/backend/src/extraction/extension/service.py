@@ -23,6 +23,7 @@ from src.extraction.base.validation import (
     count_within_document_dedup_collapse,
     detect_balance_chain_break,
     normalize_amount_direction,
+    normalize_statement_balance_payload,
     route_by_threshold,
     validate_balance,
     validate_balance_explicit,
@@ -165,6 +166,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
 
+            extracted = normalize_statement_balance_payload(extracted)
             detected_institution = extracted.get("institution")
             final_institution = institution or detected_institution
             if not final_institution:
@@ -188,6 +190,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 provider_payload=extracted,
                 positions=brokerage_positions,
             )
+            is_position_snapshot = is_brokerage_payload and evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
 
             resolved_file_hash = source.content_hash
             # Raw extracted statement currency (no fallback) — feeds the per-transaction
@@ -230,7 +233,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 institution=final_institution,
                 statement_currency=statement_currency,
                 sanitized_account_last4=sanitized_account_last4,
-                is_brokerage_payload=is_brokerage_payload,
+                is_brokerage_payload=is_position_snapshot,
             )
 
             statement = StatementSummary(
@@ -386,7 +389,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             )
             # The model must not author the closing balance (#2394). A PDF text layer holds
             # the printed numbers; a stored closing balance that it lacks goes to review.
-            if file_type == "pdf" and not is_brokerage_payload and bank_balances is None:
+            if file_type == "pdf" and not is_position_snapshot and bank_balances is None:
                 closing_source_verdict = check_closing_balance_against_text(
                     await asyncio.to_thread(
                         read_pdf_text_layer, source.content, max_pages=self.PDF_VISION_MAX_TOTAL_PAGES
@@ -431,17 +434,18 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     is_brokerage=is_brokerage_payload,
                     effective_txn_count=len(transactions),
                 )
-                # Routing differs by document class on purpose (#981): brokerage payloads
+                # Routing differs by document class on purpose (#981): brokerage position snapshots
                 # reconcile via Layer-2 AtomicPosition snapshots, not a running-balance chain, so
                 # `balance_valid` is not their gating signal — they always go to `parsed`/review.
-                # Bank statements route by `route_by_threshold`. As of #1141 an invalid balance
-                # chain also sends a bank statement to `parsed` (review with a validation_error),
+                # Cash-only brokerage transaction ledgers (`not is_position_snapshot`) and bank
+                # statements route by `route_by_threshold`. As of #1141 an invalid balance
+                # chain also sends a statement to `parsed` (review with a validation_error),
                 # not `uploaded`: a parsed-but-unreconciled statement is reviewable, not a manual-
                 # entry dead-end. `uploaded` is now reserved for genuinely low-signal valid-balance
                 # parses (score < 60). Both classes therefore converge on `parsed`/review for the
                 # "balance invalid" outcome.
                 status = (
-                    BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
+                    BankStatementStatus.PARSED if is_position_snapshot else route_by_threshold(confidence, is_valid)
                 )
                 if status == BankStatementStatus.APPROVED and account_id is None:
                     status = BankStatementStatus.PARSED
@@ -1000,6 +1004,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 # case re-raises below.
                 last_error = exc
                 continue
+            extracted = normalize_statement_balance_payload(extracted)
             last_parse = extracted
 
             if looks_like_brokerage_payload(

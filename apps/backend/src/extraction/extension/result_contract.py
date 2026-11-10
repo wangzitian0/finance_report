@@ -46,6 +46,10 @@ def _period(
     return None, None
 
 
+def _has_non_empty_list(mapping: dict, keys: tuple[str, ...]) -> bool:
+    return any(isinstance(mapping.get(key), list) and len(mapping.get(key) or ()) > 0 for key in keys)
+
+
 def statement_evidence_type(
     *,
     is_brokerage: bool,
@@ -56,15 +60,21 @@ def statement_evidence_type(
     if not is_brokerage:
         return StatementEvidenceType.TRANSACTION_LEDGER
     statement = provider_payload.get("statement")
-    declared_position_snapshot = any(key in provider_payload for key in ("positions", "holdings", "securities"))
+    position_keys = ("positions", "holdings", "securities")
+    has_declared_positions = _has_non_empty_list(provider_payload, position_keys)
+    has_declared_transactions = _has_non_empty_list(provider_payload, ("transactions",))
     if isinstance(statement, dict):
-        declared_position_snapshot = declared_position_snapshot or any(
-            key in statement for key in ("positions", "holdings", "securities")
-        )
+        has_declared_positions = has_declared_positions or _has_non_empty_list(statement, position_keys)
+        has_declared_transactions = has_declared_transactions or _has_non_empty_list(statement, ("transactions",))
+    if positions or has_declared_positions:
+        return StatementEvidenceType.POSITION_SNAPSHOT
+    if has_declared_transactions:
+        return StatementEvidenceType.TRANSACTION_LEDGER
+    declared_position_key = any(key in provider_payload for key in position_keys) or (
+        isinstance(statement, dict) and any(key in statement for key in position_keys)
+    )
     return (
-        StatementEvidenceType.POSITION_SNAPSHOT
-        if declared_position_snapshot or positions
-        else StatementEvidenceType.TRANSACTION_LEDGER
+        StatementEvidenceType.POSITION_SNAPSHOT if declared_position_key else StatementEvidenceType.TRANSACTION_LEDGER
     )
 
 

@@ -329,6 +329,23 @@ async def validate_balance_chain(
     closing_known = statement.closing_balance is not None
     closing_delta = abs((statement.closing_balance or Decimal("0")) - calculated_closing)
 
+    if (
+        closing_known
+        and closing_delta > BALANCE_TOLERANCE
+        and txn_sum != Decimal("0")
+        and len(transactions) >= 2
+        and statement.closing_balance is not None
+        and abs((opening_balance - txn_sum) - statement.closing_balance) <= Decimal("0.01")
+    ):
+        opening_balance = -opening_balance
+        statement.opening_balance = opening_balance
+        statement.closing_balance = -statement.closing_balance
+        for txn in transactions:
+            if txn.balance_after is not None and txn.balance_after > Decimal("0"):
+                txn.balance_after = -txn.balance_after
+        calculated_closing = opening_balance + txn_sum
+        closing_delta = abs(statement.closing_balance - calculated_closing)
+
     prev_statement = await _get_previous_approved_statement(db, statement)
     result: dict = {
         "opening_balance": str(opening_balance),

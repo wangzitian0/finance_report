@@ -515,6 +515,14 @@ _FUTU_NON_POSITION_EVENT_TOKENS: tuple[str, ...] = (
     "出金",
     "rebate",
     "redemption",
+    "distribution",
+    "yield",
+    "coupon",
+    "sweep",
+    "tax",
+    "stamp",
+    "duty",
+    "charge",
 )
 
 

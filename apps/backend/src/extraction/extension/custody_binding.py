@@ -30,9 +30,15 @@ class BankCustodyAllocation:
 def is_bank_custody_source(source: StatementExtractionResult | None, document: UploadedDocument | None) -> bool:
     """Prefer typed source evidence; retain legacy bank routing without absorbing brokerage."""
     if source is not None:
+        if source.evidence_type is not StatementEvidenceType.TRANSACTION_LEDGER:
+            return False
+        if source.source_type is StatementSourceType.BANK:
+            return True
+        positions = getattr(source, "positions", None)
         return (
-            source.source_type is StatementSourceType.BANK
-            and source.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+            source.source_type is StatementSourceType.BROKERAGE
+            and isinstance(positions, tuple | list)
+            and len(positions) == 0
         )
     return document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
 
@@ -191,9 +197,9 @@ async def _historical_account_ids(
         )
         if document is None or document.user_id != user_id or document.file_hash != statement.file_hash:
             raise ExtractionError("Historical custody source needs review before account adoption")
-        if document.document_type is DocumentType.BROKERAGE_STATEMENT:
-            raise ExtractionError("Historical custody is a brokerage source, not a bank account")
         if source is None:
+            if document.document_type is DocumentType.BROKERAGE_STATEMENT:
+                raise ExtractionError("Historical custody is a brokerage source, not a bank account")
             if statement.current_extraction_result_id is not None or not allow_unproven:
                 raise ExtractionError(
                     "Historical custody lacks immutable evidence; explicitly select its owned account to resolve"
@@ -209,10 +215,20 @@ async def _historical_account_ids(
                 result = StatementExtractionResult.from_payload(source.payload)
             except (ValueError, TypeError, KeyError) as exc:
                 raise ExtractionError("Historical custody source is not valid typed evidence") from exc
-            if (
+            if document.document_type is DocumentType.BROKERAGE_STATEMENT:
+                if (
+                    result.source_type is not StatementSourceType.BROKERAGE
+                    or result.evidence_type is not StatementEvidenceType.TRANSACTION_LEDGER
+                    or bool(result.positions)
+                ):
+                    raise ExtractionError("Historical custody is a brokerage source, not a bank account")
+            elif (
                 result.source_type is not StatementSourceType.BANK
                 or result.evidence_type is not StatementEvidenceType.TRANSACTION_LEDGER
-                or result.content_digest != source.content_digest
+            ):
+                raise ExtractionError("Historical custody identity contradicts its immutable source")
+            if (
+                result.content_digest != source.content_digest
                 or result.source_content_digest != document.file_hash
                 or (result.institution, result.account_last4, result.statement_currency)
                 != (institution, account_last4, currency)

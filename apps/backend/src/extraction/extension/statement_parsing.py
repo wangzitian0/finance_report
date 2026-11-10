@@ -251,6 +251,9 @@ async def route_brokerage_for_review_if_present(
             broker = payload["statement"].get("institution")
     broker = broker or institution or summary.institution
     parsed_positions = _count_brokerage_positions(payload)
+    transactions = payload.get("transactions") if isinstance(payload, dict) else None
+    if parsed_positions == 0 and isinstance(transactions, list) and len(transactions) > 0:
+        return
     logger.info(
         "statement.brokerage_review_routing.started",
         audit_event="statement.brokerage_review_routing.started",
