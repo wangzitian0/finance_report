@@ -30,6 +30,7 @@ from tests.e2e.critical_skip_gate import (
     critical_skip_failure_message,
     should_convert_skip_to_failure,
 )
+from tests.e2e.path_quality import HANDSHAKE_USER_AGENT, report_path_quality
 
 logger = logging.getLogger(__name__)
 
@@ -226,8 +227,21 @@ def is_strict_or_ci() -> bool:
     return _strict_e2e_gates_enabled() or os.getenv("CI") == "true"
 
 
+def _emit_session_line(session, line: str) -> None:
+    """Print one line at session start, also under `-q`. Use stderr when no terminal reporter exists."""
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is not None:
+        reporter.write_line(line)
+    else:
+        print(line, file=sys.stderr)
+
+
 def pytest_sessionstart(session):
-    """EPIC-008: Fail-fast target environment handshake and freshness check."""
+    """EPIC-008: Fail-fast target environment handshake and freshness check.
+
+    After the handshake passes, report the quality of the network path (#2911).
+    The report never ends the session.
+    """
     if is_strict_or_ci():
         if TestConfig.TEST_ENV != "local":
             if not TestConfig.EXPECTED_SHA:
@@ -248,7 +262,7 @@ def pytest_sessionstart(session):
 
                 req = urllib.request.Request(
                     health_url,
-                    headers={"User-Agent": "E2E-Handshake/1.0"},
+                    headers={"User-Agent": HANDSHAKE_USER_AGENT},
                 )
                 with urllib.request.urlopen(req, timeout=10.0, context=ctx) as resp:
                     payload = json.loads(resp.read().decode("utf-8"))
@@ -269,6 +283,10 @@ def pytest_sessionstart(session):
                 pytest.exit(
                     f"Fatal: Could not connect to target environment at {health_url}: {exc}",
                     returncode=1,
+                )
+            else:
+                report_path_quality(
+                    health_url, ctx, lambda line: _emit_session_line(session, line)
                 )
 
 

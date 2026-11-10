@@ -1,19 +1,21 @@
-"""AC-testing.e2e-poll-reconnect.1: bounded reconnect for an idempotent GET poll in an e2e journey (#2610).
+"""AC-testing.e2e-poll-reconnect.1 and AC-testing.e2e-poll-reconnect.2: bounded reconnect for an idempotent GET in an e2e journey (#2610, #2911).
 
-A journey polls a status endpoint on one pooled httpx client. The network path
-can close an idle connection before the request reaches the application. The
-application log shows no entry for that poll, and a new connection succeeds.
+A journey sends GET requests on one pooled httpx client. The network path
+can close a connection before the request reaches the application. The
+application log shows no entry for that request, and a new connection succeeds.
 httpx raises ReadError or RemoteProtocolError on the closed socket. The helper
 retries the GET request on a new connection.
 
 The helper bounds and counts every retry. It retries a closed connection at most
 MAX_CONSECUTIVE_RECONNECTS times in a row. Timeouts, refused connections, and
-HTTP error statuses are not retried.
+HTTP error statuses are not retried. Use the helper for a GET request only.
+A POST request is not idempotent and must not use it.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import httpx
@@ -35,12 +37,13 @@ async def get_with_reconnect(
     url: str,
     count: ReconnectCount,
     *,
+    params: Mapping[str, str] | None = None,
     pause: float = RECONNECT_PAUSE_SECONDS,
 ) -> httpx.Response:
     consecutive = 0
     while True:
         try:
-            return await client.get(url)
+            return await client.get(url, params=params)
         except _CLOSED_CONNECTION as exc:
             consecutive += 1
             if consecutive > MAX_CONSECUTIVE_RECONNECTS:

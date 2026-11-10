@@ -21,12 +21,21 @@ class _Response(Protocol):
     def json(self) -> dict[str, Any]: ...
 
 
+# An async function that sends one GET request. A journey passes one that reconnects (#2911).
+Getter = Callable[[str], Awaitable[_Response]]
+
+
 class _Client(Protocol):
     def get(self, path: str) -> Awaitable[_Response]: ...
 
     def post(
         self, path: str, json: dict[str, Any] | None = None
     ) -> Awaitable[_Response]: ...
+
+
+async def _send_get(client: _Client, get: Getter | None, url: str) -> _Response:
+    """Send one GET request through ``get`` when the caller passes it, and through ``client.get`` otherwise."""
+    return await (client.get(url) if get is None else get(url))
 
 
 @dataclass(frozen=True)
@@ -56,9 +65,11 @@ async def _confirm_fixture_envelope(
     api_url: Callable[[str], str],
     statement_id: str,
     envelope: FixtureEnvelope,
+    *,
+    get: Getter | None = None,
 ) -> None:
     review = _require_success(
-        await client.get(api_url(f"/statements/{statement_id}/review")),
+        await _send_get(client, get, api_url(f"/statements/{statement_id}/review")),
         action="source review lookup",
     )
     digest = review.get("source_result_digest")
@@ -114,8 +125,14 @@ async def approve_statement_with_fixture_review(
     transactions: Sequence[Mapping[str, Any]],
     dispositions: Mapping[str, FixtureDisposition],
     envelope: FixtureEnvelope | None = None,
+    get: Getter | None = None,
 ) -> dict[str, Any]:
-    """Approve, resolve ``intent_missing`` from fixture facts, then retry."""
+    """Approve, resolve ``intent_missing`` from fixture facts, then retry.
+
+    The helper sends 2 GET requests: the source review lookup and the unmatched lookup.
+    Both use ``get`` when the caller passes it, and ``client.get`` otherwise.
+    A POST request never uses ``get``.
+    """
 
     approval_path = api_url(f"/statements/{statement_id}/review/approve")
     approval = await client.post(
@@ -134,7 +151,9 @@ async def approve_statement_with_fixture_review(
             raise AssertionError(
                 "source confirmation requires an independently authored fixture envelope"
             )
-        await _confirm_fixture_envelope(client, api_url, statement_id, envelope)
+        await _confirm_fixture_envelope(
+            client, api_url, statement_id, envelope, get=get
+        )
         approval = await client.post(
             approval_path, json={"create_account_if_missing": True}
         )
@@ -152,8 +171,10 @@ async def approve_statement_with_fixture_review(
         _description_key(description): plan
         for description, plan in dispositions.items()
     }
-    unmatched_response = await client.get(
-        api_url(f"/reconciliation/unmatched?statement_id={statement_id}")
+    unmatched_response = await _send_get(
+        client,
+        get,
+        api_url(f"/reconciliation/unmatched?statement_id={statement_id}"),
     )
     unresolved = _require_success(
         unmatched_response, action="statement-scoped unmatched lookup"
