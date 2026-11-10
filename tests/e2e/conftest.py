@@ -16,27 +16,27 @@ from pathlib import Path
 import pytest
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
-from common.testing.e2e_rate_limit import (
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from common.testing.e2e_rate_limit import (  # noqa: E402
     RateLimitHit,
     fail_report_for_rate_limits,
     record_rate_limit_response,
 )
-from tests.e2e.auth_cookie import (
+from tests.e2e.auth_cookie import (  # noqa: E402
     build_auth_cookie,
     redact_playwright_auth_headers,
 )
-from tests.e2e.critical_skip_gate import (
+from tests.e2e.critical_skip_gate import (  # noqa: E402
     CRITICAL_MARKER,
     critical_skip_failure_message,
     should_convert_skip_to_failure,
 )
-from tests.e2e.path_quality import HANDSHAKE_USER_AGENT, report_path_quality
+from tests.e2e.path_quality import HANDSHAKE_USER_AGENT, report_path_quality  # noqa: E402
 
 logger = logging.getLogger(__name__)
-
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 PAGE_TEXT_MAX_BYTES = 4096
 _NODEID_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")

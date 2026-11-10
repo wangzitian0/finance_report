@@ -615,3 +615,98 @@ async def test_AC3_12_1_brokerage_without_balances_reports_balance_validated_non
     assert result.period_start is None
     assert result.missing_required_facts == ("period",)
     assert result.balance_validated is None
+
+
+def test_extract_brokerage_payload_from_metadata_preserves_transactions_for_fallback():
+    """AC-extraction.813.10: _extract_brokerage_payload_from_metadata preserves transactions/events so brokerage fallback position parsing succeeds when positions is empty (#2933)."""
+    from src.extraction.base.result import (
+        ExtractedTransactionFact,
+        SourceProvenance,
+        StatementExtractionResult,
+        StatementSourceType,
+    )
+    from src.extraction.extension.brokerage_statement_payload import (
+        _enrich_brokerage_payload_from_statement,
+        _extract_brokerage_payload_from_metadata,
+    )
+    from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+
+    extraction_result = StatementExtractionResult.create(
+        producer_version="extractor@brokerage-test",
+        source_content_digest="c" * 64,
+        source_type=StatementSourceType.BROKERAGE,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        statement_currency="SGD",
+        institution="Moomoo",
+        account_last4="1582",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        balances=(),
+        transactions=(
+            ExtractedTransactionFact(
+                fact_id="moomoo-txn-1",
+                transaction_date=date(2026, 5, 18),
+                description="Fullerton SGD Money Market Fund",
+                amount=Decimal("1250.50"),
+                direction="IN",
+                currency="SGD",
+                balance_after=None,
+                confidence=Decimal("0.95"),
+            ),
+        ),
+        positions=(),
+        confidence=Decimal("0.95"),
+        balance_validated=None,
+        warnings=(),
+        review_reasons=(),
+        provenance=SourceProvenance(
+            intake_mode="pdf",
+            method=ExtractionMethod.GOLDEN_FIXTURE,
+            provider="fixture-provider",
+            model="fixture-model-v1",
+        ),
+    )
+    metadata = {"statement_extraction_result": extraction_result.to_payload()}
+    payload = _extract_brokerage_payload_from_metadata(metadata)
+    assert payload is not None
+    assert payload["positions"] == []
+    assert payload["statement"]["currency"] == "SGD"
+    assert len(payload["transactions"]) == 1
+    assert payload["transactions"] == payload["events"]
+    assert payload["transactions"][0]["description"] == "Fullerton SGD Money Market Fund"
+    assert payload["transactions"][0]["amount"] == "1250.50"
+
+    snapshots = parse_brokerage_positions(payload, filename="moomoo-2605.pdf")
+    assert len(snapshots) == 1
+    assert snapshots[0].asset_identifier == "Fullerton SGD Money Market Fund"
+    assert snapshots[0].market_value == Decimal("1250.50")
+
+    # Also verify _enrich_brokerage_payload_from_statement merges linked AtomicTransactions
+    # when a recovered payload has neither positions nor transactions/events.
+    stmt = StatementSummaryFactory.build(
+        institution="Moomoo",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        status=BankStatementStatus.PARSED,
+    )
+    txn = AtomicTransaction(
+        user_id=stmt.user_id,
+        txn_date=date(2026, 5, 18),
+        description="Fullerton SGD Money Market Fund",
+        amount=Decimal("1250.50"),
+        direction=TransactionDirection.IN,
+        currency="SGD",
+        dedup_hash="d" * 64,
+        source_documents=[],
+    )
+    enriched = _enrich_brokerage_payload_from_statement(
+        {"positions": []},
+        stmt,
+        [txn],
+    )
+    assert len(enriched["transactions"]) == 1
+    assert enriched["transactions"] == enriched["events"]
+    fallback_snapshots = parse_brokerage_positions(enriched, filename="moomoo-fallback.pdf")
+    assert len(fallback_snapshots) == 1
+    assert fallback_snapshots[0].asset_identifier == "Fullerton SGD Money Market Fund"
