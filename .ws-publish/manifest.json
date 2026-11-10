@@ -4,7 +4,7 @@
   "inputs": {
     "repo": "059324820e6c95169c1dd60ddfcbd5fba20259057334b1436f399648d55d045f",
     "root": "9d08d4cd97652b0c415665045b9581dfd7da2d40b8e24ded82c5bc565ede886b",
-    "skills": "28bf8d4f544045ce9e893a79df42e7988711b26a0bfae8cd71d83cc2267f152a"
+    "skills": "6105e01a3092392e73d53aeb8b55c3bdaf00b1c1ac2f0199d567bcb20e50c334"
   },
   "language": "en",
   "outputs": {
@@ -27,21 +27,15 @@
       ".claude/skills/accounting/SKILL.md": "2ab994e557d82493088edcd9c9de8dd7d83be3329a6949f687a7cc3c160ed037",
       ".claude/skills/deploy-evidence/SKILL.md": "e4c61daad3538b9d75c497e1689cdb4ff312c41b43506ce5f3786ea36280223d",
       ".claude/skills/secrets-management/SKILL.md": "7d5ecbbff680d28a3ba8d4bd2ed259ad2b0463f14848deac1ed2c6f57ab59782",
-      ".claude/skills/ux-review/SKILL.md": "8223f47efd1cf26930191c7d02222f78fcb9056c13415dd8c1f4479f03c04876",
-      ".codex/skills/ac-workflow/SKILL.md": "7d88f5cb327bbc5006b1ad3e1cbc0f4d8c209b233d57488887789a0c4bb8add4",
-      ".codex/skills/accounting/SKILL.md": "2ab994e557d82493088edcd9c9de8dd7d83be3329a6949f687a7cc3c160ed037",
-      ".codex/skills/deploy-evidence/SKILL.md": "e4c61daad3538b9d75c497e1689cdb4ff312c41b43506ce5f3786ea36280223d",
-      ".codex/skills/secrets-management/SKILL.md": "7d5ecbbff680d28a3ba8d4bd2ed259ad2b0463f14848deac1ed2c6f57ab59782",
-      ".codex/skills/ux-review/SKILL.md": "8223f47efd1cf26930191c7d02222f78fcb9056c13415dd8c1f4479f03c04876"
+      ".claude/skills/ux-review/SKILL.md": "8223f47efd1cf26930191c7d02222f78fcb9056c13415dd8c1f4479f03c04876"
     },
     "link_dirs": [
-      ".claude/skills",
-      ".codex/skills"
+      ".claude/skills"
     ],
     "links": {},
     "root": ".agents/skills"
   },
-  "source_revision": "187b118919f05f00ed76382f59d823601e9c735f",
+  "source_revision": "47aaa0115a3d2881fad60f02d083de7e8a5bfa2a",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
