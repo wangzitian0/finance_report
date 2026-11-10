@@ -117,6 +117,15 @@ states the facts and means that the samples show no instability. It makes no
 claim about the next minute. Example:
 `e2e path quality: 6 new connections, 0 failed, edge location SIN`.
 
+The Ping An journey matches each extracted row to the fixture event with the same
+balance after (not the date). It counts the rows whose description differs, prints
+`description fidelity: 2 of 15 rows differ from the fixture (known 2): ...` after the parse,
+and fails when the count is above `PINGAN_KNOWN_DESCRIPTION_MISREADS`
+(`AC-testing.e2e-description-fidelity.1`, `#2932`, `tests/e2e/description_fidelity.py`).
+The vision model reads the interest description `账户结息` as `账户信息`, so the
+disposition table holds that key as a known misread. A new misread fails the journey;
+a better model lowers the count. No other journey passes a known count.
+
 ### Fast interception
 
 The matrix is SSOT'd in this package — not in prose, not in workflow YAML —
