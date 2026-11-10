@@ -35,6 +35,178 @@ def normalize_amount_direction(amount: Decimal, direction_value: Any = None) -> 
     return abs(amount), canonical_direction
 
 
+def _safe_parse_decimal(value: Any) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return Decimal(text)
+    except (ValueError, TypeError, InvalidOperation):
+        return None
+
+
+def _derive_running_balance_endpoints(
+    transactions: list[dict[str, Any]],
+    *,
+    opening_balance: Decimal | None = None,
+    closing_balance: Decimal | None = None,
+    currency: str | None = None,
+) -> tuple[Decimal, Decimal] | None:
+    """Derive missing opening/closing balances from a reconciling balance_after chain."""
+    if not transactions:
+        return None
+    parsed_chain: list[tuple[Decimal, Decimal]] = []
+    net = Decimal("0")
+    for txn in transactions:
+        amt = _safe_parse_decimal(txn.get("amount"))
+        bal = _safe_parse_decimal(txn.get("balance_after"))
+        if amt is None or bal is None:
+            return None
+        amt, direction = normalize_amount_direction(amt, txn.get("direction"))
+        signed = amt if direction == "IN" else -amt
+        net += signed
+        parsed_chain.append((signed, bal))
+
+    first_signed, first_balance_after = parsed_chain[0]
+    _, last_balance_after = parsed_chain[-1]
+    resolved_opening = opening_balance if opening_balance is not None else (first_balance_after - first_signed)
+    resolved_closing = closing_balance if closing_balance is not None else last_balance_after
+
+    if detect_balance_chain_break(transactions, opening_balance=resolved_opening) is not None:
+        return None
+    check = validate_balance_explicit(resolved_opening, resolved_closing, net, currency=currency)
+    if not check["balance_valid"]:
+        return None
+    return resolved_opening, resolved_closing
+
+
+def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, Any]:
+    """Deterministically normalize statement balance payloads (#2879).
+
+    1. Multi-currency running-balance synthesis: when transactions span >=2 currencies
+       and ``balances`` is absent/empty, synthesize per-currency ``balances`` from each
+       currency's reconciling ``balance_after`` chain, and backfill missing top-level
+       ``opening_balance`` / ``closing_balance`` from the primary currency bucket.
+    2. Single-currency running-balance derivation: when ``opening_balance`` or
+       ``closing_balance`` is missing and all transactions carry a reconciling
+       ``balance_after`` chain, derive ``opening_balance = first_balance_after - first_signed_amount``
+       and ``closing_balance = last_balance_after``.
+    3. Credit-card positive balance-owed normalization: when standard
+       ``opening + net == closing`` fails, ``net != 0``, ``len(transactions) >= 2``,
+       and inverted liability math ``abs((opening - net) - closing) <= 0.01`` holds,
+       negate ``opening_balance``, ``closing_balance``, and positive ``balance_after`` values.
+    """
+    if not isinstance(extracted, dict):
+        return extracted
+
+    normalized: dict[str, Any] = extracted
+    raw_txns = normalized.get("transactions")
+    transactions: list[dict[str, Any]] = (
+        [txn for txn in raw_txns if isinstance(txn, dict)] if isinstance(raw_txns, list) else []
+    )
+
+    header_ccy = str(normalized.get("currency") or "").strip().upper() or None
+    txn_groups: dict[str, list[dict[str, Any]]] = {}
+    for txn in transactions:
+        ccy = str(txn.get("currency") or header_ccy or "").strip().upper()
+        if ccy:
+            txn_groups.setdefault(ccy, []).append(txn)
+
+    # 1. Synthesize multi-currency balances from per-currency running balance_after chains.
+    raw_balances = normalized.get("balances")
+    if not raw_balances and len(txn_groups) >= 2:
+        synthesized_balances: list[dict[str, str]] = []
+        for ccy, group_txns in txn_groups.items():
+            endpoints = _derive_running_balance_endpoints(group_txns, currency=ccy)
+            if endpoints is None:
+                break
+            opening_val, closing_val = endpoints
+            synthesized_balances.append(
+                {
+                    "currency": ccy,
+                    "opening": str(opening_val),
+                    "closing": str(closing_val),
+                }
+            )
+        if len(synthesized_balances) == len(txn_groups):
+            normalized["balances"] = synthesized_balances
+            raw_balances = synthesized_balances
+
+    # Backfill top-level opening_balance / closing_balance from primary currency bucket when None.
+    if isinstance(raw_balances, list) and len(raw_balances) >= 1:
+        primary_bucket = next(
+            (
+                b
+                for b in raw_balances
+                if isinstance(b, dict) and str(b.get("currency") or "").strip().upper() == (header_ccy or "")
+            ),
+            raw_balances[0] if isinstance(raw_balances[0], dict) else None,
+        )
+        if isinstance(primary_bucket, dict):
+            if normalized.get("currency") is None and primary_bucket.get("currency"):
+                normalized["currency"] = str(primary_bucket["currency"]).strip().upper()
+            if normalized.get("opening_balance") is None and primary_bucket.get("opening") is not None:
+                normalized["opening_balance"] = str(primary_bucket["opening"])
+            if normalized.get("closing_balance") is None and primary_bucket.get("closing") is not None:
+                normalized["closing_balance"] = str(primary_bucket["closing"])
+
+    # 2. Single-currency running-balance derivation when opening or closing balance is missing.
+    opening_dec = _safe_parse_decimal(normalized.get("opening_balance"))
+    closing_dec = _safe_parse_decimal(normalized.get("closing_balance"))
+    if not normalized.get("balances") and len(txn_groups) <= 1 and (opening_dec is None or closing_dec is None):
+        single_ccy = header_ccy or (next(iter(txn_groups)) if txn_groups else None)
+        endpoints = _derive_running_balance_endpoints(
+            transactions,
+            opening_balance=opening_dec,
+            closing_balance=closing_dec,
+            currency=single_ccy,
+        )
+        if endpoints is not None:
+            opening_dec, closing_dec = endpoints
+            if normalized.get("opening_balance") is None:
+                normalized["opening_balance"] = str(opening_dec)
+            if normalized.get("closing_balance") is None:
+                normalized["closing_balance"] = str(closing_dec)
+            if normalized.get("currency") is None and single_ccy:
+                normalized["currency"] = single_ccy
+
+    # 3. Credit-card positive balance-owed sign normalization.
+    if (
+        not normalized.get("balances")
+        and opening_dec is not None
+        and closing_dec is not None
+        and len(transactions) >= 2
+    ):
+        parsed_amts = [(_safe_parse_decimal(txn.get("amount")), txn.get("direction")) for txn in transactions]
+        if all(amt is not None for amt, _ in parsed_amts):
+            net = sum(
+                (
+                    amt if direction == "IN" else -amt
+                    for raw_amt, raw_dir in parsed_amts
+                    if raw_amt is not None
+                    for amt, direction in (normalize_amount_direction(raw_amt, raw_dir),)
+                ),
+                Decimal("0"),
+            )
+            if (
+                net != Decimal("0")
+                and abs((opening_dec + net) - closing_dec) > BALANCE_TOLERANCE
+                and abs((opening_dec - net) - closing_dec) <= Decimal("0.01")
+            ):
+                opening_dec = -opening_dec
+                closing_dec = -closing_dec
+                normalized["opening_balance"] = str(opening_dec)
+                normalized["closing_balance"] = str(closing_dec)
+                for txn in transactions:
+                    bal = _safe_parse_decimal(txn.get("balance_after"))
+                    if bal is not None and bal > Decimal("0"):
+                        txn["balance_after"] = str(-bal)
+
+    return normalized
+
+
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
     """Validate that opening + transactions ~= closing within tolerance.
 
@@ -42,11 +214,12 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
     is the Decimal-based variant.
     """
     try:
-        opening = Decimal(str(extracted.get("opening_balance") or "0"))
-        closing = Decimal(str(extracted.get("closing_balance") or "0"))
+        normalized = normalize_statement_balance_payload(extracted)
+        opening = Decimal(str(normalized.get("opening_balance") or "0"))
+        closing = Decimal(str(normalized.get("closing_balance") or "0"))
 
         net = Decimal("0")
-        for txn in extracted.get("transactions", []):
+        for txn in normalized.get("transactions", []):
             amount = Decimal(str(txn["amount"]))
             amount, direction = normalize_amount_direction(amount, txn.get("direction"))
             if direction == "IN":
@@ -206,9 +379,10 @@ def bank_currency_balances(extracted: dict[str, Any]) -> list[dict[str, str]] | 
     ``StatementSummary.currency_balances``. A single-currency statement returns
     ``None`` so the existing scalar path is unchanged (backward compatible).
     """
-    if not extracted.get("balances"):
+    normalized = normalize_statement_balance_payload(extracted) if not extracted.get("balances") else extracted
+    if not normalized.get("balances"):
         return None
-    buckets = _currency_buckets(extracted)
+    buckets = _currency_buckets(normalized)
     if len({bucket["currency"] for bucket in buckets}) < 2:
         return None
     return [

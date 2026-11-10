@@ -100,6 +100,8 @@ Output format (JSON object - NOT an array):
   "snapshot_date": "2025-04-30",
   "period_start": "2025-04-01",
   "period_end": "2025-04-30",
+  "opening_balance": 10000.00,
+  "closing_balance": 15000.00,
   "positions": [
     {
       "symbol": "AAPL",
@@ -114,7 +116,16 @@ Output format (JSON object - NOT an array):
       "geography": "US"
     }
   ],
-  "transactions": []
+  "transactions": [
+    {
+      "date": "2025-04-15",
+      "description": "CASH DEPOSIT",
+      "amount": 5000.00,
+      "direction": "IN",
+      "balance_after": 15000.00,
+      "currency": "USD"
+    }
+  ]
 }
 
 Important Rules:
@@ -123,15 +134,16 @@ Important Rules:
 3. For each position emit at least an identifier (`symbol`/`ticker`/`isin`/`asset_identifier`),
    a `quantity`, and a `market_value`. Optionally include the closing `price` per unit and the
    position `currency`, `asset_type`, `sector`, and `geography` when the document shows them.
-4. All amounts/quantities as non-negative strings, no thousands separators (e.g. "1900.25", "10")
+4. All amounts/quantities as non-negative numbers or strings, no thousands separators (e.g. "1900.25", "10")
 5. Normalize EVERY date to ISO YYYY-MM-DD (convert from the source format yourself)
 6. `snapshot_date` is the as-of date of the holdings (usually the statement period end)
 7. asset_type: one of stock, etf, mutual_fund, money_market, bond, crypto, other (lowercase)
-8. If the document ALSO shows cash activity rows (trades, dividends, fees), include them in
-   `transactions` using the bank transaction shape; positions remain the primary output.
+8. Extract `opening_balance` and `closing_balance` when the statement reports cash opening/closing balances (or `null` when absent).
+9. If the document ALSO shows cash activity rows (trades, dividends, fees, deposits, withdrawals), include them in
+   `transactions` using `{"date": "YYYY-MM-DD", "description": "...", "amount": 5000.00, "direction": "IN|OUT", "balance_after": 15000.00, "currency": "USD"}`; positions remain the primary output when holdings are present.
    IMPORTANT: If the statement contains a 'Cash Movement' or 'Activity' section alongside 'Holdings/Positions', you MUST extract both. If no cash transactions occurred during the period, return transactions: [] and populated positions: [...] without error.
-9. If NO holdings/positions table is present, return an EMPTY `positions` array (do not invent rows)
-10. Auto-detect the broker name from the document header/logo into the "institution" field
+10. If NO holdings/positions snapshot table is present, omit `positions` or return an EMPTY `positions` array `[]` (do not invent rows) and extract all cash movement / transaction rows into `transactions`.
+11. Auto-detect the broker name from the document header/logo into the "institution" field
 """
 
 

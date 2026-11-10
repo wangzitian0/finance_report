@@ -1115,6 +1115,60 @@ async def reconcile_account_statement_chain(
     return changed
 
 
+async def _reconcile_secondary_currency_opening_balance(
+    db: AsyncSession,
+    *,
+    statement: StatementSummary,
+    user_id: UUID,
+    currency: str,
+    opening_amount: Decimal,
+    dependencies: StatementPostingDependencies | None = None,
+) -> bool:
+    """Post the opening position for a secondary currency bucket on a multi-currency statement."""
+    from src.extraction.extension.review_queue import get_or_create_account
+
+    if statement.institution and statement.account_last4:
+        secondary_account = await resolve_bank_custody_account(
+            db,
+            user_id=user_id,
+            institution=statement.institution,
+            account_last4=statement.account_last4,
+            currency=currency,
+            create_if_missing=True,
+        )
+    else:
+        secondary_account = await get_or_create_account(
+            db,
+            name=f"{statement.institution or 'Statement Account'} ({currency})",
+            account_type=AccountType.ASSET,
+            currency=currency,
+            user_id=user_id,
+        )
+
+    secondary_candidate = StatementSummary(
+        id=statement.id,
+        user_id=user_id,
+        account_id=secondary_account.id,
+        institution=statement.institution,
+        account_last4=statement.account_last4,
+        currency=currency,
+        period_start=statement.period_start,
+        period_end=statement.period_end,
+        opening_balance=opening_amount,
+        closing_balance=statement.closing_balance,
+        manual_opening_balance=statement.manual_opening_balance,
+        status=statement.status,
+        current_extraction_result_id=statement.current_extraction_result_id,
+    )
+    return await reconcile_account_statement_chain(
+        db,
+        user_id=user_id,
+        account_id=secondary_account.id,
+        dependencies=dependencies,
+        candidate_statement=secondary_candidate,
+    )
+
+
 async def try_auto_post_statement_opening_balance(
     db: AsyncSession,
     statement: StatementSummary,
@@ -1125,13 +1179,33 @@ async def try_auto_post_statement_opening_balance(
     """Establish source starting stock and reconcile the account's statement chain (#2832)."""
     if statement.effective_opening_balance() is None or statement.period_start is None or statement.account_id is None:
         raise ValueError("Statement opening balance, date, and account are required before posting")
-    return await reconcile_account_statement_chain(
+    changed = await reconcile_account_statement_chain(
         db,
         user_id=user_id,
         account_id=statement.account_id,
         dependencies=dependencies,
         candidate_statement=statement,
     )
+    typed_balances = statement.typed_currency_balances()
+    if len(typed_balances) > 1:
+        primary_account = await db.get(Account, statement.account_id)
+        primary_currency = normalize_currency_code(
+            (primary_account.currency if primary_account is not None else None) or statement.currency or ""
+        )
+        for balance in typed_balances:
+            bucket_currency = balance.currency.code
+            if bucket_currency == primary_currency:
+                continue
+            bucket_changed = await _reconcile_secondary_currency_opening_balance(
+                db,
+                statement=statement,
+                user_id=user_id,
+                currency=bucket_currency,
+                opening_amount=balance.opening.amount,
+                dependencies=dependencies,
+            )
+            changed = changed or bucket_changed
+    return changed
 
 
 async def try_auto_approve_high_confidence_statement(

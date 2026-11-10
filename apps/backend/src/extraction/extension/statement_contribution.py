@@ -17,7 +17,7 @@ from src.audit import (
     VersionedTraceRef,
 )
 from src.extraction.base.contribution import ResolvedStatementContribution
-from src.extraction.base.result import StatementExtractionResult, StatementSourceType
+from src.extraction.base.result import StatementEvidenceType, StatementExtractionResult, StatementSourceType
 from src.extraction.extension.extraction_trace import ExtractionPromotionTracePolicy, extraction_trace_policy_registry
 from src.extraction.extension.reviewed_statement_envelope import (
     ReviewedEnvelopeDecisionTracePolicy,
@@ -187,7 +187,10 @@ async def resolve_statement_contribution(
             source_document_id=statement.uploaded_document_id,
             account_id=account_id,
         )
-    if source_result.source_type is StatementSourceType.BANK and account_id is None:
+    if (
+        source_result.source_type is StatementSourceType.BANK
+        or source_result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+    ) and account_id is None:
         return _unproven(
             statement_id=statement.id,
             source_result_id=source_record.id,

@@ -2064,7 +2064,7 @@ export interface components {
             /** Has Date Gap */
             has_date_gap?: boolean | null;
             /** Opening Balance */
-            opening_balance: string;
+            opening_balance?: string | null;
             /** Opening Delta */
             opening_delta: string;
             /** Opening Match */

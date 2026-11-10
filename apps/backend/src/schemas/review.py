@@ -15,7 +15,7 @@ Stage1StatusEnum = Stage1Status
 
 
 class BalanceValidationResult(BaseModel):
-    opening_balance: str
+    opening_balance: str | None = None
     # #1390: null when the statement has no declared closing balance (was the
     # literal string "None").
     closing_balance: str | None
