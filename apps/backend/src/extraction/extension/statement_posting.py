@@ -1126,10 +1126,7 @@ async def _reconcile_secondary_currency_opening_balance(
 ) -> bool:
     """Post the opening position for a secondary currency bucket on a multi-currency statement."""
     from src.extraction.extension.review_queue import get_or_create_account
-    from src.extraction.extension.statement_contribution import resolve_statement_contribution
 
-    if statement.period_start is None:
-        return False
     if statement.institution and statement.account_last4:
         secondary_account = await resolve_bank_custody_account(
             db,
@@ -1148,89 +1145,28 @@ async def _reconcile_secondary_currency_opening_balance(
             user_id=user_id,
         )
 
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
-    positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
-    existing_opening = next((p for p in positions if p.account_id == secondary_account.id), None)
-
-    need_opening_post = True
-    allow_supersede = False
-    if existing_opening is not None:
-        if existing_opening.state != "authoritative":
-            raise ValueError("Opening balance authority needs review")
-        if existing_opening.effective_date < statement.period_start:
-            need_opening_post = False
-        elif existing_opening.effective_date == statement.period_start:
-            if abs(opening_amount - existing_opening.amount) <= STATEMENT_BALANCE_TOLERANCE:
-                need_opening_post = False
-            elif statement.manual_opening_balance is not None:
-                allow_supersede = True
-            else:
-                raise ValueError("Opening balance conflicts with existing opening position for the same date")
-
-    if not need_opening_post:
-        return False
-
-    source_decision_id = None
-    if statement.current_extraction_result_id is not None:
-        contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=statement.id)
-        if contribution.state != "authoritative" or contribution.decision is None:
-            raise ValueError("Statement opening balance requires current source authority")
-        source_decision_id = contribution.decision.decision_id
-
-    fx_rates: dict[str, Decimal] = {}
-    if currency != base_currency and opening_amount != 0:
-        if dependencies is not None:
-            try:
-                fx_rates[currency] = await dependencies.fx_rate_provider(
-                    db, currency, base_currency, statement.period_start, lazy_load=True
-                )
-            except dependencies.fx_rate_error as exc:
-                raise ValueError("FX rate required for statement opening balance") from exc
-        else:
-            from src.pricing import PricingError, get_exchange_rate
-
-            try:
-                fx_rates[currency] = await get_exchange_rate(
-                    db, currency, base_currency, statement.period_start, lazy_load=True
-                )
-            except PricingError as exc:
-                raise ValueError("FX rate required for statement opening balance") from exc
-
-    trace_emitter = dependencies.trace_emitter_factory(db) if dependencies is not None else None
-    if trace_emitter is None and source_decision_id is not None:
-        from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry
-        from src.extraction import extraction_trace_policy_registry
-        from src.ledger import ledger_trace_policy_registry
-
-        trace_emitter = TraceEmitter(
-            SqlTraceRecordRepository(
-                db,
-                TraceDecisionPolicyRegistry(
-                    (
-                        *extraction_trace_policy_registry().policies,
-                        *ledger_trace_policy_registry().policies,
-                    )
-                ),
-            )
-        )
-    try:
-        await initialize_opening_positions(
-            db,
-            user_id,
-            entry_date=statement.period_start,
-            balances={secondary_account.id: opening_amount},
-            currency=currency,
-            base_currency=base_currency,
-            fx_rates=fx_rates,
-            source_decision_id=source_decision_id,
-            trace_emitter=trace_emitter,
-            memo="Opening balance (statement import)",
-            allow_supersede=allow_supersede,
-            preserve_account_currency_equity=True,
-        )
-    except ValidationError as exc:
-        raise ValueError(str(exc)) from exc
-    return True
+    secondary_candidate = StatementSummary(
+        id=statement.id,
+        user_id=user_id,
+        account_id=secondary_account.id,
+        institution=statement.institution,
+        account_last4=statement.account_last4,
+        currency=currency,
+        period_start=statement.period_start,
+        period_end=statement.period_end,
+        opening_balance=opening_amount,
+        closing_balance=statement.closing_balance,
+        manual_opening_balance=statement.manual_opening_balance,
+        status=statement.status,
+        current_extraction_result_id=statement.current_extraction_result_id,
+    )
+    return await reconcile_account_statement_chain(
+        db,
+        user_id=user_id,
+        account_id=secondary_account.id,
+        dependencies=dependencies,
+        candidate_statement=secondary_candidate,
+    )
 
 
 async def try_auto_post_statement_opening_balance(

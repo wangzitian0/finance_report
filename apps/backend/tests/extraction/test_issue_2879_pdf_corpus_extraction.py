@@ -441,6 +441,9 @@ async def test_credit_card_positive_balance_owed_sign_normalization(db, test_use
     # Also verify validate_balance_chain normalizes a pre-existing positive-balance-owed statement in place.
     statement.opening_balance = Decimal("1847.32")
     statement.closing_balance = Decimal("9532.91")
+    for t in txns:
+        if t.balance_after is not None:
+            t.balance_after = abs(t.balance_after)
     chain_result = await validate_balance_chain(
         db,
         statement.id,
@@ -452,3 +455,155 @@ async def test_credit_card_positive_balance_owed_sign_normalization(db, test_use
     assert chain_result["closing_balance"] == "-9532.91"
     assert statement.opening_balance == Decimal("-1847.32")
     assert statement.closing_balance == Decimal("-9532.91")
+    assert all(t.balance_after < Decimal("0") for t in txns if t.balance_after is not None)
+
+
+def test_normalize_statement_balance_payload_edge_cases():
+    """AC-extraction.source-routing.2: Edge cases in balance derivation and normalization fail closed without corrupting payload."""
+    from src.extraction.base.validation import _derive_running_balance_endpoints, _safe_parse_decimal
+
+    assert _safe_parse_decimal("") is None
+    assert _safe_parse_decimal("not-a-number") is None
+    assert _safe_parse_decimal(True) is None
+    assert normalize_statement_balance_payload("not-a-dict") == "not-a-dict"  # type: ignore[arg-type]
+
+    # Chain break in running balance returns None
+    broken_chain = [
+        {"amount": "100.00", "direction": "IN", "balance_after": "1100.00", "currency": "USD"},
+        {"amount": "50.00", "direction": "OUT", "balance_after": "900.00", "currency": "USD"},
+    ]
+    assert _derive_running_balance_endpoints(broken_chain, currency="USD") is None
+
+    # Explicit closing balance mismatch with running balance returns None
+    valid_chain = [
+        {"amount": "100.00", "direction": "IN", "balance_after": "1100.00", "currency": "USD"},
+        {"amount": "50.00", "direction": "OUT", "balance_after": "1050.00", "currency": "USD"},
+    ]
+    assert (
+        _derive_running_balance_endpoints(
+            valid_chain,
+            opening_balance=Decimal("1000.00"),
+            closing_balance=Decimal("9999.00"),
+            currency="USD",
+        )
+        is None
+    )
+
+    # Multi-currency where one currency bucket has broken chain does not synthesize balances
+    mc_broken = {
+        "currency": "USD",
+        "transactions": [
+            {"amount": "100.00", "direction": "IN", "balance_after": "1100.00", "currency": "USD"},
+            {"amount": "50.00", "direction": "OUT", "balance_after": "900.00", "currency": "EUR"},
+            {"amount": "10.00", "direction": "OUT", "balance_after": "700.00", "currency": "EUR"},
+        ],
+    }
+    res = normalize_statement_balance_payload(mc_broken)
+    assert "balances" not in res
+
+    # Single-currency with missing top-level currency backfills currency from transaction
+    single_no_header_ccy = {
+        "currency": None,
+        "opening_balance": None,
+        "closing_balance": None,
+        "transactions": valid_chain,
+    }
+    res_single = normalize_statement_balance_payload(single_no_header_ccy)
+    assert res_single["currency"] == "USD"
+    assert res_single["opening_balance"] == "1000.00"
+    assert res_single["closing_balance"] == "1050.00"
+
+
+async def test_multicurrency_fallback_account_without_last4_and_custody_source_guard(db, test_user):
+    """AC-extraction.source-routing.2: Multi-currency statement without account_last4 falls back to get_or_create_account and custody guard rejects position snapshot."""
+    from types import SimpleNamespace
+
+    from src.extraction.extension.custody_binding import is_bank_custody_source
+
+    holdings_source = SimpleNamespace(
+        source_type=StatementSourceType.BROKERAGE,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        positions=("pos1",),
+    )
+    assert is_bank_custody_source(holdings_source, None) is False  # type: ignore[arg-type]
+
+    service = ExtractionService()
+    payload = {
+        "institution": "NoLast4 MultiCcy Bank",
+        "account_last4": None,
+        "currency": "HKD",
+        "period_start": "2025-07-01",
+        "period_end": "2025-07-31",
+        "opening_balance": None,
+        "closing_balance": None,
+        "transactions": [
+            {
+                "date": "2025-07-05",
+                "description": "HKD DEPOSIT",
+                "amount": "1000.00",
+                "direction": "IN",
+                "balance_after": "6000.00",
+                "currency": "HKD",
+            },
+            {
+                "date": "2025-07-10",
+                "description": "USD DEPOSIT",
+                "amount": "500.00",
+                "direction": "IN",
+                "balance_after": "1500.00",
+                "currency": "USD",
+            },
+        ],
+    }
+    service._extract_vision_source = AsyncMock(return_value=payload)
+    source = DocumentSource.resolve(
+        path=Path("no_last4_multiccy.pdf"),
+        content=uuid4().bytes,
+    )
+    _, statement, txns = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        user_id=test_user.id,
+        institution="NoLast4 MultiCcy Bank",
+        source=source,
+    )
+    hkd_account = Account(
+        user_id=test_user.id,
+        name="NoLast4 MultiCcy Bank (HKD)",
+        type=AccountType.ASSET,
+        currency="HKD",
+    )
+    db.add(hkd_account)
+    await db.flush()
+    statement.account_id = hkd_account.id
+
+    usd_txn = next(t for t in txns if t.currency == "USD")
+    fx_provider = AsyncMock(return_value=Decimal("1.35"))
+    usd_decision, usd_counter = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=usd_txn,
+        intent=EconomicIntent.INCOME,
+    )
+    usd_plan = await _plan_entry_command(
+        db,
+        usd_txn,
+        user_id=test_user.id,
+        base_currency="SGD",
+        auto_post=True,
+        preloaded_statement=statement,
+        preloaded_bank_account=hkd_account,
+        fx_rate_provider=fx_provider,
+        disposition=usd_decision,
+        counter_account=usd_counter,
+    )
+    assert usd_plan.lines_data[0]["account_id"] != hkd_account.id
+
+    deps_with_fx = replace(posting_dependencies(), fx_rate_provider=fx_provider)
+    changed = await try_auto_post_statement_opening_balance(
+        db,
+        statement,
+        test_user.id,
+        dependencies=deps_with_fx,
+    )
+    assert changed is True

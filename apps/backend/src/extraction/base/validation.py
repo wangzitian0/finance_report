@@ -60,8 +60,6 @@ def _derive_running_balance_endpoints(
     parsed_chain: list[tuple[Decimal, Decimal]] = []
     net = Decimal("0")
     for txn in transactions:
-        if not isinstance(txn, dict):
-            return None
         amt = _safe_parse_decimal(txn.get("amount"))
         bal = _safe_parse_decimal(txn.get("balance_after"))
         if amt is None or bal is None:
@@ -112,8 +110,6 @@ def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, 
     header_ccy = str(normalized.get("currency") or "").strip().upper() or None
     txn_groups: dict[str, list[dict[str, Any]]] = {}
     for txn in transactions:
-        if not isinstance(txn, dict):
-            continue
         ccy = str(txn.get("currency") or header_ccy or "").strip().upper()
         if ccy:
             txn_groups.setdefault(ccy, []).append(txn)
@@ -122,11 +118,9 @@ def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, 
     raw_balances = normalized.get("balances")
     if not raw_balances and len(txn_groups) >= 2:
         synthesized_balances: list[dict[str, str]] = []
-        all_reconciled = True
         for ccy, group_txns in txn_groups.items():
             endpoints = _derive_running_balance_endpoints(group_txns, currency=ccy)
             if endpoints is None:
-                all_reconciled = False
                 break
             opening_val, closing_val = endpoints
             synthesized_balances.append(
@@ -136,7 +130,7 @@ def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, 
                     "closing": str(closing_val),
                 }
             )
-        if all_reconciled and len(synthesized_balances) >= 2:
+        if len(synthesized_balances) == len(txn_groups):
             normalized["balances"] = synthesized_balances
             raw_balances = synthesized_balances
 
@@ -185,33 +179,30 @@ def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, 
         and closing_dec is not None
         and len(transactions) >= 2
     ):
-        net = Decimal("0")
-        valid_txns = True
-        for txn in transactions:
-            if not isinstance(txn, dict):
-                valid_txns = False
-                break
-            amt = _safe_parse_decimal(txn.get("amount"))
-            if amt is None:
-                valid_txns = False
-                break
-            amt, direction = normalize_amount_direction(amt, txn.get("direction"))
-            net += amt if direction == "IN" else -amt
-
-        if (
-            valid_txns
-            and net != Decimal("0")
-            and abs((opening_dec + net) - closing_dec) > BALANCE_TOLERANCE
-            and abs((opening_dec - net) - closing_dec) <= Decimal("0.01")
-        ):
-            opening_dec = -opening_dec
-            closing_dec = -closing_dec
-            normalized["opening_balance"] = str(opening_dec)
-            normalized["closing_balance"] = str(closing_dec)
-            for txn in transactions:
-                bal = _safe_parse_decimal(txn.get("balance_after"))
-                if bal is not None and bal > Decimal("0"):
-                    txn["balance_after"] = str(-bal)
+        parsed_amts = [(_safe_parse_decimal(txn.get("amount")), txn.get("direction")) for txn in transactions]
+        if all(amt is not None for amt, _ in parsed_amts):
+            net = sum(
+                (
+                    amt if direction == "IN" else -amt
+                    for raw_amt, raw_dir in parsed_amts
+                    if raw_amt is not None
+                    for amt, direction in (normalize_amount_direction(raw_amt, raw_dir),)
+                ),
+                Decimal("0"),
+            )
+            if (
+                net != Decimal("0")
+                and abs((opening_dec + net) - closing_dec) > BALANCE_TOLERANCE
+                and abs((opening_dec - net) - closing_dec) <= Decimal("0.01")
+            ):
+                opening_dec = -opening_dec
+                closing_dec = -closing_dec
+                normalized["opening_balance"] = str(opening_dec)
+                normalized["closing_balance"] = str(closing_dec)
+                for txn in transactions:
+                    bal = _safe_parse_decimal(txn.get("balance_after"))
+                    if bal is not None and bal > Decimal("0"):
+                        txn["balance_after"] = str(-bal)
 
     return normalized
 
