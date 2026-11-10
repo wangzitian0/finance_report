@@ -1,232 +1,48 @@
 # Framework-Aware Personal Reporting SSOT
-
-> **SSOT Key**: `framework_reporting`
-> **Core Definition**: Target-backward accounting framework policy for
-> US-like and HK-like personal financial-report packages.
-
----
-
+> **SSOT Key**: `framework_reporting` > **Core Definition**: Target-backward accounting framework policy for > US-like and HK-like personal financial-report packages.
 ## 1. Policy Scope
-
 This framework policy governs the path:
-
-```text
-Upload all settlement evidence -> choose US-like or HK-like framework ->
-generate a trusted personal financial-report package.
-```
-
-This is not a statutory filing, audit opinion, tax filing, or listed-company
-annual report. The framework names mean personal management reports that borrow
-recognition, measurement, presentation, and disclosure discipline from US GAAP
-and HKFRS-style reporting.
-
-Supported v1 framework IDs:
-
-- `personal_us_gaap_like`
-- `personal_hkfrs_like`
-
-Explicitly out of scope for v1:
-
-- CN/CAS framework output.
-- SEC, HKEX, XBRL, audit opinion, consolidated issuer reporting, or regulated
-  filing compliance.
-
+```text Upload all settlement evidence -> choose US-like or HK-like framework ->  generate a trusted personal financial-report package. ``` This is not a statutory filing, audit opinion, tax filing, or listed-company annual report. The framework names mean personal management reports that borrow recognition, measurement, presentation, and disclosure discipline from US GAAP
+and HKFRS-style reporting. Supported v1 framework IDs: - `personal_us_gaap_like` - `personal_hkfrs_like` Explicitly out of scope for v1: - CN/CAS framework output. - SEC, HKEX, XBRL, audit opinion, consolidated issuer reporting, or regulated filing compliance.
 ## 2. Direction Matrix
-
-The architecture uses both fact-forward and target-backward reasoning. Each lane
-has a different question, owner, and proof responsibility.
-
-| Lane | Direction | Owner | Question | Output |
+The architecture uses both fact-forward and target-backward reasoning. Each lane has a different question, owner, and proof responsibility. | Lane | Direction | Owner | Question | Output |
 |---|---|---|---|---|
-| Source capture | Fact-forward | EPIC-003 / EPIC-013 | What did the settlement, statement, PDF, or CSV say? | Parsed facts with source metadata |
-| Evidence control | Fact-forward | EPIC-019, with EPIC-004 reconciliation signals | Is the evidence complete, reviewed, and conflict-free enough for a trusted report? | Readiness state and blockers |
-| Canonical ledger | Fact-forward | EPIC-002 | How do facts become balanced double-entry records? | Framework-neutral journal entries and account balances |
-| Portfolio subledger | Fact-forward | EPIC-017 | What are the investment holdings, lots, dividends, fees, and valuation facts? | Portfolio facts and valuation evidence |
-| Framework policy | Target-backward | EPIC-020 | What must a US-like or HK-like report require from the facts? | Recognition, measurement, classification, presentation, and disclosure policy result |
-| Report assembly | Target-backward | EPIC-005 | How is the policy result rendered as a complete personal report package? | Statements, schedules, notes, export, and traceability appendix |
-
-EPIC-018 is cross-cutting. AI can help identify measurement evidence and draft
-disclosure suggestions, but it does not own trusted monetary results or final
-framework policy decisions.
-
+| Source capture | Fact-forward | EPIC-003 / EPIC-013 | What did the settlement, statement, PDF, or CSV say? | Parsed facts with source metadata | | Evidence control | Fact-forward | EPIC-019, with EPIC-004 reconciliation signals | Is the evidence complete, reviewed, and conflict-free enough for a trusted report? | Readiness state and blockers | | Canonical ledger | Fact-forward | EPIC-002 | How do facts become balanced double-entry records? | Framework-neutral journal entries and account balances |
+| Portfolio subledger | Fact-forward | EPIC-017 | What are the investment holdings, lots, dividends, fees, and valuation facts? | Portfolio facts and valuation evidence | | Framework policy | Target-backward | EPIC-020 | What must a US-like or HK-like report require from the facts? | Recognition, measurement, classification, presentation, and disclosure policy result |
+| Report assembly | Target-backward | EPIC-005 | How is the policy result rendered as a complete personal report package? | Statements, schedules, notes, export, and traceability appendix | EPIC-018 is cross-cutting. AI can help identify measurement evidence and draft disclosure suggestions, but it does not own trusted monetary results or final framework policy decisions.
 ## 3. Framework Policy Contract
-
-For each supported framework and report period, the policy layer must derive a
-structured result from canonical facts:
-
-```text
-canonical ledger + portfolio facts + evidence readiness + framework target
-  -> framework policy result
-```
-
-The result must include:
-
-- stable policy result ID.
-- framework ID and report period.
-- policy matrix version.
-- required statements and schedules.
-- report line mappings.
-- recognition basis per source event type.
-- measurement basis per asset/liability/income category.
-- disclosure requirements and blocker conditions.
-- source, ledger, portfolio, valuation, and review anchors.
-
-The policy layer is read-only. It must not mutate source records, journal
-entries, portfolio lots, market data, or report snapshots.
-
-Code-owned contract surfaces:
-
-- Schema: `apps/backend/src/schemas/reporting.py` defines supported framework
-  IDs, policy fact domains, required policy dimensions, evidence anchors,
-  policy decisions, explicit gaps, matrices, and policy results.
-- Matrix service: `apps/backend/src/reporting/extension/framework_policy.py` owns the
-  deterministic v1 US-like/HK-like matrix, builds framework-neutral facts from
-  existing user accounts, atomic positions, manual valuations, dividends, and
-  market-data evidence from synced `StockPrice` rows and manual
-  `MarketDataOverride` rows (pre-migration models; both consolidate into the
-  `pricing` package's unified observation model, #1610), then derives read-only policy results. When both
-  price sources exist, the latest price date is used and same-date manual
-  overrides take precedence.
-- Package API: `GET /api/reports/package` returns the one preview
-  `PersonalReportPackageDocument`, including its selected framework, policy
-  result, readiness, sections, and traceability. Generate/reopen/export use the
-  same document shape. The Full package tab of `/reports` (`/reports?tab=package`) requires an
-  explicit user framework selection before loading the document and never
-  fetches or derives framework readiness through a second endpoint.
-- Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that
-  policy results reject missing dimensions, unsupported frameworks are closed
-  out, supported domains carry all five policy dimensions, derivation is
-  deterministic/read-only, result IDs fingerprint the matrix version plus full
-  decision/gap content, the matrix version is exposed on the policy result,
-  US/HK outputs can differ from the same settlement fixture, and unsupported
-  instruments create explicit policy gaps instead of silently defaulting to
-  market value.
-  `apps/backend/tests/reporting/test_framework_package_integration.py` covers
-  package API framework selection, DB-derived policy results, readiness
-  blockers, and reviewed AI policy-field requirements.
-  `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx` covers
-  explicit UI framework selection, framework-aware blockers, policy result
-  display, and export metadata traceability.
-
+For each supported framework and report period, the policy layer must derive a structured result from canonical facts:
+```text canonical ledger + portfolio facts + evidence readiness + framework target  -> framework policy result ``` The result must include: - stable policy result ID. - framework ID and report period. - policy matrix version. - required statements and schedules. - report line mappings. - recognition basis per source event type. - measurement basis per asset/liability/income category.
+- disclosure requirements and blocker conditions. - source, ledger, portfolio, valuation, and review anchors. The policy layer is read-only. It must not mutate source records, journal entries, portfolio lots, market data, or report snapshots. Code-owned contract surfaces: - Schema: `apps/backend/src/schemas/reporting.py` defines supported framework
+  IDs, policy fact domains, required policy dimensions, evidence anchors, policy decisions, explicit gaps, matrices, and policy results. - Matrix service: `apps/backend/src/reporting/extension/framework_policy.py` owns the deterministic v1 US-like/HK-like matrix, builds framework-neutral facts from existing user accounts, atomic positions, manual valuations, dividends, and
+  market-data evidence from synced `StockPrice` rows and manual `MarketDataOverride` rows (pre-migration models; both consolidate into the `pricing` package's unified observation model, #1610), then derives read-only policy results. When both price sources exist, the latest price date is used and same-date manual overrides take precedence. - Package API: `GET /api/reports/package` returns the one preview
+  `PersonalReportPackageDocument`, including its selected framework, policy result, readiness, sections, and traceability. Generate/reopen/export use the same document shape. The Full package tab of `/reports` (`/reports?tab=package`) requires an explicit user framework selection before loading the document and never fetches or derives framework readiness through a second endpoint.
+- Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that policy results reject missing dimensions, unsupported frameworks are closed out, supported domains carry all five policy dimensions, derivation is deterministic/read-only, result IDs fingerprint the matrix version plus full decision/gap content, the matrix version is exposed on the policy result,
+  US/HK outputs can differ from the same settlement fixture, and unsupported instruments create explicit policy gaps instead of silently defaulting to market value. `apps/backend/tests/reporting/test_framework_package_integration.py` covers package API framework selection, DB-derived policy results, readiness blockers, and reviewed AI policy-field requirements.
+  `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx` covers explicit UI framework selection, framework-aware blockers, policy result display, and export metadata traceability.
 ## 4. Minimum V1 Policy Matrix
-
-The first framework matrix must cover these personal finance domains:
-
-| Domain | Required policy dimensions |
+The first framework matrix must cover these personal finance domains: | Domain | Required policy dimensions |
 |---|---|
-| Cash and bank accounts | Classification, period cutoff, source coverage |
-| Listed equities and ETFs | Measurement basis, unrealized gain presentation, stale price disclosure |
-| Funds and money-market products | Classification, valuation source, liquidity disclosure |
-| Dividends and interest | Recognition date, income line mapping, withholding/tax note hooks |
-| Brokerage fees | Cost basis or expense treatment, cash-flow presentation |
-| FX | Transaction-date, average-rate, and period-end-rate usage by statement type |
-| RSU, ESOP, and options | Recognition trigger, restriction/liquidity treatment, valuation evidence |
-| Property, mortgage, and private/manual assets | Valuation basis, source date, confidence, and trusted-total blocker rules |
-
+| Cash and bank accounts | Classification, period cutoff, source coverage | | Listed equities and ETFs | Measurement basis, unrealized gain presentation, stale price disclosure | | Funds and money-market products | Classification, valuation source, liquidity disclosure | | Dividends and interest | Recognition date, income line mapping, withholding/tax note hooks |
+| Brokerage fees | Cost basis or expense treatment, cash-flow presentation | | FX | Transaction-date, average-rate, and period-end-rate usage by statement type | | RSU, ESOP, and options | Recognition trigger, restriction/liquidity treatment, valuation evidence | | Property, mortgage, and private/manual assets | Valuation basis, source date, confidence, and trusted-total blocker rules |
 ## 5. AI Boundary
-
-AI may produce structured suggestions for measurement and disclosure, including:
-
-- likely asset category.
-- proposed valuation basis.
-- source uncertainty.
-- disclosure draft text.
-- fair-value evidence hints.
-
-Those suggestions can influence trusted output only after they are transformed
-into deterministic structured fields with:
-
-- source anchor.
-- confidence tier.
-- review state.
-- policy field name.
-- accepted value.
-
-The report assembly layer must never calculate trusted monetary totals from free-form AI text.
-
+AI may produce structured suggestions for measurement and disclosure, including: - likely asset category. - proposed valuation basis. - source uncertainty. - disclosure draft text. - fair-value evidence hints. Those suggestions can influence trusted output only after they are transformed into deterministic structured fields with: - source anchor. - confidence tier.
+- review state. - policy field name. - accepted value. The report assembly layer must never calculate trusted monetary totals from free-form AI text.
 ## 6. Readiness and Blockers
-
-Framework-aware report readiness must block trusted output when any selected
-framework requires evidence that is missing or unresolved, including:
-
-- missing settlement/source coverage for an in-scope account or broker.
-- overlapping or duplicate source periods.
-- balance mismatch or unresolved parsing validation failure.
-- pending review or reconciliation blocker.
-- missing valuation basis for manual/private assets included in trusted totals.
-- stale market data without an explicit freshness disclosure.
-- AI-only measurement or disclosure suggestion that has not been accepted into
-  structured policy fields.
-
-Required framework-aware blocker codes:
-
-- `unsupported_framework`: selected framework ID is outside the supported v1
-  enum.
-- `missing_framework_policy_result`: selected framework has report-supporting
-  inputs but no matching structured policy result.
-- `unsupported_policy_domain`: a framework-neutral fact has no deterministic
-  v1 rule for the selected framework.
-- `framework_policy_missing_dimensions`: a decision lacks recognition,
-  measurement, classification, presentation, or disclosure.
-- `framework_ai_suggestion_unreviewed`: AI-suggested policy fields are not
-  accepted structured fields with anchors and accepted values.
-- `missing_valuation_basis`: manual/private valuation snapshots included in
-  trusted totals lack an explicit valuation basis.
-- `stale_market_data`: listed security, ETF, mutual-fund, or bond positions
-  lack synced provider or manual override prices dated within 90 days of the
-  report date.
-
-Draft output may exist with blockers, but trusted output must expose the blocker
-state before presenting framework-specific statements as reliable.
-
+Framework-aware report readiness must block trusted output when any selected framework requires evidence that is missing or unresolved, including: - missing settlement/source coverage for an in-scope account or broker. - overlapping or duplicate source periods. - balance mismatch or unresolved parsing validation failure. - pending review or reconciliation blocker.
+- missing valuation basis for manual/private assets included in trusted totals. - stale market data without an explicit freshness disclosure. - AI-only measurement or disclosure suggestion that has not been accepted into structured policy fields. Required framework-aware blocker codes: - `unsupported_framework`: selected framework ID is outside the supported v1
+  enum. - `missing_framework_policy_result`: selected framework has report-supporting inputs but no matching structured policy result. - `unsupported_policy_domain`: a framework-neutral fact has no deterministic v1 rule for the selected framework. - `framework_policy_missing_dimensions`: a decision lacks recognition, measurement, classification, presentation, or disclosure.
+- `framework_ai_suggestion_unreviewed`: AI-suggested policy fields are not accepted structured fields with anchors and accepted values. - `missing_valuation_basis`: manual/private valuation snapshots included in trusted totals lack an explicit valuation basis. - `stale_market_data`: listed security, ETF, mutual-fund, or bond positions lack synced provider or manual override prices dated within 90 days of the
+  report date. Draft output may exist with blockers, but trusted output must expose the blocker state before presenting framework-specific statements as reliable.
 ## 7. Relationship To Existing Reporting
-
-EPIC-005 remains the report package assembler. It consumes the policy result and
-renders statements, notes, exports, and traceability. It does not own
-recognition, measurement, or framework-specific classification rules.
-
-EPIC-020 owns framework target policy. It does not parse settlements, post
-journal entries, maintain lots, or render UI.
-
+EPIC-005 remains the report package assembler. It consumes the policy result and renders statements, notes, exports, and traceability. It does not own recognition, measurement, or framework-specific classification rules. EPIC-020 owns framework target policy. It does not parse settlements, post journal entries, maintain lots, or render UI.
 ## 8. L1 Reporting-Line Registry (US ∪ HK)
-
-To prevent free-form string drift across statements, exports, and E2E checks, report lines are defined in a central L1 registry. Each line has a unique identifier, statement, section, applicable frameworks, and presentation ordering (lower is earlier).
-
-Framework report assembly consumes deterministic L2-to-L1 mappings and must not
-invent a report line for a known source line that lacks a registered policy
-mapping. Portfolio holdings are the one balance-sheet split required before L1
-aggregation: a broker ledger line that carries position cost basis is split into
-portfolio cost basis (framework securities L1) and residual broker cash (cash
-L1), while the market-value adjustment aggregates onto the same framework
-securities L1. This keeps the L1 securities amount at market value without
-double-counting broker cash.
-
-| Line ID | Frameworks | Statement | Section | Order (US) | Order (HK) |
+To prevent free-form string drift across statements, exports, and E2E checks, report lines are defined in a central L1 registry. Each line has a unique identifier, statement, section, applicable frameworks, and presentation ordering (lower is earlier). Framework report assembly consumes deterministic L2-to-L1 mappings and must not invent a report line for a known source line that lacks a registered policy
+mapping. Portfolio holdings are the one balance-sheet split required before L1 aggregation: a broker ledger line that carries position cost basis is split into portfolio cost basis (framework securities L1) and residual broker cash (cash L1), while the market-value adjustment aggregates onto the same framework securities L1. This keeps the L1 securities amount at market value without
+double-counting broker cash. | Line ID | Frameworks | Statement | Section | Order (US) | Order (HK) |
 |---|---|---|---|---|---|
-| `assets.cash_and_cash_equivalents` | US, HK | balance_sheet | assets | 10 | 10 |
-| `assets.marketable_securities` | US | balance_sheet | assets | 20 | 999 |
-| `assets.financial_assets_at_fair_value` | HK | balance_sheet | assets | 999 | 20 |
-| `assets.investments.funds` | US, HK | balance_sheet | assets | 30 | 30 |
-| `assets.restricted_compensation` | US, HK | balance_sheet | assets | 40 | 40 |
-| `assets.investment_property` | HK | balance_sheet | assets | 999 | 50 |
-| `assets.biological_assets` | HK | balance_sheet | assets | 999 | 60 |
-| `assets.manual_private_assets` | US, HK | balance_sheet | assets | 70 | 70 |
-| `liabilities.financial_liabilities` | US, HK | balance_sheet | liabilities | 10 | 10 |
-| `equity.fx_translation` | US, HK | balance_sheet | equity | 10 | 10 |
-| `income.dividends_and_interest` | US, HK | income_statement | income | 10 | 10 |
-| `income.unrealized_investment_gain_loss` | US | income_statement | income | 20 | 999 |
-| `income.fair_value_change_in_financial_assets` | HK | income_statement | income | 999 | 20 |
-| `income.fx_gain_loss` | US, HK | income_statement | income | 30 | 30 |
-| `expenses.investment_fees` | US, HK | income_statement | expenses | 10 | 10 |
-| `cash.ending_cash` | US, HK | cash_flow | cash | 10 | 10 |
-| `investing.fees` | US, HK | cash_flow | investing | 10 | 10 |
-| `cash.internal_transfers` | US, HK | cash_flow | cash | 20 | 20 |
-| `notes.fund_liquidity` | US, HK | notes | notes | 10 | 10 |
-| `notes.tax_hooks` | US, HK | notes | notes | 20 | 20 |
-| `notes.restricted_asset_treatment` | US, HK | notes | notes | 30 | 30 |
-| `notes.manual_valuation_basis` | US, HK | notes | notes | 40 | 40 |
-| `notes.liability_coverage` | US, HK | notes | notes | 50 | 50 |
-| `notes.transfer_matching` | US, HK | notes | notes | 60 | 60 |
-| `notes.tax_relevant_items` | US, HK | notes | notes | 70 | 70 |
-| `notes.us_like_market_price_basis` | US | notes | notes | 80 | 999 |
-| `notes.hk_like_fair_value_basis` | HK | notes | notes | 999 | 80 |
+| `assets.cash_and_cash_equivalents` | US, HK | balance_sheet | assets | 10 | 10 | | `assets.marketable_securities` | US | balance_sheet | assets | 20 | 999 | | `assets.financial_assets_at_fair_value` | HK | balance_sheet | assets | 999 | 20 | | `assets.investments.funds` | US, HK | balance_sheet | assets | 30 | 30 | | `assets.restricted_compensation` | US, HK | balance_sheet | assets | 40 | 40 |
+| `assets.investment_property` | HK | balance_sheet | assets | 999 | 50 | | `assets.biological_assets` | HK | balance_sheet | assets | 999 | 60 | | `assets.manual_private_assets` | US, HK | balance_sheet | assets | 70 | 70 | | `liabilities.financial_liabilities` | US, HK | balance_sheet | liabilities | 10 | 10 | | `equity.fx_translation` | US, HK | balance_sheet | equity | 10 | 10 |
+| `income.dividends_and_interest` | US, HK | income_statement | income | 10 | 10 | | `income.unrealized_investment_gain_loss` | US | income_statement | income | 20 | 999 | | `income.fair_value_change_in_financial_assets` | HK | income_statement | income | 999 | 20 | | `income.fx_gain_loss` | US, HK | income_statement | income | 30 | 30 | | `expenses.investment_fees` | US, HK | income_statement | expenses | 10 | 10 |
+| `cash.ending_cash` | US, HK | cash_flow | cash | 10 | 10 | | `investing.fees` | US, HK | cash_flow | investing | 10 | 10 | | `cash.internal_transfers` | US, HK | cash_flow | cash | 20 | 20 | | `notes.fund_liquidity` | US, HK | notes | notes | 10 | 10 | | `notes.tax_hooks` | US, HK | notes | notes | 20 | 20 | | `notes.restricted_asset_treatment` | US, HK | notes | notes | 30 | 30 |
+| `notes.manual_valuation_basis` | US, HK | notes | notes | 40 | 40 | | `notes.liability_coverage` | US, HK | notes | notes | 50 | 50 | | `notes.transfer_matching` | US, HK | notes | notes | 60 | 60 | | `notes.tax_relevant_items` | US, HK | notes | notes | 70 | 70 | | `notes.us_like_market_price_basis` | US | notes | notes | 80 | 999 | | `notes.hk_like_fair_value_basis` | HK | notes | notes | 999 | 80 |

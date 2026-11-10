@@ -1,422 +1,81 @@
 # Development Environment SSOT
-
-> **SSOT Key**: `development`
-> **Source of Truth** for local development, Moon commands, database lifecycle, and isolation.
-
+> **SSOT Key**: `development` > **Source of Truth** for local development, Moon commands, database lifecycle, and isolation.
 ## Source Files
-
 ### Prerequisites
-- **Node.js**: `20.19.0`
-- **npm**: `10.8.2` (bundled with Node.js `20.19.0`)
-- **Python**: `3.12.12` (managed by uv)
-- **uv**: `0.9.18`
-- **Host container runtime**: Docker Desktop with WSL integration or Podman
-  for backend/full tests, local infrastructure, and smoke tests
-- **Base shell tools**: Bash, Git, and curl
-
-| File | Purpose |
+- **Node.js**: `20.19.0` - **npm**: `10.8.2` (bundled with Node.js `20.19.0`) - **Python**: `3.12.12` (managed by uv) - **uv**: `0.9.18` - **Host container runtime**: Docker Desktop with WSL integration or Podman for backend/full tests, local infrastructure, and smoke tests - **Base shell tools**: Bash, Git, and curl | File | Purpose |
 |------|---------|
-| `tools/bootstrap.sh` | One-command local bootstrap for runtimes, dependencies, hooks, and container-runtime diagnostics |
-| `common/runtime/shell/` | Shell command implementations used by `tools/*.sh` command entry points |
-| `common/runtime/shell/common.sh` | Minimal shared shell helpers used by shell command implementations |
-| `toolchain.toml` | Runtime and container image version SSOT |
-| `.python-version` / `.node-version` / `.nvmrc` / `.tool-versions` | Local tool manager mirrors checked by CI |
-| `.moon/toolchain.yml` | Moon's local Node/npm toolchain mirror |
-| `moon.yml` | Root workspace tasks |
-| `apps/*/moon.yml` | Per-project tasks |
-| `tools/test_lifecycle.py` | Database lifecycle (Python Context Manager) |
-| `tools/smoke_test.sh` | Unified smoke tests |
-| `docker-compose.yml` | Development service containers |
-| `.github/workflows/ci.yml` | GitHub Actions CI |
-| `.github/workflows/deploy.yml` | Staging Build & Deploy |
-| `.github/workflows/release.yml` | Production Release |
-
+| `tools/bootstrap.sh` | One-command local bootstrap for runtimes, dependencies, hooks, and container-runtime diagnostics | | `common/runtime/shell/` | Shell command implementations used by `tools/*.sh` command entry points | | `common/runtime/shell/common.sh` | Minimal shared shell helpers used by shell command implementations | | `toolchain.toml` | Runtime and container image version SSOT |
+| `.python-version` / `.node-version` / `.nvmrc` / `.tool-versions` | Local tool manager mirrors checked by CI | | `.moon/toolchain.yml` | Moon's local Node/npm toolchain mirror | | `moon.yml` | Root workspace tasks | | `apps/*/moon.yml` | Per-project tasks | | `tools/test_lifecycle.py` | Database lifecycle (Python Context Manager) | | `tools/smoke_test.sh` | Unified smoke tests |
+| `docker-compose.yml` | Development service containers | | `.github/workflows/ci.yml` | GitHub Actions CI | | `.github/workflows/deploy.yml` | Staging Build & Deploy | | `.github/workflows/release.yml` | Production Release |
 ### Toolchain Contract
-
-`toolchain.toml` is the authoritative runtime and base-image contract for local
-development, GitHub Actions, and Docker/Compose:
-
-| Runtime / Image | Version |
+`toolchain.toml` is the authoritative runtime and base-image contract for local development, GitHub Actions, and Docker/Compose: | Runtime / Image | Version |
 |-----------------|---------|
-| Python | `3.12.12` |
-| Node.js | `20.19.0` |
-| npm | `10.8.2` |
-| uv | `0.9.18` |
-| Backend base image | `python:3.12.12-slim` |
-| Frontend base image | `node:20.19.0-alpine` |
-| Postgres test image | `postgres:15.14-alpine` |
-| MinIO image | `cgr.dev/chainguard/minio:latest-dev@sha256:4b862594d23cb20ae0fbeb93311ed312a5b566ecba2293220b204c89ef3c1fe2` |
-| MinIO client image | `cgr.dev/chainguard/minio-client:latest-dev@sha256:614e083a12c6dc779f13f97e01b13afda4021a8ce3f4021a2fcf23ec86f46837` |
-
-MinIO server and client use the hardened Chainguard distribution with immutable digests
-after Docker Hub and Quay.io upstream removals. The toolchain gate checks both Compose
-files and each CI acquisition step against `toolchain.toml` before tests run.
-
-Local tool-manager files mirror the same versions for compatibility:
-`.python-version`, `.node-version`, `.nvmrc`, and `.tool-versions`.
-The frontend sets `engine-strict=true` in `.npmrc` and declares
-`engines.node=20.19.0`, so running npm under another Node major/minor fails
-early instead of producing a different dependency tree.
-
-CI runs `python tools/check_toolchain_contract.py` in the lint job. The check
-fails when workflow runtime declarations, local tool files, Docker base images,
-Compose service images, or frontend engine constraints drift from
-`toolchain.toml`.
-
-Local bootstrapping is invoked through `tools/bootstrap.sh`; the tool-owned shell
-implementation lives under `common/runtime/shell/` and shared helpers stay in
-`common/runtime/shell/common.sh`. It installs or verifies uv, Python,
-nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks, then reports
-whether Docker or Podman is available for workflows that need a host container
-runtime. Local commands prefer Podman when both runtimes are available, but
-`CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman` may be set to force a
-specific runtime in CI or on hosts where only one daemon is usable.
-
+| Python | `3.12.12` | | Node.js | `20.19.0` | | npm | `10.8.2` | | uv | `0.9.18` | | Backend base image | `python:3.12.12-slim` | | Frontend base image | `node:20.19.0-alpine` | | Postgres test image | `postgres:15.14-alpine` | | MinIO image | `cgr.dev/chainguard/minio:latest-dev@sha256:4b862594d23cb20ae0fbeb93311ed312a5b566ecba2293220b204c89ef3c1fe2` |
+| MinIO client image | `cgr.dev/chainguard/minio-client:latest-dev@sha256:614e083a12c6dc779f13f97e01b13afda4021a8ce3f4021a2fcf23ec86f46837` | MinIO server and client use the hardened Chainguard distribution with immutable digests after Docker Hub and Quay.io upstream removals. The toolchain gate checks both Compose files and each CI acquisition step against `toolchain.toml` before tests run.
+Local tool-manager files mirror the same versions for compatibility: `.python-version`, `.node-version`, `.nvmrc`, and `.tool-versions`. The frontend sets `engine-strict=true` in `.npmrc` and declares `engines.node=20.19.0`, so running npm under another Node major/minor fails early instead of producing a different dependency tree. CI runs `python tools/check_toolchain_contract.py` in the lint job. The check fails when workflow runtime declarations, local tool files, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`. Local bootstrapping is invoked through `tools/bootstrap.sh`; the tool-owned shell implementation lives under `common/runtime/shell/` and shared helpers stay in `common/runtime/shell/common.sh`. It installs or verifies uv, Python,
+nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks, then reports whether Docker or Podman is available for workflows that need a host container runtime. Local commands prefer Podman when both runtimes are available, but `CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman` may be set to force a specific runtime in CI or on hosts where only one daemon is usable.
 ### Local Host Shell Matrix
-
-The local toolchain belongs to the shell that runs it. PATH entries, Python
-packages, Node packages, and CLI installs are not shared across WSL, macOS/Linux
-shells, Windows PowerShell, Git Bash, Scoop, or the Codex Windows runner.
-
-| Host shell | Support | Command entry point | Tool install scope |
+The local toolchain belongs to the shell that runs it. PATH entries, Python packages, Node packages, and CLI installs are not shared across WSL, macOS/Linux shells, Windows PowerShell, Git Bash, Scoop, or the Codex Windows runner. | Host shell | Support | Command entry point | Tool install scope |
 |---|---|---|---|
-| WSL Ubuntu | Primary Windows path | `bash tools/bootstrap.sh` inside WSL | `/usr/bin`, `/usr/local/bin`, `$HOME/.local/bin`, `$HOME/.nvm` in WSL |
-| macOS Terminal | Supported POSIX path | `bash tools/bootstrap.sh` | Homebrew/system tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
-| Linux shell | Supported POSIX path | `bash tools/bootstrap.sh` | Distro tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
-| Windows PowerShell | Not a direct project shell | Use `wsl.exe -d Ubuntu --cd ... --exec /bin/bash -lc "bash tools/bootstrap.sh"` | Windows PATH and Scoop installs only; not visible to WSL |
-| Git Bash/MSYS/Cygwin | Not supported for repo bootstrap | Use WSL Ubuntu instead | Windows-mounted POSIX compatibility layer; not the repo target shell |
-| Codex Windows runner | Not the repo command runner | Delegate repo commands to WSL | Runner PATH may omit interactive profile entries and WSL-only tools |
-
-Non-interactive shells often skip interactive profile files such as `.zshrc` or
-`.bashrc`. Command entry points that need tools must set PATH explicitly or run through
-`tools/bootstrap.sh`; do not rely on an interactive terminal having loaded the
-right Python, Node, `gh`, `uv`, `op`, `jq`, `yq`, `direnv`, Docker, or Podman.
-
-From Windows PowerShell, run the bootstrap through WSL:
-
-```powershell
-wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash tools/bootstrap.sh"
-```
-
----
-
+| WSL Ubuntu | Primary Windows path | `bash tools/bootstrap.sh` inside WSL | `/usr/bin`, `/usr/local/bin`, `$HOME/.local/bin`, `$HOME/.nvm` in WSL | | macOS Terminal | Supported POSIX path | `bash tools/bootstrap.sh` | Homebrew/system tools plus `$HOME/.local/bin` and `$HOME/.nvm` | | Linux shell | Supported POSIX path | `bash tools/bootstrap.sh` | Distro tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
+| Windows PowerShell | Not a direct project shell | Use `wsl.exe -d Ubuntu --cd ... --exec /bin/bash -lc "bash tools/bootstrap.sh"` | Windows PATH and Scoop installs only; not visible to WSL | | Git Bash/MSYS/Cygwin | Not supported for repo bootstrap | Use WSL Ubuntu instead | Windows-mounted POSIX compatibility layer; not the repo target shell | | Codex Windows runner | Not the repo command runner | Delegate repo commands to WSL | Runner PATH may omit interactive profile entries and WSL-only tools |
+Non-interactive shells often skip interactive profile files such as `.zshrc` or `.bashrc`. Command entry points that need tools must set PATH explicitly or run through `tools/bootstrap.sh`; do not rely on an interactive terminal having loaded the right Python, Node, `gh`, `uv`, `op`, `jq`, `yq`, `direnv`, Docker, or Podman. From Windows PowerShell, run the bootstrap through WSL:
+```powershell wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash tools/bootstrap.sh" ```
 <a id="moon-commands"></a>
-
 ## Moon Commands (Primary Interface)
-
-```bash
-# First-time local setup
-bash tools/bootstrap.sh
-
-# Development
-moon run :dev -- --infra          # Start local infra through tools/cli.py
-bash tools/infra.sh up            # Start local infra directly
-bash tools/infra.sh logs          # Follow local infra logs
-bash tools/infra.sh down          # Stop local infra
-moon run :dev -- --backend        # FastAPI backend after infra is running
-moon run :dev -- --frontend       # Next.js on :3000
-
-# Local verification
-moon run :test -- --smart         # Default affected fast gate for ordinary backend changes
-moon run :test -- --fast          # Fast TDD loop without coverage
-moon run :lint                    # Static checks before committing
-moon run :lint && moon run :test  # Full local confidence gate when risk or release timing justifies it
-
-# Testing
-moon run :test                    # All tests (backend threshold is code-owned by apps/backend/pyproject.toml)
-moon run :test -- --fast          # TDD mode (no coverage, fastest)
-moon run :test -- --smart         # Coverage on changed files only
-moon run :test -- --e2e           # Root deployment E2E tests under tests/e2e/
-moon run :test -- tests/ledger/  # Run specific module
-moon run :test -- tests/ledger/test_journal_service.py  # Run specific file
-
-# Environment Verification (See common/runtime/readme.md for full details)
-uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
-
-# Code Quality
-moon run :lint              # Lint all
-moon run :lint -- --fix     # Format Python (auto-fix)
-python tools/check_toolchain_contract.py  # Runtime/toolchain drift check
-
-# Build
-moon run :build             # Build all
-```
-
-Default local verification starts with affected fast tests. Use
-`moon run :test -- --smart` for ordinary backend changes, focused Vitest/spec
-runs for ordinary frontend changes, and focused tooling checks for docs/tooling
-changes. PR CI remains the authoritative merge gate.
-
-The full local confidence gate (`moon run :lint && moon run :test`) remains the
-same gate family as GitHub CI, but it is no longer the default local loop for
-ordinary low-risk edits.
-
-Risk-triggered local escalation is required for accounting, posting,
-reconciliation, money, balance, schema, migrations, API contract, OpenAPI,
-shared common/tooling, Docker, workflow, environment, and deploy changes. Use
-the focused domain, migration, API, downstream tooling, or static contract gates
-listed in [ci-cd.md](../testing/ci-cd.md#path-risk-to-local-gate-matrix), then rely on
-PR CI and deployed gates for full consistency proof.
-
-For schema and migration changes, run the same deterministic Alembic proof that
-PR CI uses before relying on staging:
-
-```bash
-cd apps/backend
-uv run alembic upgrade head
-uv run alembic check
-```
-
-Backend pytest fixtures may rebuild isolated model schemas for fast data
-isolation. That is useful for test speed, but it is not the authoritative
-migration proof. Alembic `upgrade head` plus `alembic check` against Postgres is
-the schema contract for both local escalation and PR CI.
-
-Root Moon tasks are uncached wrappers with explicit workspace inputs, so local
-verification runs fresh. Infrastructure source is not part of this repository;
-the versioned SDK and request boundary are verified separately.
-
----
-
+```bash # First-time local setup  bash tools/bootstrap.sh  # Development  moon run :dev -- --infra          # Start local infra through tools/cli.py  bash tools/infra.sh up            # Start local infra directly  bash tools/infra.sh logs          # Follow local infra logs  bash tools/infra.sh down          # Stop local infra  moon run :dev -- --backend        # FastAPI backend after infra is running  moon run :dev -- --frontend       # Next.js on :3000  # Local verification  moon run :test -- --smart         # Default affected fast gate for ordinary backend changes  moon run :test -- --fast          # Fast TDD loop without coverage  moon run :lint                    # Static checks before committing  moon run :lint && moon run :test  # Full local confidence gate when risk or release timing justifies it  # Testing  moon run :test                    # All tests (backend threshold is code-owned by apps/backend/pyproject.toml)  moon run :test -- --fast          # TDD mode (no coverage, fastest)  moon run :test -- --smart         # Coverage on changed files only  moon run :test -- --e2e           # Root deployment E2E tests under tests/e2e/  moon run :test -- tests/ledger/  # Run specific module  moon run :test -- tests/ledger/test_journal_service.py  # Run specific file  # Environment Verification (See common/runtime/readme.md for full details)  uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)  # Code Quality  moon run :lint              # Lint all  moon run :lint -- --fix     # Format Python (auto-fix)  python tools/check_toolchain_contract.py  # Runtime/toolchain drift check  # Build  moon run :build             # Build all ```
+Default local verification starts with affected fast tests. Use `moon run :test -- --smart` for ordinary backend changes, focused Vitest/spec runs for ordinary frontend changes, and focused tooling checks for docs/tooling changes. PR CI remains the authoritative merge gate. The full local confidence gate (`moon run :lint && moon run :test`) remains the same gate family as GitHub CI, but it is no longer the default local loop for ordinary low-risk edits. Risk-triggered local escalation is required for accounting, posting, reconciliation, money, balance, schema, migrations, API contract, OpenAPI, shared common/tooling, Docker, workflow, environment, and deploy changes. Use the focused domain, migration, API, downstream tooling, or static contract gates listed in [ci-cd.md](../testing/ci-cd.md#path-risk-to-local-gate-matrix), then rely on PR CI and deployed gates for full consistency proof. For schema and migration changes, run the same deterministic Alembic proof that PR CI uses before relying on staging:
+```bash cd apps/backend  uv run alembic upgrade head  uv run alembic check ``` Backend pytest fixtures may rebuild isolated model schemas for fast data isolation. That is useful for test speed, but it is not the authoritative migration proof. Alembic `upgrade head` plus `alembic check` against Postgres is the schema contract for both local escalation and PR CI.
+Root Moon tasks are uncached wrappers with explicit workspace inputs, so local verification runs fresh. Infrastructure source is not part of this repository; the versioned SDK and request boundary are verified separately.
 ## Documentation
-
 The project uses [MkDocs](https://www.mkdocs.org/) with Material theme.
-
-```bash
-pip install -r docs/requirements.txt  # Install dependencies
-uv --version                           # Required by MkDocs hooks
-mkdocs serve                          # Serve locally → http://127.0.0.1:8000
-mkdocs build                          # Build static site → site/
-```
-
-MkDocs generates build-time reference pages through [docs/hooks.py](../../docs/hooks.py).
-`docs/reference/db-schema.md` is intentionally gitignored; it is generated from
-SQLAlchemy metadata during `mkdocs serve` / `mkdocs build` and in the GitHub
-Pages workflow.
-
-Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/)
-
----
-
+```bash pip install -r docs/requirements.txt  # Install dependencies  uv --version                           # Required by MkDocs hooks  mkdocs serve                          # Serve locally → http://127.0.0.1:8000  mkdocs build                          # Build static site → site/ ``` MkDocs generates build-time reference pages through [docs/hooks.py](../../docs/hooks.py).
+`docs/reference/db-schema.md` is intentionally gitignored; it is generated from SQLAlchemy metadata during `mkdocs serve` / `mkdocs build` and in the GitHub Pages workflow. Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/)
 ## Environments
-
-> **See dedicated file** → **[common/runtime/environments.md](../runtime/environments.md)**
->
-> Covers: Local Dev / Local CI / GitHub CI / Staging / Production,
-> container naming patterns, and isolation details.
-
----
-
+> **See dedicated file** → **[common/runtime/environments.md](../runtime/environments.md)** > > Covers: Local Dev / Local CI / GitHub CI / Staging / Production, > container naming patterns, and isolation details.
 ## Database Lifecycle
-
 ### Database Management (Python Context Manager)
-
-`tools/test_lifecycle.py` uses `@contextmanager` to handle the database lifecycle:
-
-1. **Setup**: Starts the `postgres` service via Docker Compose; ensures DB is ready.
-2. **Isolation**: Creates `finance_report_test` database and runs migrations.
-3. **Teardown**: Stops the database container after tests complete.
-4. **Signal Handling**: Catches `SIGINT`/`SIGTERM` to clean up on interruption.
-
+`tools/test_lifecycle.py` uses `@contextmanager` to handle the database lifecycle: 1. **Setup**: Starts the `postgres` service via Docker Compose; ensures DB is ready. 2. **Isolation**: Creates `finance_report_test` database and runs migrations. 3. **Teardown**: Stops the database container after tests complete. 4. **Signal Handling**: Catches `SIGINT`/`SIGTERM` to clean up on interruption.
 <a id="local-test-isolation"></a>
-
 ### Local Test Isolation (Namespace-Based)
-
-**Purpose**: Multiple repo copies / branches can run tests in parallel without conflicts.
-
-**Namespace Generation** (priority order):
-- `BRANCH_NAME` (explicit) + `WORKSPACE_ID` (optional) → e.g., `feature_auth_abc123`
-- Git branch + repo path hash → e.g., `feature_payments_beeba6ed`
-- `"default"` (with warning if neither is set)
-
-**Isolated Resources**:
-- Test Database: `finance_report_test_{namespace}`
-- Worker Databases: `finance_report_test_{namespace}_gw0`, `gw1`, etc. (pytest-xdist)
-- S3 Buckets: `statements-{namespace}`
-- Namespaced test infra binds Postgres and MinIO to ephemeral localhost ports
-  (`127.0.0.1::5432`, `127.0.0.1::9000`, `127.0.0.1::9001`) so parallel
-  branch test runs do not collide with persistent local containers.
-
-Long branch/workspace namespaces are shortened deterministically with an 8-character hash suffix before resource creation. This keeps PostgreSQL identifiers and S3-compatible bucket names within their 63-character limits while preserving stable local/CI isolation.
-
-**Usage**:
-```bash
-BRANCH_NAME=feature-auth moon run :test                    # Explicit namespace
-BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run :test # With workspace ID
-moon run :test                                             # Auto-detect from git branch
-```
-
+**Purpose**: Multiple repo copies / branches can run tests in parallel without conflicts. **Namespace Generation** (priority order): - `BRANCH_NAME` (explicit) + `WORKSPACE_ID` (optional) → e.g., `feature_auth_abc123` - Git branch + repo path hash → e.g., `feature_payments_beeba6ed` - `"default"` (with warning if neither is set) **Isolated Resources**: - Test Database: `finance_report_test_{namespace}` - Worker Databases: `finance_report_test_{namespace}_gw0`, `gw1`, etc. (pytest-xdist) - S3 Buckets: `statements-{namespace}` - Namespaced test infra binds Postgres and MinIO to ephemeral localhost ports (`127.0.0.1::5432`, `127.0.0.1::9000`, `127.0.0.1::9001`) so parallel branch test runs do not collide with persistent local containers. Long branch/workspace namespaces are shortened deterministically with an 8-character hash suffix before resource creation. This keeps PostgreSQL identifiers and S3-compatible bucket names within their 63-character limits while preserving stable local/CI isolation. **Usage**:
+```bash BRANCH_NAME=feature-auth moon run :test                    # Explicit namespace  BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run :test # With workspace ID  moon run :test                                             # Auto-detect from git branch ```
 ### Key Features
-
-1. **Auto-detect runtime**: `CONTAINER_RUNTIME` override, otherwise `podman compose` (preferred) or `docker compose`
-2. **Lock file**: `~/.cache/finance_report/db.lock`
-3. **Auto-cleanup**: Last runner stops container; worker DBs cleaned post-run
-
----
-
+1. **Auto-detect runtime**: `CONTAINER_RUNTIME` override, otherwise `podman compose` (preferred) or `docker compose` 2. **Lock file**: `~/.cache/finance_report/db.lock` 3. **Auto-cleanup**: Last runner stops container; worker DBs cleaned post-run
 ## Isolation Utilities (`common/testing/test_isolation.py`)
-
-**Purpose**: Namespace-aware resource naming for parallel test execution.
-
-| Function | Input | Output | Purpose |
+**Purpose**: Namespace-aware resource naming for parallel test execution. | Function | Input | Output | Purpose |
 |----------|-------|--------|---------|
-| `get_test_db_name(namespace)` | `"feature_auth"` | `"finance_report_test_feature_auth"` | Test database |
-| `get_s3_bucket(namespace)` | `"feature_auth"` | `"statements-feature-auth"` | S3 bucket |
-| `get_env_suffix(namespace)` | `"feature_auth"` | `"-feature_auth"` | Compose suffix |
-| `sanitize_namespace(name)` | `"feature/auth-v2"` | `"feature_auth_v2"` | Safe identifier |
-
-Integration points:
-- `common/testing/test_isolation.py` — owns reusable namespace, database, bucket, and suffix helpers
-- `tools/test_lifecycle.py` — command entry point that creates DBs and overrides `S3_BUCKET`
-- `apps/backend/tests/conftest.py` — reads `TEST_NAMESPACE`, generates worker URLs
-- Contract tests: `apps/backend/tests/infra/test_isolation.py` (15 tests)
-
----
-
+| `get_test_db_name(namespace)` | `"feature_auth"` | `"finance_report_test_feature_auth"` | Test database | | `get_s3_bucket(namespace)` | `"feature_auth"` | `"statements-feature-auth"` | S3 bucket | | `get_env_suffix(namespace)` | `"feature_auth"` | `"-feature_auth"` | Compose suffix | | `sanitize_namespace(name)` | `"feature/auth-v2"` | `"feature_auth_v2"` | Safe identifier |
+Integration points: - `common/testing/test_isolation.py` — owns reusable namespace, database, bucket, and suffix helpers - `tools/test_lifecycle.py` — command entry point that creates DBs and overrides `S3_BUCKET` - `apps/backend/tests/conftest.py` — reads `TEST_NAMESPACE`, generates worker URLs - Contract tests: `apps/backend/tests/infra/test_isolation.py` (15 tests)
 ## Test Optimization
-
-> **See dedicated files** → **[common/testing/ci-cd.md](../testing/ci-cd.md)** (test pipeline) and **[common/runtime/ci-cd.md](../runtime/ci-cd.md)** (deploy)
->
-> Covers: smart/fast/full test modes, 4-way local test parallelism,
-> GitHub CI sharding, no-regression coverage gate,
-> CI job structure, and performance metrics.
-
----
-
+> **See dedicated files** → **[common/testing/ci-cd.md](../testing/ci-cd.md)** (test pipeline) and **[common/runtime/ci-cd.md](../runtime/ci-cd.md)** (deploy) > > Covers: smart/fast/full test modes, 4-way local test parallelism, > GitHub CI sharding, no-regression coverage gate, > CI job structure, and performance metrics.
 ## Resource Lifecycle Management
-
-All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test lifecycle**.
-
-| Script | Resources Started | Cleaned up on Ctrl+C |
+All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test lifecycle**. | Script | Resources Started | Cleaned up on Ctrl+C |
 |--------|-------------------|---------------------|
-| `dev_backend.py` | uvicorn (PID), **Full Stack Containers** | ✓ uvicorn only (Containers stay) |
-| `dev_frontend.py` | Next.js (PID tracked) | ✓ Only ours |
-
-**Test lifecycle resources:**
-
-| Resource | Start | Stop |
+| `dev_backend.py` | uvicorn (PID), **Full Stack Containers** | ✓ uvicorn only (Containers stay) | | `dev_frontend.py` | Next.js (PID tracked) | ✓ Only ours | **Test lifecycle resources:** | Resource | Start | Stop |
 |----------|-------|------|
-| Test DB container | Before tests | After last test runner exits |
-| Playwright driver | By pytest | Cleanup on test end |
-| Child processes | By pytest | on exit |
-
----
-
+| Test DB container | Before tests | After last test runner exits | | Playwright driver | By pytest | Cleanup on test end | | Child processes | By pytest | on exit |
 ## Smoke Tests
-
-```bash
-bash tools/smoke_test.sh                              # Local
-bash tools/smoke_test.sh https://report.zitian.party  # Staging/prod
-```
-
-Endpoints tested: `/`, `/api/health`, `/api/docs`, `/reconciliation`, `/api/ping`
-
----
-
+```bash bash tools/smoke_test.sh                              # Local  bash tools/smoke_test.sh https://report.zitian.party  # Staging/prod ``` Endpoints tested: `/`, `/api/health`, `/api/docs`, `/reconciliation`, `/api/ping`
 ## CI Workflows & Deployment
-
-> **See dedicated files** →
-> - **[common/testing/ci-cd.md](../testing/ci-cd.md)** — CI job structure, coverage gate (test pipeline)
-> - **[common/runtime/ci-cd.md](../runtime/ci-cd.md)** — deploy/release workflows (deploy half)
-> - **[common/runtime/deployment.md](../runtime/deployment.md)** — Vault, staging/production workflows
-
----
-
+> **See dedicated files** → > - **[common/testing/ci-cd.md](../testing/ci-cd.md)** — CI job structure, coverage gate (test pipeline) > - **[common/runtime/ci-cd.md](../runtime/ci-cd.md)** — deploy/release workflows (deploy half) > - **[common/runtime/deployment.md](../runtime/deployment.md)** — Vault, staging/production workflows
 ## Environment Variables
-
 | Scenario | DATABASE_URL | Hostname Strategy |
 |----------|--------------|-------------------|
-| Local Dev | `postgresql+asyncpg://...` | `localhost` or `postgres` |
-| Local Test | `postgresql+asyncpg://...` | `localhost:5432` |
-| PR Test | `postgresql+asyncpg://...` | Compose service DNS (`postgres`, `minio`) on the project-scoped internal network |
-| CI | Same as Local Test | `localhost:5433` (services) |
-| Staging/Prod | External PostgreSQL | Dokploy Managed |
-
-Environment/config validation is shared library logic under
-`apps/backend/src/runtime/extension/` (folded in from the retired `config`
-package, #1669). `env_keys.py` owns the key comparison between the
-`Settings` model in `apps/backend/src/config.py` and `.env.example`;
-`tools/check_env_keys.py` is the command entry point. Pydantic config/schema
-validation is implemented in `schema_validation.py` and exposed
-through `tools/validate_schemas.py`. The root command namespace is `tools/`;
-shared implementation belongs in the owning package.
-
----
-
+| Local Dev | `postgresql+asyncpg://...` | `localhost` or `postgres` | | Local Test | `postgresql+asyncpg://...` | `localhost:5432` | | PR Test | `postgresql+asyncpg://...` | Compose service DNS (`postgres`, `minio`) on the project-scoped internal network | | CI | Same as Local Test | `localhost:5433` (services) | | Staging/Prod | External PostgreSQL | Dokploy Managed |
+Environment/config validation is shared library logic under `apps/backend/src/runtime/extension/` (folded in from the retired `config` package, #1669). `env_keys.py` owns the key comparison between the `Settings` model in `apps/backend/src/config.py` and `.env.example`; `tools/check_env_keys.py` is the command entry point. Pydantic config/schema validation is implemented in `schema_validation.py` and exposed through `tools/validate_schemas.py`. The root command namespace is `tools/`; shared implementation belongs in the owning package.
 ## Verification
-
-```bash
-# Verify moon commands work
-moon run :test
-
-# Test smoke tests locally
-nohup moon run :dev -- --backend > /dev/null 2>&1 &
-sleep 10
-bash tools/smoke_test.sh "http://localhost:8000"
-
-# Check no orphan containers after tests
-podman ps | grep finance_report
-```
-
----
-
+```bash # Verify moon commands work  moon run :test  # Test smoke tests locally  nohup moon run :dev -- --backend > /dev/null 2>&1 &  sleep 10  bash tools/smoke_test.sh "http://localhost:8000"  # Check no orphan containers after tests  podman ps | grep finance_report ```
 ## Resource Cleanup
-
 ### Automatic Cleanup (Recommended)
-
-```bash
-./tools/install_git_hooks.sh  # Install post-push hook for auto-cleanup
-```
-
-Cleans: Test databases from interrupted runs, worker DBs from pytest-xdist crashes.
-Does NOT touch: Development data, running tests.
-
+```bash ./tools/install_git_hooks.sh  # Install post-push hook for auto-cleanup ``` Cleans: Test databases from interrupted runs, worker DBs from pytest-xdist crashes. Does NOT touch: Development data, running tests.
 ### Manual Cleanup
-
-```bash
-# Orphaned test databases (after interrupted runs)
-python tools/cleanup_orphaned_dbs.py --dry-run  # Preview
-python tools/cleanup_orphaned_dbs.py            # Clean orphaned
-python tools/cleanup_orphaned_dbs.py --all      # Clean ALL test DBs
-
-# All development resources (WARNING: data loss!)
-./tools/cleanup_dev_resources.sh        # Containers + locks only
-./tools/cleanup_dev_resources.sh --all  # EVERYTHING (volumes, MinIO)
-
-# Resource leak monitoring (run weekly)
-./tools/check_resource_leaks.sh
-./tools/check_resource_leaks.sh --verbose
-VPS_HOST=cloud.zitian.party ./tools/check_resource_leaks.sh
-```
-
+```bash # Orphaned test databases (after interrupted runs)  python tools/cleanup_orphaned_dbs.py --dry-run  # Preview  python tools/cleanup_orphaned_dbs.py            # Clean orphaned  python tools/cleanup_orphaned_dbs.py --all      # Clean ALL test DBs  # All development resources (WARNING: data loss!)  ./tools/cleanup_dev_resources.sh        # Containers + locks only  ./tools/cleanup_dev_resources.sh --all  # EVERYTHING (volumes, MinIO)  # Resource leak monitoring (run weekly)  ./tools/check_resource_leaks.sh  ./tools/check_resource_leaks.sh --verbose  VPS_HOST=cloud.zitian.party ./tools/check_resource_leaks.sh ```
 ### PR Image Tag Cleanup (Automated)
-
-The app has no PR preview stack and creates no PR-scoped GHCR images. The
-scheduled `PR Preview Cleanup` workflow (`maintenance.yml`) is the fallback for
-legacy `pr-<number>-<sha>` tags. Every six hours it:
-- Compares legacy PR tags with currently open GitHub PRs.
-- Prunes closed-PR GHCR tags after the retention window.
-
-The scheduled `GHCR SHA Retention` workflow is separate from PR tag cleanup.
-It prunes backend/frontend `:<sha>` GHCR package versions older than 28 days,
-preserving live staging/production deploy SHAs and every `vX.Y.Z` release tag.
-
-Manual dry run:
-
-```bash
-gh workflow run maintenance.yml -f task=pr-preview-cleanup -f preview_cleanup_dry_run=true
-gh workflow run maintenance.yml -f task=ghcr-sha-retention -f ghcr_dry_run=true
-```
-
----
-
+The app has no PR preview stack and creates no PR-scoped GHCR images. The scheduled `PR Preview Cleanup` workflow (`maintenance.yml`) is the fallback for legacy `pr-<number>-<sha>` tags. Every six hours it: - Compares legacy PR tags with currently open GitHub PRs. - Prunes closed-PR GHCR tags after the retention window. The scheduled `GHCR SHA Retention` workflow is separate from PR tag cleanup. It prunes backend/frontend `:<sha>` GHCR package versions older than 28 days, preserving live staging/production deploy SHAs and every `vX.Y.Z` release tag. Manual dry run:
+```bash gh workflow run maintenance.yml -f task=pr-preview-cleanup -f preview_cleanup_dry_run=true  gh workflow run maintenance.yml -f task=ghcr-sha-retention -f ghcr_dry_run=true ```
 ## Related Documents
-
 | Document | Content |
 |----------|---------|
-| [environments.md](../runtime/environments.md) | Five environments, container naming, isolation |
-| [ci-cd.md](../testing/ci-cd.md) | CI job structure, coverage gate, test modes |
-| [deployment.md](../runtime/deployment.md) | Deployment workflows, Vault, release process |
-| [coverage.md](../testing/coverage.md) | Unified coverage system |
-| [tdd.md](../testing/tdd.md) | TDD workflow |
+| [environments.md](../runtime/environments.md) | Five environments, container naming, isolation | | [ci-cd.md](../testing/ci-cd.md) | CI job structure, coverage gate, test modes | | [deployment.md](../runtime/deployment.md) | Deployment workflows, Vault, release process | | [coverage.md](../testing/coverage.md) | Unified coverage system | | [tdd.md](../testing/tdd.md) | TDD workflow |
 | [MANIFEST.yaml](data/MANIFEST.yaml) | Concept ownership registry |

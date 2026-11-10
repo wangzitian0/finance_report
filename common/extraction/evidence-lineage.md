@@ -1,308 +1,53 @@
 # Evidence Lineage
-
-> **SSOT Key**: `evidence_lineage`
-> **Owner EPIC**: EPIC-018
-> **Purpose**: Define the generic Evidence Graph used to audit how source facts become ledger and report facts.
-
+> **SSOT Key**: `evidence_lineage` > **Owner EPIC**: EPIC-018 > **Purpose**: Define the generic Evidence Graph used to audit how source facts become ledger and report facts.
 ## Scope
-
-Evidence lineage is a PostgreSQL-backed adjacency-list graph. It records
-auditable states and the transformation processes between them.
-
-```text
-node = auditable state
-edge = transformation or calculation process
-```
-
-This layer does not replace double-entry bookkeeping. Journal entries and
-journal lines remain the accounting source of truth. Evidence lineage records
-how source, extracted, atomic, ledger, and report entities are connected.
-
-Evidence Graph is an audit projection. When graph rows disagree with business
-tables, the owning business table wins. Graph repair must not mutate accounting
-facts, report amounts, ledger balances, or legacy `JournalEntry.source_type` and
-`JournalEntry.source_id` values.
-
+Evidence lineage is a PostgreSQL-backed adjacency-list graph. It records auditable states and the transformation processes between them.
+```text node = auditable state  edge = transformation or calculation process ``` This layer does not replace double-entry bookkeeping. Journal entries and journal lines remain the accounting source of truth. Evidence lineage records how source, extracted, atomic, ledger, and report entities are connected. Evidence Graph is an audit projection. When graph rows disagree with business
+tables, the owning business table wins. Graph repair must not mutate accounting facts, report amounts, ledger balances, or legacy `JournalEntry.source_type` and `JournalEntry.source_id` values.
 ## Tables
-
 The foundation owns two generic tables:
-
-```text
-evidence_nodes
-- id
-- user_id
-- node_kind
-- entity_type
-- entity_id
-- properties jsonb
-- created_at
-- updated_at
-```
-
-```text
-evidence_edges
-- id
-- user_id
-- from_node_id
-- to_node_id
-- relation
-- properties jsonb
-- created_at
-- updated_at
-```
-
-`properties` is only for small audit metadata such as confidence summaries,
-algorithm names, score snapshots, or source labels. Large OCR text, PDFs, CSV
-content, and provider payloads must stay in their owning business tables or
+```text evidence_nodes  - id  - user_id  - node_kind  - entity_type  - entity_id  - properties jsonb  - created_at  - updated_at ```
+```text evidence_edges  - id  - user_id  - from_node_id  - to_node_id  - relation  - properties jsonb  - created_at  - updated_at ``` `properties` is only for small audit metadata such as confidence summaries, algorithm names, score snapshots, or source labels. Large OCR text, PDFs, CSV content, and provider payloads must stay in their owning business tables or
 object storage.
-
 ## Node Kinds
-
-Initial node kinds are:
-
-- `source_document`
-- `extracted_record`
-- `atomic_fact`
-- `review_decision`
-- `ledger_entry`
-- `ledger_line`
-- `report_line`
-- `package_snapshot`
-
-New node kinds are allowed when a new business workflow needs a distinct
-auditable state. They must be documented in the owning EPIC before use.
-
+Initial node kinds are: - `source_document` - `extracted_record` - `atomic_fact` - `review_decision` - `ledger_entry` - `ledger_line` - `report_line` - `package_snapshot` New node kinds are allowed when a new business workflow needs a distinct auditable state. They must be documented in the owning EPIC before use.
 ## Relations
-
-Initial relation names are process-oriented:
-
-- `parsed_into`
-- `deduped_into`
-- `reviewed_as`
-- `posted_as`
-- `contains`
-- `aggregated_into`
-- `included_in`
-- `supports`
-- `superseded_by`
-- `corrected_by`
-
-Do not use generic relations such as `related_to` for product lineage. The
-relation should explain why one state can support or transform into the next.
-
+Initial relation names are process-oriented: - `parsed_into` - `deduped_into` - `reviewed_as` - `posted_as` - `contains` - `aggregated_into` - `included_in` - `supports` - `superseded_by` - `corrected_by` Do not use generic relations such as `related_to` for product lineage. The relation should explain why one state can support or transform into the next.
 ## Identity
-
 A node is uniquely identified by:
-
-```text
-user_id + node_kind + entity_type + entity_id
-```
-
-An edge is idempotent by:
-
-```text
-user_id + from_node_id + to_node_id + relation
-```
-
-At the database boundary, `evidence_edges.user_id` must match both endpoint
-nodes. The composite edge FKs are tenant-scoped so direct writes cannot connect
-nodes owned by different users. Service-level checks remain the first line of
-defense, but the database is the final proof boundary.
-
-Business tables keep their own primary keys. Evidence lineage references them
-through `entity_type` and `entity_id` so future tables can join the graph
-without schema changes to the graph foundation.
-
+```text user_id + node_kind + entity_type + entity_id ``` An edge is idempotent by:
+```text user_id + from_node_id + to_node_id + relation ``` At the database boundary, `evidence_edges.user_id` must match both endpoint nodes. The composite edge FKs are tenant-scoped so direct writes cannot connect nodes owned by different users. Service-level checks remain the first line of defense, but the database is the final proof boundary. Business tables keep their own primary keys. Evidence lineage references them
+through `entity_type` and `entity_id` so future tables can join the graph without schema changes to the graph foundation.
 ## Traversal
-
-All traversal queries must:
-
-- require `user_id`;
-- support upstream direction through `to_node_id`;
-- support downstream direction through `from_node_id`;
-- enforce a bounded maximum depth;
-- avoid loading large `properties` payloads into high-frequency UI summaries.
-
-The default maximum traversal depth is 6. Callers may request a smaller depth.
-Larger depths require a deliberate service-level override and test coverage.
-
+All traversal queries must: - require `user_id`; - support upstream direction through `to_node_id`; - support downstream direction through `from_node_id`; - enforce a bounded maximum depth; - avoid loading large `properties` payloads into high-frequency UI summaries. The default maximum traversal depth is 6. Callers may request a smaller depth. Larger depths require a deliberate service-level override and test coverage.
 ## Append-Only Edges
-
-Edges are append-oriented audit facts. Corrections should normally add
-`corrected_by` or `superseded_by` edges instead of mutating historical lineage.
-Foundation upsert is allowed only to keep identical writes idempotent.
-
+Edges are append-oriented audit facts. Corrections should normally add `corrected_by` or `superseded_by` edges instead of mutating historical lineage. Foundation upsert is allowed only to keep identical writes idempotent.
 ## Proof
-
-Foundation proof is owned by AC18.7 and must cover:
-
-- node creation;
-- edge creation;
-- duplicate upsert behavior;
-- upstream traversal;
-- downstream traversal;
-- depth limit enforcement;
-- cross-user isolation.
-
-Integration proof is owned by AC18.8. The first product integration path is:
-
-```text
-UploadedDocument
-  -> AtomicTransaction
-  -> JournalEntry
-  -> JournalLine
-  -> report line anchor
-```
-
-The corresponding graph nodes and edges are:
-
-```text
-source_document(uploaded_document)
-  -deduped_into->
-atomic_fact(atomic_transaction)
-  -posted_as->
-ledger_entry(journal_entry)
-  -contains->
-ledger_line(journal_line)
-  -aggregated_into->
-report_line(package_traceability_line)
-```
-
-Report traceability may still use legacy `JournalEntry.source_type/source_id`
-as a compatibility fallback. When a legacy source ID cannot be resolved to an
-owned source, extracted, atomic, or graph node, the caller must return an
-explicit blocker state rather than fabricating a source anchor.
-
-Trusted source-document and reconciliation anchors use normalized relational
-link tables:
-
-- `atomic_transaction_source_documents`
-- `atomic_position_source_documents`
-- `reconciliation_match_journal_entries`
-
-Legacy JSONB arrays and naked UUID fields are compatibility hints only. They
-may be preserved for historical context, but unresolved or cross-user values
-must surface as blocker states such as `entity_missing`,
-`unknown_source_anchor`, or `cross_user_lineage_blocked`.
-
+Foundation proof is owned by AC18.7 and must cover: - node creation; - edge creation; - duplicate upsert behavior; - upstream traversal; - downstream traversal; - depth limit enforcement; - cross-user isolation. Integration proof is owned by AC18.8. The first product integration path is:
+```text UploadedDocument  -> AtomicTransaction  -> JournalEntry  -> JournalLine  -> report line anchor ``` The corresponding graph nodes and edges are:
+```text source_document(uploaded_document)  -deduped_into->  atomic_fact(atomic_transaction)  -posted_as->  ledger_entry(journal_entry)  -contains->  ledger_line(journal_line)  -aggregated_into->  report_line(package_traceability_line) ``` Report traceability may still use legacy `JournalEntry.source_type/source_id` as a compatibility fallback. When a legacy source ID cannot be resolved to an
+owned source, extracted, atomic, or graph node, the caller must return an explicit blocker state rather than fabricating a source anchor. Trusted source-document and reconciliation anchors use normalized relational link tables: - `atomic_transaction_source_documents` - `atomic_position_source_documents` - `reconciliation_match_journal_entries` Legacy JSONB arrays and naked UUID fields are compatibility hints only. They
+may be preserved for historical context, but unresolved or cross-user values must surface as blocker states such as `entity_missing`, `unknown_source_anchor`, or `cross_user_lineage_blocked`.
 ## Source-backed opening positions
-
-The public `opening_position` entity is keyed by the custody account UUID. Its
-`atomic_fact` node connects an authoritative starting stock to its source and,
-when the amount is nonzero, to its opening journal:
-
-```text
-source_document(uploaded_document)
-  -supports-> atomic_fact(opening_position)
-  -posted_as-> ledger_entry(journal_entry)
-  -contains-> ledger_line(journal_line)
-```
-
-An explicit zero has an opening-position node and PDF source without inventing a
-journal entry. The adapter consumes ledger's public current opening-position
-projection, then verifies its exact typed extraction-result or reviewed-envelope
-decision against the extraction owner, account, source digest, and document
-ownership. A standalone manual opening remains valid without an invented PDF.
-Entity navigation has no accounting-date filter, so future-dated positions are
-resolved with the same current-authority checks.
-
-Opening nodes retain the stock decision ID, source decision ID, document ID,
-optional journal ID, effective date, account, currency, and Decimal amount.
-Cached paths are revalidated on every navigation. Retired sources, revoked
-source/stock authority, void journals, or changed pinned identities return an
-explicit `opening_authority_unproven` blocker (HTTP 409), preserving historical
-graph rows. Missing or foreign opening accounts expose no owned anchor.
-
-A changed source that established opening stock requires correction review
-before reparse, including dormant statements and explicit zero stock without a
-journal. The previous immutable result, source decision, and stock remain intact.
-Independent manual openings do not acquire a source relationship through this
-guard.
-
+The public `opening_position` entity is keyed by the custody account UUID. Its `atomic_fact` node connects an authoritative starting stock to its source and, when the amount is nonzero, to its opening journal:
+```text source_document(uploaded_document)  -supports-> atomic_fact(opening_position)  -posted_as-> ledger_entry(journal_entry)  -contains-> ledger_line(journal_line) ``` An explicit zero has an opening-position node and PDF source without inventing a journal entry. The adapter consumes ledger's public current opening-position projection, then verifies its exact typed extraction-result or reviewed-envelope
+decision against the extraction owner, account, source digest, and document ownership. A standalone manual opening remains valid without an invented PDF. Entity navigation has no accounting-date filter, so future-dated positions are resolved with the same current-authority checks. Opening nodes retain the stock decision ID, source decision ID, document ID,
+optional journal ID, effective date, account, currency, and Decimal amount. Cached paths are revalidated on every navigation. Retired sources, revoked source/stock authority, void journals, or changed pinned identities return an explicit `opening_authority_unproven` blocker (HTTP 409), preserving historical graph rows. Missing or foreign opening accounts expose no owned anchor.
+A changed source that established opening stock requires correction review before reparse, including dormant statements and explicit zero stock without a journal. The previous immutable result, source decision, and stock remain intact. Independent manual openings do not acquire a source relationship through this guard.
 ## Navigation API and UI
-
-Product navigation proof is owned by AC18.9. The generic lineage API resolves
-one user-owned graph anchor by:
-
-```text
-entity_type + entity_id + optional node_kind
-```
-
-The API must support `upstream`, `downstream`, and `both` traversal directions
-with the same bounded depth rules as the foundation service. Responses are DTOs
-for UI consumption:
-
-- `anchor`: the resolved starting node, or `null` when no owned node exists;
-- `nodes`: unique graph nodes reached by the requested traversal, including the anchor when present;
-- `edges`: transformation edges between returned nodes, each with relation, direction, depth, and endpoint IDs;
-- `blockers`: explicit empty or unsupported states such as `graph_node_missing`;
-- `max_depth`: the effective traversal depth.
-
-Node and edge `properties` in these DTOs are typed, closed audit-metadata
-records — one Pydantic model per `node_kind` and per edge relation — not an
-open `dict[str, Any]`. Models tolerate legacy rows (all fields optional, unknown
-keys preserved) so the JSON shape clients already consume is unchanged. Monetary
-fields are serialized as `Decimal`-derived strings and never as `float`
-(AC18.31.1).
-
-A genuine request-time materialization failure (a blocker such as
-`cross_user_lineage_blocked`, `materialization_write_cap_reached`, or
-`unsupported_provenance`) is surfaced as a non-2xx HTTP status with a structured
-error body, not as a `200 OK` carrying a populated `blockers` list. An absent
-anchor (`graph_node_missing`) remains a valid `200` empty result so existing
-navigation flows are unaffected (AC18.31.2).
-
-UI surfaces may open lineage from report package traceability rows by using
-ledger-line or source-document identifiers already returned by package
-traceability. The UI must show missing lineage as an explicit empty state and
-must not infer or fabricate source, ledger, or report anchors when the API does
-not return graph evidence.
-
+Product navigation proof is owned by AC18.9. The generic lineage API resolves one user-owned graph anchor by:
+```text entity_type + entity_id + optional node_kind ``` The API must support `upstream`, `downstream`, and `both` traversal directions with the same bounded depth rules as the foundation service. Responses are DTOs for UI consumption: - `anchor`: the resolved starting node, or `null` when no owned node exists; - `nodes`: unique graph nodes reached by the requested traversal, including the anchor when present;
+- `edges`: transformation edges between returned nodes, each with relation, direction, depth, and endpoint IDs; - `blockers`: explicit empty or unsupported states such as `graph_node_missing`; - `max_depth`: the effective traversal depth. Node and edge `properties` in these DTOs are typed, closed audit-metadata records — one Pydantic model per `node_kind` and per edge relation — not an
+open `dict[str, Any]`. Models tolerate legacy rows (all fields optional, unknown keys preserved) so the JSON shape clients already consume is unchanged. Monetary fields are serialized as `Decimal`-derived strings and never as `float` (AC18.31.1). A genuine request-time materialization failure (a blocker such as `cross_user_lineage_blocked`, `materialization_write_cap_reached`, or
+`unsupported_provenance`) is surfaced as a non-2xx HTTP status with a structured error body, not as a `200 OK` carrying a populated `blockers` list. An absent anchor (`graph_node_missing`) remains a valid `200` empty result so existing navigation flows are unaffected (AC18.31.2). UI surfaces may open lineage from report package traceability rows by using
+ledger-line or source-document identifiers already returned by package traceability. The UI must show missing lineage as an explicit empty state and must not infer or fabricate source, ledger, or report anchors when the API does not return graph evidence.
 ## Materialization and Consistency
-
-Consistency proof for lazy materialization is owned by AC18.10. Evidence Graph
-consistency is maintained through two mechanisms:
-
-1. Transactional write-through for new facts.
-2. Bounded lazy materialization for historical facts reached by lineage reads.
-
-New source-to-ledger workflows must write graph nodes and edges inside the same
-database transaction as the owning business facts. If the graph write cannot be
-completed, the workflow must either fail the transaction or return an explicit
-blocker. Silent graph omissions are not acceptable for new write paths.
-
-Historical data may be materialized on demand by the lineage API. When a caller
-requests an owned anchor and the expected graph anchor or local path is missing,
-the API may invoke one deterministic materialization pass, then retry graph
-traversal. This pass must be bounded by user scope, maximum traversal depth,
-maximum graph writes, and batch size.
-
-Lazy materialization may only use strong relationships that already exist in
-source-of-truth tables, such as:
-
-- owned uploaded document identifiers;
-- uploaded document to atomic transaction lineage (`AtomicTransaction.source_documents`);
-- journal entry source identifiers when the source entity is owned and resolvable;
-- `journal_line.journal_entry_id`;
-- report traceability anchors that already reference owned ledger lines.
-
-Lazy materialization must not infer links from fuzzy amount, date, description,
-category, or account-name similarity. If provenance is ambiguous, unsupported,
-missing, or cross-user, the caller must return a blocker instead of writing a
+Consistency proof for lazy materialization is owned by AC18.10. Evidence Graph consistency is maintained through two mechanisms: 1. Transactional write-through for new facts. 2. Bounded lazy materialization for historical facts reached by lineage reads. New source-to-ledger workflows must write graph nodes and edges inside the same database transaction as the owning business facts. If the graph write cannot be
+completed, the workflow must either fail the transaction or return an explicit blocker. Silent graph omissions are not acceptable for new write paths. Historical data may be materialized on demand by the lineage API. When a caller requests an owned anchor and the expected graph anchor or local path is missing, the API may invoke one deterministic materialization pass, then retry graph
+traversal. This pass must be bounded by user scope, maximum traversal depth, maximum graph writes, and batch size. Lazy materialization may only use strong relationships that already exist in source-of-truth tables, such as: - owned uploaded document identifiers; - uploaded document to atomic transaction lineage (`AtomicTransaction.source_documents`);
+- journal entry source identifiers when the source entity is owned and resolvable; - `journal_line.journal_entry_id`; - report traceability anchors that already reference owned ledger lines. Lazy materialization must not infer links from fuzzy amount, date, description, category, or account-name similarity. If provenance is ambiguous, unsupported, missing, or cross-user, the caller must return a blocker instead of writing a
 guessed edge.
-
 ## Blocker Taxonomy
-
-Lineage APIs must use explicit blocker codes for missing graph proof and
-unsupported provenance:
-
-- `graph_node_missing`: no owned graph node exists for the requested entity identity.
-- `lineage_incomplete`: a graph anchor exists but the requested upstream or downstream path is incomplete.
-- `entity_missing`: the business entity referenced by an identity cannot be resolved.
-- `ambiguous_provenance`: existing facts do not identify exactly one defensible source or target.
-- `unsupported_provenance`: the source type or entity type is outside the current graph contract.
-- `cross_user_lineage_blocked`: a candidate link would cross user ownership boundaries.
-- `materialization_write_cap_reached`: request-time repair stopped before completion because the write cap was reached.
-
-Blockers are audit facts about missing proof. They must be surfaced instead of
-fabricating source, ledger, or report anchors.
+Lineage APIs must use explicit blocker codes for missing graph proof and unsupported provenance: - `graph_node_missing`: no owned graph node exists for the requested entity identity. - `lineage_incomplete`: a graph anchor exists but the requested upstream or downstream path is incomplete. - `entity_missing`: the business entity referenced by an identity cannot be resolved.
+- `ambiguous_provenance`: existing facts do not identify exactly one defensible source or target. - `unsupported_provenance`: the source type or entity type is outside the current graph contract. - `cross_user_lineage_blocked`: a candidate link would cross user ownership boundaries. - `materialization_write_cap_reached`: request-time repair stopped before completion because the write cap was reached.
+Blockers are audit facts about missing proof. They must be surfaced instead of fabricating source, ledger, or report anchors.

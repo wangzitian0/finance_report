@@ -1,47 +1,11 @@
 # `observability` — OTEL runtime contract, audit logging + OpenPanel CLI (infra)
-
-> Model spec: [`../meta/readme.md`](../meta/readme.md). Machine
-> contract: [`contract.py`](./contract.py).
-
+> Model spec: [`../meta/readme.md`](../meta/readme.md). Machine > contract: [`contract.py`](./contract.py).
 ## What
-
-Two cohesive surfaces under one `infra` package:
-
-1. **Backend observability language** (BE implementation:
-   `apps/backend/src/observability`) — the vendor-neutral OpenTelemetry runtime
-   contract (`runtime.py`: status + startup readiness, FastAPI instrumentation
-   state) and the shared structured audit/security logging helpers (`audit.py`:
-   bounded safe error summaries, risky-field redaction, financial-mutation and
-   security-warning emitters). This is the home #1428 relocates the shared
-   logging helpers into (identity's `bind_authenticated_user_context` is folded
-   in later).
-2. **OpenPanel query CLI** (`openpanel_query.py`, here in `common/observability`)
-   — a stdlib-only triage wrapper over the OpenPanel analytics export API, run
-   via `tools/openpanel_query.py`, reading credentials from the environment.
-
+Two cohesive surfaces under one `infra` package: 1. **Backend observability language** (BE implementation: `apps/backend/src/observability`) — the vendor-neutral OpenTelemetry runtime contract (`runtime.py`: status + startup readiness, FastAPI instrumentation state) and the shared structured audit/security logging helpers (`audit.py`: bounded safe error summaries, risky-field redaction, financial-mutation and
+   security-warning emitters). This is the home #1428 relocates the shared logging helpers into (identity's `bind_authenticated_user_context` is folded in later). 2. **OpenPanel query CLI** (`openpanel_query.py`, here in `common/observability`) — a stdlib-only triage wrapper over the OpenPanel analytics export API, run via `tools/openpanel_query.py`, reading credentials from the environment.
 ## Shape
-
-An `infra` package (L1), `tier=CODE-ONLY` (pure Python, no LLM). `depends_on=[]`:
-the OTEL runtime reads the backend config singleton via its bare published root
-(`import src.config`) — the app `Settings` module, unregistered backend
-infrastructure rather than a governed cross-package edge (#1674). The formerly
-flat `src.telemetry_metrics` and the PII detector (`src.services.pii_redaction`,
-folded in per #1677) now live inside the package. Its published language —
-`contract.interface` — equals `apps/backend/src/observability/__init__.__all__`,
-validated by `tools/check_package_contract.py` (which also resolves the OpenPanel
-api-key invariant to its test).
-
-Parse recovery emits the same bounded, redacted `statement.parse.failed` event
-for a rejected source and an identity ambiguity retained for human review. The
-behavioral proof executes both recovery paths and verifies the persisted-state
-request, safe log fields, and failure metric; a source-code string is not proof
-of the runtime outcome (`AC-observability.12.3`).
-
-A Prefect flow run executes in the worker container, not in `src.main`, so
-`flow_run_telemetry` (`src.observability.worker_telemetry`) configures OTEL metrics, logs and traces for
-that process. The service name is `OTEL_SERVICE_NAME`, else `finance-report-worker`.
-The flow flushes all providers before it exits (`AC-observability.12.4`).
-Each flow-run process adds a random `service.instance.id` resource attribute and
-exports a zero baseline before the first increment of a counter series. PromQL
-`increase()` needs two samples per series; the baseline gives it two. The process
+An `infra` package (L1), `tier=CODE-ONLY` (pure Python, no LLM). `depends_on=[]`: the OTEL runtime reads the backend config singleton via its bare published root (`import src.config`) — the app `Settings` module, unregistered backend infrastructure rather than a governed cross-package edge (#1674). The formerly flat `src.telemetry_metrics` and the PII detector (`src.services.pii_redaction`,
+folded in per #1677) now live inside the package. Its published language — `contract.interface` — equals `apps/backend/src/observability/__init__.__all__`, validated by `tools/check_package_contract.py` (which also resolves the OpenPanel api-key invariant to its test). Parse recovery emits the same bounded, redacted `statement.parse.failed` event for a rejected source and an identity ambiguity retained for human review. The
+behavioral proof executes both recovery paths and verifies the persisted-state request, safe log fields, and failure metric; a source-code string is not proof of the runtime outcome (`AC-observability.12.3`). A Prefect flow run executes in the worker container, not in `src.main`, so `flow_run_telemetry` (`src.observability.worker_telemetry`) configures OTEL metrics, logs and traces for
+that process. The service name is `OTEL_SERVICE_NAME`, else `finance-report-worker`. The flow flushes all providers before it exits (`AC-observability.12.4`). Each flow-run process adds a random `service.instance.id` resource attribute and exports a zero baseline before the first increment of a counter series. PromQL `increase()` needs two samples per series; the baseline gives it two. The process
 also replaces the root-logger handlers that Prefect installs, so INFO events export.

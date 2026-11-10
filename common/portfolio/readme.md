@@ -1,227 +1,49 @@
 # `portfolio` — investment position accounting (domain package)
-
-> Package model: [`../meta/readme.md`](../meta/readme.md). Machine contract:
-> [`contract.py`](./contract.py).
->
-> This `common/portfolio/` directory is the **spec + review surface**; the
-> conforming implementation lives at
-> [`apps/backend/src/portfolio`](../../apps/backend/src/portfolio)
-> (`contract.implementations["be"]`).
-
+> Package model: [`../meta/readme.md`](../meta/readme.md). Machine contract: > [`contract.py`](./contract.py). > > This `common/portfolio/` directory is the **spec + review surface**; the > conforming implementation lives at > [`apps/backend/src/portfolio`](../../apps/backend/src/portfolio) > (`contract.implementations["be"]`).
 ## Why
-
-Buying, selling, and receiving a dividend on an investment needs the same
-double-entry discipline as any other cash movement, plus position bookkeeping
-double-entry doesn't cover: which lot did this sale consume, at what cost
-basis, realized vs unrealized. `portfolio` owns that position math; it posts
-through `ledger.post_entry` for the cash/equity side rather than duplicating
+Buying, selling, and receiving a dividend on an investment needs the same double-entry discipline as any other cash movement, plus position bookkeeping double-entry doesn't cover: which lot did this sale consume, at what cost basis, realized vs unrealized. `portfolio` owns that position math; it posts through `ledger.post_entry` for the cash/equity side rather than duplicating
 posting logic.
-
 ## Positions-only boundary (2026-07-06, updated after the pricing design review #1610)
-
-`portfolio` owns only position math — quantity, cost basis, realized/unrealized
-P&L. It never fetches or stores a price or a valuation; it *consumes* one via
-`pricing.resolve(subject, as_of, policy)`. The old `MarketDataOverride` write
-path (`PortfolioService.update_market_prices`) belongs to `pricing.record_override`
-now, not here.
-
+`portfolio` owns only position math — quantity, cost basis, realized/unrealized P&L. It never fetches or stores a price or a valuation; it *consumes* one via `pricing.resolve(subject, as_of, policy)`. The old `MarketDataOverride` write path (`PortfolioService.update_market_prices`) belongs to `pricing.record_override` now, not here.
 ## Ubiquitous language
-
-- **`ManagedPosition`** — portfolio's aggregate root: an open or closed holding
-  in one asset, for one user/account. Owns `InvestmentLot` and
-  `InvestmentTransaction`; the invariant is *open position quantity ≥ 0* plus
-  cost-basis consistency across lots.
-- **`InvestmentLot`** — one FIFO/LIFO/AVGCOST-consumable acquisition slice of a
-  position, carrying its own cost basis.
-- **`InvestmentTransaction`** — a buy/sell/dividend event against a position.
-- **`DividendIncome`** — a dividend receipt, split into cash and (optionally)
-  withholding-tax legs on the ledger side.
-- **`AtomicPosition`** — the brokerage-extraction-facing read shape `extraction`
-  feeds into position accounting (see
-  [`../extraction/readme.md`](../extraction/readme.md#brokerage-position-import)).
-
+- **`ManagedPosition`** — portfolio's aggregate root: an open or closed holding in one asset, for one user/account. Owns `InvestmentLot` and `InvestmentTransaction`; the invariant is *open position quantity ≥ 0* plus cost-basis consistency across lots. - **`InvestmentLot`** — one FIFO/LIFO/AVGCOST-consumable acquisition slice of a position, carrying its own cost basis.
+- **`InvestmentTransaction`** — a buy/sell/dividend event against a position. - **`DividendIncome`** — a dividend receipt, split into cash and (optionally) withholding-tax legs on the ledger side. - **`AtomicPosition`** — the brokerage-extraction-facing read shape `extraction` feeds into position accounting (see [`../extraction/readme.md`](../extraction/readme.md#brokerage-position-import)).
 ## Write side (real, tested)
-
-`InvestmentAccountingService` (`extension/accounting.py`) composes
-`ledger.post_entry`: `post_buy`/`post_sell`/`post_dividend` each post a
-balanced `Entry` and update the position's own aggregate in the same
-transaction — portfolio writes its own aggregate, ledger posts on receipt, no
-shared FK (Decision B). `post_sell` supports FIFO, LIFO, and AVGCOST lot
-consumption and never drives an open position's quantity below zero.
-The write boundary accepts three immutable input clusters: `TradeOrder`
-(quantity, unit price, fees, date and execution options), `TradeAccounts`
-(the participating ledger accounts), and `DividendEvent` (gross and withholding
-money in one currency). API/import adapters construct those values once before
+`InvestmentAccountingService` (`extension/accounting.py`) composes `ledger.post_entry`: `post_buy`/`post_sell`/`post_dividend` each post a balanced `Entry` and update the position's own aggregate in the same transaction — portfolio writes its own aggregate, ledger posts on receipt, no shared FK (Decision B). `post_sell` supports FIFO, LIFO, and AVGCOST lot
+consumption and never drives an open position's quantity below zero. The write boundary accepts three immutable input clusters: `TradeOrder` (quantity, unit price, fees, date and execution options), `TradeAccounts` (the participating ledger accounts), and `DividendEvent` (gross and withholding money in one currency). API/import adapters construct those values once before
 calling the service; the service no longer re-wraps a dozen primitive arguments.
-
 ## Read side (real — #1643)
-
-`PortfolioService` (`extension/holdings.py` — holdings, summary,
-realized/unrealized P&L, price overrides, per-asset realized-P&L/dividend
-aggregation), the allocation breakdowns (`extension/allocation.py`), the
-performance metrics (`extension/performance.py` — XIRR/TWR/MWR/dividend
-yield), and the report-schedule assembly (`extension/performance_report.py`)
-moved in from `services/`. Every FX conversion goes through `pricing`'s
-published `convert_amount`/`convert_money` (with `lazy_load=True` where the
-old `services/fx.py` path used the crawler fallback) — a conversion miss
-surfaces as `pricing.PricingError`, never the retired `FxRateError`. The
-`PortfolioRepository` port/adapter split stays a reserved unit (raw
-`AsyncSession` today).
-
-`extension/discovery.py` (#1641) publishes `active_stock_symbols` and
-`position_currencies` — portfolio's answers to "what does this user hold",
-composed by the delivery layer (`src/composition.py::observed_fx_pairs`,
-re-homed there from `services/market_data_scheduler.py` by #1610 P2) into
-the scopes passed to `pricing`'s crawl.
-
+`PortfolioService` (`extension/holdings.py` — holdings, summary, realized/unrealized P&L, price overrides, per-asset realized-P&L/dividend aggregation), the allocation breakdowns (`extension/allocation.py`), the performance metrics (`extension/performance.py` — XIRR/TWR/MWR/dividend yield), and the report-schedule assembly (`extension/performance_report.py`)
+moved in from `services/`. Every FX conversion goes through `pricing`'s published `convert_amount`/`convert_money` (with `lazy_load=True` where the old `services/fx.py` path used the crawler fallback) — a conversion miss surfaces as `pricing.PricingError`, never the retired `FxRateError`. The `PortfolioRepository` port/adapter split stays a reserved unit (raw
+`AsyncSession` today). `extension/discovery.py` (#1641) publishes `active_stock_symbols` and `position_currencies` — portfolio's answers to "what does this user hold", composed by the delivery layer (`src/composition.py::observed_fx_pairs`, re-homed there from `services/market_data_scheduler.py` by #1610 P2) into the scopes passed to `pricing`'s crawl.
 ## Cross-package edges
-
-`audit` (Money/Quantity/UnitPrice base types), `ledger` (`post_entry` —
-portfolio writes only its own aggregate in one transaction, then posts a
-balanced `Entry`; no shared transaction), `pricing` (price/FX resolution —
-portfolio never looks up a rate itself). Both `ledger` and `pricing` are L3
-domain siblings; the edge is acyclic and sideways (`portfolio → ledger`,
+`audit` (Money/Quantity/UnitPrice base types), `ledger` (`post_entry` — portfolio writes only its own aggregate in one transaction, then posts a balanced `Entry`; no shared transaction), `pricing` (price/FX resolution — portfolio never looks up a rate itself). Both `ledger` and `pricing` are L3 domain siblings; the edge is acyclic and sideways (`portfolio → ledger`,
 `portfolio → pricing`, never the reverse).
-
 ## Governance
-
-The package's write-side ACs (`AC-portfolio.1.1`–`AC-portfolio.4.2`) live in
-[`contract.py`](./contract.py)'s `roadmap` and are sourced **directly** from
-there into the AC registry (no EPIC mirror). The read-side ACs (still in
-`docs/project/EPIC-017.portfolio-management.md`) move into this roadmap once
+The package's write-side ACs (`AC-portfolio.1.1`–`AC-portfolio.4.2`) live in [`contract.py`](./contract.py)'s `roadmap` and are sourced **directly** from there into the AC registry (no EPIC mirror). The read-side ACs (still in `docs/project/EPIC-017.portfolio-management.md`) move into this roadmap once
 #1643 lands. `tools/check_package_contract.py` validates the implementation
-against this contract (interface == `__all__`, every test reference resolves,
-no upward import edge).
-
+against this contract (interface == `__all__`, every test reference resolves, no upward import edge).
 ## Atomic-to-managed reconciliation (`PositionService`, shipped, pre-#1643 read side)
-
-*(Internalized from `common/portfolio/assets.md`, migration closeout wave 3, #1664 —
-this is now the single owner; do not re-add a separate SSOT copy. This
-describes the currently-shipped `apps/backend/src/portfolio/extension/positions.py` (was `services/assets.py`, split per #1677)
-behavior, which the #1643 read-side migration folds into this package's
-`extension`/`data` layers.)*
-
-`AtomicPosition` (Layer 2, raw broker snapshots) reconciles into
-`ManagedPosition` (Layer 3, deduplicated latest position per asset) via a
-window-function strategy: for each `(asset_identifier, broker)` group, pick
-the row with the latest `snapshot_date` (`ROW_NUMBER() OVER (PARTITION BY
-asset_identifier, broker ORDER BY snapshot_date DESC) WHERE rn = 1`).
-
-**Reconcile → upsert**, for each latest atomic position: skip if `quantity`
-or `market_value` is `NULL` (recorded in `skipped_assets`); look up the
-existing `ManagedPosition` by `(user_id, account_id, asset_identifier)`;
-update if found (refresh quantity/cost_basis/currency/metadata, clear
-disposal); create if not found (new `ACTIVE` position with an
-auto-created broker account); dispose any existing managed position not
-seen in the latest snapshot (`status=DISPOSED`, `disposal_date=today`).
-`_get_or_create_broker_account` auto-creates an `ASSET`-type account per
-broker (falls back to `"Unknown Broker"` when unnamed). Reconciliation is
-idempotent — running twice with the same data produces the same result.
-
-`ReconcileResult`: `created`/`updated`/`disposed`/`skipped` counts +
-`skipped_assets` (identifiers). Edge cases: `quantity`/`market_value` NULL
-→ skipped; `quantity == 0` → treated as disposal; `quantity < 0` → treated
-normally (short positions); `broker` NULL/empty → `"Unknown Broker"`;
-position absent from snapshot → `DISPOSED` with `disposal_date = today`.
-
-**Latest holdings valuation date** — `GET /portfolio/holdings` without
-`as_of_date` returns the latest value from `ManagedPosition` plus the
-latest eligible price snapshot; the valuation date is `today` unless the
-user's latest imported `AtomicPosition.snapshot_date` is newer (current-
-month brokerage fixtures / provider outputs that normalize month-only
-periods to month end). Explicit `as_of_date` requests are point-in-time:
-holdings derive from the latest immutable `AtomicPosition` snapshot per
-`(asset_identifier, broker)` at or before the requested date — future
-snapshots are never used. `InvestmentTransaction`/`InvestmentLot` provide
-the auditable cost-basis trail when structured brokerage transactions
-exist; snapshot-only imports fall back to market value as the cost-basis
-proxy.
-
-**Two independent temporal questions, both point-in-time (#1791)** — a
-historical `as_of_date` query about a position must answer two separate
-questions, and getting either one wrong produces a silently wrong total
-rather than an error:
-
-1. *Was it held on that date?* `ManagedPosition.acquisition_date` /
-   `disposal_date` are the position's own validity interval — held for
-   `as_of_date` iff `acquisition_date <= as_of_date < disposal_date` (or
-   `disposal_date IS NULL`). `acquisition_date` is stamped from the
-   *importing* statement's own snapshot date (`reconcile_positions`,
-   `positions.py`), not a user-entered purchase date — so a position
-   imported today has `acquisition_date = today` regardless of when the
-   underlying shares were actually bought. Querying `as_of_date` before
-   that carries no ownership claim at all, by design: reporting cannot
-   assert a holding existed before the evidence for it does.
-2. *Do we have a price for it as of that date?* Independent of (1) — see
-   `AtomicPosition` snapshot lookup above. A position can be correctly
-   "held" (question 1: yes) yet have no eligible price snapshot (question
-   2: no), e.g. a resync happened after the requested date.
-
-Querying by *current* `ManagedPosition.status` instead of question 1's
-interval is the same class of bug either way it's missed: a position
-disposed after `as_of_date` was still held on it and must count; a
-position not yet acquired as of `as_of_date` must not, even if it is
-`ACTIVE` today. `reporting`'s balance sheet and `portfolio`'s own
-`performance.py` (XIRR/TWR/dividend yield) both had this bug at different
-times — check any *new* `as_of_date`-parameterized query against both
-questions before assuming a current-status filter is equivalent.
-
-**Investment accounting pipeline** (posted through
-`InvestmentAccountingService`): Buy — debit the investment asset account,
-credit brokerage cash, create an `InvestmentTransaction` + `InvestmentLot`,
-increase `ManagedPosition.quantity`/`cost_basis`. Sell — consume open lots
-by the explicit `CostBasisMethod` (`FIFO`/`LIFO`/`AvgCost`), debit
-brokerage cash, credit the investment asset account at consumed cost
-basis, record realized gain/loss to the realized-P&L income account,
-update `ManagedPosition.realized_pnl`. Dividend — debit brokerage cash,
-credit dividend income, persist `DividendIncome`, link the event via
-`InvestmentTransaction`. Investment-accounting journal entries use
-`source_type=system` for deterministic postings, preserving any upstream
-parser/source identifier in `source_id`; user-entered/parsed/matched/
-confirmed statement entries follow the trust hierarchy in
-[`common/audit/readme.md#source-type-trust-hierarchy-provenance`](../audit/readme.md#source-type-trust-hierarchy-provenance).
-
-**Portfolio performance cash flows** use investment-domain cash flows
-only: XIRR and money-weighted return use `InvestmentTransaction` rows up
-to `as_of_date`; time-weighted return removes only investment-domain cash
-flows in the measurement period; general bank `AtomicTransaction` rows
-(salary, bills, transfers, ...) are excluded. BUY is an investor cash
-outflow for XIRR and a positive TWR contribution; SELL/DIVIDEND are
-investor cash inflows for XIRR and negative TWR withdrawals. Portfolio
-summary YTD realized P&L and dividend income are presentation-currency
-values — each transaction/dividend converts from its source currency on
-its transaction/payment date before aggregation.
-
-**Depreciation** — two methods on a single `ManagedPosition`:
-straight-line (`period_depreciation = (cost_basis - salvage_value) /
-useful_life_years`) and double-declining balance
-(`period_depreciation = (2 / useful_life_years) × book_value`, where
-`book_value = cost_basis - accumulated_depreciation`).
-`DepreciationResult`: `position_id`, `asset_identifier`,
-`period_depreciation`, `accumulated_depreciation`, `book_value`, `method`
-(`"straight_line"`/`"declining_balance"`), `useful_life_years`,
-`salvage_value`.
-
-**Data model** (mutable table/column/enum/index/FK inventory is generated
-from SQLAlchemy metadata — see the generated DB schema reference; models
-live in `apps/backend/src/extraction/orm/layer3.py` (extraction owns the
-fact family's ORM, #1675 D5c; portfolio imports the published entities) and
-`apps/backend/src/portfolio/orm/portfolio.py` (#1675 D5)):
-
-| Model | Table | Domain role |
+*(Internalized from `common/portfolio/assets.md`, migration closeout wave 3, #1664 — this is now the single owner; do not re-add a separate SSOT copy. This describes the currently-shipped `apps/backend/src/portfolio/extension/positions.py` (was `services/assets.py`, split per #1677) behavior, which the #1643 read-side migration folds into this package's
+`extension`/`data` layers.)* `AtomicPosition` (Layer 2, raw broker snapshots) reconciles into `ManagedPosition` (Layer 3, deduplicated latest position per asset) via a window-function strategy: for each `(asset_identifier, broker)` group, pick the row with the latest `snapshot_date` (`ROW_NUMBER() OVER (PARTITION BY asset_identifier, broker ORDER BY snapshot_date DESC) WHERE rn = 1`).
+**Reconcile → upsert**, for each latest atomic position: skip if `quantity` or `market_value` is `NULL` (recorded in `skipped_assets`); look up the existing `ManagedPosition` by `(user_id, account_id, asset_identifier)`; update if found (refresh quantity/cost_basis/currency/metadata, clear disposal); create if not found (new `ACTIVE` position with an
+auto-created broker account); dispose any existing managed position not seen in the latest snapshot (`status=DISPOSED`, `disposal_date=today`). `_get_or_create_broker_account` auto-creates an `ASSET`-type account per broker (falls back to `"Unknown Broker"` when unnamed). Reconciliation is idempotent — running twice with the same data produces the same result.
+`ReconcileResult`: `created`/`updated`/`disposed`/`skipped` counts + `skipped_assets` (identifiers). Edge cases: `quantity`/`market_value` NULL → skipped; `quantity == 0` → treated as disposal; `quantity < 0` → treated normally (short positions); `broker` NULL/empty → `"Unknown Broker"`; position absent from snapshot → `DISPOSED` with `disposal_date = today`.
+**Latest holdings valuation date** — `GET /portfolio/holdings` without `as_of_date` returns the latest value from `ManagedPosition` plus the latest eligible price snapshot; the valuation date is `today` unless the user's latest imported `AtomicPosition.snapshot_date` is newer (current- month brokerage fixtures / provider outputs that normalize month-only
+periods to month end). Explicit `as_of_date` requests are point-in-time: holdings derive from the latest immutable `AtomicPosition` snapshot per `(asset_identifier, broker)` at or before the requested date — future snapshots are never used. `InvestmentTransaction`/`InvestmentLot` provide the auditable cost-basis trail when structured brokerage transactions
+exist; snapshot-only imports fall back to market value as the cost-basis proxy. **Two independent temporal questions, both point-in-time (#1791)** — a historical `as_of_date` query about a position must answer two separate questions, and getting either one wrong produces a silently wrong total rather than an error: 1. *Was it held on that date?* `ManagedPosition.acquisition_date` /
+   `disposal_date` are the position's own validity interval — held for `as_of_date` iff `acquisition_date <= as_of_date < disposal_date` (or `disposal_date IS NULL`). `acquisition_date` is stamped from the *importing* statement's own snapshot date (`reconcile_positions`, `positions.py`), not a user-entered purchase date — so a position imported today has `acquisition_date = today` regardless of when the
+   underlying shares were actually bought. Querying `as_of_date` before that carries no ownership claim at all, by design: reporting cannot assert a holding existed before the evidence for it does. 2. *Do we have a price for it as of that date?* Independent of (1) — see `AtomicPosition` snapshot lookup above. A position can be correctly "held" (question 1: yes) yet have no eligible price snapshot (question
+   2: no), e.g. a resync happened after the requested date. Querying by *current* `ManagedPosition.status` instead of question 1's interval is the same class of bug either way it's missed: a position disposed after `as_of_date` was still held on it and must count; a position not yet acquired as of `as_of_date` must not, even if it is `ACTIVE` today. `reporting`'s balance sheet and `portfolio`'s own
+`performance.py` (XIRR/TWR/dividend yield) both had this bug at different times — check any *new* `as_of_date`-parameterized query against both questions before assuming a current-status filter is equivalent. **Investment accounting pipeline** (posted through `InvestmentAccountingService`): Buy — debit the investment asset account, credit brokerage cash, create an `InvestmentTransaction` + `InvestmentLot`,
+increase `ManagedPosition.quantity`/`cost_basis`. Sell — consume open lots by the explicit `CostBasisMethod` (`FIFO`/`LIFO`/`AvgCost`), debit brokerage cash, credit the investment asset account at consumed cost basis, record realized gain/loss to the realized-P&L income account, update `ManagedPosition.realized_pnl`. Dividend — debit brokerage cash,
+credit dividend income, persist `DividendIncome`, link the event via `InvestmentTransaction`. Investment-accounting journal entries use `source_type=system` for deterministic postings, preserving any upstream parser/source identifier in `source_id`; user-entered/parsed/matched/ confirmed statement entries follow the trust hierarchy in [`common/audit/readme.md#source-type-trust-hierarchy-provenance`](../audit/readme.md#source-type-trust-hierarchy-provenance).
+**Portfolio performance cash flows** use investment-domain cash flows only: XIRR and money-weighted return use `InvestmentTransaction` rows up to `as_of_date`; time-weighted return removes only investment-domain cash flows in the measurement period; general bank `AtomicTransaction` rows (salary, bills, transfers, ...) are excluded. BUY is an investor cash
+outflow for XIRR and a positive TWR contribution; SELL/DIVIDEND are investor cash inflows for XIRR and negative TWR withdrawals. Portfolio summary YTD realized P&L and dividend income are presentation-currency values — each transaction/dividend converts from its source currency on its transaction/payment date before aggregation. **Depreciation** — two methods on a single `ManagedPosition`:
+straight-line (`period_depreciation = (cost_basis - salvage_value) / useful_life_years`) and double-declining balance (`period_depreciation = (2 / useful_life_years) × book_value`, where `book_value = cost_basis - accumulated_depreciation`). `DepreciationResult`: `position_id`, `asset_identifier`, `period_depreciation`, `accumulated_depreciation`, `book_value`, `method`
+(`"straight_line"`/`"declining_balance"`), `useful_life_years`, `salvage_value`. **Data model** (mutable table/column/enum/index/FK inventory is generated from SQLAlchemy metadata — see the generated DB schema reference; models live in `apps/backend/src/extraction/orm/layer3.py` (extraction owns the fact family's ORM, #1675 D5c; portfolio imports the published entities) and
+`apps/backend/src/portfolio/orm/portfolio.py` (#1675 D5)): | Model | Table | Domain role |
 |---|---|---|
-| `ManagedPosition` | `managed_positions` | DWS maintained position state derived from source snapshots and investment transactions |
-| `InvestmentTransaction` | `investment_transactions` | Auditable brokerage buy/sell/dividend event used for ledger posting and realized P&L |
-| `InvestmentLot` | `investment_lots` | Lot-level cost-basis state for FIFO/LIFO/average-cost realized P&L |
-
-(`ManualValuationSnapshot` moved to
-[`common/pricing/readme.md`](../pricing/readme.md#manual-valuation-snapshots)
-— it's a valuation fact, not position math.)
-
-Design constraints: use `Decimal` for all monetary/quantity fields, never
-`float`; prefer `InvestmentLot` for realized P&L whenever buy/sell
-transactions are available, snapshot market value only as a fallback
-proxy for position-snapshot-only imports; always record `position_metadata`
-(JSONB) for the source-data audit trail; never delete positions — mark
-`DISPOSED` instead; never assume a `managed_position.py` module — the
-model lives in `layer3.py`.
+| `ManagedPosition` | `managed_positions` | DWS maintained position state derived from source snapshots and investment transactions | | `InvestmentTransaction` | `investment_transactions` | Auditable brokerage buy/sell/dividend event used for ledger posting and realized P&L | | `InvestmentLot` | `investment_lots` | Lot-level cost-basis state for FIFO/LIFO/average-cost realized P&L |
+(`ManualValuationSnapshot` moved to [`common/pricing/readme.md`](../pricing/readme.md#manual-valuation-snapshots) — it's a valuation fact, not position math.) Design constraints: use `Decimal` for all monetary/quantity fields, never `float`; prefer `InvestmentLot` for realized P&L whenever buy/sell transactions are available, snapshot market value only as a fallback
+proxy for position-snapshot-only imports; always record `position_metadata` (JSONB) for the source-data audit trail; never delete positions — mark `DISPOSED` instead; never assume a `managed_position.py` module — the model lives in `layer3.py`.

@@ -1,165 +1,60 @@
 # Project EPIC Index
-
-This directory contains the detailed EPIC documents that sit below the root
-project entry point.
-
-The project hierarchy (post package-migration, #1416/#1719) is:
-
-```text
-README.md -> common/<pkg>/contract.py roadmaps (authoritative ACs) -> tests
-          -> docs/project/EPIC-*.md (marked residue rows only)     -> tests
-```
-
-Use the root [README](https://github.com/wangzitian0/finance_report/blob/main/README.md) for stable project entry points and proof
-commands. GitHub issue state, generated coverage numbers, and
-other live values should not be duplicated by hand in this directory index.
-
+This directory contains the detailed EPIC documents that sit below the root project entry point. The project hierarchy (post package-migration, #1416/#1719) is:
+```text README.md -> common/<pkg>/contract.py roadmaps (authoritative ACs) -> tests  -> docs/project/EPIC-*.md (marked residue rows only)     -> tests ``` Use the root [README](https://github.com/wangzitian0/finance_report/blob/main/README.md) for stable project entry points and proof commands. GitHub issue state, generated coverage numbers, and other live values should not be duplicated by hand in this directory index.
 ## Current Milestone: Usable — *a year of real data on prod*
-
-Tracked by GitHub [milestone "Usable: a year of real data on prod"](https://github.com/wangzitian0/finance_report/milestone/1). This is the current product cut line:
-
-> **Usable** = a self-hoster can upload a **full year of real financial data on prod** and get **trustworthy reports**.
-
-This single acceptance scenario decomposes (MECE) into four capability gates. Each
-links to its owning EPIC(s) and the GitHub issues that gate it; live open/closed
-state lives on the issues and the milestone, not here.
-
-| Gate | Must hold | Owning EPIC(s) | Gating issues |
+Tracked by GitHub [milestone "Usable: a year of real data on prod"](https://github.com/wangzitian0/finance_report/milestone/1). This is the current product cut line: > **Usable** = a self-hoster can upload a **full year of real financial data on prod** and get **trustworthy reports**. This single acceptance scenario decomposes (MECE) into four capability gates. Each
+links to its owning EPIC(s) and the GitHub issues that gate it; live open/closed state lives on the issues and the milestone, not here. | Gate | Must hold | Owning EPIC(s) | Gating issues |
 |---|---|---|---|
 | **G1 · prod is safe for real data** | deploy never false-greens, ships the staging-validated image, rolls back on failure, prod is observable, **authentication is proven for an internet-facing instance**, and real data is backed up + restorable | EPIC-001, EPIC-007, EPIC-010 | [#876](https://github.com/wangzitian0/finance_report/issues/876) / [#893](https://github.com/wangzitian0/finance_report/issues/893) for delivery/data-lane residuals; [#1073](https://github.com/wangzitian0/finance_report/issues/1073) / [#945](https://github.com/wangzitian0/finance_report/issues/945) for runtime observability and durability |
 | **G2 · a year of real data ingests** | a year of real statements can be parsed, an everyday user can **seed year-start opening balances without silently shipping an incomplete balance sheet** (report generation for any month/quarter/year already works), the upload→report derivation holds at a year's volume, and manual assets and report export work | EPIC-002, EPIC-003, EPIC-005, EPIC-013, EPIC-015, EPIC-019 | [#705](https://github.com/wangzitian0/finance_report/issues/705), [#706](https://github.com/wangzitian0/finance_report/issues/706), [#949](https://github.com/wangzitian0/finance_report/issues/949) (guided opening balances), [#951](https://github.com/wangzitian0/finance_report/issues/951) (year-scale perf — precautionary, low) (+ EPIC-019 AC19.12 derivation) |
 | **G3 · the numbers are trustworthy** | confidence is load-bearing (deterministic promotion gate, [#930](https://github.com/wangzitian0/finance_report/issues/930)), provenance surfaced, north-star proportion measured, real-data parse errors fixable in review | EPIC-016, EPIC-018, EPIC-022 | [#917](https://github.com/wangzitian0/finance_report/issues/917) **Axis B only** (its Axis M proof-strength debt is not a usability precondition), [#931](https://github.com/wangzitian0/finance_report/issues/931) |
-| **G2∩G3 · the whole scenario actually works** | uploading a realistic year end-to-end produces a report that ties out — the integrating acceptance, since parts proven ≠ whole proven | EPIC-008, EPIC-019 | [#950](https://github.com/wangzitian0/finance_report/issues/950) (full-year E2E acceptance — milestone's closing gate) |
-| **G4 · an everyday user can operate it** | upload-first IA, plain-language trusted surfaces | EPIC-022 | none open |
-
-**Deferred (post-Usable)** — scope stays owned by its EPIC but is **not** required
-for this cut: asset depreciation / ESOP / valuation-history depth (EPIC-011),
-investment portfolio (EPIC-017), framework-aware US/HK reporting (EPIC-020),
-application-layer advisor depth (EPIC-021), deep evidence-graph navigation &
-lineage backfill (EPIC-018 AC18.7–18.12, [#733](https://github.com/wangzitian0/finance_report/issues/733)/[#918](https://github.com/wangzitian0/finance_report/issues/918)),
-grounded assistant ([#912](https://github.com/wangzitian0/finance_report/issues/912)),
-and additional banks / XLSX / OCR ingest.
-
+| **G2∩G3 · the whole scenario actually works** | uploading a realistic year end-to-end produces a report that ties out — the integrating acceptance, since parts proven ≠ whole proven | EPIC-008, EPIC-019 | [#950](https://github.com/wangzitian0/finance_report/issues/950) (full-year E2E acceptance — milestone's closing gate) | | **G4 · an everyday user can operate it** | upload-first IA, plain-language trusted surfaces | EPIC-022 | none open |
+**Deferred (post-Usable)** — scope stays owned by its EPIC but is **not** required for this cut: asset depreciation / ESOP / valuation-history depth (EPIC-011), investment portfolio (EPIC-017), framework-aware US/HK reporting (EPIC-020), application-layer advisor depth (EPIC-021), deep evidence-graph navigation & lineage backfill (EPIC-018 AC18.7–18.12, [#733](https://github.com/wangzitian0/finance_report/issues/733)/[#918](https://github.com/wangzitian0/finance_report/issues/918)),
+grounded assistant ([#912](https://github.com/wangzitian0/finance_report/issues/912)), and additional banks / XLSX / OCR ingest.
 ## Source Rules (post-EPIC world, #1719)
-
-- **Package contract roadmaps are the authoritative AC source**: a migrated
-  package owns its ACs as `AC-<pkg>.<group>.<seq>` records in
-  `common/<pkg>/contract.py`. New ACs go there — never into an EPIC table.
-- **EPIC docs hold only explicitly marked residue — a terminal, shrink-only
-  home, not a growing feature-slice axis** (#1823, Package-ization 4/4).
+- **Package contract roadmaps are the authoritative AC source**: a migrated package owns its ACs as `AC-<pkg>.<group>.<seq>` records in `common/<pkg>/contract.py`. New ACs go there — never into an EPIC table. - **EPIC docs hold only explicitly marked residue — a terminal, shrink-only home, not a growing feature-slice axis** (#1823, Package-ization 4/4).
   Every AC definition line that stays in `docs/project/EPIC-*.md` carries a
   `<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->` marker;
-  the residue ratchet (`tests/tooling/test_epic_residue_ratchet.py`,
-  `EPIC_RESIDUE_BASELINE`) enforces unmarked
-  rows == 0, census == baseline, and a shrink-only EPIC file set.
-  `pending-package` rows are the tracked non-permanent remainder for the
-  post-migration backlog. `docs/project/`'s own directory listing (which
-  EPIC + non-EPIC files may exist) is separately frozen by
-  `tests/tooling/test_terminal_centers_allowlist.py`, alongside the same
-  test's assertion that `docs/ssot/` (fully retired in #1823) stays absent.
-- The AC index is computed in memory by `common/meta/extension/generate_ac_registry.py`
-  from those two sources (roadmap-wins on any collision).
-- Test proof is reported by `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`
-  and CI traceability artifacts.
-  Do not commit generated audit snapshots in routine feature PRs; removed
-  archive inventory is retained in
-  [issue #548](https://github.com/wangzitian0/finance_report/issues/548).
-- Coverage policy is owned by `common/meta/extension/coverage/policy.py`.
-- Project status metrics should be generated or validated, not hand-maintained.
+  the residue ratchet (`tests/tooling/test_epic_residue_ratchet.py`, `EPIC_RESIDUE_BASELINE`) enforces unmarked rows == 0, census == baseline, and a shrink-only EPIC file set. `pending-package` rows are the tracked non-permanent remainder for the post-migration backlog. `docs/project/`'s own directory listing (which EPIC + non-EPIC files may exist) is separately frozen by
+  `tests/tooling/test_terminal_centers_allowlist.py`, alongside the same test's assertion that `docs/ssot/` (fully retired in #1823) stays absent. - The AC index is computed in memory by `common/meta/extension/generate_ac_registry.py` from those two sources (roadmap-wins on any collision). - Test proof is reported by `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`
+  and CI traceability artifacts. Do not commit generated audit snapshots in routine feature PRs; removed archive inventory is retained in [issue #548](https://github.com/wangzitian0/finance_report/issues/548). - Coverage policy is owned by `common/meta/extension/coverage/policy.py`. - Project status metrics should be generated or validated, not hand-maintained.
   See [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
-
 ## Do Not Hand-Maintain
-
-Long-lived project documents should not duplicate mutable facts. Link to the
-owning source instead of copying:
-
-- GitHub issue or PR open/closed/merged state.
-- CI, deployment, or Coveralls pass/fail status.
-- AC totals, coverage percentages, test counts, or stub counts.
-- Dependency, runtime, model, or image versions already owned by lockfiles,
-  config, Dockerfiles, or CI.
-- Test function inventories unless the matrix is parseable and mechanically
-  validated.
-
+Long-lived project documents should not duplicate mutable facts. Link to the owning source instead of copying: - GitHub issue or PR open/closed/merged state. - CI, deployment, or Coveralls pass/fail status. - AC totals, coverage percentages, test counts, or stub counts. - Dependency, runtime, model, or image versions already owned by lockfiles, config, Dockerfiles, or CI.
+- Test function inventories unless the matrix is parseable and mechanically validated.
 ## EPIC Documents
-
 | EPIC | Scope |
 |---|---|
-| [EPIC-001](./EPIC-001.phase0-setup.md) | Infrastructure & authentication |
-| [EPIC-002](./EPIC-002.double-entry-core.md) | Double-entry bookkeeping core |
-| [EPIC-003](./EPIC-003.statement-parsing.md) | Statement parsing |
-| [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation engine |
-| [EPIC-005](./EPIC-005.reporting-visualization.md) | Reports & visualization |
-| [EPIC-006](./EPIC-006.ai-advisor.md) | AI advisor |
-| [EPIC-007](./EPIC-007.deployment.md) | Deployment |
-| [EPIC-008](./EPIC-008.testing-strategy.md) | Testing strategy & E2E gates |
-| [EPIC-010](./EPIC-010.observability-logging.md) | observability logging |
-| [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset lifecycle |
-| [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation libraries |
-| [EPIC-013](./EPIC-013.statement-parsing-v2.md) | Statement parsing v2 |
-| [EPIC-014](./EPIC-014.ttd-transformation.md) | TDD/TTD transformation |
-| [EPIC-015](./EPIC-015.processing-account.md) | Processing account |
-| [EPIC-016](./EPIC-016.two-stage-review-ui.md) | Two-stage review UI |
-| [EPIC-017](./EPIC-017.portfolio-management.md) | Portfolio management |
-| [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline |
-| [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md) | Event-driven upload-to-report UX |
-| [EPIC-020](./EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
-| [EPIC-021](./EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
+| [EPIC-001](./EPIC-001.phase0-setup.md) | Infrastructure & authentication | | [EPIC-002](./EPIC-002.double-entry-core.md) | Double-entry bookkeeping core | | [EPIC-003](./EPIC-003.statement-parsing.md) | Statement parsing | | [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation engine | | [EPIC-005](./EPIC-005.reporting-visualization.md) | Reports & visualization |
+| [EPIC-006](./EPIC-006.ai-advisor.md) | AI advisor | | [EPIC-007](./EPIC-007.deployment.md) | Deployment | | [EPIC-008](./EPIC-008.testing-strategy.md) | Testing strategy & E2E gates | | [EPIC-010](./EPIC-010.observability-logging.md) | observability logging | | [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset lifecycle | | [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation libraries |
+| [EPIC-013](./EPIC-013.statement-parsing-v2.md) | Statement parsing v2 | | [EPIC-014](./EPIC-014.ttd-transformation.md) | TDD/TTD transformation | | [EPIC-015](./EPIC-015.processing-account.md) | Processing account | | [EPIC-016](./EPIC-016.two-stage-review-ui.md) | Two-stage review UI | | [EPIC-017](./EPIC-017.portfolio-management.md) | Portfolio management |
+| [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline | | [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md) | Event-driven upload-to-report UX | | [EPIC-020](./EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting | | [EPIC-021](./EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
 | [EPIC-022](./EPIC-022.everyday-user-ia.md) | Everyday-user information architecture |
 | [EPIC-023](./EPIC-023.llm-provider-abstraction.md) | LLM provider abstraction (goal stub; ACs live in `common/llm/contract.py`) |
-| [EPIC-024](./EPIC-024.frontend-observability.md) | Frontend browser observability |
-| [EPIC-025](./EPIC-025.dry-ssot-simplification.md) | DRY/SSOT simplification |
+| [EPIC-024](./EPIC-024.frontend-observability.md) | Frontend browser observability | | [EPIC-025](./EPIC-025.dry-ssot-simplification.md) | DRY/SSOT simplification |
 | [EPIC-026](./EPIC-026.ac-authority-tiers.md) | AC authority tiers |
-
-EPIC-009 (PDF fixture generation) was deleted by #1719 — its scope is owned
-by the [`testing` package](../../common/testing/readme.md#pdf-fixtures).
-EPIC-013/014/020 and the EPIC-022 design companion are 0-AC-row design docs
+EPIC-009 (PDF fixture generation) was deleted by #1719 — its scope is owned by the [`testing` package](../../common/testing/readme.md#pdf-fixtures). EPIC-013/014/020 and the EPIC-022 design companion are 0-AC-row design docs
 kept with explicit `<!-- epic-file: design-doc -->` justifications.
-
 ## Current Audit Reports
-
 | Report | Purpose |
 |---|---|
 | [AUDITS.md](./AUDITS.md) | Audit index |
 | [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | Historical vision -> EPIC -> AC consistency audit |
 | [DELIVERY_ENGINE_RECOMMENDATIONS.md](./DELIVERY_ENGINE_RECOMMENDATIONS.md) | Remaining CI/post-merge delivery-engine optimization recommendations |
 | [traceability-exceptions.md](traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
-
 ## Active Non-EPIC Documentation Ownership
-
-These documents are important enough to stay outside archive, but they are not
-project truth owners. Their EPIC owners must reference them and keep them in
-sync with ACs and tests.
-
-| Documentation surface | Owner EPIC | Role |
+These documents are important enough to stay outside archive, but they are not project truth owners. Their EPIC owners must reference them and keep them in sync with ACs and tests. | Documentation surface | Owner EPIC | Role |
 |---|---|---|
-| [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md) | Root project entry point | Status/proof summary generated or validated from registries and reports |
-| [Project vision](../target.md) | Vision layer | North-star goal & culture (axioms, trade-off rules); not implementation status |
-| [../index.md](../index.md) | EPIC-001 | Documentation site navigation |
-| [../user-guide/getting-started.md](../user-guide/getting-started.md) | EPIC-001 | First-use guide and onboarding route |
-| [Backend README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/README.md) | EPIC-001 | Backend module entry point |
-| [Frontend README](https://github.com/wangzitian0/finance_report/blob/main/apps/frontend/README.md) | EPIC-001 | Frontend module entry point |
-| [Backend tests README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/tests/README.md) | EPIC-008 / EPIC-014 | Test-suite navigation and domain mapping |
-| [../agents/orchestration.md](../agents/orchestration.md), [../agents/red-lines.md](../agents/red-lines.md), and [../contributing/branch-policy.md](../contributing/branch-policy.md) | EPIC-014 | Agent and contributor workflow governance |
-| [../../common/meta/data/MANIFEST.yaml](../../common/meta/data/MANIFEST.yaml) and [common/*/readme.md](../../common/meta/readme.md) | Package SSOT manifest + contracts | Rationale, code-owner links, and proof references |
-| [../user-guide/accounts.md](../user-guide/accounts.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Account user/API surface |
-| [../user-guide/journal-entries.md](../user-guide/journal-entries.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Journal user/API surface |
-| [../user-guide/reconciliation.md](../user-guide/reconciliation.md) | EPIC-003 / EPIC-004 | Upload, parsing, matching, and review user flow |
-| [../reference/api.md](../reference/api.md) | EPIC-004 | Reconciliation API surface |
-| [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface |
-| [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 / EPIC-021 | AI advisor user/API surface and application guidance layer |
-| [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
+| [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md) | Root project entry point | Status/proof summary generated or validated from registries and reports | | [Project vision](../target.md) | Vision layer | North-star goal & culture (axioms, trade-off rules); not implementation status | | [../index.md](../index.md) | EPIC-001 | Documentation site navigation |
+| [../user-guide/getting-started.md](../user-guide/getting-started.md) | EPIC-001 | First-use guide and onboarding route | | [Backend README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/README.md) | EPIC-001 | Backend module entry point | | [Frontend README](https://github.com/wangzitian0/finance_report/blob/main/apps/frontend/README.md) | EPIC-001 | Frontend module entry point |
+| [Backend tests README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/tests/README.md) | EPIC-008 / EPIC-014 | Test-suite navigation and domain mapping | | [../agents/orchestration.md](../agents/orchestration.md), [../agents/red-lines.md](../agents/red-lines.md), and [../contributing/branch-policy.md](../contributing/branch-policy.md) | EPIC-014 | Agent and contributor workflow governance |
+| [../../common/meta/data/MANIFEST.yaml](../../common/meta/data/MANIFEST.yaml) and [common/*/readme.md](../../common/meta/readme.md) | Package SSOT manifest + contracts | Rationale, code-owner links, and proof references | | [../user-guide/accounts.md](../user-guide/accounts.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Account user/API surface |
+| [../user-guide/journal-entries.md](../user-guide/journal-entries.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Journal user/API surface | | [../user-guide/reconciliation.md](../user-guide/reconciliation.md) | EPIC-003 / EPIC-004 | Upload, parsing, matching, and review user flow | | [../reference/api.md](../reference/api.md) | EPIC-004 | Reconciliation API surface |
+| [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface | | [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 / EPIC-021 | AI advisor user/API surface and application guidance layer | | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
 | [../../common/testing/readme.md#pdf-fixtures](../../common/testing/readme.md#pdf-fixtures) | `testing` package (was EPIC-009, deleted by #1719) | PDF fixture command, template, local-input, and font policy |
 | [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |
 | [DECISIONS.md](./DECISIONS.md) | EPIC-014 | Project decision log |
-
 ## Known Documentation Debt
-
-Use the root README documentation-debt list for active issue links and
-[AUDITS.md](./AUDITS.md) for audit history.
-
+Use the root README documentation-debt list for active issue links and [AUDITS.md](./AUDITS.md) for audit history.
 ## Related
-
-- [Project vision](../target.md)
-- [Package SSOT manifest](../../common/meta/data/MANIFEST.yaml)
-- [Agent orchestration](../agents/orchestration.md)
+- [Project vision](../target.md) - [Package SSOT manifest](../../common/meta/data/MANIFEST.yaml) - [Agent orchestration](../agents/orchestration.md)

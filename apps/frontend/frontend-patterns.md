@@ -1,507 +1,95 @@
 # Frontend Patterns & Architecture
-
 ## 1. Single Source of Truth
 This document defines the architectural patterns and best practices for the frontend application. All new feature development must adhere to these patterns.
-
 ## 2. Server-Side Rendering (SSR) vs. Client-Side Rendering (CSR)
-
 ### Mounted State Pattern
-Since we use client-side state (like `useWorkspace`) that relies on `localStorage` or `window`, we must handle hydration mismatches.
-
-**Problem:**
-Rendering component state directly from storage causes server/client mismatch errors.
-
-**Solution:**
-Use a custom `useMounted` hook or local state to ensure client-only rendering for specific parts.
-
-```tsx
-// Pattern
-const [mounted, setMounted] = useState(false);
-useEffect(() => setMounted(true), []);
-
-if (!mounted) return null; // or loading skeleton
-```
-
-**Applied In:**
-- `ThemeToggle.tsx`
-- `AppNav.tsx` (`Sidebar`, for collapse state)
-
+Since we use client-side state (like `useWorkspace`) that relies on `localStorage` or `window`, we must handle hydration mismatches. **Problem:** Rendering component state directly from storage causes server/client mismatch errors. **Solution:** Use a custom `useMounted` hook or local state to ensure client-only rendering for specific parts.
+```tsx // Pattern  const [mounted, setMounted] = useState(false);  useEffect(() => setMounted(true), []);  if (!mounted) return null; // or loading skeleton ``` **Applied In:** - `ThemeToggle.tsx` - `AppNav.tsx` (`Sidebar`, for collapse state)
 ## 3. Theme System
-
-We use CSS variables for theming to avoid flash of unstyled content (FOUC) and support system preferences.
-
-**Structure:**
-- `app/globals.css`: Defines `:root` (light) and `.dark` variables.
-- `lib/theme.ts`: Manages theme state validation and persistence.
-- `ThemeToggle.tsx`: Semantic button for switching themes.
-
-**Usage:**
-Always use CSS variables instead of hardcoded hex values or Tailwind utilities that don't map to variables.
-```text
-/* Good */
-bg-surface-card
-text-content-muted
-
-/* Avoid */
-bg-white
-text-gray-500
-```
-
+We use CSS variables for theming to avoid flash of unstyled content (FOUC) and support system preferences. **Structure:** - `app/globals.css`: Defines `:root` (light) and `.dark` variables. - `lib/theme.ts`: Manages theme state validation and persistence. - `ThemeToggle.tsx`: Semantic button for switching themes. **Usage:** Always use CSS variables instead of hardcoded hex values or Tailwind utilities that don't map to variables.
+```text /* Good */  bg-surface-card  text-content-muted  /* Avoid */  bg-white  text-gray-500 ```
 ## 4. Design Tokens
-
-The frontend token contract is defined in two layers:
-
-- `apps/frontend/src/app/globals.css` owns the CSS variables for light and dark
-  themes.
-- `apps/frontend/tailwind.config.ts` maps those variables into Tailwind token
-  names so components can use semantic classes instead of hardcoded palette
-  utilities.
-
+The frontend token contract is defined in two layers: - `apps/frontend/src/app/globals.css` owns the CSS variables for light and dark themes. - `apps/frontend/tailwind.config.ts` maps those variables into Tailwind token names so components can use semantic classes instead of hardcoded palette utilities.
 ### Token Families
-
-- **Surface and content colors**: `surface`, `surface-card`, `surface-muted`,
-  `content`, `content-muted`, and `content-inverse`.
-- **Border colors**: `border` and `border-hover`. Use `border-border` for
-  standard outlines and dividers instead of arbitrary `border-[var(--border)]`
-  recipes.
-- **Action colors**: `accent`, `accent-hover`, and `accent-muted`.
-- **Status colors**: `status-success`, `status-warning`, `status-error`, and
-  `status-info`, each with a muted background token.
-- **Chart colors**: `chart-1` through `chart-5`, plus `chart-trend-start` and
-  `chart-trend-end`.
-- **Typography**: `text-caption`, `text-body`, and `text-title` are the
-  application scale for dense operational surfaces.
-- **Spacing**: `page`, `panel`, and `control` tokens define recurring layout
-  rhythm.
-- **Radius**: `rounded-control`, `rounded-panel`, and `rounded-pill` are the
-  supported control, card/panel, and pill shapes.
-- **Elevation**: `shadow-card`, `shadow-floating`, and `shadow-focus`.
-- **Layers**: `z-drawer`, `z-overlay`, `z-modal`, and `z-toast`.
-- **Motion**: `duration-fast`, `duration-standard`, `duration-slow`,
-  `ease-standard`, and `ease-emphasized`.
-
+- **Surface and content colors**: `surface`, `surface-card`, `surface-muted`, `content`, `content-muted`, and `content-inverse`. - **Border colors**: `border` and `border-hover`. Use `border-border` for standard outlines and dividers instead of arbitrary `border-[var(--border)]` recipes. - **Action colors**: `accent`, `accent-hover`, and `accent-muted`. - **Status colors**: `status-success`, `status-warning`, `status-error`, and `status-info`, each with a muted background token. - **Chart colors**: `chart-1` through `chart-5`, plus `chart-trend-start` and `chart-trend-end`. - **Typography**: `text-caption`, `text-body`, and `text-title` are the application scale for dense operational surfaces. - **Spacing**: `page`, `panel`, and `control` tokens define recurring layout rhythm. - **Radius**: `rounded-control`, `rounded-panel`, and `rounded-pill` are the supported control, card/panel, and pill shapes. - **Elevation**: `shadow-card`, `shadow-floating`, and `shadow-focus`. - **Layers**: `z-drawer`, `z-overlay`, `z-modal`, and `z-toast`. - **Motion**: `duration-fast`, `duration-standard`, `duration-slow`, `ease-standard`, and `ease-emphasized`.
 ### Rules
-
-- Prefer Tailwind token classes such as `bg-surface-card`, `text-content-muted`,
-  `border-border`, `bg-status-success-muted`, and `rounded-control` over fixed
-  palette classes such as `bg-green-100`, `text-gray-700`, or `rounded-xl`.
-- Use semantic primitives (`Badge`, `Alert`, `Button`, `IconButton`) before
-  adding one-off status recipes in pages.
-- Status and confidence UI must use `badge-*`, `alert-*`, or another
-  token-backed primitive class so light and dark themes share the same contract.
-- New chart components must consume the `chart-*` palette instead of choosing
-  local hues.
-- New overlay/modal/sheet surfaces should use the layer tokens rather than local
-  z-index numbers.
-
+- Prefer Tailwind token classes such as `bg-surface-card`, `text-content-muted`, `border-border`, `bg-status-success-muted`, and `rounded-control` over fixed palette classes such as `bg-green-100`, `text-gray-700`, or `rounded-xl`. - Use semantic primitives (`Badge`, `Alert`, `Button`, `IconButton`) before adding one-off status recipes in pages. - Status and confidence UI must use `badge-*`, `alert-*`, or another token-backed primitive class so light and dark themes share the same contract. - New chart components must consume the `chart-*` palette instead of choosing local hues. - New overlay/modal/sheet surfaces should use the layer tokens rather than local z-index numbers.
 ### Page-Local Visual Decisions
-
-- Login uses the accent gradient for the primary submit action because it is the
-  only public entry surface and intentionally has a stronger brand cue than the
-  authenticated application shell. The gradient endpoints still come from
-  `--accent` and `--accent-hover`.
-- Dashboard cards and chart panels use the shared `card` class, tokenized
-  radius, and `shadow-card`. Metric labels may keep uppercase caption treatment
-  for scanability, but color, elevation, and radius must remain token-backed.
-- Modal and sheet backdrops may use the shared overlay token because they need
-  predictable contrast across light and dark themes.
-- Any future page-local gradient, shadow, or radius choice must be documented in
-  this section or replaced with an existing token.
-
+- Login uses the accent gradient for the primary submit action because it is the only public entry surface and intentionally has a stronger brand cue than the authenticated application shell. The gradient endpoints still come from `--accent` and `--accent-hover`. - Dashboard cards and chart panels use the shared `card` class, tokenized radius, and `shadow-card`. Metric labels may keep uppercase caption treatment for scanability, but color, elevation, and radius must remain token-backed. - Modal and sheet backdrops may use the shared overlay token because they need predictable contrast across light and dark themes. - Any future page-local gradient, shadow, or radius choice must be documented in this section or replaced with an existing token.
 ### Applied In
-
-- `tailwind.config.ts`
-- `app/globals.css`
-- `components/ui/index.tsx` (`ConfidenceBadge`)
-- `src/__tests__/designTokens.test.tsx`
-
+- `tailwind.config.ts` - `app/globals.css` - `components/ui/index.tsx` (`ConfidenceBadge`) - `src/__tests__/designTokens.test.tsx`
 ## 5. UI Primitives
-
-Frontend application controls use a small React primitive layer in
-`apps/frontend/src/components/ui/index.tsx`. New page code should prefer these
-primitives over repeating page-local class recipes.
-
+Frontend application controls use a small React primitive layer in `apps/frontend/src/components/ui/index.tsx`. New page code should prefer these primitives over repeating page-local class recipes.
 ### Current primitives
-
-- `Button` — primary, secondary, ghost, and danger actions.
-- `IconButton` — icon-only actions with a required `label` that maps to
-  `aria-label` and `title`.
-- `Badge` — semantic status labels.
-- `Alert` — error/success/warning/info messages with live-region semantics.
-- `EmptyState` — reusable empty and retry surfaces.
-- `LoadingState` — reusable loading state with `role="status"`.
-- `PageHeader` — consistent page title, description, and action layout.
-- `ProvenanceBadge` — shared Imported / Manual / Derived source badges for
-  normalized `DataProvenance` fields. Missing provenance renders no badge.
-
+- `Button` — primary, secondary, ghost, and danger actions. - `IconButton` — icon-only actions with a required `label` that maps to `aria-label` and `title`. - `Badge` — semantic status labels. - `Alert` — error/success/warning/info messages with live-region semantics. - `EmptyState` — reusable empty and retry surfaces. - `LoadingState` — reusable loading state with `role="status"`. - `PageHeader` — consistent page title, description, and action layout. - `ProvenanceBadge` — shared Imported / Manual / Derived source badges for normalized `DataProvenance` fields. Missing provenance renders no badge.
 ### Rules
-
-- Use `IconButton` for icon-only actions. Do not rely on `title` alone for an
-  accessible name.
-- Use `Alert`, `EmptyState`, and `LoadingState` for repeated loading/error/empty
-  surfaces before adding page-local markup.
-- Use `framed={false}` for states rendered inside an existing card so the UI
-  does not create nested cards.
-- Preserve the design-token contract. Primitive variants should map to token
-  classes rather than hardcoded palette utilities.
-- Use `ProvenanceBadge` for normalized provenance fields instead of page-local
-  badge recipes. Imported uses the success variant, Manual uses warning, and
-  Derived uses muted.
-- Component tests must reference the owning AC IDs when primitives gain new
-  behavior or variants.
-- Icon-only primitives own their accessible names. Callers must pass the
-  required semantic label and must not override it through passthrough props.
-
+- Use `IconButton` for icon-only actions. Do not rely on `title` alone for an accessible name. - Use `Alert`, `EmptyState`, and `LoadingState` for repeated loading/error/empty surfaces before adding page-local markup. - Use `framed={false}` for states rendered inside an existing card so the UI does not create nested cards. - Preserve the design-token contract. Primitive variants should map to token classes rather than hardcoded palette utilities. - Use `ProvenanceBadge` for normalized provenance fields instead of page-local badge recipes. Imported uses the success variant, Manual uses warning, and Derived uses muted. - Component tests must reference the owning AC IDs when primitives gain new behavior or variants. - Icon-only primitives own their accessible names. Callers must pass the required semantic label and must not override it through passthrough props.
 ### Accessibility and Visual Verification
-
 Every UI-system change must leave both semantic and visual proof in the same PR.
-
 ### Global Accessibility Baseline
-
-- `apps/frontend/src/app/globals.css` owns the app-wide keyboard and motion
-  baseline. It must include `prefers-reduced-motion: reduce` handling that
-  disables non-essential animation/transition timing and smooth scrolling.
-- Global `:focus-visible` styling must cover links, buttons, form controls,
-  summaries, focusable `[tabindex]` elements, programmatically focused
-  `[tabindex="-1"]` skip-link targets, and the shared `.btn-*` control classes
-  with token-backed outline and `shadow-focus` treatment.
-- The authenticated shell must expose a skip-to-content link that targets the
-  main landmark before navigation chrome.
-- Shared status affordances must use Lucide icons or text, not unicode glyphs
-  such as checkmarks, warning signs, or arrows as icon substitutes.
-- Data-dense reports and tables should reserve their expected shape with
-  token-backed skeleton placeholders while loading; use spinner-only states for
-  small inline actions, not full report/table surfaces.
-- Evidence-lineage drawers should render graph responses as an ordered
-  source-to-report path. Each hop should expose compact source, confidence, and
-  version badges when those fields are available, falling back to the node's
-  entity type when a source field is absent.
-- Dense trust and attention explanations must keep at least the normal
-  `text-content-muted` contrast token unless a stronger contrast proof exists.
-- Links from the `/audit` queue to review or processing destinations must
-  append `from=attention`. Destination back-links must use that source marker to
-  return to `/audit`, while preserving the existing notification or module
-  fallback when the marker is absent.
-
-- Dialog, sheet, toast, tab/navigation, and icon-only control changes need
-  component tests for keyboard behavior, landmark/role semantics, accessible
-  names, and live-region behavior where relevant.
-- Route switchers that navigate pages must use navigation/list semantics with
-  `aria-current`; only use ARIA tabs when focus stays in one page and the
-  rendered tab panels are controlled by the tablist.
-- Links that show visible status badges must keep that status in the accessible
-  name. If an `aria-label` is needed, it must include all meaningful visible
-  status text, not only the primary label.
-- Future visual smoke coverage should include representative desktop and mobile
-  routes, assert stable visible anchors, capture a nonblank screenshot, and keep
-  document-level horizontal overflow at zero.
-- Broader pixel-regression baselines may be added later, but they do not replace
-  the required Playwright smoke path for app shell, accounts, statements, and
-  review surfaces.
-
+- `apps/frontend/src/app/globals.css` owns the app-wide keyboard and motion baseline. It must include `prefers-reduced-motion: reduce` handling that disables non-essential animation/transition timing and smooth scrolling. - Global `:focus-visible` styling must cover links, buttons, form controls, summaries, focusable `[tabindex]` elements, programmatically focused `[tabindex="-1"]` skip-link targets, and the shared `.btn-*` control classes with token-backed outline and `shadow-focus` treatment. - The authenticated shell must expose a skip-to-content link that targets the main landmark before navigation chrome. - Shared status affordances must use Lucide icons or text, not unicode glyphs such as checkmarks, warning signs, or arrows as icon substitutes. - Data-dense reports and tables should reserve their expected shape with token-backed skeleton placeholders while loading; use spinner-only states for small inline actions, not full report/table surfaces. - Evidence-lineage drawers should render graph responses as an ordered source-to-report path. Each hop should expose compact source, confidence, and
+  version badges when those fields are available, falling back to the node's entity type when a source field is absent. - Dense trust and attention explanations must keep at least the normal `text-content-muted` contrast token unless a stronger contrast proof exists. - Links from the `/audit` queue to review or processing destinations must append `from=attention`. Destination back-links must use that source marker to return to `/audit`, while preserving the existing notification or module fallback when the marker is absent. - Dialog, sheet, toast, tab/navigation, and icon-only control changes need component tests for keyboard behavior, landmark/role semantics, accessible names, and live-region behavior where relevant. - Route switchers that navigate pages must use navigation/list semantics with
+  `aria-current`; only use ARIA tabs when focus stays in one page and the rendered tab panels are controlled by the tablist. - Links that show visible status badges must keep that status in the accessible name. If an `aria-label` is needed, it must include all meaningful visible status text, not only the primary label. - Future visual smoke coverage should include representative desktop and mobile routes, assert stable visible anchors, capture a nonblank screenshot, and keep document-level horizontal overflow at zero. - Broader pixel-regression baselines may be added later, but they do not replace the required Playwright smoke path for app shell, accounts, statements, and review surfaces.
 ### Mobile Install Baseline
-
-- The authenticated app shell owns Add to Home Screen / install prompting through
-  `InstallAppPrompt` in `components/AppShell.tsx` and `hooks/usePwaInstall.ts`; business pages must not listen for `beforeinstallprompt` or render page-local install prompts.
-- Android/Chromium installability uses the `beforeinstallprompt` event: the hook
-  prevents the browser's automatic prompt, stores the deferred event, and exposes
-  one app-level install action.
-- iOS and iPadOS do not expose a programmatic install prompt, so the app shell
-  renders Share -> Add to Home Screen guidance instead of trying to synthesize a
-  browser prompt.
-- Installed sessions, `display-mode: standalone`, and iOS `navigator.standalone`
-  must suppress install UI.
-- `public/site.webmanifest` must launch at `/`, not a redirected legacy route,
-  and must keep the 192x192, 512x512, and Apple touch icon metadata.
-- `app/globals.css` owns `.pwa-safe-area-shell` so home-screen launches use
-  `env(safe-area-inset-*)` padding without page-level layout changes.
-
+- The authenticated app shell owns Add to Home Screen / install prompting through `InstallAppPrompt` in `components/AppShell.tsx` and `hooks/usePwaInstall.ts`; business pages must not listen for `beforeinstallprompt` or render page-local install prompts. - Android/Chromium installability uses the `beforeinstallprompt` event: the hook prevents the browser's automatic prompt, stores the deferred event, and exposes one app-level install action. - iOS and iPadOS do not expose a programmatic install prompt, so the app shell renders Share -> Add to Home Screen guidance instead of trying to synthesize a browser prompt. - Installed sessions, `display-mode: standalone`, and iOS `navigator.standalone` must suppress install UI. - `public/site.webmanifest` must launch at `/`, not a redirected legacy route,
+  and must keep the 192x192, 512x512, and Apple touch icon metadata. - `app/globals.css` owns `.pwa-safe-area-shell` so home-screen launches use `env(safe-area-inset-*)` padding without page-level layout changes.
 ### Applied In
-
-- `components/settings/SettingsPanels.tsx` (`AccountsPanel`)
-- `app/(main)/upload/page.tsx`
-- `playwright/ui-visual-smoke.spec.ts`
-- `src/__tests__/uiPrimitives.test.tsx`
-- `src/__tests__/accountsPage.test.tsx`
-- `src/__tests__/statementsPage.test.tsx`
-
+- `components/settings/SettingsPanels.tsx` (`AccountsPanel`) - `app/(main)/upload/page.tsx` - `playwright/ui-visual-smoke.spec.ts` - `src/__tests__/uiPrimitives.test.tsx` - `src/__tests__/accountsPage.test.tsx` - `src/__tests__/statementsPage.test.tsx`
 ## 6. API Integration
-
-All API calls must go through the typed operation functions of `lib/api.ts`: `apiOperation` (JSON), `apiOperationUpload` (multipart), `apiOperationDownload` (blob) and `apiOperationStream` (chat stream). One internal `send()` makes every request.
-
-**Rules:**
-- **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
-- **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because `send()` calls `fetch` with `credentials: "include"`. The frontend never reads, stores or sends a bearer token.
-- **Structured errors (#1005)**: On a non-2xx the utility throws an `ApiError`
-  carrying `status`, `errorId`, and `requestId` parsed from the backend's
-  `{error_id, detail, request_id}` body. Branch on the machine-readable code
-  (`err.errorId === "conflict"`), not on
-  `err.message` text. `ApiError extends Error`, so existing `err.message` display
-  paths keep working.
-- **Generated types (#1004)**: `src/lib/api-types.ts` is generated from the backend
-  OpenAPI schema (`apps/frontend/openapi.json`) via `npm run gen:api-types`. The
-  committed spec is staleness-gated by `tools/generate_openapi_spec.py --check`, so
-  the FE↔BE contract fails CI when it drifts. Do not hand-edit `api-types.ts`.
-- **One cache entry per request (#2583)**: A route reads a GET through React Query
-  (`useApiQuery`), never through a raw `apiOperation` call inside an effect. Two routes
-  that read the same endpoint with the same parameters use the same key. The keys live in
-  `lib/sharedQueries.ts` (statement list, reconciliation stats, processing queue, balance
-  sheet and income statement key builders) and `hooks/usePersonalReportPackage.ts`
-  (package preview). A route must not write its own key for a request that has a shared
-  key. Each route calls `useApiQuery` with the operation id itself, so the operation
-  consumer census sees every consumer. Put a key that a builder function returns in a
-  constant first: the census cannot read a call with commas inside the key argument.
-- **Stale reads after a mutation (#2583)**: `lib/queryClient.ts` builds the app client. After
-  every successful mutation it marks the ledger-derived keys (`LEDGER_DERIVED_QUERY_KEYS`)
-  stale. A write that does not use `useMutation` calls `invalidateLedgerDerivedQueries`.
-- **Polling**: A poll uses `refetchInterval` as a function of the cached data, so it stops or
-  slows when no work is pending (`useWorkflowStatusQuery`, the `/upload` statement list).
-
+All API calls must go through the typed operation functions of `lib/api.ts`: `apiOperation` (JSON), `apiOperationUpload` (multipart), `apiOperationDownload` (blob) and `apiOperationStream` (chat stream). One internal `send()` makes every request. **Rules:** - **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls. - **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because `send()` calls `fetch` with `credentials: "include"`. The frontend never reads, stores or sends a bearer token. - **Structured errors (#1005)**: On a non-2xx the utility throws an `ApiError` carrying `status`, `errorId`, and `requestId` parsed from the backend's `{error_id, detail, request_id}` body. Branch on the machine-readable code (`err.errorId === "conflict"`), not on `err.message` text. `ApiError extends Error`, so existing `err.message` display paths keep working.
+- **Generated types (#1004)**: `src/lib/api-types.ts` is generated from the backend OpenAPI schema (`apps/frontend/openapi.json`) via `npm run gen:api-types`. The committed spec is staleness-gated by `tools/generate_openapi_spec.py --check`, so the FE↔BE contract fails CI when it drifts. Do not hand-edit `api-types.ts`. - **One cache entry per request (#2583)**: A route reads a GET through React Query (`useApiQuery`), never through a raw `apiOperation` call inside an effect. Two routes that read the same endpoint with the same parameters use the same key. The keys live in `lib/sharedQueries.ts` (statement list, reconciliation stats, processing queue, balance sheet and income statement key builders) and `hooks/usePersonalReportPackage.ts` (package preview). A route must not write its own key for a request that has a shared
+  key. Each route calls `useApiQuery` with the operation id itself, so the operation consumer census sees every consumer. Put a key that a builder function returns in a constant first: the census cannot read a call with commas inside the key argument. - **Stale reads after a mutation (#2583)**: `lib/queryClient.ts` builds the app client. After every successful mutation it marks the ledger-derived keys (`LEDGER_DERIVED_QUERY_KEYS`) stale. A write that does not use `useMutation` calls `invalidateLedgerDerivedQueries`. - **Polling**: A poll uses `refetchInterval` as a function of the cached data, so it stops or slows when no work is pending (`useWorkflowStatusQuery`, the `/upload` statement list).
 ## 7. Shared-Layer Dependency Rules
-
-The frontend is built on a small set of shared foundation layers that feature
-routes and pages compose. This section is the SSOT for **where each layer lives
-today** and **which direction dependencies are allowed to flow** (issue #751,
-Slice 1).
-
+The frontend is built on a small set of shared foundation layers that feature routes and pages compose. This section is the SSOT for **where each layer lives today** and **which direction dependencies are allowed to flow** (issue #751, Slice 1).
 ### Layer Map (as built)
-
-Boundaries are enforced **by convention and import paths**, not by separate
-workspace packages. Each layer lives under `apps/frontend/src/`:
-
-| Layer | Lives in | Responsibility |
+Boundaries are enforced **by convention and import paths**, not by separate workspace packages. Each layer lives under `apps/frontend/src/`: | Layer | Lives in | Responsibility |
 |-------|----------|----------------|
-| **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiOperation`, `apiOperationUpload`, `apiOperationDownload` and `apiOperationStream`, typed from the generated operation table. |
-| **Money boundary** | `lib/audit/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). |
-| **Quantity boundary** | `lib/audit/quantity` | Decimal-safe quantity value type and quantity formatting. |
-| **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useStatementCockpit`, `useReportFilters`, `useCurrencies`). |
-| **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges), with the DOM accessibility hooks `useFocusTrap` and `useBodyScrollLock` in `components/ui/Overlay.tsx`. |
-| **Feature modules** | `components/<feature>/*` | Domain UI aligned with backend bounded contexts (e.g. `components/statements/*` for `ledger/source`, `components/review/*` for `reconciliation`, `components/reports/*` for `reporting`). |
-| **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only (<300 lines). |
-
-The intended dependency direction is:
-
-```text
-app routes
-  -> feature modules (components/<feature>/*)
-    -> query helpers (hooks/*)
-      -> transport (lib/api)
-        -> shared API types (lib/types)
-    -> UI primitives (components/ui/*)
-    -> money/quantity boundaries (lib/audit/money, lib/audit/quantity)
-```
-
+| **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiOperation`, `apiOperationUpload`, `apiOperationDownload` and `apiOperationStream`, typed from the generated operation table. | | **Money boundary** | `lib/audit/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). | | **Quantity boundary** | `lib/audit/quantity` | Decimal-safe quantity value type and quantity formatting. |
+| **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useStatementCockpit`, `useReportFilters`, `useCurrencies`). | | **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges), with the DOM accessibility hooks `useFocusTrap` and `useBodyScrollLock` in `components/ui/Overlay.tsx`. |
+| **Feature modules** | `components/<feature>/*` | Domain UI aligned with backend bounded contexts (e.g. `components/statements/*` for `ledger/source`, `components/review/*` for `reconciliation`, `components/reports/*` for `reporting`). | | **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only (<300 lines). | The intended dependency direction is:
+```text app routes  -> feature modules (components/<feature>/*)  -> query helpers (hooks/*)  -> transport (lib/api)  -> shared API types (lib/types)  -> UI primitives (components/ui/*)  -> money/quantity boundaries (lib/audit/money, lib/audit/quantity) ```
 ### Rules
-
-- **`components/ui/*` must not import business features, API clients, React
-  Query, or root `@/hooks/*`.** Primitives stay presentational: they take props and render
-  token-backed markup. They do not import `lib/api`, `@tanstack/react-query`,
-  query hooks, or feature components. Any DOM accessibility hooks needed by primitives
-  live inside `components/ui/` (`Overlay.tsx`) (`test_fe_layer_boundaries.py`,
-  `AC-meta.fe-contract-types.6`).
-- **`lib/` must not import UI components or route pages.** Foundational libraries under `lib/`
-  depend only on lower-level utilities and contracts. They must not import
-  anything under `components/` or `app/`. The transport boundary `lib/api.ts` is
-  framework-agnostic and must additionally never import React (`test_fe_layer_boundaries.py`,
-  `AC-meta.fe-contract-types.6`, issue #2117).
-- **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/audit/money` /
-  `lib/audit/quantity` when needed) but not on route components.** A hook may call
-  `apiOperation` and shape data, but it must not import `app/**/page.tsx`
-  or otherwise depend on a specific route.
-- **Feature modules compose UI primitives, query hooks, and domain logic.** This
-  is where `components/ui/*`, `hooks/*`, and `lib/audit/money` / `lib/audit/quantity` are
-  wired together for a concrete workflow aligned with backend bounded contexts.
-- **Route pages stay thin (<300 lines).** Pages should compose feature modules and express
-  page-level intent. They should not own raw endpoint construction, complex inline
-  review forms, or repeated loading/error/empty/retry markup (`test_fe_no_godfile.py`).
-- **Production calls use `apiOperation*` or domain hooks.** `lib/api.ts` holds the only
-  raw `fetch(` call (`contractTypes.test.ts`, AC25.3.2), and the type check rejects a call of a
-  retired client function.
-- **Merge two component files only when the same routes load both.** All app routes share
-  one webpack runtime, so a merged module ships every export to every route that imports it.
-  PR #2736 measured this: BarChart and PieChart in one module added 1,972 B raw to `/reports`,
-  which does not use PieChart. Keep a pair apart when a test mocks one file and renders the
-  other, because a `vi.mock` of a shared module replaces both. No gate checks First Load JS:
-  put the `next build` First Load JS of each changed route in the PR body.
-
+- **`components/ui/*` must not import business features, API clients, React Query, or root `@/hooks/*`.** Primitives stay presentational: they take props and render token-backed markup. They do not import `lib/api`, `@tanstack/react-query`, query hooks, or feature components. Any DOM accessibility hooks needed by primitives live inside `components/ui/` (`Overlay.tsx`) (`test_fe_layer_boundaries.py`, `AC-meta.fe-contract-types.6`). - **`lib/` must not import UI components or route pages.** Foundational libraries under `lib/` depend only on lower-level utilities and contracts. They must not import anything under `components/` or `app/`. The transport boundary `lib/api.ts` is framework-agnostic and must additionally never import React (`test_fe_layer_boundaries.py`, `AC-meta.fe-contract-types.6`, issue #2117). - **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/audit/money` / `lib/audit/quantity` when needed) but not on route components.** A hook may call `apiOperation` and shape data, but it must not import `app/**/page.tsx` or otherwise depend on a specific route. - **Feature modules compose UI primitives, query hooks, and domain logic.** This
+  is where `components/ui/*`, `hooks/*`, and `lib/audit/money` / `lib/audit/quantity` are wired together for a concrete workflow aligned with backend bounded contexts. - **Route pages stay thin (<300 lines).** Pages should compose feature modules and express page-level intent. They should not own raw endpoint construction, complex inline review forms, or repeated loading/error/empty/retry markup (`test_fe_no_godfile.py`). - **Production calls use `apiOperation*` or domain hooks.** `lib/api.ts` holds the only raw `fetch(` call (`contractTypes.test.ts`, AC25.3.2), and the type check rejects a call of a retired client function. - **Merge two component files only when the same routes load both.** All app routes share one webpack runtime, so a merged module ships every export to every route that imports it.
+  PR #2736 measured this: BarChart and PieChart in one module added 1,972 B raw to `/reports`, which does not use PieChart. Keep a pair apart when a test mocks one file and renders the other, because a `vi.mock` of a shared module replaces both. No gate checks First Load JS: put the `next build` First Load JS of each changed route in the PR body.
 ### Automated Layer Boundary Enforcement
-
-Layer rules are enforced by CI gates:
-- `tests/tooling/test_fe_layer_boundaries.py`: guards down-only imports (`lib` never imports `components/` or `app/`, `api.ts` never imports React/UI, `hooks/` never imports `app/`, `components/ui/` never imports `@/hooks/`).
-- `tests/tooling/test_fe_wire_type_ssot.py`: guards that wire types resolve to generated `Schemas["..."]` aliases.
-- `tests/tooling/test_fe_no_godfile.py`: guards that workflow and route page files remain under 300 lines.
-- `tests/tooling/test_fe_helper_ssot.py`: guards single-homed helper definitions.
-- `tests/tooling/test_backend_route_hrefs.py`: guards that backend `workflow`, `reporting`, and `advisor` packages emit no `redirect` routes from `src/lib/route-map.json` and that `apps/frontend/frontend-patterns.md` cites only existing files.
+Layer rules are enforced by CI gates: - `tests/tooling/test_fe_layer_boundaries.py`: guards down-only imports (`lib` never imports `components/` or `app/`, `api.ts` never imports React/UI, `hooks/` never imports `app/`, `components/ui/` never imports `@/hooks/`). - `tests/tooling/test_fe_wire_type_ssot.py`: guards that wire types resolve to generated `Schemas["..."]` aliases. - `tests/tooling/test_fe_no_godfile.py`: guards that workflow and route page files remain under 300 lines. - `tests/tooling/test_fe_helper_ssot.py`: guards single-homed helper definitions. - `tests/tooling/test_backend_route_hrefs.py`: guards that backend `workflow`, `reporting`, and `advisor` packages emit no `redirect` routes from `src/lib/route-map.json` and that `apps/frontend/frontend-patterns.md` cites only existing files.
 - `src/__tests__/uxHumanizeTokens2650.test.tsx`: guards that the 7 everyday screens render no banned internal jargon (`invariant`, `rollforward`, `source envelope`, `reviewed disposition`, `economic intent`, `held-out`, `leakage`, raw `snake_case`, or `(s)`), using `humanizeWorkflowText` in `components/workflow/workflowFormat.ts`.
-
 ### Why no `shared/*` or `packages/*` directory yet
-
 These boundaries live in place (`lib/`, `hooks/`, `components/ui/`) instead of separate `shared/*` or `packages/*` directories, enforced by the import-path gates above and the `lib/api.ts` red line. Extract workspace packages only after multi-feature reuse proves the boundaries stable.
-
 ## 8. Monetary Amounts
-
-Frontend monetary display and arithmetic must use `decimal.js` through
-`src/lib/audit/money`. Frontend quantities must use `src/lib/audit/quantity`.
-
-**Rules:**
-- Do not convert money with `Number()`, `parseFloat()`, or `toFixed()` in page/component code.
-- Use `formatCurrencyLocale()` for currency display; it formats from Decimal/string values without JS number precision loss.
-- Use `formatQuantity()` from `src/lib/audit/quantity` for portfolio and asset quantities; page/component code must not parse Decimal quantity strings through JS `number`.
-- Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons.
-- Shared API types must represent decimal-bearing payload fields with `MoneyValue` or `DecimalValue`, not bare `number` field declarations.
-- `MoneyValue` and `DecimalValue` are serialized strings at the API boundary. Components may accept `number` only at rendering/chart boundaries after explicit conversion through `src/lib/audit/money`.
-- Do not calculate or display cross-currency allocation percentages from raw nominal amounts. Show per-currency amounts until the backend provides a single-currency FX-converted total.
-- Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
-
+Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/audit/money`. Frontend quantities must use `src/lib/audit/quantity`. **Rules:** - Do not convert money with `Number()`, `parseFloat()`, or `toFixed()` in page/component code. - Use `formatCurrencyLocale()` for currency display; it formats from Decimal/string values without JS number precision loss. - Use `formatQuantity()` from `src/lib/audit/quantity` for portfolio and asset quantities; page/component code must not parse Decimal quantity strings through JS `number`. - Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons. - Shared API types must represent decimal-bearing payload fields with `MoneyValue` or `DecimalValue`, not bare `number` field declarations.
+- `MoneyValue` and `DecimalValue` are serialized strings at the API boundary. Components may accept `number` only at rendering/chart boundaries after explicit conversion through `src/lib/audit/money`. - Do not calculate or display cross-currency allocation percentages from raw nominal amounts. Show per-currency amounts until the backend provides a single-currency FX-converted total. - Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
 ## 9. Responsive Navigation
-
-The app is mobile/PWA-first. `src/lib/route-map.json` owns the route inventory (10 `target` routes, 2 `shell` routes, 27 `redirect` routes, 0 `merge`, guarded by `src/__tests__/routeMap.test.ts` and `tests/tooling/test_backend_route_hrefs.py`), while `components/navigation.ts` defines the 5 primary navigation hit targets shared by the mobile bottom tab bar (`BottomTabBar` in `components/AppShell`) and desktop sidebar (`Sidebar` in `components/AppNav`) (EPIC-022 AC22.21).
-
-**Rules:**
-- The bottom tab bar is exactly five hit targets: Home, Chat, a center **Add**
-  action (opens `AddSheet`, not a route), Audit, and More — declared once in
-  `bottomTabItems` + `ADD_ACTION`.
-- The accounting machinery is **not** navigation. Folded out of nav into the
-  on-demand `/audit` hub (`auditHubItems`); low-frequency destinations live behind
-  `/more` (`moreItems` + `advancedItems`).
-- Add workspace tab labels/icons once in `ROUTE_CONFIG`.
-- The desktop sidebar must mirror the same five targets — do not reintroduce a
-  primary/Advanced split or a separate reduced mobile menu that hides core routes.
-
+The app is mobile/PWA-first. `src/lib/route-map.json` owns the route inventory (10 `target` routes, 2 `shell` routes, 27 `redirect` routes, 0 `merge`, guarded by `src/__tests__/routeMap.test.ts` and `tests/tooling/test_backend_route_hrefs.py`), while `components/navigation.ts` defines the 5 primary navigation hit targets shared by the mobile bottom tab bar (`BottomTabBar` in `components/AppShell`) and desktop sidebar (`Sidebar` in `components/AppNav`) (EPIC-022 AC22.21). **Rules:** - The bottom tab bar is exactly five hit targets: Home, Chat, a center **Add** action (opens `AddSheet`, not a route), Audit, and More — declared once in `bottomTabItems` + `ADD_ACTION`. - The accounting machinery is **not** navigation. Folded out of nav into the on-demand `/audit` hub (`auditHubItems`); low-frequency destinations live behind
+  `/more` (`moreItems` + `advancedItems`). - Add workspace tab labels/icons once in `ROUTE_CONFIG`. - The desktop sidebar must mirror the same five targets — do not reintroduce a primary/Advanced split or a separate reduced mobile menu that hides core routes.
 ## 10. Mobile Review Surfaces
-
-Review and journal workflows must be usable at phone widths without relying on
-document-level horizontal scrolling.
-
-**Rules:**
-- Key review routes and dialogs must keep `document.documentElement.scrollWidth`
-  less than or equal to `clientWidth` at 375-390 px viewports.
-- Account-management and review routes must keep `document.documentElement.scrollWidth`
-  less than or equal to `clientWidth` at 375-390 px viewports.
-- Desktop data tables may remain tables at `md` and wider breakpoints only when
-  their local scroll containers do not hide required review information at
-  1440 px with the sidebar visible.
-- Phone layouts for action-heavy review queues should use stacked cards so
-  primary actions and correction inputs are visible without horizontal dragging.
-- Dense accounting details may keep desktop tables, but phone layouts must expose
-  account, direction, amount, and currency as readable line cards.
-- Phone account rows must stack account identity, metadata, balance, and row
-  actions so long account names cannot overlap amounts or controls.
-- Use Playwright for route-level mobile overflow checks and component tests for
-  mobile card affordances.
-
-**Applied In:**
-- `components/settings/SettingsPanels.tsx` (`AccountsPanel`)
-- `app/(main)/audit/page.tsx`
-- `app/(main)/statements/[id]/page.tsx`
-- `components/review/Stage2ReviewQueue.tsx`
-- `components/review/StatementReview.tsx` (`TransactionTable`)
-- `components/journal/JournalEntryDetailsModal.tsx`
-- `playwright/mobile-ux.spec.ts`
-
+Review and journal workflows must be usable at phone widths without relying on document-level horizontal scrolling. **Rules:** - Key review routes and dialogs must keep `document.documentElement.scrollWidth` less than or equal to `clientWidth` at 375-390 px viewports. - Account-management and review routes must keep `document.documentElement.scrollWidth` less than or equal to `clientWidth` at 375-390 px viewports. - Desktop data tables may remain tables at `md` and wider breakpoints only when their local scroll containers do not hide required review information at 1440 px with the sidebar visible. - Phone layouts for action-heavy review queues should use stacked cards so primary actions and correction inputs are visible without horizontal dragging. - Dense accounting details may keep desktop tables, but phone layouts must expose account, direction, amount, and currency as readable line cards. - Phone account rows must stack account identity, metadata, balance, and row actions so long account names cannot overlap amounts or controls. - Use Playwright for route-level mobile overflow checks and component tests for
+  mobile card affordances. **Applied In:** - `components/settings/SettingsPanels.tsx` (`AccountsPanel`) - `app/(main)/audit/page.tsx` - `app/(main)/statements/[id]/page.tsx` - `components/review/Stage2ReviewQueue.tsx` - `components/review/StatementReview.tsx` (`TransactionTable`) - `components/journal/JournalEntryDetailsModal.tsx` - `playwright/mobile-ux.spec.ts`
 ## 11. App Metadata & PWA Head Tags
-
-Root app metadata lives in `app/layout.tsx`.
-
-**Rules:**
-- Keep PWA manifest and icon metadata in the `metadata` export.
-- Keep viewport-related fields, including `themeColor`, in the `viewport` export.
-- Use `appleWebApp` for iOS web-app capability metadata; do not duplicate
-  `apple-mobile-web-app-capable` in `metadata.other`.
-
+Root app metadata lives in `app/layout.tsx`. **Rules:** - Keep PWA manifest and icon metadata in the `metadata` export. - Keep viewport-related fields, including `themeColor`, in the `viewport` export. - Use `appleWebApp` for iOS web-app capability metadata; do not duplicate `apple-mobile-web-app-capable` in `metadata.other`.
 ## 12. Security & Authentication
-
-> The **backend** identity contract (JWT/bcrypt, registration/login API, the
-> `User` model, email normalization, the `X-User-Id` red line) is owned by the
-> `identity` package — see [`common/identity/readme.md`](../../common/identity/readme.md).
-> This section owns the **frontend / browser-security** half: route protection,
-> session storage, the HttpOnly cookie's browser behavior, and security headers.
-
-- **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
-- **Public Routes**: Only `/login` is exempt from `AuthGuard`.
-- **Injection Protection**: The `apiOperation*` functions are the primary defense against missing user context.
-
+> The **backend** identity contract (JWT/bcrypt, registration/login API, the > `User` model, email normalization, the `X-User-Id` red line) is owned by the > `identity` package — see [`common/identity/readme.md`](../../common/identity/readme.md). > This section owns the **frontend / browser-security** half: route protection, > session storage, the HttpOnly cookie's browser behavior, and security headers. - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`. - **Public Routes**: Only `/login` is exempt from `AuthGuard`. - **Injection Protection**: The `apiOperation*` functions are the primary defense against missing user context.
 ### Route protection (client-side)
-
-A global `AuthGuard` component in `layout.tsx` guards routes: it checks
-`isAuthenticated()` (from `lib/auth.ts`) and pushes to `/login` when the user is
-unauthenticated, exempting the public paths above. Pages that require
-authentication rely on this global guard rather than each re-implementing the
-redirect.
-
+A global `AuthGuard` component in `layout.tsx` guards routes: it checks `isAuthenticated()` (from `lib/auth.ts`) and pushes to `/login` when the user is unauthenticated, exempting the public paths above. Pages that require authentication rely on this global guard rather than each re-implementing the redirect.
 ### Session storage (`lib/auth.ts`)
-
-Browser credentials live in the backend-managed **HttpOnly cookie**
-(`finance_access_token`); frontend storage keeps only **non-secret** user metadata
-(`finance_user_id`, `finance_user_email`) and must **not** persist bearer tokens.
-
+Browser credentials live in the backend-managed **HttpOnly cookie** (`finance_access_token`); frontend storage keeps only **non-secret** user metadata (`finance_user_id`, `finance_user_email`) and must **not** persist bearer tokens.
 ### Redirect-on-401 (`lib/api.ts`)
-
-Every `apiOperation*` call sends same-origin credentials (`credentials: "include"`) so the HttpOnly
-cookie rides along; on a `401` in the browser it redirects to `/login`. Direct API
-clients (curl, tests) may still pass `Authorization: Bearer <token>` to the backend.
-
+Every `apiOperation*` call sends same-origin credentials (`credentials: "include"`) so the HttpOnly cookie rides along; on a `401` in the browser it redirects to `/login`. Direct API clients (curl, tests) may still pass `Authorization: Bearer <token>` to the backend.
 ### Browser security headers
-
-The frontend must emit a Content Security Policy (including `frame-ancestors
-'none'`) and must forbid `unsafe-eval`; production dependency audits fail CI. A
-strict CSP is required to reduce XSS impact even though browser credentials are in
-an HttpOnly cookie.
-
+The frontend must emit a Content Security Policy (including `frame-ancestors 'none'`) and must forbid `unsafe-eval`; production dependency audits fail CI. A strict CSP is required to reduce XSS impact even though browser credentials are in an HttpOnly cookie.
 ## 13. Shared Types
-
-To avoid duplication, shared interfaces are defined in `src/lib/types.ts`.
-
-**Common Types:**
-- `Account`
-- `JournalEntry`, `JournalLine`
-- `BankStatement`, `BankStatementTransaction`
-- `ReportLine`, `BalanceSheetResponse`, `IncomeStatementResponse`
-- `BrokerageImportResponse` — result of `POST /api/statements/{id}/brokerage/import`
-
-**Usage:**
-```typescript
-import { Account, AccountListResponse } from "@/lib/types";
-
-// components/accounts/AccountFormModal.tsx
-```
-
+To avoid duplication, shared interfaces are defined in `src/lib/types.ts`. **Common Types:** - `Account` - `JournalEntry`, `JournalLine` - `BankStatement`, `BankStatementTransaction` - `ReportLine`, `BalanceSheetResponse`, `IncomeStatementResponse` - `BrokerageImportResponse` — result of `POST /api/statements/{id}/brokerage/import` **Usage:**
+```typescript import { Account, AccountListResponse } from "@/lib/types";  // components/accounts/AccountFormModal.tsx ```
 ## 14. Brokerage Import Completion Path
-
 After a brokerage PDF is uploaded and parsed, users must be able to see the import status and navigate to their portfolio.
-
 ### Flow
-
-```
-Upload PDF → Parsing (polling) → parsed/approved status
-  → "Import to Portfolio" button on statement detail page
-  → POST /api/statements/{id}/brokerage/import
-  → Success: show result banner (broker, positions, reconcile stats) + "View Portfolio →" link
-  → Failure: show actionable error banner + "Retry Import" button
-  → Portfolio page: Total Portfolio Value banner
-```
-
+``` Upload PDF → Parsing (polling) → parsed/approved status  → "Import to Portfolio" button on statement detail page  → POST /api/statements/{id}/brokerage/import  → Success: show result banner (broker, positions, reconcile stats) + "View Portfolio →" link  → Failure: show actionable error banner + "Retry Import" button  → Portfolio page: Total Portfolio Value banner ```
 ### Rules
-
-- The **"Import to Portfolio"** button is only visible when `statement.status === "parsed" || statement.status === "approved"` and no import result exists yet.
-- On success, show a result banner with: broker name, positions parsed, new holdings created, holdings reconciled, and a link to `/portfolio`.
-- On failure, show a safe error message. **Sensitive data (URLs, tokens, storage paths) must be stripped** before display. The `handleBrokerageImport` function applies a regex to replace `https://…` and `s3://…` with `[URL]`.
-- The **Portfolio page** shows a "Total Portfolio Value" card when active holdings are present, computed as the sum of `market_value` across all active holdings.
-- All API calls use `apiOperation*` from `lib/api.ts` — never raw `fetch()`.
-
+- The **"Import to Portfolio"** button is only visible when `statement.status === "parsed" || statement.status === "approved"` and no import result exists yet. - On success, show a result banner with: broker name, positions parsed, new holdings created, holdings reconciled, and a link to `/portfolio`. - On failure, show a safe error message. **Sensitive data (URLs, tokens, storage paths) must be stripped** before display. The `handleBrokerageImport` function applies a regex to replace `https://…` and `s3://…` with `[URL]`. - The **Portfolio page** shows a "Total Portfolio Value" card when active holdings are present, computed as the sum of `market_value` across all active holdings. - All API calls use `apiOperation*` from `lib/api.ts` — never raw `fetch()`.
 ### Files
-
-- `app/(main)/statements/[id]/page.tsx` — Import button, result/error banners
-- `app/(main)/portfolio/page.tsx` — Total portfolio value banner
-- `lib/types.ts` — `BrokerageImportResponse` interface
-- `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5
-- `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
-
+- `app/(main)/statements/[id]/page.tsx` — Import button, result/error banners - `app/(main)/portfolio/page.tsx` — Total portfolio value banner - `lib/types.ts` — `BrokerageImportResponse` interface - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
 ## 15. Dashboard First-Run Onboarding
-
 The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
-
 ### Code References
-
-- `app/(main)/page.tsx` — onboarding detection and links
-- `src/__tests__/dashboardPage.test.tsx` — AC16.12.17–AC16.12.19 coverage
+- `app/(main)/page.tsx` — onboarding detection and links - `src/__tests__/dashboardPage.test.tsx` — AC16.12.17–AC16.12.19 coverage

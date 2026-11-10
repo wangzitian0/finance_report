@@ -1,937 +1,162 @@
 # `ledger` — double-entry bookkeeping bounded context
-
-> One package owning the whole ledger concept: the **prose SSOT for double-entry
-> bookkeeping and the processing (in-transit) account** (this file) **and**, after
-> the code cutover (#1420), the conforming implementation. This readme is the
-> single registered owner of the double-entry vocabulary and invariants — the
-> accounting equation, account classification, entry structure, multi-currency
-> journal balance, the posted-ledger DB floor, and the `processing_account`
-> in-transit model — internalized here from the retired `docs/ssot/accounting.md`
-> and `docs/ssot/processing_account.md` per the package-migration standard
-> ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
-> internalized").
->
-> The **money/currency/FX value kernel is owned by [`common/audit/money`](../audit/money/readme.md)**,
-> not by ledger; a `Leg` carries a `Money` from that shared kernel. The Money value
-> types (`#money-type`) were internalized into the money package in the same slice.
->
-> The conforming backend implementation lives at
-> [`apps/backend/src/ledger/`](../../apps/backend/src/ledger/) (the code cutover
-> #1420 homes the double-entry units under the package shape; this readme-only
-> slice does not move code or tests).
-
----
-
+> One package owning the whole ledger concept: the **prose SSOT for double-entry > bookkeeping and the processing (in-transit) account** (this file) **and**, after > the code cutover (#1420), the conforming implementation. This readme is the > single registered owner of the double-entry vocabulary and invariants — the > accounting equation, account classification, entry structure, multi-currency > journal balance, the posted-ledger DB floor, and the `processing_account` > in-transit model — internalized here from the retired `docs/ssot/accounting.md` > and `docs/ssot/processing_account.md` per the package-migration standard > ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT > internalized"). > > The **money/currency/FX value kernel is owned by [`common/audit/money`](../audit/money/readme.md)**,
+> not by ledger; a `Leg` carries a `Money` from that shared kernel. The Money value > types (`#money-type`) were internalized into the money package in the same slice. > > The conforming backend implementation lives at > [`apps/backend/src/ledger/`](../../apps/backend/src/ledger/) (the code cutover > #1420 homes the double-entry units under the package shape; this readme-only > slice does not move code or tests).
 # Double-Entry Bookkeeping Domain Model SSOT
-
-> **SSOT Key**: `accounting`
-> **Core Definition**: Accounting equation, account classification, and entry rules for double-entry bookkeeping.
-
----
-
+> **SSOT Key**: `accounting` > **Core Definition**: Accounting equation, account classification, and entry rules for double-entry bookkeeping.
 ## 1. Source of Truth
-
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Bookkeeping Logic** | `apps/backend/src/ledger/extension/accounting.py` | Core business |
-| **Model Definition** | `apps/backend/src/ledger/orm/journal.py` | ORM |
-| **Validation Rules** | `apps/backend/src/schemas/journal.py` | Pydantic |
-
-`ConfidenceTier` and `worst_confidence_tier` are co-owned here with journal
-provenance. The rollup fails closed: unknown tier strings rank below every known
-tier, while callers choose their explicit empty-input default (`None` for a
-report aggregation or `DETERMINISTIC` for advisor context).
-
----
-
+| **Bookkeeping Logic** | `apps/backend/src/ledger/extension/accounting.py` | Core business | | **Model Definition** | `apps/backend/src/ledger/orm/journal.py` | ORM | | **Validation Rules** | `apps/backend/src/schemas/journal.py` | Pydantic | `ConfidenceTier` and `worst_confidence_tier` are co-owned here with journal provenance. The rollup fails closed: unknown tier strings rank below every known
+tier, while callers choose their explicit empty-input default (`None` for a report aggregation or `DETERMINISTIC` for advisor context).
 ## 2. Architecture Model
-
 <a id="accounting-equation"></a>
-
 ### Accounting Equation
-
-```
-Assets = Liabilities + Equity + (Income - Expenses)
-```
-
-**At any moment, all `posted` entries must satisfy this equation.**
-
+``` Assets = Liabilities + Equity + (Income - Expenses) ``` **At any moment, all `posted` entries must satisfy this equation.**
 ### Account Classification and Debit/Credit Rules
-
 | Type | Debit Increases | Credit Increases | Normal Balance |
 |------|-----------------|------------------|----------------|
-| Asset | ✓ | | Debit |
-| Liability | | ✓ | Credit |
-| Equity | | ✓ | Credit |
-| Income | | ✓ | Credit |
-| Expense | ✓ | | Debit |
-
+| Asset | ✓ | | Debit | | Liability | | ✓ | Credit | | Equity | | ✓ | Credit | | Income | | ✓ | Credit | | Expense | ✓ | | Debit |
 ### First-use setup
-
-Account creation and editing share `AccountFormModal`, whose success callback
-returns the saved account. Review consumers can update their available accounts
-without resetting a transaction draft or duplicating the ledger writer.
-
-Guided opening balances start with a blank as-of date. The user can supply the
-first report-period start and explicitly apply its previous calendar day, or
-enter an as-of date directly. For March 2026, the brought-forward date is
-February 28, even if the first transaction is March 2. Editing the period never
-silently rewrites the entered date; an entered period rejects opening dates on
-or after its start. The final confirmation posts decimal-string balances through
-the existing opening-balance endpoint. This is ledger setup, not statement
-source approval or an automatic classification decision (`AC-ledger.first-use.1`).
-
+Account creation and editing share `AccountFormModal`, whose success callback returns the saved account. Review consumers can update their available accounts without resetting a transaction draft or duplicating the ledger writer. Guided opening balances start with a blank as-of date. The user can supply the first report-period start and explicitly apply its previous calendar day, or enter an as-of date directly. For March 2026, the brought-forward date is February 28, even if the first transaction is March 2. Editing the period never silently rewrites the entered date; an entered period rejects opening dates on or after its start. The final confirmation posts decimal-string balances through the existing opening-balance endpoint. This is ledger setup, not statement source approval or an automatic classification decision (`AC-ledger.first-use.1`).
 ### Entry Structure
-
-```mermaid
-flowchart LR
-    JE[JournalEntry<br/>Entry Header] --> JL1[JournalLine<br/>Debit: Bank 1000]
-    JE --> JL2[JournalLine<br/>Credit: Income 1000]
-```
-
+```mermaid flowchart LR  JE[JournalEntry<br/>Entry Header] --> JL1[JournalLine<br/>Debit: Bank 1000]  JE --> JL2[JournalLine<br/>Credit: Income 1000] ```
 ### Multi-Currency Journal Balance
-
 Journal entry balance is measured in the configured base currency (`SGD` by default), not by raw nominal line amounts. A non-base-currency line must carry `fx_rate`, where:
-
-```
-base_amount = line.amount * line.fx_rate
-```
-
-Debit and credit totals are valid only when their converted base amounts differ by no more than `0.01`.
-
-Account-balance projections make their currency space explicit in the function
-name: `calculate_account_balances` returns nominal amounts in each account's own
-currency, while `calculate_account_balances_in_base_currency` performs FX
-conversion for equation/reporting checks. No boolean flag can silently change
-the meaning of the returned `dict[account_id, Decimal]`.
-
+``` base_amount = line.amount * line.fx_rate ``` Debit and credit totals are valid only when their converted base amounts differ by no more than `0.01`. Account-balance projections make their currency space explicit in the function name: `calculate_account_balances` returns nominal amounts in each account's own currency, while `calculate_account_balances_in_base_currency` performs FX
+conversion for equation/reporting checks. No boolean flag can silently change the meaning of the returned `dict[account_id, Decimal]`.
 ### Posted Ledger Database Floor
-
-Application services validate drafts before posting, but the database is the
-final boundary for posted/reconciled ledger facts. Direct writes that bypass
-services must still be rejected when they would create a posted or reconciled
-entry with fewer than two lines, unbalanced base-currency debit/credit totals,
-or non-base lines without a positive `fx_rate`.
-
-Posted and reconciled entries are immutable ledger facts. They must not be
-updated or deleted directly; the only supported correction is a void transition
-that preserves an immutable reversal relationship. Draft entries remain editable
-and deletable until posting.
-
-A void reversal preserves the original entry's historical currency basis; it
-must not reinterpret FX-free historical lines using a later effective-base
-override. The write path derives that basis from the original line currency/FX
-metadata and fails closed when no FX-free line identifies the historical base,
-or when multiple FX-free currencies make it ambiguous.
-
-A journal entry stores the base currency that validated it at creation
-(`journal_entries.base_currency`, #2539). The decision-anchor target of a manual
-draft includes that base currency. Posting the draft therefore recomputes the
-target, the balance and the FX checks under the stored value, not under the
-current effective value. A change of the effective base currency between create
-and post does not change the post result (AC-ledger.79.9). Rows from before
-revision 0067 have no stored value; they use the effective value of the caller.
-
-The target hashes the lines as an ordered list of decimal texts. Two more inputs
-must therefore be equal at create and at post (#2539):
-- **Line order.** Each line stores its position in the command
-  (`journal_lines.line_no`), and `JournalEntry.lines` loads in that order. A
-  select without ORDER BY returns rows in physical order, which can differ
-  from the insert order after deletes (AC-ledger.79.10).
-- **Decimal scale.** A manual command expresses each amount with 2 places and
-  each FX rate with 6 places, the scale of the columns, before it hashes the
-  target. `1000` and `1000.00` then give the same text. A value with more places
-  is rejected, never rounded (AC-ledger.79.11).
-
-Rows from before revision 0068 have no position and keep the old load order.
-
-The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. Text without a limit,
-such as a statement description, goes through `fit_journal_memo` before it becomes a
-memo. The decision anchor binds the memo that the entry stores, so the caller cuts once
-and gives that one value to the anchor and to the command. The statement posting, the
-Processing legs and the void reversal use the helper. The API schemas of a manual entry
-and of opening balances reject a longer memo (HTTP 422) and do not cut it.
-
-Ledger immutability protects accounting facts: entry ownership/date/memo/source
-identity, decision-anchor id, status correction path, and all journal-line
-amounts, directions, accounts, currencies, and FX rates. `source_type` is presentation provenance only; it is never a caller
-selectable authority or a mutable trust promotion. A source-derived or manual
-financial write must pass the single `submit_anchored_journal_entry` boundary,
-which re-checks that its tenant-scoped `TraceRecord` decision is current,
-authoritative, and pins the exact target and policy versions. The journal stores
-only the immutable decision id and explicit `anchored|legacy_unproven` state.
-`current_anchored_journal_entries` joins that id to audit's public current
-authority projection, never audit's private ORM or duplicated target/policy
-columns, before an external consumer treats a fact as resolved or reconciled.
-The append-only TraceRecord remains the sole owner of tenant, target, policy,
-and CODE/LLM authority metadata. Historical rows without this
-immutable evidence are `legacy_unproven`; no migration fabricates a decision for
-them. The schema migration assigns that historical state through a temporary
-server default while adding the column, not a row `UPDATE`, so posted and
-reconciled entries stay immutable; it then removes the default before any new
-write can occur.
-
----
-
+Application services validate drafts before posting, but the database is the final boundary for posted/reconciled ledger facts. Direct writes that bypass services must still be rejected when they would create a posted or reconciled entry with fewer than two lines, unbalanced base-currency debit/credit totals, or non-base lines without a positive `fx_rate`. Posted and reconciled entries are immutable ledger facts. They must not be updated or deleted directly; the only supported correction is a void transition that preserves an immutable reversal relationship. Draft entries remain editable and deletable until posting. A void reversal preserves the original entry's historical currency basis; it must not reinterpret FX-free historical lines using a later effective-base override. The write path derives that basis from the original line currency/FX metadata and fails closed when no FX-free line identifies the historical base, or when multiple FX-free currencies make it ambiguous. A journal entry stores the base currency that validated it at creation (`journal_entries.base_currency`, #2539). The decision-anchor target of a manual
+draft includes that base currency. Posting the draft therefore recomputes the target, the balance and the FX checks under the stored value, not under the current effective value. A change of the effective base currency between create and post does not change the post result (AC-ledger.79.9). Rows from before revision 0067 have no stored value; they use the effective value of the caller. The target hashes the lines as an ordered list of decimal texts. Two more inputs must therefore be equal at create and at post (#2539): - **Line order.** Each line stores its position in the command (`journal_lines.line_no`), and `JournalEntry.lines` loads in that order. A select without ORDER BY returns rows in physical order, which can differ from the insert order after deletes (AC-ledger.79.10). - **Decimal scale.** A manual command expresses each amount with 2 places and each FX rate with 6 places, the scale of the columns, before it hashes the target. `1000` and `1000.00` then give the same text. A value with more places is rejected, never rounded (AC-ledger.79.11). Rows from before revision 0068 have no position and keep the old load order.
+The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. Text without a limit, such as a statement description, goes through `fit_journal_memo` before it becomes a memo. The decision anchor binds the memo that the entry stores, so the caller cuts once and gives that one value to the anchor and to the command. The statement posting, the Processing legs and the void reversal use the helper. The API schemas of a manual entry and of opening balances reject a longer memo (HTTP 422) and do not cut it. Ledger immutability protects accounting facts: entry ownership/date/memo/source identity, decision-anchor id, status correction path, and all journal-line amounts, directions, accounts, currencies, and FX rates. `source_type` is presentation provenance only; it is never a caller selectable authority or a mutable trust promotion. A source-derived or manual financial write must pass the single `submit_anchored_journal_entry` boundary, which re-checks that its tenant-scoped `TraceRecord` decision is current, authoritative, and pins the exact target and policy versions. The journal stores only the immutable decision id and explicit `anchored|legacy_unproven` state.
+`current_anchored_journal_entries` joins that id to audit's public current authority projection, never audit's private ORM or duplicated target/policy columns, before an external consumer treats a fact as resolved or reconciled. The append-only TraceRecord remains the sole owner of tenant, target, policy, and CODE/LLM authority metadata. Historical rows without this immutable evidence are `legacy_unproven`; no migration fabricates a decision for them. The schema migration assigns that historical state through a temporary server default while adding the column, not a row `UPDATE`, so posted and reconciled entries stay immutable; it then removes the default before any new write can occur.
 ## 3. Design Constraints (Dos & Don'ts)
-
-> **SSOT**: The rules in this section are the single authoritative definitions.
-> Other files that mention these rules should reference:
-> `See: common/ledger/readme.md#<anchor>`
-
+> **SSOT**: The rules in this section are the single authoritative definitions. > Other files that mention these rules should reference: > `See: common/ledger/readme.md#<anchor>`
 ### ✅ Recommended Patterns
-
-- **Pattern A**: Each entry has at least 2 lines, debit/credit balanced
-- **Pattern B**: Use Decimal for precise calculations, tolerance < 0.01
-- **Pattern C**: Posted entries can only be voided, not directly modified
-- **Pattern D**: Multi-currency entries validate debit/credit balance after base-currency conversion.
-- **Pattern E**: Journal line account authorization is a domain invariant. Accounting services must validate that every `JournalLine.account_id` belongs to the same `user_id` as the `JournalEntry`; HTTP middleware is not sufficient because service calls and background tasks can write ledger records without a request object.
-- **Pattern F**: Posted/reconciled ledger invariants are enforced at both service and database boundaries.
-- **Pattern G**: A manual HTTP command creates a manual-attestation decision over
-  its exact payload. The client cannot choose `source_type` or `source_id`, and a
-  source/reviewed producer can only submit the `DecisionAnchor` issued by its
-  owning trace policy.
-- **Pattern H**: `ResolvedJournalContribution` publishes its current anchor as
-  audit's `TraceDecisionRef` (decision id + exact target + exact assertion).
-  Package consumers scope the current projection and compare every coordinate;
-  a bare decision id cannot authorize a different journal command.
-
+- **Pattern A**: Each entry has at least 2 lines, debit/credit balanced - **Pattern B**: Use Decimal for precise calculations, tolerance < 0.01 - **Pattern C**: Posted entries can only be voided, not directly modified - **Pattern D**: Multi-currency entries validate debit/credit balance after base-currency conversion. - **Pattern E**: Journal line account authorization is a domain invariant. Accounting services must validate that every `JournalLine.account_id` belongs to the same `user_id` as the `JournalEntry`; HTTP middleware is not sufficient because service calls and background tasks can write ledger records without a request object. - **Pattern F**: Posted/reconciled ledger invariants are enforced at both service and database boundaries. - **Pattern G**: A manual HTTP command creates a manual-attestation decision over its exact payload. The client cannot choose `source_type` or `source_id`, and a source/reviewed producer can only submit the `DecisionAnchor` issued by its owning trace policy.
+- **Pattern H**: `ResolvedJournalContribution` publishes its current anchor as audit's `TraceDecisionRef` (decision id + exact target + exact assertion). Package consumers scope the current projection and compare every coordinate; a bare decision id cannot authorize a different journal command.
 ### ⛔ Prohibited Patterns
-
 <a id="decimal-rule"></a>
-
-- **Anti-pattern A**: **NEVER** use FLOAT to store, calculate, or transfer monetary amounts.
-    -   **Reason**: IEEE 754 floating point arithmetic causes precision errors (e.g., `0.1 + 0.2 != 0.3`).
-    -   **Enforcement**: All Pydantic models use `Decimal`. API clients parse JSON numbers as strings or Decimals, never floats.
-    -   **Guardrail**: `apps/backend/tests/accounting/test_decimal_safety.py` fuzzes models with float inputs to ensure strictness.
-
-- **Rule A2 — Canonical money rounding**: Currency amounts are quantized to **2 decimal places using banker's rounding (`ROUND_HALF_EVEN`)**. This is the single project-wide rounding mode for money.
-    -   **Enforcement**: round money through the one helper `src.audit.money.to_money()` (the backend money module; mirrored from `common/audit/money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
-    -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): typed `ExchangeRate` values, security prices (6 dp), `Quantity` values (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
-    -   **Guardrail**: `apps/backend/tests/audit/money/test_money.py`.
-
-> The **money value types** (`Money` / `Currency` / `ExchangeRate` / `convert` /
-> `CurrencyBalances`) that make these rules type-enforced are the money Shared
-> Kernel, owned by [`common/audit/money/readme.md#money-type`](../audit/money/readme.md#money-type).
-> A `Leg` carries a `Money` from that kernel; ledger does not redefine money.
-
+- **Anti-pattern A**: **NEVER** use FLOAT to store, calculate, or transfer monetary amounts. -   **Reason**: IEEE 754 floating point arithmetic causes precision errors (e.g., `0.1 + 0.2 != 0.3`). -   **Enforcement**: All Pydantic models use `Decimal`. API clients parse JSON numbers as strings or Decimals, never floats. -   **Guardrail**: `apps/backend/tests/accounting/test_decimal_safety.py` fuzzes models with float inputs to ensure strictness. - **Rule A2 — Canonical money rounding**: Currency amounts are quantized to **2 decimal places using banker's rounding (`ROUND_HALF_EVEN`)**. This is the single project-wide rounding mode for money. -   **Enforcement**: round money through the one helper `src.audit.money.to_money()` (the backend money module; mirrored from `common/audit/money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
+    -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): typed `ExchangeRate` values, security prices (6 dp), `Quantity` values (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %). -   **Guardrail**: `apps/backend/tests/audit/money/test_money.py`. > The **money value types** (`Money` / `Currency` / `ExchangeRate` / `convert` / > `CurrencyBalances`) that make these rules type-enforced are the money Shared > Kernel, owned by [`common/audit/money/readme.md#money-type`](../audit/money/readme.md#money-type). > A `Leg` carries a `Money` from that kernel; ledger does not redefine money.
 <a id="entry-balance"></a>
-
-- **Anti-pattern B**: **NEVER** allow unbalanced debit/credit entries. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected`
-- **Anti-pattern C**: **NEVER** skip validation when writing posted status. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_journal_entry_already_posted_fails`
-- **Anti-pattern E**: **NEVER** validate a multi-currency journal entry by comparing raw original-currency nominal amounts.
-- **Anti-pattern F**: **NEVER** create, post, or aggregate journal lines across user boundaries. Balance queries must require both `Account.user_id == user_id` and `JournalEntry.user_id == user_id`.
-- **Anti-pattern G**: **NEVER** directly update or delete posted/reconciled/void ledger facts. Use the void/reversal workflow.
+- **Anti-pattern B**: **NEVER** allow unbalanced debit/credit entries. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected` - **Anti-pattern C**: **NEVER** skip validation when writing posted status. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_journal_entry_already_posted_fails` - **Anti-pattern E**: **NEVER** validate a multi-currency journal entry by comparing raw original-currency nominal amounts. - **Anti-pattern F**: **NEVER** create, post, or aggregate journal lines across user boundaries. Balance queries must require both `Account.user_id == user_id` and `JournalEntry.user_id == user_id`. - **Anti-pattern G**: **NEVER** directly update or delete posted/reconciled/void ledger facts. Use the void/reversal workflow.
 - **Anti-pattern H**: **NEVER** downgrade `source_type` or change `source_id` after posting/reconciliation. Provenance corrections must use the explicit source-type promotion path only.
-
 <a id="async-tx-boundary"></a>
-
-- **Anti-pattern D**: **NEVER** call `db.commit()` in service-layer methods that receive a `db: AsyncSession` from a router.
-    -   **Rule**: Services use `flush()` to assign IDs and validate constraints. Routers call `commit()` to finalize the transaction.
-    -   **Documented Exceptions**:
-        1. **Background tasks** with own sessions (via `session_maker()`/`session_factory()`): These create their own `AsyncSession` and ARE the transaction boundary. Example: `statement_parsing.py::parse_statement_background()`, `statement_parsing_supervisor.py::reset_stale_parsing_jobs()`, `market_data_scheduler.py::run_daily_market_data_sync()`.
-        2. **Streaming generators** that outlive the router response: When a router returns `StreamingResponse`, the async generator runs after the router has returned. The generator must own the final `commit()` for data written during streaming. Example: `ai_advisor.py::_stream_and_store()` commits the assistant message after streaming completes.
+- **Anti-pattern D**: **NEVER** call `db.commit()` in service-layer methods that receive a `db: AsyncSession` from a router. -   **Rule**: Services use `flush()` to assign IDs and validate constraints. Routers call `commit()` to finalize the transaction. -   **Documented Exceptions**: 1. **Background tasks** with own sessions (via `session_maker()`/`session_factory()`): These create their own `AsyncSession` and ARE the transaction boundary. Example: `statement_parsing.py::parse_statement_background()`, `statement_parsing_supervisor.py::reset_stale_parsing_jobs()`, `market_data_scheduler.py::run_daily_market_data_sync()`. 2. **Streaming generators** that outlive the router response: When a router returns `StreamingResponse`, the async generator runs after the router has returned. The generator must own the final `commit()` for data written during streaming. Example: `ai_advisor.py::_stream_and_store()` commits the assistant message after streaming completes.
     -   **Enforcement**: `apps/backend/tests/ai/test_commit_boundary.py` verifies flush-only behavior in AI advisor service methods.
-
----
-
 ## 4. Standard Operating Procedures (Playbooks)
-
 ### SOP-001: Create Manual Entry
-
-```python
-def create_manual_entry(user_id, date, memo, lines: list[dict]) -> JournalEntry:
-    # 1. Validate debit/credit balance
-    total_debit = sum(l["amount"] for l in lines if l["direction"] == "DEBIT")
-    total_credit = sum(l["amount"] for l in lines if l["direction"] == "CREDIT")
-    if abs(total_debit - total_credit) > Decimal("0.01"):
-        raise ValidationError("Debit/credit not balanced")
-    
-    # 2. Create entry header
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date,
-        memo=memo,
-        source_type="manual",
-        status="draft"
-    )
-    
-    # 3. Create lines
-    for line in lines:
-        entry.lines.append(JournalLine(**line))
-    
-    return entry
-```
-
+```python def create_manual_entry(user_id, date, memo, lines: list[dict]) -> JournalEntry:  # 1. Validate debit/credit balance  total_debit = sum(l["amount"] for l in lines if l["direction"] == "DEBIT")  total_credit = sum(l["amount"] for l in lines if l["direction"] == "CREDIT")  if abs(total_debit - total_credit) > Decimal("0.01"):  raise ValidationError("Debit/credit not balanced")  # 2. Create entry header  entry = JournalEntry(  user_id=user_id,  entry_date=date,  memo=memo,  source_type="manual",  status="draft"  )  # 3. Create lines  for line in lines:  entry.lines.append(JournalLine(**line))  return entry ```
 ### SOP-002: Post Entry
-
-```python
-def post_entry(entry: JournalEntry) -> None:
-    # 1. Re-validate balance
-    validate_balance(entry)
-    
-    # 2. Validate accounts are active
-    for line in entry.lines:
-        if not line.account.is_active:
-            raise ValidationError(f"Account {line.account.name} is disabled")
-    
-    # 3. Update status
-    entry.status = "posted"
-    entry.updated_at = datetime.utcnow()
-```
-
+```python def post_entry(entry: JournalEntry) -> None:  # 1. Re-validate balance  validate_balance(entry)  # 2. Validate accounts are active  for line in entry.lines:  if not line.account.is_active:  raise ValidationError(f"Account {line.account.name} is disabled")  # 3. Update status  entry.status = "posted"  entry.updated_at = datetime.utcnow() ```
 ### SOP-003: Void Entry
-
-```python
-def void_entry(entry: JournalEntry, reason: str) -> JournalEntry:
-    # 1. Can only void posted entries
-    if entry.status != "posted":
-        raise ValidationError("Can only void posted entries")
-    
-    # 2. Create reversal entry
-    reverse_entry = JournalEntry(
-        user_id=entry.user_id,
-        entry_date=date.today(),
-        memo=f"Void: {entry.memo} ({reason})",
-        source_type="system",
-        status="posted"
-    )
-    
-    for line in entry.lines:
-        reverse_entry.lines.append(JournalLine(
-            account_id=line.account_id,
-            direction="CREDIT" if line.direction == "DEBIT" else "DEBIT",
-            amount=line.amount,
-            currency=line.currency
-        ))
-    
-    # 3. Mark original entry
-    entry.status = "void"
-    
-    return reverse_entry
-```
-
----
-
+```python def void_entry(entry: JournalEntry, reason: str) -> JournalEntry:  # 1. Can only void posted entries  if entry.status != "posted":  raise ValidationError("Can only void posted entries")  # 2. Create reversal entry  reverse_entry = JournalEntry(  user_id=entry.user_id,  entry_date=date.today(),  memo=f"Void: {entry.memo} ({reason})",  source_type="system",  status="posted"  )  for line in entry.lines:  reverse_entry.lines.append(JournalLine(  account_id=line.account_id,  direction="CREDIT" if line.direction == "DEBIT" else "DEBIT",  amount=line.amount,  currency=line.currency  ))  # 3. Mark original entry  entry.status = "void"  return reverse_entry ```
 ## 5. Verification & Testing (The Proof)
-
 | Behavior | Verification Method | Status |
 |----------|---------------------|--------|
-| Entry debit/credit balance | Unit test `test_journal_balance` | ⏳ Pending |
-| Accounting equation | Integration test `test_accounting_equation` | ⏳ Pending |
+| Entry debit/credit balance | Unit test `test_journal_balance` | ⏳ Pending | | Accounting equation | Integration test `test_accounting_equation` | ⏳ Pending |
 | Multi-currency base balance | Unit test `test_AC2_12_1_multicurrency_entry_balances_in_base_currency` | ✅ Implemented |
 | Accounting equation base conversion | Integration test `test_AC2_12_2_accounting_equation_uses_base_currency_balances` | ✅ Implemented |
 | User-scoped line ownership | Integration tests `test_AC2_13_1_*`, `test_AC2_13_2_*`, `test_AC2_13_3_*` | ✅ Implemented |
 | Database ledger invariant floor | Direct DB-bypass tests `test_AC2_14_*` | ✅ Implemented |
 | Void logic | Unit test `test_void_entry` | ⏳ Pending |
-
----
-
 # Processing Virtual Account SSOT
-
-> **SSOT Key**: `processing_account`
-> **Core Definition**: Virtual clearing account for in-transit funds during inter-account transfers.
-
-The processing (in-transit) account is part of the ledger bounded context: it is a
-system-managed `Account` with special semantics, posted to only through ledger
-entries. Reconciliation/reporting consume it **by id/event**, never via a shared
-cross-domain transaction or foreign key.
-
----
-
+> **SSOT Key**: `processing_account` > **Core Definition**: Virtual clearing account for in-transit funds during inter-account transfers. The processing (in-transit) account is part of the ledger bounded context: it is a system-managed `Account` with special semantics, posted to only through ledger entries. Reconciliation/reporting consume it **by id/event**, never via a shared cross-domain transaction or foreign key.
 ## P1. Source of Truth
-
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Processing Logic (verbs)** | `apps/backend/src/ledger/extension/processing.py` | Core business — acquire/post/project/pair (impure edge) |
-| **Processing Policy (pure)** | `apps/backend/src/ledger/base/processing.py` | Account identity + transfer detection, amount/date scoring, and ledger weights (pure core); description similarity is supplied by reconciliation's one kernel |
-| **Published Interface** | `apps/backend/src/ledger` (`from src.ledger import ...`) | The only surface consumers (reconciliation/reporting) import |
-| **Transfer Detection** | `apps/backend/src/reconciliation/extension/matching.py` | Calls the ledger published interface (by id/event) |
-
----
-
+| **Processing Logic (verbs)** | `apps/backend/src/ledger/extension/processing.py` | Core business — acquire/post/project/pair (impure edge) | | **Processing Policy (pure)** | `apps/backend/src/ledger/base/processing.py` | Account identity + transfer detection, amount/date scoring, and ledger weights (pure core); description similarity is supplied by reconciliation's one kernel |
+| **Published Interface** | `apps/backend/src/ledger` (`from src.ledger import ...`) | The only surface consumers (reconciliation/reporting) import | | **Transfer Detection** | `apps/backend/src/reconciliation/extension/matching.py` | Calls the ledger published interface (by id/event) |
 ## P2. Problem Statement (Vision Context)
-
-From the `vision.md` `decision-5-processing-account` anchor:
-
-**Problem**: Bank A transfers out on Day 1, Bank B receives on Day 3. Where are the funds on Day 2?
-
-**Without Processing Account**:
-```
-Day 1: Bank A balance decreases by $10,000
-Day 2: Total assets = Bank A + Bank B = $X - $10,000  ❌ (funds "disappeared")
-Day 3: Bank B balance increases by $10,000
-```
-
-**With Processing Account**:
-```
-Day 1: 
-  DEBIT Processing $10,000
-  CREDIT Bank A $10,000
-  Total assets = Bank A + Bank B + Processing = $X  ✅ (equation holds)
-
-Day 3:
-  DEBIT Bank B $10,000
-  CREDIT Processing $10,000
-  Total assets = Bank A + Bank B + Processing = $X  ✅ (equation holds)
-```
-
-**Key Insight**: Processing account balance represents **unconfirmed in-transit funds**. When Processing balance ≠ 0, there are unpaired transfers.
-
+From the `vision.md` `decision-5-processing-account` anchor: **Problem**: Bank A transfers out on Day 1, Bank B receives on Day 3. Where are the funds on Day 2? **Without Processing Account**:
+``` Day 1: Bank A balance decreases by $10,000  Day 2: Total assets = Bank A + Bank B = $X - $10,000  ❌ (funds "disappeared")  Day 3: Bank B balance increases by $10,000 ``` **With Processing Account**:
+``` Day 1:  DEBIT Processing $10,000  CREDIT Bank A $10,000  Total assets = Bank A + Bank B + Processing = $X  ✅ (equation holds)  Day 3:  DEBIT Bank B $10,000  CREDIT Processing $10,000  Total assets = Bank A + Bank B + Processing = $X  ✅ (equation holds) ``` **Key Insight**: Processing account balance represents **unconfirmed in-transit funds**. When Processing balance ≠ 0, there are unpaired transfers.
 **Visibility Rule**: Processing is hidden from normal user-managed account lists, but it must remain visible through the Advanced Processing drill-down and as a dashboard status card. The dashboard card shows the signed current Processing Account balance. Any non-zero current balance must produce a workflow readiness blocker and Advanced/app-shell attention indicator; the Processing drill-down and dashboard card must show the signed balance and warning context.
-
----
-
 ## P3. Architecture Model
-
 ### Account Classification
-
-Processing is a **system-managed Asset account** with special properties:
-
-| Property | Value | Reason |
+Processing is a **system-managed Asset account** with special properties: | Property | Value | Reason |
 |----------|-------|--------|
-| **Type** | ASSET | Holds value temporarily (like a bank account) |
-| **Owner** | System (user_id=NULL initially, then per-user) | Auto-created, not user-editable |
-| **Name** | "Processing - [User Email]" | Per-user instance |
-| **Code** | "1199" | Asset subgroup (following 11xx pattern for current assets) |
-| **Normal Balance** | Debit (ideally $0) | Should self-cancel when transfers pair |
+| **Type** | ASSET | Holds value temporarily (like a bank account) | | **Owner** | System (user_id=NULL initially, then per-user) | Auto-created, not user-editable | | **Name** | "Processing - [User Email]" | Per-user instance | | **Code** | "1199" | Asset subgroup (following 11xx pattern for current assets) | | **Normal Balance** | Debit (ideally $0) | Should self-cancel when transfers pair |
 | **Visibility** | Hidden from normal account lists and standard reports; visible in dedicated Processing UI and dashboard status | Internal clearing mechanism with explicit in-transit warning |
-
 ### Transfer Detection Flow
-
-```mermaid
-flowchart TB
-    A[Reconciliation Engine] --> B{Detect Transfer Pattern}
-    B -->|Outgoing Transfer| C[Create DEBIT Processing]
-    B -->|Incoming Transfer| D[Create CREDIT Processing]
-    B -->|No Transfer| E[Normal Reconciliation]
-    
-    C --> F[Check Processing Balance]
-    D --> F
-    
-    F -->|Balance = $0| G[Transfer Paired ✅]
-    F -->|Balance ≠ $0| H[Unpaired Transfer ⚠️]
-    
-    H --> I[Show in Review Queue]
-```
-
+```mermaid flowchart TB  A[Reconciliation Engine] --> B{Detect Transfer Pattern}  B -->|Outgoing Transfer| C[Create DEBIT Processing]  B -->|Incoming Transfer| D[Create CREDIT Processing]  B -->|No Transfer| E[Normal Reconciliation]  C --> F[Check Processing Balance]  D --> F  F -->|Balance = $0| G[Transfer Paired ✅]  F -->|Balance ≠ $0| H[Unpaired Transfer ⚠️]  H --> I[Show in Review Queue] ```
 ### Transfer Matching Logic
-
-**Pattern Recognition**:
-
-| Signal | Weight | Detection Logic |
+**Pattern Recognition**: | Signal | Weight | Detection Logic |
 |--------|--------|-----------------|
-| **Amount Match** | 40% | Exact or within 0.5% (accounting for forex/fees) |
-| **Description Match** | 30% | Keywords: "transfer", "payment", "withdrawal" → "deposit", "receive" |
-| **Date Proximity** | 20% | Within 7 days (T+3 is common) |
-| **Account Pair History** | 10% | Same account pair has transfer history |
-
-**Auto-Pairing Threshold**: ≥85 score → automatically create paired entries
-
-**Manual Review**: 60-84 score → show in review queue with suggested pair
-
-Both transfer directions construct the same typed `Entry.transfer` value and
-persist it through ledger's `post_entry` front door. They cannot hand-roll a
-`POSTED` ORM row or bypass balance, ownership, FX-rate, and posting validation.
-The effective Processing currency is mandatory at every processing API boundary;
-the delivery layer passes the configured owner value, and the processing path has
-no hidden `SGD` default.
-
+| **Amount Match** | 40% | Exact or within 0.5% (accounting for forex/fees) | | **Description Match** | 30% | Keywords: "transfer", "payment", "withdrawal" → "deposit", "receive" | | **Date Proximity** | 20% | Within 7 days (T+3 is common) | | **Account Pair History** | 10% | Same account pair has transfer history | **Auto-Pairing Threshold**: ≥85 score → automatically create paired entries
+**Manual Review**: 60-84 score → show in review queue with suggested pair Both transfer directions construct the same typed `Entry.transfer` value and persist it through ledger's `post_entry` front door. They cannot hand-roll a `POSTED` ORM row or bypass balance, ownership, FX-rate, and posting validation. The effective Processing currency is mandatory at every processing API boundary; the delivery layer passes the configured owner value, and the processing path has no hidden `SGD` default.
 ### In-Transit Isolation and External Statement Staging Boundary (#2052)
-
-- **Processing Account (Code 1199) Reservation**: Code `1199` is strictly a system-managed asset suspense account reserved for internal transfer reconciliation (`TransferPair`, EPIC-015). It holds funds in-transit between a user's own accounts so that each leg cancels to zero upon pairing.
-- **External Statement Staging Boundary**: External statements (bank CSV/PDF exports, credit card records) must stage unverified transactions exclusively in Layer 2 `AtomicTransaction` (extraction bounded context). External transactions are strictly forbidden from routing through Code 1199. Diverting external statements into Code 1199 pollutes the balance sheet, corrupts P&L, and causes unresolvable accounting discrepancies.
-- **Anchored Batch Port (#2612)**: `submit_anchored_journal_entries` persists a set of anchored commands with a number of SQL statements that does not grow with the set. It returns the entries that one `submit_anchored_journal_entry` call per command returns. It checks every anchor before it persists any entry. It reads the owners of all source targets in one statement, creates the draft entries with one flush, and posts them with one flush. Commands that share a source target keep the single path.
+- **Processing Account (Code 1199) Reservation**: Code `1199` is strictly a system-managed asset suspense account reserved for internal transfer reconciliation (`TransferPair`, EPIC-015). It holds funds in-transit between a user's own accounts so that each leg cancels to zero upon pairing. - **External Statement Staging Boundary**: External statements (bank CSV/PDF exports, credit card records) must stage unverified transactions exclusively in Layer 2 `AtomicTransaction` (extraction bounded context). External transactions are strictly forbidden from routing through Code 1199. Diverting external statements into Code 1199 pollutes the balance sheet, corrupts P&L, and causes unresolvable accounting discrepancies. - **Anchored Batch Port (#2612)**: `submit_anchored_journal_entries` persists a set of anchored commands with a number of SQL statements that does not grow with the set. It returns the entries that one `submit_anchored_journal_entry` call per command returns. It checks every anchor before it persists any entry. It reads the owners of all source targets in one statement, creates the draft entries with one flush, and posts them with one flush. Commands that share a source target keep the single path.
 - **Ledger Authority Defense**: Unverified transactions remain staged in `AtomicTransaction` through classification and economic disposition. Final admission into the immutable double-entry ledger occurs exclusively via `submit_anchored_journal_entry` (or its batch port) with an authoritative `DecisionAnchor`. Any non-system journal command attempting to post against Code 1199 is rejected fail-closed with `ValidationError`.
-
----
-
 ## P4. Data Model
-
 ### Schema Change (Migration)
-
-No new table needed. Processing account is a regular `Account` with special semantics.
-
-**System Initialization** (on user registration):
-
-```sql
-INSERT INTO accounts (
-    id, 
-    user_id, 
-    name, 
-    type, 
-    code, 
-    currency, 
-    is_active,
-    is_system,  -- New column: boolean flag
-    description
-) VALUES (
-    gen_random_uuid(),
-    :user_id,
-    'Processing - ' || :user_email,
-    'ASSET',
-    '1199',
-    :base_currency,  -- Explicit effective base currency from config
-    true,
-    true,  -- Mark as system account
-    'Virtual clearing account for in-transit funds between accounts'
-);
-```
-
+No new table needed. Processing account is a regular `Account` with special semantics. **System Initialization** (on user registration):
+```sql INSERT INTO accounts (  id,  user_id,  name,  type,  code,  currency,  is_active,  is_system,  -- New column: boolean flag  description  ) VALUES (  gen_random_uuid(),  :user_id,  'Processing - ' || :user_email,  'ASSET',  '1199',  :base_currency,  -- Explicit effective base currency from config  true,  true,  -- Mark as system account  'Virtual clearing account for in-transit funds between accounts'  ); ```
 **New Model Field**:
-
-```python
-# apps/backend/src/ledger/orm/account.py
-class Account(Base):
-    # ... existing fields ...
-    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    # System accounts are hidden from user-facing account lists
-```
-
+```python # apps/backend/src/ledger/orm/account.py  class Account(Base):  # ... existing fields ...  is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # System accounts are hidden from user-facing account lists ```
 ### Journal Entry Pattern
-
 **Outgoing Transfer (Bank A sends $10k)**:
-
-```python
-JournalEntry(
-    entry_date=date(2026, 1, 1),
-    memo="Transfer OUT to Bank B",
-    source_type="bank_statement",
-    source_id=atomic_txn_id,
-    status="posted",
-    lines=[
-        JournalLine(account=processing, direction="DEBIT", amount=10000),  # Processing +10k
-        JournalLine(account=bank_a, direction="CREDIT", amount=10000)      # Bank A -10k
-    ]
-)
-```
-
-**Incoming Transfer (Bank B receives $10k)**:
-
-```python
-JournalEntry(
-    entry_date=date(2026, 1, 3),
-    memo="Transfer IN from Bank A",
-    source_type="bank_statement",
-    source_id=atomic_txn_id,
-    status="posted",
-    lines=[
-        JournalLine(account=bank_b, direction="DEBIT", amount=10000),      # Bank B +10k
-        JournalLine(account=processing, direction="CREDIT", amount=10000)  # Processing -10k
-    ]
-)
-```
-
-**Result**: Processing balance returns to $0 when paired.
-
----
-
+```python JournalEntry(  entry_date=date(2026, 1, 1),  memo="Transfer OUT to Bank B",  source_type="bank_statement",  source_id=atomic_txn_id,  status="posted",  lines=[  JournalLine(account=processing, direction="DEBIT", amount=10000),  # Processing +10k  JournalLine(account=bank_a, direction="CREDIT", amount=10000)      # Bank A -10k  ]  ) ``` **Incoming Transfer (Bank B receives $10k)**:
+```python JournalEntry(  entry_date=date(2026, 1, 3),  memo="Transfer IN from Bank A",  source_type="bank_statement",  source_id=atomic_txn_id,  status="posted",  lines=[  JournalLine(account=bank_b, direction="DEBIT", amount=10000),      # Bank B +10k  JournalLine(account=processing, direction="CREDIT", amount=10000)  # Processing -10k  ]  ) ``` **Result**: Processing balance returns to $0 when paired.
 ## P5. Design Constraints (Dos & Don'ts)
-
 ### ✅ Recommended Patterns
-
-- **Pattern A**: Processing account balance SHOULD be $0 under normal circumstances
-  - Non-zero balance indicates unpaired transfers requiring review
-  
-- **Pattern B**: Auto-pair transfers when confidence ≥85
-  - Same amount within 0.5%
-  - Date within 7 days
-  - Description keywords match
-  - `find_transfer_pairs` excludes paired `JournalEntry.id` rows (`exclude_entry_ids`) and orders candidates by `(entry_date DESC, created_at DESC, id DESC)` before the `max_entries` limit (`AC-ledger.74.4`)
-  
-- **Pattern C**: One Processing account per user
-  - Several requests of one user can create it together, for example when the user uploads several statements
-    at once. `get_or_create_processing_account` and the default account resolver of extraction call
-    `account_service.find_or_create_account`. The creation commits in its own short transaction, under the lock
-    `account-creation:<user_id>` that lasts milliseconds. A second request sees the row at once. It neither waits
-    for the open transaction of the first nor creates a second row, and two requests cannot wait for each other.
-    The account stays when the caller rolls back. A user row that the caller has not committed (registration)
-    gets the account in the transaction of the caller. A read never creates the account (`find_processing_account`):
-    the first transfer leg creates it, in the base currency of that moment, and a page view must not fix that
-    currency.
-  - Simplifies balance tracking
-  - Clear ownership for multi-user scenarios
-
-- **Pattern D**: Hide Processing from default reports
-  - Balance Sheet: Show in notes or collapsed by default
-  - Income Statement: N/A (Asset account)
-  - User-facing account lists: Exclude `is_system=true` accounts
-
+- **Pattern A**: Processing account balance SHOULD be $0 under normal circumstances - Non-zero balance indicates unpaired transfers requiring review - **Pattern B**: Auto-pair transfers when confidence ≥85 - Same amount within 0.5% - Date within 7 days - Description keywords match - `find_transfer_pairs` excludes paired `JournalEntry.id` rows (`exclude_entry_ids`) and orders candidates by `(entry_date DESC, created_at DESC, id DESC)` before the `max_entries` limit (`AC-ledger.74.4`) - **Pattern C**: One Processing account per user - Several requests of one user can create it together, for example when the user uploads several statements at once. `get_or_create_processing_account` and the default account resolver of extraction call `account_service.find_or_create_account`. The creation commits in its own short transaction, under the lock
+    `account-creation:<user_id>` that lasts milliseconds. A second request sees the row at once. It neither waits for the open transaction of the first nor creates a second row, and two requests cannot wait for each other. The account stays when the caller rolls back. A user row that the caller has not committed (registration) gets the account in the transaction of the caller. A read never creates the account (`find_processing_account`): the first transfer leg creates it, in the base currency of that moment, and a page view must not fix that currency. - Simplifies balance tracking - Clear ownership for multi-user scenarios - **Pattern D**: Hide Processing from default reports - Balance Sheet: Show in notes or collapsed by default - Income Statement: N/A (Asset account) - User-facing account lists: Exclude `is_system=true` accounts
 ### ⛔ Prohibited Patterns
-
-- **Anti-pattern A**: **NEVER** allow manual journal entries to debit/credit Processing
-  - **Reason**: Defeats the purpose of automatic transfer detection
-  - **Enforcement**: API validation rejects entries with Processing account unless `source_type='system'`
-  
-- **Anti-pattern B**: **NEVER** delete unpaired entries to "fix" Processing balance
-  - **Reason**: Loses audit trail of in-transit funds
-  - **Solution**: Force user to review and either pair or explain discrepancy
-
-- **Anti-pattern C**: **NEVER** assume Processing balance = error
-  - **Reason**: Legitimate 2-3 day transfer lag is normal
-  - **Alert Threshold**: Only flag if balance ≠ 0 for >7 days
-
----
-
+- **Anti-pattern A**: **NEVER** allow manual journal entries to debit/credit Processing - **Reason**: Defeats the purpose of automatic transfer detection - **Enforcement**: API validation rejects entries with Processing account unless `source_type='system'` - **Anti-pattern B**: **NEVER** delete unpaired entries to "fix" Processing balance - **Reason**: Loses audit trail of in-transit funds - **Solution**: Force user to review and either pair or explain discrepancy - **Anti-pattern C**: **NEVER** assume Processing balance = error - **Reason**: Legitimate 2-3 day transfer lag is normal - **Alert Threshold**: Only flag if balance ≠ 0 for >7 days
 ## P6. Standard Operating Procedures (Playbooks)
-
 ### SOP-001: Auto-Detect and Pair Transfers
-
-```python
-def reconcile_with_transfer_detection(
-    summary: StatementSummary,
-    transactions: list[AtomicTransaction]
-) -> list[ReconciliationMatch]:
-    matches = []
-
-    # Custody account is resolved from DWD (statement_summaries), not from ODS.
-    custody_account_id = resolve_custody_account_id(summary)
-
-    for txn in transactions:
-        # 1. Try normal reconciliation first
-        journal_matches = find_journal_entry_candidates(txn)
-        if journal_matches:
-            matches.append(create_match(txn, journal_matches))
-            continue
-        
-        # 2. Detect transfer pattern
-        if is_transfer_pattern(txn):
-            processing_account = get_processing_account(user_id)
-            
-            if txn.direction == "OUT":
-                # Create outgoing transfer entry
-                entry = create_transfer_out_entry(
-                    txn, 
-                    source_account=custody_account_id,
-                    processing_account=processing_account
-                )
-            else:  # direction == "IN"
-                # Create incoming transfer entry
-                entry = create_transfer_in_entry(
-                    txn,
-                    dest_account=custody_account_id,
-                    processing_account=processing_account
-                )
-            
-            matches.append(create_match(txn, [entry]))
-    
-    return matches
-
-def is_transfer_pattern(txn: AtomicTransaction) -> bool:
-    keywords = ["transfer", "payment to", "fund transfer", "withdrawal", 
-                "paynow", "fast", "giro"]
-    description_lower = txn.description.lower()
-    return any(kw in description_lower for kw in keywords)
-```
-
+```python def reconcile_with_transfer_detection(  summary: StatementSummary,  transactions: list[AtomicTransaction]  ) -> list[ReconciliationMatch]:  matches = []  # Custody account is resolved from DWD (statement_summaries), not from ODS.  custody_account_id = resolve_custody_account_id(summary)  for txn in transactions:  # 1. Try normal reconciliation first  journal_matches = find_journal_entry_candidates(txn)  if journal_matches:  matches.append(create_match(txn, journal_matches))  continue  # 2. Detect transfer pattern  if is_transfer_pattern(txn):  processing_account = get_processing_account(user_id)  if txn.direction == "OUT":  # Create outgoing transfer entry  entry = create_transfer_out_entry(  txn,  source_account=custody_account_id,  processing_account=processing_account  )  else:  # direction == "IN"  # Create incoming transfer entry  entry = create_transfer_in_entry(  txn,  dest_account=custody_account_id,  processing_account=processing_account  )  matches.append(create_match(txn, [entry]))  return matches  def is_transfer_pattern(txn: AtomicTransaction) -> bool:  keywords = ["transfer", "payment to", "fund transfer", "withdrawal",  "paynow", "fast", "giro"]  description_lower = txn.description.lower()  return any(kw in description_lower for kw in keywords) ```
 ### SOP-002: Review Unpaired Transfers
-
 **Query for Unpaired Transfers**:
-
-```sql
--- Find non-zero Processing balance entries.
--- The source transaction is an AtomicTransaction (DWD); atomic rows carry no
--- per-transaction status, so reconciliation state is read from the
--- reconciliation_matches envelope keyed on atomic_txn_id.
-SELECT 
-    je.entry_date,
-    je.memo,
-    jl.direction,
-    jl.amount,
-    je.source_id,
-    (SELECT status FROM reconciliation_matches WHERE atomic_txn_id = je.source_id
-       ORDER BY version DESC LIMIT 1) as match_status
-FROM journal_entries je
-JOIN journal_lines jl ON je.id = jl.journal_entry_id
-JOIN accounts a ON jl.account_id = a.id
-WHERE a.code = '1199'  -- Processing account
-  AND je.status = 'posted'
-  AND je.user_id = :user_id
-ORDER BY je.entry_date DESC;
-```
-
-**Manual Review Workflow**:
-
-1. Identify the unpaired side (DEBIT or CREDIT in Processing)
-2. Search other user accounts for matching amount + date range
-3. Options:
-   - **Pair with existing entry**: Link as reconciliation match
-   - **Create manual entry**: If missing from statement
-   - **Mark as exception**: If truly unresolved (refunds, errors)
-
+```sql -- Find non-zero Processing balance entries.  -- The source transaction is an AtomicTransaction (DWD); atomic rows carry no  -- per-transaction status, so reconciliation state is read from the  -- reconciliation_matches envelope keyed on atomic_txn_id.  SELECT  je.entry_date,  je.memo,  jl.direction,  jl.amount,  je.source_id,  (SELECT status FROM reconciliation_matches WHERE atomic_txn_id = je.source_id  ORDER BY version DESC LIMIT 1) as match_status  FROM journal_entries je  JOIN journal_lines jl ON je.id = jl.journal_entry_id  JOIN accounts a ON jl.account_id = a.id  WHERE a.code = '1199'  -- Processing account  AND je.status = 'posted'  AND je.user_id = :user_id  ORDER BY je.entry_date DESC; ```
+**Manual Review Workflow**: 1. Identify the unpaired side (DEBIT or CREDIT in Processing) 2. Search other user accounts for matching amount + date range 3. Options: - **Pair with existing entry**: Link as reconciliation match - **Create manual entry**: If missing from statement - **Mark as exception**: If truly unresolved (refunds, errors)
 ### SOP-003: Handle Failed Auto-Pairing
-
-**Scenarios**:
-
-| Scenario | Cause | Resolution |
+**Scenarios**: | Scenario | Cause | Resolution |
 |----------|-------|------------|
-| **Amount mismatch** | Forex spread, fees | Create fee entry for difference, then pair |
-| **Date > 7 days** | Delayed transfer | Extend search window, manual review |
-| **Description no match** | Generic labels | Use amount + date only, confirm manually |
-| **Duplicate transfers** | Same amount, same day | Require manual disambiguation |
-
----
-
+| **Amount mismatch** | Forex spread, fees | Create fee entry for difference, then pair | | **Date > 7 days** | Delayed transfer | Extend search window, manual review | | **Description no match** | Generic labels | Use amount + date only, confirm manually | | **Duplicate transfers** | Same amount, same day | Require manual disambiguation |
 ## P7. Integration Points
-
 ### Integration with Reconciliation Engine
-
 **Modified Reconciliation Flow**:
-
-```mermaid
-flowchart TB
-    A[Import Statement] --> B[Parse Transactions]
-    B --> C{For each transaction}
-    C --> D{Normal Entry Match?}
-    D -->|Yes| E[Score & Create Match]
-    D -->|No| F{Transfer Pattern?}
-    F -->|Yes| G[Auto-Create Transfer Entry]
-    F -->|No| H[Unmatched]
-    
-    G --> I{Check Processing Balance}
-    I -->|Balance = 0| J[Auto-Accept Pair ✅]
-    I -->|Balance ≠ 0| K[Pending Review ⚠️]
-    
-    E --> L[Continue]
-    J --> L
-    K --> L
-    H --> L
-```
-
+```mermaid flowchart TB  A[Import Statement] --> B[Parse Transactions]  B --> C{For each transaction}  C --> D{Normal Entry Match?}  D -->|Yes| E[Score & Create Match]  D -->|No| F{Transfer Pattern?}  F -->|Yes| G[Auto-Create Transfer Entry]  F -->|No| H[Unmatched]  G --> I{Check Processing Balance}  I -->|Balance = 0| J[Auto-Accept Pair ✅]  I -->|Balance ≠ 0| K[Pending Review ⚠️]  E --> L[Continue]  J --> L  K --> L  H --> L ```
 ### Integration with Reporting
-
 **Balance Sheet Adjustments**:
-
-```python
-def generate_balance_sheet(user_id: UUID, as_of: date) -> BalanceSheet:
-    # ... normal balance calculation ...
-    
-    # Calculate Processing balance
-    processing_account = get_processing_account(user_id)
-    processing_balance = calculate_account_balance(processing_account, as_of)
-    
-    if processing_balance != Decimal("0"):
-        # Add as footnote or separate line item
-        report["assets"]["current"]["in_transit_funds"] = processing_balance
-        report["notes"].append(
-            f"In-transit funds: ${processing_balance:,.2f} representing unpaired transfers"
-        )
-    
-    return report
-```
-
----
-
+```python def generate_balance_sheet(user_id: UUID, as_of: date) -> BalanceSheet:  # ... normal balance calculation ...  # Calculate Processing balance  processing_account = get_processing_account(user_id)  processing_balance = calculate_account_balance(processing_account, as_of)  if processing_balance != Decimal("0"):  # Add as footnote or separate line item  report["assets"]["current"]["in_transit_funds"] = processing_balance  report["notes"].append(  f"In-transit funds: ${processing_balance:,.2f} representing unpaired transfers"  )  return report ```
 ## P8. Verification & Testing (The Proof)
-
 ### Test Cases
-
 | Behavior | Test Method | File | Priority |
 |----------|-------------|------|----------|
-| **Processing account auto-created on user registration** | Integration test | `test_processing_account.py::test_auto_create_on_registration` | P0 |
-| **Transfer OUT creates DEBIT Processing** | Unit test | `test_processing_account.py::test_transfer_out_journal_entry` | P0 |
-| **Transfer IN creates CREDIT Processing** | Unit test | `test_processing_account.py::test_transfer_in_journal_entry` | P0 |
-| **Paired transfers zero out Processing balance** | Integration test | `test_processing_account.py::test_paired_transfer_zeroes_balance` | P0 |
-| **Unpaired transfers leave non-zero balance** | Integration test | `test_processing_account.py::test_unpaired_transfer_nonzero_balance` | P0 |
-| **Manual entries cannot use Processing account** | Validation test | `test_processing_account.py::test_reject_manual_processing_entry` | P0 |
-| **Auto-pairing with 85+ confidence** | Reconciliation test | `test_reconciliation.py::test_auto_pair_transfers` | P0 |
-| **Processing hidden from default account list** | API test | `test_accounts_router.py::test_system_accounts_hidden` | P1 |
-
+| **Processing account auto-created on user registration** | Integration test | `test_processing_account.py::test_auto_create_on_registration` | P0 | | **Transfer OUT creates DEBIT Processing** | Unit test | `test_processing_account.py::test_transfer_out_journal_entry` | P0 | | **Transfer IN creates CREDIT Processing** | Unit test | `test_processing_account.py::test_transfer_in_journal_entry` | P0 |
+| **Paired transfers zero out Processing balance** | Integration test | `test_processing_account.py::test_paired_transfer_zeroes_balance` | P0 | | **Unpaired transfers leave non-zero balance** | Integration test | `test_processing_account.py::test_unpaired_transfer_nonzero_balance` | P0 | | **Manual entries cannot use Processing account** | Validation test | `test_processing_account.py::test_reject_manual_processing_entry` | P0 |
+| **Auto-pairing with 85+ confidence** | Reconciliation test | `test_reconciliation.py::test_auto_pair_transfers` | P0 | | **Processing hidden from default account list** | API test | `test_accounts_router.py::test_system_accounts_hidden` | P1 |
 ### Accounting Equation Validation
-
-```python
-def test_accounting_equation_with_processing():
-    """Verify equation holds during transfer lag period"""
-    user = create_test_user()
-    bank_a = create_account(user, "Bank A", type="ASSET", balance=10000)
-    bank_b = create_account(user, "Bank B", type="ASSET", balance=5000)
-    processing = get_processing_account(user.id)
-    
-    # Day 1: Transfer OUT from Bank A
-    transfer_out(bank_a, amount=1000)  # Creates DEBIT Processing, CREDIT Bank A
-    
-    # Verify equation after Day 1
-    assets_day1 = sum_account_balances(user, type="ASSET")  # 9k + 5k + 1k = 15k
-    assert assets_day1 == Decimal("15000")  # Equation holds ✅
-    
-    # Day 3: Transfer IN to Bank B
-    transfer_in(bank_b, amount=1000)  # Creates DEBIT Bank B, CREDIT Processing
-    
-    # Verify equation after Day 3
-    assets_day3 = sum_account_balances(user, type="ASSET")  # 9k + 6k + 0k = 15k
-    assert assets_day3 == Decimal("15000")  # Equation still holds ✅
-    assert get_balance(processing) == Decimal("0")  # Processing cleared ✅
-```
-
----
-
+```python def test_accounting_equation_with_processing():  """Verify equation holds during transfer lag period"""  user = create_test_user()  bank_a = create_account(user, "Bank A", type="ASSET", balance=10000)  bank_b = create_account(user, "Bank B", type="ASSET", balance=5000)  processing = get_processing_account(user.id)  # Day 1: Transfer OUT from Bank A  transfer_out(bank_a, amount=1000)  # Creates DEBIT Processing, CREDIT Bank A  # Verify equation after Day 1  assets_day1 = sum_account_balances(user, type="ASSET")  # 9k + 5k + 1k = 15k  assert assets_day1 == Decimal("15000")  # Equation holds ✅  # Day 3: Transfer IN to Bank B  transfer_in(bank_b, amount=1000)  # Creates DEBIT Bank B, CREDIT Processing  # Verify equation after Day 3  assets_day3 = sum_account_balances(user, type="ASSET")  # 9k + 6k + 0k = 15k  assert assets_day3 == Decimal("15000")  # Equation still holds ✅  assert get_balance(processing) == Decimal("0")  # Processing cleared ✅ ```
 ## P9. Migration Strategy
-
 ### Phase 1: Add `is_system` Column (Week 1)
-
-```python
-# Alembic migration
-def upgrade():
-    op.add_column('accounts', sa.Column('is_system', sa.Boolean(), nullable=False, server_default='false'))
-```
-
+```python # Alembic migration  def upgrade():  op.add_column('accounts', sa.Column('is_system', sa.Boolean(), nullable=False, server_default='false')) ```
 ### Phase 2: Create Processing Accounts (Week 1)
-
-```python
-# Data migration: Backfill for existing users
-def backfill_processing_accounts():
-    users = session.query(User).all()
-    for user in users:
-        processing = Account(
-            user_id=user.id,
-            name=f"Processing - {user.email}",
-            type="ASSET",
-            code="1199",
-            currency="SGD",
-            is_active=True,
-            is_system=True,
-            description="Virtual clearing account for in-transit funds"
-        )
-        session.add(processing)
-    session.commit()
-```
-
+```python # Data migration: Backfill for existing users  def backfill_processing_accounts():  users = session.query(User).all()  for user in users:  processing = Account(  user_id=user.id,  name=f"Processing - {user.email}",  type="ASSET",  code="1199",  currency="SGD",  is_active=True,  is_system=True,  description="Virtual clearing account for in-transit funds"  )  session.add(processing)  session.commit() ```
 ### Phase 3: Enable Transfer Detection (Week 2)
-
-```python
-# Feature flag in config.py
-ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)
-
-# Gradual rollout via environment variable
-```
-
+```python # Feature flag in config.py  ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)  # Gradual rollout via environment variable ```
 ### Phase 4: Validation Period (Week 3)
-
-- Monitor Processing account balances across all users
-- Review any balance > $0 for >7 days
-- Tune matching algorithm based on false positives/negatives
-
----
-
+- Monitor Processing account balances across all users - Review any balance > $0 for >7 days - Tune matching algorithm based on false positives/negatives
 ## P10. Related Documents
-
-- **Vision**: [Project Vision](../../vision.md) decision 5
-- **Reconciliation**: [reconciliation.md](../../common/reconciliation/reconciliation.md) - Matching algorithm
-- **Schema rationale**: [schema.md](../../common/meta/schema.md) - data-layer and migration guardrails
-- **Generated schema inventory**: [Generated DB Schema Reference](../../docs/reference/db-schema.md) - current account and ledger table structure
-
----
-
+- **Vision**: [Project Vision](../../vision.md) decision 5 - **Reconciliation**: [reconciliation.md](../../common/reconciliation/reconciliation.md) - Matching algorithm - **Schema rationale**: [schema.md](../../common/meta/schema.md) - data-layer and migration guardrails - **Generated schema inventory**: [Generated DB Schema Reference](../../docs/reference/db-schema.md) - current account and ledger table structure
 ## P11. Open Questions
-
 ### Q1: What currency should Processing account use?
-**Answer**: Use the effective base currency passed explicitly from application
-configuration. Multi-currency transfers are handled via FX conversion at the
-destination account; processing APIs never substitute a currency default.
-
+**Answer**: Use the effective base currency passed explicitly from application configuration. Multi-currency transfers are handled via FX conversion at the destination account; processing APIs never substitute a currency default.
 ### Q2: Should Processing be visible in account balance totals?
 **Answer**: Yes in raw totals, but with explanatory footnote. Hide in user-facing summaries unless balance ≠ 0.
-
 ### Q3: How to handle transfer fees?
-**Answer**: Create separate "Transfer Fee" expense entry. Do NOT adjust Processing balance directly.
-
-Example:
-```
-// Bank A charges $5 fee, transfers $1000
-Entry 1 (Transfer OUT):
-  DEBIT Processing $1000
-  CREDIT Bank A $1000
-
-Entry 2 (Fee):
-  DEBIT Transfer Fee Expense $5
-  CREDIT Bank A $5
-```
-
+**Answer**: Create separate "Transfer Fee" expense entry. Do NOT adjust Processing balance directly. Example:
+``` // Bank A charges $5 fee, transfers $1000  Entry 1 (Transfer OUT):  DEBIT Processing $1000  CREDIT Bank A $1000  Entry 2 (Fee):  DEBIT Transfer Fee Expense $5  CREDIT Bank A $5 ```
 ### Q4: What if user manually transfers between own accounts?
-**Answer**: Same mechanism applies. Manual transfer = 2 journal entries (OUT + IN) routed through Processing.
-
----
-
-*Historical FAQ snapshot captured: February 23, 2026*
-
----
-
+**Answer**: Same mechanism applies. Manual transfer = 2 journal entries (OUT + IN) routed through Processing. *Historical FAQ snapshot captured: February 23, 2026*
 ## Used by
-
-- [schema.md](../../common/meta/schema.md)
-- [reconciliation.md](../../common/reconciliation/reconciliation.md)
-- [confirmation-workflow.md](../extraction/confirmation-workflow.md)
-
+- [schema.md](../../common/meta/schema.md) - [reconciliation.md](../../common/reconciliation/reconciliation.md) - [confirmation-workflow.md](../extraction/confirmation-workflow.md)
 ## Account starting stock
-
-A starting position is stock effective at the beginning of its recorded date,
-not cash earned or spent on that date. `list_opening_positions` publishes immutable
-`OpeningPosition` values with account, effective date, signed normal-side amount,
-original currency, historical FX rate, optional journal id, and current trace
-decision. Reporting consumes this evidence; memo text and arbitrary event tags
-never prove an opening. Existing anchored `opening-balance` system commands can
-be projected without rewriting their history. The projection reads current
-authority only for the decisions of its own facts: the opening records, their
-journal entries and the historical opening commands (#2602).
-
-Manual and automatic statement approval reconcile each account's approved statement
-chain in the same transaction as source posting (`#2832`). A tenant-scoped database
-lock serializes concurrent initialization. Identical account/date/amount/currency
-retries reuse the existing position; conflicting same-date initializations require the
-correction lifecycle. The earliest approved statement $S_0$ initializes the account's
-opening position against `3199 Opening Balance Equity` (`OPENING_BALANCE_EQUITY_CODE`);
-when an earlier statement is approved later or when $S_0$ is retired,
-`initialize_opening_positions(..., allow_supersede=True)` voids the superseded opening
-journal entry and re-anchors the account to the new earliest statement. Adjacent
-approved statements $(S_i, S_{i+1})$ whose opening-minus-closing gap exceeds
-`CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) are calibrated via system
-`cross_period_gap_plug` (`CROSS_PERIOD_GAP_PLUG_EVENT_TYPE`) journal entries against
-`3198 Unexplained Statement Gap Equity` (`UNEXPLAINED_GAP_EQUITY_CODE`,
-`get_or_create_unexplained_gap_equity_account`) so every approved statement's opening
-and closing balances tie out on the Balance Sheet while intermediate missing statements
-automatically shrink `3198` upon upload.
-A zero starting position records evidence without creating a zero-value journal.
-Negative source balances reverse the account's normal posting side.
-
-Foreign currency remains on the account line with an explicit positive historical
-FX rate; the balancing equity amount is in the effective base currency. Missing
-FX or stale source authority prevents initialization, rather than silently
-dropping the source starting balance. `opening_position_records` retains immutable
-source-decision and journal coordinates; updates/deletes cannot rewrite stock.
-Readiness checks each user-managed asset/liability account independently, including
-archived accounts with historical activity. FX revaluation likewise reads archived
-posted balances; archiving an account does not erase historical money.
-
-The current account form still accepts positive inputs only. Explicit zero and
-negative initialization support at the service/source boundary does not imply
-that the corresponding manual UI workflow exists.
-
-Source-backed opening decisions include the exact authoritative source decision as a causal parent. Their public `source_decision` reference is digest-pinned, including explicit zero stock with no journal. The application supplies a composed extraction/ledger trace emitter so neither owner imports the other to replay authority.
-
-The additive `initialize_opening_positions` command initializes signed, zero,
-and explicitly converted foreign-currency stock. The legacy
-`post_opening_balance_entry` interface retains its required currency argument,
-positive base-currency amounts, and `JournalEntry` return contract; it rejects
-nonpositive inputs before creating stock. Both use the same immutable opening
-position owner and authorization path (`AC-ledger.opening-position.9`).
-
-Opening-position evidence has a non-cascading tenant foreign key and rejects
-all updates and deletes. Deleting an identity cannot silently erase financial
-initialization evidence; retention cleanup requires the ledger owner. This adds
-no cross-package cascade debt (`AC-audit.deletion-ownership.1`).
-
-Guided opening requests obtain tenant-scoped target currencies from the ledger
-account service before historical FX lookup. The application composition root
-supplies pricing rates and the trace emitter; HTTP delivery only translates the
-request and commits or rolls back the transaction. Currency mismatch remains a
-ledger validation error before any provider call.
-
-Opening-stock commands delegate through the system-command and anchored-posting
-boundary to the repository's unconditional balance validator before any journal
-write. The structural call-chain guard and an executed imbalanced-command
-regression jointly cover this path (`AC-ledger.34.5`).
-
-The account modal initializes create/edit values before its opened form becomes
-interactive. Reopening it must preserve the first entered name and selected
-account type; a deferred reset cannot overwrite user input
-(`AC-ledger.fe-accounts-journal.12`–`.13`).
+A starting position is stock effective at the beginning of its recorded date, not cash earned or spent on that date. `list_opening_positions` publishes immutable `OpeningPosition` values with account, effective date, signed normal-side amount, original currency, historical FX rate, optional journal id, and current trace decision. Reporting consumes this evidence; memo text and arbitrary event tags never prove an opening. Existing anchored `opening-balance` system commands can be projected without rewriting their history. The projection reads current authority only for the decisions of its own facts: the opening records, their journal entries and the historical opening commands (#2602). Manual and automatic statement approval reconcile each account's approved statement chain in the same transaction as source posting (`#2832`). A tenant-scoped database lock serializes concurrent initialization. Identical account/date/amount/currency retries reuse the existing position; conflicting same-date initializations require the correction lifecycle. The earliest approved statement $S_0$ initializes the account's opening position against `3199 Opening Balance Equity` (`OPENING_BALANCE_EQUITY_CODE`);
+when an earlier statement is approved later or when $S_0$ is retired, `initialize_opening_positions(..., allow_supersede=True)` voids the superseded opening journal entry and re-anchors the account to the new earliest statement. Adjacent approved statements $(S_i, S_{i+1})$ whose opening-minus-closing gap exceeds `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`) are calibrated via system `cross_period_gap_plug` (`CROSS_PERIOD_GAP_PLUG_EVENT_TYPE`) journal entries against `3198 Unexplained Statement Gap Equity` (`UNEXPLAINED_GAP_EQUITY_CODE`, `get_or_create_unexplained_gap_equity_account`) so every approved statement's opening and closing balances tie out on the Balance Sheet while intermediate missing statements automatically shrink `3198` upon upload. A zero starting position records evidence without creating a zero-value journal. Negative source balances reverse the account's normal posting side. Foreign currency remains on the account line with an explicit positive historical FX rate; the balancing equity amount is in the effective base currency. Missing FX or stale source authority prevents initialization, rather than silently
+dropping the source starting balance. `opening_position_records` retains immutable source-decision and journal coordinates; updates/deletes cannot rewrite stock. Readiness checks each user-managed asset/liability account independently, including archived accounts with historical activity. FX revaluation likewise reads archived posted balances; archiving an account does not erase historical money. The current account form still accepts positive inputs only. Explicit zero and negative initialization support at the service/source boundary does not imply that the corresponding manual UI workflow exists. Source-backed opening decisions include the exact authoritative source decision as a causal parent. Their public `source_decision` reference is digest-pinned, including explicit zero stock with no journal. The application supplies a composed extraction/ledger trace emitter so neither owner imports the other to replay authority.
+The additive `initialize_opening_positions` command initializes signed, zero, and explicitly converted foreign-currency stock. The legacy `post_opening_balance_entry` interface retains its required currency argument, positive base-currency amounts, and `JournalEntry` return contract; it rejects nonpositive inputs before creating stock. Both use the same immutable opening position owner and authorization path (`AC-ledger.opening-position.9`). Opening-position evidence has a non-cascading tenant foreign key and rejects all updates and deletes. Deleting an identity cannot silently erase financial initialization evidence; retention cleanup requires the ledger owner. This adds no cross-package cascade debt (`AC-audit.deletion-ownership.1`). Guided opening requests obtain tenant-scoped target currencies from the ledger account service before historical FX lookup. The application composition root supplies pricing rates and the trace emitter; HTTP delivery only translates the request and commits or rolls back the transaction. Currency mismatch remains a ledger validation error before any provider call.
+Opening-stock commands delegate through the system-command and anchored-posting boundary to the repository's unconditional balance validator before any journal write. The structural call-chain guard and an executed imbalanced-command regression jointly cover this path (`AC-ledger.34.5`). The account modal initializes create/edit values before its opened form becomes interactive. Reopening it must preserve the first entered name and selected account type; a deferred reset cannot overwrite user input (`AC-ledger.fe-accounts-journal.12`–`.13`).

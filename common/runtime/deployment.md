@@ -1,363 +1,72 @@
 # Deployment Architecture SSOT
-
-> **SSOT Key**: `deployment`
-> **Source of Truth** for deployment workflows, secret injection, and release processes.
-
-*Extracted from [development.md](../meta/development.md) — see also [environments.md](./environments.md) for environment overview.*
-
----
-
+> **SSOT Key**: `deployment` > **Source of Truth** for deployment workflows, secret injection, and release processes. *Extracted from [development.md](../meta/development.md) — see also [environments.md](./environments.md) for environment overview.*
 ## One-Way Repository Model
-
-Finance Report uses **two git repositories** for configuration:
-
-| Environment | Configuration Source | Purpose |
+Finance Report uses **two git repositories** for configuration: | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
-| **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
-| **Staging/Production** | infra2-owned IaC (`reconcile-iac-inputs.yml` + `harness/repos.yaml`) | Production with Vault secrets |
-
-Finance Report does not check out infra2 source. It pins the
-[`infra2-sdk`](https://github.com/wangzitian0/infra2-sdk) wire contract and
-declares `runtime-hooks.manifest.json` (`smoke`, `preview_gate`, `staging_gate`,
-`scheduled_audit`) for the `infra2` release train to execute.
-
+| **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers | | **Staging/Production** | infra2-owned IaC (`reconcile-iac-inputs.yml` + `harness/repos.yaml`) | Production with Vault secrets | Finance Report does not check out infra2 source. It pins the [`infra2-sdk`](https://github.com/wangzitian0/infra2-sdk) wire contract and
+declares `runtime-hooks.manifest.json` (`smoke`, `preview_gate`, `staging_gate`, `scheduled_audit`) for the `infra2` release train to execute.
 ### Versioned App-to-Infra Hook Boundary
-
-The target repository boundary is one-way: Finance Report owns application
-artifacts and declares `runtime-hooks.manifest.json`; infra2 owns IaC selection
-(`reconcile-iac-inputs.yml` and `harness/repos.yaml`), credentials, and every
-deployment side effect. The application pins
-[`infra2-sdk`](https://github.com/wangzitian0/infra2-sdk/releases)
-as the wire-contract authority — the one pin is the release wheel URL in
-`apps/backend/pyproject.toml` `[project.dependencies]`, locked with its sha256
-in `apps/backend/uv.lock`; the `ci.yml` steps that install the wheel read it
-through `tools/sdk_pin.py`. Its standard-library implementation in
-`common/runtime/sdk_pin.py` rejects declaration/lock disagreement before
-acquisition; workflows verify the downloaded SHA256 before installation.
-`tests/tooling/test_sdk_pin.py` proves the shared bootstrap path without
-hard-coding another release pin. `infra2` is the single CD control plane for
-`finance_report/app`: it reconciles release tags from `origin/main` into
-`harness/repos.yaml`, deploys via `deploy_v2`, and executes the verification
-hooks declared in `runtime-hooks.manifest.json`.
-
-**Key implications**:
-- Workflows build images and trigger deployments
-- Actual deployment config managed in `infra2`
-- Env vars for staging/prod stored in HashiCorp Vault
-- Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`.
-- Container names include env suffix (e.g., `-staging`)
-
----
-
+The target repository boundary is one-way: Finance Report owns application artifacts and declares `runtime-hooks.manifest.json`; infra2 owns IaC selection (`reconcile-iac-inputs.yml` and `harness/repos.yaml`), credentials, and every deployment side effect. The application pins [`infra2-sdk`](https://github.com/wangzitian0/infra2-sdk/releases) as the wire-contract authority — the one pin is the release wheel URL in
+`apps/backend/pyproject.toml` `[project.dependencies]`, locked with its sha256 in `apps/backend/uv.lock`; the `ci.yml` steps that install the wheel read it through `tools/sdk_pin.py`. Its standard-library implementation in `common/runtime/sdk_pin.py` rejects declaration/lock disagreement before acquisition; workflows verify the downloaded SHA256 before installation.
+`tests/tooling/test_sdk_pin.py` proves the shared bootstrap path without hard-coding another release pin. `infra2` is the single CD control plane for `finance_report/app`: it reconciles release tags from `origin/main` into `harness/repos.yaml`, deploys via `deploy_v2`, and executes the verification hooks declared in `runtime-hooks.manifest.json`. **Key implications**:
+- Workflows build images and trigger deployments - Actual deployment config managed in `infra2` - Env vars for staging/prod stored in HashiCorp Vault - Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`. - Container names include env suffix (e.g., `-staging`)
 ## Secret Injection Flow
-
 Production deployments use Vault sidecar pattern:
-
-```
-1. Dokploy pulls compose.yaml from infra2
-2. vault-agent sidecar starts → renders /secrets/.env
-3. Backend waits for secrets (CHECKPOINT-1)
-4. Alembic runs migrations (CHECKPOINT-2)
-5. Uvicorn starts application (CHECKPOINT-3)
-```
-
-Health check timeout (6 min) accounts for this entire flow.
-
+``` 1. Dokploy pulls compose.yaml from infra2  2. vault-agent sidecar starts → renders /secrets/.env  3. Backend waits for secrets (CHECKPOINT-1)  4. Alembic runs migrations (CHECKPOINT-2)  5. Uvicorn starts application (CHECKPOINT-3) ``` Health check timeout (6 min) accounts for this entire flow.
 ### Secret Contract (cross-repo seam)
-
-One contract ties the three repos together; each owns only its part:
-
-| Repo | Owns | Knows about others |
+One contract ties the three repos together; each owns only its part: | Repo | Owns | Knows about others |
 |------|------|--------------------|
-| **finance_report** (app) | `apps/backend/src/config.py` declares every variable and its default; `apps/backend/src/boot.py` enforces which secrets must be real at boot. | Nothing at build time; reads `os.environ` regardless of source. |
-| **dev_env** (local tooling) | Injects local secrets from 1Password (no plaintext at rest); source-agnostic. | Nothing about app schemas. |
+| **finance_report** (app) | `apps/backend/src/config.py` declares every variable and its default; `apps/backend/src/boot.py` enforces which secrets must be real at boot. | Nothing at build time; reads `os.environ` regardless of source. | | **dev_env** (local tooling) | Injects local secrets from 1Password (no plaintext at rest); source-agnostic. | Nothing about app schemas. |
 | **infra2** | Renders the vault-agent template and policy from the manifest's source classes; at deploy time its secret supply (running in the iac-runner under its own bounded `VAULT_TOKEN`) copies `human` values from 1Password into Vault and generates `runtime` ones, while `release` / `decision` values are set in the compose env. | The versioned `common/runtime/required-env.generated.json` artifact (`config.ENV_SOURCE_CLASSES` names each field's producer; unlisted fields are `code` defaults). |
-
-Consistency is **not** enforced by cross-repo CI gates. It is enforced where it
-matters: the app **fails loudly at boot** in a *protected* runtime.
-`apps/backend/src/boot.py` (`Bootloader._check_static_config`, the single source
-of truth for environment validation) treats a runtime as protected when the
-environment is `staging`/`production`, is **not** one of the local environments
-(`development`, `test`, `ci`), or the app is served from a public (non-localhost
-`https://`) `NEXT_PUBLIC_APP_URL`. In a protected runtime it rejects a
-missing/short/default `SECRET_KEY`, a default `DATABASE_URL`, or a default
-`S3_SECRET_KEY`. Startup runs it via `apps/backend/src/main.py` →
-`await Bootloader.validate(BootMode.CRITICAL)`, which `sys.exit(1)`s on failure
-(the deploy readiness gate catches it). Local/CI keep convenience defaults.
-Proven by AC1.10.1.
-
----
-
+Consistency is **not** enforced by cross-repo CI gates. It is enforced where it matters: the app **fails loudly at boot** in a *protected* runtime. `apps/backend/src/boot.py` (`Bootloader._check_static_config`, the single source of truth for environment validation) treats a runtime as protected when the environment is `staging`/`production`, is **not** one of the local environments
+(`development`, `test`, `ci`), or the app is served from a public (non-localhost `https://`) `NEXT_PUBLIC_APP_URL`. In a protected runtime it rejects a missing/short/default `SECRET_KEY`, a default `DATABASE_URL`, or a default `S3_SECRET_KEY`. Startup runs it via `apps/backend/src/main.py` → `await Bootloader.validate(BootMode.CRITICAL)`, which `sys.exit(1)`s on failure
+(the deploy readiness gate catches it). Local/CI keep convenience defaults. Proven by AC1.10.1.
 ## CI Deployment Workflows
-
 ### ci.yml (PR/push)
-
-```
-Trigger: PR or push to main
-Steps:   install → lint → test
-DB:      GitHub services (ephemeral)
-Smoke:   ❌ Not run (unit tests only)
-```
-
+``` Trigger: PR or push to main  Steps:   install → lint → test  DB:      GitHub services (ephemeral)  Smoke:   ❌ Not run (unit tests only) ```
 ### Staging Release Train (`infra2` + `runtime-hooks.manifest.json`)
-
-```yaml
-Trigger: Manual dispatch only (workflow_dispatch in infra2 with a required `version_ref` input from harness/repos.yaml)
-Flow:    reconcile-iac-inputs -> deploy_v2 (type=staging) -> staging_gate hook (smoke/non-LLM E2E/provider connectivity/AI-OCR canary)
-URL:     https://report-staging.zitian.party
-```
-
-Staging deploy is manual: it runs only on `workflow_dispatch` in `infra2` and does not
-auto-follow main CI. The release selector is `version_ref` in `infra2` `harness/repos.yaml`,
-and it must be a `vX.Y.Z` release tag on `origin/main`. `ci.yml` (`promote-release-images`)
-verifies that `$GITHUB_SHA` is an ancestor of `origin/main` and promotes the main-CI SHA
-images to `:vX.Y.Z` before staging is dispatched. Provider-backed AI/OCR tests run inside
-the `staging_gate` and `scheduled_audit` hook slots defined in `runtime-hooks.manifest.json`.
-
-The release process keeps a promote-not-rebuild consistency ladder:
-`main CI (:<sha7>) -> ci.yml promote-release-images (:vX.Y.Z) -> staging deploy_v2
-(:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `ci.yml` (`promote-release-images`) is the only
-tag-push promotion path; staging and production both consume the retained release
-tag without rebuilding or retagging. The `sha7` tag is fixed to the first 7 hex
-characters of the release commit rather than Git's adaptive short length. By
-copying single-platform manifests with `imagetools --prefer-index=false`, the
-release tag keeps the exact same image digest from main CI through production,
-eliminating drift from base images, build-time dependencies, or workflow changes.
-
-The staging deploy gate separates platform rollout from application readiness.
-`infra2` (`deploy_v2`) owns Dokploy mutation, effective-config validation, and
-terminal rollout proof, then executes Finance Report's `staging_gate` hook slot
-(`tools/smoke_test.sh`, `staging_core_e2e`, provider connectivity, and `staging_ai_ocr`
-canary).
-
+```yaml Trigger: Manual dispatch only (workflow_dispatch in infra2 with a required `version_ref` input from harness/repos.yaml)  Flow:    reconcile-iac-inputs -> deploy_v2 (type=staging) -> staging_gate hook (smoke/non-LLM E2E/provider connectivity/AI-OCR canary)  URL:     https://report-staging.zitian.party ``` Staging deploy is manual: it runs only on `workflow_dispatch` in `infra2` and does not
+auto-follow main CI. The release selector is `version_ref` in `infra2` `harness/repos.yaml`, and it must be a `vX.Y.Z` release tag on `origin/main`. `ci.yml` (`promote-release-images`) verifies that `$GITHUB_SHA` is an ancestor of `origin/main` and promotes the main-CI SHA images to `:vX.Y.Z` before staging is dispatched. Provider-backed AI/OCR tests run inside
+the `staging_gate` and `scheduled_audit` hook slots defined in `runtime-hooks.manifest.json`. The release process keeps a promote-not-rebuild consistency ladder: `main CI (:<sha7>) -> ci.yml promote-release-images (:vX.Y.Z) -> staging deploy_v2 (:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `ci.yml` (`promote-release-images`) is the only tag-push promotion path; staging and production both consume the retained release
+tag without rebuilding or retagging. The `sha7` tag is fixed to the first 7 hex characters of the release commit rather than Git's adaptive short length. By copying single-platform manifests with `imagetools --prefer-index=false`, the release tag keeps the exact same image digest from main CI through production, eliminating drift from base images, build-time dependencies, or workflow changes.
+The staging deploy gate separates platform rollout from application readiness. `infra2` (`deploy_v2`) owns Dokploy mutation, effective-config validation, and terminal rollout proof, then executes Finance Report's `staging_gate` hook slot (`tools/smoke_test.sh`, `staging_core_e2e`, provider connectivity, and `staging_ai_ocr` canary).
 ### Production Release Train (`infra2`)
-
-The production release line runs through `infra2`'s release train (`deploy_v2` with
-`type=prod`, manual `workflow_dispatch` only) under a serialized concurrency group so two
-production releases never mutate production concurrently.
-
-```yaml
-Triggers:
-  - Manual dispatch in infra2: Deploy existing release version_ref from harness/repos.yaml to production
-  - Manual dry-run in infra2:  Validate release prerequisites without deploy (dry_run=true)
-
-Dry-run:    Manual -> Verify release coordinate & staging evidence -> Verify release image digests -> Skip production mutation
-Deploy job: Manual -> Owner approval -> Verify release evidence & image digests -> deploy_v2 -> smoke hook
-
-URL: https://report.zitian.party
-```
-
----
-
+The production release line runs through `infra2`'s release train (`deploy_v2` with `type=prod`, manual `workflow_dispatch` only) under a serialized concurrency group so two production releases never mutate production concurrently.
+```yaml Triggers:  - Manual dispatch in infra2: Deploy existing release version_ref from harness/repos.yaml to production  - Manual dry-run in infra2:  Validate release prerequisites without deploy (dry_run=true)  Dry-run:    Manual -> Verify release coordinate & staging evidence -> Verify release image digests -> Skip production mutation  Deploy job: Manual -> Owner approval -> Verify release evidence & image digests -> deploy_v2 -> smoke hook  URL: https://report.zitian.party ```
 ## Version Release Workflow
-
-```bash
-# 1. Cut release tag on origin/main (or let infra2 reconcile-iac-inputs.yml cut and pin it)
-git fetch origin main
-git tag -a v1.2.3 origin/main -m "Release v1.2.3"
-git push origin v1.2.3
-# -> Triggers ci.yml#promote-release-images (verifies tag is on origin/main)
-# -> Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
-
-# 2. Reconcile & deploy to staging via infra2 release train (manual workflow_dispatch)
-# -> infra2 reconcile-iac-inputs.yml updates harness/repos.yaml and dispatches staging deploy_v2 + staging_gate hook
-
-# 3. Deploy to production via infra2 release train (manual workflow_dispatch, after staging passes, with the owner's approval and presence)
-```
-
-A Production release waits for the owner to approve the `production`
-environment of infra2.
-
-Production app deploys must keep the image tag, Dokploy runtime
-`GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes
-the tag into backend/frontend image names by manifest-copying main-CI images in
-`ci.yml` (`promote-release-images`). `deploy_v2` then deploys that tag through
-`deploy_primitive`, which sets runtime `IMAGE_TAG`, `GIT_COMMIT_SHA`, and a fresh
-per-deploy `IAC_CONFIG_HASH` so Dokploy restarts the app even when redeploying
-the same tag.
-`tools/verify_release_images.py` owns backend/frontend release digest discovery.
-
-A fourth check, `--check real-corpus-eval` (`verify_real_corpus_eval`,
-`common/runtime/release_evidence.py`, #1764), verifies the most recent
-real-document extraction-accuracy/calibration evaluation is completed,
-successful, and fresh (`max_age_hours`, default 48h) — failing closed (never a
-silent pass) when the eval has never run, failed, or gone stale. Unlike the
-other checks, it is not tied to `release_sha` (the real-document corpus moves
-on an operator cadence, not per-commit) and, deliberately, **is not yet wired
-into the production release gate as a blocking step**: real PDFs are never committed (RL-6),
-so no corpus exists to evaluate yet, and flipping this on is a release-behavior
-change that needs explicit sign-off once the operator has supplied at least
-one real case — not something to enable unilaterally.
-
-Before mutating production, the release train probes the current production
-health endpoint and records the pre-deploy version in the deploy context.
-
-Dokploy deploy diagnostics must never print raw API response bodies. The shared
-shell helper redacts raw response bodies.
-The fixed staging/prod deploy path uses the infra2 Python Dokploy client, whose
-errors include method, endpoint, status, and reason phrase but not response
-bodies, auth headers, or full environment payloads. The fixed path writes only
-the allowlisted env keys needed for deploy (`IMAGE_TAG`, `GIT_COMMIT_SHA`,
-`IAC_CONFIG_HASH`, `ENV_SUFFIX`, `COMPOSE_PROFILES`, routing, telemetry, and
-optional model overrides).
-
+```bash # 1. Cut release tag on origin/main (or let infra2 reconcile-iac-inputs.yml cut and pin it)  git fetch origin main  git tag -a v1.2.3 origin/main -m "Release v1.2.3"  git push origin v1.2.3  # -> Triggers ci.yml#promote-release-images (verifies tag is on origin/main)  # -> Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3  # 2. Reconcile & deploy to staging via infra2 release train (manual workflow_dispatch)  # -> infra2 reconcile-iac-inputs.yml updates harness/repos.yaml and dispatches staging deploy_v2 + staging_gate hook  # 3. Deploy to production via infra2 release train (manual workflow_dispatch, after staging passes, with the owner's approval and presence) ```
+A Production release waits for the owner to approve the `production` environment of infra2. Production app deploys must keep the image tag, Dokploy runtime `GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes the tag into backend/frontend image names by manifest-copying main-CI images in `ci.yml` (`promote-release-images`). `deploy_v2` then deploys that tag through
+`deploy_primitive`, which sets runtime `IMAGE_TAG`, `GIT_COMMIT_SHA`, and a fresh per-deploy `IAC_CONFIG_HASH` so Dokploy restarts the app even when redeploying the same tag. `tools/verify_release_images.py` owns backend/frontend release digest discovery. A fourth check, `--check real-corpus-eval` (`verify_real_corpus_eval`, `common/runtime/release_evidence.py`, #1764), verifies the most recent
+real-document extraction-accuracy/calibration evaluation is completed, successful, and fresh (`max_age_hours`, default 48h) — failing closed (never a silent pass) when the eval has never run, failed, or gone stale. Unlike the other checks, it is not tied to `release_sha` (the real-document corpus moves on an operator cadence, not per-commit) and, deliberately, **is not yet wired
+into the production release gate as a blocking step**: real PDFs are never committed (RL-6), so no corpus exists to evaluate yet, and flipping this on is a release-behavior change that needs explicit sign-off once the operator has supplied at least one real case — not something to enable unilaterally. Before mutating production, the release train probes the current production
+health endpoint and records the pre-deploy version in the deploy context. Dokploy deploy diagnostics must never print raw API response bodies. The shared shell helper redacts raw response bodies. The fixed staging/prod deploy path uses the infra2 Python Dokploy client, whose errors include method, endpoint, status, and reason phrase but not response
+bodies, auth headers, or full environment payloads. The fixed path writes only the allowlisted env keys needed for deploy (`IMAGE_TAG`, `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`, `ENV_SUFFIX`, `COMPOSE_PROFILES`, routing, telemetry, and optional model overrides).
 ### Stale effective app env failure mode (issue #575)
-
-A Dokploy deploy can report success while the **effective** remote app env /
-compose config stays on the previous release: the generated app `.env` keeps the
-old `IMAGE_TAG`, `GIT_COMMIT_SHA`, and `IAC_CONFIG_HASH`, so the health gate
-reads the stale version for its whole window. Triggering the deploy and seeing
-the rollout reach `done` is therefore **not** proof that the requested release is
-effective.
-
-To close this gap, after the rollout reaches a terminal-good deployment record
-but **before** the long health wait, `deploy_primitive` re-fetches the effective
-compose env and verifies `IAC_CONFIG_HASH` with `verify_effective_config_hash`
-(secret env values are never echoed):
-
-- **Match** → proceed to the health wait.
-- **Stale** → fail fast with diagnostics that name each stale value
-  (`expected=... last=...`) before public health starts.
-
-There is no automated force-recreate escape hatch in the fixed staging/prod
-release workflow. Recovery is fail-closed: correct the Dokploy/env issue, then
-perform a manual rerun of the same `deploy_v2` workflow for the release
-`version_ref`. The rerun generates a fresh `IAC_CONFIG_HASH`, snapshots deployment ids before
-mutation again, and must pass rollout plus effective-config verification before
-health/smoke/E2E run.
-
-Dokploy API and CLI usage should stay minimal and state-oriented. Use whichever
-surface exposes the required operation, then prove correctness by comparing the
-effective runtime state against the requested allowlist; do not log full API
-responses or full environment templates.
-
-VPS host hygiene is **infra2-owned** (deployment-environment GC belongs to
-infra2). The app does not provision it and contains no host-hygiene tool. Generic
-host GC — aged stopped non-preview containers, build cache, unused images, all
-unused Docker networks, oversized Docker json logs, and systemd journal vacuum —
-runs as a Dokploy `dokploy-server` Schedule Job provisioned by infra2's
-`tools/host_hygiene_schedule.py` and kept ensured by infra2's `ops-checks`
-host-hygiene job. See infra2 `docs/ssot/ops.pipeline.md §11`.
-
-The app creates no PR-scoped GHCR images. The scheduled cleanup still prunes legacy
-closed-PR `pr-<number>-<sha>` tags older than 14 days while keeping tags for
-currently open PRs.
-
-The host hygiene schedule is installed/updated from **infra2** (not here):
-`python -m tools.host_hygiene_schedule --ensure --server-id null` (needs
-`DOKPLOY_API_KEY`); infra2's `ops-checks` re-ensures it daily.
-
-**Hotfix flow** (strict `main`-first release train — never cut off-main tags):
-```bash
-# Land the fix on main through a normal PR, then tag the merged origin/main commit
-git fetch origin main
-git tag -a v1.2.4 origin/main -m "Hotfix: critical bug"
-git push origin v1.2.4
-# → Promotes main-CI :<sha7> images to :v1.2.4; deploy via infra2 release train
-```
-
----
-
+A Dokploy deploy can report success while the **effective** remote app env / compose config stays on the previous release: the generated app `.env` keeps the old `IMAGE_TAG`, `GIT_COMMIT_SHA`, and `IAC_CONFIG_HASH`, so the health gate reads the stale version for its whole window. Triggering the deploy and seeing the rollout reach `done` is therefore **not** proof that the requested release is
+effective. To close this gap, after the rollout reaches a terminal-good deployment record but **before** the long health wait, `deploy_primitive` re-fetches the effective compose env and verifies `IAC_CONFIG_HASH` with `verify_effective_config_hash` (secret env values are never echoed): - **Match** → proceed to the health wait. - **Stale** → fail fast with diagnostics that name each stale value
+  (`expected=... last=...`) before public health starts. There is no automated force-recreate escape hatch in the fixed staging/prod release workflow. Recovery is fail-closed: correct the Dokploy/env issue, then perform a manual rerun of the same `deploy_v2` workflow for the release `version_ref`. The rerun generates a fresh `IAC_CONFIG_HASH`, snapshots deployment ids before
+mutation again, and must pass rollout plus effective-config verification before health/smoke/E2E run. Dokploy API and CLI usage should stay minimal and state-oriented. Use whichever surface exposes the required operation, then prove correctness by comparing the effective runtime state against the requested allowlist; do not log full API responses or full environment templates.
+VPS host hygiene is **infra2-owned** (deployment-environment GC belongs to infra2). The app does not provision it and contains no host-hygiene tool. Generic host GC — aged stopped non-preview containers, build cache, unused images, all unused Docker networks, oversized Docker json logs, and systemd journal vacuum — runs as a Dokploy `dokploy-server` Schedule Job provisioned by infra2's
+`tools/host_hygiene_schedule.py` and kept ensured by infra2's `ops-checks` host-hygiene job. See infra2 `docs/ssot/ops.pipeline.md §11`. The app creates no PR-scoped GHCR images. The scheduled cleanup still prunes legacy closed-PR `pr-<number>-<sha>` tags older than 14 days while keeping tags for currently open PRs. The host hygiene schedule is installed/updated from **infra2** (not here):
+`python -m tools.host_hygiene_schedule --ensure --server-id null` (needs `DOKPLOY_API_KEY`); infra2's `ops-checks` re-ensures it daily. **Hotfix flow** (strict `main`-first release train — never cut off-main tags):
+```bash # Land the fix on main through a normal PR, then tag the merged origin/main commit  git fetch origin main  git tag -a v1.2.4 origin/main -m "Hotfix: critical bug"  git push origin v1.2.4  # → Promotes main-CI :<sha7> images to :v1.2.4; deploy via infra2 release train ```
 ## Database Migrations
-
 Migrations run automatically on container startup via the entrypoint:
-
-```yaml
-# In infra2 compose.yaml
-entrypoint:
-  - sh
-  - -c
-  - |
-    cd /app && export PYTHONPATH=/app
-    # Wait for secrets...
-    alembic upgrade head  # ← Runs migrations
-    exec uvicorn src.main:app --host 0.0.0.0 --port 8000
-```
-
-**Before deploying schema changes**:
-1. Test migration locally with `docker-compose.yml`
-2. Ensure migration is backward-compatible (for rollback)
-3. Run `python tools/check_migration_risk.py` and review
-   `common/meta/data/migration-risk.yaml`
-4. Use the declared risk level to choose the release proof:
-   - **low**: PR Alembic contract is usually enough
-   - **medium**: require staging deploy proof for the compatibility-sensitive path
-   - **high**: require staging evidence plus production preflight and rollback/expand-contract notes
-   - **critical**: require all high-risk proof plus explicit destructive-change confirmation
-
-This process does not guarantee production data migration safety. Staging should
-catch most migration problems, while production-only residual risk is controlled
-with backups, idempotent backfills, feature flags, preflight queries, and
-post-deploy detectors.
-
----
-
+```yaml # In infra2 compose.yaml  entrypoint:  - sh  - -c  - |  cd /app && export PYTHONPATH=/app  # Wait for secrets...  alembic upgrade head  # ← Runs migrations  exec uvicorn src.main:app --host 0.0.0.0 --port 8000 ``` **Before deploying schema changes**: 1. Test migration locally with `docker-compose.yml` 2. Ensure migration is backward-compatible (for rollback)
+3. Run `python tools/check_migration_risk.py` and review `common/meta/data/migration-risk.yaml` 4. Use the declared risk level to choose the release proof: - **low**: PR Alembic contract is usually enough - **medium**: require staging deploy proof for the compatibility-sensitive path - **high**: require staging evidence plus production preflight and rollback/expand-contract notes
+   - **critical**: require all high-risk proof plus explicit destructive-change confirmation This process does not guarantee production data migration safety. Staging should catch most migration problems, while production-only residual risk is controlled with backups, idempotent backfills, feature flags, preflight queries, and post-deploy detectors.
 ## Runtime Incident Response
-
-Runtime failure triage is owned by
-[runtime-incident-response.md](./runtime-incident-response.md). This deployment
-SSOT owns deploy architecture, release flow, Vault token boundaries, and
-Dokploy safety rules. Use the runtime incident SSOT for 502/503 responses,
-route failures, stale deployed versions, missing logs/alerts, expired-secret
-symptoms, and flapping recovery proof.
-
----
-
+Runtime failure triage is owned by [runtime-incident-response.md](./runtime-incident-response.md). This deployment SSOT owns deploy architecture, release flow, Vault token boundaries, and Dokploy safety rules. Use the runtime incident SSOT for 502/503 responses, route failures, stale deployed versions, missing logs/alerts, expired-secret symptoms, and flapping recovery proof.
 ## Vault Auth (AppRole)
-
-Finance Report is the AppRole **pilot**: its vault-agent authenticates to Vault
-with `role_id` + `secret_id` (`VAULT_ROLE_ID` / `VAULT_SECRET_ID`), not the old
-periodic `VAULT_APP_TOKEN`. The AppRole secret-id is non-expiring (`secret_id_ttl=0`),
-so there is no 7-day token to renew or repair — the agent re-authenticates itself.
-
-| Property | Value |
+Finance Report is the AppRole **pilot**: its vault-agent authenticates to Vault with `role_id` + `secret_id` (`VAULT_ROLE_ID` / `VAULT_SECRET_ID`), not the old periodic `VAULT_APP_TOKEN`. The AppRole secret-id is non-expiring (`secret_id_ttl=0`), so there is no 7-day token to renew or repair — the agent re-authenticates itself. | Property | Value |
 |----------|-------|
-| Auth method | AppRole (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`) |
-| Secrets file path | `/secrets/.env` (vault-agent renders to `/vault/secrets`; shared volume mounts into the app as `/secrets`) |
-
-The AppRole creds are owned by infra2 and injected into the Dokploy compose env.
-Finance Report never holds a Vault token of any kind: nobody on the app side
-uses `VAULT_ROOT_TOKEN` (it is infra2's bootstrap-only credential), and the
-deploy-time credential is the iac-runner's own short-TTL, AppRole-minted
-`VAULT_TOKEN`, which infra2's secret supply uses to copy human-entered values
-from 1Password (`Infra2` vault, item `finance_report/{env}/app`) into Vault and
-to generate the `runtime` ones — see the source classes in
-[Secret Contract](#secret-contract-cross-repo-seam). `VAULT_ADDR` is a
-non-secret address but **must be present** — a missing `VAULT_ADDR` makes the
-vault-agent hang (the deploy preflight fails closed on it).
-
-**(Re)inject app AppRole creds** (e.g. after a rotation, or if a deploy preflight
-reports missing `VAULT_ROLE_ID`/`VAULT_SECRET_ID`): this is an infra2 operation,
-run from the infra2 repo, never from this one —
-`invoke vault.setup-approle --project=finance_report --service=app --deploy`
-for the target `DEPLOY_ENV` (exact prerequisites in infra2's
-[Vault integration SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/db.vault-integration.md)).
-The infra2 task writes the policy + approle role, fetches a fresh role_id/secret_id,
-updates the matching Dokploy compose env, and triggers a redeploy (waiting for the
-runtime deployment record). For database sidecars use `--service=postgres` or
-`--service=redis`. Nothing in this repository — no workflow, no tool — needs or
-receives a Vault token to make that happen.
-
-**Boot validation**: `Bootloader._check_static_config()` validates the environment manifest via `infra2_sdk.runtime.config_schema.assert_environment` and fails closed at startup in protected runtimes when any required injected setting (`SECRET_KEY`, `DATABASE_URL`, `S3_SECRET_KEY`, `S3_ACCESS_KEY`, `S3_ENDPOINT`, `S3_BUCKET`, `NEXT_PUBLIC_APP_URL`) is missing, empty, or set to a development default.
-
----
-
+| Auth method | AppRole (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`) | | Secrets file path | `/secrets/.env` (vault-agent renders to `/vault/secrets`; shared volume mounts into the app as `/secrets`) | The AppRole creds are owned by infra2 and injected into the Dokploy compose env. Finance Report never holds a Vault token of any kind: nobody on the app side
+uses `VAULT_ROOT_TOKEN` (it is infra2's bootstrap-only credential), and the deploy-time credential is the iac-runner's own short-TTL, AppRole-minted `VAULT_TOKEN`, which infra2's secret supply uses to copy human-entered values from 1Password (`Infra2` vault, item `finance_report/{env}/app`) into Vault and to generate the `runtime` ones — see the source classes in
+[Secret Contract](#secret-contract-cross-repo-seam). `VAULT_ADDR` is a non-secret address but **must be present** — a missing `VAULT_ADDR` makes the vault-agent hang (the deploy preflight fails closed on it). **(Re)inject app AppRole creds** (e.g. after a rotation, or if a deploy preflight reports missing `VAULT_ROLE_ID`/`VAULT_SECRET_ID`): this is an infra2 operation,
+run from the infra2 repo, never from this one — `invoke vault.setup-approle --project=finance_report --service=app --deploy` for the target `DEPLOY_ENV` (exact prerequisites in infra2's [Vault integration SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/db.vault-integration.md)). The infra2 task writes the policy + approle role, fetches a fresh role_id/secret_id,
+updates the matching Dokploy compose env, and triggers a redeploy (waiting for the runtime deployment record). For database sidecars use `--service=postgres` or `--service=redis`. Nothing in this repository — no workflow, no tool — needs or receives a Vault token to make that happen. **Boot validation**: `Bootloader._check_static_config()` validates the environment manifest via `infra2_sdk.runtime.config_schema.assert_environment` and fails closed at startup in protected runtimes when any required injected setting (`SECRET_KEY`, `DATABASE_URL`, `S3_SECRET_KEY`, `S3_ACCESS_KEY`, `S3_ENDPOINT`, `S3_BUCKET`, `NEXT_PUBLIC_APP_URL`) is missing, empty, or set to a development default.
 ## Cross-Repo Changes
-
-If a change requires new environment variables or changes to `docker-compose.yml` labels/configs for production:
-
-1. Add the app requirement to `apps/backend/src/config.py` and regenerate
-   `.env.example` plus `common/runtime/required-env.generated.json`.
-2. Create a separate PR in [`infra2`](https://github.com/wangzitian0/infra2)
-   for Vault/Compose changes.
+If a change requires new environment variables or changes to `docker-compose.yml` labels/configs for production: 1. Add the app requirement to `apps/backend/src/config.py` and regenerate `.env.example` plus `common/runtime/required-env.generated.json`. 2. Create a separate PR in [`infra2`](https://github.com/wangzitian0/infra2) for Vault/Compose changes.
 3. Merge independently. No Finance Report git pointer update is required.
-
----
-
 ## Related
-
-- [environments.md](./environments.md) — Five environment overview and naming
-- [development.md](../meta/development.md) — Local development and Moon commands
-- [ci-cd.md](../testing/ci-cd.md) — CI job structure and test strategy
-- [observability.md](../observability/observability.md) — App observability runtime contract and OTLP setup
-- [runtime-incident-response.md](./runtime-incident-response.md) — Runtime failure triage and stability proof routing
+- [environments.md](./environments.md) — Five environment overview and naming - [development.md](../meta/development.md) — Local development and Moon commands - [ci-cd.md](../testing/ci-cd.md) — CI job structure and test strategy - [observability.md](../observability/observability.md) — App observability runtime contract and OTLP setup - [runtime-incident-response.md](./runtime-incident-response.md) — Runtime failure triage and stability proof routing
