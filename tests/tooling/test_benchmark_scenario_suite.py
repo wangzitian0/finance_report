@@ -55,6 +55,9 @@ def test_scheduled_audit_runs_live_pdf_corpus_oracle_and_30_flow_benchmark() -> 
         assert "AI_API_KEY" not in slot.required_env, (
             f"Slot {slot_name!r} must not require AI_API_KEY in CI runner; AI_API_KEY is Vault-injected on the VPS (#2905)"
         )
+    e2e_requirements = (REPO_ROOT / "tests/e2e/requirements.txt").read_text(encoding="utf-8")
+    assert "playwright==1.65.0" in e2e_requirements
+    assert "playwright==1.57.0" not in e2e_requirements
 
 
 
