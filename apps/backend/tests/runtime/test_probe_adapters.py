@@ -208,17 +208,29 @@ async def test_adapters_return_the_sdk_probe_result_type():
 
 
 @pytest.mark.parametrize(
-    ("make_check", "name"),
+    ("make_check", "name", "patch_target"),
     [
-        (lambda: WorkflowEngineCheck(api_url="http://prefect:4200/api"), "workflow_engine"),
-        (lambda: AnalyticsCheck(api_url="https://op.example.com/api"), "analytics"),
-        (lambda: MarketDataCheck(timeout_seconds=5), "market_data"),
+        (
+            lambda: WorkflowEngineCheck(api_url="http://prefect:4200/api"),
+            "workflow_engine",
+            "src.runtime.extension.adapters.probe_orchestrator",
+        ),
+        (
+            lambda: AnalyticsCheck(api_url="https://op.example.com/api"),
+            "analytics",
+            "src.runtime.extension.adapters.probe_http",
+        ),
+        (
+            lambda: MarketDataCheck(timeout_seconds=5),
+            "market_data",
+            "src.runtime.extension.adapters.probe_http",
+        ),
     ],
 )
-async def test_http_adapters_return_the_sdk_probe_result_unchanged(make_check, name):
-    """#2364: `probe_http` already returns the SDK `ProbeResult`; no per-field copy is made."""
+async def test_http_adapters_return_the_sdk_probe_result_unchanged(make_check, name, patch_target):
+    """#2364: `probe_http` / `probe_orchestrator` already returns the SDK `ProbeResult`; no per-field copy is made."""
     sdk_result = sdk_health.ProbeResult(name, sdk_health.DependencyStatus.PRESENT, "HTTP 200", 1.5)
-    with patch("src.runtime.extension.adapters.probe_http", AsyncMock(return_value=sdk_result)) as probe_http:
+    with patch(patch_target, AsyncMock(return_value=sdk_result)) as probe_fn:
         result = await make_check().probe()
     assert result is sdk_result
-    assert probe_http.await_args.kwargs["name"] == name
+    assert probe_fn.await_args.kwargs["name"] == name

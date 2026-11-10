@@ -4,7 +4,7 @@ Mirrors `common/runtime/environments.md#environment-overview` (the `environments
 SSOT) plus the infra2-provisioned Preview slot, which the app consumes but does
 not own. CI and Preview run light substitutes (Preview = same as CI but
 persistent); Staging and Production run real backends. Local Dev / Local CI /
-GitHub CI are the app-owned tiers (self-hosted via docker compose); Preview /
+GitHub CI are the app-owned tiers (self-hosted via podman compose); Preview /
 Staging / Production live on the VPS (implemented by infra2).
 """
 
@@ -24,7 +24,7 @@ class EnvTier(str, Enum):
     PRODUCTION = "production"
 
 
-#: The app-owned tiers — brought up in-place by the app itself (docker compose).
+#: The app-owned tiers — brought up in-place by the app itself (podman compose).
 APP_OWNED_TIERS: frozenset[EnvTier] = frozenset({EnvTier.LOCAL_DEV, EnvTier.LOCAL_CI, EnvTier.GITHUB_CI})
 
 #: The VPS tiers — provisioned by infra2.

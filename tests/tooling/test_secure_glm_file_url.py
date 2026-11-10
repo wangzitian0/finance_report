@@ -27,7 +27,7 @@ def test_zai_pdf_fallback_uses_image_url_and_redacts_presigned_urls() -> None:
         "Z.AI PDF vision fallback requires file content or an external PDF URL"
         in extraction
     )
-    assert "def redact_presigned_url" in storage
+    assert "redact_presigned_url" in storage
     assert "infra2_sdk.runtime.s3" in storage
 
     from src.runtime.extension.storage import redact_presigned_url

@@ -248,7 +248,7 @@ moon run :test                                             # Auto-detect from gi
 
 ### Key Features
 
-1. **Auto-detect runtime**: `CONTAINER_RUNTIME` override, otherwise podman compose / docker compose
+1. **Auto-detect runtime**: `CONTAINER_RUNTIME` override, otherwise `podman compose` (preferred) or `docker compose`
 2. **Lock file**: `~/.cache/finance_report/db.lock`
 3. **Auto-cleanup**: Last runner stops container; worker DBs cleaned post-run
 
