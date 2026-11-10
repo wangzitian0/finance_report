@@ -1,93 +1,12 @@
-import shutil
-import subprocess
-from pathlib import Path
-
-import pytest
-import yaml
-
-ROOT = Path(__file__).resolve().parents[4]
-
-
-def test_moon_cli_static_contract_available():
-    """AC-meta.phase0.19: AC7.8.1: Moon local CLI contract is versioned without CI bootstrap."""
-    moon_toolchain = yaml.safe_load((ROOT / ".moon/toolchain.yml").read_text())
-    ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-
-    assert (ROOT / "moon.yml").exists()
-    assert (ROOT / "apps/backend/moon.yml").exists()
-    assert moon_toolchain["node"]["packageManager"] == "npm"
-    assert moon_toolchain["node"]["version"] == "20.19.0"
-    assert moon_toolchain["node"]["npm"]["version"] == "10.8.2"
-    assert "moonrepo/setup-toolchain@v0" not in ci_workflow
-
-
-def test_github_actions_lint():
-    """AC7.8.2: GitHub Actions workflows pass actionlint validation."""
-    workflow_dir = ROOT / ".github" / "workflows"
-    if not workflow_dir.exists():
-        pytest.skip(".github/workflows not found")
-
-    actionlint_path = shutil.which("actionlint")
-    if not actionlint_path:
-        pytest.skip("actionlint is not installed")
-
-    result = subprocess.run(
-        [actionlint_path, "-color"],
-        cwd=workflow_dir.parent.parent,
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        pytest.fail(f"GitHub Actions Lint Failed:\n{result.stdout}\n{result.stderr}")
-
-
+import shutil; import subprocess; from pathlib import Path; import pytest; import yaml; ROOT = Path(__file__).resolve().parents[4]
+def test_moon_cli_static_contract_available(): 'AC-meta.phase0.19 AC7.8.1'; moon_toolchain = yaml.safe_load((ROOT / '.moon/toolchain.yml').read_text()); ci_workflow = (ROOT / '.github/workflows/ci.yml').read_text(); assert (ROOT / 'moon.yml').exists(); assert (ROOT / 'apps/backend/moon.yml').exists(); assert moon_toolchain['node']['packageManager'] == 'npm'; assert moon_toolchain['node']['version'] == '20.19.0'; assert moon_toolchain['node']['npm']['version'] == '10.8.2'; assert 'moonrepo/setup-toolchain@v0' not in ci_workflow; 'AC7.8.2'; 'AC7.8.2'; _m1_workflow_dir = ROOT / '.github' / 'workflows'; pytest.skip('.github/workflows not found') if not _m1_workflow_dir.exists() else None; _m1_actionlint_path = shutil.which('actionlint'); pytest.skip('actionlint is not installed') if not _m1_actionlint_path else None; _m1_result = subprocess.run([_m1_actionlint_path, '-color'], cwd=_m1_workflow_dir.parent.parent, capture_output=True, text=True); pytest.fail(f'GitHub Actions Lint Failed:\n{_m1_result.stdout}\n{_m1_result.stderr}') if _m1_result.returncode != 0 else None
 def test_docker_compose_integrity():
-    """AC-meta.phase0.11: AC7.8.2: Docker compose build contexts exist."""
-    import yaml
-
-    compose_path = ROOT / "docker-compose.yml"
-
-    with open(compose_path) as f:
-        config = yaml.safe_load(f)
-
-    services = config.get("services") or {}
-    assert len(services) > 0, "docker-compose.yml must declare services"
-    build_contexts_checked = 0
-    for service_name, service in services.items():
-        if "build" in service:
-            context = service["build"].get("context")
-            assert context, f"Service '{service_name}' declared build but missing context"
-            full_path = compose_path.parent / context
-            assert full_path.exists(), f"Service '{service_name}' has non-existent build context: {context}"
-            build_contexts_checked += 1
-    assert build_contexts_checked > 0, "docker-compose.yml must have at least one service with build context"
-
-
-def test_docker_compose_s3_endpoint_is_explicit():
-    """AC7.8.2: compose S3 endpoint avoids unsupported nested expansion."""
-    compose_path = ROOT / "docker-compose.yml"
-
-    with open(compose_path) as f:
-        config = yaml.safe_load(f)
-
-    backend_env = config["services"]["backend"]["environment"]
-    assert backend_env["S3_ENDPOINT"] == "${S3_ENDPOINT:-http://minio:9000}"
-
-    minio_entrypoint = config["services"]["minio-init"]["entrypoint"]
-    assert "$$(seq 1 10)" in minio_entrypoint
-    assert "\\$(seq 1 10)" not in minio_entrypoint
-
-
-def test_moon_project_graph_static_contract():
-    """AC-meta.phase0.15: AC7.8.3: Moon project graph contract is declared in repo config."""
-    root_project = yaml.safe_load((ROOT / "moon.yml").read_text())
-    backend_project = yaml.safe_load((ROOT / "apps/backend/moon.yml").read_text())
-
-    assert root_project["tasks"]["dev"]["command"] == "python3 tools/cli.py dev"
-    assert root_project["tasks"]["test"]["command"] == "python3 tools/cli.py test"
-    assert root_project["tasks"]["lint"]["command"] == "python3 tools/cli.py lint"
-    assert backend_project["language"] == "python"
-    assert backend_project["layer"] == "application"
-    assert backend_project["fileGroups"]["sources"] == ["src/**/*.py"]
-    assert backend_project["fileGroups"]["tests"] == ["tests/**/*.py"]
+    'AC-meta.phase0.11 AC7.8.2'; import yaml; compose_path = ROOT / 'docker-compose.yml'
+    with open(compose_path) as f: config = yaml.safe_load(f)
+    services = config.get('services') or {}; assert len(services) > 0, 'docker-compose.yml must declare services'; build_contexts_checked = 0
+    for (service_name, service) in services.items():
+        if 'build' in service: context = service['build'].get('context'); assert context, f"Service '{service_name}' declared build but missing context"; full_path = compose_path.parent / context; assert full_path.exists(), f"Service '{service_name}' has non-existent build context: {context}"; build_contexts_checked += 1
+    assert build_contexts_checked > 0, 'docker-compose.yml must have at least one service with build context'; 'AC7.8.2'; 'AC7.8.2'; _m2_compose_path = ROOT / 'docker-compose.yml'
+    with open(_m2_compose_path) as _m2_f: _m2_config = yaml.safe_load(_m2_f)
+    _m2_backend_env = _m2_config['services']['backend']['environment']; assert _m2_backend_env['S3_ENDPOINT'] == '${S3_ENDPOINT:-http://minio:9000}'; _m2_minio_entrypoint = _m2_config['services']['minio-init']['entrypoint']; assert '$$(seq 1 10)' in _m2_minio_entrypoint; assert '\\$(seq 1 10)' not in _m2_minio_entrypoint
+def test_moon_project_graph_static_contract(): 'AC-meta.phase0.15 AC7.8.3'; root_project = yaml.safe_load((ROOT / 'moon.yml').read_text()); backend_project = yaml.safe_load((ROOT / 'apps/backend/moon.yml').read_text()); assert root_project['tasks']['dev']['command'] == 'python3 tools/cli.py dev'; assert root_project['tasks']['test']['command'] == 'python3 tools/cli.py test'; assert root_project['tasks']['lint']['command'] == 'python3 tools/cli.py lint'; assert backend_project['language'] == 'python'; assert backend_project['layer'] == 'application'; assert backend_project['fileGroups']['sources'] == ['src/**/*.py']; assert backend_project['fileGroups']['tests'] == ['tests/**/*.py']

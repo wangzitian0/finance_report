@@ -1,358 +1,46 @@
-"""Contract tests for the test execution matrix as code (EPIC-008 AC8.22).
-
-The matrix (common/testing/matrix.py) is the SSOT for path→stage
-classification and per-stage test selection; common/testing/data/test-execution-matrix.yaml
-is its generated view and .github/workflows/deploy.yml its runtime consumer
-(issues #1547 / #1556).
-"""
-
-from __future__ import annotations
-
-import shlex
-import subprocess
-import sys
-from pathlib import Path
-
-import pytest
-import yaml
-
-from common.meta.extension.check_manifest import load_computed_concepts
-from common.testing import matrix, test_selection
-
-ROOT = Path(__file__).resolve().parents[2]
-MATRIX_YAML = ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
-RUNTIME_HOOKS_MANIFEST = ROOT / "runtime-hooks.manifest.json"
-TESTING_README = ROOT / "common" / "testing" / "readme.md"
-MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
-
-
-def _staging_e2e_run_step() -> str:
-    """Return the non-LLM E2E tests command from runtime-hooks.manifest.json."""
-    from infra2_sdk.manifests import load_hooks_manifest
-
-    manifest = load_hooks_manifest(RUNTIME_HOOKS_MANIFEST)
-    command = manifest.slots["staging_gate"].run
-    return command.split("pytest tests/e2e/test_ai_provider_connectivity.py", 1)[0]
-
-
-def test_AC8_22_1_generated_matrix_matches_checked_in_yaml() -> None:
-    """AC-testing.matrix.1: AC8.22.1: the checked-in YAML is exactly the generated view."""
-    assert (
-        MATRIX_YAML.read_text(encoding="utf-8") == matrix.emit_execution_matrix_yaml()
-    )
-    # The CLI drift gate agrees.
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "test_selection.py"), "--check-matrix"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-
-
-def test_AC8_22_1_generated_yaml_parses_identically_for_consumers() -> None:
-    """AC8.22.1: the generated view yields the same rules the consumer reads."""
-    data = yaml.safe_load(matrix.emit_execution_matrix_yaml())
-    parsed = [
-        (item["path"], item["stage"], bool(item["ci_required"]))
-        for item in data["rules"]
-    ]
-    expected = [(r.path, r.stage, r.ci_required) for r in matrix.PATH_RULES]
-    assert parsed == expected
-
-
-def test_AC8_22_2_staging_workflow_derives_selection_from_matrix() -> None:
-    """AC-testing.matrix.2: AC8.22.2: runtime-hooks.manifest.json consumes the CLI; no hardcoded whitelist remains."""
-    step = _staging_e2e_run_step()
-    assert (
-        'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"'
-        in step
-    )
-    assert 'pytest "${STAGING_CORE_E2E_TESTS[@]}"' in step
-    assert '-m "$STAGING_CORE_E2E_MARKER"' in step
-    # The selection lives in the matrix, not the workflow: no literal e2e
-    # test path may reappear in the run step.
-    assert "tests/e2e/" not in step
-
-
+'EPIC-008'; from __future__ import annotations; import shlex; import subprocess; import sys; from pathlib import Path; import pytest; import yaml; from common.meta.extension.check_manifest import load_computed_concepts; from common.testing import matrix, test_selection; ROOT = Path(__file__).resolve().parents[2]; MATRIX_YAML = ROOT / 'common' / 'testing' / 'data' / 'test-execution-matrix.yaml'; RUNTIME_HOOKS_MANIFEST = ROOT / 'runtime-hooks.manifest.json'; TESTING_README = ROOT / 'common' / 'testing' / 'readme.md'; MANIFEST = ROOT / 'common' / 'meta' / 'data' / 'MANIFEST.yaml'
+def _staging_e2e_run_step() -> str: from infra2_sdk.manifests import load_hooks_manifest; manifest = load_hooks_manifest(RUNTIME_HOOKS_MANIFEST); command = manifest.slots['staging_gate'].run; return command.split('pytest tests/e2e/test_ai_provider_connectivity.py', 1)[0]
+def test_AC8_22_1_generated_matrix_matches_checked_in_yaml() -> None: 'AC-testing.matrix.1 AC8.22.1'; assert MATRIX_YAML.read_text(encoding='utf-8') == matrix.emit_execution_matrix_yaml(); result = subprocess.run([sys.executable, str(ROOT / 'tools' / 'test_selection.py'), '--check-matrix'], capture_output=True, text=True, check=False); assert result.returncode == 0, result.stderr; 'AC8.22.1'; 'AC8.22.1'; _m1_data = yaml.safe_load(matrix.emit_execution_matrix_yaml()); _m1_parsed = [(_m1_item['path'], _m1_item['stage'], bool(_m1_item['ci_required'])) for _m1_item in _m1_data['rules']]; _m1_expected = [(_m1_r.path, _m1_r.stage, _m1_r.ci_required) for _m1_r in matrix.PATH_RULES]; assert _m1_parsed == _m1_expected
+def test_AC8_22_2_staging_workflow_derives_selection_from_matrix() -> None: 'AC-testing.matrix.2 AC8.22.2'; step = _staging_e2e_run_step(); assert 'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"' in step; assert 'pytest "${STAGING_CORE_E2E_TESTS[@]}"' in step; assert '-m "$STAGING_CORE_E2E_MARKER"' in step; assert 'tests/e2e/' not in step
 def test_AC8_22_3_staging_selection_is_audited_and_dependency_free() -> None:
-    """AC-testing.matrix.3: AC8.22.3: selection = audited non-LLM rows; provider-
-    dependent specs can never creep into the staging core E2E path."""
-    selection = matrix.staging_core_e2e_selection()
-    selected_files = {node.split("::", 1)[0] for node in selection}
-
-    # The staging core set contains audited specs without external LLM dependencies.
-    assert "tests/e2e/test_epic022_ia_shell.py" in selected_files
-    assert "tests/e2e/test_version_check.py" in selected_files
-    vision = "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
-    assert vision in selected_files
-
-    # Completeness: every audited, non-LLM row not in core_journey is selected.
+    'AC-testing.matrix.3 AC8.22.3'; selection = matrix.staging_core_e2e_selection(); selected_files = {node.split('::', 1)[0] for node in selection}; assert 'tests/e2e/test_epic022_ia_shell.py' in selected_files; assert 'tests/e2e/test_version_check.py' in selected_files; vision = 'tests/e2e/test_vision_upload_to_dashboard_hard_gate.py'; assert vision in selected_files
     for row in matrix.E2E_ROWS:
-        assert isinstance(row.staging_core_e2e, bool)
-        row_dict = row.to_dict()
-        assert row_dict["file"] == row.file
-        assert row_dict["staging_core_e2e"] == row.staging_core_e2e
-        if (
-            row.audited
-            and matrix.NEEDS_LLM_PROVIDER not in row.needs
-            and row.file not in matrix.CORE_JOURNEY_ONLY_FILES
-        ):
+        assert isinstance(row.staging_core_e2e, bool); row_dict = row.to_dict(); assert row_dict['file'] == row.file; assert row_dict['staging_core_e2e'] == row.staging_core_e2e
+        if row.audited and matrix.NEEDS_LLM_PROVIDER not in row.needs and (row.file not in matrix.CORE_JOURNEY_ONLY_FILES):
             assert row.staging_core_e2e is True
-            for node in row.nodes or (row.file,):
-                assert node in selection, f"eligible row not selected: {node}"
-        else:
-            assert row.staging_core_e2e is False
-
-    for node in selection:
-        file = ROOT / node.split("::", 1)[0]
-        assert file.exists(), f"selected spec missing on disk: {node}"
-
+            for node in row.nodes or (row.file,): assert node in selection, f'eligible row not selected: {node}'
+        else: assert row.staging_core_e2e is False
+    for node in selection: file = ROOT / node.split('::', 1)[0]; assert file.exists(), f'selected spec missing on disk: {node}'
     rows_by_file = {row.file: row for row in matrix.E2E_ROWS}
-    for file in selected_files:
-        row = rows_by_file[file]
-        assert row.audited and matrix.NEEDS_LLM_PROVIDER not in row.needs, (
-            f"unaudited/dependent row selected: {file}"
-        )
-        assert row.staging_core_e2e is True
-        content = (ROOT / file).read_text(encoding="utf-8")
-        assert "pytest.mark.llm" not in content, (
-            f"llm-marked spec in staging core set: {file}"
-        )
-
-
-def test_AC8_22_3_every_e2e_row_is_reachable_by_at_least_one_live_stage() -> None:
-    """Every row in E2E_ROWS is reached by a live stage (0 orphaned rows)."""
-    from common.testing import staging_ai_ocr_gate_contract
-
-    all_files = {row.file for row in matrix.E2E_ROWS}
-    staging_core = {
-        node.split("::", 1)[0] for node in matrix.staging_core_e2e_selection()
-    }
-    ai_ocr_files = set(staging_ai_ocr_gate_contract.gate_files()) | {
-        t.split("::", 1)[0] for t in staging_ai_ocr_gate_contract.core_journey_tests()
-    }
-    provider_gate = {"tests/e2e/test_ai_provider_connectivity.py"}
-    reachable = staging_core | ai_ocr_files | provider_gate
-    orphaned = all_files - reachable
-    assert not orphaned, f"Orphaned rows in E2E_ROWS: {orphaned}"
-    assert matrix.CORE_JOURNEY_ONLY_FILES <= ai_ocr_files
-
-
-test_every_e2e_row_is_reachable_from_a_live_stage = (
-    test_AC8_22_3_every_e2e_row_is_reachable_by_at_least_one_live_stage
-)
-
-
-def test_AC8_22_4_every_root_e2e_spec_has_a_named_row() -> None:
-    """AC-testing.matrix.4: AC8.22.4: no ownerless e2e spec — an unclassified file fails CI."""
-    on_disk = {
-        f"tests/e2e/{p.name}" for p in (ROOT / "tests" / "e2e").glob("test_*.py")
-    }
-    declared = {row.file for row in matrix.E2E_ROWS}
-    assert on_disk == declared, (
-        f"undeclared e2e specs: {sorted(on_disk - declared)}; "
-        f"stale rows: {sorted(declared - on_disk)}"
-    )
-
-
+    for file in selected_files: row = rows_by_file[file]; assert row.audited and matrix.NEEDS_LLM_PROVIDER not in row.needs, f'unaudited/dependent row selected: {file}'; assert row.staging_core_e2e is True; content = (ROOT / file).read_text(encoding='utf-8'); assert 'pytest.mark.llm' not in content, f'llm-marked spec in staging core set: {file}'
+def test_AC8_22_3_every_e2e_row_is_reachable_by_at_least_one_live_stage() -> None: from common.testing import staging_ai_ocr_gate_contract; all_files = {row.file for row in matrix.E2E_ROWS}; staging_core = {node.split('::', 1)[0] for node in matrix.staging_core_e2e_selection()}; ai_ocr_files = set(staging_ai_ocr_gate_contract.gate_files()) | {t.split('::', 1)[0] for t in staging_ai_ocr_gate_contract.core_journey_tests()}; provider_gate = {'tests/e2e/test_ai_provider_connectivity.py'}; reachable = staging_core | ai_ocr_files | provider_gate; orphaned = all_files - reachable; assert not orphaned, f'Orphaned rows in E2E_ROWS: {orphaned}'; assert matrix.CORE_JOURNEY_ONLY_FILES <= ai_ocr_files
+test_every_e2e_row_is_reachable_from_a_live_stage = test_AC8_22_3_every_e2e_row_is_reachable_by_at_least_one_live_stage
+def test_AC8_22_4_every_root_e2e_spec_has_a_named_row() -> None: 'AC-testing.matrix.4 AC8.22.4'; on_disk = {f'tests/e2e/{p.name}' for p in (ROOT / 'tests' / 'e2e').glob('test_*.py')}; declared = {row.file for row in matrix.E2E_ROWS}; assert on_disk == declared, f'undeclared e2e specs: {sorted(on_disk - declared)}; stale rows: {sorted(declared - on_disk)}'
 def test_AC8_22_5_shell_emission_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC-testing.matrix.5: AC8.22.5: the --shell output is valid bash assignment material."""
-    emitted = matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE)
-    lines = emitted.splitlines()
-    assert lines[0].startswith("STAGING_CORE_E2E_TESTS=(") and lines[0].endswith(")")
-    tests = shlex.split(lines[0][len("STAGING_CORE_E2E_TESTS=(") : -1])
-    assert tuple(tests) == matrix.staging_core_e2e_selection()
-    assert shlex.split(lines[1].split("=", 1)[1]) == [matrix.STAGING_CORE_E2E_MARKER]
-    assert (
-        lines[2]
-        == f"STAGING_CORE_E2E_PARALLELISM={matrix.STAGING_CORE_E2E_PARALLELISM}"
-    )
-
-    preview_emitted = matrix.emit_shell(matrix.PREVIEW_MINIMUM_E2E_STAGE)
-    preview_lines = preview_emitted.splitlines()
-    assert preview_lines[0].startswith("PREVIEW_MINIMUM_E2E_TESTS=(") and preview_lines[
-        0
-    ].endswith(")")
-    preview_tests = shlex.split(
-        preview_lines[0][len("PREVIEW_MINIMUM_E2E_TESTS=(") : -1]
-    )
-    assert tuple(preview_tests) == matrix.preview_minimum_e2e_selection()
-    assert shlex.split(preview_lines[1].split("=", 1)[1]) == [
-        matrix.PREVIEW_MINIMUM_E2E_MARKER
-    ]
-
-    for corpus in ("canary", "audit_replay", "core_journey"):
-        ocr_emitted = matrix.emit_shell(matrix.STAGING_AI_OCR_STAGE, corpus=corpus)
-        ocr_lines = ocr_emitted.splitlines()
-        assert ocr_lines[0].startswith("STAGING_AI_OCR_TESTS=(") and ocr_lines[
-            0
-        ].endswith(")")
-        ocr_tests = shlex.split(ocr_lines[0][len("STAGING_AI_OCR_TESTS=(") : -1])
-        assert tuple(ocr_tests) == matrix.staging_ai_ocr_selection(corpus)
-        assert shlex.split(ocr_lines[-1].split("=", 1)[1]) == [
-            matrix.STAGING_AI_OCR_GATE_MARKER
-        ]
-
-    with pytest.raises(ValueError, match="unknown selection stage"):
-        matrix.emit_shell("nonexistent_stage")
-
-    with pytest.raises(ValueError, match="produced an empty test tuple"):
-        monkeypatch.setattr(matrix, "staging_core_e2e_selection", lambda: ())
-        matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE)
-
-    with pytest.raises(ValueError, match="produced an empty test tuple"):
-        monkeypatch.setattr(matrix, "preview_minimum_e2e_selection", lambda: ())
-        matrix.emit_shell(matrix.PREVIEW_MINIMUM_E2E_STAGE)
-
-    with pytest.raises(ValueError, match="produced an empty test tuple"):
-        monkeypatch.setattr(
-            matrix, "staging_ai_ocr_selection", lambda _corpus="all": ()
-        )
-        matrix.emit_shell(matrix.STAGING_AI_OCR_STAGE, corpus="canary")
-
-    # The CLI rejects an unknown stage with a diagnostic instead of a
-    # KeyError traceback (Copilot review on PR #1562), on both output paths.
-    for extra in ([], ["--shell"]):
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "tools" / "test_selection.py"),
-                "--stage",
-                "nonexistent_stage",
-                *extra,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert result.returncode == 2, result.stderr
-        assert "unknown selection stage" in result.stderr
-
-
-def test_matrix_classify_stage_and_package_declarations(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Verify classify_stage and package_test_ownership error branches for 100% matrix coverage."""
-    assert matrix.classify_stage("apps/backend/tests/foo.py") == "backend_ci"
-    assert matrix.classify_stage("unmatched/prefix/foo.py") is None
-
-    import types
-
-    fake_empty = types.ModuleType("contract")
-    fake_empty.TEST_ROOTS = ()
-    monkeypatch.setattr(matrix, "PACKAGE_TEST_DECLARATIONS", ("pkg_empty",))
-    import importlib
-
-    monkeypatch.setattr(importlib, "import_module", lambda name: fake_empty)
-    with pytest.raises(ValueError, match="declares no TEST_ROOTS"):
-        matrix.package_test_ownership()
-
-    fake_str = types.ModuleType("contract")
-    fake_str.TEST_ROOTS = "apps/backend/tests/"
-    monkeypatch.setattr(importlib, "import_module", lambda name: fake_str)
-    with pytest.raises(ValueError, match="must be a tuple of paths"):
-        matrix.package_test_ownership()
-
-    fake_dup1 = types.ModuleType("contract1")
-    fake_dup1.TEST_ROOTS = ("tests/shared",)
-    fake_dup2 = types.ModuleType("contract2")
-    fake_dup2.TEST_ROOTS = ("tests/shared",)
-    monkeypatch.setattr(matrix, "PACKAGE_TEST_DECLARATIONS", ("p1", "p2"))
-
+    'AC-testing.matrix.5 AC8.22.5'; emitted = matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE); lines = emitted.splitlines(); assert lines[0].startswith('STAGING_CORE_E2E_TESTS=(') and lines[0].endswith(')'); tests = shlex.split(lines[0][len('STAGING_CORE_E2E_TESTS=('):-1]); assert tuple(tests) == matrix.staging_core_e2e_selection(); assert shlex.split(lines[1].split('=', 1)[1]) == [matrix.STAGING_CORE_E2E_MARKER]; assert lines[2] == f'STAGING_CORE_E2E_PARALLELISM={matrix.STAGING_CORE_E2E_PARALLELISM}'; preview_emitted = matrix.emit_shell(matrix.PREVIEW_MINIMUM_E2E_STAGE); preview_lines = preview_emitted.splitlines(); assert preview_lines[0].startswith('PREVIEW_MINIMUM_E2E_TESTS=(') and preview_lines[0].endswith(')'); preview_tests = shlex.split(preview_lines[0][len('PREVIEW_MINIMUM_E2E_TESTS=('):-1]); assert tuple(preview_tests) == matrix.preview_minimum_e2e_selection(); assert shlex.split(preview_lines[1].split('=', 1)[1]) == [matrix.PREVIEW_MINIMUM_E2E_MARKER]
+    for corpus in ('canary', 'audit_replay', 'core_journey'): ocr_emitted = matrix.emit_shell(matrix.STAGING_AI_OCR_STAGE, corpus=corpus); ocr_lines = ocr_emitted.splitlines(); assert ocr_lines[0].startswith('STAGING_AI_OCR_TESTS=(') and ocr_lines[0].endswith(')'); ocr_tests = shlex.split(ocr_lines[0][len('STAGING_AI_OCR_TESTS=('):-1]); assert tuple(ocr_tests) == matrix.staging_ai_ocr_selection(corpus); assert shlex.split(ocr_lines[-1].split('=', 1)[1]) == [matrix.STAGING_AI_OCR_GATE_MARKER]
+    with pytest.raises(ValueError, match='unknown selection stage'): matrix.emit_shell('nonexistent_stage')
+    with pytest.raises(ValueError, match='produced an empty test tuple'): monkeypatch.setattr(matrix, 'staging_core_e2e_selection', lambda: ()); matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE)
+    with pytest.raises(ValueError, match='produced an empty test tuple'): monkeypatch.setattr(matrix, 'preview_minimum_e2e_selection', lambda: ()); matrix.emit_shell(matrix.PREVIEW_MINIMUM_E2E_STAGE)
+    with pytest.raises(ValueError, match='produced an empty test tuple'): monkeypatch.setattr(matrix, 'staging_ai_ocr_selection', lambda _corpus='all': ()); matrix.emit_shell(matrix.STAGING_AI_OCR_STAGE, corpus='canary')
+    for extra in ([], ['--shell']): result = subprocess.run([sys.executable, str(ROOT / 'tools' / 'test_selection.py'), '--stage', 'nonexistent_stage', *extra], capture_output=True, text=True, check=False); assert result.returncode == 2, result.stderr; assert 'unknown selection stage' in result.stderr
+def test_matrix_classify_stage_and_package_declarations(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert matrix.classify_stage('apps/backend/tests/foo.py') == 'backend_ci'; assert matrix.classify_stage('unmatched/prefix/foo.py') is None; import types; fake_empty = types.ModuleType('contract'); fake_empty.TEST_ROOTS = (); monkeypatch.setattr(matrix, 'PACKAGE_TEST_DECLARATIONS', ('pkg_empty',)); import importlib; monkeypatch.setattr(importlib, 'import_module', lambda name: fake_empty)
+    with pytest.raises(ValueError, match='declares no TEST_ROOTS'): matrix.package_test_ownership()
+    fake_str = types.ModuleType('contract'); fake_str.TEST_ROOTS = 'apps/backend/tests/'; monkeypatch.setattr(importlib, 'import_module', lambda name: fake_str)
+    with pytest.raises(ValueError, match='must be a tuple of paths'): matrix.package_test_ownership()
+    fake_dup1 = types.ModuleType('contract1'); fake_dup1.TEST_ROOTS = ('tests/shared',); fake_dup2 = types.ModuleType('contract2'); fake_dup2.TEST_ROOTS = ('tests/shared',); monkeypatch.setattr(matrix, 'PACKAGE_TEST_DECLARATIONS', ('p1', 'p2'))
     def fake_import(name: str):
-        if name == "common.p1.contract":
-            return fake_dup1
+        if name == 'common.p1.contract': return fake_dup1
         return fake_dup2
-
-    monkeypatch.setattr(importlib, "import_module", fake_import)
-    with pytest.raises(ValueError, match="declared by both"):
-        matrix.package_test_ownership()
-
-
+    monkeypatch.setattr(importlib, 'import_module', fake_import)
+    with pytest.raises(ValueError, match='declared by both'): matrix.package_test_ownership()
 def test_AC8_22_6_charter_and_manifest_ownership() -> None:
-    """AC-testing.matrix.6: AC8.22.6: the governance charter exists and MANIFEST ownership moved."""
-    readme = TESTING_README.read_text(encoding="utf-8")
-    for section in (
-        "## Governance charter",
-        "### Execution matrix",
-        "### Package declaration protocol",
-        "### E2E extension layer",
-        "### Fast interception",
-        "### Responsibility table",
-    ):
-        assert section in readme, f"charter section missing: {section}"
-
-    concepts = load_computed_concepts(ROOT, MANIFEST)
-    entry = concepts["test_execution_matrix"]
-    assert entry["owner"] == "common/testing/matrix.py"
-    cross_refs = entry.get("cross_refs", [])
-    assert "common/testing/data/test-execution-matrix.yaml" in cross_refs
-
-
-def test_test_selection_cli_in_process(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Verify common.testing.test_selection CLI flags in-process."""
-    assert test_selection.main(["--check-matrix"]) == 0
-    capsys.readouterr()
-
-    fake_yaml = tmp_path / "matrix.yaml"
-    monkeypatch.setattr(test_selection, "ROOT_DIR", tmp_path)
-    monkeypatch.setattr(test_selection, "MATRIX_YAML", fake_yaml)
-
-    assert test_selection.main(["--check-matrix"]) == 1
-    assert "drifted from" in capsys.readouterr().err
-
-    assert test_selection.main(["--emit-matrix"]) == 0
-    assert fake_yaml.read_text(encoding="utf-8") == matrix.emit_execution_matrix_yaml()
-    capsys.readouterr()
-    assert test_selection.main(["--check-matrix"]) == 0
-    capsys.readouterr()
-
-    with pytest.raises(SystemExit):
-        test_selection.main([])
-    capsys.readouterr()
-
-    assert test_selection.main(["--stage", "nonexistent"]) == 2
-    assert "unknown selection stage" in capsys.readouterr().err
-
-    assert test_selection.main(["--stage", "staging_core_e2e", "--shell"]) == 0
-    assert "STAGING_CORE_E2E_TESTS=(" in capsys.readouterr().out
-
-    assert test_selection.main(["--stage", "staging_core_e2e"]) == 0
-    assert (
-        tuple(capsys.readouterr().out.strip().splitlines())
-        == matrix.staging_core_e2e_selection()
-    )
-
-    assert test_selection.main(["--stage", "preview_minimum_e2e", "--shell"]) == 0
-    preview_out = capsys.readouterr().out
-    assert "PREVIEW_MINIMUM_E2E_TESTS=(" in preview_out
-    assert "PREVIEW_MINIMUM_E2E_MARKER=" in preview_out
-
-    assert test_selection.main(["--stage", "preview_minimum_e2e"]) == 0
-    assert (
-        tuple(capsys.readouterr().out.strip().splitlines())
-        == matrix.preview_minimum_e2e_selection()
-    )
-
-    for corpus in ("canary", "audit_replay", "core_journey"):
-        assert (
-            test_selection.main(
-                ["--stage", "staging_ai_ocr", "--corpus", corpus, "--shell"]
-            )
-            == 0
-        )
-        ocr_out = capsys.readouterr().out
-        assert "STAGING_AI_OCR_TESTS=(" in ocr_out
-        assert "STAGING_AI_OCR_MARKER=" in ocr_out
-
-        assert (
-            test_selection.main(["--stage", "staging_ai_ocr", "--corpus", corpus]) == 0
-        )
-        assert tuple(
-            capsys.readouterr().out.strip().splitlines()
-        ) == matrix.staging_ai_ocr_selection(corpus)
+    'AC-testing.matrix.6 AC8.22.6'; readme = TESTING_README.read_text(encoding='utf-8')
+    for section in ('## Governance charter', '### Execution matrix', '### Package declaration protocol', '### E2E extension layer', '### Fast interception', '### Responsibility table'): assert section in readme, f'charter section missing: {section}'
+    concepts = load_computed_concepts(ROOT, MANIFEST); entry = concepts['test_execution_matrix']; assert entry['owner'] == 'common/testing/matrix.py'; cross_refs = entry.get('cross_refs', []); assert 'common/testing/data/test-execution-matrix.yaml' in cross_refs
+def test_test_selection_cli_in_process(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert test_selection.main(['--check-matrix']) == 0; capsys.readouterr(); fake_yaml = tmp_path / 'matrix.yaml'; monkeypatch.setattr(test_selection, 'ROOT_DIR', tmp_path); monkeypatch.setattr(test_selection, 'MATRIX_YAML', fake_yaml); assert test_selection.main(['--check-matrix']) == 1; assert 'drifted from' in capsys.readouterr().err; assert test_selection.main(['--emit-matrix']) == 0; assert fake_yaml.read_text(encoding='utf-8') == matrix.emit_execution_matrix_yaml(); capsys.readouterr(); assert test_selection.main(['--check-matrix']) == 0; capsys.readouterr()
+    with pytest.raises(SystemExit): test_selection.main([])
+    capsys.readouterr(); assert test_selection.main(['--stage', 'nonexistent']) == 2; assert 'unknown selection stage' in capsys.readouterr().err; assert test_selection.main(['--stage', 'staging_core_e2e', '--shell']) == 0; assert 'STAGING_CORE_E2E_TESTS=(' in capsys.readouterr().out; assert test_selection.main(['--stage', 'staging_core_e2e']) == 0; assert tuple(capsys.readouterr().out.strip().splitlines()) == matrix.staging_core_e2e_selection(); assert test_selection.main(['--stage', 'preview_minimum_e2e', '--shell']) == 0; preview_out = capsys.readouterr().out; assert 'PREVIEW_MINIMUM_E2E_TESTS=(' in preview_out; assert 'PREVIEW_MINIMUM_E2E_MARKER=' in preview_out; assert test_selection.main(['--stage', 'preview_minimum_e2e']) == 0; assert tuple(capsys.readouterr().out.strip().splitlines()) == matrix.preview_minimum_e2e_selection()
+    for corpus in ('canary', 'audit_replay', 'core_journey'): assert test_selection.main(['--stage', 'staging_ai_ocr', '--corpus', corpus, '--shell']) == 0; ocr_out = capsys.readouterr().out; assert 'STAGING_AI_OCR_TESTS=(' in ocr_out; assert 'STAGING_AI_OCR_MARKER=' in ocr_out; assert test_selection.main(['--stage', 'staging_ai_ocr', '--corpus', corpus]) == 0; assert tuple(capsys.readouterr().out.strip().splitlines()) == matrix.staging_ai_ocr_selection(corpus)

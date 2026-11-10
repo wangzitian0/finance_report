@@ -1,180 +1,23 @@
-"""Tier-3 browser proof that source confirmation cannot invent economic meaning."""
-
-from __future__ import annotations
-
-import asyncio
-import csv
-import os
-import re
-from pathlib import Path
-
-import pytest
-from common.testing.ac_proof import ac_proof
-from playwright.async_api import Page, expect
-
-APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
-PARSING_TIMEOUT_MS: int = int(os.getenv("PARSING_TIMEOUT_MS", "120000"))
-FIXTURE_PATH = (
-    Path(__file__).resolve().parent / "fixtures" / "vision_hard_gate_statement.csv"
-)
-INSTITUTION_LABEL = "Generic Vision Hard Gate"
-
-
-def _get_url(path: str) -> str:
-    return f"{APP_URL.rstrip('/')}{path}"
-
-
-def _require_fixture_path() -> Path:
-    if not FIXTURE_PATH.exists():
-        pytest.skip(f"Deterministic vision fixture missing: {FIXTURE_PATH}")
-    return FIXTURE_PATH
-
-
+from __future__ import annotations; import asyncio; import csv; import os; import re; from pathlib import Path; import pytest; from common.testing.ac_proof import ac_proof; from playwright.async_api import Page, expect; APP_URL: str = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS: int = int(os.getenv('PARSING_TIMEOUT_MS', '120000')); FIXTURE_PATH = Path(__file__).resolve().parent / 'fixtures' / 'vision_hard_gate_statement.csv'; INSTITUTION_LABEL = 'Generic Vision Hard Gate'; _get_url = lambda path: f"{APP_URL.rstrip('/')}{path}"
+def _require_fixture_path() -> Path: pytest.skip(f'Deterministic vision fixture missing: {FIXTURE_PATH}') if not FIXTURE_PATH.exists() else None; return FIXTURE_PATH
 def _fixture_transaction_count() -> int:
-    with _require_fixture_path().open(newline="", encoding="utf-8") as handle:
-        return sum(1 for _ in csv.DictReader(handle))
-
-
-async def _wait_for_statement_status(
-    page: Page, statement_id: str, target_status: str
-) -> dict:
-    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
-    last_statement: dict | None = None
+    with _require_fixture_path().open(newline='', encoding='utf-8') as handle: return sum((1 for _ in csv.DictReader(handle)))
+async def _wait_for_statement_status(page: Page, statement_id: str, target_status: str) -> dict:
+    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000; last_statement: dict | None = None
     while asyncio.get_running_loop().time() < deadline:
-        response = await page.request.get(_get_url(f"/api/statements/{statement_id}"))
-        body = await response.text()
-        assert response.status == 200, body
-        last_statement = await response.json()
-        if last_statement.get("status") == target_status:
-            return last_statement
-        await page.wait_for_timeout(1_000)
-    pytest.fail(
-        f"statement {statement_id} never reached {target_status!r} within {PARSING_TIMEOUT_MS}ms; "
-        f"last payload: {last_statement}"
-    )
-
-
-@ac_proof(
-    "deterministic-source-review-boundary",
-    ac_ids=["AC-testing.product-gates.2"],
-    scope="behavioral",
-    ci_tier="post_merge_environment",
-    trust_mode="hybrid",
-    source_classes=["bank_statement", "csv_export"],
-    issue="#950",
-    required_markers=["e2e", "tier3", "critical"],
-)
+        response = await page.request.get(_get_url(f'/api/statements/{statement_id}')); body = await response.text(); assert response.status == 200, body; last_statement = await response.json()
+        if last_statement.get('status') == target_status: return last_statement
+        await page.wait_for_timeout(1000)
+    pytest.fail(f'statement {statement_id} never reached {target_status!r} within {PARSING_TIMEOUT_MS}ms; last payload: {last_statement}')
+@ac_proof('deterministic-source-review-boundary', ac_ids=['AC-testing.product-gates.2'], scope='behavioral', ci_tier='post_merge_environment', trust_mode='hybrid', source_classes=['bank_statement', 'csv_export'], issue='#950', required_markers=['e2e', 'tier3', 'critical'])
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
-async def test_statement_upload_to_dashboard_vision_hard_gate(
-    authenticated_page_unique: Page,
-) -> None:
-    """AC-testing.product-gates.2: EPIC-003 EPIC-008 EPIC-013 EPIC-016; parsed CSV facts without authority remain in review."""
-    page = authenticated_page_unique
-    fixture_path = _require_fixture_path()
-
-    # The boundary under test is "no source of economic meaning, no entry". The product default lets the
-    # classifier supply meaning and accepts its suggestions (#2405), so this user has no classifier.
-    no_classifier = await page.request.patch(
-        _get_url("/api/users/me/settings"), data={"enable_ai_classification": False}
-    )
-    assert no_classifier.status == 200, await no_classifier.text()
-
-    await page.goto(_get_url("/upload"), wait_until="domcontentloaded")
-    csv_section = page.locator("details").filter(has_text="CSV import")
-    await csv_section.locator("summary").click()
-    await csv_section.locator('[data-testid="uploader-institution-csv"]').fill(
-        INSTITUTION_LABEL
-    )
-    await page.set_input_files('[data-testid="uploader-file-csv"]', str(fixture_path))
-    await expect(
-        csv_section.locator("p.font-medium", has_text=fixture_path.name)
-    ).to_be_visible(timeout=10_000)
-
-    async with page.expect_response(
-        lambda response: "/api/statements/upload" in response.url
-    ) as upload_info:
-        await csv_section.get_by_role("button", name="Upload & Parse Statement").click()
-    upload_response = await upload_info.value
-    upload_body = await upload_response.json()
-    assert upload_response.status == 202, upload_body
-    statement_id = upload_body["id"]
-
-    # The workflow notification card also links to the statement ("Open Statement uploaded"). It appears
-    # when the workflow event arrives, so the bare href matches one or two links (#2653). The file name
-    # selects the upload-list row only.
-    statement_link = page.locator(f'a[href="/statements/{statement_id}"]').filter(
-        has_text=fixture_path.name
-    )
-    await expect(statement_link).to_be_visible(timeout=15_000)
-    parsed_statement = await _wait_for_statement_status(page, statement_id, "parsed")
-    assert (
-        len(parsed_statement.get("transactions") or []) == _fixture_transaction_count()
-    )
-
-    # The statement page is the review page: one click from the upload list opens it.
-    await statement_link.click()
-    await expect(page).to_have_url(
-        re.compile(rf"/statements/{re.escape(statement_id)}$"), timeout=15_000
-    )
-
-    approve_button = page.get_by_role("button", name="Approve", exact=True)
-    # The page shows "Loading statement" until the statement request returns; staging can need more than
-    # the 5 s default for it (#2653).
-    await expect(approve_button).to_be_disabled(timeout=15_000)
-    # Source confirmation and economic intent are independent trust boundaries.
-    # Provision only custody; do not seed a classification or bypass review.
-    account_response = await page.request.post(
-        _get_url("/api/accounts"),
-        data={"name": "Generated CSV custody", "type": "ASSET", "currency": "SGD"},
-    )
-    account_body = await account_response.json()
-    assert account_response.status == 201, account_body
-    await page.reload(wait_until="domcontentloaded")
-    await page.get_by_label("Custody account").select_option(account_body["id"])
-    await page.get_by_label("Statement currency").fill("SGD")
-    await page.get_by_label("Period start", exact=True).fill("2026-05-01")
-    await page.get_by_label("Period end", exact=True).fill("2026-05-31")
-    await page.get_by_label("Opening balance", exact=True).fill("0.00")
-    await page.get_by_label("Closing balance", exact=True).fill("0.00")
-    await page.get_by_label("Why are these facts confirmed?").fill(
-        "Confirmed against the generated CSV header and its six transactions."
-    )
-    async with page.expect_response(
-        lambda response: f"/api/statements/{statement_id}/review/envelope"
-        in response.url
-    ) as envelope_info:
-        await page.get_by_role("button", name="Confirm statement details").click()
-    envelope_response = await envelope_info.value
-    assert envelope_response.status == 200, await envelope_response.text()
-    await expect(approve_button).to_be_enabled(timeout=20_000)
-    # Rank 1 (#2801): the classification banner shows before any Approve click, so no 409 round trip.
-    await expect(
-        page.get_by_text("Transaction classifications need review")
-    ).to_be_visible(timeout=15_000)
-    async with page.expect_response(
-        lambda response: f"/api/statements/{statement_id}/review/approve"
-        in response.url
-    ) as approve_info:
-        await approve_button.click()
-        dialog = page.locator('[role="dialog"]')
-        await expect(dialog).to_be_visible(timeout=5_000)
-        await expect(dialog).to_contain_text("filed under default categories")
-        await dialog.get_by_role("button", name="Approve").click()
-    approve_response = await approve_info.value
-    approve_body = await approve_response.json()
-    assert approve_response.status == 200, approve_body
-
-    reviewed_response = await page.request.get(
-        _get_url(f"/api/statements/{statement_id}/review")
-    )
-    reviewed_statement = await reviewed_response.json()
-    assert reviewed_response.status == 200, reviewed_statement
-    assert reviewed_statement["status"] == "approved"
-    assert reviewed_statement["stage1_status"] == "approved"
-
-    journal_response = await page.request.get(_get_url("/api/journal-entries?limit=10"))
-    journal_body = await journal_response.json()
-    assert journal_response.status == 200, journal_body
-    assert journal_body["total"] > 0
+async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page_unique: Page) -> None:
+    'AC-testing.product-gates.2 EPIC-003 EPIC-008 EPIC-013 EPIC-016'; page = authenticated_page_unique; fixture_path = _require_fixture_path(); no_classifier = await page.request.patch(_get_url('/api/users/me/settings'), data={'enable_ai_classification': False}); assert no_classifier.status == 200, await no_classifier.text(); await page.goto(_get_url('/upload'), wait_until='domcontentloaded'); csv_section = page.locator('details').filter(has_text='CSV import'); await csv_section.locator('summary').click(); await csv_section.locator('[data-testid="uploader-institution-csv"]').fill(INSTITUTION_LABEL); await page.set_input_files('[data-testid="uploader-file-csv"]', str(fixture_path)); await expect(csv_section.locator('p.font-medium', has_text=fixture_path.name)).to_be_visible(timeout=10000)
+    async with page.expect_response(lambda response: '/api/statements/upload' in response.url) as upload_info: await csv_section.get_by_role('button', name='Upload & Parse Statement').click()
+    upload_response = await upload_info.value; upload_body = await upload_response.json(); assert upload_response.status == 202, upload_body; statement_id = upload_body['id']; statement_link = page.locator(f'a[href="/statements/{statement_id}"]').filter(has_text=fixture_path.name); await expect(statement_link).to_be_visible(timeout=15000); parsed_statement = await _wait_for_statement_status(page, statement_id, 'parsed'); assert len(parsed_statement.get('transactions') or []) == _fixture_transaction_count(); await statement_link.click(); await expect(page).to_have_url(re.compile(f'/statements/{re.escape(statement_id)}$'), timeout=15000); approve_button = page.get_by_role('button', name='Approve', exact=True); await expect(approve_button).to_be_disabled(timeout=15000); account_response = await page.request.post(_get_url('/api/accounts'), data={'name': 'Generated CSV custody', 'type': 'ASSET', 'currency': 'SGD'}); account_body = await account_response.json(); assert account_response.status == 201, account_body; await page.reload(wait_until='domcontentloaded'); await page.get_by_label('Custody account').select_option(account_body['id']); await page.get_by_label('Statement currency').fill('SGD'); await page.get_by_label('Period start', exact=True).fill('2026-05-01'); await page.get_by_label('Period end', exact=True).fill('2026-05-31'); await page.get_by_label('Opening balance', exact=True).fill('0.00'); await page.get_by_label('Closing balance', exact=True).fill('0.00'); await page.get_by_label('Why are these facts confirmed?').fill('Confirmed against the generated CSV header and its six transactions.')
+    async with page.expect_response(lambda response: f'/api/statements/{statement_id}/review/envelope' in response.url) as envelope_info: await page.get_by_role('button', name='Confirm statement details').click()
+    envelope_response = await envelope_info.value; assert envelope_response.status == 200, await envelope_response.text(); await expect(approve_button).to_be_enabled(timeout=20000); await expect(page.get_by_text('Transaction classifications need review')).to_be_visible(timeout=15000)
+    async with page.expect_response(lambda response: f'/api/statements/{statement_id}/review/approve' in response.url) as approve_info: await approve_button.click(); dialog = page.locator('[role="dialog"]'); await expect(dialog).to_be_visible(timeout=5000); await expect(dialog).to_contain_text('filed under default categories'); await dialog.get_by_role('button', name='Approve').click()
+    approve_response = await approve_info.value; approve_body = await approve_response.json(); assert approve_response.status == 200, approve_body; reviewed_response = await page.request.get(_get_url(f'/api/statements/{statement_id}/review')); reviewed_statement = await reviewed_response.json(); assert reviewed_response.status == 200, reviewed_statement; assert reviewed_statement['status'] == 'approved'; assert reviewed_statement['stage1_status'] == 'approved'; journal_response = await page.request.get(_get_url('/api/journal-entries?limit=10')); journal_body = await journal_response.json(); assert journal_response.status == 200, journal_body; assert journal_body['total'] > 0

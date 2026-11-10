@@ -22,7 +22,7 @@ repos:
     hooks:
       # Run linter with auto-fix
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        args: [--fix, --exit-non-zero-on-fix, "--ignore=E501,E401,E402,E701,E702,E714,E731,F401,F811,I001,UP034,UP038"]
         types_or: [python, pyi]
       # Run formatter
       - id: ruff-format

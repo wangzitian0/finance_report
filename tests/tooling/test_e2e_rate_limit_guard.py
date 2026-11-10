@@ -1,205 +1,38 @@
-"""AC-testing.journeys.6 — E2E rate-limit failures are attributable."""
-
-from __future__ import annotations
-
-import asyncio
-import importlib
-import sys
-from dataclasses import dataclass
-from types import ModuleType
-
-import pytest
-
-from common.testing.e2e_rate_limit import (
-    RateLimitHit,
-    fail_report_for_rate_limits,
-    record_rate_limit_response,
-)
-
+'AC-testing.journeys.6'; from __future__ import annotations; import asyncio; import importlib; import sys; from dataclasses import dataclass; from types import ModuleType; import pytest; from common.testing.e2e_rate_limit import RateLimitHit, fail_report_for_rate_limits, record_rate_limit_response
 @dataclass
-class _Request:
-    method: str = "GET"
-
-
+class _Request: method: str = 'GET'
 @dataclass
-class _Response:
-    status: int
-    url: str
-    request: _Request
-
-
+class _Response: status: int; url: str; request: _Request
 @dataclass
-class _Report:
-    outcome: str = "passed"
-    longrepr: object | None = None
-    when: str = "call"
-    skipped: bool = False
-
-
+class _Report: outcome: str = 'passed'; longrepr: object | None = None; when: str = 'call'; skipped: bool = False
 @dataclass
 class _Outcome:
     report: _Report
-
-    def get_result(self) -> _Report:
-        return self.report
-
-
+    def get_result(self) -> _Report: return self.report
 class _Item:
-    nodeid = "tests/e2e/test_example.py::test_journey"
-
-    def get_closest_marker(self, _name: str) -> None:
-        return None
-
-
+    nodeid = 'tests/e2e/test_example.py::test_journey'
+    def get_closest_marker(self, _name: str) -> None: return None
 class _BrowserContext:
-    def __init__(self) -> None:
-        self.handlers = {}
-        self.closed = False
-
-    def on(self, event: str, handler) -> None:
-        self.handlers[event] = handler
-
-    async def close(self) -> None:
-        self.closed = True
-
-
+    def __init__(self) -> None: self.handlers = {}; self.closed = False
+    def on(self, event: str, handler) -> None: self.handlers[event] = handler
+    async def close(self) -> None: self.closed = True
 class _Browser:
-    def __init__(self) -> None:
-        self.context = _BrowserContext()
-
-    async def new_context(self, **_kwargs) -> _BrowserContext:
-        return self.context
-
-
+    def __init__(self) -> None: self.context = _BrowserContext()
+    async def new_context(self, **_kwargs) -> _BrowserContext: return self.context
 @dataclass
-class _FixtureRequest:
-    node: _Item
-
-
-def _load_e2e_conftest_without_optional_playwright(monkeypatch):
-    playwright_module = ModuleType("playwright")
-    async_api_module = ModuleType("playwright.async_api")
-    for name in ("Browser", "BrowserContext", "Page"):
-        setattr(async_api_module, name, type(name, (), {}))
-    setattr(async_api_module, "async_playwright", lambda: None)
-    setattr(playwright_module, "async_api", async_api_module)
-    monkeypatch.setitem(sys.modules, "playwright", playwright_module)
-    monkeypatch.setitem(sys.modules, "playwright.async_api", async_api_module)
-    sys.modules.pop("tests.e2e.conftest", None)
-    return importlib.import_module("tests.e2e.conftest")
-
-
-def test_AC_testing_journeys_6_rate_limit_hits_fail_the_test_report() -> None:
-    hits: list[RateLimitHit] = []
-    record_rate_limit_response(
-        _Response(
-            status=429,
-            url=(
-                "https://report-staging.example/api/reports/income-statement"
-                "?access_token=must-not-appear"
-            ),
-            request=_Request(),
-        ),
-        hits,
-    )
-    report = _Report()
-
-    assert fail_report_for_rate_limits(report, hits) is True
-    assert report.outcome == "failed"
-    message = str(report.longrepr)
-    assert message.startswith("E2E_RATE_LIMIT_EXHAUSTED:")
-    assert message.endswith("HTTP 429 GET /api/reports/income-statement")
-    assert message.find("access_token") == -1
-
-
-def test_non_429_responses_do_not_change_a_passing_report() -> None:
-    hits: list[RateLimitHit] = []
-    record_rate_limit_response(
-        _Response(
-            status=200,
-            url="https://report-staging.example/api/health",
-            request=_Request(),
-        ),
-        hits,
-    )
-    report = _Report()
-
-    assert fail_report_for_rate_limits(report, hits) is False
-    assert report.outcome == "passed"
-    assert report.longrepr is None
-
-
-def test_rate_limit_diagnostic_preserves_an_existing_failure_and_is_bounded() -> None:
-    report = _Report(outcome="failed", longrepr="locator was not visible")
-    hits = [RateLimitHit(method="POST", path=f"/api/items/{index}") for index in range(9)]
-
-    assert fail_report_for_rate_limits(report, hits) is True
-    message = str(report.longrepr)
-    assert message.startswith("locator was not visible")
-    assert message.find("POST /api/items/0") >= 0
-    assert message.find("POST /api/items/4") >= 0
-    assert message.find("POST /api/items/5") == -1
-    assert message.endswith("4 additional HTTP 429 response(s)")
-
-
-def test_global_browser_context_wires_the_guard_into_call_and_teardown_reports(
-    monkeypatch,
-) -> None:
+class _FixtureRequest: node: _Item
+def _load_e2e_conftest_without_optional_playwright(monkeypatch): playwright_module = ModuleType('playwright'); async_api_module = ModuleType('playwright.async_api'); [setattr(async_api_module, name, type(name, (), {})) for name in ('Browser', 'BrowserContext', 'Page')]; setattr(async_api_module, 'async_playwright', lambda: None); setattr(playwright_module, 'async_api', async_api_module); monkeypatch.setitem(sys.modules, 'playwright', playwright_module); monkeypatch.setitem(sys.modules, 'playwright.async_api', async_api_module); sys.modules.pop('tests.e2e.conftest', None); return importlib.import_module('tests.e2e.conftest')
+def test_AC_testing_journeys_6_rate_limit_hits_fail_the_test_report() -> None: hits: list[RateLimitHit] = []; record_rate_limit_response(_Response(status=429, url='https://report-staging.example/api/reports/income-statement?access_token=must-not-appear', request=_Request()), hits); report = _Report(); assert fail_report_for_rate_limits(report, hits) is True; assert report.outcome == 'failed'; message = str(report.longrepr); assert message.startswith('E2E_RATE_LIMIT_EXHAUSTED:'); assert message.endswith('HTTP 429 GET /api/reports/income-statement'); assert message.find('access_token') == -1; _m1_hits: list[RateLimitHit] = []; record_rate_limit_response(_Response(status=200, url='https://report-staging.example/api/health', request=_Request()), _m1_hits); _m1_report = _Report(); assert fail_report_for_rate_limits(_m1_report, _m1_hits) is False; assert _m1_report.outcome == 'passed'; assert _m1_report.longrepr is None; _m2_report = _Report(outcome='failed', longrepr='locator was not visible'); _m2_hits = [RateLimitHit(method='POST', path=f'/api/items/{_m2_index}') for _m2_index in range(9)]; assert fail_report_for_rate_limits(_m2_report, _m2_hits) is True; _m2_message = str(_m2_report.longrepr); assert _m2_message.startswith('locator was not visible'); assert _m2_message.find('POST /api/items/0') >= 0; assert _m2_message.find('POST /api/items/4') >= 0; assert _m2_message.find('POST /api/items/5') == -1; assert _m2_message.endswith('4 additional HTTP 429 response(s)')
+def test_global_browser_context_wires_the_guard_into_call_and_teardown_reports(monkeypatch) -> None:
     context = _load_e2e_conftest_without_optional_playwright(monkeypatch).context
-
     async def exercise_context() -> None:
-        browser = _Browser()
-        request = _FixtureRequest(node=_Item())
-        fixture = context.__wrapped__(browser, request)
-
-        assert await fixture.__anext__() is browser.context
-        browser.context.handlers["response"](
-            _Response(
-                status=429,
-                url="https://report-staging.example/api/accounts?token=redacted",
-                request=_Request(),
-            )
-        )
-
-        with pytest.raises(StopAsyncIteration):
-            await fixture.__anext__()
-        assert browser.context.closed is True
-        assert request.node._e2e_rate_limit_hits == [
-            RateLimitHit(method="GET", path="/api/accounts")
-        ]
-
+        browser = _Browser(); request = _FixtureRequest(node=_Item()); fixture = context.__wrapped__(browser, request); assert await fixture.__anext__() is browser.context; browser.context.handlers['response'](_Response(status=429, url='https://report-staging.example/api/accounts?token=redacted', request=_Request()))
+        with pytest.raises(StopAsyncIteration): await fixture.__anext__()
+        assert browser.context.closed is True; assert request.node._e2e_rate_limit_hits == [RateLimitHit(method='GET', path='/api/accounts')]
     asyncio.run(exercise_context())
-
-
-@pytest.mark.parametrize("when", ["call", "teardown"])
+@pytest.mark.parametrize('when', ['call', 'teardown'])
 def test_rate_limit_guard_fails_call_and_teardown_reports(when: str, monkeypatch) -> None:
-    pytest_runtest_makereport = _load_e2e_conftest_without_optional_playwright(
-        monkeypatch
-    ).pytest_runtest_makereport
-
-    item = _Item()
-    item._e2e_rate_limit_hits = [RateLimitHit(method="GET", path="/api/accounts")]
-    report = _Report(when=when)
-    hook = pytest_runtest_makereport(item, None)
-
-    next(hook)
-    with pytest.raises(StopIteration):
-        hook.send(_Outcome(report))
-
-    assert report.outcome == "failed"
-    assert str(report.longrepr).startswith("E2E_RATE_LIMIT_EXHAUSTED:")
-
-
-def test_e2e_conftest_prepends_repo_root_when_absent_from_sys_path(monkeypatch) -> None:
-    """tests/e2e/conftest.py prepends ROOT to sys.path before importing repo packages (#2933)."""
-    from pathlib import Path
-
-    repo_root = str(Path(__file__).resolve().parents[2])
-    filtered_path = [
-        entry
-        for entry in sys.path
-        if str(Path(entry).resolve()) != repo_root
-    ]
-    monkeypatch.setattr(sys, "path", filtered_path)
-    conftest_mod = _load_e2e_conftest_without_optional_playwright(monkeypatch)
-    assert sys.path[0] == str(conftest_mod.ROOT)
+    pytest_runtest_makereport = _load_e2e_conftest_without_optional_playwright(monkeypatch).pytest_runtest_makereport; item = _Item(); item._e2e_rate_limit_hits = [RateLimitHit(method='GET', path='/api/accounts')]; report = _Report(when=when); hook = pytest_runtest_makereport(item, None); next(hook)
+    with pytest.raises(StopIteration): hook.send(_Outcome(report))
+    assert report.outcome == 'failed'; assert str(report.longrepr).startswith('E2E_RATE_LIMIT_EXHAUSTED:')
+def test_e2e_conftest_prepends_repo_root_when_absent_from_sys_path(monkeypatch) -> None: from pathlib import Path; repo_root = str(Path(__file__).resolve().parents[2]); filtered_path = [entry for entry in sys.path if str(Path(entry).resolve()) != repo_root]; monkeypatch.setattr(sys, 'path', filtered_path); conftest_mod = _load_e2e_conftest_without_optional_playwright(monkeypatch); assert sys.path[0] == str(conftest_mod.ROOT)

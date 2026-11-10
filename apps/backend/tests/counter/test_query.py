@@ -1,39 +1,5 @@
-"""get_count verb — per-user vs global (EPIC-025 AC-counter.1.4)."""
-
-from uuid import uuid4
-
-import pytest
-from common.testing.ac_proof import ac_proof
-
-from src.counter import Count, CounterKey, get_count, increment
-
-from ._fake import InMemoryCounterRepository
-
-pytestmark = pytest.mark.no_db
-
-KEY = CounterKey("report.generated")
-
-
-@ac_proof(proof_id="test_global_vs_per_user", ac_ids=["AC-counter.1.4"], ci_tier="pr_ci")
-async def test_global_vs_per_user_count():
-    """AC-counter.1.4: user_id=None yields the global sum; a user_id yields that user's."""
-    repo = InMemoryCounterRepository()
-    u1, u2 = uuid4(), uuid4()
-    # u1 increments twice, u2 once
-    await increment(repo, user_id=u1, key=KEY)
-    await increment(repo, user_id=u1, key=KEY)
-    await increment(repo, user_id=u2, key=KEY)
-
-    assert await get_count(repo, key=KEY, user_id=u1) == Count(2)
-    assert await get_count(repo, key=KEY, user_id=u2) == Count(1)
-    # global = sum across all users
-    assert await get_count(repo, key=KEY) == Count(3)
-    assert await get_count(repo, key=KEY, user_id=None) == Count(3)
-
-
-@ac_proof(proof_id="test_unknown_count_is_zero", ac_ids=["AC-counter.1.4"], ci_tier="pr_ci")
-async def test_unknown_key_or_user_is_zero():
-    """AC-counter.1.4: never-incremented (user, key) reads as Count(0), not an error."""
-    repo = InMemoryCounterRepository()
-    assert await get_count(repo, key=KEY) == Count(0)
-    assert await get_count(repo, key=KEY, user_id=uuid4()) == Count(0)
+'AC-counter.1.4 EPIC-025'; from uuid import uuid4; import pytest; from common.testing.ac_proof import ac_proof; from src.counter import Count, CounterKey, get_count, increment; from ._fake import InMemoryCounterRepository; pytestmark = pytest.mark.no_db; KEY = CounterKey('report.generated')
+@ac_proof(proof_id='test_global_vs_per_user', ac_ids=['AC-counter.1.4'], ci_tier='pr_ci')
+async def test_global_vs_per_user_count(): 'AC-counter.1.4'; repo = InMemoryCounterRepository(); u1, u2 = (uuid4(), uuid4()); await increment(repo, user_id=u1, key=KEY); await increment(repo, user_id=u1, key=KEY); await increment(repo, user_id=u2, key=KEY); assert await get_count(repo, key=KEY, user_id=u1) == Count(2); assert await get_count(repo, key=KEY, user_id=u2) == Count(1); assert await get_count(repo, key=KEY) == Count(3); assert await get_count(repo, key=KEY, user_id=None) == Count(3)
+@ac_proof(proof_id='test_unknown_count_is_zero', ac_ids=['AC-counter.1.4'], ci_tier='pr_ci')
+async def test_unknown_key_or_user_is_zero(): 'AC-counter.1.4'; repo = InMemoryCounterRepository(); assert await get_count(repo, key=KEY) == Count(0); assert await get_count(repo, key=KEY, user_id=uuid4()) == Count(0)
