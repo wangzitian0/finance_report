@@ -103,13 +103,11 @@ def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, 
     if not isinstance(extracted, dict):
         return extracted
 
-    normalized: dict[str, Any] = dict(extracted)
+    normalized: dict[str, Any] = extracted
     raw_txns = normalized.get("transactions")
     transactions: list[dict[str, Any]] = (
-        [dict(txn) if isinstance(txn, dict) else txn for txn in raw_txns] if isinstance(raw_txns, list) else []
+        [txn for txn in raw_txns if isinstance(txn, dict)] if isinstance(raw_txns, list) else []
     )
-    if isinstance(raw_txns, list):
-        normalized["transactions"] = transactions
 
     header_ccy = str(normalized.get("currency") or "").strip().upper() or None
     txn_groups: dict[str, list[dict[str, Any]]] = {}

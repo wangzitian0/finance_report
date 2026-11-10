@@ -1,4 +1,4 @@
-"""Tests for Issue #2879: brokerage cash-ledger classification, multi-currency posting, and credit-card sign normalization."""
+"""AC-extraction.source-routing.2: Tests for Issue #2879 brokerage cash-ledger classification, multi-currency posting, and credit-card sign normalization."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ from tests.statement_ingestion import (
 
 
 def test_brokerage_prompt_includes_opening_and_closing_balances_and_cash_rules():
-    """Defect 1.1: BROKERAGE_POSITIONS_PROMPT includes opening_balance, closing_balance, and cash-only instructions."""
+    """AC-extraction.source-routing.2: BROKERAGE_POSITIONS_PROMPT includes opening_balance, closing_balance, and cash-only instructions."""
     prompt = get_parsing_prompt("Moomoo", document_kind="brokerage")
     assert '"opening_balance"' in prompt
     assert '"closing_balance"' in prompt
@@ -49,7 +49,7 @@ def test_brokerage_prompt_includes_opening_and_closing_balances_and_cash_rules()
 
 
 def test_statement_evidence_type_classifies_cash_only_brokerage_as_transaction_ledger():
-    """Defect 1.2: Empty positions=[] with non-empty transactions classifies as TRANSACTION_LEDGER."""
+    """AC-extraction.source-routing.2: Empty positions=[] with non-empty transactions classifies as TRANSACTION_LEDGER."""
     cash_only_payload = {
         "institution": "Moomoo Financial Singapore Pte. Ltd.",
         "account_last4": "7742",
@@ -103,7 +103,7 @@ def test_statement_evidence_type_classifies_cash_only_brokerage_as_transaction_l
 
 
 async def test_cash_only_brokerage_derives_balances_binds_custody_and_auto_approves(db, test_user, monkeypatch):
-    """Defect 1.2 & 1.3: Cash-only brokerage payload derives missing balances, binds custody, and auto-approves."""
+    """AC-extraction.source-routing.2: Cash-only brokerage payload derives missing balances, binds custody, and auto-approves."""
     service = ExtractionService()
     raw_payload = {
         "institution": "Futu Securities",
@@ -188,7 +188,7 @@ async def test_cash_only_brokerage_derives_balances_binds_custody_and_auto_appro
 
 
 def test_multicurrency_running_balance_synthesis_and_top_level_backfill():
-    """Defect 2.1: Multi-currency transactions without balances array synthesize per-currency balances."""
+    """AC-extraction.source-routing.2: Multi-currency transactions without balances array synthesize per-currency balances."""
     payload = {
         "institution": "Silk Road Bank",
         "account_last4": "6355",
@@ -250,7 +250,7 @@ def test_multicurrency_running_balance_synthesis_and_top_level_backfill():
 
 
 def test_balance_validation_result_allows_none_opening_balance():
-    """Defect 2.2: BalanceValidationResult accepts opening_balance=None without raising ValidationError."""
+    """AC-extraction.source-routing.2: BalanceValidationResult accepts opening_balance=None without raising ValidationError."""
     model = BalanceValidationResult(
         opening_balance=None,
         closing_balance=None,
@@ -265,7 +265,7 @@ def test_balance_validation_result_allows_none_opening_balance():
 
 
 async def test_multicurrency_statement_posts_per_currency_custody_accounts_and_opening_balances(db, test_user):
-    """Defect 2.3: Multi-currency statement resolves per-currency custody accounts and posts opening balances for each."""
+    """AC-extraction.source-routing.2: Multi-currency statement resolves per-currency custody accounts and posts opening balances for each."""
     service = ExtractionService()
     payload = {
         "institution": "Silk Road Bank",
@@ -382,7 +382,7 @@ async def test_multicurrency_statement_posts_per_currency_custody_accounts_and_o
 
 
 async def test_credit_card_positive_balance_owed_sign_normalization(db, test_user):
-    """Defect 3: Credit-card statement with positive balance-owed convention normalizes to negative liability balances."""
+    """AC-extraction.source-routing.2: Credit-card statement with positive balance-owed convention normalizes to negative liability balances."""
     cc_payload = {
         "institution": "Liberty National Credit Card",
         "account_last4": "4102",
