@@ -53,9 +53,11 @@ class SqlReconciliationRepository(ReconciliationRepository):
             ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             ReconciliationMatch.superseded_by_id.is_(None),
         )
+        # The matcher reads rows of statements in Stage-1 review also.
+        # Stage-1 approval of a transfer row needs its recorded leg (#2884).
         query = (
             select(AtomicTransaction)
-            .where(effective_statement_transaction_filter(user_id, include_pending_stage1=False))
+            .where(effective_statement_transaction_filter(user_id))
             .where(AtomicTransaction.id.notin_(subquery))
             .where(AtomicTransaction.id.notin_(posted_statement_source_ids(user_id)))
             .order_by(AtomicTransaction.txn_date)
