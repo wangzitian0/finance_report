@@ -390,7 +390,10 @@ async def test_AC_reconciliation_2548_3_stats_unmatched_aligns_with_unmatched_qu
 
 
 async def test_AC_reconciliation_2826_1_stage2_scope_excludes_unapproved_stage1_statements(db, test_user):
-    """AC-reconciliation.2826.1: Stage-2 stats, unscoped unmatched list, and pending transactions exclude PARSED statements."""
+    """AC-reconciliation.2826.1: Stage-2 stats and the unscoped unmatched list exclude PARSED statements.
+
+    The matcher input includes them (AC-reconciliation.2884.1).
+    """
     from src.extraction import BankStatementStatus, DocumentType, UploadedDocument
     from src.extraction.orm.statement_summary import StatementSummary
     from src.reconciliation.extension.repository import SqlReconciliationRepository
@@ -486,7 +489,7 @@ async def test_AC_reconciliation_2826_1_stage2_scope_excludes_unapproved_stage1_
 
     repo = SqlReconciliationRepository(db)
     pending_txns = await repo.list_pending_transactions(user_id)
-    assert [item.id for item in pending_txns] == [approved_txn.id]
+    assert {item.id for item in pending_txns} == {parsed_txn.id, approved_txn.id}
 
     quality = await compute_personal_data_quality(db, user_id, as_of_date=date(2026, 3, 31))
     assert quality.reconciliation_purity_invariant.delta == Decimal(1)

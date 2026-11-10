@@ -12,8 +12,10 @@ deployed revision that:
 * A reconciliation run after the approval creates no match: the approval already
   posted both rows from their own statement (#2561).
 * The reconciliation statistics endpoint (/api/reconciliation/stats) measures
-  a non-zero transaction match rate (2 matched out of 3 total transactions = 66.67%).
+  a non-zero transaction match rate (2 matched out of 2 total transactions = 100.00%).
   The 2 posted rows count as matched without a reconciliation match (#2465).
+  The row of the low-confidence statement waits for Stage-1 review. It stays out of
+  the Stage-2 statistics and stays in the statement-scoped unmatched list (#2826, #2884).
 * The system-wide low-confidence statement ratio is strictly computed from non-empty
   statements (total_statements == 2, low_confidence_statements == 1, ratio == 0.5)
   with no empty-database fallback.
@@ -50,7 +52,7 @@ EXPECTED_LOW_CONFIDENCE_STATEMENTS = 1
 EXPECTED_LOW_CONFIDENCE_RATIO = Decimal("0.5")
 EXPECTED_REPLAY_PROPORTION_BEFORE = Decimal("1.00000")
 EXPECTED_REPLAY_PROPORTION_AFTER = Decimal("0.00000")
-EXPECTED_MATCH_RATE = Decimal("66.67")
+EXPECTED_MATCH_RATE = Decimal("100.00")
 
 # Header mirrors test_twelve_month_journey.CSV_HEADER — update both together.
 CSV_HEADER = (
@@ -145,7 +147,7 @@ async def test_proportion_of_low_confidence_data_is_measured(
     assert EXPECTED_LOW_CONFIDENCE_RATIO == Decimal("0.5")
     assert EXPECTED_REPLAY_PROPORTION_BEFORE == Decimal("1.00000")
     assert EXPECTED_REPLAY_PROPORTION_AFTER == Decimal("0.00000")
-    assert EXPECTED_MATCH_RATE == Decimal("66.67")
+    assert EXPECTED_MATCH_RATE == Decimal("100.00")
 
     headers = await _auth_headers(page)
     async with httpx.AsyncClient(
@@ -293,15 +295,50 @@ async def test_proportion_of_low_confidence_data_is_measured(
             f"reconciliation stats failed: {stats_resp.status_code} {stats_resp.text}"
         )
         stats = stats_resp.json()
-        assert stats["total_transactions"] == 3
+        assert stats["total_transactions"] == 2
         assert stats["matched_transactions"] == 2
-        assert stats["unmatched_transactions"] == 1
+        assert stats["unmatched_transactions"] == 0
         assert (
             stats["matched_transactions"] + stats["unmatched_transactions"]
             == stats["total_transactions"]
         )
         match_rate = Decimal(str(stats["match_rate"]))
         assert match_rate == EXPECTED_MATCH_RATE
+
+        # The row of the low-confidence statement waits for Stage-1 review (#2826, #2884).
+        # The statement-scoped queue lists it. The unscoped Stage-2 queue does not.
+        scoped_unmatched_resp = await client.get(
+            _api_url("/reconciliation/unmatched"),
+            params={"statement_id": low_conf_statement_id},
+        )
+        assert scoped_unmatched_resp.status_code == 200, (
+            f"scoped unmatched list failed: {scoped_unmatched_resp.status_code} "
+            f"{scoped_unmatched_resp.text}"
+        )
+        scoped_unmatched = scoped_unmatched_resp.json()
+        assert scoped_unmatched["total"] == 1, (
+            f"scoped unmatched list must hold the Stage-1 row: {scoped_unmatched_resp.status_code} "
+            f"{scoped_unmatched_resp.text}"
+        )
+        assert [item["id"] for item in scoped_unmatched["items"]] == [
+            low_conf_parsed["transactions"][0]["id"]
+        ], (
+            f"scoped unmatched item is not the Stage-1 row: {scoped_unmatched_resp.status_code} "
+            f"{scoped_unmatched_resp.text}"
+        )
+
+        unscoped_unmatched_resp = await client.get(
+            _api_url("/reconciliation/unmatched")
+        )
+        assert unscoped_unmatched_resp.status_code == 200, (
+            f"unscoped unmatched list failed: {unscoped_unmatched_resp.status_code} "
+            f"{unscoped_unmatched_resp.text}"
+        )
+        unscoped_unmatched = unscoped_unmatched_resp.json()
+        assert unscoped_unmatched["total"] == 0, (
+            f"unscoped unmatched list must hold no Stage-1 row: {unscoped_unmatched_resp.status_code} "
+            f"{unscoped_unmatched_resp.text}"
+        )
 
         # 4. Query statements to inspect confidence scores without empty-DB fallback.
         stmts_resp = await client.get(_api_url("/statements"))

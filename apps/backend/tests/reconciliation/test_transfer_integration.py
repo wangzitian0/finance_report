@@ -33,7 +33,8 @@ from src.ledger import (
     JournalLine,
     get_or_create_processing_account,
 )
-from src.reconciliation import execute_matching
+from src.reconciliation import ReconciliationStatus, execute_matching
+from src.reconciliation.extension.repository import SqlReconciliationRepository
 
 
 async def _seed_statement(
@@ -66,7 +67,7 @@ async def _seed_statement(
         period_end=date(2025, 1, 31),
         opening_balance=Decimal("0.00"),
         closing_balance=Decimal("0.00"),
-        status=BankStatementStatus.APPROVED if account_id is not None else BankStatementStatus.PARSED,
+        status=BankStatementStatus.PARSED,
     )
     db.add(summary)
     await db.flush()
@@ -436,3 +437,51 @@ class TestNormalMatchingPhaseIntegration:
         processing_lines = list(lines_result.scalars().all())
         assert len(processing_lines) == 1
         assert processing_lines[0].amount == Decimal("400.00")
+
+
+async def test_AC_reconciliation_2884_1_matching_run_pairs_transfer_legs_of_parsed_statements(
+    db: AsyncSession, test_user
+):
+    """AC-reconciliation.2884.1 · The matching run records both legs of a transfer whose statements are PARSED."""
+    user_id = test_user.id
+
+    cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+    checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
+    db.add_all([cash, checking])
+    await db.flush()
+
+    cash_doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash="ac2884_cash_stmt")
+    checking_doc = await _seed_statement(db, user_id, account_id=checking.id, file_hash="ac2884_checking_stmt")
+    out_txn = await _seed_txn(
+        db,
+        user_id,
+        cash_doc,
+        description="FAST PAYMENT TO BANK B",
+        amount=Decimal("500.00"),
+        direction="OUT",
+        txn_date=date(2025, 1, 10),
+    )
+    in_txn = await _seed_txn(
+        db,
+        user_id,
+        checking_doc,
+        description="FAST PAYMENT FROM BANK A",
+        amount=Decimal("500.00"),
+        direction="IN",
+        txn_date=date(2025, 1, 11),
+    )
+    leg_ids = {out_txn.id, in_txn.id}
+
+    pending = await SqlReconciliationRepository(db).list_pending_transactions(user_id)
+    assert {txn.id for txn in pending} == leg_ids
+
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+
+    assert len(matches) == 2
+    assert {match.status for match in matches} == {ReconciliationStatus.AUTO_ACCEPTED}
+    assert {match.atomic_txn_id for match in matches} == leg_ids
+
+    statuses_result = await db.execute(
+        select(StatementSummary.status).where(StatementSummary.uploaded_document_id.in_([cash_doc.id, checking_doc.id]))
+    )
+    assert list(statuses_result.scalars().all()) == [BankStatementStatus.PARSED, BankStatementStatus.PARSED]

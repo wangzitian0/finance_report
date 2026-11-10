@@ -62,7 +62,7 @@ class TestTransferDetectionIdempotency:
             period_end=date(2025, 3, 31),
             opening_balance=Decimal("0.00"),
             closing_balance=Decimal("0.00"),
-            status=BankStatementStatus.APPROVED,
+            status=BankStatementStatus.PARSED,
         )
         db.add(summary)
         await db.flush()
