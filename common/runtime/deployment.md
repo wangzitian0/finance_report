@@ -14,35 +14,31 @@ Finance Report uses **two git repositories** for configuration:
 | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
 | **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
-| **Staging/Production** | infra2-owned IaC selected by a versioned `DeployRequest` | Production with Vault secrets |
+| **Staging/Production** | infra2-owned IaC (`reconcile-iac-inputs.yml` + `harness/repos.yaml`) | Production with Vault secrets |
 
 Finance Report does not check out infra2 source. It pins the
 [`infra2-sdk`](https://github.com/wangzitian0/infra2-sdk) wire contract and
-dispatches canonical requests to the infra2 receiver.
+declares `runtime-hooks.manifest.json` (`smoke`, `preview_gate`, `staging_gate`,
+`scheduled_audit`) for the `infra2` release train to execute.
 
-### Versioned App-to-Infra Request Boundary
+### Versioned App-to-Infra Hook Boundary
 
 The target repository boundary is one-way: Finance Report owns application
-artifacts and emits a versioned `DeployRequest`; infra2 owns IaC selection,
-credentials, and every deployment side effect. The application pins
+artifacts and declares `runtime-hooks.manifest.json`; infra2 owns IaC selection
+(`reconcile-iac-inputs.yml` and `harness/repos.yaml`), credentials, and every
+deployment side effect. The application pins
 [`infra2-sdk`](https://github.com/wangzitian0/infra2-sdk/releases)
 as the wire-contract authority — the one pin is the release wheel URL in
 `apps/backend/pyproject.toml` `[project.dependencies]`, locked with its sha256
-in `apps/backend/uv.lock`; the `ci.yml` / `deploy.yml` / `release.yml` steps
-that install the wheel read it through `tools/sdk_pin.py`. Its standard-library
-implementation in `common/runtime/sdk_pin.py` rejects declaration/lock disagreement
-before acquisition; workflows verify the downloaded SHA256 before installation.
-`tests/tooling/test_sdk_pin.py` and `test_app_deploy_request.py` prove the shared
-bootstrap path without hard-coding another release pin — and
-`tools/app_deploy_request.py` renders only
-canonical staging or Production requests for `finance_report/app`. The renderer
-performs no network or subprocess operations. Production requires exact source,
-staging, and merged-review evidence. `tools/app_deploy_transport.py` validates
-the request under Finance Report's own authority, then delegates dispatch —
-correlating exactly one receiver workflow run, waiting for success, and
-verifying the exact request id in receiver logs — to
-`infra2_sdk.deploy.dispatch_and_wait` (the same infra2-receiver-boundary
-implementation any app dispatching a `DeployRequest` reuses).
+in `apps/backend/uv.lock`; the `ci.yml` steps that install the wheel read it
+through `tools/sdk_pin.py`. Its standard-library implementation in
+`common/runtime/sdk_pin.py` rejects declaration/lock disagreement before
+acquisition; workflows verify the downloaded SHA256 before installation.
+`tests/tooling/test_sdk_pin.py` proves the shared bootstrap path without
+hard-coding another release pin. `infra2` is the single CD control plane for
+`finance_report/app`: it reconciles release tags from `origin/main` into
+`harness/repos.yaml`, deploys via `deploy_v2`, and executes the verification
+hooks declared in `runtime-hooks.manifest.json`.
 
 **Key implications**:
 - Workflows build images and trigger deployments
@@ -103,32 +99,24 @@ DB:      GitHub services (ephemeral)
 Smoke:   ❌ Not run (unit tests only)
 ```
 
-### deploy.yml
+### Staging Release Train (`infra2` + `runtime-hooks.manifest.json`)
 
 ```yaml
-Trigger: Manual dispatch only (workflow_dispatch with a required `version_ref` input)
-Flow:    resolve release coordinate -> deploy_v2 -> smoke/non-LLM E2E -> AI/OCR regression record
+Trigger: Manual dispatch only (workflow_dispatch in infra2 with a required `version_ref` input from harness/repos.yaml)
+Flow:    reconcile-iac-inputs -> deploy_v2 (type=staging) -> staging_gate hook (smoke/non-LLM E2E/provider connectivity/AI-OCR canary)
 URL:     https://report-staging.zitian.party
 ```
 
-Staging deploy is manual: it runs only on `workflow_dispatch` and does not
-auto-follow main CI. The only operator-supplied release selector is
-`version_ref`, and it must be a `vX.Y.Z` release tag. The deploy job resolves
-that coordinate through `tools/resolve_release_coordinate.py`, checks out the
-tag, derives the pinned infra2 `iac_ref`, never polls or waits for CI inside the
-job, and deploys only images that already exist under that release tag. The
-resolver validates the exact operator input rather than trimming whitespace, and
-fetches only `refs/tags/<version_ref>` without `--force` so moved or rewritten
-release tags fail closed.
-`deploy.yml` must have promoted the main-CI SHA images to `:vX.Y.Z`
-before staging is dispatched. Provider-backed AI/OCR tests run after deploy
-health in the same serialized dispatch workflow unit as a right-shifted
-regression record, and can also be invoked on demand via
-`deploy.yml` when the team wants a blocking diagnostic rerun.
+Staging deploy is manual: it runs only on `workflow_dispatch` in `infra2` and does not
+auto-follow main CI. The release selector is `version_ref` in `infra2` `harness/repos.yaml`,
+and it must be a `vX.Y.Z` release tag on `origin/main`. `ci.yml` (`promote-release-images`)
+verifies that `$GITHUB_SHA` is an ancestor of `origin/main` and promotes the main-CI SHA
+images to `:vX.Y.Z` before staging is dispatched. Provider-backed AI/OCR tests run inside
+the `staging_gate` and `scheduled_audit` hook slots defined in `runtime-hooks.manifest.json`.
 
 The release process keeps a promote-not-rebuild consistency ladder:
-`main CI (:<sha7>) -> deploy.yml (:vX.Y.Z) -> staging deploy_v2
-(:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `deploy.yml` is the only
+`main CI (:<sha7>) -> ci.yml promote-release-images (:vX.Y.Z) -> staging deploy_v2
+(:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `ci.yml` (`promote-release-images`) is the only
 tag-push promotion path; staging and production both consume the retained release
 tag without rebuilding or retagging. The `sha7` tag is fixed to the first 7 hex
 characters of the release commit rather than Git's adaptive short length. By
@@ -137,36 +125,24 @@ release tag keeps the exact same image digest from main CI through production,
 eliminating drift from base images, build-time dependencies, or workflow changes.
 
 The staging deploy gate separates platform rollout from application readiness.
-`.github/workflows/deploy.yml` renders a canonical request and dispatches it to
-infra2. The app waits for one correlated receiver run to succeed before
-`tools/health_check.sh` (a thin delegate to `tools/health_check.py`, which
-polls via `infra2_sdk.deploy.poll_until_healthy` and layers Finance
-Report's own route-shadow diagnostics on top) polls `/api/health` for the
-target release tag. infra2
-owns Dokploy mutation, effective-config validation, and terminal rollout proof;
-Finance Report owns evidence selection and public application readiness.
+`infra2` (`deploy_v2`) owns Dokploy mutation, effective-config validation, and
+terminal rollout proof, then executes Finance Report's `staging_gate` hook slot
+(`tools/smoke_test.sh`, `staging_core_e2e`, provider connectivity, and `staging_ai_ocr`
+canary).
 
-Production release eligibility depends on the staging run's release-critical
-jobs: `Deploy Staging` and `Staging Provider Gate` must succeed for the exact
-`Deploy Staging <version_ref>` run. The automatic staging `Staging AI/OCR Gate`
-records full-provider regression evidence but does not block production after
-deploy health, non-LLM E2E, and provider connectivity have passed.
+### Production Release Train (`infra2`)
 
-### release.yml
-
-The production release line is its own manual-dispatch workflow (split out of
-`deploy.yml`, #1354). It runs under a `production-release-<version_ref>`
-concurrency group with `cancel-in-progress: false` so two production releases
-never mutate production concurrently. `deploy.yml` keeps staging deploy and the
-tag-push image promotion.
+The production release line runs through `infra2`'s release train (`deploy_v2` with
+`type=prod`, manual `workflow_dispatch` only) under a serialized concurrency group so two
+production releases never mutate production concurrently.
 
 ```yaml
 Triggers:
-  - Manual dispatch: Deploy existing release version_ref to production
-  - Manual dry-run:  Validate release prerequisites without deploy (dry_run=true)
+  - Manual dispatch in infra2: Deploy existing release version_ref from harness/repos.yaml to production
+  - Manual dry-run in infra2:  Validate release prerequisites without deploy (dry_run=true)
 
-Dry-run:    Manual -> Resolve release coordinate -> Verify release evidence -> Release lint -> Verify release image digests -> Skip production mutation
-Deploy job: Manual -> Resolve release coordinate -> Verify release evidence -> Verify release image digests -> deploy_v2 -> Health -> Smoke/E2E
+Dry-run:    Manual -> Verify release coordinate & staging evidence -> Verify release image digests -> Skip production mutation
+Deploy job: Manual -> Owner approval -> Verify release evidence & image digests -> deploy_v2 -> smoke hook
 
 URL: https://report.zitian.party
 ```
@@ -176,71 +152,45 @@ URL: https://report.zitian.party
 ## Version Release Workflow
 
 ```bash
-# Create release tag
-git tag -a v1.2.3 -m "Release v1.2.3"
+# 1. Cut release tag on origin/main (or let infra2 reconcile-iac-inputs.yml cut and pin it)
+git fetch origin main
+git tag -a v1.2.3 origin/main -m "Release v1.2.3"
 git push origin v1.2.3
-# -> Triggers deploy.yml
+# -> Triggers ci.yml#promote-release-images (verifies tag is on origin/main)
 # -> Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
 
-# Deploy to staging (manual). Dispatch it from the tag ref.
-# Release evidence accepts only a staging run whose head SHA is the tag commit.
-# A run from main has the head SHA of main and fails the release check (#2491).
-# -> gh workflow run deploy.yml --ref v1.2.3 -f target=staging -f version_ref=v1.2.3
-# -> Actions -> Deploy Staging -> Run workflow -> Use workflow from: tag v1.2.3 -> version_ref=v1.2.3
+# 2. Reconcile & deploy to staging via infra2 release train (manual workflow_dispatch)
+# -> infra2 reconcile-iac-inputs.yml updates harness/repos.yaml and dispatches staging deploy_v2 + staging_gate hook
 
-# Deploy to production (manual, after staging passes, with the owner's approval and presence)
-# -> Actions -> Release -> Run workflow -> version_ref=v1.2.3
-
-# Dry-run production release proof (manual, no production mutation)
-# -> Actions -> Release -> Run workflow -> version_ref=v1.2.3, dry_run=true
+# 3. Deploy to production via infra2 release train (manual workflow_dispatch, after staging passes, with the owner's approval and presence)
 ```
 
 A Production release waits for the owner to approve the `production`
-environment of infra2. The infra2 receiver refuses a Production request that is
-older than its age limit (`PRODUCTION_REQUEST_MAX_AGE_SECONDS` in infra2
-`libs/deploy/app_deploy_request.py`). It checks the age within one minute after
-the approval. The refusal reads `request expired: created <time>, now <time>, limit
-<n> s`. While the request waits, the transport prints the receiver run link and
-the approval deadline. The deadline keeps a margin for the start of the check.
-`common/runtime/deploy/app_deploy_transport.py` holds a copy of the limit, because
-`infra2_sdk` does not export it. After a refusal, dispatch the release again for
-the version in the notice. A new request starts a new age. The job limit of the
-release workflow covers the wait of the request and the wait of its rollback
-request (#2452).
+environment of infra2.
 
 Production app deploys must keep the image tag, Dokploy runtime
 `GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes
 the tag into backend/frontend image names by manifest-copying main-CI images in
-`deploy.yml`. `deploy_v2` then deploys that tag through
+`ci.yml` (`promote-release-images`). `deploy_v2` then deploys that tag through
 `deploy_primitive`, which sets runtime `IMAGE_TAG`, `GIT_COMMIT_SHA`, and a fresh
 per-deploy `IAC_CONFIG_HASH` so Dokploy restarts the app even when redeploying
 the same tag.
-`tools/verify_release_evidence.py` owns the shared production prerequisite
-checks for source CI, release-image publication, and exact staging proof;
 `tools/verify_release_images.py` owns backend/frontend release digest discovery.
-The dry-run and deploy jobs call the same tools so production eligibility logic
-does not fork between the two lanes.
 
 A fourth check, `--check real-corpus-eval` (`verify_real_corpus_eval`,
 `common/runtime/release_evidence.py`, #1764), verifies the most recent
 real-document extraction-accuracy/calibration evaluation is completed,
 successful, and fresh (`max_age_hours`, default 48h) — failing closed (never a
 silent pass) when the eval has never run, failed, or gone stale. Unlike the
-other three, it is not tied to `release_sha` (the real-document corpus moves
+other checks, it is not tied to `release_sha` (the real-document corpus moves
 on an operator cadence, not per-commit) and, deliberately, **is not yet wired
-into `release.yml` as a blocking step**: real PDFs are never committed (RL-6),
+into the production release gate as a blocking step**: real PDFs are never committed (RL-6),
 so no corpus exists to evaluate yet, and flipping this on is a release-behavior
 change that needs explicit sign-off once the operator has supplied at least
 one real case — not something to enable unilaterally.
 
-Both jobs set up the configured `PYTHON_VERSION` before invoking
-release-coordinate, evidence, or image-digest tools so these gates never
-depend on the runner's default Python alias.
-Before mutating production, the release workflow probes the current production
-health endpoint and records the pre-deploy version in the deploy context. The
-same artifact records deploy-health, smoke, read-only E2E, and failure-domain
-fields so a stale-version production failure can be triaged without rerunning
-business-correctness gates in production.
+Before mutating production, the release train probes the current production
+health endpoint and records the pre-deploy version in the deploy context.
 
 Dokploy deploy diagnostics must never print raw API response bodies. The shared
 shell helper redacts raw response bodies.
@@ -297,13 +247,13 @@ The host hygiene schedule is installed/updated from **infra2** (not here):
 `python -m tools.host_hygiene_schedule --ensure --server-id null` (needs
 `DOKPLOY_API_KEY`); infra2's `ops-checks` re-ensures it daily.
 
-**Hotfix flow**:
+**Hotfix flow** (strict `main`-first release train — never cut off-main tags):
 ```bash
-git checkout -b hotfix/bug v1.2.3
-git cherry-pick abc123
-git tag -a v1.2.4 -m "Hotfix: critical bug"
+# Land the fix on main through a normal PR, then tag the merged origin/main commit
+git fetch origin main
+git tag -a v1.2.4 origin/main -m "Hotfix: critical bug"
 git push origin v1.2.4
-# → Build automatically, deploy manually
+# → Promotes main-CI :<sha7> images to :v1.2.4; deploy via infra2 release train
 ```
 
 ---

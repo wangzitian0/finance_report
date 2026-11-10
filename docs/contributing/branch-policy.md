@@ -19,11 +19,11 @@
    - Every actionable review thread is resolved — human reviewer, Copilot, or `/code-review` alike. An actionable finding requests a concrete code, documentation, test, or process change; questions and informational comments do not count.
    - The protected-file checklist below holds for every protected file the PR touches. No owner quote is needed.
    - Merging does not reach **production**, and triggers no other irreversible side effect. Scope this by environment, not by "any deploy":
-     - A **staging** deploy (`.github/workflows/deploy.yml`, manual `workflow_dispatch`) is the agent's to trigger.
-     - **Production** is gated. It deploys only through the separate, manual `.github/workflows/release.yml` (`workflow_dispatch` on a pinned `version_ref` release tag).
-     - Dispatching `release.yml` with `dry_run=false` needs the owner's approval and presence for that `version_ref`. Any other action that promotes a head SHA to production needs the same approval.
+     - A **staging** deploy (`infra2` release train via `reconcile-iac-inputs.yml` / `deploy_v2`, manual `workflow_dispatch`) is the agent's to trigger.
+     - **Production** is gated in `infra2`. It deploys only through `infra2`'s release train (`deploy_v2` with `type=prod`, manual `workflow_dispatch` on a pinned `version_ref` release tag from `harness/repos.yaml`).
+     - Dispatching a production deploy (`dry_run=false`) needs the owner's approval and presence for that `version_ref`. Any other action that promotes a head SHA to production needs the same approval.
      - Approval for one `version_ref` does not carry over to another.
-     - `release.yml` with `dry_run=true` does not mutate production. The agent may run it.
+     - A production dry-run (`dry_run=true`) does not mutate production. The agent may run it.
    - The PR description's checklist is complete, and the PR references the issue it advances (or states `None`).
 
    **Protected-file checklist.** Each protected file has its own checklist instead of an owner quote:
