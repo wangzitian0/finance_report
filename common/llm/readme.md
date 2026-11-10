@@ -249,7 +249,8 @@ to the Staging live-token gates, not the offline cassette replay lane.
   overwriting the committed cassette silently.
 - **Live generalization on Staging**: live generalization on real external PDFs
   (`bankstatemently`) and the 20-PDF / 30-Flow benchmarks is enforced on Staging
-  with real `AI_API_KEY` tokens via `runtime-hooks.manifest.json`.
+  via `runtime-hooks.manifest.json`, where `AI_API_KEY` is Vault-injected on the
+  Staging VPS backend container (never required in the stateless CI hook runner).
 
 ---
 

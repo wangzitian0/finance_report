@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+from infra2_sdk.runtime.environment import EnvironmentTier, resolve_environment_tier
+
 
 class EnvTier(str, Enum):
     """One of the environments."""
@@ -30,22 +32,29 @@ APP_OWNED_TIERS: frozenset[EnvTier] = frozenset({EnvTier.LOCAL_DEV, EnvTier.LOCA
 #: The VPS tiers — provisioned by infra2.
 VPS_TIERS: frozenset[EnvTier] = frozenset({EnvTier.PREVIEW, EnvTier.STAGING, EnvTier.PRODUCTION})
 
+_SDK_TIER_TO_ENV_TIER: dict[EnvironmentTier, EnvTier] = {
+    EnvironmentTier.LOCAL_DEV: EnvTier.LOCAL_DEV,
+    EnvironmentTier.LOCAL_TEST: EnvTier.LOCAL_CI,
+    EnvironmentTier.GITHUB_CI: EnvTier.GITHUB_CI,
+    EnvironmentTier.PREVIEW: EnvTier.PREVIEW,
+    EnvironmentTier.STAGING: EnvTier.STAGING,
+    EnvironmentTier.PRODUCTION: EnvTier.PRODUCTION,
+}
+
 
 def resolve_env_tier(environment: str, *, github_actions: bool = False) -> EnvTier:
-    """Map the runtime's ENVIRONMENT value to an `EnvTier` (#1577).
+    """Map the runtime's ENVIRONMENT value to an `EnvTier` (#1577, #2905).
 
     The manifest speaks `EnvTier`; the running app knows `settings.environment`.
-    This is the single translation between them. An unknown value resolves to
-    PRODUCTION — the strictest tier — so a typo can only over-assert presence,
-    never under-assert (fail closed).
+    This is the single translation between them, delegating canonical alias and
+    preview-slot recognition (`branch-*`, `pr-*`, `commit-*`, `tag-*`) to
+    `infra2_sdk.runtime.environment.resolve_environment_tier`. An unknown value
+    resolves to PRODUCTION — the strictest tier — so a typo can only over-assert
+    presence, never under-assert (fail closed).
     """
-    normalized = environment.strip().lower()
-    if normalized in {"development", "dev", "local"}:
-        return EnvTier.LOCAL_DEV
-    if normalized in {"test", "testing", "ci"}:
-        return EnvTier.GITHUB_CI if github_actions else EnvTier.LOCAL_CI
-    if normalized == "preview":
-        return EnvTier.PREVIEW
-    if normalized == "staging":
-        return EnvTier.STAGING
-    return EnvTier.PRODUCTION
+    sdk_tier = resolve_environment_tier(
+        environment,
+        github_actions=github_actions,
+        unknown="production",
+    )
+    return _SDK_TIER_TO_ENV_TIER[sdk_tier]

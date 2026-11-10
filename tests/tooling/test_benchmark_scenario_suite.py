@@ -51,6 +51,10 @@ def test_scheduled_audit_runs_live_pdf_corpus_oracle_and_30_flow_benchmark() -> 
         in scheduled_run
     )
     assert scheduled_spec.timeout_seconds == 3600
+    for slot_name, slot in manifest.slots.items():
+        assert "AI_API_KEY" not in slot.required_env, (
+            f"Slot {slot_name!r} must not require AI_API_KEY in CI runner; AI_API_KEY is Vault-injected on the VPS (#2905)"
+        )
 
 
 
