@@ -20,6 +20,7 @@ from common.testing.benchmarks.pdf_corpus_oracle import (
     CorpusTransaction,
     compare_oracle_with_platform_reports,
     compute_independent_three_statement_oracle,
+    evaluate_three_statement_consistency,
     load_pdf_benchmark_corpus,
     main as oracle_cli_main,
     run_live_pdf_statement_verification,
@@ -477,6 +478,68 @@ def test_live_pdf_statement_verification_and_cli_runner() -> None:
     assert live_res["delete_status"] == 204
     assert live_res["comparison"]["passed"] is True
 
+    # Also test when account_id is None and source_envelope_reviewable is True (triggers POST /api/accounts)
+    mock_client.post.side_effect = [
+        _resp(201, {"id": "stmt-dbs-2"}),
+        _resp(201, {"id": "created-acc-2"}),
+        _resp(200, {"status": "confirmed"}),
+        _resp(200, {"status": "approved"}),
+    ]
+    mock_client.get.side_effect = [
+        _resp(
+            200,
+            {
+                "id": "stmt-dbs-2",
+                "status": "parsed",
+                "preclassification_in_progress": False,
+                "source_envelope_confirmation_required": False,
+                "source_envelope_reviewable": True,
+                "source_result_digest": "dig-2",
+                "account_id": None,
+                "currency": "SGD",
+                "period_start": "2025-01-01",
+                "period_end": "2025-01-31",
+                "opening_balance": "12000.00",
+                "closing_balance": "15242.05",
+            },
+        ),
+        _resp(
+            200,
+            {
+                "total_assets": "15242.05",
+                "total_liabilities": "0.00",
+                "total_equity": "12000.00",
+                "net_income": "3242.05",
+                "equation_delta": "0.00",
+                "is_balanced": True,
+            },
+        ),
+        _resp(
+            200,
+            {
+                "total_income": "6100.00",
+                "total_expenses": "2557.95",
+                "net_income": "3542.05",
+            },
+        ),
+        _resp(200, {"ending_cash": "15242.05", "net_cash_change": "3242.05"}),
+        _resp(
+            200,
+            {
+                "total_assets": "15242.05",
+                "total_liabilities": "0.00",
+                "total_equity": "12000.00",
+                "net_income": "3242.05",
+                "equation_delta": "0.00",
+                "is_balanced": True,
+            },
+        ),
+    ]
+    live_res_2 = run_live_pdf_statement_verification(
+        mock_client, dbs_jan, root_dir=REPO_ROOT
+    )
+    assert live_res_2["statement_id"] == "stmt-dbs-2"
+
     # Offline CLI execution
     assert oracle_cli_main(["--fixture", "dbs_statement_fixture"]) == 0
     assert oracle_cli_main(["--fixture", "nonexistent_fixture"]) == 2
@@ -664,6 +727,14 @@ def test_pdf_corpus_oracle_edge_branches_and_live_cli(
         "is_balanced": True,
     }
     assert pco._extract_bs_cash(bs_with_rows) == Decimal("15242.05")
+    assert pco._extract_bs_cash({"total_assets": "99.95"}) == Decimal("99.95")
+    assert pco._extract_bs_custody_closing_balance(
+        {"liabilities": [{"name": "Loan", "amount": "500.00"}]},
+        doc_type="bank_statement",
+    ) == Decimal("500.00")
+    assert pco._extract_bs_custody_closing_balance(
+        {"total_assets": "99.95"}
+    ) == Decimal("99.95")
     assert pco._extract_equity_code_amount(bs_with_rows, "3199") == Decimal("12000.00")
     assert pco._extract_equity_code_amount(bs_with_rows, "3198") == ZERO
     assert pco._extract_equity_code_amount({"total_equity": "12000.00"}, "3198") is None
@@ -725,6 +796,26 @@ def test_pdf_corpus_oracle_edge_branches_and_live_cli(
         == 0
     )
 
+    class FailRegHttpxClient(FakeHttpxClient):
+        def post(self, url: str, **kwargs: object) -> Any:
+            r = MagicMock()
+            r.status_code = 500
+            r.text = "Internal Server Error"
+            return r
+
+    monkeypatch.setattr(pco.httpx, "Client", FailRegHttpxClient)
+    assert (
+        oracle_cli_main(
+            [
+                "--app-url",
+                "https://report-staging.zitian.party",
+                "--fixture",
+                "dbs_statement_fixture",
+            ]
+        )
+        == 1
+    )
+
 
 def test_git_diff_text_handles_non_utf8_pdf_bytes_safely(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -755,3 +846,236 @@ def test_git_diff_text_handles_non_utf8_pdf_bytes_safely(
     assert captured_kwargs.get("errors") == "replace"
     assert "%PDF-1.4" in diff_out
     assert "\ufffd" in diff_out
+
+
+def test_evaluate_three_statement_consistency_with_real_fastapi_payload_shapes() -> (
+    None
+):
+    """Verify evaluate_three_statement_consistency against real FastAPI response shapes.
+
+    Covers:
+    1. bsb_001_straits_capital: Transfer Processing clearing asset line (-1902.69) + Straits Capital
+       custody line (15271.23), equity rows without explicit code attribute ("Opening Balance Equity"),
+       and nested CF summary {"beginning_cash", "ending_cash", "net_cash_change", "reconciliation_Residual": "0.00", "proof_state": "proven"}.
+    2. bsb_002_liberty_national / sg_credit_card_sgd: Credit-card liability representation and negative custody asset.
+    3. bsb_004_silk_road: Multi-currency HKD + USD statement oracle and translated SGD balance sheet.
+    4. Falsifiable rejection when CF summary.reconciliation_Residual != 0 or proof_state != "proven".
+    """
+    corpus = {
+        s.fixture_id: s
+        for s in load_pdf_benchmark_corpus(DEFAULT_MANIFEST_PATH, REPO_ROOT)
+    }
+
+    # 1. bsb_001_straits_capital (Real FastAPI shape with Processing clearing asset & nested CF summary)
+    straits = corpus["bsb_001_straits_capital"]
+    straits_oracle = compute_independent_three_statement_oracle([straits])
+    straits_bs_native = {
+        "as_of_date": "2025-01-31",
+        "currency": "SGD",
+        "assets": [
+            {"name": "Processing", "type": "ASSET", "amount": "-1902.69"},
+            {
+                "name": "Straits Capital \u2022\u20221657",
+                "type": "ASSET",
+                "amount": "15271.23",
+            },
+        ],
+        "liabilities": [],
+        "equity": [
+            {"name": "Opening Balance Equity", "type": "EQUITY", "amount": "15450.75"}
+        ],
+        "total_assets": "13368.54",
+        "total_liabilities": "0.00",
+        "total_equity": "15450.75",
+        "net_income": "-2082.21",
+        "unrealized_fx_gain_loss": "0.00",
+        "net_worth_adjustment_gain_loss": "0.00",
+        "cta_adjustment": "0.00",
+        "equation_delta": "0.00",
+        "is_balanced": True,
+    }
+    straits_is_native = {
+        "start_date": "2025-01-01",
+        "end_date": "2025-01-31",
+        "currency": "SGD",
+        "total_income": "99.46",
+        "total_expenses": "2181.67",
+        "net_income": "-2082.21",
+    }
+    straits_cf_native = {
+        "start_date": "2025-01-01",
+        "end_date": "2025-01-31",
+        "currency": "SGD",
+        "summary": {
+            "operating_activities": "-2082.21",
+            "investing_activities": "0.00",
+            "financing_activities": "0.00",
+            "net_cash_flow": "-2082.21",
+            "net_cash_change": "-179.52",
+            "beginning_cash": "15450.75",
+            "ending_cash": "13368.54",
+            "reconciliation_Residual": "0.00",
+            "proof_state": "proven",
+        },
+        "cash_bridge": {
+            "classified_activity": "-2082.21",
+            "unclassified_cash": "0.00",
+            "fx_effect": "0.00",
+            "cash_delta": "-2082.21",
+            "discrepancy": "0.00",
+            "reconciles": True,
+        },
+        "proof_state": "proven",
+    }
+    res_straits = evaluate_three_statement_consistency(
+        straits_oracle,
+        balance_sheet=straits_bs_native,
+        income_statement=straits_is_native,
+        cash_flow=straits_cf_native,
+        translated_balance_sheet=straits_bs_native,
+        retirement_cleanup_statuses=[204],
+    )
+    assert res_straits.passed is True, f"Unexpected failures: {res_straits.failures}"
+
+    # Falsifiable guard: non-zero reconciliation_Residual or unproven proof_state must fail
+    bad_cf_residual = {
+        **straits_cf_native,
+        "summary": {
+            **straits_cf_native["summary"],
+            "reconciliation_Residual": "12.50",
+        },
+    }
+    res_bad_residual = evaluate_three_statement_consistency(
+        straits_oracle,
+        balance_sheet=straits_bs_native,
+        income_statement=straits_is_native,
+        cash_flow=bad_cf_residual,
+    )
+    assert res_bad_residual.passed is False
+    assert any(
+        "cash_flow_to_balance_sheet_cash" in f for f in res_bad_residual.failures
+    )
+
+    bad_cf_unproven = {
+        **straits_cf_native,
+        "summary": {
+            **straits_cf_native["summary"],
+            "proof_state": "unproven",
+        },
+    }
+    res_bad_unproven = evaluate_three_statement_consistency(
+        straits_oracle,
+        balance_sheet=straits_bs_native,
+        income_statement=straits_is_native,
+        cash_flow=bad_cf_unproven,
+    )
+    assert res_bad_unproven.passed is False
+    assert any(
+        "cash_flow_to_balance_sheet_cash" in f for f in res_bad_unproven.failures
+    )
+
+    # 2. bsb_002_liberty_national (Credit card liability representation)
+    liberty = corpus["bsb_002_liberty_national"]
+    liberty_oracle = compute_independent_three_statement_oracle([liberty])
+    liberty_bs_liability = {
+        "as_of_date": "2025-01-31",
+        "currency": "USD",
+        "assets": [],
+        "liabilities": [
+            {
+                "name": "Liberty National Card \u2022\u20228273",
+                "type": "LIABILITY",
+                "amount": "9532.91",
+            }
+        ],
+        "equity": [
+            {"name": "Opening Balance Equity", "type": "EQUITY", "amount": "-1847.32"}
+        ],
+        "total_assets": "0.00",
+        "total_liabilities": "9532.91",
+        "total_equity": "-1847.32",
+        "net_income": "-7685.59",
+        "equation_delta": "0.00",
+        "is_balanced": True,
+    }
+    liberty_is = {
+        "total_income": "13.84",
+        "total_expenses": "7699.43",
+        "net_income": "-7685.59",
+    }
+    liberty_cf = {
+        "summary": {
+            "beginning_cash": "0.00",
+            "ending_cash": "0.00",
+            "net_cash_change": "0.00",
+            "reconciliation_Residual": "0.00",
+            "proof_state": "proven",
+        }
+    }
+    res_liberty = evaluate_three_statement_consistency(
+        liberty_oracle,
+        balance_sheet=liberty_bs_liability,
+        income_statement=liberty_is,
+        cash_flow=liberty_cf,
+        retirement_cleanup_statuses=[204],
+    )
+    assert res_liberty.passed is True, f"Unexpected failures: {res_liberty.failures}"
+
+    # 3. bsb_004_silk_road (Multi-currency HKD + USD with translated SGD BS)
+    silk = corpus["bsb_004_silk_road"]
+    silk_oracle = compute_independent_three_statement_oracle([silk])
+    silk_bs_native = {
+        "as_of_date": "2025-01-31",
+        "currency": "HKD",
+        "assets": [
+            {
+                "name": "Silk Road Banking \u2022\u20227323 (HKD)",
+                "type": "ASSET",
+                "amount": "18364.12",
+            }
+        ],
+        "liabilities": [],
+        "equity": [
+            {"name": "Opening Balance Equity", "type": "EQUITY", "amount": "42580.00"},
+            {"name": "Unexplained Statement Gap", "type": "EQUITY", "amount": "0.00"},
+        ],
+        "total_assets": "18364.12",
+        "total_liabilities": "0.00",
+        "total_equity": "42580.00",
+        "net_income": "-24215.88",
+        "equation_delta": "0.00",
+        "is_balanced": True,
+    }
+    silk_is_native = {
+        "total_income": "12500.00",
+        "total_expenses": "36715.88",
+        "net_income": "-24215.88",
+    }
+    silk_cf_native = {
+        "summary": {
+            "beginning_cash": "42580.00",
+            "ending_cash": "18364.12",
+            "net_cash_change": "-24215.88",
+            "reconciliation_Residual": "0.00",
+            "proof_state": "proven",
+        }
+    }
+    silk_bs_sgd = {
+        "as_of_date": "2025-01-31",
+        "currency": "SGD",
+        "total_assets": "3195.36",
+        "total_liabilities": "0.00",
+        "total_equity": "7408.92",
+        "net_income": "-4213.56",
+        "equation_delta": "0.00",
+        "is_balanced": True,
+    }
+    res_silk = evaluate_three_statement_consistency(
+        silk_oracle,
+        balance_sheet=silk_bs_native,
+        income_statement=silk_is_native,
+        cash_flow=silk_cf_native,
+        translated_balance_sheet=silk_bs_sgd,
+        retirement_cleanup_statuses=[204],
+    )
+    assert res_silk.passed is True, f"Unexpected failures: {res_silk.failures}"
