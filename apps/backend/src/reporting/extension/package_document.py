@@ -26,6 +26,7 @@ from src.audit import (
 )
 from src.config_app import get_effective_base_currency
 from src.extraction import (
+    StatementEvidenceType,
     StatementSourceType,
     coverage_bank_custody_account_ids,
     current_statement_disposition_policy_snapshot,
@@ -380,15 +381,18 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
 
 
 def _is_bank_statement_contribution(contribution: Any) -> bool:
-    """True for a statement source contribution of a bank statement: its custody account holds cash.
+    """True for a statement source contribution of a bank or cash-ledger statement: its custody account holds cash.
 
-    ``coverage_bank_custody_account_ids`` selects the same source type in one query, as a superset of
-    the accounts that this predicate keeps (#2646).
+    ``coverage_bank_custody_account_ids`` selects the same source/evidence types in one query, as a superset of
+    the accounts that this predicate keeps (#2646, #2879).
     """
     if contribution.contribution_type != "statement_source":
         return False
     result = getattr(contribution.payload, "source_result", None)
-    return result is not None and result.source_type is StatementSourceType.BANK
+    return result is not None and (
+        result.source_type is StatementSourceType.BANK
+        or result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+    )
 
 
 def _cash_inputs_from_contributions(
