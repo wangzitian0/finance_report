@@ -3,7 +3,7 @@
 This repo is open-and-develop for **Claude Code**, **Codex**, **OpenCode**, and
 the **Gemini / Antigravity CLI**. `AGENTS.md` is the authoritative entry point
 (`GEMINI.md` symlinks to `AGENTS.md`; no `CLAUDE.md` may exist, `dev_env#393`).
-`.agents/skills`, `.claude/skills`, and `.codex/skills` are physical skill
+`.agents/skills` and `.claude/skills` are physical skill
 directories rendered from `dev_env` and pinned by `.ws-publish/manifest.json`
 (`dev_env#348`). Do not hand-edit rendered skill files; edit their `dev_env`
 sources and run `ws-render-pr finance_report`. A few small committed config
@@ -14,12 +14,12 @@ files (`.claude/settings.json`, `.mcp.json`, `.gemini/settings.json`,
 |---|---|---|---|
 | OpenCode | `AGENTS.md` (native) | `.agents/skills/*` (rendered from `dev_env`) | `opencode.json` |
 | Claude Code | `AGENTS.md` (native; no `CLAUDE.md` may exist, dev_env#393) | `.claude/skills/*` (rendered from `dev_env`) | `.mcp.json` |
-| Codex | `AGENTS.md` (native) | `.codex/skills/*` (rendered from `dev_env`) | global only |
+| Codex | `AGENTS.md` (native) | `.agents/skills/*` (rendered from `dev_env`; no `.codex/skills`, Codex would list each skill twice) | global only |
 | Gemini / Antigravity | `GEMINI.md` → `AGENTS.md` | `.agents/skills/*` (rendered from `dev_env`) | `.gemini/settings.json` |
 
 - `../GEMINI.md` is a symlink to `../AGENTS.md`. A `CLAUDE.md` in any directory stops Claude Code from loading `AGENTS.md`, so none exists. Edit
   `AGENTS.md` via its `dev_env` source, never the symlink (and note `AGENTS.md` is policy-protected).
-- `.agents/skills/<name>`, `.claude/skills/<name>`, and `.codex/skills/<name>`
+- `.agents/skills/<name>` and `.claude/skills/<name>`
   are physical skill directories rendered from `dev_env` and pinned by
   `.ws-publish/manifest.json` (`dev_env#348`). Do not hand-edit rendered skill
   files; edit their `dev_env` sources and run `ws-render-pr finance_report`.
@@ -73,7 +73,7 @@ happens to have configured globally — the project ships an MCP baseline:
 - **Gemini / Antigravity CLI** reads the same set from `../.gemini/settings.json`.
 - **Codex** only supports global MCP (`~/.codex/config.toml`); it cannot read a
   repo-level baseline, so configure it there once per machine. (Codex *skills*,
-  unlike its MCP, are project-level via `.codex/skills`.)
+  unlike its MCP, are project-level via `.agents/skills`.)
 
 `github` needs a `GITHUB_PAT` environment variable. Use a least-privilege
 **fine-grained** PAT scoped to only the repos you need, with read-only
