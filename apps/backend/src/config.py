@@ -172,7 +172,7 @@ class Settings(BaseSettings):
         description=("Async SQLAlchemy database URL. Use postgresql+asyncpg:// for async FastAPI compatibility."),
         json_schema_extra={
             "group": "Database",
-            "vault": True,
+            "injected": True,
             "example": "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report",
         },
     )
@@ -199,7 +199,7 @@ class Settings(BaseSettings):
         description="S3 / MinIO endpoint used for storing uploaded statement files.",
         json_schema_extra={
             "group": "S3 / MinIO Storage",
-            "vault": True,
+            "injected": True,
             "example": "http://localhost:9000",
         },
     )
@@ -207,7 +207,7 @@ class Settings(BaseSettings):
         default="minio",
         validation_alias="S3_ACCESS_KEY",
         description="S3 / MinIO access key.",
-        json_schema_extra={"group": "S3 / MinIO Storage", "vault": True},
+        json_schema_extra={"group": "S3 / MinIO Storage", "injected": True},
     )
     s3_secret_key: str = Field(
         default="minio_local_secret",
@@ -215,14 +215,14 @@ class Settings(BaseSettings):
         description="S3 / MinIO secret key.",
         json_schema_extra={
             "group": "S3 / MinIO Storage",
-            "vault": True,
+            "injected": True,
             "example": "<YOUR_S3_SECRET_KEY>",
         },
     )
     s3_bucket: str = Field(
         default="statements",
         description="S3 / MinIO bucket name for uploaded statements.",
-        json_schema_extra={"group": "S3 / MinIO Storage", "vault": True},
+        json_schema_extra={"group": "S3 / MinIO Storage", "injected": True},
     )
 
     # S3 / MinIO public access (for external AI services)
@@ -239,7 +239,7 @@ class Settings(BaseSettings):
         ),
         json_schema_extra={
             "group": "S3 / MinIO Storage",
-            "vault": True,
+            "injected": True,
             "example": "https://your-public-s3-endpoint.example.com",
         },
     )
@@ -247,19 +247,19 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="S3_PUBLIC_ACCESS_KEY",
         description="Public S3 access key (falls back to internal S3 settings when unset).",
-        json_schema_extra={"group": "S3 / MinIO Storage", "vault": True},
+        json_schema_extra={"group": "S3 / MinIO Storage", "injected": True},
     )
     s3_public_secret_key: str | None = Field(
         default=None,
         validation_alias="S3_PUBLIC_SECRET_KEY",
         description="Public S3 secret key (falls back to internal S3 settings when unset).",
-        json_schema_extra={"group": "S3 / MinIO Storage", "vault": True},
+        json_schema_extra={"group": "S3 / MinIO Storage", "injected": True},
     )
     s3_public_bucket: str | None = Field(
         default=None,
         validation_alias="S3_PUBLIC_BUCKET",
         description="Public S3 bucket (falls back to internal S3 settings when unset).",
-        json_schema_extra={"group": "S3 / MinIO Storage", "vault": True},
+        json_schema_extra={"group": "S3 / MinIO Storage", "injected": True},
     )
 
     # ================================================================
@@ -273,7 +273,7 @@ class Settings(BaseSettings):
         description=("Application secret key. CRITICAL: must be set to a secure random value in production via Vault."),
         json_schema_extra={
             "group": "Security",
-            "vault": True,
+            "injected": True,
             "example": "generate_a_secure_token_for_production_here",
         },
     )
@@ -301,7 +301,7 @@ class Settings(BaseSettings):
         default="zai",
         validation_alias="AI_PROVIDER",
         description=("AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults)."),
-        json_schema_extra={"group": "AI Provider", "vault": True},
+        json_schema_extra={"group": "AI Provider", "injected": True},
     )
     ai_api_key: str = Field(
         default="",
@@ -312,7 +312,7 @@ class Settings(BaseSettings):
         description="AI provider API key (empty key = AI features disabled). Settings also reads the old name ZAI_API_KEY.",
         json_schema_extra={
             "group": "AI Provider",
-            "vault": True,
+            "injected": True,
             "store_key": "ZAI_API_KEY",
         },
     )
@@ -324,7 +324,7 @@ class Settings(BaseSettings):
         description="Logical environment name (used to differentiate environments).",
         json_schema_extra={
             "group": "App Settings",
-            "vault": True,
+            "injected": True,
             "extra_keys": ["ENV"],
         },
     )
@@ -374,7 +374,7 @@ class Settings(BaseSettings):
             "NEXT_PUBLIC_APP_URL and is used by backend components when they link "
             "back to the frontend app."
         ),
-        json_schema_extra={"group": "App Settings", "vault": True},
+        json_schema_extra={"group": "App Settings", "injected": True},
     )
 
     # CORS origins - stored as string, parsed via property
@@ -385,7 +385,7 @@ class Settings(BaseSettings):
         description=("Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001."),
         json_schema_extra={
             "group": "Security",
-            "vault": True,
+            "injected": True,
             "example": "http://localhost:3000,http://localhost:3001",
         },
     )
@@ -519,7 +519,7 @@ class Settings(BaseSettings):
             "provider API keys at rest; newest first. Empty disables DB-backed provider "
             "storage. Rotate by prepending a new key and re-encrypting all secrets."
         ),
-        json_schema_extra={"group": "AI Provider", "vault": True},
+        json_schema_extra={"group": "AI Provider", "injected": True},
     )
     llm_cassette_engage: bool = Field(
         default=False,
@@ -655,7 +655,7 @@ class Settings(BaseSettings):
         description="OTLP exporter endpoint. Optional: set in production to ship telemetry to the OTLP collector (infra2-owned).",
         json_schema_extra={
             "group": "Observability",
-            "vault": True,
+            "injected": True,
             "example": "http://platform-signoz-otel-collector:4318",
         },
     )
@@ -663,7 +663,7 @@ class Settings(BaseSettings):
         default="finance-report-backend",
         validation_alias="OTEL_SERVICE_NAME",
         description="OpenTelemetry service name.",
-        json_schema_extra={"group": "Observability", "vault": True},
+        json_schema_extra={"group": "Observability", "injected": True},
     )
     otel_resource_attributes: str | None = Field(
         default=None,
@@ -671,7 +671,7 @@ class Settings(BaseSettings):
         description="OpenTelemetry resource attributes (comma-separated key=value pairs).",
         json_schema_extra={
             "group": "Observability",
-            "vault": True,
+            "injected": True,
             "example": "deployment.environment=development",
         },
     )

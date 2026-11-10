@@ -168,7 +168,7 @@ def collect_backend_fields() -> list[dict]:
                 "value": _shown_value(field),
                 "description": (field.description or "").strip(),
                 "group": str(extra["group"]),
-                "vault": bool(extra.get("vault", False)),
+                "vault": bool(extra.get("injected", False)),
                 "extra_keys": list(extra.get("extra_keys", [])),
                 "aliases": _alias_names(field),
             }
