@@ -26,17 +26,18 @@ _PUBLISH_TRIGGERS = (
 
 
 def test_AC7_12_4_release_branches_trigger_the_publish_workflow():
-    """AC-meta.infra-boundary.3: AC7.12.4: ci.yml's push branches include release/** so release commits publish a :<sha> image."""
+    """AC-meta.infra-boundary.3: AC7.12.4: ci.yml's push branches only include main and promote-release-images verifies origin/main ancestry."""
     ci = read(".github/workflows/ci.yml")
-    # Target the actual `branches:` line(s), not a stray mention in a comment, so the
-    # contract can't false-pass (Copilot CR).
     branches_lines = [
         ln for ln in ci.splitlines() if ln.strip().startswith("branches:")
     ]
-    assert any("release/**" in ln for ln in branches_lines), (
-        "ci.yml `on.push.branches` must include release branches so release commits "
-        f"publish a `:<sha>` image (AC7.12.4, #879). branches lines: {branches_lines}"
+    assert branches_lines == ["    branches: [main]", "    branches: [main]"], (
+        "ci.yml `on.push.branches` and `on.pull_request.branches` must only include main "
+        f"(AC7.12.4, #2883). branches lines: {branches_lines}"
     )
+    promote_block = ci.split("  promote-release-images:", 1)[1]
+    assert "git fetch origin main --depth=100" in promote_block
+    assert 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' in promote_block
 
 
 def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():

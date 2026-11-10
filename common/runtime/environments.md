@@ -37,8 +37,8 @@
 | **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
-| **4** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
-| **5** | **Production** | `report.zitian.party` | Manual release, owner-approved<br>`release.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
+| **4** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`infra2` release train (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
+| **5** | **Production** | `report.zitian.party` | Manual release, owner-approved<br>`infra2` release train (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
 The app owns no PR preview environment. infra2's `deploy_v2` provisions its own
 `preview/*` slots (for example `report-branch-main`); the app consumes them as
@@ -107,16 +107,16 @@ PR validation:
 ### Production Environments (Staging + Production)
 
 **Staging** — Manually deployed from a release `version_ref`:
-- **Image deployment**: `deploy.yml` requires an existing `vX.Y.Z`
-  release tag as `version_ref`. `deploy.yml` promotes main-CI SHA
-  images to that retained release tag, then staging deploys it via `deploy_v2`.
-- Deployed to Dokploy **manually** via `deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
+- **Image deployment**: `infra2` (`reconcile-iac-inputs.yml` / `deploy_v2`) requires an existing `vX.Y.Z`
+  release tag on `origin/main` as `version_ref`. `ci.yml` (`promote-release-images`) promotes main-CI SHA
+  images to that retained release tag, then staging deploys it via `deploy_v2` and runs the `staging_gate` hook from `runtime-hooks.manifest.json`.
+- Deployed to Dokploy **manually** via `infra2` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
 - Persistent data, stable environment for QA
 - Uses dedicated DB/Redis + shared Platform (the observability backend, the S3 object store with bucket isolation)
 
 **Production** — Manual release process:
-- **Image deployment**: Built from version tags (`v1.2.3`)
-- Manual trigger after Staging validation, through `release.yml`
+- **Image deployment**: Built from version tags (`v1.2.3`) on `origin/main`
+- Manual trigger after Staging validation, through `infra2`'s release train (`deploy_v2` with `type=prod`)
 - A production deploy needs the owner's approval and presence ([branch-policy.md](../../docs/contributing/branch-policy.md) §4)
 - Most stable environment, persistent data
 - Uses dedicated DB/Redis + shared Platform
@@ -147,12 +147,12 @@ PR validation:
 
 ## Workflow Files Reference
 
-| Workflow File | Environment | Trigger | Actions |
+| Workflow / Contract | Environment | Trigger | Actions |
 |---------------|-------------|---------|---------|
 | `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
-| `.github/workflows/deploy.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
-| `.github/workflows/deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release `version_ref` via deploy_v2, then smoke/E2E/AI-OCR gates |
-| `.github/workflows/release.yml` | Production | Manual (`workflow_dispatch`) | Dry-run, or deploy an existing release `version_ref` via deploy_v2. A deploy (`dry_run=false`) needs the owner's approval and presence |
+| `.github/workflows/ci.yml` (`promote-release-images`) | Release images | Tag `vX.Y.Z` push on `origin/main` | Verify `origin/main` ancestry and promote main-CI SHA images to immutable release tags |
+| `runtime-hooks.manifest.json` (`infra2` release train) | Staging | Manual (`workflow_dispatch` in `infra2`) | Deploy an existing release `version_ref` from `harness/repos.yaml` via `deploy_v2`, then run `staging_gate` (smoke/E2E/AI-OCR) |
+| `runtime-hooks.manifest.json` (`infra2` release train) | Production | Manual (`workflow_dispatch` in `infra2`) | Dry-run, or deploy an existing release `version_ref` from `harness/repos.yaml` via `deploy_v2` and run `smoke`. A deploy (`dry_run=false`) needs the owner's approval and presence |
 
 ---
 
