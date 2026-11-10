@@ -153,7 +153,7 @@ def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() ->
     smoke_index = e2e_step.index("tools/smoke_test.sh")
     tier3_index = e2e_step.index('pytest "${STAGING_CORE_E2E_TESTS[@]}"')
     assert smoke_index < tier3_index
-    assert 'BASE_URL="$INFRA2_HOOK_APP_URL"' in e2e_step
+    assert 'bash tools/smoke_test.sh "$INFRA2_HOOK_APP_URL"' in e2e_step
 
 
 def test_AC8_18_3_test_execution_matrix_names_tier2_http_stage() -> None:
