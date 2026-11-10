@@ -77,6 +77,17 @@ def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) ->
     if not isinstance(payload, dict):
         return None
     result = StatementExtractionResult.from_payload(payload)
+    events = [
+        {
+            "date": item.transaction_date.isoformat(),
+            "description": item.description,
+            "amount": str(item.amount if item.direction == "IN" else -item.amount),
+            "direction": item.direction,
+            "currency": item.currency,
+            "raw_text": item.description,
+        }
+        for item in result.transactions
+    ]
     return {
         "source_type": result.source_type.value,
         "evidence_type": result.evidence_type.value,
@@ -85,7 +96,7 @@ def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) ->
             "institution": result.institution,
             "period_start": result.period_start.isoformat() if result.period_start is not None else None,
             "period_end": result.period_end.isoformat() if result.period_end is not None else None,
-            "currency": result.balances[0].currency if result.balances else None,
+            "currency": result.statement_currency or (result.balances[0].currency if result.balances else None),
         },
         "balances": [
             {"currency": item.currency, "opening": str(item.opening), "closing": str(item.closing)}
@@ -103,10 +114,16 @@ def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) ->
             }
             for item in result.positions
         ],
+        "transactions": events,
+        "events": events,
     }
 
 
-def _enrich_brokerage_payload_from_statement(payload: dict[str, Any], statement: StatementSummary) -> dict[str, Any]:
+def _enrich_brokerage_payload_from_statement(
+    payload: dict[str, Any],
+    statement: StatementSummary,
+    transactions: list[AtomicTransaction] | None = None,
+) -> dict[str, Any]:
     """Backfill statement metadata into a recovered extraction payload."""
     enriched = dict(payload)
     enriched.setdefault("institution", statement.institution)
@@ -118,6 +135,10 @@ def _enrich_brokerage_payload_from_statement(payload: dict[str, Any], statement:
     statement_payload.setdefault("period_end", statement.period_end.isoformat() if statement.period_end else None)
     statement_payload.setdefault("currency", statement.currency)
     enriched["statement"] = statement_payload
+    if transactions and not enriched.get("positions") and not (enriched.get("transactions") or enriched.get("events")):
+        fallback_payload = _brokerage_payload_from_statement(statement, transactions)
+        enriched["transactions"] = fallback_payload["transactions"]
+        enriched["events"] = fallback_payload["events"]
     return enriched
 
 
@@ -125,18 +146,19 @@ def _brokerage_payload_from_persisted_extraction(
     *,
     statement: StatementSummary,
     uploaded_document: UploadedDocument | None,
+    transactions: list[AtomicTransaction] | None = None,
 ) -> dict | None:
     """Load the persisted OCR extraction payload for statement-scoped imports."""
     payload = _extract_brokerage_payload_from_metadata(statement.extraction_metadata)
     if payload is not None:
-        return _enrich_brokerage_payload_from_statement(payload, statement)
+        return _enrich_brokerage_payload_from_statement(payload, statement, transactions)
 
     if uploaded_document is None:
         return None
     payload = _extract_brokerage_payload_from_metadata(uploaded_document.extraction_metadata)
     if payload is None:
         return None
-    return _enrich_brokerage_payload_from_statement(payload, statement)
+    return _enrich_brokerage_payload_from_statement(payload, statement, transactions)
 
 
 def _brokerage_import_not_ready_reason(statement: StatementSummary, transaction_count: int) -> str:

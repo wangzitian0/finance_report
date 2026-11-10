@@ -152,7 +152,7 @@ def test_global_browser_context_wires_the_guard_into_call_and_teardown_reports(
         request = _FixtureRequest(node=_Item())
         fixture = context.__wrapped__(browser, request)
 
-        assert await anext(fixture) is browser.context
+        assert await fixture.__anext__() is browser.context
         browser.context.handlers["response"](
             _Response(
                 status=429,
@@ -162,7 +162,7 @@ def test_global_browser_context_wires_the_guard_into_call_and_teardown_reports(
         )
 
         with pytest.raises(StopAsyncIteration):
-            await anext(fixture)
+            await fixture.__anext__()
         assert browser.context.closed is True
         assert request.node._e2e_rate_limit_hits == [
             RateLimitHit(method="GET", path="/api/accounts")
@@ -188,3 +188,18 @@ def test_rate_limit_guard_fails_call_and_teardown_reports(when: str, monkeypatch
 
     assert report.outcome == "failed"
     assert str(report.longrepr).startswith("E2E_RATE_LIMIT_EXHAUSTED:")
+
+
+def test_e2e_conftest_prepends_repo_root_when_absent_from_sys_path(monkeypatch) -> None:
+    """tests/e2e/conftest.py prepends ROOT to sys.path before importing repo packages (#2933)."""
+    from pathlib import Path
+
+    repo_root = str(Path(__file__).resolve().parents[2])
+    filtered_path = [
+        entry
+        for entry in sys.path
+        if str(Path(entry).resolve()) != repo_root
+    ]
+    monkeypatch.setattr(sys, "path", filtered_path)
+    conftest_mod = _load_e2e_conftest_without_optional_playwright(monkeypatch)
+    assert sys.path[0] == str(conftest_mod.ROOT)

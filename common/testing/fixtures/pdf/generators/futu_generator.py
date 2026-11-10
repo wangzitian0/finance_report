@@ -37,7 +37,12 @@ class FutuGenerator(BasePDFGenerator):
         elements.append(Paragraph("Futu Securities - Monthly Statement", header_style))
 
         period_str = period_end.strftime("%B %Y")
-        elements.append(Paragraph(f"Statement Period: {period_str}", styles["Normal"]))
+        elements.append(
+            Paragraph(
+                f"Statement Period: {period_str} ({period_start.strftime('%Y-%m-%d')} to {period_end.strftime('%Y-%m-%d')}, As of {period_end.strftime('%Y-%m-%d')})",
+                styles["Normal"],
+            )
+        )
         elements.append(Spacer(1, 20))
 
         account_no = f"Account: ****{account_last4}"
@@ -65,6 +70,25 @@ class FutuGenerator(BasePDFGenerator):
             summary_table.setStyle(self._create_table_style(summary_config))
             elements.append(summary_table)
             elements.append(Spacer(1, 20))
+
+        elements.append(Paragraph("Holdings / Positions", styles["Heading2"]))
+        elements.append(Spacer(1, 10))
+        holdings_config = self.template["tables"]["transaction_details"]
+        holdings_data = [
+            ["Symbol", "Description", "Quantity", "Price", "Market Value", "Currency"],
+            [
+                "FUTU_PORTFOLIO",
+                "Stock and options valuation",
+                "1",
+                "323,730.00",
+                "323,730.00",
+                "SGD",
+            ],
+        ]
+        holdings_table = Table(holdings_data, colWidths=[80, 170, 70, 60, 80, 50])
+        holdings_table.setStyle(self._create_table_style(holdings_config))
+        elements.append(holdings_table)
+        elements.append(Spacer(1, 20))
 
         elements.append(Paragraph("Activity and Valuation", styles["Heading2"]))
         elements.append(Spacer(1, 10))

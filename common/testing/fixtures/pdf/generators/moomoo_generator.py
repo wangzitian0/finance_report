@@ -39,7 +39,12 @@ class MoomooGenerator(BasePDFGenerator):
 
         # Statement Period
         period_str = period_end.strftime("%B %Y")
-        elements.append(Paragraph(f"Statement Period: {period_str}", styles["Normal"]))
+        elements.append(
+            Paragraph(
+                f"Statement Period: {period_str} ({period_start.strftime('%Y-%m-%d')} to {period_end.strftime('%Y-%m-%d')}, As of {period_end.strftime('%Y-%m-%d')})",
+                styles["Normal"],
+            )
+        )
         elements.append(Spacer(1, 20))
 
         # Account Info
@@ -73,6 +78,28 @@ class MoomooGenerator(BasePDFGenerator):
             summary_table.setStyle(self._create_table_style(summary_config))
             elements.append(summary_table)
             elements.append(Spacer(1, 20))
+
+        # Holdings / Positions
+        elements.append(Paragraph("Holdings / Positions", styles["Heading2"]))
+        elements.append(Spacer(1, 10))
+        holdings_config = self.template["tables"]["transaction_details"]
+        holdings_data = [
+            ["Symbol", "Description", "Quantity", "Price", "Market Value", "Currency"],
+            [
+                "FULLERTON_MMF",
+                "Fullerton SGD Money Market Fund",
+                "1250.50",
+                "1.00",
+                "1,250.50",
+                "SGD",
+            ],
+        ]
+        holdings_table = Table(
+            holdings_data, colWidths=[80, 170, 70, 60, 80, 50]
+        )
+        holdings_table.setStyle(self._create_table_style(holdings_config))
+        elements.append(holdings_table)
+        elements.append(Spacer(1, 20))
 
         # Transaction Details
         elements.append(Paragraph("Transaction Details", styles["Heading2"]))
