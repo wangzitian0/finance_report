@@ -8,10 +8,11 @@ instructions, skills, and MCP tools:
   read it natively. ``CLAUDE.md`` must not exist: it suppresses the native
   ``AGENTS.md`` load of Claude Code (dev_env#393). ``GEMINI.md`` symlinks to
   ``AGENTS.md`` for the Gemini CLI.
-* ``.agents/skills``, ``.claude/skills`` and ``.codex/skills`` hold
-  physical skill directories rendered from ``dev_env`` and pinned by
-  ``.ws-publish/manifest.json`` (dev_env#348) so every runtime discovers the
-  same SKILL.md files (agy and OpenCode read ``.agents/skills``).
+* ``.agents/skills`` and ``.claude/skills`` hold physical skill directories
+  rendered from ``dev_env`` and pinned by ``.ws-publish/manifest.json``
+  (dev_env#348) so every runtime discovers the same SKILL.md files (Codex, agy
+  and OpenCode read ``.agents/skills``). ``.codex/skills`` must not exist:
+  Codex would list each skill twice.
 * The project MCP baseline ships in ``.mcp.json`` (Claude Code),
   ``opencode.json`` (OpenCode), and ``.gemini/settings.json`` (Gemini CLI).
 
@@ -35,12 +36,11 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = ROOT / ".ws-publish" / "manifest.json"
 CANONICAL_SKILLS = ROOT / ".agents" / "skills"
 # Runtimes that receive physical skill directories rendered from dev_env and
-# pinned by .ws-publish/manifest.json (Claude Code reads .claude/skills, Codex
-# reads .codex/skills, agy and OpenCode read .agents/skills — all project-level
-# and discovered on clone).
+# pinned by .ws-publish/manifest.json (Claude Code reads .claude/skills; Codex,
+# agy and OpenCode read .agents/skills — all project-level and discovered on
+# clone).
 MIRROR_SKILL_DIRS = {
     "claude": ROOT / ".claude" / "skills",
-    "codex": ROOT / ".codex" / "skills",
     "agents": ROOT / ".agents" / "skills",
 }
 
@@ -159,7 +159,6 @@ def _verify_rendered_skills_match_manifest(root: Path = ROOT) -> None:
 
     mirror_dirs = {
         "claude": root / ".claude" / "skills",
-        "codex": root / ".codex" / "skills",
         "agents": root / ".agents" / "skills",
     }
 
@@ -205,7 +204,6 @@ def _verify_no_unmanifested_or_orphan_skill_files(root: Path = ROOT) -> None:
     leaves = _canonical_leaf_skill_dirs(root)
     mirror_dirs = {
         "claude": root / ".claude" / "skills",
-        "codex": root / ".codex" / "skills",
         "agents": root / ".agents" / "skills",
     }
 
@@ -252,6 +250,14 @@ def test_every_canonical_skill_is_mirrored() -> None:
     _verify_rendered_skills_match_manifest(ROOT)
 
 
+def test_codex_skills_mirror_does_not_exist() -> None:
+    """Codex reads .agents/skills; a .codex/skills mirror makes it list each skill twice."""
+    assert not (ROOT / ".codex" / "skills").exists(), (
+        ".codex/skills must not exist: Codex reads .agents/skills natively and "
+        "would list every repository skill twice (dev_env#673)."
+    )
+
+
 def test_no_orphan_or_broken_mirror_skill_links() -> None:
     """Every rendered skill entry is a physical directory matching .ws-publish/manifest.json."""
     _verify_no_unmanifested_or_orphan_skill_files(ROOT)
@@ -262,7 +268,7 @@ def test_rendered_skill_drift_fails_closed(tmp_path: Path) -> None:
     skill_text = "# Sample skill\n"
     skill_sha = hashlib.sha256(skill_text.encode("utf-8")).hexdigest()
     manifest_files: dict[str, str] = {}
-    for prefix in (".agents/skills", ".claude/skills", ".codex/skills"):
+    for prefix in (".agents/skills", ".claude/skills"):
         rel = f"{prefix}/audit/SKILL.md"
         p = tmp_path / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -287,7 +293,7 @@ def test_rendered_skill_drift_fails_closed(tmp_path: Path) -> None:
     claude_skill.write_text(skill_text, encoding="utf-8")
 
     # 2. Add an unmanifested file -> orphan check must fail closed.
-    extra_file = tmp_path / ".codex/skills/audit/extra.md"
+    extra_file = tmp_path / ".claude/skills/audit/extra.md"
     extra_file.write_text("orphan\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="unmanifested file"):
         _verify_no_unmanifested_or_orphan_skill_files(tmp_path)

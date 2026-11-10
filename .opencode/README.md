@@ -16,8 +16,8 @@ behavioral entry point is [`AGENTS.md`](../AGENTS.md); the multi-runtime bridge
 ## Skills
 
 The project skill library lives in `.agents/skills/`, managed via `dev_env`
-SSOT and published as physical files across `.agents/skills/`, `.claude/skills/`,
-and `.codex/skills/` through `ws_publish.py` (guard:
+SSOT and published as physical files across `.agents/skills/` and `.claude/skills/`
+through `ws_publish.py` (guard:
 `tests/tooling/test_agent_runtime_symlinks.py`).
 
 ## Agents & models
