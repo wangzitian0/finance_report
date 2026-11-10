@@ -297,6 +297,7 @@ CONTRACT = PackageContract(
         "posted_statement_source_ids",
         "prune_candidates",
         "reject_match",
+        "release_transaction_dispositions",
         "resolve_check",
         "run_all_consistency_checks",
         "score_amount",

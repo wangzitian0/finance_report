@@ -866,6 +866,7 @@ async def delete_statement(
         await retire_statement(
             db,
             RetireStatementCommand(statement_id=statement_id, user_id=user_id),
+            dependencies=compose_statement_posting_dependencies(),
         )
         await db.commit()
     except ValueError as exc:

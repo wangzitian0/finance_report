@@ -13,7 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -48,6 +48,7 @@ from src.extraction.base.types import (
     StatementIngestionConfigurationError,
     StatementPostingOutcome,
     StatementPostingStatus,
+    extract_source_document_ids,
 )
 from src.extraction.base.validation import (
     HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
@@ -72,6 +73,7 @@ from src.extraction.extension.transaction_classification import (
     classify_statement_by_effective_policy,
     try_lock_statement_classification,
 )
+from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
@@ -114,6 +116,10 @@ TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
 #: system accept the suggestions (#2405). It returns the number of legs. Reconciliation owns the leg, so
 #: composition supplies this port.
 NamedTransferPoster = Callable[[AsyncSession, UUID, Sequence[AtomicTransaction]], Awaitable[int]]
+#: Supersedes the active reconciliation matches of the rows that a rejected or retired statement released, and
+#: returns the number of matches that changed (#2888). Reconciliation owns the matches, so composition supplies
+#: this port. Arguments: session, user id, row ids, reason.
+ReconciliationRelease = Callable[[AsyncSession, UUID, Sequence[UUID], str], Awaitable[int]]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -126,6 +132,7 @@ class StatementPostingDependencies:
     trace_emitter_factory: TraceEmitterFactory
     disposition_mode: DispositionMode
     post_named_transfers: NamedTransferPoster | None = None
+    release_reconciliation: ReconciliationRelease | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -687,16 +694,87 @@ def _signed_line_amount(line: JournalLine, *, debit_normal: bool) -> Decimal:
     return line.amount if (line.direction == Direction.DEBIT) == debit_normal else -line.amount
 
 
-async def void_statement_posted_entries(
+async def _rows_kept_by_other_statements(
+    db: AsyncSession,
+    statement: StatementSummary,
+    user_id: UUID,
+    transactions: Sequence[AtomicTransaction],
+    *,
+    was_approved: bool,
+) -> set[UUID]:
+    """Ids of the rows that another statement of the same or a higher review state still contains (#2888).
+
+    Another statement counts only when a row lists its document. When ``was_approved`` is True, only an
+    APPROVED statement keeps the row. When it is False, every statement that is not RETIRED and not REJECTED
+    keeps the row. The membership filter applies that rule through ``include_pending_stage1``.
+    """
+    document_ids = {doc_id for txn in transactions for doc_id in extract_source_document_ids(txn.source_documents)}
+    if not document_ids:
+        return set()
+    other_statement_ids = (
+        await db.execute(
+            select(StatementSummary.id).where(
+                StatementSummary.user_id == user_id,
+                StatementSummary.id != statement.id,
+                StatementSummary.uploaded_document_id.in_(document_ids),
+            )
+        )
+    ).scalars()
+    row_ids = [txn.id for txn in transactions]
+    kept: set[UUID] = set()
+    for other_statement_id in other_statement_ids.all():
+        members = await db.execute(
+            select(AtomicTransaction.id).where(
+                AtomicTransaction.id.in_(row_ids),
+                effective_statement_transaction_filter(
+                    user_id, other_statement_id, include_pending_stage1=not was_approved
+                ),
+            )
+        )
+        kept.update(members.scalars().all())
+    return kept
+
+
+async def statement_owned_transaction_ids(
     db: AsyncSession,
     statement: StatementSummary,
     user_id: UUID,
     *,
-    reason: str = "Statement retired",
+    was_approved: bool,
+    tolerate_unresolved_rows: bool = False,
+) -> list[UUID]:
+    """Ids of the rows that only this statement owns, so a reject or a retire releases them (#2888).
+
+    ``was_approved`` is True when the statement was APPROVED before the action. A duplicate upload shares its
+    rows with the original, and a row stays with the other statement that holds the same or a higher state.
+    When the rows cannot be resolved, ``ValueError`` propagates. With ``tolerate_unresolved_rows`` set, the
+    function logs one warning and returns no id instead.
+    """
+    try:
+        transactions = await resolve_statement_transactions(db, statement)
+    except ValueError as exc:
+        if not tolerate_unresolved_rows:
+            raise
+        logger.warning(
+            "statement.release.skipped_unresolved_rows",
+            statement_id=str(statement.id),
+            error_type=type(exc).__name__,
+        )
+        return []
+    if not transactions:
+        return []
+    kept = await _rows_kept_by_other_statements(db, statement, user_id, transactions, was_approved=was_approved)
+    return [txn.id for txn in transactions if txn.id not in kept]
+
+
+async def _void_entries_of_transactions(
+    db: AsyncSession,
+    user_id: UUID,
+    txn_ids: Sequence[UUID],
+    *,
+    reason: str,
 ) -> int:
-    """Void all active journal entries posted for a statement's transactions (#2832)."""
-    transactions = await resolve_statement_transactions(db, statement)
-    txn_ids = [txn.id for txn in transactions]
+    """Void every live entry whose source is one of the rows. Return the number of voided entries."""
     if not txn_ids:
         return 0
     base_currency = await get_effective_base_currency(db, user_id=user_id)
@@ -729,6 +807,41 @@ async def void_statement_posted_entries(
         )
         voided += 1
     return voided
+
+
+async def release_statement_ledger_effects(
+    db: AsyncSession,
+    statement: StatementSummary,
+    user_id: UUID,
+    *,
+    was_approved: bool,
+    reason: str,
+    dependencies: StatementPostingDependencies | None,
+    tolerate_unresolved_rows: bool = False,
+) -> int:
+    """Release the rows that only this statement owns after a reject or a retire (#2888).
+
+    The active matches of a row become SUPERSEDED first, then the live entries of the row become VOID.
+    Return the number of voided entries. When the rows cannot be resolved, ``ValueError`` propagates.
+    With ``tolerate_unresolved_rows`` set, the release logs one warning and returns 0 instead.
+    """
+    # The status of the other statement decides who owns a shared row. Two releases of one user must not decide at
+    # the same time, or each keeps the row for the other and no statement owns it (#2888).
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": f"statement-release:{user_id}"}
+    )
+    owned = await statement_owned_transaction_ids(
+        db,
+        statement,
+        user_id,
+        was_approved=was_approved,
+        tolerate_unresolved_rows=tolerate_unresolved_rows,
+    )
+    if not owned:
+        return 0
+    if dependencies is not None and dependencies.release_reconciliation is not None:
+        await dependencies.release_reconciliation(db, user_id, owned, reason)
+    return await _void_entries_of_transactions(db, user_id, owned, reason=reason)
 
 
 async def _active_gap_plug_entries_for_account(

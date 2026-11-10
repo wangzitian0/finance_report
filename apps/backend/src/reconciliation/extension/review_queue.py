@@ -1,5 +1,6 @@
 """Reconciliation-match review queue: accept/reject/batch-accept + Stage 2 listing."""
 
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Literal, cast
 from uuid import UUID
@@ -244,6 +245,43 @@ async def supersede_transaction_transfer_legs(
             )
 
     await db.flush()
+
+
+async def release_transaction_dispositions(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    transaction_ids: Sequence[UUID],
+    reason: str,
+) -> int:
+    """Supersede the active matches of rows that a rejected or retired statement released (#2888).
+
+    The caller names only rows that no other statement keeps. The call reads the rows of ``user_id`` alone.
+    It voids no entry: the statement owner voids the entries after this call. A superseded match leaves
+    every reader of current dispositions, so a transfer pair that held it is no longer a current pair.
+    Return the number of matches that changed.
+    """
+    if not transaction_ids:
+        return 0
+    result = await db.execute(
+        select(ReconciliationMatch)
+        .join(AtomicTransaction, AtomicTransaction.id == ReconciliationMatch.atomic_txn_id)
+        .where(
+            AtomicTransaction.user_id == user_id,
+            ReconciliationMatch.atomic_txn_id.in_(list(transaction_ids)),
+            ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)),
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
+        .order_by(ReconciliationMatch.id)
+        .with_for_update(of=ReconciliationMatch)
+    )
+    matches = list(result.scalars().all())
+    for match in matches:
+        match.status = ReconciliationStatus.SUPERSEDED
+        match.version += 1
+    await db.flush()
+    logger.info("Released reconciliation dispositions", released=len(matches), reason=reason)
+    return len(matches)
 
 
 async def apply_reconciliation_feedback(

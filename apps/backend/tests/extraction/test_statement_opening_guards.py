@@ -506,7 +506,7 @@ async def test_AC_extraction_2832_3_reconcile_chain_retirement_and_fx_plug_guard
     from src.extraction.base.source_vocabulary import BankStatementStatus
     from src.extraction.extension.statement_posting import (
         reconcile_account_statement_chain,
-        void_statement_posted_entries,
+        release_statement_ledger_effects,
     )
     from src.pricing import PricingError
 
@@ -638,8 +638,18 @@ async def test_AC_extraction_2832_3_reconcile_chain_retirement_and_fx_plug_guard
     await db.flush()
     assert await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=sgd_acc.id) is True
 
-    # 4. void_statement_posted_entries with empty transactions returns 0
-    assert await void_statement_posted_entries(db, s_sgd_mar, test_user.id) == 0
+    # 4. release_statement_ledger_effects with empty transactions returns 0
+    assert (
+        await release_statement_ledger_effects(
+            db,
+            s_sgd_mar,
+            test_user.id,
+            was_approved=True,
+            reason="Statement retired",
+            dependencies=None,
+        )
+        == 0
+    )
 
 
 async def test_audit_completeness_reconcile_chain_lifecycle_and_manual_override_guards(db, test_user):

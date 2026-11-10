@@ -236,7 +236,19 @@ def _identity(user_id: UUID, *, file_hash: str) -> SourceIdentityCommand:
     )
 
 
-def _source_result(source_digest: str) -> StatementExtractionResult:
+def _source_result(source_digest: str, *, with_fact: bool = True) -> StatementExtractionResult:
+    facts = (
+        ExtractedTransactionFact(
+            fact_id="row-1",
+            transaction_date=date(2026, 6, 15),
+            description="typed source fact",
+            amount=Decimal("1.00"),
+            direction="IN",
+            currency="SGD",
+            balance_after=None,
+            confidence=Decimal("0.90"),
+        ),
+    )
     return StatementExtractionResult.create(
         producer_version="acceptance@1",
         source_content_digest=source_digest,
@@ -247,18 +259,7 @@ def _source_result(source_digest: str) -> StatementExtractionResult:
         period_start=date(2026, 6, 1),
         period_end=date(2026, 6, 30),
         balances=(),
-        transactions=(
-            ExtractedTransactionFact(
-                fact_id="row-1",
-                transaction_date=date(2026, 6, 15),
-                description="typed source fact",
-                amount=Decimal("1.00"),
-                direction="IN",
-                currency="SGD",
-                balance_after=None,
-                confidence=Decimal("0.90"),
-            ),
-        ),
+        transactions=facts if with_fact else (),
         positions=(),
         confidence=Decimal("0.90"),
         balance_validated=None,
@@ -407,14 +408,17 @@ async def _history_fixture(db: AsyncSession, user_id: UUID) -> tuple[StatementSu
     statement = _summary(user_id, file_hash=document.file_hash, uploaded_document_id=document.id)
     db.add(statement)
     await db.flush()
+    # A retire resolves the rows of the statement, so the stored result must be a valid typed result (#2888).
+    # The result lists no fact: the atomic row below is history that a retire must keep.
+    typed_result = _source_result("2" * 64, with_fact=False)
     source_result = StatementExtractionResultRecord(
         user_id=user_id,
         statement_id=statement.id,
-        content_digest="1" * 64,
-        source_content_digest="2" * 64,
-        schema_version="2",
-        producer_version="acceptance",
-        payload={"kind": "source-result"},
+        content_digest=typed_result.content_digest,
+        source_content_digest=typed_result.source_content_digest,
+        schema_version=typed_result.schema_version,
+        producer_version=typed_result.producer_version,
+        payload=typed_result.to_payload(),
         source_trace_record_id=uuid4(),
         created_at=datetime.now(UTC),
     )

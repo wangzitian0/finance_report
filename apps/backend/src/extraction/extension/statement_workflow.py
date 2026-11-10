@@ -11,17 +11,18 @@ from __future__ import annotations
 import os
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import StatementPostingOutcome, StatementPostingStatus
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     auto_create_posted_entries_for_statement,
     reconcile_account_statement_chain,
+    release_statement_ledger_effects,
     try_auto_post_statement_opening_balance,
-    void_statement_posted_entries,
 )
 from src.extraction.extension.statement_validation import (
     approve_statement,
@@ -91,8 +92,26 @@ async def reject_statement_workflow(
     caller (router/background) concern and is intentionally excluded so the state
     transition stays a pure, committed unit.
     """
+    # The reject changes the status, so the status before the reject decides which statements keep a shared row.
+    # A missing statement gives None here, and ``reject_statement`` reports it.
+    status_before = (
+        await db.execute(
+            select(StatementSummary.status)
+            .where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
     statement = await reject_statement(db, statement_id, user_id, reason=reason)
-    await void_statement_posted_entries(db, statement, user_id, reason=reason or "Statement rejected")
+    # A reject of an APPROVED statement keeps a row only for another APPROVED statement.
+    # Any other reject keeps a row for every statement that is not RETIRED and not REJECTED (#2888).
+    await release_statement_ledger_effects(
+        db,
+        statement,
+        user_id,
+        was_approved=status_before == BankStatementStatus.APPROVED,
+        reason=reason or "Statement rejected",
+        dependencies=dependencies,
+    )
     account_id = getattr(statement, "account_id", None)
     if account_id is not None:
         await reconcile_account_statement_chain(db, user_id=user_id, account_id=account_id, dependencies=dependencies)

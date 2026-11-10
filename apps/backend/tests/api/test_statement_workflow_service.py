@@ -11,8 +11,19 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import src.routers.statements as statements_router
+from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import StatementPostingStatus
 from src.extraction.extension import statement_workflow
+
+
+class _FakeResult:
+    """The scalar result of the status read that a reject performs before the transition."""
+
+    def __init__(self, value: object) -> None:
+        self._value = value
+
+    def scalar_one_or_none(self) -> object:
+        return self._value
 
 
 class _FakeSession:
@@ -20,6 +31,15 @@ class _FakeSession:
 
     def __init__(self, calls: list) -> None:
         self._calls = calls
+
+    async def execute(self, statement: object, params: dict | None = None) -> _FakeResult | None:
+        if "pg_advisory_xact_lock" in str(statement):
+            # The release takes the advisory lock of the user before it decides which rows the statement owns (#2888).
+            assert params is not None
+            self._calls.append(("release_lock", params["key"]))
+            return None
+        self._calls.append(("read_status",))
+        return _FakeResult(BankStatementStatus.PARSED)
 
     async def commit(self) -> None:
         self._calls.append(("commit",))
@@ -69,7 +89,7 @@ async def test_statement_workflow_service(monkeypatch):
     assert outcome.created_count == 3
     assert approve_calls == [("approve_statement",), ("auto_post",), ("opening_stock",), ("commit",)]
 
-    # --- reject: transition -> commit -> refresh, returns refreshed statement ---
+    # --- reject: status read -> transition -> release lock -> commit -> refresh, returns refreshed statement ---
     reject_calls: list = []
     rejected_statement = SimpleNamespace(id=statement_id, name="rejected")
 
@@ -84,7 +104,13 @@ async def test_statement_workflow_service(monkeypatch):
         _FakeSession(reject_calls), statement_id, user_id, reason="looks wrong"
     )
     assert result is rejected_statement
-    assert reject_calls == [("reject_statement",), ("commit",), ("refresh", rejected_statement)]
+    assert reject_calls == [
+        ("read_status",),
+        ("reject_statement",),
+        ("release_lock", f"statement-release:{user_id}"),
+        ("commit",),
+        ("refresh", rejected_statement),
+    ]
 
     # --- delegation: the router uses the workflow contracts, not inline *_svc calls ---
     assert statements_router.approve_statement_workflow is statement_workflow.approve_statement_workflow

@@ -100,21 +100,30 @@ async def retire_statement(
         if document is not None and document.user_id == command.user_id:
             document.status = DocumentStatus.RETIRED
     await db.flush()
-    if was_approved:
-        from src.extraction.extension.statement_posting import (
-            reconcile_account_statement_chain,
-            void_statement_posted_entries,
-        )
+    from src.extraction.extension.statement_posting import (
+        reconcile_account_statement_chain,
+        release_statement_ledger_effects,
+    )
 
-        await void_statement_posted_entries(db, statement, command.user_id, reason="Statement retired")
-        if statement.account_id is not None:
-            await reconcile_account_statement_chain(
-                db,
-                user_id=command.user_id,
-                account_id=statement.account_id,
-                dependencies=dependencies,
-            )
-        await db.flush()
+    # A retire releases the rows that only this statement owns, whatever its earlier status (#2888).
+    # A statement that was not approved retires even when its rows cannot be resolved. An approved one fails closed.
+    await release_statement_ledger_effects(
+        db,
+        statement,
+        command.user_id,
+        was_approved=was_approved,
+        reason="Statement retired",
+        dependencies=dependencies,
+        tolerate_unresolved_rows=not was_approved,
+    )
+    if was_approved and statement.account_id is not None:
+        await reconcile_account_statement_chain(
+            db,
+            user_id=command.user_id,
+            account_id=statement.account_id,
+            dependencies=dependencies,
+        )
+    await db.flush()
     return statement
 
 

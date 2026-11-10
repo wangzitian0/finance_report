@@ -69,6 +69,7 @@ from src.reconciliation.extension.review_queue import (
     get_pending_items,
     get_stage2_queue,
     reject_match,
+    release_transaction_dispositions,
     supersede_transaction_transfer_legs,
 )
 from src.reconciliation.extension.reviewed_disposition import (
@@ -165,6 +166,7 @@ __all__ = [
     "post_named_transfer_legs",
     "prune_candidates",
     "reject_match",
+    "release_transaction_dispositions",
     "resolve_check",
     "run_all_consistency_checks",
     "score_amount",
