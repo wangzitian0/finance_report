@@ -11,7 +11,7 @@ from infra2_sdk.runtime.s3 import (
     create_s3_client,
     ensure_bucket,
     read_object_bytes,
-    redact_presigned_url as _sdk_redact_presigned_url,
+    redact_presigned_url,
 )
 
 import src.config
@@ -25,11 +25,6 @@ __all__ = ["StorageError", "StorageService", "redact_presigned_url"]
 
 class StorageError(Exception):
     """Raised when storage operations fail."""
-
-
-def redact_presigned_url(url: str | None) -> str | None:
-    """Return a log-safe form of a presigned URL."""
-    return _sdk_redact_presigned_url(url)
 
 
 class StorageService:

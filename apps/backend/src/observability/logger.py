@@ -126,29 +126,22 @@ def _build_otel_resource() -> Any:
 
     parsed_attrs = parse_key_value_pairs(settings.otel_resource_attributes)
     dep_env = parsed_attrs.get("deployment.environment") or settings.environment
-    try:
-        is_github_actions = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
-        env_tier = resolve_environment_tier(
-            dep_env,
-            github_actions=is_github_actions,
-            unknown="production",
-        ).value
-        otel_settings = OtelSettings(
-            service_name=settings.otel_service_name,
-            endpoint=settings.otel_exporter_otlp_endpoint,
-            service_version=settings.git_commit_sha,
-            environment=env_tier,
-            deployment_environment=dep_env,
-            resource_attributes=parsed_attrs,
-            enabled=bool(settings.otel_exporter_otlp_endpoint),
-        )
-        attrs = sdk_resource_attributes(otel_settings)
-    except Exception:
-        attrs = {
-            "service.name": settings.otel_service_name,
-            "service.version": settings.git_commit_sha,
-            **parsed_attrs,
-        }
+    is_github_actions = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+    env_tier = resolve_environment_tier(
+        dep_env,
+        github_actions=is_github_actions,
+        unknown="production",
+    ).value
+    otel_settings = OtelSettings(
+        service_name=settings.otel_service_name,
+        endpoint=settings.otel_exporter_otlp_endpoint,
+        service_version=settings.git_commit_sha,
+        environment=env_tier,
+        deployment_environment=dep_env,
+        resource_attributes=parsed_attrs,
+        enabled=bool(settings.otel_exporter_otlp_endpoint),
+    )
+    attrs = sdk_resource_attributes(otel_settings)
     final_attrs = {
         **attrs,
         "git.commit": settings.git_commit_sha,

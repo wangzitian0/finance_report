@@ -150,6 +150,16 @@ class TestBootloader:
 
 
 class TestBootloaderStaticConfig:
+    def test_import_boot_succeeds_without_env(self, monkeypatch):
+        """Importing and validating static config in local development succeeds when ambient ENVIRONMENT is isolated."""
+        monkeypatch.delenv("APP_ENV", raising=False)
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        from src.config import Settings
+
+        local_settings = Settings(_env_file=None)
+        with patch("src.boot.settings", local_settings):
+            assert Bootloader._check_static_config() is True
+
     def test_check_static_config_success(self, mock_settings):
         result = Bootloader._check_static_config()
         assert result is True

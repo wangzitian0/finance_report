@@ -16,6 +16,7 @@ from infra2_sdk.runtime import (
     HttpClientSettings,
     PostgresSettings,
     probe_http,
+    probe_orchestrator,
     redact_postgres_error,
 )
 from infra2_sdk.runtime.health import DependencyStatus, ProbeResult
@@ -211,8 +212,7 @@ class WorkflowEngineCheck:
             return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
         url = f"{self._api_url.rstrip('/')}/health"
         settings = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
-        result = await probe_http(url, name=self.name, settings=settings)
-        return result
+        return await probe_orchestrator(url, name=self.name, settings=settings)
 
 
 class TelemetryCheck:

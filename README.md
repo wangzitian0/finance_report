@@ -311,6 +311,7 @@ migration path is tracked in
 | [docs/project/](docs/project/) | EPIC documents (terminal residue) and project audits |
 | [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) | Concept ownership registry — routes to each owning package's `readme.md` / `contract.py` |
 | `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` | Live local AC-to-test coverage report |
+| [docs/index.md](docs/index.md) | Documentation portal and system architecture |
 | [docs/agents/](docs/agents/) | Agent workflow and red-line rules |
 
 ## License
