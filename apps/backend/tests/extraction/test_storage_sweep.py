@@ -399,3 +399,27 @@ async def test_run_storage_sweep_reads_interval_from_config():
         await run_storage_sweep(stop_event)
 
     assert observed["timeout"] == 12345
+
+
+@pytest.mark.parametrize("preview_env", ["preview", "branch-main", "pr-42"])
+async def test_storage_sweep_skipped_in_preview_environment(preview_env: str):
+    """AC-extraction.8.13: Storage sweep is skipped in preview aliases because preview shares Staging's S3 bucket (#2905)."""
+    stop_event = asyncio.Event()
+
+    with (
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.StorageService") as MockStorage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys") as mock_list,
+    ):
+        mock_settings.environment = preview_env
+        mock_settings.enable_storage_sweep = True
+        mock_settings.s3_bucket = "finance-report-staging"
+
+        deleted = await sweep_orphaned_storage_objects()
+        assert deleted == 0
+        MockStorage.assert_not_called()
+        mock_list.assert_not_called()
+
+        await run_storage_sweep(stop_event)
+        assert not stop_event.is_set()
+        MockStorage.assert_not_called()

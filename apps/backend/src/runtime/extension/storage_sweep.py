@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 import src.config
 from src.database import async_session_maker
 from src.observability import get_logger
+from src.runtime.base.tiers import EnvTier, resolve_env_tier
 from src.runtime.extension.storage import StorageError, StorageService
 
 if TYPE_CHECKING:
@@ -92,6 +93,10 @@ async def sweep_orphaned_storage_objects(
     Returns:
         Number of orphaned objects deleted.
     """
+    if resolve_env_tier(str(getattr(settings, "environment", ""))) is EnvTier.PREVIEW:
+        logger.debug("Storage sweep skipped in preview environment (shared S3 bucket)")
+        return 0
+
     if not settings.s3_bucket:
         logger.debug("Storage sweep skipped - no S3 bucket configured")
         return 0
@@ -150,6 +155,9 @@ async def run_storage_sweep(stop_event: asyncio.Event) -> None:
     """
     if not settings.enable_storage_sweep:
         logger.debug("Storage sweep disabled via ENABLE_STORAGE_SWEEP setting")
+        return
+    if resolve_env_tier(str(getattr(settings, "environment", ""))) is EnvTier.PREVIEW:
+        logger.debug("Storage sweep skipped in preview environment (shared S3 bucket)")
         return
     while not stop_event.is_set():
         try:
