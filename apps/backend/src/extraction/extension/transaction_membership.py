@@ -1,16 +1,30 @@
 """Shared effective-source membership for downstream transaction queues/actions."""
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import String, and_, case, cast, func, or_, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.selectable import CTE, Select
 
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_summary import StatementSummary
+
+
+def _materialized_cte(statement: Select[Any]) -> CTE:
+    """Return a MATERIALIZED CTE and keep its original CTE alive.
+
+    SQLAlchemy names an anonymous CTE from an object address, and prefix_with returns a copy with the same name.
+    A freed original lets a later CTE get that address and so the same name (#2899).
+    """
+    original = statement.cte()
+    materialized = original.prefix_with("MATERIALIZED", dialect="postgresql")
+    materialized._anonymous_name_owner = original  # type: ignore[attr-defined]
+    return materialized
 
 
 def effective_statement_transaction_filter(
@@ -36,7 +50,7 @@ def effective_statement_transaction_filter(
         ),
         else_=StatementExtractionResultRecord.payload,
     )
-    active_statements = (
+    active_statements = _materialized_cte(
         select(
             StatementSummary.id.label("stmt_id"),
             StatementSummary.account_id.label("account_id"),
@@ -68,8 +82,6 @@ def effective_statement_transaction_filter(
             ),
             *([StatementSummary.id == statement_id] if statement_id is not None else []),
         )
-        .cte()
-        .prefix_with("MATERIALIZED", dialect="postgresql")
     )
     active_expected_scope = case(
         (
