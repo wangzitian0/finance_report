@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import func, select, text
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.sql.selectable import CTE
+from sqlalchemy.sql.visitors import iterate
 
 from src.extraction import effective_statement_transaction_filter
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
@@ -562,3 +567,67 @@ async def test_source_documents_gin_index_and_analyze_helper(db, monkeypatch):
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.AUTOVACUUM_TUNED_TABLES == TENANT_ANALYZE_TABLES
+
+
+# SQLAlchemy names an anonymous CTE from the address of the object that created it.
+# The filter keeps that object alive on the CTE through this attribute (#2899).
+_NAME_OWNER_ATTR = "_anonymous_name_owner"
+_ANONYMOUS_CTE_NAME = re.compile(r"%\((\d+) anon\)s")
+
+
+def _filter_ctes(expression) -> list[CTE]:
+    """Return every distinct CTE object that an expression holds, in first-seen order."""
+    distinct: dict[int, CTE] = {}
+    for element in iterate(expression):
+        if isinstance(element, CTE):
+            distinct.setdefault(id(element), element)
+    return list(distinct.values())
+
+
+def _name_address(cte: CTE) -> int:
+    match = _ANONYMOUS_CTE_NAME.fullmatch(str(cte.name))
+    assert match is not None, f"CTE name is not an anonymous name: {cte.name!r}"
+    return int(match.group(1))
+
+
+@pytest.mark.parametrize(
+    ("with_statement", "include_pending_stage1"),
+    [(False, True), (True, True), (True, False)],
+    ids=["global", "scoped", "scoped-approved-only"],
+)
+def test_AC_extraction_2899_1_filter_ctes_keep_their_name_owner_alive(with_statement, include_pending_stage1):
+    """AC-extraction.2899.1: the address in each CTE name belongs to a live object that the CTE holds."""
+    expression = effective_statement_transaction_filter(
+        uuid4(),
+        uuid4() if with_statement else None,
+        include_pending_stage1=include_pending_stage1,
+    )
+
+    ctes = _filter_ctes(expression)
+
+    assert len(ctes) == 3
+    assert len({str(cte.name) for cte in ctes}) == 3
+    for cte in ctes:
+        owner = getattr(cte, _NAME_OWNER_ATTR, cte)
+        address = _name_address(cte)
+        assert address in {id(cte), id(owner)}, (
+            f"CTE {cte.name!r} (id {id(cte)}) names address {address}, "
+            f"which is not the CTE itself and not an object that the CTE holds (id {id(owner)})"
+        )
+
+
+def test_two_filter_instances_compile_in_one_query():
+    """Two filter instances in one statement compile with six distinct CTE names (#2899)."""
+    user_id = uuid4()
+    statement = select(AtomicTransaction.id).where(
+        effective_statement_transaction_filter(user_id),
+        AtomicTransaction.id.in_(
+            select(AtomicTransaction.id).where(effective_statement_transaction_filter(user_id, uuid4()))
+        ),
+    )
+
+    compiled_sql = str(statement.compile(dialect=postgresql.dialect()))
+    cte_names = re.findall(r"(anon_\d+) AS\s+(?:MATERIALIZED\s+)?\(SELECT", compiled_sql)
+
+    assert len(cte_names) == len(set(cte_names))
+    assert len(set(cte_names)) == 6
