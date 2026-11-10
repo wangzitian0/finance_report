@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 
 import pytest
 
 from common.testing.provider_review import (
     FixtureDisposition,
+    FixtureEnvelope,
     approve_statement_with_fixture_review,
 )
 
@@ -367,3 +370,122 @@ async def test_fixture_source_confirmation_fails_closed(
         )
         assert client.calls[0][2]["type"] == "ASSET"
         assert client.calls[1][2]["account_id"] == "new-custody"
+
+
+REVIEW_URL = "/api/statements/statement-1/review"
+UNMATCHED_URL = "/api/reconciliation/unmatched?statement_id=statement-1"
+
+
+def _review_flow_lookup(path: str) -> _Response:
+    if path == REVIEW_URL:
+        return _Response(
+            200, {"source_result_digest": "a" * 64, "account_id": "bank-1"}
+        )
+    if path == UNMATCHED_URL:
+        return _Response(
+            200,
+            {
+                "items": [
+                    {
+                        "id": "txn-1",
+                        "description": "Synthetic refund",
+                        "direction": "IN",
+                        "currency": "SGD",
+                    }
+                ],
+                "total": 1,
+            },
+        )
+    raise AssertionError(f"Unexpected request: {path}")
+
+
+class _ReviewFlowClient(_Client):
+    """Take the longest path of the helper: source confirmation, economic review, final approval.
+
+    That path sends both GET requests of the helper: the source review lookup and the unmatched lookup.
+    """
+
+    def __init__(self, *, get_allowed: bool) -> None:
+        super().__init__()
+        self.get_allowed = get_allowed
+
+    async def get(self, path: str) -> _Response:
+        if not self.get_allowed:
+            raise AssertionError(f"client.get must not be called: {path}")
+        self.calls.append(("GET", path, None))
+        return _review_flow_lookup(path)
+
+    async def post(self, path: str, json: dict | None = None) -> _Response:
+        if path.endswith("/review/approve") and not any(
+            call[1].endswith("/review/envelope") for call in self.calls
+        ):
+            self.calls.append(("POST", path, json))
+            return _Response(
+                400,
+                {
+                    "detail": "Current source requires explicit human confirmation before posting"
+                },
+            )
+        if path.endswith("/review/envelope"):
+            self.calls.append(("POST", path, json))
+            return _Response(200, {"id": "envelope-1"})
+        return await super().post(path, json)
+
+
+async def _run_review_flow(client: _Client, **kwargs) -> dict:
+    return await approve_statement_with_fixture_review(
+        client,
+        api_url=lambda path: f"/api{path}",
+        statement_id="statement-1",
+        transactions=[],
+        dispositions={
+            "Synthetic refund": FixtureDisposition(
+                "expense_refund", "EXPENSE", "Fixture refund"
+            )
+        },
+        envelope=FixtureEnvelope(
+            "SGD",
+            date(2026, 1, 1),
+            date(2026, 1, 31),
+            Decimal("100"),
+            Decimal("110"),
+            "Generated original facts",
+        ),
+        **kwargs,
+    )
+
+
+@pytest.mark.asyncio
+async def test_AC_testing_e2e_poll_reconnect_2_both_lookups_of_the_review_helper_use_the_injected_getter() -> (
+    None
+):
+    """AC-testing.e2e-poll-reconnect.2: the helper sends its 2 GET requests through `get`, never through `client.get`."""
+    client = _ReviewFlowClient(get_allowed=False)  # client.get raises
+    urls: list[str] = []
+
+    async def getter(url: str) -> _Response:
+        urls.append(url)
+        return _review_flow_lookup(url)
+
+    result = await _run_review_flow(client, get=getter)
+
+    assert urls == [REVIEW_URL, UNMATCHED_URL]
+    assert result["reviewed_dispositions"] == 1
+    assert [call for call in client.calls if call[0] == "GET"] == []
+    assert client.approvals == 2
+
+
+@pytest.mark.asyncio
+async def test_AC_testing_e2e_poll_reconnect_2_without_a_getter_the_review_helper_calls_client_get() -> (
+    None
+):
+    """AC-testing.e2e-poll-reconnect.2: a journey that passes no getter keeps the behavior of the helper."""
+    client = _ReviewFlowClient(get_allowed=True)
+
+    result = await _run_review_flow(client)
+
+    assert [call[1] for call in client.calls if call[0] == "GET"] == [
+        REVIEW_URL,
+        UNMATCHED_URL,
+    ]
+    assert result["reviewed_dispositions"] == 1
