@@ -224,26 +224,22 @@ the `needs_real_cassette` marker until the operator records real cassettes with
 
 Record/replay is **regression protection for KNOWN inputs only**. It does **not**
 discover new real-world document shapes, and **CI green ≠ a real unknown
-statement works**. Provider-specific correctness is the staging `-m llm` gate's
-job, not the cassette tests'.
+statement works**. Provider-specific correctness and live generalization belong
+to the Staging live-token gates, not the offline cassette replay lane.
 
-**Corrected 2026-07-10 (#1744):** this section previously said "that stays the
-staging real-doc audit loop" — investigated and found **wrong**: the staging
-canary (`tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `LLM_LIVE=1`)
-and every institution journey (`tests/e2e/test_institution_statement_journeys.py`
-etc.) extract from a `reportlab`-**generated synthetic** PDF too
-(`tools/generate_pdf_fixtures.py`), never a real one. There is currently **no**
-lane anywhere — blocking or not — that runs live extraction against a real,
-messy, institution-authored document. See #1744 for the full finding and the
-decided remaining scope. Two pieces of that scope are delivered here:
-
-- **AC-llm.14.1-3** (`apps/backend/tests/extraction/test_extraction_cassette_replay.py`):
-  a hand-authored cassette response can simulate the exact shape that broke
-  production before (#1449 missing period, #1452 quarantine-stuck) and prove it
-  reaches `ExtractionService.parse_document()` correctly through the *real*
-  cassette transport — narrower than "real document diversity", but real
-  coverage of known failure classes that #1449/#1452's own unit tests (which
-  mock `extract_financial_data()` directly) don't reach.
+- **Committed cassettes are real provider recordings**: every cassette in
+  `common/testing/fixtures/llm_cassettes/` represents recorded LLM output from
+  real provider execution (`make llm-record`,
+  `common/extraction/record_hf_cassettes.py`), validated by
+  `tools/check_llm_cassettes.py` and `tools/check_cassette_graded_eval.py`.
+  Never hand-author LLM cassettes in `common/testing/fixtures/llm_cassettes/`.
+- **Full-pipeline replay vs unit parser stubs** (**AC-llm.14.1-3**,
+  `apps/backend/tests/extraction/test_extraction_cassette_replay.py`):
+  parser error-handling tests for synthetic malformed payloads belong in unit
+  tests using unit-level stubs, whereas corpus replay journeys must exercise
+  the full `cassette.py` → `ExtractionService.parse_document` →
+  `_persist_conform_statement_summary` → approval → 3-statement reporting
+  pipeline.
 - **`common/testing/reverify_real_corpus.py`** (CLI: `tools/reverify_real_corpus.py`):
   an operator-only tool, like `make llm-record`, that re-runs a committed real
   corpus case's ORIGINAL PDF (never committed — RL-6, operator supplies the
@@ -251,6 +247,9 @@ decided remaining scope. Two pieces of that scope are delivered here:
   result against the committed one — catching an extraction-code regression or
   provider drift for a document the corpus already has, without ever
   overwriting the committed cassette silently.
+- **Live generalization on Staging**: live generalization on real external PDFs
+  (`bankstatemently`) and the 20-PDF / 30-Flow benchmarks is enforced on Staging
+  with real `AI_API_KEY` tokens via `runtime-hooks.manifest.json`.
 
 ---
 

@@ -148,6 +148,7 @@ behavior is anchored to a goal and proven by a test). The **mechanism** for
 - ❌ **NEVER** write code before the test exists
 - ❌ **NEVER** write a test without a registered AC number (a package `roadmap`
   AC, or — only for pre-existing residue — an explicitly marked EPIC-table row)
+- ❌ **NEVER** hand-author LLM cassettes under `common/testing/fixtures/llm_cassettes/` (always record from real provider runs via `make llm-record`), and remember that Staging verification requires live-token execution (`AI_API_KEY`) against the pinned commit
 - ❌ **NEVER** ship without updating the owning package's contract/readme
 
 Reference: [common/testing/tdd.md](../../common/testing/tdd.md) ·

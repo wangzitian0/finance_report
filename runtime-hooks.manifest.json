@@ -37,8 +37,8 @@
     },
     "scheduled_audit": {
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "run": "eval \"$(python tools/test_selection.py --stage staging_ai_ocr --corpus audit_replay --shell)\" && pytest \"${STAGING_AI_OCR_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_AI_OCR_MARKER\" && eval \"$(python tools/test_selection.py --stage staging_ai_ocr --corpus core_journey --shell)\" && pytest \"${STAGING_AI_OCR_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_AI_OCR_MARKER\"",
-      "timeout_seconds": 2400,
+      "run": "eval \"$(python tools/test_selection.py --stage staging_ai_ocr --corpus audit_replay --shell)\" && pytest \"${STAGING_AI_OCR_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_AI_OCR_MARKER\" && eval \"$(python tools/test_selection.py --stage staging_ai_ocr --corpus core_journey --shell)\" && pytest \"${STAGING_AI_OCR_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_AI_OCR_MARKER\" && python -m common.testing.benchmarks.pdf_corpus_oracle --app-url \"$INFRA2_HOOK_APP_URL\" --max-workers 1 && python -m common.testing.benchmarks.run_financial_scenario_benchmark --app-url \"$INFRA2_HOOK_APP_URL\" --case 1,2,3,4,5,6",
+      "timeout_seconds": 3600,
       "required_env": [
         "AI_API_KEY"
       ],
