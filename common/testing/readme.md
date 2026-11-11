@@ -16,13 +16,21 @@ machinery connecting the two (EPIC-008, issues #1556/#1557/#1558).
 path→stage classification (whose generated view is
 `common/testing/data/test-execution-matrix.yaml`, drift-gated by
 `tests/tooling/test_execution_matrix_contract.py`) and per-stage selection
-(marker expression, explicit node sets, parallelism). Workflows consume
-selection at runtime via `tools/test_selection.py --stage <stage> --shell` —
+(marker expression, explicit node sets, parallelism). Callers consume
+selection at runtime via `tools/test_selection.py --stage <stage> --run` (hook
+steps) or `--shell` (bash callers) —
 they never restate test lists (the whitelist retired by #1547
 is the canonical counterexample). Every JUnit-emitting workflow pytest command,
 including the tooling evidence producer, is registered in
 `WORKFLOW_PYTEST_CONTRACTS`; the conformance gate fails closed on either an
 unregistered live invocation or a registration with no live command.
+
+Hook steps run under `sh -lc` (dash on the runner): use
+`tools/test_selection.py ... --run`, never `eval` or a bash array (#2912).
+`--run` starts `python -m pytest` with the stage marker and forces
+`STRICT_E2E_GATES=1`. The stage env (`STAGE_ENV` in `matrix.py`) sets each env
+name that skips a critical test, so the market data test runs (#2914).
+`tests/tooling/test_hook_manifest.py` enforces these rules.
 
 [`backend_shard.py`](./backend_shard.py) (CLI: `tools/backend_shard_files.py`)
 decides which backend test files each CI shard runs: a seeded, file-level

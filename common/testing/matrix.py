@@ -18,10 +18,11 @@ issue #1556):
    a live LLM provider, and is not exclusive to the core journey lane. An
    unaudited or dependent row defaults to the specialized gates.
 
-Workflows consume the selection at runtime through
-``tools/test_selection.py --stage staging_core_e2e --shell`` (same pattern as
-``tools/staging_ai_ocr_gate_contract.py --shell``), so the workflow never
-restates the list. Charter: ``common/testing/readme.md``.
+Hook steps consume the selection at runtime through
+``tools/test_selection.py --stage staging_core_e2e --run``: the tool runs pytest
+itself, so a step needs no eval and no bash array (infra2 runs hook steps with
+``sh -lc``, #2912). ``--shell`` (bash assignments) stays for bash callers.
+Neither restates the list. Charter: ``common/testing/readme.md``.
 """
 
 from __future__ import annotations
@@ -457,6 +458,25 @@ PREVIEW_MINIMUM_E2E_MARKER = STAGING_CORE_E2E_MARKER
 
 STAGING_AI_OCR_STAGE = "staging_ai_ocr"
 
+# Env defaults of a stage that infra2 does not set; ``test_selection.py --run`` gives
+# them to the child. The retired deploy.yml set them; the move to hook slots lost
+# them and the critical market data test was SKIPPED (#2914). A critical test that
+# skips on an env name needs the name here (tests/tooling/test_hook_manifest.py).
+_CORE_E2E_ENV = {
+    "RUN_MARKET_DATA_PROVIDER_E2E": "true",
+    "MARKET_DATA_E2E_DATE": "2024-06-03",
+}
+STAGE_ENV: dict[str, dict[str, str]] = {
+    PREVIEW_MINIMUM_E2E_STAGE: _CORE_E2E_ENV,
+    STAGING_CORE_E2E_STAGE: _CORE_E2E_ENV,
+    STAGING_AI_OCR_STAGE: {},
+}
+
+
+def stage_env(stage: str) -> dict[str, str]:
+    """Return a copy of the env defaults of a selection stage."""
+    return dict(STAGE_ENV[stage])
+
 
 def staging_core_e2e_selection() -> tuple[str, ...]:
     """Derive the Staging Batch non-LLM E2E set from E2E_ROWS."""
@@ -522,14 +542,19 @@ def select_touched_e2e(changed_files: Sequence[str]) -> list[str]:
     return selected
 
 
+def touched_e2e_selection(changed_files: Sequence[str]) -> tuple[tuple[str, ...], str]:
+    """Return ``(nodes, marker)`` of the touched non-LLM E2E journeys (#2670)."""
+    return tuple(select_touched_e2e(changed_files)), STAGING_CORE_E2E_MARKER
+
+
 def emit_touched_e2e_shell(changed_files: Sequence[str]) -> str:
     """Emit bash assignments for touched non-LLM E2E journeys (#2670)."""
-    nodes = select_touched_e2e(changed_files)
+    nodes, marker = touched_e2e_selection(changed_files)
     tests = " ".join(shlex.quote(node) for node in nodes)
     return "\n".join(
         [
             f"TOUCHED_E2E_TESTS=({tests})",
-            f"TOUCHED_E2E_MARKER={shlex.quote(STAGING_CORE_E2E_MARKER)}",
+            f"TOUCHED_E2E_MARKER={shlex.quote(marker)}",
             f"TOUCHED_E2E_COUNT={len(nodes)}",
         ]
     )
@@ -549,45 +574,53 @@ SELECTIONS = {
 }
 
 
-def emit_shell(stage: str, *, corpus: str = "all") -> str:
-    """Emit bash assignments for a stage's selection (eval'd by workflows and hooks)."""
+def stage_selection(stage: str, *, corpus: str = "all") -> tuple[tuple[str, ...], str]:
+    """Return ``(nodes, marker)`` for ``emit_shell`` and ``--run``; ``corpus`` is for AI/OCR.
+
+    Raises ``ValueError`` for an unknown stage or an empty selection.
+    """
     if stage == PREVIEW_MINIMUM_E2E_STAGE:
-        nodes = preview_minimum_e2e_selection()
-        if not nodes:
-            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
-        tests = " ".join(shlex.quote(node) for node in nodes)
+        nodes, marker = preview_minimum_e2e_selection(), PREVIEW_MINIMUM_E2E_MARKER
+    elif stage == STAGING_CORE_E2E_STAGE:
+        nodes, marker = staging_core_e2e_selection(), STAGING_CORE_E2E_MARKER
+    elif stage == STAGING_AI_OCR_STAGE:
+        nodes, marker = staging_ai_ocr_selection(corpus), STAGING_AI_OCR_GATE_MARKER
+    else:
+        known = ", ".join(sorted(SELECTIONS))
+        raise ValueError(f"unknown selection stage {stage!r}; known: {known}")
+    if not nodes:
+        raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
+    return tuple(nodes), marker
+
+
+def emit_shell(stage: str, *, corpus: str = "all") -> str:
+    """Emit bash assignments for a stage's selection (bash arrays: hook steps use ``--run``)."""
+    nodes, marker = stage_selection(stage, corpus=corpus)
+    tests = " ".join(shlex.quote(node) for node in nodes)
+    quoted_marker = shlex.quote(marker)
+    if stage == PREVIEW_MINIMUM_E2E_STAGE:
         return "\n".join(
             [
                 f"PREVIEW_MINIMUM_E2E_TESTS=({tests})",
-                f"PREVIEW_MINIMUM_E2E_MARKER={shlex.quote(PREVIEW_MINIMUM_E2E_MARKER)}",
+                f"PREVIEW_MINIMUM_E2E_MARKER={quoted_marker}",
             ]
         )
     if stage == STAGING_CORE_E2E_STAGE:
-        nodes = staging_core_e2e_selection()
-        if not nodes:
-            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
-        tests = " ".join(shlex.quote(node) for node in nodes)
         return "\n".join(
             [
                 f"STAGING_CORE_E2E_TESTS=({tests})",
-                f"STAGING_CORE_E2E_MARKER={shlex.quote(STAGING_CORE_E2E_MARKER)}",
+                f"STAGING_CORE_E2E_MARKER={quoted_marker}",
                 f"STAGING_CORE_E2E_PARALLELISM={STAGING_CORE_E2E_PARALLELISM}",
             ]
         )
-    if stage == STAGING_AI_OCR_STAGE:
-        from common.testing import staging_ai_ocr_gate_contract
+    from common.testing import staging_ai_ocr_gate_contract
 
-        files = list(staging_ai_ocr_selection(corpus))
-        if not files:
-            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
-        return "\n".join(
-            [
-                staging_ai_ocr_gate_contract.emit_shell(files),
-                f"STAGING_AI_OCR_MARKER={shlex.quote(STAGING_AI_OCR_GATE_MARKER)}",
-            ]
-        )
-    known = ", ".join(sorted(SELECTIONS))
-    raise ValueError(f"unknown selection stage {stage!r}; known: {known}")
+    return "\n".join(
+        [
+            staging_ai_ocr_gate_contract.emit_shell(list(nodes)),
+            f"STAGING_AI_OCR_MARKER={quoted_marker}",
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -619,10 +652,12 @@ class WorkflowPytestContract:
     stage: str
     workflow: str
     # The exact `-m` expression the invocation must carry; None means the
-    # marker is variable-driven (derived at runtime via tools/test_selection).
+    # marker is variable-driven. A `tools/test_selection.py ... --run` line
+    # carries no `-m`: the tool applies the stage marker, which this field must equal.
     marker: str | None
     # Explicit path/node arguments the invocation must carry (empty = none:
-    # the job's cwd/addopts scope the run).
+    # the job's cwd/addopts scope the run). For a `--run` line: its `--stage`,
+    # `--corpus` and `--touched-files` arguments.
     paths: tuple[str, ...] = ()
     # Substring identifying this invocation's line uniquely in the workflow.
     anchor: str = ""
@@ -662,23 +697,23 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
     WorkflowPytestContract(
         stage="preview_minimum_e2e",
         workflow="runtime-hooks.manifest.json",
-        marker=None,
-        paths=('"${PREVIEW_MINIMUM_E2E_TESTS[@]}"',),
-        anchor="PREVIEW_MINIMUM_E2E_TESTS",
+        marker=PREVIEW_MINIMUM_E2E_MARKER,
+        paths=("--stage preview_minimum_e2e",),
+        anchor="tools/test_selection.py --stage preview_minimum_e2e --run",
     ),
     WorkflowPytestContract(
         stage="preview_touched_e2e",
         workflow="runtime-hooks.manifest.json",
-        marker=None,
-        paths=('"${TOUCHED_E2E_TESTS[@]}"',),
-        anchor="TOUCHED_E2E_TESTS",
+        marker=STAGING_CORE_E2E_MARKER,
+        paths=("--touched-files",),
+        anchor="tools/test_selection.py --touched-files",
     ),
     WorkflowPytestContract(
         stage="staging_core_e2e",
         workflow="runtime-hooks.manifest.json",
-        marker=None,  # runtime-derived: eval tools/test_selection.py --stage staging_core_e2e --shell
-        paths=('"${STAGING_CORE_E2E_TESTS[@]}"',),
-        anchor="STAGING_CORE_E2E_TESTS",
+        marker=STAGING_CORE_E2E_MARKER,
+        paths=("--stage staging_core_e2e",),
+        anchor="tools/test_selection.py --stage staging_core_e2e --run",
         precondition="tools/smoke_test.sh",
     ),
     WorkflowPytestContract(
@@ -691,16 +726,23 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
     WorkflowPytestContract(
         stage="staging_ai_ocr_gate",
         workflow="runtime-hooks.manifest.json",
-        marker=None,
-        paths=('"${STAGING_AI_OCR_TESTS[@]}"',),
-        anchor='staging_gate:pytest "${STAGING_AI_OCR_TESTS[@]}"',
+        marker=STAGING_AI_OCR_GATE_MARKER,
+        paths=("--stage staging_ai_ocr", "--corpus canary"),
+        anchor="tools/test_selection.py --stage staging_ai_ocr --corpus canary --run",
     ),
     WorkflowPytestContract(
         stage="scheduled_audit_ocr_gate",
         workflow="runtime-hooks.manifest.json",
-        marker=None,
-        paths=('"${STAGING_AI_OCR_TESTS[@]}"',),
-        anchor='scheduled_audit:pytest "${STAGING_AI_OCR_TESTS[@]}"',
+        marker=STAGING_AI_OCR_GATE_MARKER,
+        paths=("--stage staging_ai_ocr", "--corpus audit_replay"),
+        anchor="tools/test_selection.py --stage staging_ai_ocr --corpus audit_replay --run",
+    ),
+    WorkflowPytestContract(
+        stage="scheduled_audit_core_journey_gate",
+        workflow="runtime-hooks.manifest.json",
+        marker=STAGING_AI_OCR_GATE_MARKER,
+        paths=("--stage staging_ai_ocr", "--corpus core_journey"),
+        anchor="tools/test_selection.py --stage staging_ai_ocr --corpus core_journey --run",
     ),
 )
 
