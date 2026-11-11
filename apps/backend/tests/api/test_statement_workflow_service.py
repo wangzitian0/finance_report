@@ -93,9 +93,9 @@ async def production_like(monkeypatch):
     """Leave the testing environment, so that the refresh is requested. The gap between two runs is 0 s."""
     monkeypatch.setattr(statement_workflow.settings, "environment", "staging")
     monkeypatch.setenv("ENVIRONMENT", "staging")
-    monkeypatch.setattr(statement_workflow, "TENANT_STATISTICS_MIN_GAP_SECONDS", 0, raising=False)
-    monkeypatch.setattr(statement_workflow, "_refresh_task", None, raising=False)
-    monkeypatch.setattr(statement_workflow, "_refresh_requested", False, raising=False)
+    monkeypatch.setattr(statement_workflow, "TENANT_STATISTICS_MIN_GAP_SECONDS", 0)
+    monkeypatch.setattr(statement_workflow, "_refresh_task", None)
+    monkeypatch.setattr(statement_workflow, "_refresh_requested", False)
     yield
     task = statement_workflow._refresh_task
     if task is not None and not task.done():
