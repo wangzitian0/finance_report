@@ -5,7 +5,24 @@ def _write(root: Path, rel: str, content: str) -> Path: path = root / rel; path.
 def _common_lcov(root: Path, records: str) -> None: _write(root, 'coverage/common.lcov', records)
 def test_out_of_scope_files_and_absent_artifacts_are_lenient(tmp_path, capfd): 'AC-testing.diff-coverage.3'; _write(tmp_path, 'tools/some_tool.py', 'x = 1\n'); changed = {'common/testing/coverage.md': {1, 2}, 'tests/tooling/test_something.py': {5}, '.github/workflows/ci.yml': {100}, 'tools/some_tool.py': {1}}; report = dc.evaluate_diff_coverage(changed, tmp_path); assert report.files == (); assert report.skipped_components == ('tools',); assert report.measurable_lines == 0; assert report.percent is None; diff = '\n'.join(['--- a/tools/some_tool.py', '+++ b/tools/some_tool.py', '@@ -0,0 +1 @@', '+x = 1', '']); diff_file = _write(tmp_path, 'changes.diff', diff); result = subprocess.run([sys.executable, str(CLI), '--repo-root', str(tmp_path), '--diff-file', str(diff_file)], capture_output=True, text=True, cwd=REPO_ROOT); assert result.returncode == 0; assert re.search('(?i)warning.*tools', result.stdout + result.stderr); assert re.search('(?i)no measurable changed lines', result.stdout)
 def _cli_fixture(tmp_path: Path) -> Path: _common_lcov(tmp_path, '\n'.join(['SF:common/pkg/mod.py', 'DA:45,0', 'DA:50,1', 'DA:51,1', 'DA:52,2', 'DA:60,4', 'end_of_record', ''])); _write(tmp_path, 'common/pkg/newmod.py', 'import sys\nprint(sys.argv)\n'); diff = '\n'.join(['--- a/common/pkg/mod.py', '+++ b/common/pkg/mod.py', '@@ -44,0 +45 @@', '+bad = 1', '@@ -49,2 +50,3 @@', '+ok = 1', '+ok = 2', '+ok = 3', '@@ -59 +60 @@', '+ok = 4', '--- /dev/null', '+++ b/common/pkg/newmod.py', '@@ -0,0 +1,2 @@', '+import sys', '+print(sys.argv)', '']); return _write(tmp_path, 'changes.diff', diff)
-def _run_cli(tmp_path: Path, diff_file: Path, *args: str, env: dict | None=None): import os; merged_env = dict(os.environ); merged_env.update(env) if env else None; return subprocess.run([sys.executable, str(CLI), '--repo-root', str(tmp_path), '--diff-file', str(diff_file), *args], capture_output=True, text=True, cwd=REPO_ROOT, env=merged_env)
+def _run_cli(tmp_path: Path, diff_file: Path, *args: str, env: dict | None = None):
+    import contextlib
+    import io
+    import os
+    from types import SimpleNamespace
+
+    prev_env = os.environ.copy()
+    out_buf = io.StringIO()
+    err_buf = io.StringIO()
+    try:
+        if env:
+            os.environ.update(env)
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            rc = dc.main(["--repo-root", str(tmp_path), "--diff-file", str(diff_file), *args])
+    finally:
+        os.environ.clear()
+        os.environ.update(prev_env)
+    return SimpleNamespace(returncode=rc, stdout=out_buf.getvalue(), stderr=err_buf.getvalue())
 def test_cli_blocks_below_threshold_and_passes_at_or_above(tmp_path): 'AC-testing.diff-coverage.1'; diff_file = _cli_fixture(tmp_path); red = _run_cli(tmp_path, diff_file, '--threshold', '85'); assert red.returncode == 1; assert re.search('diff coverage: 57\\.1% \\(4/7 measurable changed lines covered\\)', red.stdout); assert re.search('threshold 85', red.stdout); green = _run_cli(tmp_path, diff_file, '--threshold', '50'); assert green.returncode == 0; at_threshold = _run_cli(tmp_path, diff_file, '--threshold', '57.1'); assert at_threshold.returncode == 0; env_red = _run_cli(tmp_path, diff_file, env={'DIFF_COVERAGE_THRESHOLD': '90'}); assert env_red.returncode == 1; env_green = _run_cli(tmp_path, diff_file, env={'DIFF_COVERAGE_THRESHOLD': '50'}); assert env_green.returncode == 0
 def test_red_verdict_lists_uncovered_line_ranges_and_new_file_hole(tmp_path): 'AC-testing.diff-coverage.2'; diff_file = _cli_fixture(tmp_path); result = _run_cli(tmp_path, diff_file, '--threshold', '85'); assert result.returncode == 1; assert re.search('common/pkg/mod\\.py: uncovered lines 45', result.stdout); assert re.search('common/pkg/newmod\\.py: uncovered lines 1-2', result.stdout); assert re.search('(?i)not in .*lcov|zero tests', result.stdout); _m12_tmp = tmp_path / '_m12'; _m12_tmp.mkdir(exist_ok=True); _m12_root = _tiny_git_repo(_m12_tmp); _m12_result = subprocess.run([sys.executable, str(CLI), '--repo-root', str(_m12_root), '--base', 'main', '--threshold', '85'], capture_output=True, text=True, cwd=REPO_ROOT); assert _m12_result.returncode == 0; assert re.search('diff coverage: 100\\.0% \\(2/2 measurable changed lines covered\\)', _m12_result.stdout); _m13_tmp = tmp_path / '_m13'; _m13_tmp.mkdir(exist_ok=True); _m13_result = _run_cli(_m13_tmp, _m13_tmp / 'does-not-exist.diff'); assert _m13_result.returncode == 2; _m14_tmp = tmp_path / '_m14'; _m14_tmp.mkdir(exist_ok=True); _m14_code = _main_code(['--repo-root', str(_m14_tmp), '--diff-file', str(_m14_tmp / 'nope.diff')]); assert _m14_code == 2
 def _tiny_git_repo(tmp_path: Path) -> Path:

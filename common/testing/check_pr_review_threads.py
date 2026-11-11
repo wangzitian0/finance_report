@@ -42,7 +42,7 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
 
 # Authors whose review threads are treated as blocking by default. GitHub has
 # spelled the Copilot reviewer login differently over time; cover the known
@@ -306,7 +306,7 @@ def _resolve_repo(arg_value: str | None) -> str:
     return (arg_value or os.environ.get("GITHUB_REPOSITORY") or "").strip()
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--pr-number",
@@ -340,16 +340,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate(
-        "PR-REVIEW-THREADS", lambda _repo_root: findings, [], failure_status=status
-    )
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":  # pragma: no cover

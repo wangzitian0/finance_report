@@ -36,7 +36,6 @@ are repointed at real property/invariant tests so the declared kind is honest.
 from __future__ import annotations
 
 import argparse
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -120,41 +119,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
-    repo_root = args.repo_root.resolve()
-
-    violations = proof_kind_violations(repo_root)
-    if violations:
-        for message in violations:
-            print(
-                f"::error title=AC proof-kind::{message} (see common/meta/readme.md).",
-                file=sys.stderr,
-            )
-        print(
-            f"[PROOF-KIND] FAILED: {len(violations)} tier-tagged AC(s) whose "
-            "declared proof kind violates the tier->proof matrix.",
-            file=sys.stderr,
-        )
-        return 1
-
-    print(
-        "[PROOF-KIND] PASSED: every tier-tagged AC declares a proof kind valid "
-        "for its tier (LLM-LED/LLM-ONLY never exact; HU is evidence)."
-    )
-    return 0
-
-
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
     return run_gate(
-        "AC-PROOF-KIND", lambda _repo_root: findings, [], failure_status=status
+        "AC-PROOF-KIND",
+        lambda repo_root: [
+            f"{message} (see common/meta/readme.md)."
+            for message in proof_kind_violations(repo_root)
+        ],
+        argv,
+        annotation_title="AC proof-kind",
     )
 
 

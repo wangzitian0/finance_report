@@ -29,7 +29,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
 from common.meta.extension.authority_classifier import (
     band,
     build_test_index,
@@ -97,7 +97,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     violations, report = reconcile(args.repo_root.resolve())
     for line in report:
@@ -118,16 +118,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate(
-        "AUTHORITY-RECONCILE", lambda _repo_root: findings, [], failure_status=status
-    )
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":  # pragma: no cover

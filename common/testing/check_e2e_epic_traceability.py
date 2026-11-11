@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
 from common.meta.base.gate_util import (
     display_path,
     duplicate_values,
@@ -442,7 +442,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     result = check_traceability(Path(args.repo_root), tuple(args.e2e_roots))
     report = render_report(result)
@@ -465,16 +465,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate(
-        "E2E-EPIC-TRACEABILITY", lambda _repo_root: findings, [], failure_status=status
-    )
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":

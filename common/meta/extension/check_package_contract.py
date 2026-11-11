@@ -13,8 +13,12 @@ from functools import lru_cache
 from pathlib import Path
 
 from common.meta.base.dependency_graph import build_dependency_graph
-from common.meta.base.gate_cli import run_gate
-from common.meta.base.gate_util import call_name
+from common.meta.base.gate_cli import run_cli_command
+from common.meta.base.gate_util import (
+    call_name,
+    clear_source_caches,
+    parse_ast_cached,
+)
 from common.meta.base.package_contract import (
     KIND_LAYER,
     LAYER_RANK,
@@ -53,9 +57,8 @@ class DiscoveredPackage:
         return self.impl_dir or self.spec_dir
 
 
-@lru_cache(maxsize=2048)
 def _parse_py(path: Path) -> ast.Module:
-    return ast.parse(path.read_text(encoding="utf-8"))
+    return parse_ast_cached(path)
 
 
 def _iter_py_trees(root: Path, *, skip: Path | None = None):
@@ -127,9 +130,12 @@ def _target_package_from_module(mod: str, prefixes: dict[str, str]) -> str | Non
     return None
 
 
-def _load_contract(
-    contract_path: Path, repo_root: Path = REPO_ROOT
+@lru_cache(maxsize=64)
+def _load_contract_cached(
+    path_str: str, repo_root_str: str, mtime_ns: int, size: int
 ) -> PackageContract | None:
+    contract_path = Path(path_str)
+    repo_root = Path(repo_root_str)
     backend_root = repo_root / "apps" / "backend"
     for path in (str(repo_root), str(backend_root)):
         if path not in sys.path:
@@ -144,6 +150,17 @@ def _load_contract(
     spec.loader.exec_module(module)
     contract = getattr(module, "CONTRACT", None)
     return contract if isinstance(contract, PackageContract) else None
+
+
+def _load_contract(
+    contract_path: Path, repo_root: Path = REPO_ROOT
+) -> PackageContract | None:
+    resolved_contract = contract_path.resolve()
+    resolved_root = repo_root.resolve()
+    st = resolved_contract.stat()
+    return _load_contract_cached(
+        str(resolved_contract), str(resolved_root), st.st_mtime_ns, st.st_size
+    )
 
 
 def _package_all(src_dir: Path) -> list[str]:
@@ -167,17 +184,29 @@ def _frontend_test_names(text: str) -> set[str]:
 
 
 @lru_cache(maxsize=1024)
+def _frontend_test_names_cached(path_str: str, mtime_ns: int, size: int) -> set[str]:
+    return _frontend_test_names(Path(path_str).read_text(encoding="utf-8"))
+
+
 def _frontend_test_names_for_path(path: Path) -> set[str]:
-    return _frontend_test_names(path.read_text(encoding="utf-8"))
+    resolved = path.resolve()
+    st = resolved.stat()
+    return _frontend_test_names_cached(str(resolved), st.st_mtime_ns, st.st_size)
 
 
 @lru_cache(maxsize=1024)
-def _python_test_names(path: Path) -> set[str]:
+def _python_test_names_cached(path_str: str, mtime_ns: int, size: int) -> set[str]:
     return {
         node.name
-        for node in ast.walk(_parse_py(path))
+        for node in ast.walk(parse_ast_cached(Path(path_str)))
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
+
+
+def _python_test_names(path: Path) -> set[str]:
+    resolved = path.resolve()
+    st = resolved.stat()
+    return _python_test_names_cached(str(resolved), st.st_mtime_ns, st.st_size)
 
 
 def _resolve_test(ref: str, repo_root: Path) -> str | None:
@@ -711,9 +740,10 @@ _RUN_CACHE: dict[Path, tuple[bool, list[str]]] = {}
 
 
 def clear_run_cache(target: Path | None = None) -> None:
-    _parse_py.cache_clear()
-    _python_test_names.cache_clear()
-    _frontend_test_names_for_path.cache_clear()
+    clear_source_caches()
+    _load_contract_cached.cache_clear()
+    _python_test_names_cached.cache_clear()
+    _frontend_test_names_cached.cache_clear()
     if target is not None:
         _RUN_CACHE.pop(target.resolve(), None)
     else:
@@ -724,7 +754,6 @@ def check_single_package(
     package_name: str,
     repo_root: Path = REPO_ROOT,
 ) -> tuple[bool, list[str]]:
-    _parse_py.cache_clear()
     packages = discover_packages(repo_root)
     pkg = next((p for p in packages if p.name == package_name), None)
     if pkg is None:
@@ -757,7 +786,6 @@ def run(
     if use_cache and resolved in _RUN_CACHE:
         ok, msgs = _RUN_CACHE[resolved]
         return (ok, list(msgs))
-    _parse_py.cache_clear()
     packages = discover_packages(repo_root)
     registered, prefixes, published, table_owner, model_owner = _validation_context(
         packages, repo_root
@@ -788,7 +816,7 @@ def run(
     return result
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate package contracts.")
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     args = parser.parse_args(argv)
@@ -800,16 +828,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate(
-        "PACKAGE-CONTRACT", lambda _repo_root: findings, [], failure_status=status
-    )
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -23,9 +23,7 @@ lightweight CI lint environment.
 
 from __future__ import annotations
 
-import argparse
 import ast
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -129,41 +127,11 @@ def check_directory_coverage(repo_root: Path) -> list[str]:
     return errors
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--repo-root",
-        default=str(REPO_ROOT),
-        help="Repository root to scan (default: this file's repo).",
-    )
-    args = parser.parse_args(argv)
-
-    errors = check_directory_coverage(Path(args.repo_root))
-    if errors:
-        print("[DIRECTORY COVERAGE] FAILED:", file=sys.stderr)
-        for error in errors:
-            print(f"  - {error}", file=sys.stderr)
-        return 1
-
-    print(
-        "[DIRECTORY COVERAGE] PASSED: every common/ directory is governed or excepted."
-    )
-    return 0
-
-
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
     return run_gate(
         "PACKAGE-DIRECTORY-COVERAGE",
-        lambda _repo_root: findings,
-        [],
-        failure_status=status,
+        check_directory_coverage,
+        argv,
     )
 
 

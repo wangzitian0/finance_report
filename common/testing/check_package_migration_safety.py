@@ -6,12 +6,10 @@ Python process to eliminate repeated Python runtime startup overhead in CI.
 
 from __future__ import annotations
 
-import argparse
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from common.meta.base.gate_cli import REPO_ROOT, escape_workflow_command, run_gate
+from common.meta.base.gate_cli import REPO_ROOT, run_gate
 from common.meta.extension import (
     check_authority_reconcile,
     check_draft_packages,
@@ -36,43 +34,13 @@ def violations(repo_root: Path) -> list[str]:
     return findings
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Run consolidated package migration safety gates."
-    )
-    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    args = parser.parse_args(argv)
-    findings = violations(args.repo_root.resolve())
-    if findings:
-        title = escape_workflow_command("Package Migration Safety")
-        for finding in findings:
-            print(
-                f"::error title={title}::{escape_workflow_command(finding)}",
-                file=sys.stderr,
-            )
-        print(
-            f"[PACKAGE-MIGRATION-SAFETY] FAILED: {len(findings)} violation(s).",
-            file=sys.stderr,
-        )
-        return 1
-    print("[PACKAGE-MIGRATION-SAFETY] PASSED: all 6 migration safety gates satisfied.")
-    return 0
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     """Run consolidated package migration safety gates with standard gate CLI."""
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
     return run_gate(
         "PACKAGE-MIGRATION-SAFETY",
-        lambda _repo_root: findings,
-        [],
-        failure_status=status,
+        violations,
+        argv,
+        annotation_title="Package Migration Safety",
     )
 
 

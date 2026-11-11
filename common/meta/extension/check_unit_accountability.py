@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -62,27 +61,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
-    repo_root = parse_args(list(argv or ())).repo_root.resolve()
-    findings = violations(
-        repo_root, repo_root / "common/meta/data/unit-accountability-baseline.json"
-    )
-    if findings:
-        print("[UNIT-ACCOUNTABILITY] FAILED", file=sys.stderr)
-        print("\n".join(findings), file=sys.stderr)
-        return 1
-    print("[UNIT-ACCOUNTABILITY] PASSED.")
-    return 0
-
-
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
     return run_gate(
-        "UNIT-ACCOUNTABILITY", lambda _root: findings, [], failure_status=status
+        "UNIT-ACCOUNTABILITY",
+        lambda repo_root: violations(
+            repo_root, repo_root / "common/meta/data/unit-accountability-baseline.json"
+        ),
+        argv,
     )

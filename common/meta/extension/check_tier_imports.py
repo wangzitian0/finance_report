@@ -42,7 +42,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
+from common.meta.base.gate_util import read_text_cached
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -195,7 +196,7 @@ def violations(repo_root: Path) -> list[tuple[str, str, str]]:
     """
     found: list[tuple[str, str, str]] = []
     for path in resolve_protected_files(repo_root):
-        source = path.read_text(encoding="utf-8")
+        source = read_text_cached(path)
         rel = path.relative_to(repo_root).as_posix()
         for imported, matched in forbidden_imports_in_source(source):
             found.append((rel, imported, matched))
@@ -213,7 +214,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     repo_root = args.repo_root.resolve()
 
@@ -259,16 +260,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate(
-        "TIER-IMPORTS", lambda _repo_root: findings, [], failure_status=status
-    )
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":

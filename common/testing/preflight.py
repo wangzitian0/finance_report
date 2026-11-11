@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import hashlib
+import importlib.util
+import io
 import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PY = "{python}"
@@ -558,7 +562,112 @@ def _child_env() -> dict[str, str]:
     return env
 
 
+_INPROCESS_EXCLUDED_TOOLS: frozenset[str] = frozenset({"check_mutations.py"})
+_TOOL_MODULE_CACHE: dict[Path, ModuleType] = {}
+
+
+def _resolve_inprocess_tool(argv: Sequence[str], cwd: str) -> Path | None:
+    if len(argv) < 2:
+        return None
+    exe = Path(argv[0]).name
+    if argv[0] != sys.executable and not exe.startswith("python"):
+        return None
+    if argv[1].startswith("-"):
+        return None
+    candidate = (Path(cwd) / argv[1]).resolve()
+    tools_dir = (REPO_ROOT / "tools").resolve()
+    if (
+        candidate.parent != tools_dir
+        or candidate.suffix != ".py"
+        or candidate.name in _INPROCESS_EXCLUDED_TOOLS
+        or not candidate.is_file()
+    ):
+        return None
+    return candidate
+
+
+def _load_tool_module(script_path: Path) -> ModuleType:
+    cached = _TOOL_MODULE_CACHE.get(script_path)
+    if cached is not None:
+        return cached
+    for extra in (REPO_ROOT, REPO_ROOT / "apps" / "backend"):
+        extra_str = str(extra)
+        if extra_str not in sys.path:
+            sys.path.insert(0, extra_str)
+    spec = importlib.util.spec_from_file_location(
+        f"_preflight_tool_{script_path.stem}", script_path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load tool script {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _TOOL_MODULE_CACHE[script_path] = module
+    return module
+
+
+def _run_tool_inprocess(
+    script_path: Path, args: Sequence[str], cwd: str, *, quiet: bool
+) -> int:
+    module = _load_tool_module(script_path)
+    main_fn = getattr(module, "main", None)
+    if not callable(main_fn):
+        raise AttributeError(f"{script_path} has no callable main()")
+    had_ns = "TEST_NAMESPACE" in os.environ
+    prev_ns = os.environ.get("TEST_NAMESPACE")
+    if not had_ns:
+        os.environ["TEST_NAMESPACE"] = f"preflight_{os.getpid()}"
+    prev_argv = sys.argv[:]
+    prev_cwd = Path.cwd()
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    try:
+        sys.argv = [str(script_path), *args]
+        os.chdir(cwd)
+        with (
+            contextlib.redirect_stdout(stdout_buf)
+            if quiet
+            else contextlib.nullcontext(),
+            contextlib.redirect_stderr(stderr_buf)
+            if quiet
+            else contextlib.nullcontext(),
+        ):
+            try:
+                try:
+                    result = main_fn(list(args))
+                except TypeError as exc:
+                    if "positional argument" not in str(exc):
+                        raise
+                    result = main_fn()
+            except SystemExit as exc:
+                rc = (
+                    0
+                    if exc.code is None
+                    else (exc.code if isinstance(exc.code, int) else 1)
+                )
+            else:
+                rc = int(result) if isinstance(result, int) else 0
+    finally:
+        os.chdir(prev_cwd)
+        sys.argv = prev_argv
+        if not had_ns:
+            os.environ.pop("TEST_NAMESPACE", None)
+        elif prev_ns is not None:
+            os.environ["TEST_NAMESPACE"] = prev_ns
+    if quiet and rc != 0:
+        for stream, buf in (
+            (sys.stdout, stdout_buf.getvalue()),
+            (sys.stderr, stderr_buf.getvalue()),
+        ):
+            if buf:
+                stream.write(buf)
+                stream.flush()
+    return rc
+
+
 def _exec_runner(argv: Sequence[str], cwd: str, *, quiet: bool = False) -> int:
+    tool_script = _resolve_inprocess_tool(argv, cwd)
+    if tool_script is not None:
+        return _run_tool_inprocess(tool_script, argv[2:], cwd, quiet=quiet)
     try:
         kwargs = (
             {"capture_output": True, "text": True, "errors": "replace"} if quiet else {}
@@ -654,9 +763,9 @@ def run_checks(
     """Run each check's commands, failing fast on the first non-zero command."""
     python = python or sys.executable
     root = repo_root or REPO_ROOT
-    guard_tree = (
-        runner in (_default_runner, _default_quiet_runner) or repo_root is not None
-    )
+    is_default_runner = runner in (_default_runner, _default_quiet_runner)
+    guard_tree = is_default_runner or repo_root is not None
+    dedup_results: dict[tuple[tuple[str, ...], str], bool] = {}
     results: list[CheckResult] = []
     for check in checks:
         cwd = str(root / check.cwd)
@@ -665,20 +774,37 @@ def run_checks(
             for path in changed_files
             if any(_matches(path, glob) for glob in check.globs)
         )
+        resolved_cmds = [
+            tuple(_resolve(command, python, matching_paths=matching_paths))
+            for command in check.commands
+        ]
         if ci and not quiet:
             print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
-        before_snapshot = _working_tree_snapshot(root) if guard_tree else {}
-        ok = all(
-            runner(_resolve(command, python, matching_paths=matching_paths), cwd) == 0
-            for command in check.commands
-        )
-        if guard_tree and _working_tree_snapshot(root) != before_snapshot:
-            ok = False
-            print(
-                f"::error::Gate {check.name} mutated the working tree during execution",
-                file=sys.stderr,
-                flush=True,
-            )
+        if is_default_runner and all(
+            dedup_results.get((cmd, cwd)) is True for cmd in resolved_cmds
+        ):
+            ok = True
+        else:
+            before_snapshot = _working_tree_snapshot(root) if guard_tree else {}
+            ok = True
+            for cmd in resolved_cmds:
+                if is_default_runner and dedup_results.get((cmd, cwd)) is True:
+                    continue
+                cmd_ok = runner(list(cmd), cwd) == 0
+                if not cmd_ok:
+                    ok = False
+                    break
+                if is_default_runner:
+                    dedup_results[(cmd, cwd)] = True
+            if guard_tree and _working_tree_snapshot(root) != before_snapshot:
+                ok = False
+                for cmd in resolved_cmds:
+                    dedup_results.pop((cmd, cwd), None)
+                print(
+                    f"::error::Gate {check.name} mutated the working tree during execution",
+                    file=sys.stderr,
+                    flush=True,
+                )
         if ci:
             if not quiet:
                 print("::endgroup::", flush=True)

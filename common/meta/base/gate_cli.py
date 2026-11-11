@@ -30,8 +30,11 @@ def run_gate(
 
     parser = argparse.ArgumentParser(description=f"Run the {name} repository gate.")
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
+    effective_argv = (
+        () if argv is None and "pytest" in Path(sys.argv[0]).name.lower() else argv
+    )
     try:
-        args = parser.parse_args(argv)
+        args = parser.parse_args(effective_argv)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 1
 
@@ -51,3 +54,15 @@ def run_gate(
 
     print(f"[{name}] PASSED.")
     return 0
+
+
+def run_cli_command(
+    handler: Callable[[Sequence[str] | None], int],
+    argv: Sequence[str] | None = None,
+) -> int:
+    """Execute a CLI gate handler once, translating ``SystemExit`` into exit codes."""
+
+    try:
+        return handler(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1

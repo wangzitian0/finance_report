@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from common.meta.base.gate_util import parse_ast_cached
+
 FORBIDDEN_SEGMENTS = frozenset({"orm", "observability", "database", "session"})
 FORBIDDEN_MODULES = frozenset({"sqlalchemy", "httpx", "requests", "aiohttp"})
 
@@ -23,7 +25,7 @@ def discover_impurities(backend_src: Path) -> list[str]:
     findings: list[str] = []
     for path in sorted(backend_src.glob("*/base/**/*.py")):
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = parse_ast_cached(path)
         except SyntaxError:
             continue
         rel = path.relative_to(backend_src)

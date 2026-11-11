@@ -118,3 +118,87 @@ class TestDiffScopedPytestTargets:
             return 0
         rc = preflight.run(['--tier=static', '--quiet', '--pytest-changed', '--changed', 'common/testing/preflight.py'], runner=failing_pytest_runner); assert rc == 1; out = capsys.readouterr().out; assert '[FAIL] pytest-changed:root' in out; assert 'preflight: 1 gate(s) failed: pytest-changed:root' in out
     def test_run_pytest_changed_reports_no_relevant_gates_when_zero_targets_and_gates(self, capsys): rc = preflight.run(['--tier=static', '--pytest-changed', '--changed', 'nonexistent_dir/unmatched.txt'], runner=lambda argv, cwd: 0); assert rc == 0; out = capsys.readouterr().out; assert 'preflight: no relevant gates for the current diff.' in out; capsys.readouterr(); _m1_rc = preflight.run(['--tier=static', '--quiet', '--pytest-changed', '--changed', 'tests/tooling/test_preflight.py'], runner=lambda argv, cwd: 0); assert _m1_rc == 0; _m1_out = capsys.readouterr().out; _m1_selected_count = len(preflight.select_checks(['tests/tooling/test_preflight.py'], tier='static')); assert f'preflight: all {_m1_selected_count + 1} gates passed.' in _m1_out
+
+
+class TestInProcessAndStatCacheConsolidation:
+    def test_stat_keyed_source_cache_invalidates_on_file_mutation(self, tmp_path: Path):
+        from common.meta.base.gate_util import (
+            clear_source_caches,
+            parse_ast_cached,
+            read_text_cached,
+        )
+
+        clear_source_caches()
+        target = tmp_path / "sample.py"
+        target.write_text("VALUE = 1\n", encoding="utf-8")
+        assert read_text_cached(target) == "VALUE = 1\n"
+        tree_v1 = parse_ast_cached(target)
+        assert parse_ast_cached(target) is tree_v1
+
+        target.write_text("VALUE = 42  # changed size and content\n", encoding="utf-8")
+        assert read_text_cached(target) == "VALUE = 42  # changed size and content\n"
+        tree_v2 = parse_ast_cached(target)
+        assert tree_v2 is not tree_v1
+        assert tree_v2.body[0].value.value == 42  # type: ignore[attr-defined]
+
+    def test_package_migration_safety_cli_prints_passed_once(self, capsys):
+        from common.testing import check_package_migration_safety
+
+        rc = check_package_migration_safety.main(["--repo-root", str(REPO_ROOT)])
+        captured = capsys.readouterr()
+        assert rc == 0
+        passed_lines = [
+            line for line in captured.out.splitlines() if "PASSED" in line
+        ]
+        assert len(passed_lines) == 1, captured.out
+
+    def test_default_runner_executes_python_tools_in_process_and_deduplicates_commands(
+        self, monkeypatch, capsys
+    ):
+        import subprocess
+
+        subprocess_calls: list[list[str]] = []
+        real_run = subprocess.run
+
+        def spy_run(cmd, *args, **kwargs):
+            if cmd and str(cmd[0]).endswith("python") or "tools/" in " ".join(map(str, cmd)):
+                subprocess_calls.append(list(map(str, cmd)))
+            return real_run(cmd, *args, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", spy_run)
+
+        dup_a = preflight._py_check(
+            "dup-base-purity-a",
+            ("common/*.py",),
+            "tools/check_base_purity.py",
+            why="first duplicate check",
+        )
+        dup_b = preflight._py_check(
+            "dup-base-purity-b",
+            ("common/*.py",),
+            "tools/check_base_purity.py",
+            why="second duplicate check",
+        )
+        from common.meta.extension import check_base_purity
+
+        invocations = 0
+        real_main = check_base_purity.main
+
+        def counting_main(argv=None):
+            nonlocal invocations
+            invocations += 1
+            return real_main(argv)
+
+        monkeypatch.setattr(check_base_purity, "main", counting_main)
+        preflight._TOOL_MODULE_CACHE.clear()
+
+        results = preflight.run_checks(
+            [dup_a, dup_b],
+            changed_files=("common/x.py",),
+            runner=preflight._default_quiet_runner,
+            quiet=True,
+        )
+        assert [r.ok for r in results] == [True, True]
+        assert invocations == 1
+        assert subprocess_calls == []
+        assert capsys.readouterr().out == ""

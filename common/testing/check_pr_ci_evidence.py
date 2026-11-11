@@ -22,7 +22,7 @@ from xml.etree import ElementTree
 
 from common.audit.base import TraceRecord, TraceRecordValidationError
 from common.audit.extension import TraceJUnitAdapter, TraceRecordCodec
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
 from common.testing.executed_proof import (
     executed_proof_assertion_version,
     github_execution_id,
@@ -226,7 +226,7 @@ def run_check(junit_paths: list[Path]) -> int:
     return 0
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     if not args:
         print("usage: check_pr_ci_evidence.py <junit-xml> [...]", file=sys.stderr)
@@ -235,16 +235,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate(
-        "PR-CI-EVIDENCE", lambda _repo_root: findings, [], failure_status=status
-    )
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":

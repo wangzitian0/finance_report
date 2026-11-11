@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from common.meta.base.gate_util import parse_ast_cached
+
 
 def _literal_exports(tree: ast.Module, path: Path) -> set[str]:
     value: ast.expr | None = None
@@ -51,7 +53,7 @@ def _local_module_path(backend_src: Path, package: str, module: str) -> Path | N
 def _orm_class_names(path: Path) -> set[str]:
     """Return locally-defined SQLAlchemy model names from one source module."""
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tree = parse_ast_cached(path)
     except (OSError, SyntaxError) as exc:
         raise ValueError(f"cannot parse re-export source {path}: {exc}") from exc
     return {
@@ -72,7 +74,7 @@ def _local_orm_exports(
     if path is None:
         return set()
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tree = parse_ast_cached(path)
     except (OSError, SyntaxError) as exc:
         raise ValueError(f"cannot parse re-export source {path}: {exc}") from exc
 
@@ -100,7 +102,7 @@ def discover_public_orm_exports(backend_src: Path) -> list[str]:
     for init in sorted(backend_src.glob("*/__init__.py")):
         package = init.parent.name
         try:
-            tree = ast.parse(init.read_text(encoding="utf-8"), filename=str(init))
+            tree = parse_ast_cached(init)
         except (OSError, SyntaxError) as exc:
             raise ValueError(f"cannot parse package root {init}: {exc}") from exc
         exports = _literal_exports(tree, init)
