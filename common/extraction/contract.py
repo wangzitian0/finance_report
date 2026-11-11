@@ -744,6 +744,7 @@ source-lifecycle.9|Governance detail derives detector, proof-strength, exact tar
 2888.2|Retire_statement releases the ledger entries and the reconciliation matches of the rows that a statement alone owns, also.|$be/reconciliation/test_statement_release.py::test_AC_extraction_2888_2_retire_of_parsed_statement_releases_its_transfer_leg
 2723.1|Persist_statement_extraction_result re-applies the active ReviewedStatementEnvelope projection.|$be/extraction/test_source_envelope_confirmation.py::test_AC_extraction_2723_1_same_digest_retry_and_reconfirm_preserve_reviewed_envelope_projection|P1:invariant
 2899.1|Each CTE of effective_statement_transaction_filter keeps alive the object whose address forms its anonymous name.|$be/extraction/test_transaction_membership.py::test_AC_extraction_2899_1_filter_ctes_keep_their_name_owner_alive
+2970.1|Statement approval returns before the planner statistics refresh ends. A background task coalesces requests, bounds the run with two timeouts, and logs a failure.|$be/api/test_statement_workflow_service.py::test_AC_extraction_2970_1_approve_returns_while_the_refresh_is_pending|P1
 """,
     ),
     concepts=concepts(
