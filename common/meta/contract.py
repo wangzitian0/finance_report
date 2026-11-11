@@ -137,7 +137,7 @@ migration-risk.4||test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_co
 migration-risk.5||test_AC7_11_5_low_and_medium_migrations_are_auto_classified
 @$t/test_post_merge_e2e_gates.py
 release-pipeline.1||test_AC7_10_production_release_promotes_not_rebuilds|:property
-infra-boundary.1|Finance Report declares runtime-hooks.manifest.json for infra2-sdk v3.27.0 and does not read or execute infra2 source.|test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge
+infra-boundary.1|Finance Report declares runtime-hooks.manifest.json for infra2-sdk v3.28.0 and does not read or execute infra2 source.|test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge
 infra-boundary.2|Infra2 owns compose, data persistence, Vault injection.|^
 @$t/test_publish_only_contract.py|P1
 infra-boundary.3||test_AC7_12_4_release_branches_trigger_the_publish_workflow

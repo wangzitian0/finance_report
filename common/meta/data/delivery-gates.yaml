@@ -58,10 +58,10 @@ gates:
 
   - id: production-release
     workflow: runtime-hooks.manifest.json
-    job: smoke
+    job: prod_gate
     trigger: workflow_dispatch
     blocking: false
     image_free: true              # consumes existing release version_ref images; no rebuild
     description: >
-      Deploy an existing staging-validated release version_ref to production via infra2
-      and run the smoke hook slot.
+      Deploy an existing staging-validated release version_ref to production via infra2,
+      verify deploy liveness via smoke, and run the prod_gate hook slot.

@@ -294,13 +294,17 @@ def runtime_hooks_gate_errors(
         return [f"runtime-hooks.manifest.json: {error}"]
 
     errors: list[str] = []
+    if hooks.schema_version != 2:
+        errors.append(
+            f"runtime-hooks.manifest.json: expected schema_version 2, got {hooks.schema_version!r}"
+        )
     if hooks.service != "finance_report/app":
         errors.append(
             f"runtime-hooks.manifest.json: expected service 'finance_report/app', got {hooks.service!r}"
         )
     if not callable(run_hook_slot):
         errors.append("infra2_sdk.manifests.run_hook_slot is not callable")
-    for slot_name in ("smoke", "preview_gate", "staging_gate", "scheduled_audit"):
+    for slot_name in ("smoke", "preview_gate", "staging_gate", "prod_gate", "scheduled_audit"):
         if slot_name not in hooks.slots:
             errors.append(f"runtime-hooks.manifest.json: missing slot {slot_name!r}")
 

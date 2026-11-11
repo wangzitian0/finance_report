@@ -39,7 +39,6 @@ REPO_ROOT = ROOT_DIR
 SUPPLEMENTAL_LLM_FILES = ["tests/e2e/test_statement_upload_e2e.py"]
 CANARY_FILES = [
     "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
-    "tests/e2e/test_institution_statement_journeys.py",
 ]
 CORE_JOURNEY_MAP_PATH = ROOT_DIR / "common/testing/data/core-journey-checkpoints.json"
 CORE_JOURNEY_LAST = ("tests/e2e/test_twelve_month_journey.py",)
