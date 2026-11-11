@@ -7,8 +7,8 @@
       "timeout_seconds": 180
     },
     "preview_gate": {
-      "bootstrap": "(command -v sudo >/dev/null 2>&1 && [ \"$(readlink /bin/sh 2>/dev/null)\" = \"dash\" ] && sudo ln -sf /bin/bash /bin/sh || true) && uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "run": "bash tools/smoke_test.sh \"$INFRA2_HOOK_APP_URL\" && eval \"$(python tools/test_selection.py --stage preview_minimum_e2e --shell)\" && pytest \"${PREVIEW_MINIMUM_E2E_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$PREVIEW_MINIMUM_E2E_MARKER\" && eval \"$(python tools/test_selection.py --touched-files ${INFRA2_TOUCHED_FILES:-} --shell)\" && ( [ ${#TOUCHED_E2E_TESTS[@]} -eq 0 ] || pytest \"${TOUCHED_E2E_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$TOUCHED_E2E_MARKER\" )",
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "run": "bash tools/smoke_test.sh \"$INFRA2_HOOK_APP_URL\" && python tools/test_selection.py --stage preview_minimum_e2e --run && python tools/test_selection.py --touched-files ${INFRA2_TOUCHED_FILES:-} --run",
       "timeout_seconds": 600,
       "optional_env": [
         "AI_PROVIDER",
@@ -19,8 +19,8 @@
       ]
     },
     "staging_gate": {
-      "bootstrap": "(command -v sudo >/dev/null 2>&1 && [ \"$(readlink /bin/sh 2>/dev/null)\" = \"dash\" ] && sudo ln -sf /bin/bash /bin/sh || true) && uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "run": "bash tools/smoke_test.sh \"$INFRA2_HOOK_APP_URL\" && eval \"$(python tools/test_selection.py --stage staging_core_e2e --shell)\" && pytest \"${STAGING_CORE_E2E_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_CORE_E2E_MARKER\" && pytest tests/e2e/test_ai_provider_connectivity.py -v --tb=short -o addopts=\"\" && eval \"$(python tools/test_selection.py --stage staging_ai_ocr --corpus canary --shell)\" && pytest \"${STAGING_AI_OCR_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_AI_OCR_MARKER\"",
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "run": "bash tools/smoke_test.sh \"$INFRA2_HOOK_APP_URL\" && python tools/test_selection.py --stage staging_core_e2e --run && STRICT_E2E_GATES=1 python -m pytest tests/e2e/test_ai_provider_connectivity.py -v --tb=short -o addopts=\"\" && python tools/test_selection.py --stage staging_ai_ocr --corpus canary --run",
       "timeout_seconds": 1800,
       "optional_env": [
         "AI_PROVIDER",
@@ -33,8 +33,8 @@
       ]
     },
     "scheduled_audit": {
-      "bootstrap": "(command -v sudo >/dev/null 2>&1 && [ \"$(readlink /bin/sh 2>/dev/null)\" = \"dash\" ] && sudo ln -sf /bin/bash /bin/sh || true) && uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "run": "eval \"$(python tools/test_selection.py --stage staging_ai_ocr --corpus audit_replay --shell)\" && pytest \"${STAGING_AI_OCR_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_AI_OCR_MARKER\" && eval \"$(python tools/test_selection.py --stage staging_ai_ocr --corpus core_journey --shell)\" && pytest \"${STAGING_AI_OCR_TESTS[@]}\" -v --tb=short -o addopts=\"\" -m \"$STAGING_AI_OCR_MARKER\" && python -m common.testing.benchmarks.pdf_corpus_oracle --app-url \"$INFRA2_HOOK_APP_URL\" --max-workers 1 && python -m common.testing.benchmarks.run_financial_scenario_benchmark --app-url \"$INFRA2_HOOK_APP_URL\" --case 1,2,3,4,5,6",
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "run": "python tools/test_selection.py --stage staging_ai_ocr --corpus audit_replay --run && python tools/test_selection.py --stage staging_ai_ocr --corpus core_journey --run && python -m common.testing.benchmarks.pdf_corpus_oracle --app-url \"$INFRA2_HOOK_APP_URL\" --max-workers 1 && python -m common.testing.benchmarks.run_financial_scenario_benchmark --app-url \"$INFRA2_HOOK_APP_URL\" --case 1,2,3,4,5,6",
       "timeout_seconds": 3600,
       "optional_env": [
         "AI_PROVIDER",

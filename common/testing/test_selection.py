@@ -1,10 +1,16 @@
-"""CLI over the test execution matrix (common/testing/matrix.py)."""
+"""CLI over the test execution matrix (common/testing/matrix.py).
+
+``--run`` runs pytest for a selection. Hook steps use it: infra2 runs each step with
+``sh -lc``, which cannot eval the bash arrays of ``--shell`` (#2912).
+"""
 
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -16,7 +22,29 @@ from common.testing import matrix  # noqa: E402
 MATRIX_YAML = ROOT_DIR / "common" / "testing" / "data" / "test-execution-matrix.yaml"
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def run_pytest(
+    nodes: Sequence[str],
+    marker: str,
+    *,
+    stage_env: Mapping[str, str],
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> int:
+    """Run ``python -m pytest`` in the repository root; return its exit code.
+
+    Child env: stage env defaults, overridden by the parent env, plus the forced
+    ``STRICT_E2E_GATES=1``: without it a rejected AI/OCR statement is a skip (#2914).
+    """
+    flags = ("-v", "--tb=short", "-o", "addopts=", "-m", marker)
+    argv = [sys.executable, "-m", "pytest", *nodes, *flags]
+    env = {**stage_env, **os.environ, "STRICT_E2E_GATES": "1"}
+    return runner(argv, check=False, cwd=ROOT_DIR, env=env).returncode
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--stage", help="Selection stage to emit (e.g. staging_core_e2e)."
@@ -27,6 +55,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="AI/OCR corpus selector when --stage=staging_ai_ocr (all, canary, audit_replay, core_journey).",
     )
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
+    parser.add_argument(
+        "--run", action="store_true", help="Run pytest on the selection."
+    )
     parser.add_argument(
         "--emit-matrix",
         action="store_true",
@@ -44,6 +75,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Emit affected non-LLM staging_core_e2e journeys for the given changed repo-relative paths (#2670).",
     )
     args = parser.parse_args(argv)
+    if args.run and args.shell:
+        parser.error("--run cannot be combined with --shell")
 
     if args.check_matrix:
         expected = matrix.emit_execution_matrix_yaml()
@@ -65,6 +98,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.touched_files is not None:
+        if args.run:
+            nodes, marker = matrix.touched_e2e_selection(args.touched_files)
+            if not nodes:
+                print("no touched journey: pytest not started")
+                return 0
+            env = matrix.stage_env(matrix.STAGING_CORE_E2E_STAGE)
+            return run_pytest(nodes, marker, stage_env=env, runner=runner)
         if args.shell:
             print(matrix.emit_touched_e2e_shell(args.touched_files))
             return 0
@@ -85,6 +125,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+
+    if args.run:
+        try:
+            nodes, marker = matrix.stage_selection(args.stage, corpus=args.corpus)
+        except ValueError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+        env = matrix.stage_env(args.stage)
+        return run_pytest(nodes, marker, stage_env=env, runner=runner)
 
     if args.shell:
         print(matrix.emit_shell(args.stage, corpus=args.corpus))
