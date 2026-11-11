@@ -150,7 +150,9 @@ async def _resolve_uploaded_documents(
             d.id: d
             for d in (
                 await db.execute(
-                    select(UploadedDocument).where(UploadedDocument.user_id == user_id, UploadedDocument.id.in_(doc_ids))
+                    select(UploadedDocument).where(
+                        UploadedDocument.user_id == user_id, UploadedDocument.id.in_(doc_ids)
+                    )
                 )
             ).scalars()
         }
@@ -207,8 +209,10 @@ async def _get_statement_or_404(db: AsyncSession, statement_id: UUID, user_id: U
 
 async def _list_statements_by_where(db: AsyncSession, user_id: UUID, *clauses) -> BankStatementListResponse:
     statements = (
-        await db.execute(select(StatementSummary).where(*clauses).order_by(StatementSummary.created_at.desc()))
-    ).scalars().all()
+        (await db.execute(select(StatementSummary).where(*clauses).order_by(StatementSummary.created_at.desc())))
+        .scalars()
+        .all()
+    )
     total = (await db.execute(select(func.count()).select_from(StatementSummary).where(*clauses))).scalar() or 0
     documents = await _resolve_uploaded_documents(db, statements, user_id)
     return BankStatementListResponse(
@@ -298,7 +302,12 @@ async def _create_statement_account_from_confirmation(
 ) -> Account:
     source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
     document = await _resolve_uploaded_document(db, statement, user_id)
-    if is_bank_custody_source(source, document) and statement.institution and statement.account_last4 and statement.currency:
+    if (
+        is_bank_custody_source(source, document)
+        and statement.institution
+        and statement.account_last4
+        and statement.currency
+    ):
         resolved = await resolve_bank_custody_account(
             db,
             user_id=user_id,
@@ -361,8 +370,8 @@ async def _create_statement_account_from_confirmation(
 
 
 def build_statement_storage_key(*, statement_id: UUID, file_hash: str, extension: str) -> str:
-    safe_ext = extension.lower() if extension.lower() in _ALLOWED_EXTENSIONS else "bin"
-    return f"statements/{statement_id}/{file_hash[:16]}.{safe_ext}"
+    safe_extension = extension.lower() if extension.lower() in _ALLOWED_EXTENSIONS else "bin"
+    return f"statements/{statement_id}/{file_hash[:16]}.{safe_extension}"
 
 
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -731,7 +740,9 @@ async def get_statement_for_review(
                 public=True,
             )
         except StorageError as exc:
-            logger.warning("Could not generate presigned URL for review", error=str(exc), statement_id=str(statement_id))
+            logger.warning(
+                "Could not generate presigned URL for review", error=str(exc), statement_id=str(statement_id)
+            )
 
     validation_result = await validate_balance_chain(db, statement_id)
     reviewed_envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)
@@ -748,7 +759,9 @@ async def get_statement_for_review(
         manual_opening_balance=statement.manual_opening_balance,
         source_result_digest=source_result_digest,
         source_missing_facts=list(source_result.missing_required_facts) if source_result is not None else [],
-        source_envelope_reviewable=supports_reviewed_statement_envelope(source_result) if source_result is not None else False,
+        source_envelope_reviewable=supports_reviewed_statement_envelope(source_result)
+        if source_result is not None
+        else False,
         preclassification_in_progress=is_preclassification_in_progress(statement.id),
         reviewed_envelope=_envelope_response(reviewed_envelope, source_result_digest or "")
         if reviewed_envelope is not None

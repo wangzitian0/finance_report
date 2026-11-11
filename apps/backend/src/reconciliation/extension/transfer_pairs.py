@@ -71,20 +71,20 @@ async def persist_transfer_pairs(
         out_leg, in_leg = by_entry.get(pair.out_entry.id), by_entry.get(pair.in_entry.id)
         if out_leg is None or in_leg is None:
             continue
-        out_disp, out_uid, out_dir, out_ccy = out_leg
-        in_disp, in_uid, in_dir, in_ccy = in_leg
+        out_disp, out_user_id, out_direction, out_ccy = out_leg
+        in_disp, in_user_id, in_direction, in_ccy = in_leg
         try:
-            out_code, in_code = Currency.of(out_ccy).code, Currency.of(in_ccy).code
+            out_currency_code, in_currency_code = Currency.of(out_ccy).code, Currency.of(in_ccy).code
         except InvalidCurrencyError as exc:
             raise InvalidTransferPairError("Transfer pair legs require valid ISO-4217 currencies") from exc
         if (
             pair.out_entry.id == pair.in_entry.id
-            or pair.out_entry.user_id != out_uid
-            or pair.in_entry.user_id != in_uid
-            or out_uid != in_uid
-            or out_dir != TransactionDirection.OUT
-            or in_dir != TransactionDirection.IN
-            or out_code != in_code
+            or pair.out_entry.user_id != out_user_id
+            or pair.in_entry.user_id != in_user_id
+            or out_user_id != in_user_id
+            or out_direction != TransactionDirection.OUT
+            or in_direction != TransactionDirection.IN
+            or out_currency_code != in_currency_code
         ):
             raise InvalidTransferPairError(
                 "Transfer pair legs must be distinct, tenant-consistent, opposite-direction, and same-currency"
@@ -106,8 +106,12 @@ async def persist_transfer_pairs(
                 db.add_all(
                     [
                         persisted_pair,
-                        ReconciliationTransferPairLeg(pair_id=pair_id, role=TransferPairLegRole.OUT, disposition_id=out_disp.id),
-                        ReconciliationTransferPairLeg(pair_id=pair_id, role=TransferPairLegRole.IN, disposition_id=in_disp.id),
+                        ReconciliationTransferPairLeg(
+                            pair_id=pair_id, role=TransferPairLegRole.OUT, disposition_id=out_disp.id
+                        ),
+                        ReconciliationTransferPairLeg(
+                            pair_id=pair_id, role=TransferPairLegRole.IN, disposition_id=in_disp.id
+                        ),
                     ]
                 )
                 await db.flush()

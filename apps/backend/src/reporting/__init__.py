@@ -42,7 +42,6 @@ _MODULES: dict[str, tuple[str, ...]] = {
         "cash_flow_line_events",
         "cash_flow_period",
         "cash_flow_preview",
-        "generate_cash_flow",
     ),
     "src.reporting.extension.data_quality_service": ("compute_personal_data_quality",),
     "src.reporting.extension.diagnostics": ("diagnose_equation_imbalance", "run_balance_sheet_diagnostics"),
@@ -102,7 +101,10 @@ _MODULES: dict[str, tuple[str, ...]] = {
     "src.reporting.extension.reporting_snapshot": ("ReportingSnapshotService",),
     "src.reporting.orm": ("ReportSnapshot", "ReportType"),
 }
-_EXPORTS = {name: mod for mod, names in _MODULES.items() for name in names}
+_EXPORTS = {
+    "generate_cash_flow": "src.reporting.extension.cash_flow",
+    **{name: mod for mod, names in _MODULES.items() for name in names},
+}
 
 __all__ = [
     "MAX_NET_WORTH_DAILY_POINTS",

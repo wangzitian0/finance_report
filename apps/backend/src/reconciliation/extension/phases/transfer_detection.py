@@ -98,7 +98,9 @@ async def run_transfer_detection_phase(
             )
             raise
     if created_matches:
-        logger.info("Transfer detection phase finished", created_matches_count=len(created_matches), user_id=str(user_id))
+        logger.info(
+            "Transfer detection phase finished", created_matches_count=len(created_matches), user_id=str(user_id)
+        )
     return created_matches
 
 
@@ -118,11 +120,25 @@ async def post_transfer_leg(
     leg_key = "transfer_out" if is_out else "transfer_in"
     transfer_entry = (
         await create_transfer_out_entry(
-            db, user_id, custody_account_id, txn.amount, txn.txn_date, txn.description, currency=txn.currency, source_id=txn.id
+            db=db,
+            user_id=user_id,
+            source_account_id=custody_account_id,
+            amount=txn.amount,
+            txn_date=txn.txn_date,
+            description=txn.description,
+            currency=txn.currency,
+            source_id=txn.id,
         )
         if is_out
         else await create_transfer_in_entry(
-            db, user_id, custody_account_id, txn.amount, txn.txn_date, txn.description, currency=txn.currency, source_id=txn.id
+            db=db,
+            user_id=user_id,
+            dest_account_id=custody_account_id,
+            amount=txn.amount,
+            txn_date=txn.txn_date,
+            description=txn.description,
+            currency=txn.currency,
+            source_id=txn.id,
         )
     )
     match = ReconciliationMatch(

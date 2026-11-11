@@ -59,7 +59,8 @@ _investment_accounting_service = InvestmentAccountingService()
 
 
 def _canonical_percent(value: Decimal) -> Decimal:
-    return Ratio.from_percent(value).to_percent()
+    ratio = Ratio.from_percent(value)
+    return ratio.to_percent()
 
 
 def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> DividendEventResponse:
@@ -70,7 +71,9 @@ def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> Div
         amount=dividend.amount,
         currency=dividend.currency,
         reinvested=False,
-        journal_entry_id=journal_entry_id if journal_entry_id is not None else getattr(dividend, "journal_entry_id", None),
+        journal_entry_id=journal_entry_id
+        if journal_entry_id is not None
+        else getattr(dividend, "journal_entry_id", None),
     )
 
 
@@ -261,7 +264,9 @@ async def update_holding_cost_basis_method(
                     ManagedPosition.status == PositionStatus.ACTIVE,
                 )
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
     if not positions:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Holding not found")
@@ -306,7 +311,9 @@ async def get_performance(
     else:
         twr = None
         reasons["time_weighted_return"] = "period_start is required for time-weighted return calculation"
-    mwr = await _eval_metric("money_weighted_return", calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of))
+    mwr = await _eval_metric(
+        "money_weighted_return", calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
+    )
 
     return PerformanceMetricsResponse(
         xirr=xirr, time_weighted_return=twr, money_weighted_return=mwr, unavailable_reasons=reasons
@@ -327,7 +334,9 @@ async def get_investment_performance_report_schedule(
     period_start = period_start or date(period_end.year, 1, 1)
     as_of_date = as_of_date or period_end
     if period_start > period_end:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="period_start must be <= period_end")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="period_start must be <= period_end"
+        )
     if as_of_date < period_end:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="as_of_date must be >= period_end")
     currency = currency.strip().upper()

@@ -61,68 +61,91 @@ _ALL = frozenset(EnvTier)
 _VPS = frozenset({EnvTier.PREVIEW, EnvTier.STAGING, EnvTier.PRODUCTION})
 _SP = frozenset({EnvTier.STAGING, EnvTier.PRODUCTION})
 
+
+def _dep(
+    name: str,
+    kind: DependencyKind,
+    required_in: frozenset[EnvTier],
+    *,
+    env_vars: tuple[str, ...],
+    summary: str,
+) -> Dependency:
+    return Dependency(
+        name=name,
+        kind=kind,
+        required_in=required_in,
+        env_vars=frozenset(env_vars),
+        summary=summary,
+    )
+
+
 DEPENDENCY_MANIFEST = DependencyManifest(
-    tuple(
-        Dependency(name=name, kind=kind, required_in=req, env_vars=frozenset(evs.split()), summary=summary)
-        for name, kind, req, evs, summary in (
-            (
-                "database",
-                DependencyKind.CODE_DOMINANT,
-                _ALL,
-                "DATABASE_URL",
-                "Postgres — the system of record (DATABASE_URL).",
+    (
+        _dep(
+            "database",
+            DependencyKind.CODE_DOMINANT,
+            _ALL,
+            env_vars=("DATABASE_URL",),
+            summary="Postgres — the system of record (DATABASE_URL).",
+        ),
+        _dep(
+            "object_storage",
+            DependencyKind.CODE_DOMINANT,
+            _ALL,
+            env_vars=(
+                "S3_ENDPOINT",
+                "S3_ACCESS_KEY",
+                "S3_SECRET_KEY",
+                "S3_BUCKET",
+                "S3_REGION",
+                "S3_PUBLIC_ENDPOINT",
+                "S3_PUBLIC_ACCESS_KEY",
+                "S3_PUBLIC_SECRET_KEY",
+                "S3_PUBLIC_BUCKET",
             ),
-            (
-                "object_storage",
-                DependencyKind.CODE_DOMINANT,
-                _ALL,
-                "S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY S3_BUCKET S3_REGION "
-                "S3_PUBLIC_ENDPOINT S3_PUBLIC_ACCESS_KEY S3_PUBLIC_SECRET_KEY S3_PUBLIC_BUCKET",
-                "S3-compatible object storage for uploaded statements (S3_*).",
-            ),
-            (
-                "llm",
-                DependencyKind.MODEL_DOMINANT,
-                _SP,
-                "AI_PROVIDER AI_API_KEY ZAI_API_KEY AI_BASE_URL",
-                "The AI provider used for statement extraction (AI_*); "
-                "recorded (cassette substitute) in CI/preview, real on staging/prod.",
-            ),
-            (
-                "cache",
-                DependencyKind.CODE_DOMINANT,
-                _SP,
-                "REDIS_URL",
-                "Redis (REDIS_URL) — optional in the app-owned tiers and preview.",
-            ),
-            (
-                "workflow_engine",
-                DependencyKind.CODE_DOMINANT,
-                _SP,
-                "PREFECT_API_URL",
-                "Prefect (PREFECT_API_URL) — durable flows; in-process fallback in the app-owned tiers.",
-            ),
-            (
-                "telemetry",
-                DependencyKind.CODE_DOMINANT,
-                _VPS,
-                "OTEL_EXPORTER_OTLP_ENDPOINT",
-                "OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT).",
-            ),
-            (
-                "analytics",
-                DependencyKind.CODE_DOMINANT,
-                _SP,
-                "OPENPANEL_API_URL OPENPANEL_CLIENT_ID",
-                "OpenPanel product analytics (OPENPANEL_API_URL).",
-            ),
-            (
-                "market_data",
-                DependencyKind.CODE_DOMINANT,
-                frozenset({EnvTier.PRODUCTION}),
-                "MARKET_DATA_YAHOO_TIMEOUT_SECONDS",
-                "Yahoo Finance market-data fetch for report-side FX.",
-            ),
-        )
+            summary="S3-compatible object storage for uploaded statements (S3_*).",
+        ),
+        _dep(
+            "llm",
+            DependencyKind.MODEL_DOMINANT,
+            _SP,
+            env_vars=("AI_PROVIDER", "AI_API_KEY", "ZAI_API_KEY", "AI_BASE_URL"),
+            summary="The AI provider used for statement extraction (AI_*); recorded (cassette substitute) in CI/preview, real on staging/prod.",
+        ),
+        _dep(
+            "cache",
+            DependencyKind.CODE_DOMINANT,
+            _SP,
+            env_vars=("REDIS_URL",),
+            summary="Redis (REDIS_URL) — optional in the app-owned tiers and preview.",
+        ),
+        _dep(
+            "workflow_engine",
+            DependencyKind.CODE_DOMINANT,
+            _SP,
+            env_vars=("PREFECT_API_URL",),
+            summary="Prefect (PREFECT_API_URL) — durable flows; in-process fallback in the app-owned tiers.",
+        ),
+        _dep(
+            "telemetry",
+            DependencyKind.CODE_DOMINANT,
+            _VPS,
+            env_vars=("OTEL_EXPORTER_OTLP_ENDPOINT",),
+            summary="OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT).",
+        ),
+        _dep(
+            "analytics",
+            DependencyKind.CODE_DOMINANT,
+            _SP,
+            env_vars=("OPENPANEL_API_URL", "OPENPANEL_CLIENT_ID"),
+            summary="OpenPanel product analytics (OPENPANEL_API_URL).",
+        ),
+        _dep(
+            "market_data",
+            DependencyKind.CODE_DOMINANT,
+            frozenset({EnvTier.PRODUCTION}),
+            env_vars=("MARKET_DATA_YAHOO_TIMEOUT_SECONDS",),
+            summary="Yahoo Finance market-data fetch for report-side FX.",
+        ),
     )
 )
