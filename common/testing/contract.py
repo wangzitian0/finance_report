@@ -467,6 +467,8 @@ backend-test-planner.4||test_AC_testing_backend_test_planner_4_the_guard_passes_
 @$t/test_e2e_transport_retry.py|P1
 e2e-poll-reconnect.1||test_AC_testing_e2e_poll_reconnect_1_the_fourth_closed_connection_in_a_row_fails
 e2e-poll-reconnect.2||test_AC_testing_e2e_poll_reconnect_2_the_twelve_month_journey_makes_no_direct_get_call
+@$t/test_provider_journey_review_contract.py|P1
+e2e-classification-wait.1|The shared approval helper waits until the review payload (GET /statements/{id}/review) reports preclassification_in_progress false, for at most 240 s, before it posts any /review/approve request. At the limit it stops waiting and posts the approval (#2950).|test_AC_testing_e2e_classification_wait_1_no_approval_is_posted_while_the_classification_pass_runs
 @$t/test_e2e_path_quality.py|P1
 e2e-path-quality.1||test_AC_testing_e2e_path_quality_1_a_second_edge_location_or_one_failure_shows_instability
 @$t/test_e2e_description_fidelity.py|P1
