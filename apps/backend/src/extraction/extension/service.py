@@ -13,12 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
+from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.base.paged_extraction import build_paged_meta_prompt, build_paged_prompt, merge_paged_extractions
 from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
 from src.extraction.base.source_balance_check import SourceBalanceVerdict, check_closing_balance_against_text
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
+    balance_is_evaluable,
     bank_currency_balances,
     compute_confidence_score,
     count_within_document_dedup_collapse,
@@ -187,7 +189,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 if len(snapshot_dates) == 1:
                     resolved_period_start = resolved_period_end = next(iter(snapshot_dates))
 
-            sanitized_account_last4 = self._sanitize_account_last4(extracted.get("account_last4"))
+            sanitized_account_last4 = sanitize_account_last4(extracted.get("account_last4"))
             account_id, sanitized_account_last4, bank_allocation = await self._resolve_bank_account_binding(
                 db=db,
                 user_id=user_id,
@@ -275,8 +277,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 }
             csv_balance_missing = extracted.get("balance_source") == "missing_from_csv_export"
             csv_balance_declared = extracted.get("balance_source") == "declared_in_csv_export"
-            scalar_balance_evaluable = statement.opening_balance is not None and statement.closing_balance is not None
-            balance_evaluable = scalar_balance_evaluable or bank_balances is not None
+            scalar_balance_evaluable = balance_is_evaluable(statement.opening_balance, statement.closing_balance, None)
+            balance_evaluable = balance_is_evaluable(
+                statement.opening_balance, statement.closing_balance, bank_balances
+            )
             declared_balance_absent = not balance_evaluable
 
             source_fact_gaps = StatementExtractionResult.required_fact_kinds(
@@ -661,25 +665,34 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         best: dict[str, Any] | None = None
         best_diff: Decimal | None = None
         last_parse: dict[str, Any] | None = None
-        last_error: ExtractionError | None = None
+        last_error: Exception | None = None
 
         for attempt in range(max_attempts):
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
             try:
-                extracted = await self.extract_financial_data(
-                    file_content=file_content,
-                    institution=institution,
-                    file_type=file_type,
-                    file_url=file_url,
-                    force_model=force_model,
-                    seed_override=seed_override,
-                    filename=filename,
-                    user_id=user_id,
+                extracted = normalize_statement_balance_payload(
+                    await self.extract_financial_data(
+                        file_content=file_content,
+                        institution=institution,
+                        file_type=file_type,
+                        file_url=file_url,
+                        force_model=force_model,
+                        seed_override=seed_override,
+                        filename=filename,
+                        user_id=user_id,
+                    )
                 )
-            except ExtractionError as exc:
+                per_currency = bank_currency_balances(extracted)
+            except (ExtractionError, ValueError) as exc:
+                logger.warning(
+                    "Extraction pass failed",
+                    attempt=attempt + 1,
+                    max_attempts=max_attempts,
+                    error_type=type(exc).__name__,
+                    error=str(exc)[:300],
+                )
                 last_error = exc
                 continue
-            extracted = normalize_statement_balance_payload(extracted)
             last_parse = extracted
 
             if looks_like_brokerage_payload(
@@ -687,8 +700,16 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             ):
                 return extracted
 
+            if not balance_is_evaluable(
+                extracted.get("opening_balance"), extracted.get("closing_balance"), per_currency
+            ):
+                # The statement prints no balance: no later pass can reconcile it.
+                if best is not None:
+                    continue
+                return extracted
+
             result = validate_balance(extracted)
-            if bank_currency_balances(extracted) is not None:
+            if per_currency is not None:
                 currency_result = validate_balance_per_currency(extracted)
                 result = {
                     **result,

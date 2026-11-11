@@ -4,7 +4,6 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.extension._base import _tolerant_parse_date, logger
 
 
@@ -89,10 +88,6 @@ class _CoerceMixin:
             return Decimal(str(value))
         except (ValueError, TypeError, InvalidOperation) as exc:
             raise ValueError(f"Invalid decimal value: {value}") from exc
-
-    @staticmethod
-    def _sanitize_account_last4(value: str | None) -> str | None:
-        return sanitize_account_last4(value)
 
     def _extract_status_code(self, error_msg: str) -> str | None:
         match = re.search(r"HTTP (\d{3})", error_msg)
