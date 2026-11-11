@@ -31,6 +31,7 @@ from src.extraction.extension.brokerage_statement_payload import _extract_broker
 from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
 from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_parsing_supervisor import parsing_heartbeat
 from src.extraction.extension.statement_posting import (
     ECONOMIC_REVIEW_NOTICE,
     StatementPostingDependencies,
@@ -498,21 +499,22 @@ async def _execute_statement_ingestion(
 
         try:
             checkpoint("extraction_started")
-            extraction_result = await extraction_service_factory().parse_document(
-                DocumentSource.resolve(
-                    path=Path(job.storage_key),
-                    content=content,
-                    url=file_url,
-                    content_hash=job.file_hash,
-                    filename=job.filename,
-                ),
-                institution=job.institution,
-                user_id=job.user_id,
-                file_type=file_type,
-                account_id=job.account_id,
-                force_model=job.model,
-                db=session,
-            )
+            async with parsing_heartbeat(statement_id, session_maker):
+                extraction_result = await extraction_service_factory().parse_document(
+                    DocumentSource.resolve(
+                        path=Path(job.storage_key),
+                        content=content,
+                        url=file_url,
+                        content_hash=job.file_hash,
+                        filename=job.filename,
+                    ),
+                    institution=job.institution,
+                    user_id=job.user_id,
+                    file_type=file_type,
+                    account_id=job.account_id,
+                    force_model=job.model,
+                    db=session,
+                )
             logger.info(
                 "statement.parse.extraction_completed",
                 audit_event="statement.parse.extraction_completed",
