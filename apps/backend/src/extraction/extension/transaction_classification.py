@@ -16,7 +16,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import BigInteger, cast, column, exists, func, literal_column, or_, select, table, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -1288,6 +1288,40 @@ def _statement_lock_key(statement_id: UUID):
 
 async def try_lock_statement_classification(db: AsyncSession, statement_id: UUID) -> bool:
     return bool(await db.scalar(select(func.pg_try_advisory_xact_lock(_statement_lock_key(statement_id)))))
+
+
+async def is_statement_classification_running(db: AsyncSession, statement_id: UUID) -> bool:
+    """Return true while any session holds the classification lock of the statement (#2950).
+
+    The parse and the classification pass can run in another process, so only the database knows the state.
+    This read takes no lock: a lock that a read took would make the pass skip the statement. It reads
+    ``pg_locks`` and splits the bigint key of ``_statement_lock_key`` into the ``classid`` and ``objid`` of
+    an advisory lock (high and low 32 bits, ``objsubid`` 1). Other dialects have no advisory locks.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return False
+    key = _statement_lock_key(statement_id)
+    pg_locks = table(
+        "pg_locks",
+        column("locktype"),
+        column("granted"),
+        column("database"),
+        column("classid"),
+        column("objid"),
+        column("objsubid"),
+    )
+    pg_database = table("pg_database", column("oid"), column("datname"))
+    held = exists().where(
+        pg_locks.c.locktype == "advisory",
+        pg_locks.c.granted,
+        pg_locks.c.database
+        == select(pg_database.c.oid).where(pg_database.c.datname == func.current_database()).scalar_subquery(),
+        pg_locks.c.objsubid == literal_column("1"),
+        cast(pg_locks.c.classid, BigInteger)
+        == key.op(">>")(literal_column("32")).op("&")(literal_column("4294967295")),
+        cast(pg_locks.c.objid, BigInteger) == key.op("&")(literal_column("4294967295")),
+    )
+    return bool(await db.scalar(select(held)))
 
 
 async def lock_statement_classification(db: AsyncSession, statement_id: UUID) -> None:

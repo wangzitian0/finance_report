@@ -39,8 +39,6 @@ from src.extraction.extension.statement_posting import (
 from src.extraction.extension.statement_preclassification import (
     StatementClassificationPhase,
     classify_parsed_statement,
-    mark_preclassification_finished,
-    mark_preclassification_started,
 )
 from src.extraction.extension.statement_workflow import approve_statement_workflow
 from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
@@ -102,21 +100,18 @@ class StatementIngestionUseCase:
         )
         if outcome.status is StatementIngestionStatus.COMPLETED:
             del content
-            try:
-                phase = await classify_parsed_statement(
-                    self.session_maker, statement_id=job.statement_id, user_id=job.user_id
+            phase = await classify_parsed_statement(
+                self.session_maker, statement_id=job.statement_id, user_id=job.user_id
+            )
+            if phase is StatementClassificationPhase.CLASSIFIED:
+                recovered = await _try_recover_auto_approve_after_classification(
+                    self.session_maker,
+                    statement_id=job.statement_id,
+                    user_id=job.user_id,
+                    posting_dependencies=self.posting_dependencies,
                 )
-                if phase is StatementClassificationPhase.CLASSIFIED:
-                    recovered = await _try_recover_auto_approve_after_classification(
-                        self.session_maker,
-                        statement_id=job.statement_id,
-                        user_id=job.user_id,
-                        posting_dependencies=self.posting_dependencies,
-                    )
-                    if recovered > 0:
-                        outcome = replace(outcome, auto_posted_count=outcome.auto_posted_count + recovered)
-            finally:
-                mark_preclassification_finished(job.statement_id)
+                if recovered > 0:
+                    outcome = replace(outcome, auto_posted_count=outcome.auto_posted_count + recovered)
         return outcome
 
 
@@ -586,8 +581,6 @@ async def _execute_statement_ingestion(
                 request_id=request_id,
                 model_to_use=job.model,
             )
-            if statement.status is BankStatementStatus.PARSED:
-                mark_preclassification_started(statement.id)
             await session.commit()
             logger.info(
                 "statement.parse.completed",
@@ -617,6 +610,5 @@ async def _execute_statement_ingestion(
                 model_to_use=job.model,
                 error_type=type(exc).__name__,
             )
-            mark_preclassification_finished(statement_id)
             await session.rollback()
             raise RetryableStatementIngestionError(f"Statement finalization application failure: {exc}") from exc

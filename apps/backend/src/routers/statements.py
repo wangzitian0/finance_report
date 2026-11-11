@@ -45,7 +45,7 @@ from src.extraction import (
     edit_and_approve,
     get_current_statement_extraction_result,
     is_bank_custody_source,
-    is_preclassification_in_progress,
+    is_statement_classification_running,
     lock_statement_classification,
     pending_stage1_review_filter,
     record_brokerage_import_failure,
@@ -762,7 +762,7 @@ async def get_statement_for_review(
         source_envelope_reviewable=supports_reviewed_statement_envelope(source_result)
         if source_result is not None
         else False,
-        preclassification_in_progress=is_preclassification_in_progress(statement.id),
+        preclassification_in_progress=await is_statement_classification_running(db, statement.id),
         reviewed_envelope=_envelope_response(reviewed_envelope, source_result_digest or "")
         if reviewed_envelope is not None
         else None,
