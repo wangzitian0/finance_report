@@ -161,9 +161,6 @@ from src.extraction.extension.statement_posting import (
     auto_create_posted_entries_for_statement,
     resolve_statement_posting_account,
 )
-from src.extraction.extension.statement_preclassification import (
-    is_preclassification_in_progress,
-)
 from src.extraction.extension.statement_summary import (
     StatementEventSource,
     find_in_flight_parse_id,
@@ -194,6 +191,7 @@ from src.extraction.extension.transaction_classification import (
     classify_by_effective_policy,
     classify_statement_by_effective_policy,
     general_account_name,
+    is_statement_classification_running,
     lock_statement_classification,
     settle_drafts_after_posting,
 )
@@ -369,7 +367,7 @@ __all__ = [
     "resolve_statement_conflicts",
     "resolve_bank_custody_account",
     "is_bank_custody_source",
-    "is_preclassification_in_progress",
+    "is_statement_classification_running",
     "coverage_bank_custody_account_ids",
     "resolve_statement_posting_account",
     "resolve_statement_transactions",

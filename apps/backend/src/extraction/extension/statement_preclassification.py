@@ -14,6 +14,9 @@ the parsed statement first. The pass is best effort:
 * It takes the lock of the statement (see ``lock_statement_classification``). The approval takes the same lock. The
   approval of a statement that the pass still classifies waits for the pass and then asks the model only for the
   rows without an answer. A pass that finds the lock held leaves the statement to the holder.
+  The review of the statement reports ``preclassification_in_progress`` from this lock, so the flag is true in
+  every process while any session holds it (``is_statement_classification_running``, #2950). The pass may run in
+  the ``prefect-worker`` container, and no memory of the API process shows it.
 * It leaves out a statement that is not ``PARSED``, a row that a posted entry covers, a row whose currency is not
   resolved (the account of an answer follows the currency), and every row when the user turned the model off.
   The approval leaves out more: a statement with an unproven legacy entry or with an overlapping period stops
@@ -51,24 +54,6 @@ logger = get_logger(__name__)
 #: The outcomes of a pass that need no model call at a later approval.
 _NOT_ASKED = frozenset({"already_classified", "rule"})
 
-#: In-process registry of statements currently undergoing post-parse pre-classification (#2822).
-_IN_FLIGHT_PRECLASSIFICATIONS: set[UUID] = set()
-
-
-def mark_preclassification_started(statement_id: UUID) -> None:
-    """Record that background post-parse pre-classification is running for a statement."""
-    _IN_FLIGHT_PRECLASSIFICATIONS.add(statement_id)
-
-
-def mark_preclassification_finished(statement_id: UUID) -> None:
-    """Record that background post-parse pre-classification has finished for a statement."""
-    _IN_FLIGHT_PRECLASSIFICATIONS.discard(statement_id)
-
-
-def is_preclassification_in_progress(statement_id: UUID) -> bool:
-    """Return whether background post-parse pre-classification is currently active for a statement."""
-    return statement_id in _IN_FLIGHT_PRECLASSIFICATIONS
-
 
 class StatementClassificationPhase(StrEnum):
     """How one pass after parse ended. The value is the label of the counter."""
@@ -100,32 +85,28 @@ async def classify_parsed_statement(
     """Classify the rows of a parsed statement. This call never raises, except for a cancellation."""
     started = time.perf_counter()
     deadline = asyncio.timeout(CLASSIFICATION_PHASE_DEADLINE_SECONDS)
-    mark_preclassification_started(statement_id)
     try:
-        try:
-            async with deadline:
-                phase = await _classify(session_maker, statement_id=statement_id, user_id=user_id)
-        except Exception as exc:  # noqa: BLE001 - best effort: the approval classifies the rows that have no answer
-            if isinstance(exc, TimeoutError) and deadline.expired():
-                phase = StatementClassificationPhase.TIMED_OUT
-                logger.warning(
-                    "statement.classification.timed_out",
-                    audit_event="statement.classification.timed_out",
-                    statement_id=str(statement_id),
-                    deadline_seconds=CLASSIFICATION_PHASE_DEADLINE_SECONDS,
-                )
-            else:
-                # A TimeoutError of the driver is a failure, not the deadline of the pass.
-                phase = StatementClassificationPhase.FAILED
-                logger.warning(
-                    "statement.classification.failed",
-                    audit_event="statement.classification.failed",
-                    statement_id=str(statement_id),
-                    error_type=type(exc).__name__,
-                    safe_error_message=safe_error_message(str(exc)),
-                )
-    finally:
-        mark_preclassification_finished(statement_id)
+        async with deadline:
+            phase = await _classify(session_maker, statement_id=statement_id, user_id=user_id)
+    except Exception as exc:  # noqa: BLE001 - best effort: the approval classifies the rows that have no answer
+        if isinstance(exc, TimeoutError) and deadline.expired():
+            phase = StatementClassificationPhase.TIMED_OUT
+            logger.warning(
+                "statement.classification.timed_out",
+                audit_event="statement.classification.timed_out",
+                statement_id=str(statement_id),
+                deadline_seconds=CLASSIFICATION_PHASE_DEADLINE_SECONDS,
+            )
+        else:
+            # A TimeoutError of the driver is a failure, not the deadline of the pass.
+            phase = StatementClassificationPhase.FAILED
+            logger.warning(
+                "statement.classification.failed",
+                audit_event="statement.classification.failed",
+                statement_id=str(statement_id),
+                error_type=type(exc).__name__,
+                safe_error_message=safe_error_message(str(exc)),
+            )
     record_statement_classification_outcome(outcome=phase.value)
     logger.info(
         "statement.classification.finished",
