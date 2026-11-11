@@ -108,7 +108,7 @@ non-LLM `staging_core_e2e` journeys.
 
 Every idempotent GET request of `tests/e2e/test_twelve_month_journey.py` goes
 through `tests/e2e/transport_retry.py` (`AC-testing.e2e-poll-reconnect.2`,
-`#2911`). That includes the two lookups of `approve_statement_with_fixture_review`:
+`#2911`). That includes the lookups of `approve_statement_with_fixture_review`:
 the journey passes it a getter through the `get` parameter, and a journey that
 passes none keeps `client.get`. After a `ReadError` or `RemoteProtocolError`,
 the helper retries on a new connection, at most 3 times in a row. It never
@@ -124,6 +124,12 @@ from the client network, and the session continues. A line without `WARNING`
 states the facts and means that the samples show no instability. It makes no
 claim about the next minute. Example:
 `e2e path quality: 6 new connections, 0 failed, edge location SIN`.
+
+`approve_statement_with_fixture_review` first polls `GET /statements/{id}/review`
+once per second until `preclassification_in_progress` is false, for at most 240 s,
+and only then posts an approval (`AC-testing.e2e-classification-wait.1`, `#2950`).
+Without the wait, the server holds the approval request until the classification
+pass ends (up to 200 s), and the 120 s client timeout of the journeys ends it first.
 
 The Ping An journey matches each extracted row to the fixture event with the same
 balance after (not the date). It counts the rows whose description differs, prints
