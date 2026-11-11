@@ -1,21 +1,4 @@
-"""``processing`` — the Processing account's impure verbs (extension layer).
-
-The I/O half of the in-transit (Processing) account. Depends on ``AsyncSession`` +
-the ORM and on the pure policy in ``ledger.base.processing``:
-
-- ``get_or_create_processing_account`` — acquire (or first-time create) the per-user
-  Processing ``Account`` row (the aggregate's persistence / repository edge);
-- ``create_transfer_out_entry`` / ``create_transfer_in_entry`` — post a transfer leg
-  (Dr Processing / Cr source, resp. Dr destination / Cr Processing), guarding balance
-  through :class:`~src.ledger.base.types.entry.Entry` before persisting;
-- ``find_transfer_pairs`` — the pairing domain service: scores persisted Processing
-  entries pairwise and returns matches above the confidence threshold;
-- ``get_processing_balance`` / ``get_unpaired_transfers`` /
-  ``list_processing_transfer_legs`` — read projections over the persisted entries.
-
-Reconciliation / reporting consume these through the published ``src.ledger``
-interface (by id/event), never via a shared cross-domain transaction or FK.
-"""
+"""Persistence, transfer-leg posting, pairing, and balance projections for the Processing account."""
 
 from __future__ import annotations
 
@@ -49,12 +32,7 @@ from src.ledger.base.validators import ValidationError
 from src.ledger.extension import account_service
 from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
-from src.ledger.orm.journal import (
-    Direction,
-    JournalEntry,
-    JournalLine,
-    active_journal_entry_filter,
-)
+from src.ledger.orm.journal import Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -66,11 +44,7 @@ async def get_or_create_processing_account(
     *,
     currency: str,
 ) -> Account:
-    """Get or create the Processing virtual account for a user.
-
-    The creation commits in its own short transaction (``find_or_create_account``), so two requests of one user
-    never create two accounts and never wait for each other (#2415).
-    """
+    """Get or create the per-user Processing virtual account."""
     return await account_service.find_or_create_account(
         db,
         user_id=user_id,
@@ -88,30 +62,24 @@ async def get_or_create_processing_account(
 
 
 async def find_processing_account(db: AsyncSession, user_id: UUID) -> Account | None:
-    """The Processing account of a user, or ``None``. A read never creates the account.
-
-    The account fixes the currency of the Processing balance. The first transfer leg creates it, in the base
-    currency of that moment. A page view must not create it: a later change of the base currency would then
-    block every leg of the user (#2415).
-    """
-    result = await db.execute(
-        select(Account)
-        .where(
-            Account.user_id == user_id,
-            Account.is_system == True,  # noqa: E712
-            Account.code == PROCESSING_ACCOUNT_CODE,
+    """Look up the Processing account of a user without creating one."""
+    accounts = list(
+        (
+            await db.execute(
+                select(Account)
+                .where(Account.user_id == user_id, Account.is_system == True, Account.code == PROCESSING_ACCOUNT_CODE)  # noqa: E712
+                .order_by(Account.created_at, Account.id)
+                .limit(2)
+            )
         )
-        .order_by(Account.created_at, Account.id)
-        .limit(2)
+        .scalars()
+        .all()
     )
-    accounts = list(result.scalars().all())
     if len(accounts) > 1:
-        # A race of an older release. The oldest account is the one that every request uses from now on.
-        # Legs on the other account never pair and never reach the Processing card, so say it loudly.
         logger.error(
             "A user holds more than one Processing account; the oldest is used",
             user_id=str(user_id),
-            account_ids=[str(account.id) for account in accounts],
+            account_ids=[str(a.id) for a in accounts],
         )
     return accounts[0] if accounts else None
 
@@ -126,94 +94,60 @@ async def find_transfer_pairs(
     max_entries: int = 500,
     exclude_entry_ids: Collection[UUID] | None = None,
 ) -> list[TransferPair[JournalEntry]]:
-    """Find matching transfer pairs based on confidence scoring.
-    and attempts to match them based on amount, description, and date proximity.
-    Note: The pairing algorithm is O(n²) where n = max(out_entries, in_entries).
-    The max_entries parameter limits the number of entries processed to prevent
-    performance degradation with high transaction volumes.
-
-    Args:
-        db: Database session
-        user_id: User ID to search transfers for
-        threshold: Minimum confidence score (default: 85)
-        max_entries: Maximum number of entries to process per side (default: 500)
-        exclude_entry_ids: Optional set of already-paired entry IDs to exclude before applying the window
-    Returns:
-        List of TransferPair objects with confidence >= threshold
-    """
-    # Get Processing account. Without one, the user has no leg to pair.
-    processing_account = await find_processing_account(db, user_id)
-    if processing_account is None:
+    """Find matching transfer pairs with confidence >= threshold."""
+    _ = currency
+    processing = await find_processing_account(db, user_id)
+    if processing is None:
         return []
 
-    # Find journal entries involving Processing account in deterministic newest-first order
-    entry_stmt = (
+    stmt = (
         select(JournalEntry)
         .options(selectinload(JournalEntry.lines))
         .join(JournalLine, JournalEntry.id == JournalLine.journal_entry_id)
-        .where(JournalEntry.user_id == user_id)
-        .where(active_journal_entry_filter(JournalEntry))
-        .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
-        .where(JournalLine.account_id == processing_account.id)
+        .where(
+            JournalEntry.user_id == user_id,
+            active_journal_entry_filter(JournalEntry),
+            JournalEntry.source_type == JournalEntrySourceType.SYSTEM,
+            JournalLine.account_id == processing.id,
+        )
     )
     if exclude_entry_ids:
-        entry_stmt = entry_stmt.where(JournalEntry.id.notin_(exclude_entry_ids))
-    entry_stmt = entry_stmt.order_by(
-        JournalEntry.entry_date.desc(),
-        JournalEntry.created_at.desc(),
-        JournalEntry.id.desc(),
-    ).limit(max_entries * 2)
-    result = await db.execute(entry_stmt)
-    entries = result.scalars().unique().all()
-
-    # Separate OUT and IN entries
-    out_entries = []
-    in_entries = []
-
-    for entry in entries:
-        for line in entry.lines:
-            if line.account_id == processing_account.id:
-                # Transfer OUT: Processing is DEBITED
-                if line.direction == Direction.DEBIT:
-                    out_entries.append(entry)
-                # Transfer IN: Processing is CREDITED
-                elif line.direction == Direction.CREDIT:
-                    in_entries.append(entry)
-                break
-
-    # Limit entries to prevent O(n²) performance degradation with large datasets
-    out_entries = out_entries[:max_entries]
-    in_entries = in_entries[:max_entries]
-
-    # Find pairs with confidence >= threshold
-    pairs: list[TransferPair] = []
-    matched_in_entries: set[int] = set()  # Track already-matched IN entries
-    for out_entry in out_entries:
-        best_match: TransferPair | None = None
-        for in_entry in in_entries:
-            if id(in_entry) in matched_in_entries:
-                continue
-
-            confidence, breakdown = _calculate_pair_confidence(
-                out_entry,
-                in_entry,
-                processing_account.id,
-                description_scorer=description_scorer,
+        stmt = stmt.where(JournalEntry.id.notin_(exclude_entry_ids))
+    entries = (
+        (
+            await db.execute(
+                stmt.order_by(
+                    JournalEntry.entry_date.desc(), JournalEntry.created_at.desc(), JournalEntry.id.desc()
+                ).limit(max_entries * 2)
             )
-            if confidence >= threshold:
-                pair = TransferPair(
-                    out_entry=out_entry,
-                    in_entry=in_entry,
-                    confidence=confidence,
-                    score_breakdown=breakdown,
-                )
-                # Keep only the best match for this out_entry
-                if best_match is None or confidence > best_match.confidence:
-                    best_match = pair
-        if best_match:
-            pairs.append(best_match)
-            matched_in_entries.add(id(best_match.in_entry))
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
 
+    out_entries: list[JournalEntry] = []
+    in_entries: list[JournalEntry] = []
+    for entry in entries:
+        line = next((ln for ln in entry.lines if ln.account_id == processing.id), None)
+        if line is not None:
+            (out_entries if line.direction == Direction.DEBIT else in_entries).append(entry)
+
+    pairs: list[TransferPair[JournalEntry]] = []
+    matched_in: set[int] = set()
+    for out_entry in out_entries[:max_entries]:
+        best: TransferPair[JournalEntry] | None = None
+        for in_entry in in_entries[:max_entries]:
+            if id(in_entry) in matched_in:
+                continue
+            conf, breakdown = _calculate_pair_confidence(
+                out_entry, in_entry, processing.id, description_scorer=description_scorer
+            )
+            if conf >= threshold and (best is None or conf > best.confidence):
+                best = TransferPair(out_entry=out_entry, in_entry=in_entry, confidence=conf, score_breakdown=breakdown)
+        if best is not None:
+            pairs.append(best)
+            matched_in.add(id(best.in_entry))
     return pairs
 
 
@@ -228,26 +162,7 @@ async def create_transfer_out_entry(
     currency: str,
     source_id: UUID | None = None,
 ) -> JournalEntry:
-    """Create a Transfer OUT journal entry.
-
-    Transfer OUT: DEBIT Processing, CREDIT source account
-    ``currency`` is the caller's effective base currency, not an arbitrary
-    statement transaction currency. Foreign-currency transfers require a
-    separate FX-aware posting flow.
-
-    Args:
-        db: Database session
-        user_id: User ID
-        source_account_id: Account ID where funds are leaving
-        amount: Transfer amount
-        txn_date: Transaction date
-        description: Transfer description
-        source_id: Id of the source transaction. Two transactions with the same date, text and
-            amount then get two entries; without it they share one entry (#2415).
-
-    Returns:
-        Created JournalEntry (not yet committed)
-    """
+    """Create a Transfer OUT journal entry in the user's effective base currency."""
     return await _create_transfer_entry(
         db,
         user_id=user_id,
@@ -272,26 +187,7 @@ async def create_transfer_in_entry(
     currency: str,
     source_id: UUID | None = None,
 ) -> JournalEntry:
-    """Create a Transfer IN journal entry.
-
-    Transfer IN: DEBIT destination account, CREDIT Processing
-    ``currency`` is the caller's effective base currency, not an arbitrary
-    statement transaction currency. Foreign-currency transfers require a
-    separate FX-aware posting flow.
-
-    Args:
-        db: Database session
-        user_id: User ID
-        dest_account_id: Account ID where funds are arriving
-        amount: Transfer amount
-        txn_date: Transaction date
-        description: Transfer description
-        source_id: Id of the source transaction. Two transactions with the same date, text and
-            amount then get two entries; without it they share one entry (#2415).
-
-    Returns:
-        Created JournalEntry (not yet committed)
-    """
+    """Create a Transfer IN journal entry in the user's effective base currency."""
     return await _create_transfer_entry(
         db,
         user_id=user_id,
@@ -317,86 +213,61 @@ async def _create_transfer_entry(
     direction: str,
     source_id: UUID | None = None,
 ) -> JournalEntry:
-    """Build one transfer leg and route persistence through ledger's front door."""
     _validate_transfer_params(amount, description)
-    normalized_currency = Currency.of(currency).code
-    processing_account = await get_or_create_processing_account(
-        db,
-        user_id,
-        currency=normalized_currency,
-    )
-    processing_currency = Currency.of(processing_account.currency).code
-    if processing_currency != normalized_currency:
+    normalized_ccy = Currency.of(currency).code
+    processing = await get_or_create_processing_account(db, user_id, currency=normalized_ccy)
+    proc_ccy = Currency.of(processing.currency).code
+    if proc_ccy != normalized_ccy:
         raise ProcessingCurrencyConflictError(
-            f"Processing account currency is {processing_currency}; got transfer currency {normalized_currency}"
+            f"Processing account currency is {proc_ccy}; got transfer currency {normalized_ccy}"
         )
 
-    account_result = await db.execute(select(Account).where(Account.id == account_id, Account.user_id == user_id))
-    counterparty = account_result.scalar_one_or_none()
+    counterparty = (
+        await db.execute(select(Account).where(Account.id == account_id, Account.user_id == user_id))
+    ).scalar_one_or_none()
     if counterparty is None:
         raise ValidationError(f"Account {account_id} not found")
-    counterparty_currency = Currency.of(counterparty.currency).code
-    if counterparty_currency != processing_currency:
+    cp_ccy = Currency.of(counterparty.currency).code
+    if cp_ccy != proc_ccy:
         raise TransferAccountCurrencyMismatchError(
-            f"Transfer account currency is {counterparty_currency}; Processing account currency is {processing_currency}"
+            f"Transfer account currency is {cp_ccy}; Processing account currency is {proc_ccy}"
         )
 
-    if direction == "OUT":
-        debit_id, credit_id = processing_account.id, account_id
-    else:
-        debit_id, credit_id = account_id, processing_account.id
-    entry = Entry.transfer(
-        debit=debit_id,
-        credit=credit_id,
-        money=Money(amount, Currency.of(processing_currency)),
-    )
+    debit_id, credit_id = (processing.id, account_id) if direction == "OUT" else (account_id, processing.id)
     return await post_entry(
         db,
         user_id=user_id,
         entry_date=txn_date,
-        # The description of a transaction has no length limit. The prefix and the description
-        # must not overflow the memo column.
         memo=fit_journal_memo(f"Transfer {direction}: {description}"),
-        entry=entry,
-        base_currency=processing_currency,
+        entry=Entry.transfer(debit=debit_id, credit=credit_id, money=Money(amount, Currency.of(proc_ccy))),
+        base_currency=proc_ccy,
         source_id=source_id,
         operation=f"processing-transfer-{direction.lower()}",
     )
 
 
-async def get_processing_balance(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    currency: str,
-) -> Decimal:
-    """Get current balance of Processing account.
-
-    Args:
-        db: Database session
-        user_id: User ID
-
-    Returns:
-        Processing account balance (Decimal)
-    """
-    processing_account = await find_processing_account(db, user_id)
-    if processing_account is None:
+async def get_processing_balance(db: AsyncSession, user_id: UUID, *, currency: str) -> Decimal:
+    _ = currency
+    processing = await find_processing_account(db, user_id)
+    if processing is None:
         return Decimal("0")
-
-    # Get all journal lines for Processing account
-    result = await db.execute(
-        select(JournalLine)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(JournalLine.account_id == processing_account.id)
-        .where(JournalEntry.user_id == user_id)
-        .where(active_journal_entry_filter(JournalEntry))
+    lines = (
+        (
+            await db.execute(
+                select(JournalLine)
+                .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+                .where(
+                    JournalLine.account_id == processing.id,
+                    JournalEntry.user_id == user_id,
+                    active_journal_entry_filter(JournalEntry),
+                )
+            )
+        )
+        .scalars()
+        .all()
     )
-    lines = result.scalars().all()
-
-    # Calculate balance (Asset account: debit - credit). Lines are single-currency
-    # (the account's own); Money.sum infers it and would raise on a cross-currency mix.
-    line_monies = [line.money if line.direction == Direction.DEBIT else -line.money for line in lines]
-    return Money.sum(line_monies).amount if line_monies else Decimal("0")
+    monies = [ln.money if ln.direction == Direction.DEBIT else -ln.money for ln in lines]
+    return Money.sum(monies).amount if monies else Decimal("0")
 
 
 async def get_unpaired_transfers(
@@ -406,113 +277,87 @@ async def get_unpaired_transfers(
     currency: str,
     days_threshold: int = MAX_DATE_DIFF_DAYS,
 ) -> list[dict]:
-    """Get unpaired transfer entries (Processing balance != 0).
-
-    Returns ALL entries involving Processing account to show user what's unpaired.
-    The days_threshold is for alerting purposes only, not filtering.
-
-    Args:
-        db: Database session
-        user_id: User ID
-        days_threshold: Alert threshold (unused in current implementation)
-    Returns:
-        List of dicts with keys: entry_id, direction, amount, date, description
-    """
-    _ = days_threshold
-    processing_account = await find_processing_account(db, user_id)
-    if processing_account is None:
+    _ = currency, days_threshold
+    processing = await find_processing_account(db, user_id)
+    if processing is None:
         return []
-    # Get all journal lines for Processing account
-    result = await db.execute(
-        select(JournalLine, JournalEntry)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(JournalLine.account_id == processing_account.id)
-        .where(JournalEntry.user_id == user_id)
-        .where(active_journal_entry_filter(JournalEntry))
-        .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
-        .order_by(JournalEntry.entry_date.desc())
-    )
-    rows = result.all()
-
-    # Build list of unpaired transfers
-    unpaired = []
-    for line, entry in rows:
-        unpaired.append(
-            {
-                "entry_id": entry.id,
-                "direction": "OUT" if line.direction == Direction.DEBIT else "IN",
-                "amount": line.amount,
-                "date": entry.entry_date,
-                "description": entry.memo or "",
-            }
+    rows = (
+        await db.execute(
+            select(JournalLine, JournalEntry)
+            .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+            .where(
+                JournalLine.account_id == processing.id,
+                JournalEntry.user_id == user_id,
+                active_journal_entry_filter(JournalEntry),
+                JournalEntry.source_type == JournalEntrySourceType.SYSTEM,
+            )
+            .order_by(JournalEntry.entry_date.desc())
         )
+    ).all()
+    return [
+        {
+            "entry_id": entry.id,
+            "direction": "OUT" if line.direction == Direction.DEBIT else "IN",
+            "amount": line.amount,
+            "date": entry.entry_date,
+            "description": entry.memo or "",
+        }
+        for line, entry in rows
+    ]
 
-    return unpaired
 
-
-async def list_processing_transfer_legs(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    currency: str,
-) -> list[dict]:
-    processing_account = await find_processing_account(db, user_id)
-    if processing_account is None:
+async def list_processing_transfer_legs(db: AsyncSession, user_id: UUID, *, currency: str) -> list[dict]:
+    _ = currency
+    processing = await find_processing_account(db, user_id)
+    if processing is None:
         return []
-
-    result = await db.execute(
-        select(JournalEntry)
-        .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(JournalLine.account_id == processing_account.id)
-        .where(JournalEntry.user_id == user_id)
-        .where(active_journal_entry_filter(JournalEntry))
-        .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
-        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-        .order_by(JournalEntry.entry_date.desc())
+    entries = (
+        (
+            await db.execute(
+                select(JournalEntry)
+                .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+                .where(
+                    JournalLine.account_id == processing.id,
+                    JournalEntry.user_id == user_id,
+                    active_journal_entry_filter(JournalEntry),
+                    JournalEntry.source_type == JournalEntrySourceType.SYSTEM,
+                )
+                .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+                .order_by(JournalEntry.entry_date.desc())
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
     )
-    entries = result.scalars().unique().all()
 
     today = date.today()
+    proc_ccy = Currency.of(processing.currency).code
     legs: list[dict] = []
     for entry in entries:
-        processing_line = next(
-            (line for line in entry.lines if line.account_id == processing_account.id),
-            None,
-        )
-        if processing_line is None:
+        proc_line = next((ln for ln in entry.lines if ln.account_id == processing.id), None)
+        if proc_line is None:
             continue
-
-        other_line = next(
-            (line for line in entry.lines if line.account_id != processing_account.id),
-            None,
+        line_ccy = Currency.of(proc_line.currency).code
+        if line_ccy != proc_ccy:
+            raise ValidationError(f"Processing line currency is {line_ccy}; account currency is {proc_ccy}")
+        other = next((ln for ln in entry.lines if ln.account_id != processing.id), None)
+        other_name = other.account.name if other and other.account else "(unknown)"
+        from_acct, to_acct = (
+            (other_name, "(unmatched destination)")
+            if proc_line.direction == Direction.DEBIT
+            else ("(unmatched source)", other_name)
         )
-        other_account: Account | None = other_line.account if other_line else None
-        other_name = other_account.name if other_account else "(unknown)"
-        processing_currency = Currency.of(processing_account.currency).code
-        line_currency = Currency.of(processing_line.currency).code
-        if line_currency != processing_currency:
-            raise ValidationError(
-                f"Processing line currency is {line_currency}; account currency is {processing_currency}"
-            )
-
-        if processing_line.direction == Direction.DEBIT:
-            from_account = other_name
-            to_account = "(unmatched destination)"
-        else:
-            from_account = "(unmatched source)"
-            to_account = other_name
-
         legs.append(
             {
                 "entry_id": entry.id,
-                "from_account": from_account,
-                "to_account": to_account,
-                "amount": processing_line.amount,
-                "currency": processing_currency,
+                "from_account": from_acct,
+                "to_account": to_acct,
+                "amount": proc_line.amount,
+                "currency": proc_ccy,
                 "initiated_date": entry.entry_date,
                 "days_outstanding": (today - entry.entry_date).days,
                 "description": entry.memo or "",
             }
         )
-
     return legs

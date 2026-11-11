@@ -1,45 +1,7 @@
-"""``extraction`` — the backend implementation of the ``extraction`` package (#1421).
-
-The statement-parsing bounded context: documents in (PDF/image/CSV), verified
-financial facts out. It owns the source→fact half of the pipeline — parsing
-(vision-LLM + per-institution CSV), per-currency balance validation and
-balance-chain continuity, dedup by content hash, brokerage detection, and the
-evidence lineage that links every extracted fact to its source document.
-
-Files converge by layer (common/meta/migration-standard.md): ``base/`` holds
-the pure validation/confidence calculus; ``extension/`` the parsing pipeline
-(``ExtractionService`` + format mixins), dedup + dual-write repository verbs,
-brokerage classification, prompts, and the evidence write path; ``orm/`` the
-ORM entities this package owns. ``UploadedDocument`` moved here from
-``src/models/`` (#1675 D3) — its two former L1-infra readers
-(``platform``/``runtime``) go through the published read-only lookups in
-``extension/uploaded_document_reads.py`` instead of importing the ORM class.
-The rest of the extraction fact family followed in #1675 D4+D5c: ``layer2``-``layer3``,
-``evidence`` and ``correction`` live in ``orm/`` with every cross-domain
-``relationship()`` (to ``Account``/``User``) replaced by bare FK id columns +
-explicit interface reads; downstream domains (reconciliation / portfolio /
-pricing) import the published entity names below. ``statement_summary`` /
-the source lifecycle enums completed the move in #1675 D6. Source/review enums
-now live in ``base/source_vocabulary.py``; ORM adapters consume that definition.
-Statement facts are consumed directly by the workflow
-package through the published
-``StatementEventSource`` read model, while ``ledger``/``identity``
-(same-rank, dependency-cycle — both are readers extraction itself
-``depends_on``) read through their own registered ports
-(``ledger.register_statement_coverage_reader`` /
-``identity.register_in_flight_parse_checker``), each wired by ``main.py``.
-
-The names re-exported below are the entire public surface (``__all__`` must
-equal ``contract.interface``). Downstream domains reference AtomicTransaction
-rows BY ID (Decision B) — this package never exposes another domain's
-aggregates.
-"""
+"""``extraction`` — statement-parsing and evidence-lineage bounded context."""
 
 from __future__ import annotations
 
-# ``validation`` is also published as a module handle: call sites and tests
-# monkeypatch its functions (``validation.validate_balance = …``) and need one
-# canonical module object to patch.
 from src.extraction.base import validation
 from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.disposition import (

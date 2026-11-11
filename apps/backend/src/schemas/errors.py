@@ -1,10 +1,4 @@
-"""Structured error contract shared by every router (#1005).
-
-Before this module, every failure was an ``HTTPException(detail="some string")``
-and the frontend could only branch on free text. ``ErrorResponse`` gives errors a
-machine-readable ``error_id`` so the UI can switch on a code instead of parsing
-prose, and declares the 4xx/5xx contract in OpenAPI via ``COMMON_ERROR_RESPONSES``.
-"""
+"""Structured error contract shared by every router (#1005)."""
 
 from __future__ import annotations
 
@@ -14,13 +8,6 @@ from pydantic import BaseModel, Field
 
 
 class ErrorCode(str, Enum):
-    """Machine-readable error identifiers surfaced in ``ErrorResponse.error_id``.
-
-    The frontend branches on these values, so they are part of the API contract:
-    rename with care. ``http_error`` is the generic fallback for an
-    ``HTTPException`` raised without a domain-specific code.
-    """
-
     BAD_REQUEST = "bad_request"
     UNAUTHORIZED = "unauthorized"
     FORBIDDEN = "forbidden"
@@ -35,9 +22,6 @@ class ErrorCode(str, Enum):
     GATEWAY_TIMEOUT = "gateway_timeout"
 
 
-# Map of HTTP status code -> default error_id, used by the HTTPException handler to
-# derive a stable code for errors raised the legacy way (``HTTPException(detail=...)``)
-# so even un-migrated call sites emit a usable ``error_id``.
 STATUS_TO_ERROR_CODE: dict[int, ErrorCode] = {
     400: ErrorCode.BAD_REQUEST,
     401: ErrorCode.UNAUTHORIZED,
@@ -54,47 +38,26 @@ STATUS_TO_ERROR_CODE: dict[int, ErrorCode] = {
 
 
 def error_code_for_status(status_code: int) -> ErrorCode:
-    """Return the canonical :class:`ErrorCode` for an HTTP status code."""
     if status_code in STATUS_TO_ERROR_CODE:
         return STATUS_TO_ERROR_CODE[status_code]
     return ErrorCode.HTTP_ERROR if status_code < 500 else ErrorCode.INTERNAL_ERROR
 
 
 class ErrorResponse(BaseModel):
-    """Canonical error body returned by every exception handler.
-
-    ``error_id`` is the stable, machine-readable discriminator the frontend
-    branches on. ``detail`` stays human-readable for display/logging, and
-    ``request_id`` correlates the error with backend logs.
-    """
-
-    error_id: str = Field(
-        ...,
-        description="Machine-readable error code; see ErrorCode.",
-        examples=["not_found"],
-    )
-    detail: str = Field(..., description="Human-readable error message.")
-    request_id: str | None = Field(
-        default=None,
-        description="Correlation id matching the backend structured logs.",
-    )
+    error_id: str = Field(..., description="Machine-readable error code.", examples=["not_found"])
+    detail: str
+    request_id: str | None = None
 
 
-# Reusable OpenAPI ``responses=`` block so the common 4xx/5xx contract is declared
-# once and attached to every router (see ``app.include_router(..., responses=...)``).
-#
-# 422 is intentionally NOT listed here: FastAPI auto-documents request-validation
-# errors as ``HTTPValidationError`` (``{"detail": [...]}``). The ``RequestValidationError``
-# handler in ``main.py`` keeps that ``detail`` list and only adds ``error_id`` and
-# ``request_id`` (#2649). Its ``detail`` is not a string, so declaring 422 as
-# ``ErrorResponse`` would make the OpenAPI/typed client disagree with the runtime
-# body. The codes below are the ones the handlers actually emit as ``ErrorResponse``.
 COMMON_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
-    400: {"model": ErrorResponse, "description": "Bad request"},
-    401: {"model": ErrorResponse, "description": "Unauthorized"},
-    403: {"model": ErrorResponse, "description": "Forbidden"},
-    404: {"model": ErrorResponse, "description": "Not found"},
-    409: {"model": ErrorResponse, "description": "Conflict"},
-    429: {"model": ErrorResponse, "description": "Too many requests"},
-    500: {"model": ErrorResponse, "description": "Internal server error"},
+    code: {"model": ErrorResponse, "description": desc}
+    for code, desc in (
+        (400, "Bad request"),
+        (401, "Unauthorized"),
+        (403, "Forbidden"),
+        (404, "Not found"),
+        (409, "Conflict"),
+        (429, "Too many requests"),
+        (500, "Internal server error"),
+    )
 }

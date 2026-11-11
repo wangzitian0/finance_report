@@ -3,17 +3,16 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.extraction import EconomicIntent
-from src.schemas.base import ListResponse
+from src.schemas.base import ListResponse, default_list
 
 
 class ReconciliationStatusEnum(str, Enum):
-    """Reconciliation match status."""
-
     AUTO_ACCEPTED = "auto_accepted"
     PENDING_REVIEW = "pending_review"
     ACCEPTED = "accepted"
@@ -22,13 +21,6 @@ class ReconciliationStatusEnum(str, Enum):
 
 
 class BankTransactionSummary(BaseModel):
-    """Summary of a transaction for reconciliation.
-
-    Mapped from Layer-2 ``AtomicTransaction`` (EPIC-011 Stage 3). ``statement_id``
-    is retained as an optional field for backward compatibility with API
-    consumers; atomic transactions do not carry a per-transaction status.
-    """
-
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -43,8 +35,6 @@ class BankTransactionSummary(BaseModel):
 
 
 class JournalEntrySummary(BaseModel):
-    """Summary of a journal entry."""
-
     id: UUID
     entry_date: date
     memo: str | None
@@ -54,8 +44,6 @@ class JournalEntrySummary(BaseModel):
 
 
 class ReconciliationMatchResponse(BaseModel):
-    """Match response with transaction and entry details."""
-
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -69,30 +57,18 @@ class ReconciliationMatchResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     transaction: BankTransactionSummary | None = None
-    entries: list[JournalEntrySummary] = Field(
-        default_factory=list,
-        description="Journal entries proposed or linked for this reconciliation match.",
-    )
+    entries: list[JournalEntrySummary] = default_list()
 
 
 ReconciliationMatchListResponse = ListResponse[ReconciliationMatchResponse]
 
 
 class ReconciliationRunRequest(BaseModel):
-    """Request body to run reconciliation."""
-
     statement_id: UUID | None = None
-    limit: int | None = Field(
-        default=None,
-        ge=1,
-        le=10000,
-        description="Maximum number of source transactions to consider.",
-    )
+    limit: Annotated[int, Field(ge=1, le=10000)] | None = None
 
 
 class ReconciliationRunResponse(BaseModel):
-    """Response for reconciliation run."""
-
     matches_created: int
     auto_accepted: int
     pending_review: int
@@ -100,42 +76,26 @@ class ReconciliationRunResponse(BaseModel):
 
 
 class BatchAcceptRequest(BaseModel):
-    """Request body for batch accept."""
-
     match_ids: list[str]
 
 
 class ReviewedDispositionRequest(BaseModel):
-    """Explicit human-reviewed economic meaning for one unmatched source transaction."""
-
     intent: EconomicIntent
     counter_account_id: UUID
-    category: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=100,
-        description="Required accounting category for P&L intents.",
-    )
-    rationale: str = Field(
-        min_length=1,
-        max_length=500,
-        description="Reviewer rationale tied to the source evidence.",
-    )
+    category: Annotated[str, Field(min_length=1, max_length=100)] | None = None
+    rationale: Annotated[str, Field(min_length=1, max_length=500)]
 
     @field_validator("category", "rationale")
     @classmethod
     def normalize_semantic_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        normalized = value.strip()
-        if not normalized:
+        if not (normalized := value.strip()):
             raise ValueError("semantic text cannot be blank")
         return normalized
 
 
 class ReconciliationStatsResponse(BaseModel):
-    """Reconciliation statistics."""
-
     total_transactions: int
     matched_transactions: int
     unmatched_transactions: int
@@ -149,30 +109,21 @@ UnmatchedTransactionsResponse = ListResponse[BankTransactionSummary]
 
 
 class AnomalyResponse(BaseModel):
-    """Response for anomalies."""
-
     anomaly_type: str
     severity: str
     message: str
 
 
 class ReconciliationAdjustmentRequest(BaseModel):
-    """Request body for reconciliation adjustment (Flow 18)."""
-
     account_id: UUID
     bank_balance: Decimal
     book_balance: Decimal
     threshold: Decimal = Decimal("0.05")
     entry_date: date | None = None
-    fx_rate: Decimal | None = Field(
-        default=None,
-        description="Exchange rate to base currency (required if account currency != base currency)",
-    )
+    fx_rate: Decimal | None = None
 
 
 class ReconciliationAdjustmentResponse(BaseModel):
-    """Response for reconciliation adjustment (Flow 18)."""
-
     model_config = ConfigDict(from_attributes=True)
 
     account_id: UUID

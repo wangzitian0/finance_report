@@ -1,13 +1,4 @@
-"""AIAdvisorService + chat stream/error types.
-
-Moved from ``src/services/ai_advisor/service.py`` (#1671 Wave B).  Cross-domain
-reads go through each package's published root (``platform`` / ``portfolio`` /
-``pricing`` / ``reconciliation`` / ``llm`` / ``audit`` / ``reporting`` — the
-last landed via #1666, folded from the app remainder while this PR was in
-flight); the observed-FX-pair composer's owner is still the app remainder
-(``services/market_data_scheduler.py``, #1610), so it is injected through
-:mod:`src.advisor.extension.app_reads`.
-"""
+"""AIAdvisorService + chat stream/error types."""
 
 from __future__ import annotations
 
@@ -16,7 +7,7 @@ import calendar
 import hashlib
 import json
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -28,10 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.advisor.base.constants import (
-    CHAT_METADATA_SAFE_HREFS,
-    MAX_CONTEXT_MESSAGES,
-)
+from src.advisor.base.constants import CHAT_METADATA_SAFE_HREFS, MAX_CONTEXT_MESSAGES
 from src.advisor.base.guardrails import (
     StreamRedactor,
     build_refusal,
@@ -82,16 +70,21 @@ from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, Ch
 from src.schemas.reporting import PersonalReportPackageSnapshotStatus
 from src.workflow import get_workflow_status, stored_package_readiness
 
-# Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
-
 logger = get_logger("src.advisor")
+
+_REFUSAL_CHECKS: tuple[tuple[Callable[[str], bool], str], ...] = (
+    (is_prompt_injection, "injection"),
+    (is_sensitive_request, "sensitive"),
+    (is_write_request, "write"),
+    (is_non_financial, "non_financial"),
+)
+_BALANCE_TOKENS = ("net worth", "assets", "asset", "liabilities", "liability", "balance", "equity", "worth")
+_CASH_FLOW_TOKENS = ("expense", "expenses", "spending", "income", "cash flow", "cash-flow", "cashflow", "month")
 
 
 class AIAdvisorError(Exception):
     """Raised when AI advisor fails."""
-
-    pass
 
 
 @dataclass
@@ -104,38 +97,26 @@ class ChatStream:
 
 
 async def _bound_scene_binding(user_id: UUID | None) -> SceneBinding | None:
-    """The user's ``advisor.chat`` binding (EPIC-023 AC23.4.5), or None.
-
-    Carries the **qualified** ``provider_id/model`` (so the transport resolves the
-    exact provider even with several configured) plus the configured reasoning depth
-    and ``max_tokens``. Best-effort: ``user_id is None`` or any config-resolution
-    error falls back to the env model list rather than breaking chat — and is logged
-    so a broken per-user config is diagnosable instead of silently ignored."""
     if user_id is None:
         return None
     try:
         return await get_config_source(user_id).get_binding(Scene.ADVISOR_CHAT)
-    except Exception:  # noqa: BLE001 - config issues must never break chat
+    except Exception:  # noqa: BLE001
         logger.warning("advisor.chat binding resolution failed; using env models", exc_info=True)
         return None
 
 
 def _large_role_reasoning() -> ReasoningEffort:
-    """The reasoning effort of the infra2 SDK large role (high by default, #2572)."""
     return ReasoningEffort(settings.to_llm_settings().role_reasoning_effort("large"))
 
 
 def _line_confidence_tier(line: dict[str, Any]) -> str | None:
-    """Derive a report line's confidence tier from explicit tier or provenance (#2598)."""
-    explicit = line.get("confidence_tier")
-    if explicit:
+    if explicit := line.get("confidence_tier"):
         return str(explicit)
-    provenance = str(line.get("provenance") or "").strip().lower()
-    if provenance == "manual":
+    prov = str(line.get("provenance") or "").strip().lower()
+    if prov == "manual":
         return "MANUAL_TRUSTED"
-    if provenance in ("imported", "derived"):
-        return "DETERMINISTIC"
-    return None
+    return "DETERMINISTIC" if prov in ("imported", "derived") else None
 
 
 class AIAdvisorService:
@@ -144,7 +125,6 @@ class AIAdvisorService:
     def __init__(self) -> None:
         self.api_key = settings.ai_api_key
         self.base_url = settings.ai_base_url
-        # User-facing answers use the large role of the infra2 SDK (#2572); no fallback chain.
         self.large_model = settings.large_model
         self.small_model = settings.small_model
 
@@ -156,7 +136,6 @@ class AIAdvisorService:
         session_id: UUID | None = None,
         model: str | None = None,
     ) -> ChatStream:
-        """Create a streaming chat response for a user message."""
         raw_message = message.strip()
         message = redact_sensitive(raw_message)
         language = detect_language(raw_message)
@@ -164,75 +143,41 @@ class AIAdvisorService:
         session = await self._get_or_create_session(db, user_id, session_id, message)
         await self._record_message(db, session, ChatMessageRole.USER, message)
 
-        if is_prompt_injection(raw_message):
-            refusal = build_refusal("injection", language)
-            await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
-            return self._cached_stream(session.id, refusal, model_name=None)
-
-        if is_sensitive_request(raw_message):
-            refusal = build_refusal("sensitive", language)
-            await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
-            return self._cached_stream(session.id, refusal, model_name=None)
-
-        if is_write_request(raw_message):
-            refusal = build_refusal("write", language)
-            await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
-            return self._cached_stream(session.id, refusal, model_name=None)
-
-        if is_non_financial(raw_message):
-            refusal = build_refusal("non_financial", language)
-            await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
-            return self._cached_stream(session.id, refusal, model_name=None)
+        for predicate, kind in _REFUSAL_CHECKS:
+            if predicate(raw_message):
+                refusal = build_refusal(kind, language)
+                await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
+                return self._cached_stream(session.id, refusal, model_name=None)
 
         context = await self.get_financial_context(db, user_id)
         metadata = self.build_chat_grounding_metadata(context, raw_message)
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-        # Resolve the user's advisor.chat binding once (one DB round-trip) and reuse
-        # it for the cache key and streaming, so the cached entry and the streamed
-        # response can never be keyed/generated under different models.
         bound = await _bound_scene_binding(user_id)
-        bound_model = bound.model_id if bound else None
-        # The cache key must reflect the model that will actually answer: an explicit
-        # per-message model, else the bound model, else the env primary.
-        model_key = model or bound_model or self.large_model
+        model_key = model or (bound.model_id if bound else None) or self.large_model
         cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}:{model_key}"
         _CACHE.prune()
-        cached = _CACHE.get(cache_key)
-        if cached:
+        if cached := _CACHE.get(cache_key):
             cached = ensure_disclaimer(cached, language)
             await self._record_message(db, session, ChatMessageRole.ASSISTANT, cached, model_name="cache")
             return self._cached_stream(session.id, cached, model_name="cache", metadata=metadata)
 
-        prompt = get_ai_advisor_prompt(context, language)
-        history = await self._load_history(db, session.id)
-        messages = [{"role": "system", "content": prompt}, *history]
-        messages.append({"role": "user", "content": message})
-
-        # Configured = the user has their own provider, or there is a deployment
-        # default, or the env key is set (EPIC-023): a BYO-provider user must not be
-        # blocked just because the deployment has no AI_API_KEY.
+        messages = [
+            {"role": "system", "content": get_ai_advisor_prompt(context, language)},
+            *(await self._load_history(db, session.id)),
+            {"role": "user", "content": message},
+        ]
         if not self.api_key and not await get_config_source(user_id).is_configured():
             raise AIAdvisorError("AI provider API key not configured")
 
         return ChatStream(
             session_id=session.id,
-            stream=self._stream_and_store(
-                db,
-                session,
-                messages,
-                language,
-                cache_key,
-                model,
-                user_id,
-                bound,
-            ),
+            stream=self._stream_and_store(db, session, messages, language, cache_key, model, user_id, bound),
             model_name=model_key,
             cached=False,
             metadata=metadata,
         )
 
     async def get_financial_context(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
-        """Build summarized financial context for the advisor."""
         context = await self._get_financial_summary_context(db, user_id)
         advisor_context = await self.get_advisor_context(db, user_id, financial_context=context)
         context["advisor_context"] = json.dumps(advisor_context, sort_keys=True, default=str)
@@ -243,12 +188,8 @@ class AIAdvisorService:
         return context
 
     async def _get_financial_summary_context(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
-        """Build the legacy summary fields consumed by existing chat surfaces."""
         today = date.today()
         start_date = today.replace(day=1)
-
-        context: dict[str, str] = {}
-
         base_currency = await get_effective_base_currency(db, user_id=user_id)
         ending_unrealized_fx: Decimal | None = None
         try:
@@ -264,36 +205,19 @@ class AIAdvisorService:
             net_income_bs = Decimal(str(balance.get("net_income") or "0.00"))
             net_worth = total_assets - total_liabilities
             currency = str(balance.get("currency") or base_currency)
-            bs_lines = [
-                *cast(list[dict[str, Any]], balance.get("assets") or []),
-                *cast(list[dict[str, Any]], balance.get("liabilities") or []),
-            ]
-            bs_explicit = balance.get("confidence_tier")
-            balance_sheet_confidence_tier = (
-                str(bs_explicit)
-                if bs_explicit
-                else (
-                    worst_confidence_tier(
-                        [_line_confidence_tier(line) for line in bs_lines],
-                        default="DETERMINISTIC",
-                    )
-                    or "DETERMINISTIC"
-                )
+            bs_lines = [*cast(list[dict[str, Any]], balance.get("assets") or []), *cast(list[dict[str, Any]], balance.get("liabilities") or [])]
+            bs_tier = str(balance["confidence_tier"]) if balance.get("confidence_tier") else (
+                worst_confidence_tier([_line_confidence_tier(line) for line in bs_lines], default="DETERMINISTIC")
+                or "DETERMINISTIC"
             )
             ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
-            total_assets = Decimal("0")
-            total_liabilities = Decimal("0")
-            opening_equity = Decimal("0")
-            net_income_bs = Decimal("0")
-            net_worth = Decimal("0")
+            total_assets = total_liabilities = opening_equity = net_income_bs = net_worth = Decimal("0")
             currency = base_currency
-            balance_sheet_confidence_tier = "UNAVAILABLE"
+            bs_tier = "UNAVAILABLE"
 
         try:
-            # The balance sheet above has the same date and currency as the period end, so its
-            # unrealized FX revaluation is the ending value. The income statement does not run it again.
-            income_statement = cast(
+            inc = cast(
                 dict[str, Any],
                 await generate_income_statement(
                     db,
@@ -304,10 +228,10 @@ class AIAdvisorService:
                     ending_unrealized_fx_gain_loss=ending_unrealized_fx,
                 ),
             )
-            monthly_income = Decimal(str(income_statement["total_income"]))
-            monthly_expenses = Decimal(str(income_statement["total_expenses"]))
-            income_lines = cast(list[dict[str, Any]], income_statement.get("income") or [])
-            expense_lines = cast(list[dict[str, Any]], income_statement.get("expenses") or [])
+            monthly_income = Decimal(str(inc["total_income"]))
+            monthly_expenses = Decimal(str(inc["total_expenses"]))
+            inc_lines = cast(list[dict[str, Any]], inc.get("income") or [])
+            exp_lines = cast(list[dict[str, Any]], inc.get("expenses") or [])
             if monthly_income == Decimal("0") and monthly_expenses == Decimal("0"):
                 latest_pnl_date = await db.scalar(
                     select(func.max(JournalEntry.entry_date))
@@ -322,88 +246,68 @@ class AIAdvisorService:
                     )
                 )
                 if latest_pnl_date is not None:
-                    hist_start = latest_pnl_date.replace(day=1)
                     hist_end = latest_pnl_date.replace(
                         day=calendar.monthrange(latest_pnl_date.year, latest_pnl_date.month)[1]
                     )
-                    income_statement = cast(
+                    inc = cast(
                         dict[str, Any],
                         await generate_income_statement(
-                            db,
-                            user_id,
-                            start_date=hist_start,
-                            end_date=hist_end,
-                            currency=currency,
+                            db, user_id, start_date=latest_pnl_date.replace(day=1), end_date=hist_end, currency=currency
                         ),
                     )
-                    monthly_income = Decimal(str(income_statement["total_income"]))
-                    monthly_expenses = Decimal(str(income_statement["total_expenses"]))
-                    income_lines = cast(list[dict[str, Any]], income_statement.get("income") or [])
-                    expense_lines = cast(list[dict[str, Any]], income_statement.get("expenses") or [])
-            income_statement_confidence_tier = (
+                    monthly_income = Decimal(str(inc["total_income"]))
+                    monthly_expenses = Decimal(str(inc["total_expenses"]))
+                    inc_lines = cast(list[dict[str, Any]], inc.get("income") or [])
+                    exp_lines = cast(list[dict[str, Any]], inc.get("expenses") or [])
+            inc_tier = (
                 worst_confidence_tier(
-                    [_line_confidence_tier(line) for line in [*income_lines, *expense_lines]],
-                    default="DETERMINISTIC",
+                    [_line_confidence_tier(line) for line in [*inc_lines, *exp_lines]], default="DETERMINISTIC"
                 )
                 or "DETERMINISTIC"
             )
         except ReportError:
-            monthly_income = Decimal("0")
-            monthly_expenses = Decimal("0")
-            expense_lines = []
-            income_statement_confidence_tier = "UNAVAILABLE"
+            monthly_income = monthly_expenses = Decimal("0")
+            exp_lines = []
+            inc_tier = "UNAVAILABLE"
 
         try:
             breakdown = cast(
                 dict[str, Any],
                 await get_category_breakdown(
-                    db,
-                    user_id,
-                    breakdown_type=AccountType.EXPENSE,
-                    period="monthly",
-                    currency=currency,
+                    db, user_id, breakdown_type=AccountType.EXPENSE, period="monthly", currency=currency
                 ),
             )
             top_items = cast(list[dict[str, Any]], breakdown.get("items") or [])[:3]
-            if not top_items and expense_lines:
-                sorted_expenses = sorted(
-                    expense_lines,
-                    key=lambda line: Decimal(str(line.get("amount") or "0")),
-                    reverse=True,
+            if not top_items and exp_lines:
+                sorted_exp = sorted(
+                    exp_lines, key=lambda line: Decimal(str(line.get("amount") or "0")), reverse=True
                 )[:3]
                 top_items = [
                     {"category_name": line["name"], "total": line["amount"]}
-                    for line in sorted_expenses
+                    for line in sorted_exp
                     if Decimal(str(line.get("amount") or "0")) != Decimal("0")
                 ]
             top_expenses = ", ".join(f"{item['category_name']}: {currency} {item['total']}" for item in top_items)
         except ReportError:
             top_expenses = "N/A"
 
-        reconciliation = await self._get_reconciliation_summary(db, user_id)
-        period_net_income = net_income_bs
-
-        context.update(
-            {
-                "total_assets": self._format_money(total_assets, currency),
-                "total_liabilities": self._format_money(total_liabilities, currency),
-                "net_worth": self._format_money(net_worth, currency),
-                "equity": self._format_money(net_worth, currency),
-                "opening_equity": self._format_money(opening_equity, currency),
-                "net_income": self._format_money(period_net_income, currency),
-                "monthly_income": self._format_money(monthly_income, currency),
-                "monthly_expenses": self._format_money(monthly_expenses, currency),
-                "top_expenses": top_expenses or "N/A",
-                **reconciliation,
-                "balance_sheet_confidence_tier": balance_sheet_confidence_tier,
-                "income_statement_confidence_tier": income_statement_confidence_tier,
-            }
-        )
-
-        return context
+        fmt = lambda amt: self._format_money(amt, currency)  # noqa: E731
+        return {
+            "total_assets": fmt(total_assets),
+            "total_liabilities": fmt(total_liabilities),
+            "net_worth": fmt(net_worth),
+            "equity": fmt(net_worth),
+            "opening_equity": fmt(opening_equity),
+            "net_income": fmt(net_income_bs),
+            "monthly_income": fmt(monthly_income),
+            "monthly_expenses": fmt(monthly_expenses),
+            "top_expenses": top_expenses or "N/A",
+            **(await self._get_reconciliation_summary(db, user_id)),
+            "balance_sheet_confidence_tier": bs_tier,
+            "income_statement_confidence_tier": inc_tier,
+        }
 
     async def _get_reconciliation_summary(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
-        """Build the reconciliation fields of the financial summary."""
         stats = await get_reconciliation_stats(db, user_id)
         return {
             "unmatched_count": str(stats.unmatched_transactions),
@@ -412,50 +316,27 @@ class AIAdvisorService:
         }
 
     async def get_advisor_context(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        *,
-        financial_context: dict[str, str] | None = None,
+        self, db: AsyncSession, user_id: UUID, *, financial_context: dict[str, str] | None = None
     ) -> dict[str, Any]:
-        """Build deterministic application facts and structured suggestions for the advisor."""
-        financial_summary = financial_context or await self._get_financial_summary_context(db, user_id)
-        context = await self._load_advisor_facts(db, user_id, financial_summary)
-        context["suggestions"] = [suggestion.model_dump() for suggestion in self._build_advisor_suggestions(context)]
+        summary = financial_context or await self._get_financial_summary_context(db, user_id)
+        context = await self._load_advisor_facts(db, user_id, summary)
+        context["suggestions"] = [s.model_dump() for s in self._build_advisor_suggestions(context)]
         return self._redact_context(context)
 
     async def get_advisor_suggestions(self, db: AsyncSession, user_id: UUID) -> list[dict[str, Any]]:
-        """Return the suggestions of ``get_advisor_context`` without its statement reads.
-
-        The suggestion rules read only the reconciliation fields of the financial summary.
-        This path skips the balance sheet, the income statement and the category breakdown
-        (#2583). A rule that reads another summary field must read it in this path too;
-        AC-advisor.context.5 fails when a rule reads one.
-
-        This path does not run the balance sheet, so it does not load a missing FX rate from
-        the provider. The market-data status therefore reads only stored rates.
-        """
         context = await self._load_advisor_facts(db, user_id, await self._get_reconciliation_summary(db, user_id))
-        suggestions = [suggestion.model_dump() for suggestion in self._build_advisor_suggestions(context)]
+        suggestions = [s.model_dump() for s in self._build_advisor_suggestions(context)]
         return cast(list[dict[str, Any]], self._redact_context({"suggestions": suggestions})["suggestions"])
 
     async def _load_advisor_facts(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        financial_summary: dict[str, str],
+        self, db: AsyncSession, user_id: UUID, financial_summary: dict[str, str]
     ) -> dict[str, Any]:
-        """Load the fact groups of the advisor context, without the suggestions."""
         readiness = await self._load_report_readiness(db, user_id)
         workflow = await self._load_workflow_status(db, user_id, synced_package_readiness=readiness)
         market_data = await self._load_market_data_status(db, user_id)
         portfolio = await self._load_portfolio_summary(db, user_id)
         return self._assemble_advisor_facts(
-            financial_summary,
-            readiness=readiness,
-            workflow=workflow,
-            market_data=market_data,
-            portfolio=portfolio,
+            financial_summary, readiness=readiness, workflow=workflow, market_data=market_data, portfolio=portfolio
         )
 
     def _assemble_advisor_facts(
@@ -467,8 +348,7 @@ class AIAdvisorService:
         market_data: dict[str, Any],
         portfolio: dict[str, Any],
     ) -> dict[str, Any]:
-        """Assemble the fact groups from loaded reads. This step reads no database."""
-        context: dict[str, Any] = {
+        return {
             "financial_summary": financial_summary,
             "report_readiness": self._advisor_readiness(readiness),
             "authority_coverage": self._advisor_authority_coverage(readiness),
@@ -476,27 +356,16 @@ class AIAdvisorService:
             "market_data": market_data,
             "portfolio": portfolio,
             "cash_flow": {
-                "monthly_income": financial_summary.get("monthly_income", "N/A"),
-                "monthly_expenses": financial_summary.get("monthly_expenses", "N/A"),
-                "top_expenses": financial_summary.get("top_expenses", "N/A"),
-                "unmatched_count": financial_summary.get("unmatched_count", "N/A"),
-                "pending_review": financial_summary.get("pending_review", "N/A"),
+                k: financial_summary.get(k, "N/A")
+                for k in ("monthly_income", "monthly_expenses", "top_expenses", "unmatched_count", "pending_review")
             },
         }
-        return context
 
     async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            # The app shell reads the workflow status on each page, and that read stores readiness.
-            # The advisor uses the stored value while the workflow read reuses it: no input row
-            # changed and the state is younger than WORKFLOW_SYNC_STATE_MAX_AGE (#2583). Thus the
-            # advisor readiness can lag a provider FX recovery or a code deploy by at most that
-            # age, as the app shell does. The advisor does not write on a read, so it evaluates readiness itself
-            # when no value is reusable.
             readiness = await stored_package_readiness(db, user_id=user_id)
             if readiness is None:
                 readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
-            # The current candidate is a preview. Only a frozen snapshot with a package decision is trusted.
             readiness["document_status"] = PersonalReportPackageSnapshotStatus.DRAFT.value
             return readiness
         except Exception as exc:
@@ -516,17 +385,11 @@ class AIAdvisorService:
             }
 
     async def _load_workflow_status(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        *,
-        synced_package_readiness: dict[str, Any] | None = None,
+        self, db: AsyncSession, user_id: UUID, *, synced_package_readiness: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         try:
-            status = await get_workflow_status(
-                db,
-                user_id=user_id,
-                synced_package_readiness=synced_package_readiness,
+            return self._jsonable(
+                await get_workflow_status(db, user_id=user_id, synced_package_readiness=synced_package_readiness)
             )
         except Exception as exc:
             logger.warning("Failed to load advisor workflow status", error=str(exc))
@@ -542,28 +405,25 @@ class AIAdvisorService:
                 "event_counts": {"unread": 0, "action_required": 0, "blocked": 0},
                 "report_readiness": {"state": "none", "blocking_count": 0, "href": "/reports"},
             }
-        return self._jsonable(status)
 
     async def _load_market_data_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
             fx_pairs = await app_reads.fx_pairs()(db, user_id, include_default=True)
-            stock_symbols = await active_stock_symbols(db, user_id)
-            statuses = await get_market_data_status(db, pairs=fx_pairs, symbols=stock_symbols)
+            statuses = await get_market_data_status(
+                db, pairs=fx_pairs, symbols=await active_stock_symbols(db, user_id)
+            )
         except Exception as exc:
             logger.warning("Failed to load advisor market data status", error=str(exc))
             statuses = []
-
-        rows = [self._jsonable(status) for status in statuses]
-        stale_rows = [row for row in rows if row.get("fresh") is False]
-        return {
-            "statuses": rows,
-            "stale_count": len(stale_rows),
-            "stale_scopes": [str(row.get("scope")) for row in stale_rows],
-        }
+        rows = [self._jsonable(s) for s in statuses]
+        stale = [r for r in rows if r.get("fresh") is False]
+        return {"statuses": rows, "stale_count": len(stale), "stale_scopes": [str(r.get("scope")) for r in stale]}
 
     async def _load_portfolio_summary(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            summary = await PortfolioService().get_portfolio_summary(db, user_id)
+            payload = self._jsonable(await PortfolioService().get_portfolio_summary(db, user_id))
+            payload["available"] = True
+            return payload
         except PortfolioNotFoundError:
             return {
                 "available": False,
@@ -575,10 +435,6 @@ class AIAdvisorService:
         except Exception as exc:
             logger.warning("Failed to load advisor portfolio summary", error=str(exc))
             return {"available": False, "limitation": "Portfolio summary is unavailable."}
-
-        payload = self._jsonable(summary)
-        payload["available"] = True
-        return payload
 
     def _advisor_readiness(self, readiness: dict[str, Any]) -> dict[str, Any]:
         state = str(readiness.get("state", "draft"))
@@ -595,12 +451,12 @@ class AIAdvisorService:
         }
 
     def _advisor_authority_coverage(self, readiness: dict[str, Any]) -> dict[str, Any]:
-        coverage = readiness.get("input_coverage") or {}
+        cov = readiness.get("input_coverage") or {}
         return {
-            "manifest_decision_count": int(coverage.get("manifest_decision_count") or 0),
-            "authoritative_input_count": int(coverage.get("authoritative_input_count") or 0),
-            "unproven_input_count": int(coverage.get("unproven_input_count") or 0),
-            "blocker_codes": [str(blocker.get("code")) for blocker in readiness.get("blockers") or []],
+            "manifest_decision_count": int(cov.get("manifest_decision_count") or 0),
+            "authoritative_input_count": int(cov.get("authoritative_input_count") or 0),
+            "unproven_input_count": int(cov.get("unproven_input_count") or 0),
+            "blocker_codes": [str(b.get("code")) for b in readiness.get("blockers") or []],
         }
 
     def _build_advisor_suggestions(self, context: dict[str, Any]) -> list[AdvisorSuggestion]:
@@ -621,21 +477,16 @@ class AIAdvisorService:
                     next_action_href=str(readiness["action_href"]),
                 )
             )
-
-        event_counts = workflow.get("event_counts", {})
-        action_required = int(event_counts.get("action_required") or 0)
-        if action_required:
-            next_action = workflow.get("next_action", {})
+        if action_required := int(workflow.get("event_counts", {}).get("action_required") or 0):
             suggestions.append(
                 AdvisorSuggestion(
                     basis=f"Workflow has {action_required} action-required event(s).",
                     confidence_tier="review_required",
                     source_refs=["workflow"],
                     limitation="Pending review items may affect report readiness and advisory conclusions.",
-                    next_action_href=str(next_action.get("href") or "/audit"),
+                    next_action_href=str(workflow.get("next_action", {}).get("href") or "/audit"),
                 )
             )
-
         if market_data["stale_count"]:
             suggestions.append(
                 AdvisorSuggestion(
@@ -646,7 +497,6 @@ class AIAdvisorService:
                     next_action_href="/portfolio?panel=prices",
                 )
             )
-
         if portfolio.get("available") and int(portfolio.get("active_positions_count") or 0):
             suggestions.append(
                 AdvisorSuggestion(
@@ -660,7 +510,6 @@ class AIAdvisorService:
                     next_action_href="/portfolio",
                 )
             )
-
         if cash_flow.get("pending_review") not in {None, "0", "N/A"}:
             suggestions.append(
                 AdvisorSuggestion(
@@ -671,7 +520,6 @@ class AIAdvisorService:
                     next_action_href="/reconciliation?tab=review-queue",
                 )
             )
-
         if not suggestions:
             suggestions.append(
                 AdvisorSuggestion(
@@ -685,7 +533,6 @@ class AIAdvisorService:
         return suggestions
 
     def build_chat_grounding_metadata(self, context: dict[str, str], message: str) -> ChatResponseMetadata:
-        """Build compact UI grounding metadata for one streamed chat answer."""
         citations: list[ChatCitation] = []
         actions: list[ChatActionChip] = []
         seen_citations: set[str] = set()
@@ -693,100 +540,73 @@ class AIAdvisorService:
 
         def add_citation(label: str, source_ref: str, confidence_tier: str | None, href: str) -> None:
             safe_href = self._safe_chat_href(href)
-            if source_ref in seen_citations or safe_href == "/":
-                return
-            seen_citations.add(source_ref)
-            citations.append(
-                ChatCitation(
-                    label=label,
-                    source_ref=source_ref,
-                    confidence_tier=self._display_confidence_tier(confidence_tier),
-                    href=safe_href,
+            if source_ref not in seen_citations and safe_href != "/":
+                seen_citations.add(source_ref)
+                citations.append(
+                    ChatCitation(
+                        label=label,
+                        source_ref=source_ref,
+                        confidence_tier=self._display_confidence_tier(confidence_tier),
+                        href=safe_href,
+                    )
                 )
-            )
 
         def add_action(kind: str, label: str, href: str, count: int | None = None) -> None:
             safe_href = self._safe_chat_href(href)
-            key = (kind, safe_href)
-            if safe_href == "/" or key in seen_actions:
-                return
-            seen_actions.add(key)
-            actions.append(ChatActionChip(kind=kind, label=label, href=safe_href, count=count))
+            if safe_href != "/" and (kind, safe_href) not in seen_actions:
+                seen_actions.add((kind, safe_href))
+                actions.append(ChatActionChip(kind=kind, label=label, href=safe_href, count=count))
 
         lower_message = message.lower()
         pending_review = self._parse_positive_int(context.get("pending_review"))
-        asks_balance = any(
-            token in lower_message
-            for token in ("net worth", "assets", "asset", "liabilities", "liability", "balance", "equity", "worth")
-        )
-        asks_cash_flow = any(
-            token in lower_message
-            for token in ("expense", "expenses", "spending", "income", "cash flow", "cash-flow", "cashflow", "month")
-        )
-
-        if asks_balance:
+        if any(t in lower_message for t in _BALANCE_TOKENS):
             add_citation(
                 "Balance Sheet",
                 "balance_sheet.total_equity",
                 context.get("balance_sheet_confidence_tier"),
                 "/reports?tab=balance-sheet",
             )
-
-        if asks_cash_flow or pending_review:
+        if any(t in lower_message for t in _CASH_FLOW_TOKENS) or pending_review:
             add_citation(
                 "Income Statement",
                 "income_statement.current_month",
                 context.get("income_statement_confidence_tier"),
                 "/reports?tab=income-statement",
             )
-
         if pending_review:
             add_action(
-                "reconciliation_review",
-                f"Review {pending_review}",
-                "/reconciliation?tab=review-queue",
-                pending_review,
+                "reconciliation_review", f"Review {pending_review}", "/reconciliation?tab=review-queue", pending_review
             )
 
-        advisor_context = self._parse_advisor_context(context.get("advisor_context"))
-        suggestions = advisor_context.get("suggestions") if isinstance(advisor_context, dict) else []
+        suggestions = self._parse_advisor_context(context.get("advisor_context")).get("suggestions")
         if isinstance(suggestions, list):
             for suggestion in suggestions:
                 if not isinstance(suggestion, dict):
                     continue
-                source_refs = suggestion.get("source_refs")
-                confidence_tier = str(suggestion.get("confidence_tier") or "DETERMINISTIC")
+                tier = str(suggestion.get("confidence_tier") or "DETERMINISTIC")
                 href = str(suggestion.get("next_action_href") or "/reports")
-                if isinstance(source_refs, list):
-                    for source_ref in source_refs[:2]:
-                        if not isinstance(source_ref, str) or not source_ref:
-                            continue
-                        add_citation(self._label_for_source_ref(source_ref), source_ref, confidence_tier, href)
-                        if len(citations) >= 4:
-                            break
+                refs = suggestion.get("source_refs")
+                if isinstance(refs, list):
+                    for ref in refs[:2]:
+                        if isinstance(ref, str) and ref:
+                            add_citation(self._label_for_source_ref(ref), ref, tier, href)
+                            if len(citations) >= 4:
+                                break
                 if len(citations) >= 4:
                     break
 
         if not citations:
             add_citation("Financial Summary", "financial_summary", "DETERMINISTIC", "/reports")
-
-        return ChatResponseMetadata(
-            grounded=bool(citations or actions),
-            citations=citations[:4],
-            actions=actions[:3],
-        )
+        return ChatResponseMetadata(grounded=bool(citations or actions), citations=citations[:4], actions=actions[:3])
 
     def _display_confidence_tier(self, value: str | None) -> str:
-        if not value:
-            return "DETERMINISTIC"
-        return str(value).upper()
+        return str(value).upper() if value else "DETERMINISTIC"
 
     def _parse_positive_int(self, value: str | None) -> int:
         try:
-            parsed = int(str(value))
+            return max(int(str(value)), 0)
         except (TypeError, ValueError):
             return 0
-        return max(parsed, 0)
 
     def _parse_advisor_context(self, raw: str | None) -> dict[str, Any]:
         if not raw:
@@ -800,10 +620,8 @@ class AIAdvisorService:
     def _safe_chat_href(self, href: str) -> str:
         trimmed = href.strip()
         for route in CHAT_METADATA_SAFE_HREFS:
-            if "?" in route:
-                if trimmed == route or trimmed.startswith(f"{route}&") or trimmed.startswith(f"{route}#"):
-                    return route
-            elif trimmed == route or trimmed.startswith(f"{route}?") or trimmed.startswith(f"{route}#"):
+            seps = ("&", "#") if "?" in route else ("?", "#")
+            if trimmed == route or any(trimmed.startswith(f"{route}{sep}") for sep in seps):
                 return route
         return "/"
 
@@ -816,9 +634,9 @@ class AIAdvisorService:
         if isinstance(value, MarketDataScopeStatus):
             return value.to_dict()
         if isinstance(value, dict):
-            return {str(key): self._jsonable(item) for key, item in value.items()}
+            return {str(k): self._jsonable(v) for k, v in value.items()}
         if isinstance(value, list | tuple):
-            return [self._jsonable(item) for item in value]
+            return [self._jsonable(v) for v in value]
         if isinstance(value, Decimal):
             return str(value)
         if isinstance(value, date | datetime):
@@ -826,28 +644,25 @@ class AIAdvisorService:
         if isinstance(value, Enum):
             return value.value
         if hasattr(value, "__dict__"):
-            return {str(key): self._jsonable(item) for key, item in vars(value).items() if not key.startswith("_")}
+            return {str(k): self._jsonable(v) for k, v in vars(value).items() if not k.startswith("_")}
         return value
 
     def _redact_context(self, context: dict[str, Any]) -> dict[str, Any]:
-        redacted = redact_sensitive(json.dumps(context, sort_keys=True, default=str))
-        return json.loads(redacted)
+        return json.loads(redact_sensitive(json.dumps(context, sort_keys=True, default=str)))
 
     async def _get_or_create_session(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        session_id: UUID | None,
-        message: str,
+        self, db: AsyncSession, user_id: UUID, session_id: UUID | None, message: str
     ) -> ChatSession:
         if session_id:
-            result = await db.execute(
-                select(ChatSession)
-                .where(ChatSession.id == session_id)
-                .where(ChatSession.user_id == user_id)
-                .where(ChatSession.status == ChatSessionStatus.ACTIVE)
-            )
-            session = result.scalar_one_or_none()
+            session = (
+                await db.execute(
+                    select(ChatSession).where(
+                        ChatSession.id == session_id,
+                        ChatSession.user_id == user_id,
+                        ChatSession.status == ChatSessionStatus.ACTIVE,
+                    )
+                )
+            ).scalar_one_or_none()
             if not session:
                 raise AIAdvisorError("Chat session not found")
             session.last_active_at = datetime.now(UTC)
@@ -855,10 +670,9 @@ class AIAdvisorService:
             await db.refresh(session)
             return session
 
-        title = message[:60].strip() or None
         session = ChatSession(
             user_id=user_id,
-            title=title,
+            title=message[:60].strip() or None,
             status=ChatSessionStatus.ACTIVE,
             last_active_at=datetime.now(UTC),
         )
@@ -875,14 +689,12 @@ class AIAdvisorService:
         content: str,
         model_name: str | None = None,
     ) -> ChatMessage:
-        tokens_out = estimate_tokens(content) if role == ChatMessageRole.ASSISTANT else None
-        tokens_in = estimate_tokens(content) if role == ChatMessageRole.USER else None
         message = ChatMessage(
             session_id=session.id,
             role=role,
             content=content,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
+            tokens_in=estimate_tokens(content) if role == ChatMessageRole.USER else None,
+            tokens_out=estimate_tokens(content) if role == ChatMessageRole.ASSISTANT else None,
             model_name=model_name,
         )
         session.last_active_at = datetime.now(UTC)
@@ -897,20 +709,19 @@ class AIAdvisorService:
         return message
 
     async def _load_history(self, db: AsyncSession, session_id: UUID) -> list[dict[str, str]]:
-        result = await db.execute(
-            select(ChatMessage)
-            .where(ChatMessage.session_id == session_id)
-            .order_by(ChatMessage.created_at.desc())
-            .limit(MAX_CONTEXT_MESSAGES)
+        rows = list(
+            (
+                await db.execute(
+                    select(ChatMessage)
+                    .where(ChatMessage.session_id == session_id)
+                    .order_by(ChatMessage.created_at.desc())
+                    .limit(MAX_CONTEXT_MESSAGES)
+                )
+            )
+            .scalars()
+            .all()
         )
-        messages = list(result.scalars().all())
-        messages.reverse()
-        history: list[dict[str, str]] = []
-        for message in messages:
-            if message.role == ChatMessageRole.SYSTEM:
-                continue
-            history.append({"role": message.role.value, "content": message.content})
-        return history
+        return [{"role": m.role.value, "content": m.content} for m in reversed(rows) if m.role != ChatMessageRole.SYSTEM]
 
     async def _stream_and_store(
         self,
@@ -926,44 +737,31 @@ class AIAdvisorService:
         redactor = StreamRedactor()
         chunks: list[str] = []
         model_used: str | None = None
-
         try:
             async for chunk, model_name in self._stream_openrouter(messages, preferred_model, user_id, bound):
                 model_used = model_name
-                safe_chunk = redactor.process(chunk)
-                if safe_chunk:
+                if safe_chunk := redactor.process(chunk):
                     chunks.append(safe_chunk)
                     yield safe_chunk
         except Exception as exc:
             raise AIAdvisorError(str(exc)) from exc
 
-        tail = redactor.flush()
-        if tail:
+        if tail := redactor.flush():
             chunks.append(tail)
             yield tail
 
-        if not "".join(chunks).strip():
+        raw_response = "".join(chunks)
+        if not raw_response.strip():
             raise AIAdvisorError("AIStreamError: provider returned empty response")
 
-        response_text = "".join(chunks)
-        response_text = ensure_disclaimer(response_text, language)
-        if response_text != "".join(chunks):
-            extra = response_text[len("".join(chunks)) :]
-            if extra:
-                yield extra
+        response_text = ensure_disclaimer(raw_response, language)
+        if extra := response_text[len(raw_response) :]:
+            yield extra
 
         _CACHE.set(cache_key, response_text)
-
         await self._record_message(
-            db,
-            session,
-            ChatMessageRole.ASSISTANT,
-            response_text,
-            model_name=model_used or self.large_model,
+            db, session, ChatMessageRole.ASSISTANT, response_text, model_name=model_used or self.large_model
         )
-        # Commit here because the router has already returned the StreamingResponse
-        # and cannot commit after the generator completes.  This is a documented
-        # exception to the "routers own commit()" rule.
         await db.commit()
 
     def _cached_stream(
@@ -999,8 +797,7 @@ class AIAdvisorService:
         models = [self.large_model]
         if preferred_model is None and bound is not None:
             try:
-                client = get_llm_client(user_id)
-                async for chunk in client.stream(Scene.ADVISOR_CHAT, messages):
+                async for chunk in get_llm_client(user_id).stream(Scene.ADVISOR_CHAT, messages):
                     yield chunk, bound.model_id
                 return
             except AIStreamError as exc:
@@ -1011,13 +808,11 @@ class AIAdvisorService:
                     error=str(exc),
                     retryable=exc.retryable,
                 )
-        # The binding's reasoning/max_tokens apply only when its model is used (no
-        # per-message override). They're hints/caps, harmless if a fallback ignores them.
         reasoning: ReasoningEffort | None = bound.reasoning if bound else _large_role_reasoning()
         max_tokens = bound.max_tokens if bound else None
         if preferred_model:
             models = [preferred_model, *models]
-            reasoning = max_tokens = None  # explicit per-message model: env defaults
+            reasoning = max_tokens = None
         last_error: Exception | None = None
 
         for i, model in enumerate(models):
@@ -1036,7 +831,6 @@ class AIAdvisorService:
                     retryable=getattr(exc, "retryable", False),
                 )
                 last_error = exc
-                continue
             except (ValueError, TypeError, KeyError, AttributeError) as exc:
                 logger.exception(
                     "Programming error in AI streaming",
@@ -1074,8 +868,7 @@ class AIAdvisorService:
             yield chunk
 
     def _format_money(self, amount: Decimal, currency: str) -> str:
-        quantized = to_money(amount)
-        return f"{currency} {quantized}"
+        return f"{currency} {to_money(amount)}"
 
     def _chunk_text(self, text: str, size: int = 48) -> list[str]:
         return [text[i : i + size] for i in range(0, len(text), size)]

@@ -1,22 +1,4 @@
-"""``ledger`` — the double-entry bookkeeping bounded context (a ``core`` package).
-
-The conforming implementation of ``common/ledger`` (its ``contract.py`` + ``readme.md``
-own the spec). Layers converge by folder (see ``common/meta/migration-standard.md``):
-
-- ``base/``      — pure core: the ``Entry``/``Leg`` balance invariant, typed
-                   errors, posting validators, and command-target identity. No I/O.
-- ``extension/`` — impure edges: the decision-anchored command boundary and its
-                   private ``AsyncSession`` persistence implementation.
-- ``data/``      — the account-balance projection (read model / leaf sink): signed
-                   balances + the accounting-equation check.
-
-The published language below (``__all__``) must equal ``contract.interface``.
-
-The surface is exposed **lazily** via ``__getattr__`` so a caller that only needs the
-pure ``Entry``/``Leg`` types (e.g. tooling tests, or ``services.accounting`` building
-an opening-balance entry) does not eagerly pull the ``extension`` ORM/``AsyncSession``
-edge into its import graph.
-"""
+"""``ledger`` — double-entry bookkeeping bounded context."""
 
 from __future__ import annotations
 
@@ -36,6 +18,7 @@ if TYPE_CHECKING:
         JournalLineContribution,
         LedgerError,
         Leg,
+        OpeningPosition,
         ProcessingAccount,
         ProcessingCurrencyConflictError,
         ResolvedJournalContribution,
@@ -54,16 +37,20 @@ if TYPE_CHECKING:
         validate_journal_posting_invariants,
     )
     from src.ledger.data import (
+        DEFAULT_STALE_AFTER_DAYS,
         StatementCoverageRow,
         calculate_account_balance,
         calculate_account_balances,
         calculate_account_balances_in_base_currency,
+        get_account_statement_coverage,
         register_statement_coverage_reader,
         verify_accounting_equation,
     )
     from src.ledger.extension import (
+        AccountNotFoundError,
         AnchoredJournalCommand,
         RevaluationError,
+        account_service,
         active_journal_entry_filter,
         calculate_unrealized_fx_gains,
         create_transfer_in_entry,
@@ -75,11 +62,14 @@ if TYPE_CHECKING:
         get_or_create_processing_account,
         get_processing_balance,
         get_unpaired_transfers,
+        initialize_opening_positions,
         ledger_trace_policy_registry,
         list_journal_contributions,
+        list_opening_positions,
         list_processing_transfer_legs,
         post_entry,
         post_journal_entry,
+        post_opening_balance_entry,
         submit_anchored_journal_entries,
         submit_anchored_journal_entry,
         submit_manual_journal_entry,
@@ -91,12 +81,6 @@ if TYPE_CHECKING:
     )
     from src.ledger.splits import calculate_reconciliation_adjustment
 
-# ORM models owned by this package (moved from src/models, #1675). Imported
-# eagerly — unlike the lazy service surface below — so importing the published
-# root registers the mapped classes on ``Base.metadata`` (the discovery side
-# effect ``models/_registry.py`` relies on). ``JournalEntrySourceType`` is NOT
-# re-exported here: the provenance/trust vocabulary is owned by ``audit``
-# (``from src.audit import JournalEntrySourceType``).
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import (
     ConfidenceTier,
@@ -193,97 +177,89 @@ __all__ = [
     "void_journal_entry",
 ]
 
-# Which submodule owns each published name (lazy import map).
-_BASE_NAMES = {
-    "OpeningPosition",
-    "AccountingError",
-    "DecisionAnchor",
-    "DecisionAnchorError",
-    "DegenerateEntryError",
-    "Entry",
-    "JournalLineContribution",
-    "LedgerError",
-    "Leg",
-    "MAX_JOURNAL_LINE_AMOUNT",
-    "MAX_JOURNAL_LINE_FX_RATE",
-    "PROCESSING_ACCOUNT_CODE",
-    "ProcessingAccount",
-    "ProcessingCurrencyConflictError",
-    "ResolvedJournalContribution",
-    "TransferAccountCurrencyMismatchError",
-    "TransferPair",
-    "UnbalancedEntryError",
-    "ValidationError",
-    "detect_transfer_pattern",
-    "fit_journal_memo",
-    "journal_command_target",
-    "validate_fx_rates",
-    "validate_journal_balance",
-    "validate_journal_line_amount",
-    "validate_journal_line_fx_rate",
-    "validate_journal_line_tags",
-    "validate_journal_posting_invariants",
+_LAZY_MODULES: dict[str, tuple[str, ...]] = {
+    "src.ledger.base": (
+        "OpeningPosition",
+        "AccountingError",
+        "DecisionAnchor",
+        "DecisionAnchorError",
+        "DegenerateEntryError",
+        "Entry",
+        "JournalLineContribution",
+        "LedgerError",
+        "Leg",
+        "MAX_JOURNAL_LINE_AMOUNT",
+        "MAX_JOURNAL_LINE_FX_RATE",
+        "PROCESSING_ACCOUNT_CODE",
+        "ProcessingAccount",
+        "ProcessingCurrencyConflictError",
+        "ResolvedJournalContribution",
+        "TransferAccountCurrencyMismatchError",
+        "TransferPair",
+        "UnbalancedEntryError",
+        "ValidationError",
+        "detect_transfer_pattern",
+        "fit_journal_memo",
+        "journal_command_target",
+        "validate_fx_rates",
+        "validate_journal_balance",
+        "validate_journal_line_amount",
+        "validate_journal_line_fx_rate",
+        "validate_journal_line_tags",
+        "validate_journal_posting_invariants",
+    ),
+    "src.ledger.extension": (
+        "active_journal_entry_filter",
+        "list_opening_positions",
+        "AccountNotFoundError",
+        "AnchoredJournalCommand",
+        "current_anchored_journal_entries",
+        "ledger_trace_policy_registry",
+        "RevaluationError",
+        "account_service",
+        "post_opening_balance_entry",
+        "initialize_opening_positions",
+        "calculate_unrealized_fx_gains",
+        "create_transfer_in_entry",
+        "create_transfer_out_entry",
+        "find_processing_account",
+        "find_transfer_pairs",
+        "get_opening_balance_readiness",
+        "get_or_create_processing_account",
+        "get_processing_balance",
+        "get_unpaired_transfers",
+        "list_journal_contributions",
+        "list_processing_transfer_legs",
+        "post_entry",
+        "submit_anchored_journal_entries",
+        "submit_anchored_journal_entry",
+        "submit_manual_journal_entry",
+        "submit_system_journal_entry",
+        "validate_manual_journal_entry_for_post",
+        "post_journal_entry",
+        "used_currencies",
+        "validate_line_account_ownership",
+        "void_journal_entry",
+    ),
+    "src.ledger.data": (
+        "DEFAULT_STALE_AFTER_DAYS",
+        "StatementCoverageRow",
+        "calculate_account_balance",
+        "get_account_statement_coverage",
+        "calculate_account_balances",
+        "calculate_account_balances_in_base_currency",
+        "register_statement_coverage_reader",
+        "verify_accounting_equation",
+    ),
+    "src.ledger.splits": ("calculate_reconciliation_adjustment",),
 }
-_EXTENSION_NAMES = {
-    "active_journal_entry_filter",
-    "list_opening_positions",
-    "AccountNotFoundError",
-    "AnchoredJournalCommand",
-    "current_anchored_journal_entries",
-    "ledger_trace_policy_registry",
-    "RevaluationError",
-    "account_service",
-    "post_opening_balance_entry",
-    "initialize_opening_positions",
-    "calculate_unrealized_fx_gains",
-    "create_transfer_in_entry",
-    "create_transfer_out_entry",
-    "find_processing_account",
-    "find_transfer_pairs",
-    "get_opening_balance_readiness",
-    "get_or_create_processing_account",
-    "get_processing_balance",
-    "get_unpaired_transfers",
-    "list_journal_contributions",
-    "list_processing_transfer_legs",
-    "post_entry",
-    "submit_anchored_journal_entries",
-    "submit_anchored_journal_entry",
-    "submit_manual_journal_entry",
-    "submit_system_journal_entry",
-    "validate_manual_journal_entry_for_post",
-    "post_journal_entry",
-    "used_currencies",
-    "validate_line_account_ownership",
-    "void_journal_entry",
-}
-_DATA_NAMES = {
-    "DEFAULT_STALE_AFTER_DAYS",
-    "StatementCoverageRow",
-    "calculate_account_balance",
-    "get_account_statement_coverage",
-    "calculate_account_balances",
-    "calculate_account_balances_in_base_currency",
-    "register_statement_coverage_reader",
-    "verify_accounting_equation",
-}
-_SPLITS_NAMES = {
-    "calculate_reconciliation_adjustment",
-}
+_LAZY_EXPORTS = {name: mod for mod, names in _LAZY_MODULES.items() for name in names}
 
 
-def __getattr__(name: str):
-    if name in _BASE_NAMES:
-        module_name = "src.ledger.base"
-    elif name in _EXTENSION_NAMES:
-        module_name = "src.ledger.extension"
-    elif name in _DATA_NAMES:
-        module_name = "src.ledger.data"
-    elif name in _SPLITS_NAMES:
-        module_name = "src.ledger.splits"
-    else:
+def __getattr__(name: str) -> object:
+    mod = _LAZY_EXPORTS.get(name)
+    if mod is None:
         raise AttributeError(f"module 'src.ledger' has no attribute {name!r}")
-    value = getattr(import_module(module_name), name)
-    # Cache so subsequent attribute access skips the re-import.
+    value = getattr(import_module(mod), name)
     globals()[name] = value
     return value

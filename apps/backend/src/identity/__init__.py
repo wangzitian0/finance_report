@@ -1,32 +1,9 @@
-"""``identity`` — users, authentication, and AI-feedback (core domain package).
-
-The vertical identity slice: the ``User`` aggregate root (email unique
-case-insensitively), its ``AiFeedback`` child entity, the auth value objects, and
-the domain services that register/login users and resolve request-scoped identity
-from a JWT. Layers (see common/meta/migration-standard.md): ``base`` (pure value
-objects + the ``UserRepository`` port) and ``extension`` (the ORM adapter, JWT +
-bcrypt security, the auth rate limiters, observability binding, and the ``/auth``
-+ ``/users`` transport). The published language below (``__all__``) must equal
-``contract.interface``.
-
-The ORM ``User``/``AiFeedback`` models live with the SQL adapter in ``extension``
-(like ``counter``'s ``CounterTally``); they are published here because consumers
-(routers, tests, factories) reference the aggregate directly.
-
-Symbols are exposed **lazily** (PEP 562 ``__getattr__``): the published names
-resolve on first access, so importing the package — or one of its submodules for
-its side effect, e.g. ``import src.identity.extension.sql`` to register the ORM
-onto ``Base.metadata`` — does NOT eagerly pull the FastAPI transport layer. This
-keeps the package importable in the lightweight (FastAPI-free) tooling/coverage
-environment, exactly as a model-registration import must be.
-"""
+"""``identity`` — users, authentication, and AI-feedback domain package."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-# Map each published name to the submodule that defines it. Resolved lazily so the
-# FastAPI-dependent transport (auth dep + routers) is only imported on demand.
 _BASE_EXPORTS = {
     "AUTH_COOKIE_NAME",
     "AiFeedbackRequest",

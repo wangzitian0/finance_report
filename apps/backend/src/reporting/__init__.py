@@ -1,110 +1,108 @@
-"""``reporting`` — the backend implementation of the ``reporting`` package.
-
-The calculation-over-ledger domain (see ``common/reporting/contract.py`` and
-``common/reporting/readme.md``): statement generation (balance sheet / income
-statement / cash flow / net worth / lineage), framework-aware report assembly,
-the personal report package (readiness, traceability, notes, snapshot export),
-and the pure calculation primitives
-(``extension/reporting_calc.py``, AC-reporting.dry-ssot.1).
-
-Physically folded out of ``apps/backend/src/services/`` by #1666 (umbrella
-#1416). The published language below is the package's entire external surface
-— consumers (routers, the app composition root, the advisor service) import
-from this root only. FX conversion imports ``pricing``'s published surface
-directly (#2774 deleted the injected ``fx_gateway``). The manual-valuation lines
-builder is *injected* at the composition root
-(``register_manual_valuation_lines_provider``).
-
-Manual valuation is deliberately NOT part of this package's own code —
-``pricing/extension/valuation.py`` owns it (#1610 re-homed it from the
-``services/reporting/manual_valuation.py`` survivor of the #1666 fold).
-"""
+"""``reporting`` — calculation-over-ledger domain package."""
 
 from __future__ import annotations
 
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-_EXPORTS = {
-    "MAX_NET_WORTH_DAILY_POINTS": "src.reporting.extension.reporting_calc",
-    "PERSONAL_REPORT_PACKAGE_CONTRACT": "src.reporting.base.report_package_contract",
-    "PERSONAL_REPORT_PACKAGE_NOTES": "src.reporting.base.report_package_contract",
-    "PackageAssembler": "src.reporting.extension.package_document",
-    "PackageSectionContribution": "src.reporting.base.package_contribution",
-    "personal_report_package_target": "src.reporting.base.package_decision",
-    "personal_report_package_decision_ref": "src.reporting.extension.package_document",
-    "current_package_readiness": "src.reporting.extension.package_document",
-    "report_coverage": "src.reporting.extension.package_document",
-    "package_preview": "src.reporting.extension.package_document",
-    "PackageDocumentVersionError": "src.reporting.extension.report_package",
-    "EquationDiagnosticCategory": "src.reporting.base.diagnostics",
-    "EquationDiagnosticResult": "src.reporting.base.diagnostics",
-    "diagnose_equation_imbalance": "src.reporting.extension.diagnostics",
-    "run_balance_sheet_diagnostics": "src.reporting.extension.diagnostics",
-    "AnnualizedIncomeTotals": "src.reporting.extension.reporting_calc",
-    "CashFlowItem": "src.reporting.base.cash_flow_types",
-    "CashFlowLineEventsPage": "src.reporting.base.cash_flow_types",
-    "CashFlowPreview": "src.reporting.base.cash_flow_types",
-    "CashFlowResponse": "src.reporting.base.cash_flow_types",
-    "CashFlowSummary": "src.reporting.base.cash_flow_types",
-    "PersonalDataQualityHealthResponse": "src.reporting.base.data_quality_types",
-    "QualityGrade": "src.reporting.base.data_quality_types",
-    "InvariantStatus": "src.reporting.base.data_quality_types",
-    "MonthContinuityBucket": "src.reporting.base.data_quality_types",
-    "QualityActionItem": "src.reporting.base.data_quality_types",
-    "compute_personal_data_quality": "src.reporting.extension.data_quality_service",
-    "DEFAULT_INCLUDE_RESTRICTED": "src.reporting.base.types",
-    "PACKAGE_INCLUDE_RESTRICTED": "src.reporting.base.types",
-    "PersonalReportingFrameworkId": "src.reporting.base.types",
-    "PolicyDimension": "src.reporting.base.types",
-    "ReportError": "src.reporting.extension.reporting_calc",
-    "ReportLineId": "src.reporting.base.types",
-    "ReportSnapshot": "src.reporting.orm",
-    "ReportType": "src.reporting.orm",
-    "ReportingSnapshotService": "src.reporting.extension.reporting_snapshot",
-    "_add_months": "src.reporting.extension.reporting_calc",
-    "_aggregate_balances_sql": "src.reporting.extension._core",
-    "_aggregate_net_income_sql": "src.reporting.extension._core",
-    "_combine_provenance": "src.reporting.extension.reporting_calc",
-    "_iter_periods": "src.reporting.extension.reporting_calc",
-    "_month_end": "src.reporting.extension.reporting_calc",
-    "_month_start": "src.reporting.extension.reporting_calc",
-    "_normalize_currency": "src.reporting.extension.reporting_calc",
-    "_provenance_from_source_type": "src.reporting.extension.reporting_calc",
-    "_quantize_money": "src.reporting.extension.reporting_calc",
-    "_quarter_start": "src.reporting.extension.reporting_calc",
-    "_signed_amount": "src.reporting.extension.reporting_calc",
-    "assemble_framework_balance_sheet": "src.reporting.extension.framework_report",
-    "assemble_framework_income_statement": "src.reporting.extension.framework_report",
-    "build_personal_report_package_traceability_payload": "src.reporting.extension.report_traceability",
-    "derive_user_framework_policy_result": "src.reporting.extension.framework_policy",
-    "generate_balance_sheet": "src.reporting.extension.balance_sheet",
-    "generate_annualized_income_schedule": "src.reporting.extension.annualized_income",
-    "cash_flow_line_events": "src.reporting.extension.cash_flow",
-    "cash_flow_period": "src.reporting.extension.cash_flow",
-    "cash_flow_preview": "src.reporting.extension.cash_flow",
-    "generate_cash_flow": "src.reporting.extension.cash_flow",
-    "generate_income_statement": "src.reporting.extension.income_statement",
-    "get_account_lineage": "src.reporting.extension.lineage",
-    "get_account_trend": "src.reporting.extension.net_worth",
-    "get_category_breakdown": "src.reporting.extension.net_worth",
-    "get_net_worth_allocation_schedule": "src.reporting.extension.net_worth",
-    "get_net_worth_timeseries": "src.reporting.extension.net_worth",
-    "income_bucket": "src.reporting.extension.reporting_calc",
-    "is_valid_line_for_framework": "src.reporting.base.l1_registry",
-    "jsonable": "src.reporting.extension.report_package",
-    "package_currency": "src.reporting.extension.report_package",
-    "package_dates": "src.reporting.extension.report_package",
-    "package_snapshot_csv": "src.reporting.extension.report_package",
-    "package_snapshot_document": "src.reporting.extension.report_package",
-    "package_snapshot_response": "src.reporting.extension.report_package",
-    "package_snapshot_summary": "src.reporting.extension.report_package",
-    "register_manual_valuation_lines_provider": "src.reporting.extension.balance_sheet",
-    "render_balance_sheet_csv": "src.reporting.extension.report_csv",
-    "render_cash_flow_csv": "src.reporting.extension.report_csv",
-    "render_income_statement_csv": "src.reporting.extension.report_csv",
-    "resolve_line_currency": "src.reporting.extension.reporting_calc",
+_MODULES: dict[str, tuple[str, ...]] = {
+    "src.reporting.base.cash_flow_types": (
+        "CashFlowItem",
+        "CashFlowLineEventsPage",
+        "CashFlowPreview",
+        "CashFlowResponse",
+        "CashFlowSummary",
+    ),
+    "src.reporting.base.data_quality_types": (
+        "InvariantStatus",
+        "MonthContinuityBucket",
+        "PersonalDataQualityHealthResponse",
+        "QualityActionItem",
+        "QualityGrade",
+    ),
+    "src.reporting.base.diagnostics": ("EquationDiagnosticCategory", "EquationDiagnosticResult"),
+    "src.reporting.base.l1_registry": ("is_valid_line_for_framework",),
+    "src.reporting.base.package_contribution": ("PackageSectionContribution",),
+    "src.reporting.base.package_decision": ("personal_report_package_target",),
+    "src.reporting.base.report_package_contract": (
+        "PERSONAL_REPORT_PACKAGE_CONTRACT",
+        "PERSONAL_REPORT_PACKAGE_NOTES",
+    ),
+    "src.reporting.base.types": (
+        "DEFAULT_INCLUDE_RESTRICTED",
+        "PACKAGE_INCLUDE_RESTRICTED",
+        "PersonalReportingFrameworkId",
+        "PolicyDimension",
+        "ReportLineId",
+    ),
+    "src.reporting.extension._core": ("_aggregate_balances_sql", "_aggregate_net_income_sql"),
+    "src.reporting.extension.annualized_income": ("generate_annualized_income_schedule",),
+    "src.reporting.extension.balance_sheet": ("generate_balance_sheet", "register_manual_valuation_lines_provider"),
+    "src.reporting.extension.cash_flow": (
+        "cash_flow_line_events",
+        "cash_flow_period",
+        "cash_flow_preview",
+        "generate_cash_flow",
+    ),
+    "src.reporting.extension.data_quality_service": ("compute_personal_data_quality",),
+    "src.reporting.extension.diagnostics": ("diagnose_equation_imbalance", "run_balance_sheet_diagnostics"),
+    "src.reporting.extension.framework_policy": ("derive_user_framework_policy_result",),
+    "src.reporting.extension.framework_report": (
+        "assemble_framework_balance_sheet",
+        "assemble_framework_income_statement",
+    ),
+    "src.reporting.extension.income_statement": ("generate_income_statement",),
+    "src.reporting.extension.lineage": ("get_account_lineage",),
+    "src.reporting.extension.net_worth": (
+        "get_account_trend",
+        "get_category_breakdown",
+        "get_net_worth_allocation_schedule",
+        "get_net_worth_timeseries",
+    ),
+    "src.reporting.extension.package_document": (
+        "PackageAssembler",
+        "current_package_readiness",
+        "package_preview",
+        "personal_report_package_decision_ref",
+        "report_coverage",
+    ),
+    "src.reporting.extension.report_csv": (
+        "render_balance_sheet_csv",
+        "render_cash_flow_csv",
+        "render_income_statement_csv",
+    ),
+    "src.reporting.extension.report_package": (
+        "PackageDocumentVersionError",
+        "jsonable",
+        "package_currency",
+        "package_dates",
+        "package_snapshot_csv",
+        "package_snapshot_document",
+        "package_snapshot_response",
+        "package_snapshot_summary",
+    ),
+    "src.reporting.extension.report_traceability": ("build_personal_report_package_traceability_payload",),
+    "src.reporting.extension.reporting_calc": (
+        "MAX_NET_WORTH_DAILY_POINTS",
+        "AnnualizedIncomeTotals",
+        "ReportError",
+        "_add_months",
+        "_combine_provenance",
+        "_iter_periods",
+        "_month_end",
+        "_month_start",
+        "_normalize_currency",
+        "_provenance_from_source_type",
+        "_quantize_money",
+        "_quarter_start",
+        "_signed_amount",
+        "income_bucket",
+        "resolve_line_currency",
+    ),
+    "src.reporting.extension.reporting_snapshot": ("ReportingSnapshotService",),
+    "src.reporting.orm": ("ReportSnapshot", "ReportType"),
 }
+_EXPORTS = {name: mod for mod, names in _MODULES.items() for name in names}
 
 __all__ = [
     "MAX_NET_WORTH_DAILY_POINTS",

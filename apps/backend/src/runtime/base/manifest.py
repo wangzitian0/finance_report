@@ -1,12 +1,4 @@
-"""`DependencyManifest` — the declared external dependencies of the app.
-
-This is the single source of truth for *what the runtime depends on*: each
-external backend, its `DependencyKind`, and the `EnvTier`s that require it to be
-present. It is pure data (no imports of `config`/`boot`); the parity test binds
-it to `config.py`, and later phases (switch/cleanup) route `boot.validate` and
-the smoke test through it so a *declared* dependency that is *absent* fails
-(invariant 2). Kept deliberately declarative here — no I/O, no probing.
-"""
+"""`DependencyManifest` — the declared external dependencies of the app."""
 
 from __future__ import annotations
 
@@ -15,22 +7,12 @@ from dataclasses import dataclass
 from src.runtime.base.kind import DependencyKind
 from src.runtime.base.tiers import EnvTier
 
-__all__ = [
-    "DEPENDENCY_MANIFEST",
-    "Dependency",
-    "DependencyManifest",
-]
+__all__ = ["DEPENDENCY_MANIFEST", "Dependency", "DependencyManifest"]
 
 
 @dataclass(frozen=True)
 class Dependency:
-    """One external backend the app depends on.
-
-    `required_in` is the set of tiers where the dependency MUST be present; it is
-    never empty (a dependency the app never requires anywhere does not belong in
-    the manifest). The *backend* behind it may differ per tier (in-memory vs real)
-    — the manifest declares the requirement, not the implementation.
-    """
+    """One external backend the app depends on."""
 
     name: str
     kind: DependencyKind
@@ -72,100 +54,75 @@ class DependencyManifest:
         return self._by_name[name]
 
     def required_for(self, tier: EnvTier) -> frozenset[str]:
-        """Names of the dependencies that must be present in `tier`."""
         return frozenset(d.name for d in self._by_name.values() if tier in d.required_in)
 
 
 _ALL = frozenset(EnvTier)
 _VPS = frozenset({EnvTier.PREVIEW, EnvTier.STAGING, EnvTier.PRODUCTION})
+_SP = frozenset({EnvTier.STAGING, EnvTier.PRODUCTION})
 
-#: The app's declared external dependencies. `required_in` values are a starting
-#: declaration refined as the switch phase wires enforcement; the *kind* is the
-#: stable contract (it decides the substitute strategy).
 DEPENDENCY_MANIFEST = DependencyManifest(
-    (
-        Dependency(
-            name="database",
-            env_vars=frozenset({"DATABASE_URL"}),
-            kind=DependencyKind.CODE_DOMINANT,
-            required_in=_ALL,
-            summary="Postgres — the system of record (DATABASE_URL).",
-        ),
-        Dependency(
-            name="object_storage",
-            env_vars=frozenset(
-                {
-                    "S3_ENDPOINT",
-                    "S3_ACCESS_KEY",
-                    "S3_SECRET_KEY",
-                    "S3_BUCKET",
-                    "S3_REGION",
-                    # The optional public-bucket client is the same backend.
-                    "S3_PUBLIC_ENDPOINT",
-                    "S3_PUBLIC_ACCESS_KEY",
-                    "S3_PUBLIC_SECRET_KEY",
-                    "S3_PUBLIC_BUCKET",
-                }
+    tuple(
+        Dependency(name=name, kind=kind, required_in=req, env_vars=frozenset(evs.split()), summary=summary)
+        for name, kind, req, evs, summary in (
+            (
+                "database",
+                DependencyKind.CODE_DOMINANT,
+                _ALL,
+                "DATABASE_URL",
+                "Postgres — the system of record (DATABASE_URL).",
             ),
-            kind=DependencyKind.CODE_DOMINANT,
-            required_in=_ALL,
-            summary="S3-compatible object storage for uploaded statements (S3_*).",
-        ),
-        Dependency(
-            name="llm",
-            env_vars=frozenset(
-                {
-                    "AI_PROVIDER",
-                    "AI_API_KEY",
-                    # The old name of the key. infra2 still supplies it in production (#2487).
-                    "ZAI_API_KEY",
-                    "AI_BASE_URL",
-                }
+            (
+                "object_storage",
+                DependencyKind.CODE_DOMINANT,
+                _ALL,
+                "S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY S3_BUCKET S3_REGION "
+                "S3_PUBLIC_ENDPOINT S3_PUBLIC_ACCESS_KEY S3_PUBLIC_SECRET_KEY S3_PUBLIC_BUCKET",
+                "S3-compatible object storage for uploaded statements (S3_*).",
             ),
-            kind=DependencyKind.MODEL_DOMINANT,
-            # The REAL provider is required on staging/prod only; the app-owned
-            # tiers + preview run the cassette substitute (invariant 5), which
-            # needs no key — declaring _ALL here would overstate (#1578).
-            required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
-            summary="The AI provider used for statement extraction (AI_*); "
-            "recorded (cassette substitute) in CI/preview, real on staging/prod.",
-        ),
-        Dependency(
-            name="cache",
-            env_vars=frozenset({"REDIS_URL"}),
-            kind=DependencyKind.CODE_DOMINANT,
-            # Only the 10.app (staging/prod) stack renders REDIS_URL; the preview
-            # stack has no Redis — the declaration matches the deployed reality.
-            required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
-            summary="Redis (REDIS_URL) — optional in the app-owned tiers and preview.",
-        ),
-        Dependency(
-            name="workflow_engine",
-            env_vars=frozenset({"PREFECT_API_URL"}),
-            kind=DependencyKind.CODE_DOMINANT,
-            required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
-            summary="Prefect (PREFECT_API_URL) — durable flows; in-process fallback in the app-owned tiers.",
-        ),
-        Dependency(
-            name="telemetry",
-            env_vars=frozenset({"OTEL_EXPORTER_OTLP_ENDPOINT"}),
-            kind=DependencyKind.CODE_DOMINANT,
-            required_in=_VPS,
-            summary="OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT).",
-        ),
-        Dependency(
-            name="analytics",
-            env_vars=frozenset({"OPENPANEL_API_URL", "OPENPANEL_CLIENT_ID"}),
-            kind=DependencyKind.CODE_DOMINANT,
-            required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
-            summary="OpenPanel product analytics (OPENPANEL_API_URL).",
-        ),
-        Dependency(
-            name="market_data",
-            env_vars=frozenset({"MARKET_DATA_YAHOO_TIMEOUT_SECONDS"}),
-            kind=DependencyKind.CODE_DOMINANT,
-            required_in=frozenset({EnvTier.PRODUCTION}),
-            summary="Yahoo Finance market-data fetch for report-side FX.",
-        ),
+            (
+                "llm",
+                DependencyKind.MODEL_DOMINANT,
+                _SP,
+                "AI_PROVIDER AI_API_KEY ZAI_API_KEY AI_BASE_URL",
+                "The AI provider used for statement extraction (AI_*); "
+                "recorded (cassette substitute) in CI/preview, real on staging/prod.",
+            ),
+            (
+                "cache",
+                DependencyKind.CODE_DOMINANT,
+                _SP,
+                "REDIS_URL",
+                "Redis (REDIS_URL) — optional in the app-owned tiers and preview.",
+            ),
+            (
+                "workflow_engine",
+                DependencyKind.CODE_DOMINANT,
+                _SP,
+                "PREFECT_API_URL",
+                "Prefect (PREFECT_API_URL) — durable flows; in-process fallback in the app-owned tiers.",
+            ),
+            (
+                "telemetry",
+                DependencyKind.CODE_DOMINANT,
+                _VPS,
+                "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT).",
+            ),
+            (
+                "analytics",
+                DependencyKind.CODE_DOMINANT,
+                _SP,
+                "OPENPANEL_API_URL OPENPANEL_CLIENT_ID",
+                "OpenPanel product analytics (OPENPANEL_API_URL).",
+            ),
+            (
+                "market_data",
+                DependencyKind.CODE_DOMINANT,
+                frozenset({EnvTier.PRODUCTION}),
+                "MARKET_DATA_YAHOO_TIMEOUT_SECONDS",
+                "Yahoo Finance market-data fetch for report-side FX.",
+            ),
+        )
     )
 )

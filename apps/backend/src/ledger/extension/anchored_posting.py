@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -14,10 +14,9 @@ from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
+    DeclarativeTracePolicy,
     JournalEntrySourceType,
     TraceAuthorityProfile,
-    TraceCausality,
-    TraceDecisionOutcome,
     TraceDecisionPolicyRegistry,
     TraceLineage,
     TraceRecord,
@@ -189,16 +188,12 @@ def current_anchored_journal_entries(
 
 
 @dataclass(frozen=True, slots=True)
-class ManualJournalAttestationPolicy:
-    """A human attestation is an explicit financial decision, not a source label."""
-
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef("manual_journal_attestation", "human-reviewed-entry", "1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return TraceAuthorityProfile(
+class ManualJournalAttestationPolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef("manual_journal_attestation", "human-reviewed-entry", "1")
+    )
+    authority: TraceAuthorityProfile = field(
+        default_factory=lambda: TraceAuthorityProfile(
             package="ledger",
             tier="CODE-LED",
             proof_kind="property",
@@ -207,34 +202,18 @@ class ManualJournalAttestationPolicy:
             assertion_owner_digest=text_digest("ledger:manual-journal-attestation:v1"),
             producer_version="1",
         )
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.DIRECT
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
-
-    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
-        valid = len(parents) == 1 and parents[0].result is TraceResult.PASS
-        return TraceDecisionOutcome(
-            TraceResult.AUTHORITATIVE if valid else TraceResult.REJECTED,
-            "manual_journal_attested" if valid else "manual_journal_attestation_invalid",
-        )
+    )
+    pass_reason: str = "manual_journal_attested"
+    fail_reason: str = "manual_journal_attestation_invalid"
 
 
 @dataclass(frozen=True, slots=True)
-class SystemJournalCommandPolicy:
-    """Authorizes a deterministic ledger-owned command without classifying it."""
-
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef("ledger_system_command", "balanced-command", "1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return TraceAuthorityProfile(
+class SystemJournalCommandPolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef("ledger_system_command", "balanced-command", "1")
+    )
+    authority: TraceAuthorityProfile = field(
+        default_factory=lambda: TraceAuthorityProfile(
             package="ledger",
             tier="CODE-ONLY",
             proof_kind="exact",
@@ -243,21 +222,9 @@ class SystemJournalCommandPolicy:
             assertion_owner_digest=text_digest("ledger:system-journal-command:v1"),
             producer_version="1",
         )
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.DIRECT
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
-
-    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
-        valid = len(parents) == 1 and parents[0].result is TraceResult.PASS
-        return TraceDecisionOutcome(
-            TraceResult.AUTHORITATIVE if valid else TraceResult.REJECTED,
-            "ledger_system_command_authorized" if valid else "ledger_system_command_invalid",
-        )
+    )
+    pass_reason: str = "ledger_system_command_authorized"
+    fail_reason: str = "ledger_system_command_invalid"
 
 
 def ledger_trace_policy_registry() -> TraceDecisionPolicyRegistry:

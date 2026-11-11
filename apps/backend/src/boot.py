@@ -1,26 +1,18 @@
-"""
-Unified Environment Bootloader.
+"""Unified environment bootloader for startup, CI dry-run, and smoke checks."""
 
-This module is the SINGLE SOURCE OF TRUTH for environment validation.
-It is used by:
-1. Application Startup (main.py) -> mode="critical"
-2. CI Pipelines (ci.yml) -> mode="dry-run"
-3. Smoke Tests (Manual/Cron) -> mode="full" (CLI)
-"""
+from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
-import tempfile
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
+from typing import Any
 
 from infra2_sdk.runtime.config_schema import (
     EnvironmentConflictError,
-    assert_environment,
     environment_manifest_from_model,
+    validate_environment,
 )
 from infra2_sdk.runtime.health import DependencyStatus
 
@@ -45,70 +37,78 @@ logger = get_logger(__name__)
 DEVELOPMENT_SECRET_KEY = "dev_secret_key_change_in_prod"
 DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
 DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
-# PROTECTED_ENVIRONMENTS is the single source of truth in src.config (imported above).
 LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
+
+_PROBE_METHODS = {
+    "database": "_check_database",
+    "object_storage": "_check_s3",
+    "llm": "_check_openrouter",
+    "cache": "_check_cache",
+    "workflow_engine": "_check_workflow_engine",
+    "telemetry": "_check_telemetry",
+    "analytics": "_check_analytics",
+    "market_data": "_check_market_data",
+}
+_SAFE_PRINT_FIELDS = (
+    "debug",
+    "environment",
+    "base_currency",
+    "ai_provider",
+    "ai_base_url",
+    "large_model",
+    "small_model",
+    "multimodal_model",
+    "s3_endpoint",
+    "s3_bucket",
+    "cors_origin_regex",
+    "otel_exporter_otlp_endpoint",
+    "otel_service_name",
+)
+_SENSITIVE_PRINT_FIELDS = ("database_url", "ai_api_key", "s3_access_key", "s3_secret_key")
 
 
 class BootMode(str, Enum):
-    CRITICAL = "critical"  # DB only (Fast fail for startup)
-    FULL = "full"  # DB + S3 + AI (Smoke tests)
-    DRY_RUN = "dry-run"  # Static config check only (CI lint)
+    CRITICAL = "critical"
+    FULL = "full"
+    DRY_RUN = "dry-run"
 
 
 @dataclass
 class ServiceStatus:
     service: str
-    status: str  # 'ok', 'warning', 'error'
+    status: str
     message: str
     duration_ms: float = 0.0
 
 
+async def _probe_status(service: str, adapter: Any, *, include_duration: bool = True) -> ServiceStatus:
+    result = await adapter.probe()
+    ok = getattr(result, "present", result.status is DependencyStatus.PRESENT)
+    return ServiceStatus(
+        service,
+        "ok" if ok else "error",
+        result.detail,
+        result.duration_ms if include_duration else 0.0,
+    )
+
+
 class Bootloader:
-    """Handles environment validation and service connectivity checks."""
+    """Validate runtime configuration and external dependency reachability."""
 
     @staticmethod
     def _required_checks(tier: EnvTier) -> tuple[dict[str, str], list[str]]:
-        """Split ``DEPENDENCY_MANIFEST.required_for(tier)`` into (probed, unprobed).
-
-        ``probed`` maps dependency name → the ``Bootloader`` check-method name;
-        ``unprobed`` (sorted) names any declared-required dependency without a
-        probe adapter — surfaced as warnings, never silently skipped. Since
-        #1580 every declared dependency has an adapter, so ``unprobed`` is
-        empty unless the manifest gains a dependency before its probe lands
-        (the guardrail test in ``test_probe_adapters.py`` pins this). The
-        dependency set comes from the manifest, not a hardcoded per-mode list
-        (invariant 2, #1577).
-        """
-        probe_methods = {
-            "database": "_check_database",
-            "object_storage": "_check_s3",
-            "llm": "_check_openrouter",
-            "cache": "_check_cache",
-            "workflow_engine": "_check_workflow_engine",
-            "telemetry": "_check_telemetry",
-            "analytics": "_check_analytics",
-            "market_data": "_check_market_data",
-        }
         required = DEPENDENCY_MANIFEST.required_for(tier)
-        probed = {name: probe_methods[name] for name in required if name in probe_methods}
-        unprobed = sorted(required - probed.keys())
-        return probed, unprobed
+        probed = {name: _PROBE_METHODS[name] for name in required if name in _PROBE_METHODS}
+        return probed, sorted(required - probed.keys())
 
     @staticmethod
     async def validate(mode: BootMode = BootMode.CRITICAL, tier: EnvTier | None = None) -> bool:
-        """Run validation checks. Returns True if passed, False if failed.
-
-        If mode is CRITICAL, this may call sys.exit(1) on failure. ``tier``
-        defaults to the running environment (``resolve_env_tier``); FULL mode
-        asserts the manifest-declared dependency set for that tier.
-        """
         if tier is None:
             tier = resolve_env_tier(
                 settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true"
             )
         logger.info("Bootloader starting validation", mode=mode.value, tier=tier.value)
 
-        # 1. Static Configuration Check (Always run)
         if not Bootloader._check_static_config():
             if mode == BootMode.CRITICAL:
                 logger.critical("Static configuration check failed. Refusing to start.")
@@ -119,30 +119,19 @@ class Bootloader:
             print("✅ Dry-run configuration check passed.")
             return True
 
-        # 2. Connectivity Checks
-        results = []
-
-        # Database (Always checked in Critical/Full — Gate 2 stays DB-only)
-        results.append(await Bootloader._check_database())
-
+        results = [await Bootloader._check_database()]
         if mode == BootMode.FULL:
-            # Gate 3: the dependency set is the manifest's declaration for this
-            # tier, not a hardcoded list (#1577).
             probed, unprobed = Bootloader._required_checks(tier)
             for name, method_name in sorted(probed.items()):
-                if name == "database":
-                    continue  # already probed above
-                results.append(await getattr(Bootloader, method_name)())
+                if name != "database":
+                    results.append(await getattr(Bootloader, method_name)())
             for name in unprobed:
-                # Declared-required but no probe adapter yet (#1580): loudly
-                # visible, never a silent skip (invariant 2 pending for these).
                 logger.warning(
                     "Declared-required dependency has no probe adapter yet (#1580); presence not asserted",
                     service=name,
                     tier=tier.value,
                 )
 
-        # 3. Report Results
         passed = True
         for res in results:
             if res.status == "error":
@@ -168,234 +157,152 @@ class Bootloader:
 
     @staticmethod
     def print_config() -> None:
-        """Print loaded configuration if DEBUG is enabled (Gate 2/3 UX)."""
         if os.getenv("DEBUG", "").lower() not in ("true", "1", "yes"):
             return
-
-        print("\n" + "=" * 60)
-        print("Config loaded (DEBUG mode)")
-        print("=" * 60)
-
-        # Safe fields - values can be displayed in full (non-sensitive)
-        safe_fields = [
-            "debug",
-            "environment",
-            "base_currency",
-            "ai_provider",
-            "ai_base_url",
-            "large_model",
-            "small_model",
-            "multimodal_model",
-            "s3_endpoint",
-            "s3_bucket",
-            "cors_origin_regex",
-            "otel_exporter_otlp_endpoint",
-            "otel_service_name",
-        ]
-
-        # Sensitive fields - only show "set"/"not set" status
-        sensitive_fields = [
-            "database_url",
-            "ai_api_key",
-            "s3_access_key",
-            "s3_secret_key",
-        ]
-
-        for field in safe_fields:
+        print("\n" + "=" * 60 + "\nConfig loaded (DEBUG mode)\n" + "=" * 60)
+        for field in _SAFE_PRINT_FIELDS:
             value = getattr(settings, field, None)
             if value is not None:
                 print(f"  {field}: {value}")
-
         print("")
-        for field in sensitive_fields:
-            value = getattr(settings, field, None)
-            status = "set" if value else "not set"
-            print(f"  {field}: {status}")
-
+        for field in _SENSITIVE_PRINT_FIELDS:
+            print(f"  {field}: {'set' if getattr(settings, field, None) else 'not set'}")
         print("\nFields using defaults:")
-        env_aliases = {"environment": "ENVIRONMENT"}
-        defaults_used = []
-        for field in safe_fields:
-            env_name = env_aliases.get(field, field.upper())
-            if not os.getenv(env_name):
-                defaults_used.append(field)
-
-        if defaults_used:
-            for field in defaults_used:
-                print(f"  - {field}")
-        else:
-            print("  (none)")
-
+        defaults_used = [f for f in _SAFE_PRINT_FIELDS if not os.getenv(f.upper())]
+        print("\n".join(f"  - {f}" for f in defaults_used) if defaults_used else "  (none)")
         print("=" * 60 + "\n")
 
     @staticmethod
     def _is_protected_runtime(environment: str) -> bool:
-        """Return True when config should be treated as deployed/protected."""
         normalized = environment.strip().lower()
-        if normalized in PROTECTED_ENVIRONMENTS:
-            return True
-        if normalized not in LOCAL_ENVIRONMENTS:
+        if normalized in PROTECTED_ENVIRONMENTS or normalized not in LOCAL_ENVIRONMENTS:
             return True
         app_url = str(getattr(settings, "next_public_app_url", "") or "").strip().lower()
         return app_url.startswith("https://") and "localhost" not in app_url and "127.0.0.1" not in app_url
 
     @staticmethod
     def _assert_sdk_environment(*, is_protected: bool = False) -> None:
-        """Validate environment against the live Settings manifest via infra2_sdk."""
         manifest = environment_manifest_from_model(
-            Settings,
-            source="apps/backend/src/config.py::Settings",
-            overrides=ENV_SOURCE_CLASSES,
+            Settings, source="apps/backend/src/config.py::Settings", overrides=ENV_SOURCE_CLASSES
         )
         effective_environ = dict(os.environ)
         for field in manifest.fields:
             if not field.injected:
                 continue
+            names = (field.env, *field.aliases)
             if field.empty_ok:
-                # #2874: the compose may set an empty_ok field to "" (`${VAR:-}`).
-                # The SDK treats a blank value as absent, so a blank value gets the placeholder.
-                names = (field.env, *field.aliases)
                 if not any(effective_environ.get(name, "").strip() for name in names):
                     effective_environ[field.env] = "__empty_ok__"
                 continue
             val = getattr(settings, field.field, None)
             if isinstance(val, str):
                 if not val.strip():
-                    for candidate in (field.env, *field.aliases):
+                    for candidate in names:
                         effective_environ.pop(candidate, None)
                 elif field.env not in effective_environ:
                     effective_environ[field.env] = val.strip()
             elif val is None:
-                for candidate in (field.env, *field.aliases):
+                for candidate in names:
                     effective_environ.pop(candidate, None)
-            elif not isinstance(val, str):
+            else:
                 effective_environ.setdefault(field.env, str(val))
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            manifest_path = Path(tmp_dir) / "required-env.generated.json"
-            manifest_path.write_text(json.dumps(manifest.to_dict()), encoding="utf-8")
-            assert_environment(
-                manifest_path,
-                environ=effective_environ,
-                require_injected=is_protected,
+        validation = validate_environment(manifest, effective_environ, require_injected=is_protected)
+        if validation.missing:
+            raise RuntimeError(
+                f"environment lacks {len(validation.missing)} value(s) manifest declares: "
+                f"{', '.join(validation.missing)} -- names only; the deployment must inject them (#759)"
             )
 
     @staticmethod
     def _check_static_config() -> bool:
-        """Verify presence of required environment variables."""
         try:
-            # Just accessing settings triggers validation
             database_url = settings.database_url
             environment = str(getattr(settings, "environment", "")).lower()
             is_protected = Bootloader._is_protected_runtime(environment)
-            # #2872: require injected values only in staging and production.
-            # Previews (alias environments such as pr-<N>) leave PREFECT_API_URL
-            # and S3_PUBLIC_ENDPOINT unset on purpose.
-            require_injected = environment.strip() in PROTECTED_ENVIRONMENTS
-            Bootloader._assert_sdk_environment(is_protected=require_injected)
-            secret_key = getattr(settings, "secret_key", "")
+            Bootloader._assert_sdk_environment(is_protected=environment.strip() in PROTECTED_ENVIRONMENTS)
             if is_protected:
+                secret_key = getattr(settings, "secret_key", "")
                 if not isinstance(secret_key, str) or not secret_key.strip():
                     logger.error("SECRET_KEY is required in protected environments", environment=environment)
                     return False
                 normalized_secret = secret_key.strip()
-                if normalized_secret == DEVELOPMENT_SECRET_KEY:
-                    logger.error("Default development SECRET_KEY is forbidden", environment=environment)
-                    return False
-                if len(normalized_secret.encode("utf-8")) < 32:
-                    logger.error("SECRET_KEY must be at least 32 bytes", environment=environment)
-                    return False
-                if str(database_url).strip() == DEVELOPMENT_DATABASE_URL:
-                    logger.error("Default development DATABASE_URL is forbidden", environment=environment)
-                    return False
-                if str(getattr(settings, "s3_secret_key", "")).strip() == DEVELOPMENT_S3_SECRET_KEY:
-                    logger.error("Default development S3_SECRET_KEY is forbidden", environment=environment)
-                    return False
+                checks = (
+                    (normalized_secret == DEVELOPMENT_SECRET_KEY, "Default development SECRET_KEY is forbidden"),
+                    (len(normalized_secret.encode("utf-8")) < 32, "SECRET_KEY must be at least 32 bytes"),
+                    (
+                        str(database_url).strip() == DEVELOPMENT_DATABASE_URL,
+                        "Default development DATABASE_URL is forbidden",
+                    ),
+                    (
+                        str(getattr(settings, "s3_secret_key", "")).strip() == DEVELOPMENT_S3_SECRET_KEY,
+                        "Default development S3_SECRET_KEY is forbidden",
+                    ),
+                )
+                for failed, message in checks:
+                    if failed:
+                        logger.error(message, environment=environment)
+                        return False
             return True
-        except EnvironmentConflictError as e:
-            logger.error("Environment variable conflict detected", error=str(e))
+        except EnvironmentConflictError as exc:
+            logger.error("Environment variable conflict detected", error=str(exc))
             return False
-        except Exception as e:
-            logger.error("Configuration load failed", error=str(e))
+        except Exception as exc:
+            logger.error("Configuration load failed", error=str(exc))
             return False
 
     @staticmethod
     async def _check_database() -> ServiceStatus:
-        """Verify database connectivity (SELECT 1). Delegates to the runtime
-        `DatabaseCheck` adapter; maps present ⇒ ok, absent ⇒ error."""
-        result = await DatabaseCheck(settings.database_url).probe()
-        status = "ok" if result.present else "error"
-        return ServiceStatus("database", status, result.detail, result.duration_ms)
+        return await _probe_status("database", DatabaseCheck(settings.database_url))
 
     @staticmethod
     async def _check_s3() -> ServiceStatus:
-        """HEAD bucket check. Delegates to the runtime `ObjectStorageCheck` adapter
-        (reported under the legacy `minio` service name)."""
-        result = await ObjectStorageCheck(
-            endpoint=settings.s3_endpoint,
-            access_key=settings.s3_access_key,
-            secret_key=settings.s3_secret_key,
-            region=settings.s3_region,
-            bucket=settings.s3_bucket,
-        ).probe()
-        status = "ok" if result.present else "error"
-        return ServiceStatus("minio", status, result.detail, result.duration_ms)
+        return await _probe_status(
+            "minio",
+            ObjectStorageCheck(
+                endpoint=settings.s3_endpoint,
+                access_key=settings.s3_access_key,
+                secret_key=settings.s3_secret_key,
+                region=settings.s3_region,
+                bucket=settings.s3_bucket,
+            ),
+        )
 
     @staticmethod
     async def _check_ai_provider() -> ServiceStatus:
-        """Report the configured AI provider (the model catalogue is local — see
-        ``src/llm/catalog.py`` — so there is no remote ``/models`` probe).
-
-        Delegates to the runtime `LlmCheck` adapter. A declared dependency that is
-        absent is an `error`, not a silent `skipped` (runtime invariant 2). This
-        check only runs in FULL (smoke) mode, which runs against a real deployed
-        environment where the provider is configured; the app's own startup
-        (CRITICAL) checks only the database.
-        """
-        result = await LlmCheck(
-            api_key=getattr(settings, "ai_api_key", None),
-            provider=settings.ai_provider,
-            small_model=settings.small_model,
-            multimodal_model=settings.multimodal_model,
-        ).probe()
-        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
-        return ServiceStatus("ai_provider", status, result.detail)
+        return await _probe_status(
+            "ai_provider",
+            LlmCheck(
+                api_key=getattr(settings, "ai_api_key", None),
+                provider=settings.ai_provider,
+                small_model=settings.small_model,
+                multimodal_model=settings.multimodal_model,
+            ),
+            include_duration=False,
+        )
 
     _check_openrouter = _check_ai_provider
 
     @staticmethod
     async def _check_cache() -> ServiceStatus:
-        """Redis reachability (raw TCP PING). Delegates to `RedisCheck`."""
-        result = await RedisCheck(url=settings.redis_url).probe()
-        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
-        return ServiceStatus("cache", status, result.detail, result.duration_ms)
+        return await _probe_status("cache", RedisCheck(url=settings.redis_url))
 
     @staticmethod
     async def _check_workflow_engine() -> ServiceStatus:
-        """Prefect API reachability. Delegates to `WorkflowEngineCheck`."""
-        result = await WorkflowEngineCheck(api_url=settings.prefect_api_url).probe()
-        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
-        return ServiceStatus("workflow_engine", status, result.detail, result.duration_ms)
+        return await _probe_status("workflow_engine", WorkflowEngineCheck(api_url=settings.prefect_api_url))
 
     @staticmethod
     async def _check_telemetry() -> ServiceStatus:
-        """OTLP collector reachability. Delegates to `TelemetryCheck`."""
-        result = await TelemetryCheck(endpoint=settings.otel_exporter_otlp_endpoint).probe()
-        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
-        return ServiceStatus("telemetry", status, result.detail, result.duration_ms)
+        return await _probe_status("telemetry", TelemetryCheck(endpoint=settings.otel_exporter_otlp_endpoint))
 
     @staticmethod
     async def _check_analytics() -> ServiceStatus:
-        """OpenPanel API reachability. Delegates to `AnalyticsCheck`."""
-        result = await AnalyticsCheck(api_url=settings.openpanel_api_url).probe()
-        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
-        return ServiceStatus("analytics", status, result.detail, result.duration_ms)
+        return await _probe_status("analytics", AnalyticsCheck(api_url=settings.openpanel_api_url))
 
     @staticmethod
     async def _check_market_data() -> ServiceStatus:
-        """Yahoo Finance reachability. Delegates to `MarketDataCheck`."""
-        result = await MarketDataCheck(timeout_seconds=settings.market_data_yahoo_timeout_seconds).probe()
-        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
-        return ServiceStatus("market_data", status, result.detail, result.duration_ms)
+        return await _probe_status(
+            "market_data", MarketDataCheck(timeout_seconds=settings.market_data_yahoo_timeout_seconds)
+        )
 
 
 if __name__ == "__main__":
@@ -404,18 +311,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, default="full", choices=["critical", "full", "dry-run"])
     args = parser.parse_args()
-
     print(f"Bootloader: Running validation cycle (mode={args.mode})")
-
     try:
         success = asyncio.run(Bootloader.validate(BootMode(args.mode)))
     except KeyboardInterrupt:
         print("\nAborted.")
         sys.exit(130)
-
-    if success:
-        print("✅ Validation check passed.")
-        sys.exit(0)
-    else:
-        print("❌ Validation check failed.")
-        sys.exit(1)
+    print("✅ Validation check passed." if success else "❌ Validation check failed.")
+    sys.exit(0 if success else 1)

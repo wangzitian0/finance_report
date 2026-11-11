@@ -240,6 +240,28 @@ class TraceDecisionPolicyRegistry:
         raise TraceRecordValidationError(f"no registered decision policy for {assertion}")
 
 
+@dataclass(frozen=True, slots=True)
+class DeclarativeTracePolicy:
+    """Base implementation of ``TraceDecisionPolicy`` with declarative metadata."""
+
+    assertion: VersionedTraceRef
+    authority: TraceAuthorityProfile
+    causality: TraceCausality = TraceCausality.DIRECT
+    target_class: TraceTargetClass = TraceTargetClass.FINANCIAL
+    pass_reason: str = ""
+    fail_reason: str = ""
+    with_unit_score: bool = False
+
+    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
+        valid = len(parents) == 1 and parents[0].result is TraceResult.PASS
+        score = Ratio(Decimal("1" if valid else "0")) if self.with_unit_score else None
+        return TraceDecisionOutcome(
+            TraceResult.AUTHORITATIVE if valid else TraceResult.REJECTED,
+            self.pass_reason if valid else self.fail_reason,
+            score,
+        )
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class TraceRecord:
     """One immutable observation or causal authority decision."""

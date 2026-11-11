@@ -16,13 +16,16 @@ from src.schemas.base import (
     NonNegativeMoneyAmount,
     Percent,
     Quantity,
+    default_dict,
+    default_list,
 )
 from src.schemas.provenance import DataProvenance
 
+NonNegInt = Annotated[int, Field(ge=0)]
+OptionalRate = Annotated[Decimal | None, Field(decimal_places=2)]
+
 
 class HoldingResponse(BaseResponse):
-    """Schema for portfolio holding summary."""
-
     id: UUID
     user_id: UUID
     account_id: UUID
@@ -33,70 +36,34 @@ class HoldingResponse(BaseResponse):
     unrealized_pnl: MoneyAmount
     unrealized_pnl_percent: Percent
     currency: CurrencyCode
-    # #1098: pre-conversion native cost basis + currency, so a holding's base view
-    # (cost_basis/currency) reconciles with the native view returned by
-    # /assets/positions. These are the raw position values before convert_money.
     native_cost_basis: MoneyAmount
     native_currency: CurrencyCode
     acquisition_date: date
     disposal_date: date | None = None
     status: PositionStatus
     cost_basis_method: CostBasisMethod | None = None
-    # Denormalized fields from related Account (optional)
     account_name: str | None = None
-    # Asset classification from AtomicPosition
     asset_type: str | None = None
     sector: str | None = None
     geography: str | None = None
-    # EPIC-022 #868/#888: conservative provenance. "imported" only when the
-    # holding's latest snapshot is backed by a concrete source document; None
-    # when we cannot prove import (we never infer "manual", to honour the rule
-    # that manual data must not masquerade as imported — and vice versa).
-    provenance: DataProvenance | None = Field(
-        default=None,
-        description="Normalized source provenance when known; null when not safely derivable.",
-    )
+    provenance: DataProvenance | None = None
 
-    # #1482: the bare `currency`/`cost_basis` are this endpoint's REPORTING view,
-    # but /assets/positions uses the same names for its NATIVE view. Expose the
-    # reporting view under the same explicit names both endpoints share
-    # (`reporting_currency`/`reporting_cost_basis`), so native vs reporting is
-    # identically named everywhere and clients never depend on the endpoint-local
-    # meaning of the bare field. Pure aliases of the reporting fields.
     @computed_field  # type: ignore[prop-decorator]
     @property
     def reporting_currency(self) -> str:
-        """Explicit reporting-currency alias of `currency` (identical across endpoints)."""
         return self.currency
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def reporting_cost_basis(self) -> MoneyAmount:
-        """Explicit reporting cost-basis alias of `cost_basis`."""
         return self.cost_basis
 
 
 class HoldingsListResponse(ListResponse[HoldingResponse]):
-    """Holdings page in the repo-standard items+total wrapper (#1796).
-
-    ``warnings`` discloses point-in-time snapshots excluded from the page (e.g.
-    no reconciled managed position as of the requested date) — previously only
-    logged, so the response silently read as complete.
-    """
-
-    warnings: list[dict[str, str]] = Field(
-        default_factory=list,
-        description=(
-            "Point-in-time snapshots excluded from the page (e.g. no reconciled "
-            "managed position as of the requested date) — disclosed instead of "
-            "silently omitted (#1796)."
-        ),
-    )
+    warnings: list[dict[str, str]] = default_list()
 
 
 class RealizedPnLResponse(BaseModel):
-    """Schema for realized P&L response."""
-
     period_start: date
     period_end: date
     total_realized_pnl: MoneyAmount
@@ -106,8 +73,6 @@ class RealizedPnLResponse(BaseModel):
 
 
 class UnrealizedPnLResponse(BaseModel):
-    """Schema for unrealized P&L response."""
-
     as_of_date: date
     total_unrealized_pnl: MoneyAmount
     total_unrealized_pnl_percent: Percent
@@ -118,17 +83,13 @@ class UnrealizedPnLResponse(BaseModel):
 
 
 class PriceUpdateRequest(BaseModel):
-    """Schema for manual price update request."""
-
     asset_identifier: Annotated[str, Field(min_length=1, max_length=100)]
-    price_date: Annotated[date, Field(description="Date of the price (default: today)")]
+    price_date: date
     price: NonNegativeMoneyAmount
     currency: CurrencyCode
 
 
 class PriceUpdateResponse(BaseModel):
-    """Schema for price update response."""
-
     success: bool
     message: str
     asset_identifier: str
@@ -140,29 +101,16 @@ class PriceUpdateResponse(BaseModel):
 
 
 class PriceUpdateBatchResponse(BaseModel):
-    """Typed response for ``POST /portfolio/prices/update`` (#1008).
-
-    Replaces a raw ``dict`` return so the batch result is declared in OpenAPI and
-    consumable by the generated frontend client.
-    """
-
-    updated_count: int = Field(..., description="Number of price overrides applied.")
-    results: list[PriceUpdateResponse] = Field(
-        default_factory=list,
-        description="Per-asset price override results.",
-    )
+    updated_count: int
+    results: list[PriceUpdateResponse] = default_list()
 
 
 class CostBasisMethodUpdateResponse(BaseModel):
-    """Typed response for ``PATCH /portfolio/{ticker}`` (#1008)."""
-
-    updated_count: int = Field(..., description="Number of active positions updated.")
+    updated_count: int
     cost_basis_method: CostBasisMethod
 
 
 class PortfolioSummaryResponse(BaseModel):
-    """Schema for overall portfolio summary."""
-
     total_market_value: MoneyAmount
     total_cost_basis: MoneyAmount
     total_unrealized_pnl: MoneyAmount
@@ -178,15 +126,11 @@ class PortfolioSummaryResponse(BaseModel):
 
 
 class PortfolioSummaryDashboardResponse(PortfolioSummaryResponse):
-    """Dashboard portfolio summary including YTD income figures."""
-
     realized_pnl_ytd: MoneyAmount
     dividend_income_ytd: MoneyAmount
 
 
 class InvestmentPerformanceHoldingRow(BaseModel):
-    """Per-holding row for the investment performance report schedule."""
-
     asset_identifier: str
     quantity: Quantity
     cost_basis: MoneyAmount
@@ -198,16 +142,12 @@ class InvestmentPerformanceHoldingRow(BaseModel):
 
 
 class InvestmentPerformanceMarketValuationSelection(BaseModel):
-    """External market observation actually used for a schedule holding."""
-
     asset_identifier: str
     observation_id: UUID
     requested_as_of: date
 
 
 class InvestmentPerformanceAllocationRow(BaseModel):
-    """Allocation row for one report-schedule dimension."""
-
     dimension: str
     category: str
     value: MoneyAmount
@@ -216,37 +156,27 @@ class InvestmentPerformanceAllocationRow(BaseModel):
 
 
 class InvestmentPerformanceDataFreshness(BaseModel):
-    """Market data freshness metadata for the report schedule."""
-
     latest_price_date: date | None
     market_data_provider: str | None
     stale: bool
-    stale_holdings: list[str] = Field(
-        default_factory=list,
-        description="Holdings whose selected price predates the schedule as-of date.",
-    )
+    stale_holdings: list[str] = default_list()
     manual_override_basis: str | None = None
 
 
 class InvestmentPerformanceReportScheduleResponse(BaseModel):
-    """Report-ready investment performance schedule consumed by EPIC-005."""
-
     period_start: date
     period_end: date
     as_of_date: date
     currency: CurrencyCode
-    xirr: Annotated[Decimal | None, Field(decimal_places=2)]
-    time_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
-    money_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
+    xirr: OptionalRate
+    time_weighted_return: OptionalRate
+    money_weighted_return: OptionalRate
     realized_pnl: MoneyAmount
     unrealized_pnl: MoneyAmount
     dividend_income: MoneyAmount
-    dividend_yield: Annotated[Decimal | None, Field(decimal_places=2)]
+    dividend_yield: OptionalRate
     holdings: list[InvestmentPerformanceHoldingRow]
-    market_valuation_selections: list[InvestmentPerformanceMarketValuationSelection] = Field(
-        default_factory=list,
-        description="Exact external market observations rendered for schedule holdings.",
-    )
+    market_valuation_selections: list[InvestmentPerformanceMarketValuationSelection] = default_list()
     allocation: list[InvestmentPerformanceAllocationRow]
     data_freshness: InvestmentPerformanceDataFreshness
     source_links: list[str]
@@ -254,8 +184,6 @@ class InvestmentPerformanceReportScheduleResponse(BaseModel):
 
 
 class DividendEventResponse(BaseModel):
-    """Dividend event shown on a holding detail page."""
-
     id: UUID
     ex_date: date
     pay_date: date
@@ -266,21 +194,13 @@ class DividendEventResponse(BaseModel):
 
 
 class PerformanceMetricsResponse(BaseModel):
-    """Schema for portfolio performance metrics."""
-
-    xirr: Annotated[Decimal | None, Field(default=None, decimal_places=2, description="XIRR percentage.")] = None
-    time_weighted_return: Annotated[
-        Decimal | None, Field(default=None, decimal_places=2, description="TWR percentage.")
-    ] = None
-    money_weighted_return: Annotated[
-        Decimal | None, Field(default=None, decimal_places=2, description="MWR percentage.")
-    ] = None
-    unavailable_reasons: dict[str, str] = Field(default_factory=dict, description="Per-metric unavailability reason.")
+    xirr: OptionalRate = None
+    time_weighted_return: OptionalRate = None
+    money_weighted_return: OptionalRate = None
+    unavailable_reasons: dict[str, str] = default_dict()
 
 
 class RealizedLotResponse(BaseModel):
-    """Lot-level realized P&L row for a holding detail page."""
-
     lot_id: UUID
     acquired_date: date | None = None
     sold_date: date
@@ -293,14 +213,10 @@ class RealizedLotResponse(BaseModel):
 
 
 class CostBasisMethodUpdateRequest(BaseModel):
-    """Payload for per-holding cost basis method updates."""
-
     cost_basis_method: CostBasisMethod
 
 
 class BrokerageImportRequest(BaseModel):
-    """Request to import parsed brokerage positions."""
-
     payload: dict
     filename: str | None = None
     source_document_id: str | None = None
@@ -313,19 +229,12 @@ class BrokerageImportRequest(BaseModel):
 
 
 class BrokerageImportResponse(BaseModel):
-    """Response for brokerage position import."""
-
     broker: str
-    parsed_positions: int = Field(ge=0, description="Parsed brokerage position count.")
-    created_atomic_positions: int = Field(ge=0, description="New immutable position snapshots created.")
-    existing_atomic_positions: int = Field(ge=0, description="Existing immutable position snapshots reused.")
-    reconcile_created: int = Field(ge=0, description="Managed positions created by reconciliation.")
-    reconcile_updated: int = Field(ge=0, description="Managed positions updated by reconciliation.")
-    reconcile_disposed: int = Field(ge=0, description="Managed positions marked disposed by reconciliation.")
-    skipped: int = Field(ge=0, description="Parsed positions skipped during import.")
-    # #1484: the broker ASSET account these positions reconciled into (null when
-    # no single broker account applies, e.g. zero positions or a mixed-broker
-    # payload). The statements import handler also uses it to anchor the source
-    # statement (statement.account_id); the user-scoped /portfolio import has no
-    # statement context and just reports the reconciled account.
+    parsed_positions: NonNegInt
+    created_atomic_positions: NonNegInt
+    existing_atomic_positions: NonNegInt
+    reconcile_created: NonNegInt
+    reconcile_updated: NonNegInt
+    reconcile_disposed: NonNegInt
+    skipped: NonNegInt
     account_id: UUID | None = None

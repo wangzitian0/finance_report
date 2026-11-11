@@ -58,17 +58,19 @@ router = APIRouter(prefix="/statements", tags=["review"])
 conflicts_router = APIRouter(prefix="/review", tags=["review"])
 
 
+async def _active_statement_or_404(db: DbSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
+    stmt = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
+    if stmt.status is BankStatementStatus.RETIRED:
+        raise_not_found("Statement")
+    return stmt
+
+
 @conflicts_router.get("/conflicts/{statement_id}", response_model=ReviewConflictsResponse)
 async def get_review_conflicts(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    statement_id: UUID, db: DbSession, user_id: CurrentUserId
 ) -> ReviewConflictsResponse:
     """Return duplicate and transfer-pair candidates for a statement."""
-    statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
-    if statement.status is BankStatementStatus.RETIRED:
-        raise_not_found("Statement")
-
+    statement = await _active_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
 
     def _candidate(txn: AtomicTransaction) -> ReviewConflictCandidate:
@@ -83,9 +85,8 @@ async def get_review_conflicts(
     duplicates: list[ReviewConflictCandidate] = []
     transfer_pairs: list[ReviewConflictCandidate] = []
     seen: dict[tuple, AtomicTransaction] = {}
+    by_abs_amount: dict[tuple, AtomicTransaction] = {}
     for txn in transactions:
-        # Keep duplicate detection consistent with the approval guard / dedup disambiguator:
-        # a different running balance means the dedup layer kept these as distinct transactions.
         balance_key = None if txn.balance_after is None else txn.balance_after.normalize()
         dedup_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction, balance_key)
         if dedup_key in seen:
@@ -93,8 +94,6 @@ async def get_review_conflicts(
         else:
             seen[dedup_key] = txn
 
-    by_abs_amount: dict[tuple, AtomicTransaction] = {}
-    for txn in transactions:
         transfer_key = (txn.txn_date, txn.amount.copy_abs())
         paired = by_abs_amount.get(transfer_key)
         if paired and paired.direction != txn.direction:
@@ -116,15 +115,9 @@ async def resolve_review_conflicts(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReviewConflictsResolveResponse:
-    """Resolve a statement's Stage-1 duplicate/transfer-pair candidates (#962).
-
-    Records the reviewer's decision so the approval guard stops blocking, instead
-    of leaving a legitimately-conflicting statement permanently stuck in ``parsed``.
-    """
+    """Resolve Stage-1 duplicate/transfer-pair candidates (#962)."""
     try:
         statement = await resolve_statement_conflicts(db, statement_id, user_id)
-        # Read before commit: commit expires the ORM object, and a post-commit
-        # attribute access would trigger a lazy load outside the async greenlet.
         resolved_at = statement.stage1_conflicts_resolved_at
         await db.commit()
     except ValueError as exc:
@@ -141,29 +134,16 @@ async def resolve_review_conflicts(
     return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)
 
 
-@conflicts_router.post(
-    "/transactions/{transaction_id}/currency",
-    response_model=ResolveCurrencyResponse,
-)
+@conflicts_router.post("/transactions/{transaction_id}/currency", response_model=ResolveCurrencyResponse)
 async def resolve_transaction_currency_endpoint(
     transaction_id: UUID,
     request: ResolveCurrencyRequest,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ResolveCurrencyResponse:
-    """Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).
-
-    Validates the chosen code as ISO-4217 (``src.audit.money.Currency``), clears the
-    unresolved flag, and records the resolution audit (who/when). Only after this
-    can the transaction be promoted to a journal entry (AC12.40.4).
-    """
+    """Specify ISO-4217 currency for a `currency_unresolved` transaction."""
     try:
-        txn = await resolve_transaction_currency(
-            db,
-            transaction_id,
-            user_id=user_id,
-            currency=request.currency,
-        )
+        txn = await resolve_transaction_currency(db, transaction_id, user_id=user_id, currency=request.currency)
     except InvalidCurrencyError as exc:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -184,41 +164,33 @@ async def resolve_transaction_currency_endpoint(
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)
 async def get_stage2_review_queue(
-    db: DbSession,
-    user_id: CurrentUserId,
-    run_id: str | None = None,
+    db: DbSession, user_id: CurrentUserId, run_id: str | None = None
 ) -> Stage2ReviewQueueResponse:
     """Stage 2: Get review queue (matches + checks)."""
     matches = await get_stage2_queue(db, user_id, run_id=run_id)
-    txn_ids = {match.atomic_txn_id for match in matches}
-    txn_map: dict[UUID, AtomicTransaction] = {}
-    if txn_ids:
-        txn_result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids)))
-        txn_map = {txn.id: txn for txn in txn_result.scalars().all()}
-    pending_matches = []
-    for match in matches:
-        transaction = txn_map.get(match.atomic_txn_id)
-        pending_matches.append(
-            Stage2PendingMatch(
-                id=match.id,
-                match_score=match.match_score,
-                status=match.status.value,
-                created_at=match.created_at,
-                description=transaction.description if transaction else None,
-                amount=transaction.amount if transaction else None,
-                txn_date=transaction.txn_date if transaction else None,
-                confidence_tier=derive_reconciliation_score_tier(match.match_score),
-            )
-        )
-
-    checks, _ = await list_checks(
-        db,
-        user_id,
-        status=CheckStatus.PENDING,
-        run_id=run_id,
-        limit=None,
+    txn_ids = {m.atomic_txn_id for m in matches}
+    txn_map = (
+        {
+            t.id: t
+            for t in (await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids)))).scalars().all()
+        }
+        if txn_ids
+        else {}
     )
-
+    pending_matches = [
+        Stage2PendingMatch(
+            id=m.id,
+            match_score=m.match_score,
+            status=m.status.value,
+            created_at=m.created_at,
+            description=txn.description if (txn := txn_map.get(m.atomic_txn_id)) else None,
+            amount=txn.amount if txn else None,
+            txn_date=txn.txn_date if txn else None,
+            confidence_tier=derive_reconciliation_score_tier(m.match_score),
+        )
+        for m in matches
+    ]
+    checks, _ = await list_checks(db, user_id, status=CheckStatus.PENDING, run_id=run_id, limit=None)
     return Stage2ReviewQueueResponse(
         pending_matches=pending_matches,
         consistency_checks=[ConsistencyCheckResponse.model_validate(c) for c in checks],
@@ -228,19 +200,12 @@ async def get_stage2_review_queue(
 
 @router.post("/{statement_id}/stage2/run-checks", response_model=ConsistencyCheckListResponse)
 async def run_stage2_checks(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    statement_id: UUID, db: DbSession, user_id: CurrentUserId
 ) -> ConsistencyCheckListResponse:
     """Run consistency checks for a statement."""
-    # Existence/ownership guard (404); the checks below key off statement_id.
-    statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
-    if statement.status is BankStatementStatus.RETIRED:
-        raise_not_found("Statement")
-
+    await _active_statement_or_404(db, statement_id, user_id)
     checks = await run_all_consistency_checks(db, user_id, statement_id)
     await db.commit()
-
     return ConsistencyCheckListResponse(
         items=[ConsistencyCheckResponse.model_validate(c) for c in checks],
         total=len(checks),
@@ -249,19 +214,14 @@ async def run_stage2_checks(
 
 @router.post("/consistency-checks/{check_id}/resolve", response_model=ConsistencyCheckResponse)
 async def resolve_consistency_check(
-    check_id: UUID,
-    request: ResolveCheckRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    check_id: UUID, request: ResolveCheckRequest, db: DbSession, user_id: CurrentUserId
 ) -> ConsistencyCheckResponse:
     """Resolve a consistency check."""
     try:
-        action = CheckResolutionAction(request.action)
-        check = await resolve_check(db, check_id, action, user_id, request.note)
+        check = await resolve_check(db, check_id, CheckResolutionAction(request.action), user_id, request.note)
         await db.commit()
     except (ReconciliationError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
     return ConsistencyCheckResponse.model_validate(check)
 
 
@@ -277,15 +237,8 @@ async def list_consistency_checks(
 ) -> ConsistencyCheckListResponse:
     """List/filter consistency checks."""
     checks, total = await list_checks(
-        db,
-        user_id,
-        status=status,
-        check_type=check_type,
-        run_id=run_id,
-        limit=limit,
-        offset=offset,
+        db, user_id, status=status, check_type=check_type, run_id=run_id, limit=limit, offset=offset
     )
-
     return ConsistencyCheckListResponse(
         items=[ConsistencyCheckResponse.model_validate(c) for c in checks],
         total=total,
@@ -294,26 +247,15 @@ async def list_consistency_checks(
 
 @router.post("/batch-approve-matches", response_model=BatchApproveResponse)
 async def batch_approve_matches(
-    request: BatchApproveRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    request: BatchApproveRequest, db: DbSession, user_id: CurrentUserId
 ) -> BatchApproveResponse:
-    """Batch approve matches (blocked by unresolved checks).
-
-    #1001: unresolved consistency checks now raise a 409 (structured
-    ``ErrorResponse``) instead of returning ``{"success": false}`` in a 200 body.
-    """
+    """Batch approve matches (blocked by unresolved consistency checks)."""
     if await has_unresolved_checks(db, user_id, run_id=request.run_id):
         raise_conflict("Cannot batch approve while there are unresolved consistency checks")
-
     if not request.match_ids:
-        return BatchApproveResponse(
-            approved_count=0,
-            journal_entries_created=0,
-            journal_entries_reconciled=0,
-        )
+        return BatchApproveResponse(approved_count=0, journal_entries_created=0, journal_entries_reconciled=0)
 
-    matches_query = (
+    query = (
         select(ReconciliationMatch)
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(
@@ -323,71 +265,58 @@ async def batch_approve_matches(
         )
     )
     if request.run_id:
-        matches_query = matches_query.where(ReconciliationMatch.run_id == request.run_id)
-    result = await db.execute(matches_query)
-    matches = list(result.scalars().all())
+        query = query.where(ReconciliationMatch.run_id == request.run_id)
+    matches = list((await db.execute(query)).scalars().all())
 
-    approved_count = 0
-    journal_entries_created = 0
-    journal_entries_reconciled = 0
+    reconciled = 0
     for match in matches:
         try:
-            accepted_match = await accept_match_service(
-                db,
-                match.id,
-                user_id=user_id,
-            )
+            accepted = await accept_match_service(db, match.id, user_id=user_id)
         except ReconciliationError as exc:
             await db.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-        after_entry_ids = set(accepted_match.journal_entry_ids or [])
-        approved_count += 1
-        if after_entry_ids:
-            reconciled_entries_result = await db.execute(
-                select(JournalEntry.id)
-                .where(JournalEntry.id.in_([UUID(entry_id) for entry_id in after_entry_ids]))
-                .where(JournalEntry.user_id == user_id)
-                .where(JournalEntry.status == JournalEntryStatus.RECONCILED)
+        after_ids = [UUID(eid) for eid in (accepted.journal_entry_ids or [])]
+        if after_ids:
+            reconciled += len(
+                (
+                    await db.execute(
+                        select(JournalEntry.id).where(
+                            JournalEntry.id.in_(after_ids),
+                            JournalEntry.user_id == user_id,
+                            JournalEntry.status == JournalEntryStatus.RECONCILED,
+                        )
+                    )
+                ).scalars().all()
             )
-            journal_entries_reconciled += len(reconciled_entries_result.scalars().all())
-
     await db.commit()
-
     return BatchApproveResponse(
-        approved_count=approved_count,
-        journal_entries_created=journal_entries_created,
-        journal_entries_reconciled=journal_entries_reconciled,
+        approved_count=len(matches), journal_entries_created=0, journal_entries_reconciled=reconciled
     )
 
 
 @router.post("/batch-reject-matches", response_model=BatchRejectResponse)
 async def batch_reject_matches(
-    request: BatchRejectRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    request: BatchRejectRequest, db: DbSession, user_id: CurrentUserId
 ) -> BatchRejectResponse:
     """Batch reject matches."""
     if not request.match_ids:
         return BatchRejectResponse(rejected_count=0)
-
-    result = await db.execute(
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(
-            ReconciliationMatch.id.in_(request.match_ids),
-            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-            AtomicTransaction.user_id == user_id,
-        )
+    matches = list(
+        (
+            await db.execute(
+                select(ReconciliationMatch)
+                .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+                .where(
+                    ReconciliationMatch.id.in_(request.match_ids),
+                    ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+                    AtomicTransaction.user_id == user_id,
+                )
+            )
+        ).scalars().all()
     )
-    matches = list(result.scalars().all())
-
-    rejected_count = 0
     for match in matches:
         match.status = ReconciliationStatus.REJECTED
         match.version += 1
-        rejected_count += 1
-
     await db.commit()
-
-    return BatchRejectResponse(rejected_count=rejected_count)
+    return BatchRejectResponse(rejected_count=len(matches))

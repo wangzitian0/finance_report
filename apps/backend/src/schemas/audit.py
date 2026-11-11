@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class AuditTrailItem(BaseModel):
-    timestamp: datetime = Field(..., validation_alias="created_at")
+    timestamp: datetime = Field(..., validation_alias="created_at", description="Audit timestamp.")
     actor: str
     action: str
     old_value: dict[str, Any] | None = None

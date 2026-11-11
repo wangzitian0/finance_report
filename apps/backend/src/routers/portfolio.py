@@ -59,8 +59,24 @@ _investment_accounting_service = InvestmentAccountingService()
 
 
 def _canonical_percent(value: Decimal) -> Decimal:
-    percent_ratio = Ratio.from_percent(value)
-    return percent_ratio.to_percent()
+    return Ratio.from_percent(value).to_percent()
+
+
+def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> DividendEventResponse:
+    return DividendEventResponse(
+        id=dividend.id,
+        ex_date=dividend.payment_date,
+        pay_date=dividend.payment_date,
+        amount=dividend.amount,
+        currency=dividend.currency,
+        reinvested=False,
+        journal_entry_id=journal_entry_id if journal_entry_id is not None else getattr(dividend, "journal_entry_id", None),
+    )
+
+
+async def _paged_allocation(fn, *, db: DbSession, user_id: UUID, as_of_date: date | None, limit: int, offset: int):
+    breakdowns = await fn(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
+    return [AllocationBreakdownResponse(**b.to_dict()) for b in list(breakdowns)[offset : offset + limit]]
 
 
 class AllocationBreakdownResponse(BaseModel):
@@ -88,9 +104,7 @@ class DividendCreateRequest(BaseModel):
 
 @router.post("/brokerage/import", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
 async def import_brokerage_positions(
-    request: BrokerageImportRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    request: BrokerageImportRequest, db: DbSession, user_id: CurrentUserId
 ) -> BrokerageImportResponse:
     """Import parsed brokerage holdings into AtomicPosition and reconcile ManagedPosition."""
     try:
@@ -104,10 +118,7 @@ async def import_brokerage_positions(
         await db.commit()
     except PositionServiceError as exc:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return BrokerageImportResponse(**result.__dict__)
 
 
@@ -120,28 +131,17 @@ async def get_holdings(
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> HoldingsListResponse:
-    """Get portfolio holdings with P&L (bounded by limit/offset; see AC17.30).
-
-    AC-portfolio.holdings.6 (#1796): responds in the repo-standard items+total
-    wrapper plus ``warnings`` — a snapshot excluded from the page (no reconciled
-    managed position as of the date) is disclosed to the caller, not just logged.
-    """
+    """Get portfolio holdings with P&L."""
     warnings: list[dict[str, str]] = []
     try:
         holdings = list(
             await _portfolio_service.get_holdings(
-                db=db,
-                user_id=user_id,
-                as_of_date=as_of_date,
-                include_disposed=include_disposed,
-                warnings=warnings,
+                db=db, user_id=user_id, as_of_date=as_of_date, include_disposed=include_disposed, warnings=warnings
             )
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
         return HoldingsListResponse(items=[], total=0, warnings=warnings)
-
-    page = holdings[offset : offset + limit]
-    return HoldingsListResponse(items=page, total=len(holdings), warnings=warnings)
+    return HoldingsListResponse(items=holdings[offset : offset + limit], total=len(holdings), warnings=warnings)
 
 
 @router.get("/summary", response_model=PortfolioSummaryDashboardResponse)
@@ -165,22 +165,11 @@ async def get_holding_dividends(
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[DividendEventResponse]:
-    """List dividend events for a holding ticker (bounded by limit/offset; see AC17.30)."""
+    """List dividend events for a holding ticker."""
     dividends = await _investment_accounting_service.list_holding_dividends(
         db, user_id=user_id, ticker=ticker, limit=limit, offset=offset
     )
-    return [
-        DividendEventResponse(
-            id=dividend.id,
-            ex_date=dividend.payment_date,
-            pay_date=dividend.payment_date,
-            amount=dividend.amount,
-            currency=dividend.currency,
-            reinvested=False,
-            journal_entry_id=getattr(dividend, "journal_entry_id", None),
-        )
-        for dividend in dividends
-    ]
+    return [_dividend_response(d) for d in dividends]
 
 
 @router.post("/{ticker}/dividends", response_model=DividendEventResponse, status_code=status.HTTP_201_CREATED)
@@ -190,7 +179,7 @@ async def create_holding_dividend(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> DividendEventResponse:
-    """Record dividend income for an existing current-user holding via InvestmentAccountingService."""
+    """Record dividend income for an existing current-user holding."""
     try:
         dividend = await _investment_accounting_service.record_holding_dividend(
             db,
@@ -210,18 +199,10 @@ async def create_holding_dividend(
     except (InvestmentAccountingValidationError, PricingError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    journal_entry_id = getattr(dividend, "journal_entry_id", None)
+    entry_id = getattr(dividend, "journal_entry_id", None)
     await db.commit()
     await db.refresh(dividend)
-    return DividendEventResponse(
-        id=dividend.id,
-        ex_date=dividend.payment_date,
-        pay_date=dividend.payment_date,
-        amount=dividend.amount,
-        currency=dividend.currency,
-        reinvested=False,
-        journal_entry_id=journal_entry_id,
-    )
+    return _dividend_response(dividend, journal_entry_id=entry_id)
 
 
 @router.get("/{ticker}/realized", response_model=list[RealizedLotResponse])
@@ -232,35 +213,35 @@ async def get_holding_realized_lots(
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[RealizedLotResponse]:
-    """List lot-level realized P&L rows for a holding ticker (bounded by limit/offset; see AC17.30)."""
-    result = await db.execute(
-        select(InvestmentTransaction, ManagedPosition)
-        .outerjoin(ManagedPosition, InvestmentTransaction.position_id == ManagedPosition.id)
-        .where(InvestmentTransaction.user_id == user_id)
-        .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL)
-        .where(InvestmentTransaction.asset_identifier == ticker)
-        .order_by(InvestmentTransaction.transaction_date.desc(), InvestmentTransaction.id.desc())
-        .offset(offset)
-        .limit(limit)
-    )
-    rows = []
-    for txn, position in result.all():
-        acquired_date = position.acquisition_date if position else None
-        holding_period = (txn.transaction_date - acquired_date).days if acquired_date else None
-        rows.append(
-            RealizedLotResponse(
-                lot_id=txn.id,
-                acquired_date=acquired_date,
-                sold_date=txn.transaction_date,
-                quantity=txn.quantity or Decimal("0.000000"),
-                basis=to_money(txn.cost_basis or Decimal("0.00")),
-                proceeds=to_money(txn.gross_amount - txn.fees),
-                gain_loss=to_money(txn.realized_pnl or Decimal("0.00")),
-                holding_period=holding_period,
-                currency=txn.currency,
+    """List lot-level realized P&L rows for a holding ticker."""
+    rows = (
+        await db.execute(
+            select(InvestmentTransaction, ManagedPosition)
+            .outerjoin(ManagedPosition, InvestmentTransaction.position_id == ManagedPosition.id)
+            .where(
+                InvestmentTransaction.user_id == user_id,
+                InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL,
+                InvestmentTransaction.asset_identifier == ticker,
             )
+            .order_by(InvestmentTransaction.transaction_date.desc(), InvestmentTransaction.id.desc())
+            .offset(offset)
+            .limit(limit)
         )
-    return rows
+    ).all()
+    return [
+        RealizedLotResponse(
+            lot_id=txn.id,
+            acquired_date=(acq := pos.acquisition_date if pos else None),
+            sold_date=txn.transaction_date,
+            quantity=txn.quantity or Decimal("0.000000"),
+            basis=to_money(txn.cost_basis or Decimal("0.00")),
+            proceeds=to_money(txn.gross_amount - txn.fees),
+            gain_loss=to_money(txn.realized_pnl or Decimal("0.00")),
+            holding_period=(txn.transaction_date - acq).days if acq else None,
+            currency=txn.currency,
+        )
+        for txn, pos in rows
+    ]
 
 
 @router.patch("/{ticker}", response_model=CostBasisMethodUpdateResponse)
@@ -271,22 +252,23 @@ async def update_holding_cost_basis_method(
     user_id: CurrentUserId,
 ) -> CostBasisMethodUpdateResponse:
     """Persist cost-basis method for all active positions matching a holding ticker."""
-    result = await db.execute(
-        select(ManagedPosition)
-        .where(ManagedPosition.user_id == user_id)
-        .where(ManagedPosition.asset_identifier == ticker)
-        .where(ManagedPosition.status == PositionStatus.ACTIVE)
+    positions = list(
+        (
+            await db.execute(
+                select(ManagedPosition).where(
+                    ManagedPosition.user_id == user_id,
+                    ManagedPosition.asset_identifier == ticker,
+                    ManagedPosition.status == PositionStatus.ACTIVE,
+                )
+            )
+        ).scalars().all()
     )
-    positions = list(result.scalars().all())
     if not positions:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Holding not found")
-    for position in positions:
-        position.cost_basis_method = request.cost_basis_method
+    for p in positions:
+        p.cost_basis_method = request.cost_basis_method
     await db.commit()
-    return CostBasisMethodUpdateResponse(
-        updated_count=len(positions),
-        cost_basis_method=request.cost_basis_method,
-    )
+    return CostBasisMethodUpdateResponse(updated_count=len(positions), cost_basis_method=request.cost_basis_method)
 
 
 @router.get("/performance", response_model=PerformanceMetricsResponse)
@@ -300,55 +282,34 @@ async def get_performance(
     """Calculate portfolio performance metrics (XIRR, TWR, MWR)."""
     as_of = as_of_date or date.today()
     p_end = period_end or date.today()
-    unavailable_reasons: dict[str, str] = {}
+    reasons: dict[str, str] = {}
 
-    try:
-        xirr: Decimal | None = _canonical_percent(await calculate_xirr(db=db, user_id=user_id, as_of_date=as_of))
-    except InsufficientDataError as e:
-        xirr = None
-        unavailable_reasons["xirr"] = str(e)
-    except (PerformanceError, PricingError) as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+    async def _eval_metric(key: str, coro) -> Decimal | None:
+        try:
+            return _canonical_percent(await coro)
+        except InsufficientDataError as exc:
+            reasons[key] = str(exc)
+            return None
+        except (PerformanceError, PricingError) as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
+    xirr = await _eval_metric("xirr", calculate_xirr(db=db, user_id=user_id, as_of_date=as_of))
     if period_start:
-        has_position = await db.scalar(select(ManagedPosition.id).where(ManagedPosition.user_id == user_id).limit(1))
-        if has_position is None:
-            twr: Decimal | None = None
-            unavailable_reasons["time_weighted_return"] = "No positions found for time-weighted return calculation"
+        if await db.scalar(select(ManagedPosition.id).where(ManagedPosition.user_id == user_id).limit(1)) is None:
+            twr = None
+            reasons["time_weighted_return"] = "No positions found for time-weighted return calculation"
         else:
-            try:
-                twr = _canonical_percent(
-                    await calculate_time_weighted_return(
-                        db=db,
-                        user_id=user_id,
-                        period_start=period_start,
-                        period_end=p_end,
-                    )
-                )
-            except InsufficientDataError as e:
-                twr = None
-                unavailable_reasons["time_weighted_return"] = str(e)
-            except PricingError as e:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+            twr = await _eval_metric(
+                "time_weighted_return",
+                calculate_time_weighted_return(db=db, user_id=user_id, period_start=period_start, period_end=p_end),
+            )
     else:
         twr = None
-        unavailable_reasons["time_weighted_return"] = "period_start is required for time-weighted return calculation"
-
-    try:
-        mwr: Decimal | None = _canonical_percent(
-            await calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
-        )
-    except InsufficientDataError as e:
-        mwr = None
-        unavailable_reasons["money_weighted_return"] = str(e)
-    except (PerformanceError, PricingError) as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+        reasons["time_weighted_return"] = "period_start is required for time-weighted return calculation"
+    mwr = await _eval_metric("money_weighted_return", calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of))
 
     return PerformanceMetricsResponse(
-        xirr=xirr,
-        time_weighted_return=twr,
-        money_weighted_return=mwr,
-        unavailable_reasons=unavailable_reasons,
+        xirr=xirr, time_weighted_return=twr, money_weighted_return=mwr, unavailable_reasons=reasons
     )
 
 
@@ -361,33 +322,23 @@ async def get_investment_performance_report_schedule(
     as_of_date: date | None = Query(None, description="Valuation date (default: period_end)"),
     currency: str = Query(default="SGD", min_length=3, max_length=3),
 ) -> InvestmentPerformanceReportScheduleResponse:
-    """Build the report-ready investment performance schedule consumed by EPIC-005."""
+    """Build the report-ready investment performance schedule."""
     period_end = period_end or date.today()
     period_start = period_start or date(period_end.year, 1, 1)
     as_of_date = as_of_date or period_end
-
     if period_start > period_end:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="period_start must be <= period_end"
-        )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="period_start must be <= period_end")
     if as_of_date < period_end:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="as_of_date must be >= period_end")
-
     currency = currency.strip().upper()
     if currency != "SGD":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Investment performance report schedule currently supports SGD presentation currency",
         )
-
     try:
         return await build_investment_performance_report_schedule(
-            db,
-            user_id,
-            period_start=period_start,
-            period_end=period_end,
-            as_of_date=as_of_date,
-            currency=currency,
+            db, user_id, period_start=period_start, period_end=period_end, as_of_date=as_of_date, currency=currency
         )
     except PricingError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -401,10 +352,10 @@ async def get_sector_allocation(
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
-    """Get sector allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    breakdowns = await sector_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
-    page = list(breakdowns)[offset : offset + limit]
-    return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
+    """Get sector allocation breakdown."""
+    return await _paged_allocation(
+        sector_allocation_breakdowns, db=db, user_id=user_id, as_of_date=as_of_date, limit=limit, offset=offset
+    )
 
 
 @router.get("/allocation/geography", response_model=list[AllocationBreakdownResponse])
@@ -415,10 +366,10 @@ async def get_geography_allocation(
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
-    """Get geography allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    breakdowns = await geography_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
-    page = list(breakdowns)[offset : offset + limit]
-    return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
+    """Get geography allocation breakdown."""
+    return await _paged_allocation(
+        geography_allocation_breakdowns, db=db, user_id=user_id, as_of_date=as_of_date, limit=limit, offset=offset
+    )
 
 
 @router.get("/allocation/asset-class", response_model=list[AllocationBreakdownResponse])
@@ -429,17 +380,15 @@ async def get_asset_class_allocation(
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
-    """Get asset class allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    breakdowns = await asset_class_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
-    page = list(breakdowns)[offset : offset + limit]
-    return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
+    """Get asset class allocation breakdown."""
+    return await _paged_allocation(
+        asset_class_allocation_breakdowns, db=db, user_id=user_id, as_of_date=as_of_date, limit=limit, offset=offset
+    )
 
 
 @router.post("/prices/update", response_model=PriceUpdateBatchResponse, status_code=status.HTTP_200_OK)
 async def update_prices(
-    db: DbSession,
-    user_id: CurrentUserId,
-    request: PriceUpdateBatchRequest,
+    db: DbSession, user_id: CurrentUserId, request: PriceUpdateBatchRequest
 ) -> PriceUpdateBatchResponse:
     """Update market prices manually (batch)."""
     results = await _portfolio_service.update_market_prices(db=db, user_id=user_id, updates=request.updates)

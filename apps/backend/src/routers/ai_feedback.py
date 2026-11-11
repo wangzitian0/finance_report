@@ -1,6 +1,6 @@
 """AI suggestion feedback endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -33,17 +33,23 @@ from src.reconciliation import (
 router = APIRouter(prefix="/ai", tags=["ai-feedback"])
 
 
-@router.post("/feedback", response_model=AiFeedbackResponse, status_code=status.HTTP_201_CREATED)
-async def create_ai_feedback(
-    payload: AiFeedbackRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> AiFeedbackResponse:
-    """Persist user feedback for an AI suggestion and apply it to the draft classification.
+def _txn_direction(txn: AtomicTransaction) -> Literal["IN", "OUT"] | None:
+    val = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
+    if val == "IN":
+        return "IN"
+    if val == "OUT":
+        return "OUT"
+    return None
 
-    A rejected draft is superseded. A corrected draft takes the category of the user. The one-click
-    approval reads the draft, so it then honors the decision (#2419).
-    """
+
+async def _count_suggestions(db: DbSession, model: Any, join_col: Any, scope_filter: Any, filters: tuple[Any, ...]) -> int:
+    stmt = select(func.count(model.id)).join(AtomicTransaction, join_col == AtomicTransaction.id).where(scope_filter, *filters)
+    return int((await db.execute(stmt)).scalar_one() or 0)
+
+
+@router.post("/feedback", response_model=AiFeedbackResponse, status_code=status.HTTP_201_CREATED)
+async def create_ai_feedback(payload: AiFeedbackRequest, db: DbSession, user_id: CurrentUserId) -> AiFeedbackResponse:
+    """Persist user feedback for an AI suggestion and apply it to the draft classification."""
     try:
         effect = await apply_suggestion_feedback(
             db, user_id, payload.suggestion_id, payload.action, payload.corrected_value
@@ -75,84 +81,71 @@ async def list_ai_suggestions(
     statement_id: Annotated[UUID | None, Query(description="Optional statement ID filter")] = None,
 ) -> AiSuggestionListResponse:
     """List pending AI classification and reconciliation suggestions in the 60-84 review band."""
-    items: list[AiSuggestionResponse] = []
-
-    txn_scope_filter = (
+    scope_filter = (
         effective_statement_transaction_filter(user_id, statement_id)
         if statement_id is not None
         else (AtomicTransaction.user_id == user_id)
     )
-
-    classification_filters = (
+    cls_filters = (
         TransactionClassification.status == ClassificationStatus.DRAFT,
         TransactionClassification.confidence_score >= 60,
         TransactionClassification.confidence_score < 85,
-        # A corrected draft is decided. It is not pending.
         func.coalesce(TransactionClassification.tags["corrected_by_user"].astext, "false") != "true",
     )
-    reconciliation_filters = (
+    rec_filters = (
         ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
         ReconciliationMatch.match_score >= 60,
         ReconciliationMatch.match_score < 85,
     )
-
-    classification_count_result = await db.execute(
-        select(func.count(TransactionClassification.id))
-        .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
-        .where(txn_scope_filter)
-        .where(*classification_filters)
+    cls_total = await _count_suggestions(
+        db, TransactionClassification, TransactionClassification.atomic_txn_id, scope_filter, cls_filters
     )
-    classification_total = int(classification_count_result.scalar_one() or 0)
-
-    reconciliation_count_result = await db.execute(
-        select(func.count(ReconciliationMatch.id))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(txn_scope_filter)
-        .where(*reconciliation_filters)
+    rec_total = await _count_suggestions(
+        db, ReconciliationMatch, ReconciliationMatch.atomic_txn_id, scope_filter, rec_filters
     )
-    reconciliation_total = int(reconciliation_count_result.scalar_one() or 0)
 
-    classification_result = await db.execute(
-        select(TransactionClassification, AtomicTransaction)
-        .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
-        .where(txn_scope_filter)
-        .where(*classification_filters)
-        .order_by(TransactionClassification.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    for classification, txn in classification_result.all():
-        raw_cat = classification.tags.get("category") if isinstance(classification.tags, dict) else None
-        category = raw_cat if isinstance(raw_cat, str) and raw_cat else None
-        suggested = category or (str(classification.account_id) if classification.account_id else "AI classification")
-
-        direction_val = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
+    items: list[AiSuggestionResponse] = []
+    cls_rows = (
+        await db.execute(
+            select(TransactionClassification, AtomicTransaction)
+            .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
+            .where(scope_filter, *cls_filters)
+            .order_by(TransactionClassification.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    for cls, txn in cls_rows:
+        raw_cat = cls.tags.get("category") if isinstance(cls.tags, dict) else None
+        suggested = (
+            raw_cat
+            if isinstance(raw_cat, str) and raw_cat
+            else (str(cls.account_id) if cls.account_id else "AI classification")
+        )
         items.append(
             AiSuggestionResponse(
-                suggestion_id=classification.id,
+                suggestion_id=cls.id,
                 transaction=txn.description,
                 suggested_category_or_match=suggested,
-                ai_score=classification.confidence_score or 60,
+                ai_score=cls.confidence_score or 60,
                 ai_reasoning="Pending AI classification suggestion requires human review.",
-                direction=direction_val if direction_val in ("IN", "OUT") else None,
+                direction=_txn_direction(txn),
             )
         )
 
-    classification_consumed = offset + len(items)
-    reconciliation_offset = max(offset - classification_total, 0)
     remaining = max(limit - len(items), 0)
-    if remaining and classification_consumed >= classification_total:
-        match_result = await db.execute(
-            select(ReconciliationMatch, AtomicTransaction)
-            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-            .where(txn_scope_filter)
-            .where(*reconciliation_filters)
-            .order_by(ReconciliationMatch.created_at.desc())
-            .limit(remaining)
-            .offset(reconciliation_offset)
-        )
-        for match, txn in match_result.all():
-            direction_val = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
+    if remaining and offset + len(items) >= cls_total:
+        match_rows = (
+            await db.execute(
+                select(ReconciliationMatch, AtomicTransaction)
+                .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+                .where(scope_filter, *rec_filters)
+                .order_by(ReconciliationMatch.created_at.desc())
+                .limit(remaining)
+                .offset(max(offset - cls_total, 0))
+            )
+        ).all()
+        for match, txn in match_rows:
             items.append(
                 AiSuggestionResponse(
                     suggestion_id=match.id,
@@ -160,8 +153,8 @@ async def list_ai_suggestions(
                     suggested_category_or_match="Reconciliation match",
                     ai_score=match.match_score,
                     ai_reasoning=str(match.score_breakdown.get("ai_reasoning", "Pending AI reconciliation match.")),
-                    direction=direction_val if direction_val in ("IN", "OUT") else None,
+                    direction=_txn_direction(txn),
                 )
             )
 
-    return AiSuggestionListResponse(items=items, total=classification_total + reconciliation_total)
+    return AiSuggestionListResponse(items=items, total=cls_total + rec_total)

@@ -29,29 +29,24 @@ JournalLineFxRate = Annotated[
 ]
 JournalLineTags = Annotated[dict | None, AfterValidator(validate_journal_line_tags)]
 JournalSourceType = Annotated[JournalEntrySourceType, BeforeValidator(normalize_source_type)]
+Text500 = Annotated[str, Field(min_length=1, max_length=500)]
 
 
 class JournalLineBase(BaseModel):
-    """Base journal line schema."""
-
     account_id: UUID
     direction: Direction
     amount: JournalLineAmount
     currency: CurrencyCode
     fx_rate: JournalLineFxRate = None
-    event_type: Annotated[str | None, Field(None, max_length=100)] = None
+    event_type: Annotated[str, Field(max_length=100)] | None = None
     tags: JournalLineTags = None
 
 
 class JournalLineCreate(JournalLineBase):
-    """Schema for creating a journal line."""
-
     currency: CurrencyCode | None = None  # type: ignore[assignment]
 
 
 class JournalLineResponse(JournalLineBase, BaseResponse):
-    """Schema for journal line response."""
-
     id: UUID
     journal_entry_id: UUID
     created_at: datetime
@@ -59,27 +54,21 @@ class JournalLineResponse(JournalLineBase, BaseResponse):
 
 
 class JournalEntryBase(BaseModel):
-    """Base journal entry schema."""
-
     entry_date: date
-    memo: Annotated[str, Field(min_length=1, max_length=500)]
+    memo: Text500
     source_type: JournalSourceType = JournalEntrySourceType.MANUAL
     source_id: UUID | None = None
 
 
 class JournalEntryCreate(BaseModel):
-    """Manual entry command; source provenance is never accepted from the caller."""
-
     model_config = ConfigDict(extra="forbid")
     entry_date: date
-    memo: Annotated[str, Field(min_length=1, max_length=500)]
-    rationale: Annotated[str, Field(min_length=1, max_length=500)] = "Manual entry submitted by account owner."
+    memo: Text500
+    rationale: Text500 = "Manual entry submitted by account owner."
     lines: Annotated[list[JournalLineCreate], Field(min_length=2)]
 
 
 class JournalEntryResponse(JournalEntryBase, BaseResponse):
-    """Schema for journal entry response."""
-
     id: UUID
     user_id: UUID
     status: JournalEntryStatus
@@ -97,6 +86,4 @@ JournalEntryListResponse = ListResponse[JournalEntryResponse]
 
 
 class VoidJournalEntryRequest(BaseModel):
-    """Schema for voiding a journal entry."""
-
-    reason: Annotated[str, Field(min_length=1, max_length=500)]
+    reason: Text500

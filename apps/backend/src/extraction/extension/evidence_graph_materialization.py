@@ -13,7 +13,13 @@ from sqlalchemy.orm import selectinload
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import extract_source_document_ids
-from src.extraction.extension.evidence_lineage import EvidenceLineageService
+from src.extraction.extension.evidence_lineage import (
+    EvidenceLineageService,
+    doc_node_props,
+    entry_node_props,
+    line_node_props,
+    txn_node_props,
+)
 from src.extraction.extension.statement_contribution import resolve_statement_contribution
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer1 import UploadedDocument
@@ -23,6 +29,7 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import JournalEntry, JournalLine, OpeningPosition, list_opening_positions
 
 DEFAULT_MATERIALIZATION_WRITE_CAP = 25
+_CAP_MSG = "Request-time Evidence Graph materialization write cap was reached."
 
 
 @dataclass(frozen=True)
@@ -66,46 +73,38 @@ class EvidenceGraphMaterializationService:
         node_kind: str | None = None,
         max_writes: int = DEFAULT_MATERIALIZATION_WRITE_CAP,
     ) -> EvidenceMaterializationResult:
-        """Materialize one local graph path for an owned entity identity."""
+        _ = node_kind
         result = EvidenceMaterializationResult()
         if max_writes <= 0:
-            self._add_blocker(
-                result,
-                "materialization_write_cap_reached",
-                "Request-time Evidence Graph materialization write cap was reached.",
-            )
+            self._add_blocker(result, "materialization_write_cap_reached", _CAP_MSG)
             return result
 
-        if entity_type == "opening_position":
-            await self._materialize_opening_position(
+        handlers = {
+            "opening_position": lambda: self._materialize_opening_position(
                 db, user_id=user_id, account_id=entity_id, result=result, cap=max_writes
-            )
-        elif entity_type == "journal_line":
-            await self._materialize_journal_line(db, user_id=user_id, line_id=entity_id, result=result, cap=max_writes)
-        elif entity_type == "journal_entry":
-            await self._materialize_journal_entry(
+            ),
+            "journal_line": lambda: self._materialize_journal_line(
+                db, user_id=user_id, line_id=entity_id, result=result, cap=max_writes
+            ),
+            "journal_entry": lambda: self._materialize_journal_entry(
                 db, user_id=user_id, entry_id=entity_id, result=result, cap=max_writes
-            )
-        elif entity_type == "uploaded_document":
-            await self._materialize_uploaded_document(
+            ),
+            "uploaded_document": lambda: self._materialize_uploaded_document(
                 db, user_id=user_id, document_id=entity_id, result=result, cap=max_writes
-            )
-        elif entity_type == "atomic_transaction":
-            await self._materialize_atomic_transaction(
+            ),
+            "atomic_transaction": lambda: self._materialize_atomic_transaction(
                 db, user_id=user_id, atomic_id=entity_id, result=result, cap=max_writes
-            )
-        else:
+            ),
+        }
+        handler = handlers.get(entity_type)
+        if handler is None:
             self._add_blocker(result, "unsupported_provenance", f"Unsupported Evidence Graph entity: {entity_type}.")
+        else:
+            await handler()
         return result
 
     async def _materialize_journal_line(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        line_id: UUID,
-        result: EvidenceMaterializationResult,
-        cap: int,
+        self, db: AsyncSession, *, user_id: UUID, line_id: UUID, result: EvidenceMaterializationResult, cap: int
     ) -> None:
         row = (
             await db.execute(
@@ -123,15 +122,12 @@ class EvidenceGraphMaterializationService:
         if entry.user_id != user_id:
             self._add_blocker(result, "cross_user_lineage_blocked", "Journal line belongs to a different user.")
             return
-        entry = (
+        full_entry = (
             await db.execute(
-                select(JournalEntry)
-                .where(JournalEntry.id == line.journal_entry_id)
-                .options(selectinload(JournalEntry.lines))
-                .limit(1)
+                select(JournalEntry).where(JournalEntry.id == line.journal_entry_id).options(selectinload(JournalEntry.lines)).limit(1)
             )
         ).scalar_one()
-        await self._materialize_journal_entry(db, user_id=user_id, entry=entry, result=result, cap=cap)
+        await self._materialize_journal_entry(db, user_id=user_id, entry=full_entry, result=result, cap=cap)
 
     async def _materialize_journal_entry(
         self,
@@ -146,10 +142,7 @@ class EvidenceGraphMaterializationService:
         if entry is None:
             entry = (
                 await db.execute(
-                    select(JournalEntry)
-                    .where(JournalEntry.id == entry_id)
-                    .options(selectinload(JournalEntry.lines))
-                    .limit(1)
+                    select(JournalEntry).where(JournalEntry.id == entry_id).options(selectinload(JournalEntry.lines)).limit(1)
                 )
             ).scalar_one_or_none()
         if entry is None:
@@ -160,145 +153,64 @@ class EvidenceGraphMaterializationService:
             return None
 
         ledger_entry = await self._upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="ledger_entry",
-            entity_type="journal_entry",
-            entity_id=entry.id,
-            properties={
-                "source_type": entry.source_type.value,
-                "source_id": str(entry.source_id) if entry.source_id else None,
-                "status": entry.status.value,
-            },
-            result=result,
-            cap=cap,
+            db, user_id=user_id, node_kind="ledger_entry", entity_type="journal_entry", entity_id=entry.id, properties=entry_node_props(entry), result=result, cap=cap
         )
         if ledger_entry is None:
             return None
 
         for line in entry.lines:
             ledger_line = await self._upsert_node(
-                db,
-                user_id=user_id,
-                node_kind="ledger_line",
-                entity_type="journal_line",
-                entity_id=line.id,
-                properties={
-                    "journal_entry_id": str(line.journal_entry_id),
-                    "account_id": str(line.account_id),
-                    "direction": line.direction.value,
-                    "amount": str(line.amount),
-                    "currency": line.currency,
-                },
-                result=result,
-                cap=cap,
+                db, user_id=user_id, node_kind="ledger_line", entity_type="journal_line", entity_id=line.id, properties=line_node_props(line), result=result, cap=cap
             )
             if ledger_line is None:
                 return ledger_entry
-            edge = await self._upsert_edge(
-                db,
-                user_id=user_id,
-                from_node_id=ledger_entry.id,
-                to_node_id=ledger_line.id,
-                relation="contains",
-                properties={"adapter": "lazy_materialization"},
-                result=result,
-                cap=cap,
-            )
-            if edge is None:
+            if (
+                await self._upsert_edge(
+                    db, user_id=user_id, from_node_id=ledger_entry.id, to_node_id=ledger_line.id, relation="contains", properties={"adapter": "lazy_materialization"}, result=result, cap=cap
+                )
+                is None
+            ):
                 return ledger_entry
 
-        await self._materialize_entry_source(
-            db, user_id=user_id, entry=entry, ledger_entry=ledger_entry, result=result, cap=cap
-        )
+        await self._materialize_entry_source(db, user_id=user_id, entry=entry, ledger_entry=ledger_entry, result=result, cap=cap)
         return ledger_entry
 
     async def _materialize_entry_source(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        entry: JournalEntry,
-        ledger_entry: EvidenceNode,
-        result: EvidenceMaterializationResult,
-        cap: int,
+        self, db: AsyncSession, *, user_id: UUID, entry: JournalEntry, ledger_entry: EvidenceNode, result: EvidenceMaterializationResult, cap: int
     ) -> None:
         if entry.source_id is None:
-            for position in await list_opening_positions(db, user_id=user_id, as_of=date.max):
-                if position.journal_entry_id != entry.id:
-                    continue
-                opening = await self._materialize_opening_position(
-                    db,
-                    user_id=user_id,
-                    account_id=position.account_id,
-                    result=result,
-                    cap=cap,
-                    include_journal=False,
-                )
-                if opening is not None:
-                    await self._upsert_edge(
-                        db,
-                        user_id=user_id,
-                        from_node_id=opening.id,
-                        to_node_id=ledger_entry.id,
-                        relation="posted_as",
-                        properties={"adapter": "opening_position"},
-                        result=result,
-                        cap=cap,
+            for pos in await list_opening_positions(db, user_id=user_id, as_of=date.max):
+                if pos.journal_entry_id == entry.id:
+                    opening = await self._materialize_opening_position(
+                        db, user_id=user_id, account_id=pos.account_id, result=result, cap=cap, include_journal=False
                     )
+                    if opening is not None:
+                        await self._upsert_edge(
+                            db, user_id=user_id, from_node_id=opening.id, to_node_id=ledger_entry.id, relation="posted_as", properties={"adapter": "opening_position"}, result=result, cap=cap
+                        )
             return
 
         atomic = await self._get_owned_atomic_transaction(db, user_id=user_id, atomic_id=entry.source_id)
         if atomic is not None:
-            atomic_node = await self._materialize_atomic_transaction(
-                db,
-                user_id=user_id,
-                atomic=atomic,
-                result=result,
-                cap=cap,
-            )
+            atomic_node = await self._materialize_atomic_transaction(db, user_id=user_id, atomic=atomic, result=result, cap=cap)
             if atomic_node is not None:
                 await self._upsert_edge(
-                    db,
-                    user_id=user_id,
-                    from_node_id=atomic_node.id,
-                    to_node_id=ledger_entry.id,
-                    relation="posted_as",
-                    properties={"adapter": "lazy_materialization"},
-                    result=result,
-                    cap=cap,
+                    db, user_id=user_id, from_node_id=atomic_node.id, to_node_id=ledger_entry.id, relation="posted_as", properties={"adapter": "lazy_materialization"}, result=result, cap=cap
                 )
             return
 
         if entry.source_type in STATEMENT_SOURCE_TYPES:
             self._add_blocker(result, "entity_missing", "Journal entry source_id does not resolve to an owned source.")
-        elif entry.source_type not in {
-            JournalEntrySourceType.MANUAL,
-            JournalEntrySourceType.SYSTEM,
-            JournalEntrySourceType.FX_REVALUATION,
-        }:
+        elif entry.source_type not in {JournalEntrySourceType.MANUAL, JournalEntrySourceType.SYSTEM, JournalEntrySourceType.FX_REVALUATION}:
             self._add_blocker(
-                result,
-                "unsupported_provenance",
-                f"Unsupported journal source type for Evidence Graph materialization: {entry.source_type.value}.",
+                result, "unsupported_provenance", f"Unsupported journal source type for Evidence Graph materialization: {entry.source_type.value}."
             )
 
     async def _resolve_opening_position(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        account_id: UUID,
-        result: EvidenceMaterializationResult,
+        self, db: AsyncSession, *, user_id: UUID, account_id: UUID, result: EvidenceMaterializationResult
     ) -> tuple[OpeningPosition, UploadedDocument | None] | None:
-        position = next(
-            (
-                item
-                for item in await list_opening_positions(db, user_id=user_id, as_of=date.max)
-                if item.account_id == account_id
-            ),
-            None,
-        )
+        positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
+        position = next((item for item in positions if item.account_id == account_id), None)
         if position is None:
             self._add_blocker(result, "entity_missing", "No current owned opening position exists.")
             return None
@@ -311,29 +223,23 @@ class EvidenceGraphMaterializationService:
         if source_ref.target.kind not in {"statement_extraction_result", "reviewed_statement_envelope"}:
             self._add_blocker(result, "opening_authority_unproven", "Opening source decision has no supported owner.")
             return None
-        # Both extraction and reviewed-envelope targets use the immutable result
-        # identity, not the database envelope row's primary key.
         summaries = (
-            (
-                await db.execute(
-                    select(StatementSummary)
-                    .join(
-                        StatementExtractionResultRecord,
-                        StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
-                    )
-                    .where(
-                        StatementSummary.user_id == user_id,
-                        StatementExtractionResultRecord.user_id == user_id,
-                        StatementExtractionResultRecord.statement_id == StatementSummary.id,
-                        StatementExtractionResultRecord.payload["result_id"].astext == source_ref.target.id,
-                        StatementSummary.account_id == account_id,
-                        StatementSummary.status != BankStatementStatus.RETIRED,
-                    )
+            await db.execute(
+                select(StatementSummary)
+                .join(
+                    StatementExtractionResultRecord,
+                    StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
+                )
+                .where(
+                    StatementSummary.user_id == user_id,
+                    StatementExtractionResultRecord.user_id == user_id,
+                    StatementExtractionResultRecord.statement_id == StatementSummary.id,
+                    StatementExtractionResultRecord.payload["result_id"].astext == source_ref.target.id,
+                    StatementSummary.account_id == account_id,
+                    StatementSummary.status != BankStatementStatus.RETIRED,
                 )
             )
-            .scalars()
-            .all()
-        )
+        ).scalars().all()
         if len(summaries) != 1:
             self._add_blocker(result, "opening_authority_unproven", "Opening source is not a current owned statement.")
             return None
@@ -344,9 +250,7 @@ class EvidenceGraphMaterializationService:
             or contribution.account_id != account_id
             or contribution.source_document_id is None
         ):
-            self._add_blocker(
-                result, "opening_authority_unproven", "Opening source decision no longer authorizes its statement."
-            )
+            self._add_blocker(result, "opening_authority_unproven", "Opening source decision no longer authorizes its statement.")
             return None
         document = await db.get(UploadedDocument, contribution.source_document_id)
         if (
@@ -355,9 +259,7 @@ class EvidenceGraphMaterializationService:
             or contribution.source_result is None
             or document.file_hash != contribution.source_result.source_content_digest
         ):
-            self._add_blocker(
-                result, "opening_authority_unproven", "Opening source document identity cannot be verified."
-            )
+            self._add_blocker(result, "opening_authority_unproven", "Opening source document identity cannot be verified.")
             return None
         return position, document
 
@@ -375,20 +277,13 @@ class EvidenceGraphMaterializationService:
         }
 
     async def validate_opening_nodes(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        nodes: list[EvidenceNode],
+        self, db: AsyncSession, *, user_id: UUID, nodes: list[EvidenceNode]
     ) -> list[EvidenceMaterializationBlocker]:
-        """Never let a cached opening edge claim current source authority."""
         result = EvidenceMaterializationResult()
         for node in nodes:
             if node.entity_type != "opening_position":
                 continue
-            resolved = await self._resolve_opening_position(
-                db, user_id=user_id, account_id=node.entity_id, result=result
-            )
+            resolved = await self._resolve_opening_position(db, user_id=user_id, account_id=node.entity_id, result=result)
             if resolved is None or node.properties != self._opening_properties(*resolved):
                 self._add_blocker(result, "opening_authority_unproven", "Cached opening lineage is no longer current.")
         return result.blockers
@@ -407,44 +302,26 @@ class EvidenceGraphMaterializationService:
         if resolved is None:
             return None
         position, document = resolved
-        properties = self._opening_properties(position, document)
+        props = self._opening_properties(position, document)
         existing = await self.lineage.get_node_for_entity(
             db, user_id=user_id, entity_type="opening_position", entity_id=account_id, node_kind="atomic_fact"
         )
-        if existing is not None and existing.properties != properties:
+        if existing is not None and existing.properties != props:
             self._add_blocker(result, "opening_authority_unproven", "Cached opening lineage is no longer current.")
             return None
         opening = await self._upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="atomic_fact",
-            entity_type="opening_position",
-            entity_id=account_id,
-            properties=properties,
-            result=result,
-            cap=cap,
+            db, user_id=user_id, node_kind="atomic_fact", entity_type="opening_position", entity_id=account_id, properties=props, result=result, cap=cap
         )
         if opening is None:
             return None
         if document is not None:
-            source = await self._materialize_uploaded_document(
-                db, user_id=user_id, document=document, result=result, cap=cap
-            )
+            source = await self._materialize_uploaded_document(db, user_id=user_id, document=document, result=result, cap=cap)
             if source is not None:
                 await self._upsert_edge(
-                    db,
-                    user_id=user_id,
-                    from_node_id=source.id,
-                    to_node_id=opening.id,
-                    relation="supports",
-                    properties={"adapter": "opening_position"},
-                    result=result,
-                    cap=cap,
+                    db, user_id=user_id, from_node_id=source.id, to_node_id=opening.id, relation="supports", properties={"adapter": "opening_position"}, result=result, cap=cap
                 )
         if include_journal and position.journal_entry_id is not None:
-            await self._materialize_journal_entry(
-                db, user_id=user_id, entry_id=position.journal_entry_id, result=result, cap=cap
-            )
+            await self._materialize_journal_entry(db, user_id=user_id, entry_id=position.journal_entry_id, result=result, cap=cap)
         return opening
 
     async def _materialize_uploaded_document(
@@ -460,28 +337,14 @@ class EvidenceGraphMaterializationService:
         if document is None:
             document = (
                 await db.execute(
-                    select(UploadedDocument)
-                    .where(UploadedDocument.user_id == user_id)
-                    .where(UploadedDocument.id == document_id)
-                    .limit(1)
+                    select(UploadedDocument).where(UploadedDocument.user_id == user_id, UploadedDocument.id == document_id).limit(1)
                 )
             ).scalar_one_or_none()
         if document is None:
             self._add_blocker(result, "entity_missing", "Uploaded document does not exist for this user.")
             return None
         return await self._upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="source_document",
-            entity_type="uploaded_document",
-            entity_id=document.id,
-            properties={
-                "document_type": document.document_type.value,
-                "original_filename": document.original_filename,
-                "file_hash": document.file_hash,
-            },
-            result=result,
-            cap=cap,
+            db, user_id=user_id, node_kind="source_document", entity_type="uploaded_document", entity_id=document.id, properties=doc_node_props(document), result=result, cap=cap
         )
 
     async def _materialize_atomic_transaction(
@@ -494,32 +357,15 @@ class EvidenceGraphMaterializationService:
         atomic_id: UUID | None = None,
         atomic: AtomicTransaction | None = None,
     ) -> EvidenceNode | None:
-        if atomic is None:
-            atomic = await self._get_owned_atomic_transaction(db, user_id=user_id, atomic_id=atomic_id)
+        atomic = atomic or await self._get_owned_atomic_transaction(db, user_id=user_id, atomic_id=atomic_id)
         if atomic is None:
             self._add_blocker(result, "entity_missing", "Atomic transaction does not exist for this user.")
             return None
         atomic_node = await self._upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="atomic_fact",
-            entity_type="atomic_transaction",
-            entity_id=atomic.id,
-            properties={
-                "dedup_hash": atomic.dedup_hash,
-                "txn_date": atomic.txn_date.isoformat(),
-                "direction": atomic.direction.value,
-                "amount": str(atomic.amount),
-                "currency": atomic.currency,
-            },
-            result=result,
-            cap=cap,
+            db, user_id=user_id, node_kind="atomic_fact", entity_type="atomic_transaction", entity_id=atomic.id, properties=txn_node_props(atomic), result=result, cap=cap
         )
-        if atomic_node is None:
-            return None
-        await self._materialize_source_documents(
-            db, user_id=user_id, atomic=atomic, atomic_node=atomic_node, result=result, cap=cap
-        )
+        if atomic_node is not None:
+            await self._materialize_source_documents(db, user_id=user_id, atomic=atomic, atomic_node=atomic_node, result=result, cap=cap)
         return atomic_node
 
     async def _materialize_source_documents(
@@ -532,39 +378,39 @@ class EvidenceGraphMaterializationService:
         result: EvidenceMaterializationResult,
         cap: int,
     ) -> None:
-        """Materialize ``UploadedDocument -> AtomicTransaction`` dual-write edges.
-
-        Resolves the source documents recorded on the atomic transaction
-        (``source_documents``) and links each one straight to the atomic fact. The
-        legacy extracted-record middle node is dropped.
-        """
-        linked_documents = (
-            (
-                await db.execute(
-                    select(UploadedDocument)
-                    .join(
-                        AtomicTransactionSourceDocument,
-                        AtomicTransactionSourceDocument.uploaded_document_id == UploadedDocument.id,
-                    )
-                    .where(AtomicTransactionSourceDocument.atomic_txn_id == atomic.id)
-                    .where(UploadedDocument.user_id == user_id)
-                    .order_by(
-                        AtomicTransactionSourceDocument.ordinal.asc(),
-                        AtomicTransactionSourceDocument.uploaded_document_id.asc(),
-                    )
-                )
+        linked = (
+            await db.execute(
+                select(UploadedDocument)
+                .join(AtomicTransactionSourceDocument, AtomicTransactionSourceDocument.uploaded_document_id == UploadedDocument.id)
+                .where(AtomicTransactionSourceDocument.atomic_txn_id == atomic.id, UploadedDocument.user_id == user_id)
+                .order_by(AtomicTransactionSourceDocument.ordinal.asc(), AtomicTransactionSourceDocument.uploaded_document_id.asc())
             )
-            .scalars()
-            .all()
-        )
-        if linked_documents:
-            for document in linked_documents:
-                source = await self._materialize_uploaded_document(
-                    db, user_id=user_id, document=document, result=result, cap=cap
-                )
-                if source is None:
-                    return
-                edge = await self._upsert_edge(
+        ).scalars().all()
+
+        docs_to_link: list[UploadedDocument] = list(linked)
+        if not docs_to_link:
+            doc_ids = extract_source_document_ids(atomic.source_documents)
+            if not doc_ids:
+                return
+            by_id = {
+                d.id: d
+                for d in (
+                    await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == user_id, UploadedDocument.id.in_(doc_ids)))
+                ).scalars().all()
+            }
+            for doc_id in doc_ids:
+                doc = by_id.get(doc_id)
+                if doc is None:
+                    self._add_blocker(result, "entity_missing", "Legacy atomic source document does not resolve to an owned uploaded document.")
+                else:
+                    docs_to_link.append(doc)
+
+        for doc in docs_to_link:
+            source = await self._materialize_uploaded_document(db, user_id=user_id, document=doc, result=result, cap=cap)
+            if source is None:
+                return
+            if (
+                await self._upsert_edge(
                     db,
                     user_id=user_id,
                     from_node_id=source.id,
@@ -574,147 +420,47 @@ class EvidenceGraphMaterializationService:
                     result=result,
                     cap=cap,
                 )
-                if edge is None:
-                    return
-            return
-
-        doc_ids = extract_source_document_ids(atomic.source_documents)
-        if not doc_ids:
-            return
-        documents = (
-            (
-                await db.execute(
-                    select(UploadedDocument)
-                    .where(UploadedDocument.user_id == user_id)
-                    .where(UploadedDocument.id.in_(doc_ids))
-                )
-            )
-            .scalars()
-            .all()
-        )
-        by_id = {document.id: document for document in documents}
-        for doc_id in doc_ids:
-            linked_document = by_id.get(doc_id)
-            if linked_document is None:
-                self._add_blocker(
-                    result,
-                    "entity_missing",
-                    "Legacy atomic source document does not resolve to an owned uploaded document.",
-                )
-                continue
-            source = await self._materialize_uploaded_document(
-                db, user_id=user_id, document=linked_document, result=result, cap=cap
-            )
-            if source is None:
-                return
-            edge = await self._upsert_edge(
-                db,
-                user_id=user_id,
-                from_node_id=source.id,
-                to_node_id=atomic_node.id,
-                relation="deduped_into",
-                properties={"dedup_hash": atomic.dedup_hash, "adapter": "lazy_materialization"},
-                result=result,
-                cap=cap,
-            )
-            if edge is None:
+                is None
+            ):
                 return
 
     async def _upsert_node(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        node_kind: str,
-        entity_type: str,
-        entity_id: UUID,
-        properties: dict,
-        result: EvidenceMaterializationResult,
-        cap: int,
+        self, db: AsyncSession, *, user_id: UUID, node_kind: str, entity_type: str, entity_id: UUID, properties: dict, result: EvidenceMaterializationResult, cap: int
     ) -> EvidenceNode | None:
-        existing = await self.lineage.get_node_for_entity(
-            db,
-            user_id=user_id,
-            node_kind=node_kind,
-            entity_type=entity_type,
-            entity_id=entity_id,
-        )
+        existing = await self.lineage.get_node_for_entity(db, user_id=user_id, node_kind=node_kind, entity_type=entity_type, entity_id=entity_id)
         if existing is None and result.write_count >= cap:
-            self._add_blocker(
-                result,
-                "materialization_write_cap_reached",
-                "Request-time Evidence Graph materialization write cap was reached.",
-            )
+            self._add_blocker(result, "materialization_write_cap_reached", _CAP_MSG)
             return None
-        node = await self.lineage.upsert_node(
-            db,
-            user_id=user_id,
-            node_kind=node_kind,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            properties=properties,
-        )
+        node = await self.lineage.upsert_node(db, user_id=user_id, node_kind=node_kind, entity_type=entity_type, entity_id=entity_id, properties=properties)
         if existing is None:
             result.created_nodes += 1
         return node
 
     async def _upsert_edge(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        from_node_id: UUID,
-        to_node_id: UUID,
-        relation: str,
-        properties: dict,
-        result: EvidenceMaterializationResult,
-        cap: int,
+        self, db: AsyncSession, *, user_id: UUID, from_node_id: UUID, to_node_id: UUID, relation: str, properties: dict, result: EvidenceMaterializationResult, cap: int
     ) -> EvidenceEdge | None:
         existing = (
             await db.execute(
                 select(EvidenceEdge)
-                .where(EvidenceEdge.user_id == user_id)
-                .where(EvidenceEdge.from_node_id == from_node_id)
-                .where(EvidenceEdge.to_node_id == to_node_id)
-                .where(EvidenceEdge.relation == relation)
+                .where(EvidenceEdge.user_id == user_id, EvidenceEdge.from_node_id == from_node_id, EvidenceEdge.to_node_id == to_node_id, EvidenceEdge.relation == relation)
                 .limit(1)
             )
         ).scalar_one_or_none()
         if existing is None and result.write_count >= cap:
-            self._add_blocker(
-                result,
-                "materialization_write_cap_reached",
-                "Request-time Evidence Graph materialization write cap was reached.",
-            )
+            self._add_blocker(result, "materialization_write_cap_reached", _CAP_MSG)
             return None
-        edge = await self.lineage.upsert_edge(
-            db,
-            user_id=user_id,
-            from_node_id=from_node_id,
-            to_node_id=to_node_id,
-            relation=relation,
-            properties=properties,
-        )
+        edge = await self.lineage.upsert_edge(db, user_id=user_id, from_node_id=from_node_id, to_node_id=to_node_id, relation=relation, properties=properties)
         if existing is None:
             result.created_edges += 1
         return edge
 
     async def _get_owned_atomic_transaction(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        atomic_id: UUID | None,
+        self, db: AsyncSession, *, user_id: UUID, atomic_id: UUID | None
     ) -> AtomicTransaction | None:
         if atomic_id is None:
             return None
         return (
-            await db.execute(
-                select(AtomicTransaction)
-                .where(AtomicTransaction.user_id == user_id)
-                .where(AtomicTransaction.id == atomic_id)
-                .limit(1)
-            )
+            await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == user_id, AtomicTransaction.id == atomic_id).limit(1))
         ).scalar_one_or_none()
 
     @staticmethod

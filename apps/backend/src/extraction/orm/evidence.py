@@ -11,6 +11,17 @@ from src.database import Base, split_postgresql_ddl
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
+def _edge_join(attr: str):
+    return lambda: and_(
+        EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
+        EvidenceNode.id == foreign(getattr(EvidenceEdge, attr)),
+    )
+
+
+def _edge_fks(attr: str):
+    return lambda: [EvidenceEdge.user_id, getattr(EvidenceEdge, attr)]
+
+
 class EvidenceNode(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Auditable state node in the evidence graph."""
 
@@ -22,11 +33,7 @@ class EvidenceNode(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         Index("idx_evidence_nodes_user_kind", "user_id", "node_kind"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     node_kind: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
@@ -34,20 +41,14 @@ class EvidenceNode(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     outgoing_edges: Mapped[list["EvidenceEdge"]] = relationship(
         back_populates="from_node",
-        primaryjoin=lambda: and_(
-            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
-            EvidenceNode.id == foreign(EvidenceEdge.from_node_id),
-        ),
-        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.from_node_id],
+        primaryjoin=_edge_join("from_node_id"),
+        foreign_keys=_edge_fks("from_node_id"),
         cascade="all, delete-orphan",
     )
     incoming_edges: Mapped[list["EvidenceEdge"]] = relationship(
         back_populates="to_node",
-        primaryjoin=lambda: and_(
-            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
-            EvidenceNode.id == foreign(EvidenceEdge.to_node_id),
-        ),
-        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.to_node_id],
+        primaryjoin=_edge_join("to_node_id"),
+        foreign_keys=_edge_fks("to_node_id"),
         cascade="all, delete-orphan",
         overlaps="from_node,outgoing_edges",
     )
@@ -77,318 +78,173 @@ class EvidenceEdge(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         Index("idx_evidence_edges_user_relation_to", "user_id", "relation", "to_node_id"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    from_node_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=False,
-    )
-    to_node_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=False,
-    )
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    from_node_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    to_node_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     relation: Mapped[str] = mapped_column(String(100), nullable=False)
     properties: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     from_node: Mapped[EvidenceNode] = relationship(
         back_populates="outgoing_edges",
-        primaryjoin=lambda: and_(
-            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
-            EvidenceNode.id == foreign(EvidenceEdge.from_node_id),
-        ),
-        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.from_node_id],
+        primaryjoin=_edge_join("from_node_id"),
+        foreign_keys=_edge_fks("from_node_id"),
     )
     to_node: Mapped[EvidenceNode] = relationship(
         back_populates="incoming_edges",
-        primaryjoin=lambda: and_(
-            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
-            EvidenceNode.id == foreign(EvidenceEdge.to_node_id),
-        ),
-        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.to_node_id],
+        primaryjoin=_edge_join("to_node_id"),
+        foreign_keys=_edge_fks("to_node_id"),
         overlaps="from_node,outgoing_edges",
     )
 
 
-_AUDIT_ANCHOR_SCOPE_SQL = """
-CREATE OR REPLACE FUNCTION fr_validate_reconciliation_match_journal_entry_user()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_match_user_id uuid;
-    v_entry_user_id uuid;
+def _pair_trigger_fn(
+    fn_name: str,
+    left_sql: str,
+    right_sql: str,
+    msg: str,
+    left_ref: str,
+    right_ref: str,
+    constraint: str,
+    *,
+    null_guard: str = "",
+) -> str:
+    return f"""
+CREATE OR REPLACE FUNCTION {fn_name}()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE v_left uuid; v_right uuid;
 BEGIN
-    SELECT atomic.user_id
-    INTO v_match_user_id
-    FROM reconciliation_matches match
-    JOIN atomic_transactions atomic ON atomic.id = match.atomic_txn_id
-    WHERE match.id = NEW.match_id;
-
-    SELECT entry.user_id
-    INTO v_entry_user_id
-    FROM journal_entries entry
-    WHERE entry.id = NEW.journal_entry_id;
-
-    IF v_match_user_id IS NULL OR v_entry_user_id IS NULL THEN
-        RETURN NEW;
+    {null_guard}{left_sql}
+    {right_sql}
+    IF v_left IS NULL OR v_right IS NULL THEN RETURN NEW; END IF;
+    IF v_left <> v_right THEN
+        RAISE EXCEPTION '{msg}', {left_ref}, {right_ref}
+            USING ERRCODE = '23514', CONSTRAINT = '{constraint}';
     END IF;
-
-    IF v_match_user_id <> v_entry_user_id THEN
-        RAISE EXCEPTION 'reconciliation match % cannot link cross-user journal entry %',
-            NEW.match_id, NEW.journal_entry_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_reconciliation_match_journal_entries_same_user';
-    END IF;
-
     RETURN NEW;
 END;
-$$;
+$$;"""
 
-CREATE OR REPLACE FUNCTION fr_validate_atomic_transaction_source_document_user()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_atomic_user_id uuid;
-    v_document_user_id uuid;
-BEGIN
-    SELECT user_id INTO v_atomic_user_id
-    FROM atomic_transactions
-    WHERE id = NEW.atomic_txn_id;
 
-    SELECT user_id INTO v_document_user_id
-    FROM uploaded_documents
-    WHERE id = NEW.uploaded_document_id;
+_PAIR_SPECS = (
+    (
+        "reconciliation_match_journal_entries",
+        "trg_reconciliation_match_journal_entries_same_user",
+        "fr_validate_reconciliation_match_journal_entry_user",
+        "SELECT atomic.user_id INTO v_left FROM reconciliation_matches match JOIN atomic_transactions atomic ON atomic.id = match.atomic_txn_id WHERE match.id = NEW.match_id;",
+        "SELECT user_id INTO v_right FROM journal_entries WHERE id = NEW.journal_entry_id;",
+        "reconciliation match % cannot link cross-user journal entry %",
+        "NEW.match_id",
+        "NEW.journal_entry_id",
+        "ck_reconciliation_match_journal_entries_same_user",
+        "",
+    ),
+    (
+        "atomic_transaction_source_documents",
+        "trg_atomic_transaction_source_documents_same_user",
+        "fr_validate_atomic_transaction_source_document_user",
+        "SELECT user_id INTO v_left FROM atomic_transactions WHERE id = NEW.atomic_txn_id;",
+        "SELECT user_id INTO v_right FROM uploaded_documents WHERE id = NEW.uploaded_document_id;",
+        "atomic transaction % cannot link cross-user uploaded document %",
+        "NEW.atomic_txn_id",
+        "NEW.uploaded_document_id",
+        "ck_atomic_transaction_source_documents_same_user",
+        "",
+    ),
+    (
+        "atomic_position_source_documents",
+        "trg_atomic_position_source_documents_same_user",
+        "fr_validate_atomic_position_source_document_user",
+        "SELECT user_id INTO v_left FROM atomic_positions WHERE id = NEW.atomic_position_id;",
+        "SELECT user_id INTO v_right FROM uploaded_documents WHERE id = NEW.uploaded_document_id;",
+        "atomic position % cannot link cross-user uploaded document %",
+        "NEW.atomic_position_id",
+        "NEW.uploaded_document_id",
+        "ck_atomic_position_source_documents_same_user",
+        "",
+    ),
+    (
+        "journal_lines",
+        "trg_journal_lines_account_same_user",
+        "fr_validate_journal_line_account_user",
+        "SELECT user_id INTO v_left FROM journal_entries WHERE id = NEW.journal_entry_id;",
+        "SELECT user_id INTO v_right FROM accounts WHERE id = NEW.account_id;",
+        "journal line % cannot reference cross-user account %",
+        "NEW.id",
+        "NEW.account_id",
+        "ck_journal_lines_account_same_user",
+        "",
+    ),
+    (
+        "statement_summaries",
+        "trg_statement_summaries_account_same_user",
+        "fr_validate_statement_summary_account_user",
+        "v_left := NEW.user_id;",
+        "SELECT user_id INTO v_right FROM accounts WHERE id = NEW.account_id;",
+        "statement summary % cannot reference cross-user account %",
+        "NEW.id",
+        "NEW.account_id",
+        "ck_statement_summaries_account_same_user",
+        "IF NEW.account_id IS NULL THEN RETURN NEW; END IF;\n    ",
+    ),
+    (
+        "classification_rules",
+        "trg_classification_rules_default_account_same_user",
+        "fr_validate_classification_rule_account_user",
+        "v_left := NEW.user_id;",
+        "SELECT user_id INTO v_right FROM accounts WHERE id = NEW.default_account_id;",
+        "classification rule % cannot reference cross-user default account %",
+        "NEW.id",
+        "NEW.default_account_id",
+        "ck_classification_rules_default_account_same_user",
+        "IF NEW.default_account_id IS NULL THEN RETURN NEW; END IF;\n    ",
+    ),
+)
 
-    IF v_atomic_user_id IS NULL OR v_document_user_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    IF v_atomic_user_id <> v_document_user_id THEN
-        RAISE EXCEPTION 'atomic transaction % cannot link cross-user uploaded document %',
-            NEW.atomic_txn_id, NEW.uploaded_document_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_atomic_transaction_source_documents_same_user';
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION fr_validate_atomic_position_source_document_user()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_atomic_user_id uuid;
-    v_document_user_id uuid;
-BEGIN
-    SELECT user_id INTO v_atomic_user_id
-    FROM atomic_positions
-    WHERE id = NEW.atomic_position_id;
-
-    SELECT user_id INTO v_document_user_id
-    FROM uploaded_documents
-    WHERE id = NEW.uploaded_document_id;
-
-    IF v_atomic_user_id IS NULL OR v_document_user_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    IF v_atomic_user_id <> v_document_user_id THEN
-        RAISE EXCEPTION 'atomic position % cannot link cross-user uploaded document %',
-            NEW.atomic_position_id, NEW.uploaded_document_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_atomic_position_source_documents_same_user';
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION fr_validate_journal_line_account_user()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_entry_user_id uuid;
-    v_account_user_id uuid;
-BEGIN
-    SELECT user_id INTO v_entry_user_id
-    FROM journal_entries
-    WHERE id = NEW.journal_entry_id;
-
-    SELECT user_id INTO v_account_user_id
-    FROM accounts
-    WHERE id = NEW.account_id;
-
-    IF v_entry_user_id IS NULL OR v_account_user_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    IF v_entry_user_id <> v_account_user_id THEN
-        RAISE EXCEPTION 'journal line % cannot reference cross-user account %',
-            NEW.id, NEW.account_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_journal_lines_account_same_user';
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION fr_validate_statement_summary_account_user()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_account_user_id uuid;
-BEGIN
-    IF NEW.account_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    SELECT user_id INTO v_account_user_id
-    FROM accounts
-    WHERE id = NEW.account_id;
-
-    IF v_account_user_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    IF NEW.user_id <> v_account_user_id THEN
-        RAISE EXCEPTION 'statement summary % cannot reference cross-user account %',
-            NEW.id, NEW.account_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_statement_summaries_account_same_user';
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION fr_validate_classification_rule_account_user()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_account_user_id uuid;
-BEGIN
-    IF NEW.default_account_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    SELECT user_id INTO v_account_user_id
-    FROM accounts
-    WHERE id = NEW.default_account_id;
-
-    IF v_account_user_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    IF NEW.user_id <> v_account_user_id THEN
-        RAISE EXCEPTION 'classification rule % cannot reference cross-user default account %',
-            NEW.id, NEW.default_account_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_classification_rules_default_account_same_user';
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
+_CLASSIFICATION_FN_SQL = """
 CREATE OR REPLACE FUNCTION fr_validate_transaction_classification_user_scope()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_atomic_user_id uuid;
-    v_rule_user_id uuid;
-    v_account_user_id uuid;
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE v_atomic uuid; v_rule uuid; v_account uuid;
 BEGIN
-    SELECT user_id INTO v_atomic_user_id
-    FROM atomic_transactions
-    WHERE id = NEW.atomic_txn_id;
-
-    SELECT user_id INTO v_rule_user_id
-    FROM classification_rules
-    WHERE id = NEW.rule_version_id;
-
-    IF v_atomic_user_id IS NOT NULL
-       AND v_rule_user_id IS NOT NULL
-       AND v_atomic_user_id <> v_rule_user_id THEN
-        RAISE EXCEPTION 'transaction classification % cannot link cross-user rule %',
-            NEW.id, NEW.rule_version_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_transaction_classification_rule_same_user';
+    SELECT user_id INTO v_atomic FROM atomic_transactions WHERE id = NEW.atomic_txn_id;
+    SELECT user_id INTO v_rule FROM classification_rules WHERE id = NEW.rule_version_id;
+    IF v_atomic IS NOT NULL AND v_rule IS NOT NULL AND v_atomic <> v_rule THEN
+        RAISE EXCEPTION 'transaction classification % cannot link cross-user rule %', NEW.id, NEW.rule_version_id
+            USING ERRCODE = '23514', CONSTRAINT = 'ck_transaction_classification_rule_same_user';
     END IF;
-
-    IF NEW.account_id IS NULL THEN
-        RETURN NEW;
+    IF NEW.account_id IS NULL THEN RETURN NEW; END IF;
+    SELECT user_id INTO v_account FROM accounts WHERE id = NEW.account_id;
+    IF v_atomic IS NOT NULL AND v_account IS NOT NULL AND v_atomic <> v_account THEN
+        RAISE EXCEPTION 'transaction classification % cannot reference cross-user account %', NEW.id, NEW.account_id
+            USING ERRCODE = '23514', CONSTRAINT = 'ck_transaction_classification_account_same_user';
     END IF;
-
-    SELECT user_id INTO v_account_user_id
-    FROM accounts
-    WHERE id = NEW.account_id;
-
-    IF v_atomic_user_id IS NOT NULL
-       AND v_account_user_id IS NOT NULL
-       AND v_atomic_user_id <> v_account_user_id THEN
-        RAISE EXCEPTION 'transaction classification % cannot reference cross-user account %',
-            NEW.id, NEW.account_id
-            USING ERRCODE = '23514',
-                  CONSTRAINT = 'ck_transaction_classification_account_same_user';
-    END IF;
-
     RETURN NEW;
 END;
-$$;
+$$;"""
 
-DROP TRIGGER IF EXISTS trg_reconciliation_match_journal_entries_same_user ON reconciliation_match_journal_entries;
-CREATE TRIGGER trg_reconciliation_match_journal_entries_same_user
-BEFORE INSERT OR UPDATE ON reconciliation_match_journal_entries
-FOR EACH ROW EXECUTE FUNCTION fr_validate_reconciliation_match_journal_entry_user();
+_ALL_TRIGGERS = tuple((tbl, trg, fn) for tbl, trg, fn, *_ in _PAIR_SPECS) + (
+    ("transaction_classification", "trg_transaction_classification_user_scope", "fr_validate_transaction_classification_user_scope"),
+)
 
-DROP TRIGGER IF EXISTS trg_atomic_transaction_source_documents_same_user ON atomic_transaction_source_documents;
-CREATE TRIGGER trg_atomic_transaction_source_documents_same_user
-BEFORE INSERT OR UPDATE ON atomic_transaction_source_documents
-FOR EACH ROW EXECUTE FUNCTION fr_validate_atomic_transaction_source_document_user();
-
-DROP TRIGGER IF EXISTS trg_atomic_position_source_documents_same_user ON atomic_position_source_documents;
-CREATE TRIGGER trg_atomic_position_source_documents_same_user
-BEFORE INSERT OR UPDATE ON atomic_position_source_documents
-FOR EACH ROW EXECUTE FUNCTION fr_validate_atomic_position_source_document_user();
-
-DROP TRIGGER IF EXISTS trg_journal_lines_account_same_user ON journal_lines;
-CREATE TRIGGER trg_journal_lines_account_same_user
-BEFORE INSERT OR UPDATE ON journal_lines
-FOR EACH ROW EXECUTE FUNCTION fr_validate_journal_line_account_user();
-
-DROP TRIGGER IF EXISTS trg_statement_summaries_account_same_user ON statement_summaries;
-CREATE TRIGGER trg_statement_summaries_account_same_user
-BEFORE INSERT OR UPDATE ON statement_summaries
-FOR EACH ROW EXECUTE FUNCTION fr_validate_statement_summary_account_user();
-
-DROP TRIGGER IF EXISTS trg_classification_rules_default_account_same_user ON classification_rules;
-CREATE TRIGGER trg_classification_rules_default_account_same_user
-BEFORE INSERT OR UPDATE ON classification_rules
-FOR EACH ROW EXECUTE FUNCTION fr_validate_classification_rule_account_user();
-
-DROP TRIGGER IF EXISTS trg_transaction_classification_user_scope ON transaction_classification;
-CREATE TRIGGER trg_transaction_classification_user_scope
-BEFORE INSERT OR UPDATE ON transaction_classification
-FOR EACH ROW EXECUTE FUNCTION fr_validate_transaction_classification_user_scope();
-"""
+_AUDIT_ANCHOR_SCOPE_SQL = "\n".join(
+    [
+        *(
+            _pair_trigger_fn(fn, l_sql, r_sql, msg, l_ref, r_ref, ck, null_guard=ng)
+            for _, _, fn, l_sql, r_sql, msg, l_ref, r_ref, ck, ng in _PAIR_SPECS
+        ),
+        _CLASSIFICATION_FN_SQL,
+        *(
+            f"DROP TRIGGER IF EXISTS {trg} ON {tbl};\n"
+            f"CREATE TRIGGER {trg} BEFORE INSERT OR UPDATE ON {tbl} FOR EACH ROW EXECUTE FUNCTION {fn}();"
+            for tbl, trg, fn in _ALL_TRIGGERS
+        ),
+    ]
+)
 
 
 def _install_audit_anchor_scope_ddl(target: Any, connection: Any, **_: Any) -> None:
     _ = target
     if connection.dialect.name != "postgresql":
         return
-
     for statement in split_postgresql_ddl(_AUDIT_ANCHOR_SCOPE_SQL):
         connection.exec_driver_sql(statement)
 

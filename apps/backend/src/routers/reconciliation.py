@@ -71,21 +71,16 @@ logger = get_logger(__name__)
 
 
 def _unmatched_atomic_txn_query(user_id: UUID, *, include_pending_stage1: bool = False):
-    """Select Layer-2 atomic transactions that still require economic review.
-
-    A source entry created from a reviewed disposition is already resolved; it
-    must not keep reappearing in the unmatched queue merely because it has no
-    separate reconciliation-match row. Unscoped Stage-2 calls exclude unapproved
-    Stage-1 statements (#2826).
-    """
-    matched_transaction = aliased(AtomicTransaction)
+    matched_txn = aliased(AtomicTransaction)
     matched_subquery = (
         select(ReconciliationMatch.atomic_txn_id)
-        .join(matched_transaction, matched_transaction.id == ReconciliationMatch.atomic_txn_id)
-        .where(matched_transaction.user_id == user_id)
-        .where(ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)))
-        .where(ReconciliationMatch.superseded_by_id.is_(None))
-        .where(ReconciliationMatch.atomic_txn_id.is_not(None))
+        .join(matched_txn, matched_txn.id == ReconciliationMatch.atomic_txn_id)
+        .where(
+            matched_txn.user_id == user_id,
+            ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)),
+            ReconciliationMatch.superseded_by_id.is_(None),
+            ReconciliationMatch.atomic_txn_id.is_not(None),
+        )
     )
     return select(AtomicTransaction).where(
         effective_statement_transaction_filter(user_id, include_pending_stage1=include_pending_stage1),
@@ -95,33 +90,67 @@ def _unmatched_atomic_txn_query(user_id: UUID, *, include_pending_stage1: bool =
 
 
 def _statement_atomic_txn_ids_query(statement: StatementSummary) -> Select[tuple[UUID]]:
-    """Select only current immutable source-result transaction membership."""
     return select(AtomicTransaction.id).where(effective_statement_transaction_filter(statement.user_id, statement.id))
 
 
 def _build_entry_summary(entry: JournalEntry) -> JournalEntrySummary:
     lines = getattr(entry, "lines", None)
-    currency = lines[0].currency if lines else "SGD"
     return JournalEntrySummary(
         id=entry.id,
         entry_date=entry.entry_date,
         memo=entry.memo,
         status=entry.status.value,
-        total_amount=entry_total_amount(entry, currency=currency),
+        total_amount=entry_total_amount(entry, currency=lines[0].currency if lines else "SGD"),
     )
+
+
+async def _load_entry_summaries(
+    db: AsyncSession, matches: Sequence[ReconciliationMatch], user_id: UUID
+) -> dict[str, JournalEntrySummary]:
+    if not matches:
+        return {}
+    entry_ids: set[UUID] = set()
+    for match in matches:
+        for eid in match.journal_entry_ids or []:
+            try:
+                entry_ids.add(UUID(eid))
+            except ValueError:
+                logger.warning("Invalid UUID in journal_entry_ids", match_id=str(match.id), invalid_entry_id=eid)
+    if not entry_ids:
+        return {}
+    return {
+        str(e.id): _build_entry_summary(e)
+        for e in (
+            await db.execute(
+                select(JournalEntry)
+                .where(JournalEntry.id.in_(entry_ids), JournalEntry.user_id == user_id)
+                .options(selectinload(JournalEntry.lines))
+            )
+        )
+        .scalars()
+        .all()
+    }
+
+
+async def _load_transactions(
+    db: AsyncSession, matches: Sequence[ReconciliationMatch], user_id: UUID | None = None
+) -> dict[UUID, AtomicTransaction]:
+    if not matches:
+        return {}
+    txn_ids = {m.atomic_txn_id for m in matches}
+    stmt = select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids))
+    if user_id is not None:
+        stmt = stmt.where(AtomicTransaction.user_id == user_id)
+    return {t.id: t for t in (await db.execute(stmt)).scalars().all()}
 
 
 def _build_match_response(
     match: ReconciliationMatch,
     *,
-    transaction: AtomicTransaction | None,
-    entry_summaries: dict[str, JournalEntrySummary],
+    transaction: AtomicTransaction | None = None,
+    entry_summaries: dict[str, JournalEntrySummary] | None = None,
 ) -> ReconciliationMatchResponse:
-    entries: list[JournalEntrySummary] = []
-    for entry_id in match.journal_entry_ids or []:
-        summary = entry_summaries.get(entry_id)
-        if summary:
-            entries.append(summary)
+    summaries = entry_summaries or {}
     return ReconciliationMatchResponse(
         id=match.id,
         atomic_txn_id=match.atomic_txn_id,
@@ -134,61 +163,23 @@ def _build_match_response(
         created_at=match.created_at,
         updated_at=match.updated_at,
         transaction=BankTransactionSummary.model_validate(transaction) if transaction else None,
-        entries=entries,
+        entries=[s for eid in (match.journal_entry_ids or []) if (s := summaries.get(eid)) is not None],
     )
 
 
-async def _load_entry_summaries(
-    db: AsyncSession,
-    matches: Sequence[ReconciliationMatch],
-    user_id: UUID,
-) -> dict[str, JournalEntrySummary]:
-    entry_ids: set[UUID] = set()
-    for match in matches:
-        for entry_id in match.journal_entry_ids or []:
-            try:
-                entry_ids.add(UUID(entry_id))
-            except ValueError:
-                logger.warning(
-                    "Invalid UUID in journal_entry_ids",
-                    match_id=str(match.id),
-                    invalid_entry_id=entry_id,
-                )
-                continue
-
-    if not entry_ids:
-        return {}
-
-    result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.id.in_(entry_ids))
-        .where(JournalEntry.user_id == user_id)
-        .options(selectinload(JournalEntry.lines))
-    )
-    return {str(entry.id): _build_entry_summary(entry) for entry in result.scalars().all()}
+async def _load_match_responses(
+    db: AsyncSession, matches: Sequence[ReconciliationMatch], user_id: UUID
+) -> list[ReconciliationMatchResponse]:
+    if not matches:
+        return []
+    entry_summaries = await _load_entry_summaries(db, matches, user_id)
+    txn_map = await _load_transactions(db, matches, user_id)
+    return [
+        _build_match_response(m, transaction=txn_map.get(m.atomic_txn_id), entry_summaries=entry_summaries)
+        for m in matches
+    ]
 
 
-async def _load_transactions(
-    db: AsyncSession,
-    matches: Sequence[ReconciliationMatch],
-    user_id: UUID | None = None,
-) -> dict[UUID, AtomicTransaction]:
-    """Batch-fetch each match's ``AtomicTransaction`` by id (#1675 D4: no
-    relationship() eager-load across the reconciliation -> extraction
-    boundary), scoped strictly to user_id when provided for tenant defense-in-depth."""
-    txn_ids = {match.atomic_txn_id for match in matches}
-    if not txn_ids:
-        return {}
-    query = select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids))
-    if user_id is not None:
-        query = query.where(AtomicTransaction.user_id == user_id)
-    result = await db.execute(query)
-    return {txn.id: txn for txn in result.scalars().all()}
-
-
-# Synchronous 200: matching runs inline and the response carries the completed run
-# result (matches_created/auto_accepted/pending_review/unmatched), so this is a
-# finished operation, not a 202 background job (cf. #1099 AC-platform.29.1).
 @router.post("/runs", response_model=ReconciliationRunResponse, status_code=status.HTTP_200_OK)
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
@@ -198,13 +189,15 @@ async def run_reconciliation(
 ) -> ReconciliationRunResponse:
     statement: StatementSummary | None = None
     if payload.statement_id:
-        stmt_result = await db.execute(
-            select(StatementSummary)
-            .where(StatementSummary.id == payload.statement_id)
-            .where(StatementSummary.user_id == user_id)
-            .where(StatementSummary.status != BankStatementStatus.RETIRED)
-        )
-        statement = stmt_result.scalar_one_or_none()
+        statement = (
+            await db.execute(
+                select(StatementSummary).where(
+                    StatementSummary.id == payload.statement_id,
+                    StatementSummary.user_id == user_id,
+                    StatementSummary.status != BankStatementStatus.RETIRED,
+                )
+            )
+        ).scalar_one_or_none()
         if statement is None:
             raise_not_found("Statement")
 
@@ -220,15 +213,9 @@ async def run_reconciliation(
         model_to_use=None,
         limit=payload.limit,
     )
-
     try:
         currency = await get_effective_base_currency(db, user_id=user_id)
-        matches = await execute_matching(
-            db,
-            limit=payload.limit,
-            user_id=user_id,
-            currency=currency,
-        )
+        matches = await execute_matching(db, limit=payload.limit, user_id=user_id, currency=currency)
         await db.commit()
     except ValidationError as exc:
         await db.rollback()
@@ -249,14 +236,13 @@ async def run_reconciliation(
         await db.rollback()
         raise
 
-    auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
-    pending_review = sum(1 for match in matches if match.status.value == "pending_review")
+    auto_accepted = sum(1 for m in matches if m.status.value == "auto_accepted")
+    pending_review = sum(1 for m in matches if m.status.value == "pending_review")
 
     unmatched_query = _unmatched_atomic_txn_query(user_id, include_pending_stage1=statement is not None)
     if statement is not None:
         unmatched_query = unmatched_query.where(AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement)))
-    unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
-    unmatched_count = unmatched_result.scalar_one()
+    unmatched_count = (await db.execute(select(func.count()).select_from(unmatched_query.subquery()))).scalar_one()
 
     logger.info(
         "reconciliation.run.completed",
@@ -272,7 +258,6 @@ async def run_reconciliation(
         pending_review=pending_review,
         unmatched=unmatched_count,
     )
-
     return ReconciliationRunResponse(
         matches_created=len(matches),
         auto_accepted=auto_accepted,
@@ -290,39 +275,31 @@ async def list_matches(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
-    query = (
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == user_id)
-    )
+    clauses = [AtomicTransaction.user_id == user_id]
     if status_filter:
-        query = query.where(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
-    query = query.order_by(ReconciliationMatch.created_at.desc()).limit(limit).offset(offset)
-
-    result = await db.execute(query)
-    matches = result.scalars().all()
-    entry_summaries = await _load_entry_summaries(db, matches, user_id)
-    txn_map = await _load_transactions(db, matches, user_id=user_id)
-    items = [
-        _build_match_response(
-            match,
-            transaction=txn_map.get(match.atomic_txn_id),
-            entry_summaries=entry_summaries,
+        clauses.append(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
+    matches = (
+        (
+            await db.execute(
+                select(ReconciliationMatch)
+                .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+                .where(*clauses)
+                .order_by(ReconciliationMatch.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
         )
-        for match in matches
-    ]
-
-    total_query = (
-        select(func.count(ReconciliationMatch.id))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == user_id)
+        .scalars()
+        .all()
     )
-    if status_filter:
-        total_query = total_query.where(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
-    total_result = await db.execute(total_query)
-    total = total_result.scalar_one()
-
-    return ReconciliationMatchListResponse(items=items, total=total)
+    total = (
+        await db.execute(
+            select(func.count(ReconciliationMatch.id))
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(*clauses)
+        )
+    ).scalar_one()
+    return ReconciliationMatchListResponse(items=await _load_match_responses(db, matches, user_id), total=total)
 
 
 @router.get("/pending", response_model=ReconciliationMatchListResponse)
@@ -334,42 +311,22 @@ async def pending_review_queue(
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
-    entry_summaries = await _load_entry_summaries(db, matches, user_id)
-    txn_map = await _load_transactions(db, matches, user_id=user_id)
-    items = [
-        _build_match_response(
-            match,
-            transaction=txn_map.get(match.atomic_txn_id),
-            entry_summaries=entry_summaries,
+    total = (
+        await db.execute(
+            select(func.count(ReconciliationMatch.id))
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(
+                AtomicTransaction.user_id == user_id, ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW
+            )
         )
-        for match in matches
-    ]
-
-    total_query = (
-        select(func.count(ReconciliationMatch.id))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == user_id)
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-    )
-    total_result = await db.execute(total_query)
-    total = total_result.scalar_one()
-
-    return ReconciliationMatchListResponse(items=items, total=total)
+    ).scalar_one()
+    return ReconciliationMatchListResponse(items=await _load_match_responses(db, matches, user_id), total=total)
 
 
 @router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
-async def accept_match(
-    match_id: UUID,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> ReconciliationMatchResponse:
+async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
     try:
-        match = await accept_match_service(
-            db,
-            match_id,
-            user_id=user_id,
-        )
+        match = await accept_match_service(db, match_id, user_id=user_id)
         await db.commit()
     except MatchNotFoundError as exc:
         raise_not_found("Match", cause=exc)
@@ -384,22 +341,11 @@ async def accept_match(
         resource_id=match.id,
         status=match.status.value,
     )
-    entry_summaries = await _load_entry_summaries(db, [match], user_id)
-    txn_map = await _load_transactions(db, [match], user_id=user_id)
-    return _build_match_response(
-        match,
-        transaction=txn_map.get(match.atomic_txn_id),
-        entry_summaries=entry_summaries,
-    )
+    return (await _load_match_responses(db, [match], user_id))[0]
 
 
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
-async def reject_match(
-    match_id: UUID,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> ReconciliationMatchResponse:
+async def reject_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
     try:
         match = await reject_match_service(db, str(match_id), user_id=user_id)
         await db.commit()
@@ -407,28 +353,15 @@ async def reject_match(
         raise_not_found("Match", cause=exc)
     except ReconciliationError as exc:
         raise_bad_request(str(exc), cause=exc)
-    entry_summaries = await _load_entry_summaries(db, [match], user_id)
-    txn_map = await _load_transactions(db, [match], user_id=user_id)
-    return _build_match_response(
-        match,
-        transaction=txn_map.get(match.atomic_txn_id),
-        entry_summaries=entry_summaries,
-    )
+    return (await _load_match_responses(db, [match], user_id))[0]
 
 
 @router.post("/batch-accept", response_model=ReconciliationMatchListResponse)
 async def batch_accept(
-    payload: BatchAcceptRequest,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    payload: BatchAcceptRequest, *, db: DbSession, user_id: CurrentUserId
 ) -> ReconciliationMatchListResponse:
     try:
-        matches = await batch_accept_service(
-            db,
-            payload.match_ids,
-            user_id=user_id,
-        )
+        matches = await batch_accept_service(db, payload.match_ids, user_id=user_id)
         await db.commit()
     except ReconciliationError as exc:
         raise_bad_request(str(exc), cause=exc)
@@ -444,29 +377,17 @@ async def batch_accept(
     )
     if not matches:
         return ReconciliationMatchListResponse(items=[], total=0)
-
-    match_ids = [match.id for match in matches]
-    result = await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.id.in_(match_ids)))
-    loaded_matches = result.scalars().all()
-    entry_summaries = await _load_entry_summaries(db, loaded_matches, user_id)
-    txn_map = await _load_transactions(db, loaded_matches, user_id=user_id)
-    items = [
-        _build_match_response(
-            match,
-            transaction=txn_map.get(match.atomic_txn_id),
-            entry_summaries=entry_summaries,
-        )
-        for match in loaded_matches
-    ]
+    loaded = (
+        (await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.id.in_([m.id for m in matches]))))
+        .scalars()
+        .all()
+    )
+    items = await _load_match_responses(db, loaded, user_id)
     return ReconciliationMatchListResponse(items=items, total=len(items))
 
 
 @router.get("/stats", response_model=ReconciliationStatsResponse)
-async def reconciliation_stats(
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> ReconciliationStatsResponse:
+async def reconciliation_stats(*, db: DbSession, user_id: CurrentUserId) -> ReconciliationStatsResponse:
     stats = await get_reconciliation_stats(db, user_id, include_distribution=True)
     return ReconciliationStatsResponse(
         total_transactions=stats.total_transactions,
@@ -490,22 +411,15 @@ async def list_unmatched(
 ) -> UnmatchedTransactionsResponse:
     query = _unmatched_atomic_txn_query(user_id, include_pending_stage1=statement_id is not None)
     if statement_id is not None:
-        statement = await get_owned_or_404(
-            db,
-            StatementSummary,
-            statement_id,
-            user_id,
-            name="Statement",
-        )
+        statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
         query = query.where(AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement)))
-
-    result = await db.execute(query.order_by(AtomicTransaction.txn_date.desc()).limit(limit).offset(offset))
-    items = [BankTransactionSummary.model_validate(item) for item in result.scalars().all()]
-
-    total_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = total_result.scalar_one()
-
-    return UnmatchedTransactionsResponse(items=items, total=total)
+    rows = (
+        (await db.execute(query.order_by(AtomicTransaction.txn_date.desc()).limit(limit).offset(offset)))
+        .scalars()
+        .all()
+    )
+    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar_one()
+    return UnmatchedTransactionsResponse(items=[BankTransactionSummary.model_validate(r) for r in rows], total=total)
 
 
 @router.post("/unmatched/{txn_id}/reviewed-disposition", response_model=JournalEntrySummary)
@@ -544,7 +458,6 @@ async def submit_unmatched_reviewed_disposition(
         await db.rollback()
         raise_bad_request(str(exc), cause=exc)
     except Exception:
-        # The TraceRecord causal set and source entry are one caller-owned UoW.
         await db.rollback()
         raise
     return response
@@ -552,80 +465,64 @@ async def submit_unmatched_reviewed_disposition(
 
 @router.get("/transactions/{txn_id}/anomalies", response_model=list[AnomalyResponse])
 async def list_anomalies(
-    txn_id: UUID,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-    pagination: Pagination,
+    txn_id: UUID, *, db: DbSession, user_id: CurrentUserId, pagination: Pagination
 ) -> list[AnomalyResponse]:
     txn = await get_owned_or_404(db, AtomicTransaction, txn_id, user_id, name="Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
-    page = anomalies[pagination.offset : pagination.offset + pagination.limit]
-    return [AnomalyResponse(**anomaly.__dict__) for anomaly in page]
+    return [AnomalyResponse(**a.__dict__) for a in anomalies[pagination.offset : pagination.offset + pagination.limit]]
 
 
 @router.post("/adjustment", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_200_OK)
 async def post_reconciliation_adjustment(
-    payload: ReconciliationAdjustmentRequest,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    payload: ReconciliationAdjustmentRequest, *, db: DbSession, user_id: CurrentUserId
 ) -> ReconciliationAdjustmentResponse:
-    """Post an immaterial penny rounding adjustment (Flow 18)."""
+    """Post an immaterial penny rounding adjustment."""
     account = await get_owned_or_404(db, Account, payload.account_id, user_id, name="Account")
-
-    # Pre-validate threshold to avoid raw ValueError in domain function
-    # (AC-reconciliation.signature-surgery.4: no raw ValueError handlers).
     diff = abs(payload.bank_balance - payload.book_balance)
     if diff > payload.threshold:
         raise_bad_request(f"difference {diff} exceeds immaterial threshold {payload.threshold}")
 
-    adjustment = calculate_reconciliation_adjustment(
-        bank_balance=payload.bank_balance,
-        book_balance=payload.book_balance,
-        threshold=payload.threshold,
+    adj = calculate_reconciliation_adjustment(
+        bank_balance=payload.bank_balance, book_balance=payload.book_balance, threshold=payload.threshold
     )
-
-    if adjustment.difference == Decimal("0"):
+    if adj.difference == Decimal("0"):
         return ReconciliationAdjustmentResponse(
             account_id=account.id,
-            bank_balance=adjustment.bank_balance,
-            book_balance=adjustment.book_balance,
-            difference=adjustment.difference,
-            is_gain=adjustment.is_gain,
+            bank_balance=adj.bank_balance,
+            book_balance=adj.book_balance,
+            difference=adj.difference,
+            is_gain=adj.is_gain,
             journal_entry_id=None,
             entry=None,
         )
 
-    preferred_type = AccountType.INCOME if adjustment.is_gain else AccountType.EXPENSE
+    preferred_type = AccountType.INCOME if adj.is_gain else AccountType.EXPENSE
 
     async def _find_rounding_account(session: AsyncSession) -> Account | None:
-        stmt = (
-            select(Account)
-            .where(
-                Account.user_id == user_id,
-                Account.name == "BankRoundingDifference",
-                Account.currency == account.currency,
-                Account.type == preferred_type,
-            )
-            .order_by(Account.created_at, Account.id)
-            .limit(1)
+        base_where = (
+            Account.user_id == user_id,
+            Account.name == "BankRoundingDifference",
+            Account.currency == account.currency,
         )
-        found = (await session.execute(stmt)).scalar_one_or_none()
-        if found is not None:
-            return found
-        alt_stmt = (
-            select(Account)
-            .where(
-                Account.user_id == user_id,
-                Account.name == "BankRoundingDifference",
-                Account.currency == account.currency,
-                Account.type.in_([AccountType.INCOME, AccountType.EXPENSE]),
+        for type_clause in (
+            Account.type == preferred_type,
+            Account.type.in_([AccountType.INCOME, AccountType.EXPENSE]),
+        ):
+            found = (
+                (
+                    await session.execute(
+                        select(Account)
+                        .where(*base_where, type_clause)
+                        .order_by(Account.created_at, Account.id)
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
             )
-            .order_by(Account.created_at, Account.id)
-            .limit(1)
-        )
-        return (await session.execute(alt_stmt)).scalars().first()
+            if found is not None:
+                return found
+        return None
 
     rounding_account = await account_service.find_or_create_account(
         db,
@@ -646,26 +543,21 @@ async def post_reconciliation_adjustment(
             f"fx_rate is required for non-base currency account {account.currency} (base currency {base_currency})"
         )
 
-    lines_data = []
-    for split_line in adjustment.lines:
-        line_account_id = account.id if split_line.role == "bank_adjustment" else rounding_account.id
-        lines_data.append(
-            {
-                "account_id": line_account_id,
-                "direction": split_line.direction,
-                "amount": split_line.amount,
-                "currency": account.currency,
-                "fx_rate": payload.fx_rate if account.currency != base_currency else None,
-            }
-        )
-
-    entry_date = payload.entry_date or date.today()
-
+    lines_data = [
+        {
+            "account_id": account.id if sl.role == "bank_adjustment" else rounding_account.id,
+            "direction": sl.direction,
+            "amount": sl.amount,
+            "currency": account.currency,
+            "fx_rate": payload.fx_rate if account.currency != base_currency else None,
+        }
+        for sl in adj.lines
+    ]
     try:
         entry = await submit_system_journal_entry(
             db,
             user_id=user_id,
-            entry_date=entry_date,
+            entry_date=payload.entry_date or date.today(),
             memo=f"Reconciliation rounding adjustment for {account.name}",
             lines_data=lines_data,
             base_currency=base_currency,
@@ -686,16 +578,14 @@ async def post_reconciliation_adjustment(
         action="adjustment",
         resource_type="journal_entry",
         resource_id=entry.id,
-        difference=str(adjustment.difference),
+        difference=str(adj.difference),
     )
-
-    entry_summary = _build_entry_summary(entry)
     return ReconciliationAdjustmentResponse(
         account_id=account.id,
-        bank_balance=adjustment.bank_balance,
-        book_balance=adjustment.book_balance,
-        difference=adjustment.difference,
-        is_gain=adjustment.is_gain,
+        bank_balance=adj.bank_balance,
+        book_balance=adj.book_balance,
+        difference=adj.difference,
+        is_gain=adj.is_gain,
         journal_entry_id=entry.id,
-        entry=entry_summary,
+        entry=_build_entry_summary(entry),
     )
