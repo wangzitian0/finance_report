@@ -181,3 +181,5 @@ environments|common/runtime/environments.md#environment-overview|Local Dev / Loc
 """
     ),
 )
+
+TEST_ROOTS: tuple[str, ...] = ("apps/backend/tests/infra/test_main.py",)

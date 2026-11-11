@@ -371,3 +371,9 @@ transaction_boundary|common/ledger/readme.md#async-tx-boundary|Routers commit();
 """
     ),
 )
+
+TEST_ROOTS: tuple[str, ...] = (
+    "apps/backend/tests/ledger/",
+    "tests/tooling/test_ledger_module.py",
+    "tests/tooling/test_ledger_package.py",
+)
