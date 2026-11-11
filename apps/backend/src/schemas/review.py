@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.extraction import Stage1Status
 from src.reconciliation import CheckStatus, CheckType
+from src.schemas.base import default_list
 from src.schemas.extraction import BankStatementResponse
 
 Stage1StatusEnum = Stage1Status
@@ -16,8 +17,6 @@ Stage1StatusEnum = Stage1Status
 
 class BalanceValidationResult(BaseModel):
     opening_balance: str | None = None
-    # #1390: null when the statement has no declared closing balance (was the
-    # literal string "None").
     closing_balance: str | None
     calculated_closing: str
     opening_delta: str
@@ -33,31 +32,14 @@ class BalanceValidationResult(BaseModel):
 
 
 class ReviewedStatementEnvelopeRequest(BaseModel):
-    """Human-confirmed facts for one exact immutable extraction result."""
-
-    source_result_digest: str = Field(
-        ...,
-        min_length=64,
-        max_length=64,
-        description="SHA-256 digest of the current immutable extraction result",
-    )
-    account_id: UUID = Field(description="User-owned asset account that holds the statement cash")
-    currency: str = Field(
-        ...,
-        min_length=3,
-        max_length=3,
-        description="ISO-4217 currency confirmed for the statement envelope",
-    )
-    period_start: date = Field(description="Confirmed inclusive statement period start")
-    period_end: date = Field(description="Confirmed inclusive statement period end")
-    opening_balance: Decimal = Field(description="Confirmed opening balance in statement currency")
-    closing_balance: Decimal = Field(description="Confirmed closing balance in statement currency")
-    rationale: str = Field(
-        ...,
-        min_length=1,
-        max_length=2000,
-        description="Reviewer evidence for confirming facts absent from the source result",
-    )
+    source_result_digest: Annotated[str, Field(min_length=64, max_length=64)]
+    account_id: UUID
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    period_start: date
+    period_end: date
+    opening_balance: Decimal
+    closing_balance: Decimal
+    rationale: Annotated[str, Field(min_length=1, max_length=2000)]
 
 
 class ReviewedStatementEnvelopeResponse(BaseModel):
@@ -80,21 +62,11 @@ class StatementReviewResponse(BankStatementResponse):
     stage1_reviewed_at: datetime | None = None
     manual_opening_balance: Decimal | None = None
     source_result_digest: str | None = None
-    source_missing_facts: list[str] = Field(
-        default_factory=list,
-        description="Current source facts that require a reviewed-envelope confirmation",
-    )
-    source_envelope_reviewable: bool = Field(
-        default=False,
-        description="Whether the current source's missing facts can be confirmed by a cash statement envelope",
-    )
-    preclassification_in_progress: bool = Field(
-        default=False,
-        description="Whether background post-parse pre-classification is currently running for this statement",
-    )
+    source_missing_facts: list[str] = default_list()
+    source_envelope_reviewable: bool = False
+    preclassification_in_progress: bool = False
     reviewed_envelope: ReviewedStatementEnvelopeResponse | None = None
     pdf_url: str | None = None
-
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -108,10 +80,7 @@ class TransactionEditRequest(BaseModel):
 
 
 class EditAndApproveRequest(BaseModel):
-    edits: list[TransactionEditRequest] = Field(
-        default_factory=list,
-        description="Reviewer corrections applied before approving the statement",
-    )
+    edits: list[TransactionEditRequest] = default_list()
 
 
 class Stage1ApprovalRequest(BaseModel):
@@ -121,11 +90,7 @@ class Stage1ApprovalRequest(BaseModel):
 
 
 class SetOpeningBalanceRequest(BaseModel):
-    opening_balance: Decimal = Field(
-        ...,
-        ge=Decimal("0"),
-        description="Reviewer-confirmed non-negative opening balance in the statement currency",
-    )
+    opening_balance: Annotated[Decimal, Field(ge=Decimal("0"))]
 
 
 class StatementReviewListResponse(BaseModel):
@@ -138,15 +103,11 @@ class BankStatementWithStage1Response(BankStatementResponse):
     balance_validation_result: dict | None = None
     stage1_reviewed_at: datetime | None = None
     manual_opening_balance: Decimal | None = None
-
     model_config = ConfigDict(from_attributes=True)
 
 
 class Stage1ApprovalResponse(BankStatementResponse):
     journal_entries_created: int = 0
-
-
-# --- Stage 2 Review Schemas (moved from routers/statements.py) ---
 
 
 class ConsistencyCheckResponse(BaseModel):
@@ -160,7 +121,6 @@ class ConsistencyCheckResponse(BaseModel):
     resolution_note: str | None = None
     created_at: datetime
     updated_at: datetime
-
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -170,19 +130,15 @@ class ConsistencyCheckListResponse(BaseModel):
 
 
 class ResolveCheckRequest(BaseModel):
-    action: str = Field(..., description="approve, reject, or flag")
+    action: str
     note: str | None = None
 
 
 class ResolveCurrencyRequest(BaseModel):
-    """Reviewer-specified currency for a ``currency_unresolved`` transaction (AC12.40.3)."""
-
-    currency: str = Field(..., description="ISO-4217 alphabetic currency code, e.g. 'USD'")
+    currency: str
 
 
 class ResolveCurrencyResponse(BaseModel):
-    """Result of resolving a transaction's currency."""
-
     transaction_id: UUID
     currency: str
     currency_unresolved: bool
@@ -191,28 +147,15 @@ class ResolveCurrencyResponse(BaseModel):
 
 
 class BatchApproveRequest(BaseModel):
-    match_ids: list[UUID] = Field(
-        default_factory=list,
-        description="Stage-2 reconciliation match identifiers to approve",
-    )
+    match_ids: list[UUID] = default_list()
     run_id: str | None = None
 
 
 class BatchRejectRequest(BaseModel):
-    match_ids: list[UUID] = Field(
-        default_factory=list,
-        description="Stage-2 reconciliation match identifiers to reject",
-    )
+    match_ids: list[UUID] = default_list()
 
 
 class Stage2PendingMatch(BaseModel):
-    """A reconciliation match awaiting Stage-2 review (#1001).
-
-    Replaces the untyped ``dict`` previously nested inside
-    ``Stage2ReviewQueueResponse.pending_matches`` so the row shape is declared in
-    OpenAPI and consumable by the generated frontend client.
-    """
-
     id: UUID
     match_score: int
     status: str
@@ -230,28 +173,16 @@ class Stage2ReviewQueueResponse(BaseModel):
 
 
 class BatchApproveResponse(BaseModel):
-    """Typed result of ``POST /statements/batch-approve-matches`` (#1001).
-
-    Replaces ``response_model=dict``. Failure modes (e.g. unresolved consistency
-    checks) now surface as proper HTTP error responses (409) carrying the shared
-    ``ErrorResponse`` shape, instead of being smuggled into a 200 body as
-    ``{"success": false}``.
-    """
-
     approved_count: int
     journal_entries_created: int
     journal_entries_reconciled: int
 
 
 class BatchRejectResponse(BaseModel):
-    """Typed result of ``POST /statements/batch-reject-matches`` (#1001)."""
-
     rejected_count: int
 
 
 class ReviewConflictCandidate(BaseModel):
-    """Candidate transaction conflict returned to Stage 1 conflict UI."""
-
     id: UUID
     txn_date: date
     description: str
@@ -260,36 +191,16 @@ class ReviewConflictCandidate(BaseModel):
 
 
 class ReviewConflictsResponse(BaseModel):
-    """Conflict candidates for a statement."""
-
-    duplicates: list[ReviewConflictCandidate] = Field(
-        default_factory=list,
-        description="Transactions that may duplicate another statement transaction",
-    )
-    transfer_pairs: list[ReviewConflictCandidate] = Field(
-        default_factory=list,
-        description="Opposite-direction transactions that may form a transfer pair",
-    )
-    # #962: whether the reviewer has already resolved these candidates. Lets the UI
-    # derive the approval-blocked state from the persisted marker instead of
-    # ephemeral client state, so a refresh (or another tab/session) stays correct.
+    duplicates: list[ReviewConflictCandidate] = default_list()
+    transfer_pairs: list[ReviewConflictCandidate] = default_list()
     resolved: bool = False
 
 
 class ResolveConflictsRequest(BaseModel):
-    """Stage-1 conflict resolution decision (#962).
-
-    ``action`` records the reviewer's intent for audit: ``confirm_distinct`` (the
-    flagged duplicate rows are genuinely distinct) or ``link_transfer`` (the rows
-    are a real transfer pair). Both unblock approval; the distinction is logged.
-    """
-
     action: Literal["confirm_distinct", "link_transfer"] = "confirm_distinct"
     note: Annotated[str, Field(max_length=500)] | None = None
 
 
 class ReviewConflictsResolveResponse(BaseModel):
-    """Acknowledgement that Stage-1 conflicts were resolved."""
-
     resolved: bool
     resolved_at: datetime | None = None

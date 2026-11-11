@@ -2,37 +2,36 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.schemas.base import default_list
+
+
+HrefStr = Annotated[str, Field(min_length=1, max_length=500)]
+TierStr = Annotated[str, Field(min_length=1, max_length=40)]
+
 
 class ChatMessageRoleEnum(str, Enum):
-    """Chat role enum for requests and responses."""
-
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
 
 
 class ChatSessionStatusEnum(str, Enum):
-    """Session status enum."""
-
     ACTIVE = "active"
     DELETED = "deleted"
 
 
 class ChatRequest(BaseModel):
-    """Request payload for chat messages."""
-
-    message: str = Field(min_length=1, max_length=4000)
+    message: Annotated[str, Field(min_length=1, max_length=4000)]
     session_id: UUID | None = None
-    model: str | None = Field(default=None, max_length=120)
+    model: Annotated[str, Field(max_length=120)] | None = None
 
 
 class ChatMessageResponse(BaseModel):
-    """Chat message response payload."""
-
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -46,16 +45,12 @@ class ChatMessageResponse(BaseModel):
 
 
 class ChatMessagePreview(BaseModel):
-    """Short preview for listing sessions."""
-
     role: ChatMessageRoleEnum
     content: str
     created_at: datetime
 
 
 class ChatSessionResponse(BaseModel):
-    """Chat session response payload."""
-
     id: UUID
     title: str | None
     status: ChatSessionStatusEnum
@@ -64,53 +59,41 @@ class ChatSessionResponse(BaseModel):
     last_active_at: datetime | None
     message_count: int = 0
     last_message: ChatMessagePreview | None = None
-    messages: list[ChatMessageResponse] = Field(default_factory=list)
+    messages: list[ChatMessageResponse] = default_list()
 
 
 class ChatHistoryResponse(BaseModel):
-    """Chat session list response payload."""
-
     sessions: list[ChatSessionResponse]
 
 
 class AdvisorSuggestion(BaseModel):
-    """Source-cited, read-only advisor suggestion contract."""
-
-    basis: str = Field(min_length=1, max_length=240)
-    confidence_tier: str = Field(min_length=1, max_length=40)
-    source_refs: list[str] = Field(default_factory=list)
-    limitation: str = Field(min_length=1, max_length=500)
-    next_action_href: str = Field(min_length=1, max_length=500)
+    basis: Annotated[str, Field(min_length=1, max_length=240)]
+    confidence_tier: TierStr
+    source_refs: list[str] = default_list()
+    limitation: HrefStr
+    next_action_href: HrefStr
 
 
 class ChatCitation(BaseModel):
-    """Application-owned citation metadata for one streamed chat answer."""
-
-    label: str = Field(min_length=1, max_length=120)
-    source_ref: str = Field(min_length=1, max_length=160)
-    confidence_tier: str = Field(min_length=1, max_length=40)
-    href: str = Field(min_length=1, max_length=500)
+    label: Annotated[str, Field(min_length=1, max_length=120)]
+    source_ref: Annotated[str, Field(min_length=1, max_length=160)]
+    confidence_tier: TierStr
+    href: HrefStr
 
 
 class ChatActionChip(BaseModel):
-    """Safe next action rendered with one streamed chat answer."""
-
-    kind: str = Field(min_length=1, max_length=80)
-    label: str = Field(min_length=1, max_length=80)
-    href: str = Field(min_length=1, max_length=500)
-    count: int | None = Field(default=None, ge=0)
+    kind: Annotated[str, Field(min_length=1, max_length=80)]
+    label: Annotated[str, Field(min_length=1, max_length=80)]
+    href: HrefStr
+    count: Annotated[int, Field(ge=0)] | None = None
 
 
 class ChatResponseMetadata(BaseModel):
-    """Grounding metadata sent in the chat streaming response header."""
-
     grounded: bool = False
-    citations: list[ChatCitation] = Field(default_factory=list)
-    actions: list[ChatActionChip] = Field(default_factory=list)
+    citations: list[ChatCitation] = default_list()
+    actions: list[ChatActionChip] = default_list()
 
 
 class ChatSuggestionsResponse(BaseModel):
-    """Suggested questions for the chat UI."""
-
     suggestions: list[str]
-    structured_suggestions: list[AdvisorSuggestion] = Field(default_factory=list)
+    structured_suggestions: list[AdvisorSuggestion] = default_list()

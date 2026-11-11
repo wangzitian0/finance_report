@@ -1,7 +1,7 @@
 """Persist and project starting stock under exact ledger authority."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import (
+    DeclarativeTracePolicy,
     TraceAuthorityProfile,
     TraceCausality,
     TraceDecisionOutcome,
@@ -42,14 +43,12 @@ from src.ledger.orm.opening_position import OpeningPositionRecord
 
 
 @dataclass(frozen=True, slots=True)
-class OpeningPositionPolicy:
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef("ledger_opening_position", "initialized", "1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return TraceAuthorityProfile(
+class OpeningPositionPolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef("ledger_opening_position", "initialized", "1")
+    )
+    authority: TraceAuthorityProfile = field(
+        default_factory=lambda: TraceAuthorityProfile(
             package="ledger",
             tier="CODE-ONLY",
             proof_kind="exact",
@@ -58,30 +57,19 @@ class OpeningPositionPolicy:
             assertion_owner_digest=text_digest("ledger-opening-position-v1"),
             producer_version="1",
         )
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.MANIFEST
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
+    )
+    causality: TraceCausality = TraceCausality.MANIFEST
 
     def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
         inputs = [
-            parent
-            for parent in parents
-            if parent.assertion == VersionedTraceRef("ledger_opening_input", "starting-stock", "1")
+            p for p in parents if p.assertion == VersionedTraceRef("ledger_opening_input", "starting-stock", "1")
         ]
-        sources = [parent for parent in parents if parent not in inputs]
+        sources = [p for p in parents if p not in inputs]
         valid = (
             len(inputs) == 1
             and inputs[0].result is TraceResult.PASS
             and len(sources) <= 1
-            and all(
-                parent.result is TraceResult.AUTHORITATIVE and parent.target_class is TraceTargetClass.FINANCIAL
-                for parent in sources
-            )
+            and all(p.result is TraceResult.AUTHORITATIVE and p.target_class is TraceTargetClass.FINANCIAL for p in sources)
         )
         return TraceDecisionOutcome(
             TraceResult.AUTHORITATIVE if valid else TraceResult.REJECTED,

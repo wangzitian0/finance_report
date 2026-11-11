@@ -19,6 +19,7 @@ except ModuleNotFoundError as exc:
     _orm = None  # type: ignore[assignment]
 from src.audit.base.terminal_audit import TerminalAuditSpec
 from src.audit.base.trace import (
+    DeclarativeTracePolicy,
     TraceAuthorityProfile,
     TraceCausality,
     TraceDecisionOutcome,
@@ -119,6 +120,7 @@ __all__ = [
     "tier_rank",
     "TerminalAuditSpec",
     "TerminalAuditVerifier",
+    "DeclarativeTracePolicy",
     "TraceAuthorityProfile",
     "TraceCausality",
     "TraceConfidenceProjection",

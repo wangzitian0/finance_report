@@ -28,7 +28,15 @@ from src.reconciliation.orm.reconciliation import (
 
 
 class InvalidTransferPairError(ValueError):
-    """A candidate violates the reconciliation transfer-pair aggregate."""
+    """Candidate violates the reconciliation transfer-pair aggregate."""
+
+
+def _current_transfer_leg_clauses():
+    return (
+        ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
+        ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+        ReconciliationMatch.superseded_by_id.is_(None),
+    )
 
 
 async def persist_transfer_pairs(
@@ -41,7 +49,7 @@ async def persist_transfer_pairs(
     if not pairs:
         return []
 
-    entry_ids = {entry_id for pair in pairs for entry_id in (pair.out_entry.id, pair.in_entry.id)}
+    entry_ids = {eid for p in pairs for eid in (p.out_entry.id, p.in_entry.id)}
     rows = (
         await db.execute(
             select(
@@ -51,37 +59,22 @@ async def persist_transfer_pairs(
                 AtomicTransaction.direction,
                 AtomicTransaction.currency,
             )
-            .join(
-                ReconciliationMatch,
-                ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id,
-            )
-            .join(
-                AtomicTransaction,
-                AtomicTransaction.id == ReconciliationMatch.atomic_txn_id,
-            )
-            .where(
-                ReconciliationMatchJournalEntry.journal_entry_id.in_(entry_ids),
-                ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
-                ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
-                ReconciliationMatch.superseded_by_id.is_(None),
-            )
+            .join(ReconciliationMatch, ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id)
+            .join(AtomicTransaction, AtomicTransaction.id == ReconciliationMatch.atomic_txn_id)
+            .where(ReconciliationMatchJournalEntry.journal_entry_id.in_(entry_ids), *_current_transfer_leg_clauses())
         )
     ).all()
-    disposition_by_entry = {
-        entry_id: (disposition, txn_user_id, direction, currency)
-        for entry_id, disposition, txn_user_id, direction, currency in rows
-    }
+    by_entry = {eid: (disp, uid, d, ccy) for eid, disp, uid, d, ccy in rows}
     persisted: list[ReconciliationTransferPair] = []
+
     for pair in pairs:
-        out_leg = disposition_by_entry.get(pair.out_entry.id)
-        in_leg = disposition_by_entry.get(pair.in_entry.id)
+        out_leg, in_leg = by_entry.get(pair.out_entry.id), by_entry.get(pair.in_entry.id)
         if out_leg is None or in_leg is None:
             continue
-        out_disposition, out_user_id, out_direction, out_currency = out_leg
-        in_disposition, in_user_id, in_direction, in_currency = in_leg
+        out_disp, out_user_id, out_direction, out_ccy = out_leg
+        in_disp, in_user_id, in_direction, in_ccy = in_leg
         try:
-            out_currency_code = Currency.of(out_currency).code
-            in_currency_code = Currency.of(in_currency).code
+            out_currency_code, in_currency_code = Currency.of(out_ccy).code, Currency.of(in_ccy).code
         except InvalidCurrencyError as exc:
             raise InvalidTransferPairError("Transfer pair legs require valid ISO-4217 currencies") from exc
         if (
@@ -97,6 +90,7 @@ async def persist_transfer_pairs(
                 "Transfer pair legs must be distinct, tenant-consistent, opposite-direction, and same-currency"
             )
         pair_id = uuid4()
+        now = datetime.now(UTC)
         persisted_pair = ReconciliationTransferPair(
             id=pair_id,
             decision=decision,
@@ -104,8 +98,8 @@ async def persist_transfer_pairs(
             confidence=pair.confidence,
             score_breakdown=pair.score_breakdown,
             version=1,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=now,
+            updated_at=now,
         )
         try:
             async with db.begin_nested():
@@ -113,31 +107,21 @@ async def persist_transfer_pairs(
                     [
                         persisted_pair,
                         ReconciliationTransferPairLeg(
-                            pair_id=pair_id,
-                            role=TransferPairLegRole.OUT,
-                            disposition_id=out_disposition.id,
+                            pair_id=pair_id, role=TransferPairLegRole.OUT, disposition_id=out_disp.id
                         ),
                         ReconciliationTransferPairLeg(
-                            pair_id=pair_id,
-                            role=TransferPairLegRole.IN,
-                            disposition_id=in_disposition.id,
+                            pair_id=pair_id, role=TransferPairLegRole.IN, disposition_id=in_disp.id
                         ),
                     ]
                 )
                 await db.flush()
         except IntegrityError:
-            # Another worker already paired at least one leg. The savepoint
-            # removes this candidate pair without poisoning the outer command.
             continue
         persisted.append(persisted_pair)
     return persisted
 
 
 def _current_pair_ids() -> Select[tuple[UUID]]:
-    """Ids of the pairs whose two leg dispositions are both current (#2888).
-
-    A superseded leg disposition breaks its pair for every reader. The pair rows stay as history.
-    """
     return (
         select(ReconciliationTransferPairLeg.pair_id)
         .join(ReconciliationMatch, ReconciliationMatch.id == ReconciliationTransferPairLeg.disposition_id)
@@ -150,69 +134,33 @@ def _current_pair_ids() -> Select[tuple[UUID]]:
     )
 
 
-async def paired_transfer_entry_ids(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-) -> set[UUID]:
-    """Return journal entry IDs for paired transfer legs of the given user.
-
-    A pair counts only while both of its leg dispositions are current (#2888).
-    """
-    stmt = (
+async def paired_transfer_entry_ids(db: AsyncSession, *, user_id: UUID) -> set[UUID]:
+    result = await db.execute(
         select(ReconciliationMatchJournalEntry.journal_entry_id)
-        .join(
-            ReconciliationMatch,
-            ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id,
-        )
-        .join(
-            AtomicTransaction,
-            AtomicTransaction.id == ReconciliationMatch.atomic_txn_id,
-        )
-        .join(
-            ReconciliationTransferPairLeg,
-            ReconciliationTransferPairLeg.disposition_id == ReconciliationMatch.id,
-        )
-        .join(
-            ReconciliationTransferPair,
-            ReconciliationTransferPair.id == ReconciliationTransferPairLeg.pair_id,
-        )
+        .join(ReconciliationMatch, ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id)
+        .join(AtomicTransaction, AtomicTransaction.id == ReconciliationMatch.atomic_txn_id)
+        .join(ReconciliationTransferPairLeg, ReconciliationTransferPairLeg.disposition_id == ReconciliationMatch.id)
+        .join(ReconciliationTransferPair, ReconciliationTransferPair.id == ReconciliationTransferPairLeg.pair_id)
         .where(
             AtomicTransaction.user_id == user_id,
-            ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
-            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
-            ReconciliationMatch.superseded_by_id.is_(None),
+            *_current_transfer_leg_clauses(),
             ReconciliationTransferPair.review_state == TransferPairReviewState.PAIRED,
             ReconciliationTransferPair.id.in_(_current_pair_ids()),
         )
     )
-    result = await db.execute(stmt)
     return set(result.scalars().all())
 
 
-async def list_unpaired_transfer_dispositions(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-) -> list[ReconciliationMatch]:
-    """Return current transfer dispositions absent from either pair side.
-
-    A disposition counts as paired only while both legs of its pair are current (#2888).
-    """
+async def list_unpaired_transfer_dispositions(db: AsyncSession, *, user_id: UUID) -> list[ReconciliationMatch]:
     paired_ids = select(ReconciliationTransferPairLeg.disposition_id).where(
         ReconciliationTransferPairLeg.pair_id.in_(_current_pair_ids())
     )
     result = await db.execute(
         select(ReconciliationMatch)
-        .join(
-            AtomicTransaction,
-            AtomicTransaction.id == ReconciliationMatch.atomic_txn_id,
-        )
+        .join(AtomicTransaction, AtomicTransaction.id == ReconciliationMatch.atomic_txn_id)
         .where(
             AtomicTransaction.user_id == user_id,
-            ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
-            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
-            ReconciliationMatch.superseded_by_id.is_(None),
+            *_current_transfer_leg_clauses(),
             ReconciliationMatch.id.notin_(paired_ids),
         )
         .order_by(ReconciliationMatch.created_at, ReconciliationMatch.id)

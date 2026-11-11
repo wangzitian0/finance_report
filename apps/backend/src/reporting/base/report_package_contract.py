@@ -1,9 +1,117 @@
-"""Static contract/notes/traceability data for the personal report package.
+"""Static contract/notes/traceability data for the personal report package."""
 
-Pure data extracted from the reports router (no behavior): the canonical
-package section contract, disclosure notes, and traceability appendix
-template. Kept separate so the router stays a thin HTTP layer.
-"""
+from __future__ import annotations
+
+from typing import Any
+
+
+def _sec(
+    section_id: str,
+    label: str,
+    owner_epic: str,
+    period_type: str,
+    fields: list[str],
+    *,
+    has_blocking: bool = False,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "section_id": section_id,
+        "label": label,
+        "owner_epic": owner_epic,
+        "period_type": period_type,
+        "status": "ready",
+    }
+    if has_blocking:
+        row["blocking_issue"] = None
+    row["decimal_total_fields"] = fields
+    return row
+
+
+def _note(
+    note_id: str,
+    label: str,
+    owner_epic: str,
+    basis: str,
+    source_state: str,
+    applies_to_sections: list[str],
+    disclosure: str,
+) -> dict[str, Any]:
+    return {
+        "note_id": note_id,
+        "label": label,
+        "owner_epic": owner_epic,
+        "basis": basis,
+        "source_state": source_state,
+        "applies_to_sections": applies_to_sections,
+        "disclosure": disclosure,
+    }
+
+
+def _line(
+    line_id: str,
+    section_id: str,
+    label: str,
+    amount_field: str | None,
+    currency_field: str | None,
+    source_state: str,
+    source_types: list[str],
+    source_id_fields: list[str],
+    *,
+    ledger_id_fields: list[str] | None = None,
+    unavailable_reason: str | None = None,
+    blocker_codes: list[str] | None = None,
+) -> dict[str, Any]:
+    ledger_anchor: dict[str, Any] = (
+        {
+            "state": "not_applicable",
+            "entry_statuses": [],
+            "identifier_fields": [],
+            "unavailable_reason": unavailable_reason,
+        }
+        if unavailable_reason is not None
+        else {
+            "state": "available",
+            "entry_statuses": ["posted", "reconciled"],
+            "identifier_fields": ledger_id_fields or ["journal_entry_ids", "journal_line_ids"],
+        }
+    )
+    return {
+        "line_id": line_id,
+        "section_id": section_id,
+        "label": label,
+        "amount_field": amount_field,
+        "currency_field": currency_field,
+        "source_state": source_state,
+        "source_anchor": {
+            "state": "available",
+            "source_types": source_types,
+            "identifier_fields": source_id_fields,
+        },
+        "ledger_anchor": ledger_anchor,
+        "anchor_count": 0,
+        "blocker_codes": blocker_codes or [],
+    }
+
+
+def _warn(code: str, label: str, sections: list[str], state: str, remediation: str) -> dict[str, Any]:
+    return {
+        "code": code,
+        "label": label,
+        "applies_to_sections": sections,
+        "state": state,
+        "remediation": remediation,
+    }
+
+
+_ALL_FIN_SECTIONS = [
+    "balance_sheet",
+    "income_statement",
+    "cash_flow",
+    "investment_performance",
+    "annualized_income_long_term",
+]
+_BANK_MANUAL = ["bank_statement", "manual_journal_entry"]
+_TXN_SRC_IDS = ["statement_transaction_ids", "journal_entry_source_ids"]
 
 PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
     "package_id": "personal-financial-report-package",
@@ -16,35 +124,29 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
         "framework_id": "selected supported personal reporting framework",
         "decimal_serialization": "string",
     },
-    "supported_frameworks": [
-        "personal_us_gaap_like",
-        "personal_hkfrs_like",
-    ],
+    "supported_frameworks": ["personal_us_gaap_like", "personal_hkfrs_like"],
     "selected_framework_id": None,
     "sections": [
-        {
-            "section_id": "balance_sheet",
-            "label": "Balance Sheet",
-            "owner_epic": "EPIC-005",
-            "period_type": "as_of",
-            "status": "ready",
-            "decimal_total_fields": ["total_assets", "total_liabilities", "total_equity", "equation_delta"],
-        },
-        {
-            "section_id": "income_statement",
-            "label": "Income Statement",
-            "owner_epic": "EPIC-005",
-            "period_type": "period",
-            "status": "ready",
-            "decimal_total_fields": ["total_income", "total_expenses", "net_income"],
-        },
-        {
-            "section_id": "cash_flow",
-            "label": "Cash Flow",
-            "owner_epic": "EPIC-005",
-            "period_type": "period",
-            "status": "ready",
-            "decimal_total_fields": [
+        _sec(
+            "balance_sheet",
+            "Balance Sheet",
+            "EPIC-005",
+            "as_of",
+            ["total_assets", "total_liabilities", "total_equity", "equation_delta"],
+        ),
+        _sec(
+            "income_statement",
+            "Income Statement",
+            "EPIC-005",
+            "period",
+            ["total_income", "total_expenses", "net_income"],
+        ),
+        _sec(
+            "cash_flow",
+            "Cash Flow",
+            "EPIC-005",
+            "period",
+            [
                 "operating_activities",
                 "investing_activities",
                 "financing_activities",
@@ -52,14 +154,13 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
                 "beginning_cash",
                 "ending_cash",
             ],
-        },
-        {
-            "section_id": "investment_performance",
-            "label": "Investment Performance",
-            "owner_epic": "EPIC-017",
-            "period_type": "period_and_as_of",
-            "status": "ready",
-            "decimal_total_fields": [
+        ),
+        _sec(
+            "investment_performance",
+            "Investment Performance",
+            "EPIC-017",
+            "period_and_as_of",
+            [
                 "xirr",
                 "time_weighted_return",
                 "money_weighted_return",
@@ -67,40 +168,23 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
                 "unrealized_pnl",
                 "dividend_income",
             ],
-        },
-        {
-            "section_id": "annualized_income_long_term",
-            "label": "Annualized Income & Long-Term Compensation",
-            "owner_epic": "EPIC-011",
-            "period_type": "trailing_12_months_and_as_of",
-            "status": "ready",
-            "blocking_issue": None,
-            "decimal_total_fields": [
+        ),
+        _sec(
+            "annualized_income_long_term",
+            "Annualized Income & Long-Term Compensation",
+            "EPIC-011",
+            "trailing_12_months_and_as_of",
+            [
                 "annualized_salary",
                 "annualized_bonus",
                 "annualized_dividend",
                 "annualized_total",
                 "restricted_fair_value",
             ],
-        },
-        {
-            "section_id": "notes",
-            "label": "Notes & Disclosures",
-            "owner_epic": "EPIC-005",
-            "period_type": "package",
-            "status": "ready",
-            "blocking_issue": None,
-            "decimal_total_fields": [],
-        },
-        {
-            "section_id": "traceability_appendix",
-            "label": "Traceability Appendix",
-            "owner_epic": "EPIC-018",
-            "period_type": "package",
-            "status": "ready",
-            "blocking_issue": None,
-            "decimal_total_fields": [],
-        },
+            has_blocking=True,
+        ),
+        _sec("notes", "Notes & Disclosures", "EPIC-005", "package", [], has_blocking=True),
+        _sec("traceability_appendix", "Traceability Appendix", "EPIC-018", "package", [], has_blocking=True),
     ],
     "export_contract": {
         "formats": ["json", "csv"],
@@ -131,90 +215,66 @@ PERSONAL_REPORT_PACKAGE_NOTES: dict = {
         "references are used only as coverage and disclosure discipline."
     ),
     "notes": [
-        {
-            "note_id": "basis-of-preparation",
-            "label": "Basis of Preparation",
-            "owner_epic": "EPIC-005",
-            "basis": "personal_management_report_package_contract",
-            "source_state": "package_contract",
-            "applies_to_sections": [
-                "balance_sheet",
-                "income_statement",
-                "cash_flow",
-                "investment_performance",
-                "annualized_income_long_term",
-            ],
-            "disclosure": (
-                "The package assembles personal finance statements and schedules for management use. "
-                "It does not assert compliance with a statutory accounting framework."
-            ),
-        },
-        {
-            "note_id": "reporting-period-and-currency",
-            "label": "Reporting Period and Currency",
-            "owner_epic": "EPIC-005",
-            "basis": "package_period_semantics",
-            "source_state": "request_parameters",
-            "applies_to_sections": [
-                "balance_sheet",
-                "income_statement",
-                "cash_flow",
-                "investment_performance",
-                "annualized_income_long_term",
-            ],
-            "disclosure": (
-                "Period sections use start and end dates; point-in-time sections use as-of dates. "
-                "Currency values serialize Decimal amounts as strings."
-            ),
-        },
-        {
-            "note_id": "valuation-basis",
-            "label": "Valuation Basis",
-            "owner_epic": "EPIC-011",
-            "basis": "manual_valuation_component_rules",
-            "source_state": "manual_valuation_snapshots",
-            "applies_to_sections": ["balance_sheet", "annualized_income_long_term"],
-            "disclosure": (
-                "Manual valuation snapshots supply property, liability, and restricted compensation "
-                "values as of the selected reporting date."
-            ),
-        },
-        {
-            "note_id": "investment-market-data",
-            "label": "Investment Market Data",
-            "owner_epic": "EPIC-017",
-            "basis": "investment_performance_schedule",
-            "source_state": "brokerage_imports_and_market_data",
-            "applies_to_sections": ["investment_performance", "balance_sheet"],
-            "disclosure": (
-                "Portfolio metrics depend on imported brokerage positions, available prices, "
-                "dividend facts, and the schedule data-freshness flags."
-            ),
-        },
-        {
-            "note_id": "source-confidence-review",
-            "label": "Source Confidence and Review",
-            "owner_epic": "EPIC-018",
-            "basis": "trusted_or_reviewed_source_state",
-            "source_state": "reviewed_journal_and_statement_links",
-            "applies_to_sections": ["balance_sheet", "income_statement", "cash_flow"],
-            "disclosure": (
-                "Report totals depend on posted or reconciled journal entries and reviewed source "
-                "documents; unresolved extraction or reconciliation checks remain outside trusted totals."
-            ),
-        },
-        {
-            "note_id": "restricted-asset-treatment",
-            "label": "Restricted Asset Treatment",
-            "owner_epic": "EPIC-011",
-            "basis": "restricted_compensation_liquidity_policy",
-            "source_state": "manual_valuation_snapshots",
-            "applies_to_sections": ["balance_sheet", "annualized_income_long_term"],
-            "disclosure": (
-                "Restricted ESOP, RSU, and stock option values are excluded from liquid net worth by "
-                "default and shown separately in the long-term compensation schedule."
-            ),
-        },
+        _note(
+            "basis-of-preparation",
+            "Basis of Preparation",
+            "EPIC-005",
+            "personal_management_report_package_contract",
+            "package_contract",
+            _ALL_FIN_SECTIONS,
+            "The package assembles personal finance statements and schedules for management use. "
+            "It does not assert compliance with a statutory accounting framework.",
+        ),
+        _note(
+            "reporting-period-and-currency",
+            "Reporting Period and Currency",
+            "EPIC-005",
+            "package_period_semantics",
+            "request_parameters",
+            _ALL_FIN_SECTIONS,
+            "Period sections use start and end dates; point-in-time sections use as-of dates. "
+            "Currency values serialize Decimal amounts as strings.",
+        ),
+        _note(
+            "valuation-basis",
+            "Valuation Basis",
+            "EPIC-011",
+            "manual_valuation_component_rules",
+            "manual_valuation_snapshots",
+            ["balance_sheet", "annualized_income_long_term"],
+            "Manual valuation snapshots supply property, liability, and restricted compensation "
+            "values as of the selected reporting date.",
+        ),
+        _note(
+            "investment-market-data",
+            "Investment Market Data",
+            "EPIC-017",
+            "investment_performance_schedule",
+            "brokerage_imports_and_market_data",
+            ["investment_performance", "balance_sheet"],
+            "Portfolio metrics depend on imported brokerage positions, available prices, "
+            "dividend facts, and the schedule data-freshness flags.",
+        ),
+        _note(
+            "source-confidence-review",
+            "Source Confidence and Review",
+            "EPIC-018",
+            "trusted_or_reviewed_source_state",
+            "reviewed_journal_and_statement_links",
+            ["balance_sheet", "income_statement", "cash_flow"],
+            "Report totals depend on posted or reconciled journal entries and reviewed source "
+            "documents; unresolved extraction or reconciliation checks remain outside trusted totals.",
+        ),
+        _note(
+            "restricted-asset-treatment",
+            "Restricted Asset Treatment",
+            "EPIC-011",
+            "restricted_compensation_liquidity_policy",
+            "manual_valuation_snapshots",
+            ["balance_sheet", "annualized_income_long_term"],
+            "Restricted ESOP, RSU, and stock option values are excluded from liquid net worth by "
+            "default and shown separately in the long-term compensation schedule.",
+        ),
     ],
 }
 
@@ -223,212 +283,127 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
     "label": "Traceability Appendix",
     "status": "ready",
     "lines": [
-        {
-            "line_id": "balance_sheet.total_assets",
-            "section_id": "balance_sheet",
-            "label": "Total Assets",
-            "amount_field": "total_assets",
-            "currency_field": "currency",
-            "source_state": "posted_reconciled_journal_lines_and_manual_valuations",
-            "source_anchor": {
-                "state": "available",
-                "source_types": [
-                    "bank_statement",
-                    "brokerage_import",
-                    "manual_valuation_snapshot",
-                ],
-                "identifier_fields": [
-                    "statement_transaction_ids",
-                    "brokerage_statement_ids",
-                    "manual_valuation_snapshot_ids",
-                ],
-            },
-            "ledger_anchor": {
-                "state": "available",
-                "entry_statuses": ["posted", "reconciled"],
-                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
-            },
-            "anchor_count": 0,
-            "blocker_codes": [],
-        },
-        {
-            "line_id": "income_statement.total_income",
-            "section_id": "income_statement",
-            "label": "Total Income",
-            "amount_field": "total_income",
-            "currency_field": "currency",
-            "source_state": "posted_reconciled_income_journal_lines",
-            "source_anchor": {
-                "state": "available",
-                "source_types": ["bank_statement", "manual_journal_entry"],
-                "identifier_fields": ["statement_transaction_ids", "journal_entry_source_ids"],
-            },
-            "ledger_anchor": {
-                "state": "available",
-                "entry_statuses": ["posted", "reconciled"],
-                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
-            },
-            "anchor_count": 0,
-            "blocker_codes": [],
-        },
-        {
-            "line_id": "income_statement.total_expenses",
-            "section_id": "income_statement",
-            "label": "Total Expenses",
-            "amount_field": "total_expenses",
-            "currency_field": "currency",
-            "source_state": "posted_reconciled_expense_journal_lines",
-            "source_anchor": {
-                "state": "available",
-                "source_types": ["bank_statement", "manual_journal_entry"],
-                "identifier_fields": ["statement_transaction_ids", "journal_entry_source_ids"],
-            },
-            "ledger_anchor": {
-                "state": "available",
-                "entry_statuses": ["posted", "reconciled"],
-                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
-            },
-            "anchor_count": 0,
-            "blocker_codes": [],
-        },
-        {
-            "line_id": "cash_flow.net_cash_flow",
-            "section_id": "cash_flow",
-            "label": "Net Cash Flow",
-            "amount_field": "summary.net_cash_flow",
-            "currency_field": "currency",
-            "source_state": "cash_bank_journal_lines",
-            "source_anchor": {
-                "state": "available",
-                "source_types": ["bank_statement", "manual_journal_entry"],
-                "identifier_fields": ["statement_transaction_ids", "journal_entry_source_ids"],
-            },
-            "ledger_anchor": {
-                "state": "available",
-                "entry_statuses": ["posted", "reconciled"],
-                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
-            },
-            "anchor_count": 0,
-            "blocker_codes": [],
-        },
-        {
-            "line_id": "investment_performance.market_value",
-            "section_id": "investment_performance",
-            "label": "Investment Market Value",
-            "amount_field": "holdings.market_value",
-            "currency_field": "currency",
-            "source_state": "brokerage_imports_market_data_and_ledger_cost_basis",
-            "source_anchor": {
-                "state": "available",
-                "source_types": ["brokerage_import", "market_data_price", "journal_entry"],
-                "identifier_fields": ["brokerage_statement_ids", "price_source_ids", "ledger_entry_ids"],
-            },
-            "ledger_anchor": {
-                "state": "available",
-                "entry_statuses": ["posted", "reconciled"],
-                "identifier_fields": ["ledger_entry_ids", "journal_line_ids"],
-            },
-            "anchor_count": 0,
-            "blocker_codes": ["stale_market_data"],
-        },
-        {
-            "line_id": "annualized_income_long_term.annualized_total",
-            "section_id": "annualized_income_long_term",
-            "label": "Annualized Total Income",
-            "amount_field": "income.annualized_total",
-            "currency_field": "income.currency",
-            "source_state": "posted_reconciled_income_journal_lines_trailing_12_months",
-            "source_anchor": {
-                "state": "available",
-                "source_types": ["bank_statement", "manual_journal_entry"],
-                "identifier_fields": ["journal_entry_source_ids", "statement_transaction_ids"],
-            },
-            "ledger_anchor": {
-                "state": "available",
-                "entry_statuses": ["posted", "reconciled"],
-                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
-            },
-            "anchor_count": 0,
-            "blocker_codes": [],
-        },
-        {
-            "line_id": "annualized_income_long_term.restricted_fair_value_total",
-            "section_id": "annualized_income_long_term",
-            "label": "Restricted Fair Value Total",
-            "amount_field": "restricted_fair_value_total",
-            "currency_field": "restricted_fair_value_total_currency",
-            "source_state": "manual_valuation_snapshots",
-            "source_anchor": {
-                "state": "available",
-                "source_types": ["manual_valuation_snapshot"],
-                "identifier_fields": ["manual_valuation_snapshot_ids"],
-            },
-            "ledger_anchor": {
-                "state": "not_applicable",
-                "entry_statuses": [],
-                "identifier_fields": [],
-                "unavailable_reason": "Restricted compensation is disclosed as explicit manual valuation input, not posted ledger cash.",
-            },
-            "anchor_count": 0,
-            "blocker_codes": ["manual_only_source"],
-        },
-        {
-            "line_id": "notes.non_compliance_statement",
-            "section_id": "notes",
-            "label": "Package Non-Compliance Statement",
-            "amount_field": None,
-            "currency_field": None,
-            "source_state": "package_contract",
-            "source_anchor": {
-                "state": "available",
-                "source_types": ["package_contract"],
-                "identifier_fields": ["note_id"],
-            },
-            "ledger_anchor": {
-                "state": "not_applicable",
-                "entry_statuses": [],
-                "identifier_fields": [],
-                "unavailable_reason": "Disclosure wording is not a ledger-derived amount.",
-            },
-            "anchor_count": 0,
-            "blocker_codes": [],
-        },
+        _line(
+            "balance_sheet.total_assets",
+            "balance_sheet",
+            "Total Assets",
+            "total_assets",
+            "currency",
+            "posted_reconciled_journal_lines_and_manual_valuations",
+            ["bank_statement", "brokerage_import", "manual_valuation_snapshot"],
+            ["statement_transaction_ids", "brokerage_statement_ids", "manual_valuation_snapshot_ids"],
+        ),
+        _line(
+            "income_statement.total_income",
+            "income_statement",
+            "Total Income",
+            "total_income",
+            "currency",
+            "posted_reconciled_income_journal_lines",
+            _BANK_MANUAL,
+            _TXN_SRC_IDS,
+        ),
+        _line(
+            "income_statement.total_expenses",
+            "income_statement",
+            "Total Expenses",
+            "total_expenses",
+            "currency",
+            "posted_reconciled_expense_journal_lines",
+            _BANK_MANUAL,
+            _TXN_SRC_IDS,
+        ),
+        _line(
+            "cash_flow.net_cash_flow",
+            "cash_flow",
+            "Net Cash Flow",
+            "summary.net_cash_flow",
+            "currency",
+            "cash_bank_journal_lines",
+            _BANK_MANUAL,
+            _TXN_SRC_IDS,
+        ),
+        _line(
+            "investment_performance.market_value",
+            "investment_performance",
+            "Investment Market Value",
+            "holdings.market_value",
+            "currency",
+            "brokerage_imports_market_data_and_ledger_cost_basis",
+            ["brokerage_import", "market_data_price", "journal_entry"],
+            ["brokerage_statement_ids", "price_source_ids", "ledger_entry_ids"],
+            ledger_id_fields=["ledger_entry_ids", "journal_line_ids"],
+            blocker_codes=["stale_market_data"],
+        ),
+        _line(
+            "annualized_income_long_term.annualized_total",
+            "annualized_income_long_term",
+            "Annualized Total Income",
+            "income.annualized_total",
+            "income.currency",
+            "posted_reconciled_income_journal_lines_trailing_12_months",
+            _BANK_MANUAL,
+            ["journal_entry_source_ids", "statement_transaction_ids"],
+        ),
+        _line(
+            "annualized_income_long_term.restricted_fair_value_total",
+            "annualized_income_long_term",
+            "Restricted Fair Value Total",
+            "restricted_fair_value_total",
+            "restricted_fair_value_total_currency",
+            "manual_valuation_snapshots",
+            ["manual_valuation_snapshot"],
+            ["manual_valuation_snapshot_ids"],
+            unavailable_reason="Restricted compensation is disclosed as explicit manual valuation input, not posted ledger cash.",
+            blocker_codes=["manual_only_source"],
+        ),
+        _line(
+            "notes.non_compliance_statement",
+            "notes",
+            "Package Non-Compliance Statement",
+            None,
+            None,
+            "package_contract",
+            ["package_contract"],
+            ["note_id"],
+            unavailable_reason="Disclosure wording is not a ledger-derived amount.",
+        ),
     ],
     "completeness_warnings": [
-        {
-            "code": "missing_source_anchor",
-            "label": "Missing source anchor",
-            "applies_to_sections": ["balance_sheet", "income_statement", "cash_flow"],
-            "state": "fail_package_proof_for_trusted_totals",
-            "remediation": "Expose statement transaction, document, or explicit manual-input identifiers before treating totals as trusted.",
-        },
-        {
-            "code": "manual_only_source",
-            "label": "Manual-only source coverage",
-            "applies_to_sections": ["balance_sheet", "annualized_income_long_term"],
-            "state": "explicit_manual_input_required",
-            "remediation": "Keep manual valuation snapshot identifiers and valuation basis visible in the appendix.",
-        },
-        {
-            "code": "stale_market_data",
-            "label": "Stale market data",
-            "applies_to_sections": ["investment_performance", "balance_sheet"],
-            "state": "disclose_stale_or_refresh_required",
-            "remediation": "Use schedule freshness flags and refresh market data when provider prices are stale.",
-        },
-        {
-            "code": "duplicate_source_coverage",
-            "label": "Duplicate source coverage",
-            "applies_to_sections": ["balance_sheet", "cash_flow"],
-            "state": "exclude_or_disclose_duplicate_source",
-            "remediation": "Preserve duplicate detection and reconciliation state so the same source is not counted twice.",
-        },
-        {
-            "code": "overlapping_statement_period",
-            "label": "Overlapping statement period",
-            "applies_to_sections": ["income_statement", "cash_flow"],
-            "state": "review_required_before_trusted_total",
-            "remediation": "Surface overlapping bank statement periods and keep affected totals out of trusted proof until reviewed.",
-        },
+        _warn(
+            "missing_source_anchor",
+            "Missing source anchor",
+            ["balance_sheet", "income_statement", "cash_flow"],
+            "fail_package_proof_for_trusted_totals",
+            "Expose statement transaction, document, or explicit manual-input identifiers before treating totals as trusted.",
+        ),
+        _warn(
+            "manual_only_source",
+            "Manual-only source coverage",
+            ["balance_sheet", "annualized_income_long_term"],
+            "explicit_manual_input_required",
+            "Keep manual valuation snapshot identifiers and valuation basis visible in the appendix.",
+        ),
+        _warn(
+            "stale_market_data",
+            "Stale market data",
+            ["investment_performance", "balance_sheet"],
+            "disclose_stale_or_refresh_required",
+            "Use schedule freshness flags and refresh market data when provider prices are stale.",
+        ),
+        _warn(
+            "duplicate_source_coverage",
+            "Duplicate source coverage",
+            ["balance_sheet", "cash_flow"],
+            "exclude_or_disclose_duplicate_source",
+            "Preserve duplicate detection and reconciliation state so the same source is not counted twice.",
+        ),
+        _warn(
+            "overlapping_statement_period",
+            "Overlapping statement period",
+            ["income_statement", "cash_flow"],
+            "review_required_before_trusted_total",
+            "Surface overlapping bank statement periods and keep affected totals out of trusted proof until reviewed.",
+        ),
     ],
 }

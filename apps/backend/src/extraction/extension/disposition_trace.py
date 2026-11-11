@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from src.audit import (
+    DeclarativeTracePolicy,
     Ratio,
     TraceAuthorityProfile,
     TraceCausality,
@@ -57,34 +58,21 @@ def _authority(
     )
 
 
+_CODE_AUTH = _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
+
+
 def _proposal_authority(proposal: IntentProposal | None) -> tuple[str, str, str, str, str, str]:
-    """Map the proposal's closed origin to the existing audit vocabulary."""
     if proposal is None:
         return "extraction", "CODE-ONLY", "exact", "deterministic", "product.runtime", "no-proposal"
-    return {
-        IntentProposalOrigin.REVIEWED_RULE: (
-            "extraction",
-            "CODE-ONLY",
-            "exact",
-            "deterministic",
-            "product.runtime",
-            proposal.policy_version,
-        ),
-        IntentProposalOrigin.LIVE_LLM: (
-            "extraction",
-            "LLM-LED",
-            "invariant",
-            "live_llm",
-            "product.runtime",
-            proposal.policy_version,
-        ),
+    pkg, tier, proof, prov, stage = {
+        IntentProposalOrigin.REVIEWED_RULE: ("extraction", "CODE-ONLY", "exact", "deterministic", "product.runtime"),
+        IntentProposalOrigin.LIVE_LLM: ("extraction", "LLM-LED", "invariant", "live_llm", "product.runtime"),
         IntentProposalOrigin.RECONCILIATION_FACT: (
             "extraction",
             "CODE-LED",
             "property",
             "deterministic",
             "product.runtime",
-            proposal.policy_version,
         ),
         IntentProposalOrigin.MANUAL_ADJUDICATION: (
             "reconciliation",
@@ -92,55 +80,28 @@ def _proposal_authority(proposal: IntentProposal | None) -> tuple[str, str, str,
             "exact",
             "manual",
             "manual.adjudication",
-            proposal.policy_version,
         ),
     }[proposal.origin]
+    return pkg, tier, proof, prov, stage, proposal.policy_version
 
 
 @dataclass(frozen=True, slots=True)
-class DispositionInvariantTracePolicy:
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef(kind="invariant", id="disposition-command-integrity", version="1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.DIRECT
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
-
-    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
-        passed = len(parents) == 1 and parents[0].result is TraceResult.PASS
-        return TraceDecisionOutcome(
-            result=TraceResult.AUTHORITATIVE if passed else TraceResult.REJECTED,
-            reason_code="disposition_invariant_satisfied" if passed else "disposition_invariant_failed",
-            score=Ratio(Decimal("1" if passed else "0")),
-        )
+class DispositionInvariantTracePolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef("invariant", "disposition-command-integrity", "1")
+    )
+    authority: TraceAuthorityProfile = field(default_factory=lambda: _CODE_AUTH)
+    pass_reason: str = "disposition_invariant_satisfied"
+    fail_reason: str = "disposition_invariant_failed"
+    with_unit_score: bool = True
 
 
 @dataclass(frozen=True, slots=True)
-class DispositionDecisionTracePolicy:
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef(kind="disposition", id="economic-disposition", version="1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.DIRECT
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
+class DispositionDecisionTracePolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef("disposition", "economic-disposition", "1")
+    )
+    authority: TraceAuthorityProfile = field(default_factory=lambda: _CODE_AUTH)
 
     def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
         marker = next((item for item in parents if item.reason_code.startswith("disposition_candidate_")), None)
@@ -160,69 +121,40 @@ class DispositionDecisionTracePolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class JournalCommandPayloadTracePolicy:
-    """Proves the canonical ledger command was materialized without mutation."""
-
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef(kind="invariant", id="journal-command-payload", version="1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.DIRECT
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
-
-    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
-        valid = len(parents) == 1 and parents[0].result is TraceResult.PASS
-        return TraceDecisionOutcome(
-            TraceResult.AUTHORITATIVE if valid else TraceResult.REJECTED,
-            "journal_command_payload_bound" if valid else "journal_command_payload_invalid",
-        )
+class JournalCommandPayloadTracePolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef("invariant", "journal-command-payload", "1")
+    )
+    authority: TraceAuthorityProfile = field(default_factory=lambda: _CODE_AUTH)
+    pass_reason: str = "journal_command_payload_bound"
+    fail_reason: str = "journal_command_payload_invalid"
 
 
 @dataclass(frozen=True, slots=True)
-class FinancialCommandAuthorizationTracePolicy:
-    """Binds one accepted disposition to its exact balanced ledger command."""
-
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef(kind="financial_command", id="source-disposition", version="1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.MANIFEST
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
+class FinancialCommandAuthorizationTracePolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef("financial_command", "source-disposition", "1")
+    )
+    authority: TraceAuthorityProfile = field(default_factory=lambda: _CODE_AUTH)
+    causality: TraceCausality = TraceCausality.MANIFEST
 
     def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
         upstream = any(
-            parent.record_type.value == "decision"
-            and parent.target_class is TraceTargetClass.FINANCIAL
-            and parent.result is TraceResult.AUTHORITATIVE
-            for parent in parents
+            p.record_type.value == "decision"
+            and p.target_class is TraceTargetClass.FINANCIAL
+            and p.result is TraceResult.AUTHORITATIVE
+            for p in parents
         )
         command_guard = any(
-            parent.record_type.value == "decision"
-            and parent.assertion == JournalCommandPayloadTracePolicy().assertion
-            and parent.result is TraceResult.AUTHORITATIVE
-            for parent in parents
+            p.record_type.value == "decision"
+            and p.assertion == JournalCommandPayloadTracePolicy().assertion
+            and p.result is TraceResult.AUTHORITATIVE
+            for p in parents
         )
+        ok = upstream and command_guard
         return TraceDecisionOutcome(
-            TraceResult.AUTHORITATIVE if upstream and command_guard else TraceResult.REJECTED,
-            "financial_command_authorized" if upstream and command_guard else "financial_command_unauthorized",
+            TraceResult.AUTHORITATIVE if ok else TraceResult.REJECTED,
+            "financial_command_authorized" if ok else "financial_command_unauthorized",
         )
 
 
@@ -243,47 +175,42 @@ def build_disposition_trace_records(
         raise ValueError("disposition policy snapshot mode must match the decision mode")
     if runtime_policy.policy_version != decision.policy_version:
         raise ValueError("disposition policy snapshot version must match the decision policy")
-    transaction_payload = {
-        "id": str(transaction.transaction_id),
-        "date": transaction.transaction_date.isoformat(),
-        "amount": str(transaction.amount),
-        "currency": transaction.currency,
-        "direction": transaction.direction.value,
-        "description": transaction.description,
-    }
     target = VersionedTraceRef(
         kind="statement_transaction",
         id=str(transaction.transaction_id),
-        version=canonical_json_digest(transaction_payload),
+        version=canonical_json_digest(
+            {
+                "id": str(transaction.transaction_id),
+                "date": transaction.transaction_date.isoformat(),
+                "amount": str(transaction.amount),
+                "currency": transaction.currency,
+                "direction": transaction.direction.value,
+                "description": transaction.description,
+            }
+        ),
     )
     scope = TraceScope.tenant(user_id)
-    evidence_digest = canonical_json_digest(
-        {
-            "proposal_evidence": list(proposal.evidence) if proposal else ["no-intent-proposal"],
-            "runtime_policy": runtime_policy.semantic_payload(),
-        }
-    )
-    package, tier, proof_kind, provenance, execution_stage, producer_version = _proposal_authority(proposal)
+    pkg, tier, proof, prov, stage, prod_ver = _proposal_authority(proposal)
     candidate = TraceRecord.observation(
         scope=scope,
         target=target,
         target_class=TraceTargetClass.FINANCIAL,
         assertion=VersionedTraceRef(
-            kind="economic_intent",
-            id=proposal.intent.value if proposal else EconomicIntent.UNKNOWN.value,
-            version=runtime_policy.trace_version,
+            "economic_intent",
+            proposal.intent.value if proposal else EconomicIntent.UNKNOWN.value,
+            runtime_policy.trace_version,
         ),
         authority=_authority(
-            package=package,
-            tier=tier,
-            proof_kind=proof_kind,
-            provenance=provenance,
-            execution_stage=execution_stage,
-            producer_version=producer_version,
+            package=pkg, tier=tier, proof_kind=proof, provenance=prov, execution_stage=stage, producer_version=prod_ver
         ),
         result=TraceResult.PASS,
         execution_id=execution_id,
-        evidence_manifest_digest=evidence_digest,
+        evidence_manifest_digest=canonical_json_digest(
+            {
+                "proposal_evidence": list(proposal.evidence) if proposal else ["no-intent-proposal"],
+                "runtime_policy": runtime_policy.semantic_payload(),
+            }
+        ),
         occurred_at=occurred_at,
         score=Ratio(proposal.confidence) if proposal and proposal.confidence is not None else None,
         reason_code=f"disposition_candidate_{decision.status.value}",
@@ -292,15 +219,12 @@ def build_disposition_trace_records(
         scope=scope,
         target=target,
         target_class=TraceTargetClass.FINANCIAL,
-        assertion=VersionedTraceRef(kind="invariant", id="balanced-command-or-explicit-review", version="1"),
-        authority=_authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1"),
+        assertion=VersionedTraceRef("invariant", "balanced-command-or-explicit-review", "1"),
+        authority=_CODE_AUTH,
         result=TraceResult.PASS,
         execution_id=execution_id,
         evidence_manifest_digest=canonical_json_digest(
-            {
-                "decision": decision.semantic_digest,
-                "runtime_policy_digest": runtime_policy.semantic_digest,
-            }
+            {"decision": decision.semantic_digest, "runtime_policy_digest": runtime_policy.semantic_digest}
         ),
         occurred_at=occurred_at,
         score=Ratio(Decimal("1")),
@@ -338,24 +262,8 @@ async def emit_disposition_trace_records(
     decision: DispositionDecision,
     policy_snapshot: StatementDispositionPolicySnapshot | None = None,
 ) -> tuple[TraceRecord, ...]:
-    """Emit one causal set idempotently, superseding changed decision heads."""
-    records = build_disposition_trace_records(
-        user_id=user_id,
-        execution_id=execution_id,
-        occurred_at=occurred_at,
-        transaction=transaction,
-        proposal=proposal,
-        decision=decision,
-        policy_snapshot=policy_snapshot,
-    )
-    current_guard = await emitter.repository.current_decision(records[2].scope, records[2].lineage)
-    guard_supersedes_id = (
-        current_guard.record_id
-        if current_guard is not None and current_guard.record_id != records[2].record_id
-        else None
-    )
-    if guard_supersedes_id is not None:
-        records = build_disposition_trace_records(
+    def _build(inv_sup: UUID | None = None, disp_sup: UUID | None = None) -> tuple[TraceRecord, ...]:
+        return build_disposition_trace_records(
             user_id=user_id,
             execution_id=execution_id,
             occurred_at=occurred_at,
@@ -363,35 +271,24 @@ async def emit_disposition_trace_records(
             proposal=proposal,
             decision=decision,
             policy_snapshot=policy_snapshot,
-            invariant_supersedes_id=guard_supersedes_id,
+            invariant_supersedes_id=inv_sup,
+            disposition_supersedes_id=disp_sup,
         )
 
-    current_disposition = await emitter.repository.current_decision(records[3].scope, records[3].lineage)
-    disposition_supersedes_id = (
-        current_disposition.record_id
-        if current_disposition is not None and current_disposition.record_id != records[3].record_id
-        else None
-    )
-    if disposition_supersedes_id is not None:
-        records = build_disposition_trace_records(
-            user_id=user_id,
-            execution_id=execution_id,
-            occurred_at=occurred_at,
-            transaction=transaction,
-            proposal=proposal,
-            decision=decision,
-            policy_snapshot=policy_snapshot,
-            invariant_supersedes_id=guard_supersedes_id,
-            disposition_supersedes_id=disposition_supersedes_id,
-        )
+    records = _build()
+    cur_guard = await emitter.repository.current_decision(records[2].scope, records[2].lineage)
+    guard_sup = cur_guard.record_id if cur_guard is not None and cur_guard.record_id != records[2].record_id else None
+    if guard_sup is not None:
+        records = _build(guard_sup)
+    cur_disp = await emitter.repository.current_decision(records[3].scope, records[3].lineage)
+    disp_sup = cur_disp.record_id if cur_disp is not None and cur_disp.record_id != records[3].record_id else None
+    if disp_sup is not None:
+        records = _build(guard_sup, disp_sup)
     return await emitter.emit_many(records)
 
 
 def _require_authoritative_source_decision(
-    upstream_decision: TraceRecord,
-    *,
-    scope: TraceScope,
-    source_id: UUID,
+    upstream_decision: TraceRecord, *, scope: TraceScope, source_id: UUID
 ) -> None:
     if (
         upstream_decision.scope != scope
@@ -403,18 +300,13 @@ def _require_authoritative_source_decision(
 
 
 def _payload_observation(
-    *,
-    scope: TraceScope,
-    target: VersionedTraceRef,
-    execution_id: str,
-    upstream: TraceRecord,
+    *, scope: TraceScope, target: VersionedTraceRef, execution_id: str, upstream: TraceRecord
 ) -> TraceRecord:
-    """The observation that the canonical payload of a journal command was materialized."""
     return TraceRecord.observation(
         scope=scope,
         target=target,
         target_class=TraceTargetClass.FINANCIAL,
-        assertion=VersionedTraceRef(kind="ledger_command", id="canonical-payload", version="1"),
+        assertion=VersionedTraceRef("ledger_command", "canonical-payload", "1"),
         authority=JournalCommandPayloadTracePolicy().authority,
         result=TraceResult.PASS,
         execution_id=execution_id,
@@ -426,24 +318,15 @@ def _payload_observation(
 
 
 async def _lineages_with_decision_head(
-    emitter: TraceEmitter,
-    scope: TraceScope,
-    lineages: Collection[TraceLineage],
+    emitter: TraceEmitter, scope: TraceScope, lineages: Collection[TraceLineage]
 ) -> set[TraceLineage] | None:
-    """The lineages that hold a decision head, read in one statement.
-
-    A repository without the batch read gives ``None``. The caller then keeps the per-record path.
-    """
-    read = getattr(type(emitter.repository), "lineages_with_decision_head", None)
-    if read is None:
+    if getattr(type(emitter.repository), "lineages_with_decision_head", None) is None:
         return None
     return await emitter.repository.lineages_with_decision_head(scope, lineages)  # type: ignore[attr-defined]
 
 
 @dataclass(frozen=True, slots=True)
 class DispositionTraceInput:
-    """One transaction whose disposition needs its trace records."""
-
     transaction: StatementTransaction
     proposal: IntentProposal | None
     decision: DispositionDecision
@@ -458,13 +341,6 @@ async def emit_disposition_trace_records_many(
     inputs: Sequence[DispositionTraceInput],
     policy_snapshot: StatementDispositionPolicySnapshot | None = None,
 ) -> list[tuple[TraceRecord, ...]]:
-    """Emit the disposition records of many transactions with a fixed number of statements.
-
-    Each result equals the one that ``emit_disposition_trace_records`` returns for the same input. A
-    transaction whose guard or disposition lineage already holds a head keeps that per-record path,
-    because it may supersede the head. So does a transaction that appears twice in the inputs: the
-    second input must see the head of the first.
-    """
     built = [
         build_disposition_trace_records(
             user_id=user_id,
@@ -478,26 +354,25 @@ async def emit_disposition_trace_records_many(
         for item in inputs
     ]
     scope = TraceScope.tenant(user_id)
-    heads = await _lineages_with_decision_head(
-        emitter, scope, [lineage for records in built for lineage in (records[2].lineage, records[3].lineage)]
-    )
-    uses = Counter(lineage for records in built for lineage in (records[2].lineage, records[3].lineage))
+    all_lineages = [lin for rec in built for lin in (rec[2].lineage, rec[3].lineage)]
+    heads = await _lineages_with_decision_head(emitter, scope, all_lineages)
+    uses = Counter(all_lineages)
     fresh = [
-        index
-        for index, records in enumerate(built)
+        idx
+        for idx, rec in enumerate(built)
         if heads is not None
-        and records[2].lineage not in heads
-        and records[3].lineage not in heads
-        and uses[records[2].lineage] == uses[records[3].lineage] == 1
+        and rec[2].lineage not in heads
+        and rec[3].lineage not in heads
+        and uses[rec[2].lineage] == uses[rec[3].lineage] == 1
     ]
     results: dict[int, tuple[TraceRecord, ...]] = {}
     if fresh:
-        emitted = await emitter.emit_many([record for index in fresh for record in built[index]])
-        for position, index in enumerate(fresh):
-            results[index] = tuple(emitted[position * 4 : (position + 1) * 4])
-    for index, item in enumerate(inputs):
-        if index not in results:
-            results[index] = await emit_disposition_trace_records(
+        emitted = await emitter.emit_many([r for idx in fresh for r in built[idx]])
+        for pos, idx in enumerate(fresh):
+            results[idx] = tuple(emitted[pos * 4 : (pos + 1) * 4])
+    for idx, item in enumerate(inputs):
+        if idx not in results:
+            results[idx] = await emit_disposition_trace_records(
                 emitter=emitter,
                 user_id=user_id,
                 execution_id=execution_id,
@@ -507,7 +382,7 @@ async def emit_disposition_trace_records_many(
                 decision=item.decision,
                 policy_snapshot=policy_snapshot,
             )
-    return [results[index] for index in range(len(inputs))]
+    return [results[i] for i in range(len(inputs))]
 
 
 async def authorize_financial_command(
@@ -521,96 +396,62 @@ async def authorize_financial_command(
     base_currency: str,
     source_id: UUID,
 ) -> DecisionAnchor:
-    """Append the source-owned decision that binds authority to exact ledger bytes.
-
-    The disposition decision remains the evidence for economic meaning. This
-    manifest decision adds the independently computed command payload guard, so
-    the ledger can verify an exact target without knowing how the source was
-    classified or reviewed.
-    """
-    # ``source_type`` describes how the fact was obtained; it must not alter
-    # the immutable identity of the source financial command. A re-review can
-    # change provenance, but it cannot authorize a second posting for one
-    # statement transaction.
-    source_identity = f"statement-transaction:{source_id}"
     target = journal_command_target(
         entry_date=entry_date,
         memo=memo,
         lines_data=lines_data,
         base_currency=base_currency,
-        source_identity=source_identity,
+        source_identity=f"statement-transaction:{source_id}",
     )
     scope = TraceScope.tenant(user_id)
     _require_authoritative_source_decision(upstream_decision, scope=scope, source_id=source_id)
-
-    authorization_policy = FinancialCommandAuthorizationTracePolicy()
+    auth_policy = FinancialCommandAuthorizationTracePolicy()
+    execution_id = f"journal-command:{target.id}:{target.version}"
     auth_head = await emitter.repository.decision_head(
-        scope,
-        TraceRecord.decision(
-            scope=scope,
-            target=target,
-            policy=authorization_policy,
-            execution_id=f"journal-command:{target.id}:{target.version}",
-            occurred_at=upstream_decision.occurred_at,
-            parents=(upstream_decision,),
-        ).lineage,
+        scope, TraceLineage.from_refs(target, auth_policy.assertion)
     )
     if auth_head is not None and auth_head.ancestry_current and auth_head.record.target == target:
         return DecisionAnchor.from_record(auth_head.record)
-    authorization_supersedes_id = auth_head.record.record_id if auth_head is not None else None
 
-    execution_id = f"journal-command:{target.id}:{target.version}"
-    observation = _payload_observation(
-        scope=scope, target=target, execution_id=execution_id, upstream=upstream_decision
-    )
+    observation = _payload_observation(scope=scope, target=target, execution_id=execution_id, upstream=upstream_decision)
     payload_policy = JournalCommandPayloadTracePolicy()
     guard_head = await emitter.repository.decision_head(
-        scope,
-        TraceRecord.decision(
-            scope=scope,
-            target=target,
-            policy=payload_policy,
-            execution_id=execution_id,
-            occurred_at=upstream_decision.occurred_at,
-            parents=(observation,),
-        ).lineage,
+        scope, TraceLineage.from_refs(target, payload_policy.assertion)
     )
     if guard_head is not None and guard_head.ancestry_current and guard_head.record.target == target:
         payload_guard = guard_head.record
     else:
-        guard_supersedes_id = guard_head.record.record_id if guard_head is not None else None
-        emitted = await emitter.emit_many(
-            (
-                observation,
-                TraceRecord.decision(
-                    scope=scope,
-                    target=target,
-                    policy=payload_policy,
-                    execution_id=execution_id,
-                    occurred_at=upstream_decision.occurred_at,
-                    parents=(observation,),
-                    supersedes_id=guard_supersedes_id,
-                ),
+        payload_guard = (
+            await emitter.emit_many(
+                (
+                    observation,
+                    TraceRecord.decision(
+                        scope=scope,
+                        target=target,
+                        policy=payload_policy,
+                        execution_id=execution_id,
+                        occurred_at=upstream_decision.occurred_at,
+                        parents=(observation,),
+                        supersedes_id=guard_head.record.record_id if guard_head is not None else None,
+                    ),
+                )
             )
-        )
-        payload_guard = emitted[-1]
+        )[-1]
 
     authorization = TraceRecord.decision(
         scope=scope,
         target=target,
-        policy=authorization_policy,
+        policy=auth_policy,
         execution_id=execution_id,
         occurred_at=upstream_decision.occurred_at,
         parents=(upstream_decision, payload_guard),
-        supersedes_id=authorization_supersedes_id,
+        supersedes_id=auth_head.record.record_id if auth_head is not None else None,
     )
     return DecisionAnchor.from_record(await emitter.emit(authorization))
 
 
 @dataclass(frozen=True, slots=True)
 class FinancialCommandRequest:
-    """The arguments of ``authorize_financial_command`` for one journal command."""
-
     upstream_decision: TraceRecord
     entry_date: date
     memo: str
@@ -620,88 +461,62 @@ class FinancialCommandRequest:
 
 
 async def authorize_financial_commands_many(
-    *,
-    emitter: TraceEmitter,
-    user_id: UUID,
-    requests: Sequence[FinancialCommandRequest],
+    *, emitter: TraceEmitter, user_id: UUID, requests: Sequence[FinancialCommandRequest]
 ) -> list[DecisionAnchor]:
-    """Authorize many journal commands with a fixed number of statements.
-
-    Each anchor equals the one that ``authorize_financial_command`` returns for the same request. A
-    command whose authorization or payload-guard lineage already holds a head keeps that per-command
-    path, because it may reuse or supersede the head. So does a command whose target appears twice in
-    the requests: the second request must see the head of the first.
-    """
     scope = TraceScope.tenant(user_id)
-    authorization_policy = FinancialCommandAuthorizationTracePolicy()
+    auth_policy = FinancialCommandAuthorizationTracePolicy()
     payload_policy = JournalCommandPayloadTracePolicy()
     targets: list[VersionedTraceRef] = []
-    for request in requests:
-        _require_authoritative_source_decision(request.upstream_decision, scope=scope, source_id=request.source_id)
+    for req in requests:
+        _require_authoritative_source_decision(req.upstream_decision, scope=scope, source_id=req.source_id)
         targets.append(
             journal_command_target(
-                entry_date=request.entry_date,
-                memo=request.memo,
-                lines_data=request.lines_data,
-                base_currency=request.base_currency,
-                source_identity=f"statement-transaction:{request.source_id}",
+                entry_date=req.entry_date,
+                memo=req.memo,
+                lines_data=req.lines_data,
+                base_currency=req.base_currency,
+                source_identity=f"statement-transaction:{req.source_id}",
             )
         )
     lineages = [
-        (
-            TraceLineage.from_refs(target, authorization_policy.assertion),
-            TraceLineage.from_refs(target, payload_policy.assertion),
-        )
-        for target in targets
+        (TraceLineage.from_refs(t, auth_policy.assertion), TraceLineage.from_refs(t, payload_policy.assertion))
+        for t in targets
     ]
-    heads = await _lineages_with_decision_head(emitter, scope, [lineage for pair in lineages for lineage in pair])
-
-    uses = Counter(lineage for pair in lineages for lineage in pair)
+    all_lin = [lin for pair in lineages for lin in pair]
+    heads = await _lineages_with_decision_head(emitter, scope, all_lin)
+    uses = Counter(all_lin)
     fresh = [
-        index
-        for index, (authorization_lineage, guard_lineage) in enumerate(lineages)
-        if heads is not None
-        and authorization_lineage not in heads
-        and guard_lineage not in heads
-        and uses[authorization_lineage] == uses[guard_lineage] == 1
+        idx
+        for idx, (auth_lin, guard_lin) in enumerate(lineages)
+        if heads is not None and auth_lin not in heads and guard_lin not in heads and uses[auth_lin] == uses[guard_lin] == 1
     ]
     anchors: dict[int, DecisionAnchor] = {}
     records: list[TraceRecord] = []
-    for index in fresh:
-        upstream, target = requests[index].upstream_decision, targets[index]
+    for idx in fresh:
+        upstream, target = requests[idx].upstream_decision, targets[idx]
         execution_id = f"journal-command:{target.id}:{target.version}"
-        observation = _payload_observation(scope=scope, target=target, execution_id=execution_id, upstream=upstream)
-        payload_guard = TraceRecord.decision(
-            scope=scope,
-            target=target,
-            policy=payload_policy,
-            execution_id=execution_id,
-            occurred_at=upstream.occurred_at,
-            parents=(observation,),
+        obs = _payload_observation(scope=scope, target=target, execution_id=execution_id, upstream=upstream)
+        guard = TraceRecord.decision(
+            scope=scope, target=target, policy=payload_policy, execution_id=execution_id, occurred_at=upstream.occurred_at, parents=(obs,)
         )
-        authorization = TraceRecord.decision(
-            scope=scope,
-            target=target,
-            policy=authorization_policy,
-            execution_id=execution_id,
-            occurred_at=upstream.occurred_at,
-            parents=(upstream, payload_guard),
+        auth = TraceRecord.decision(
+            scope=scope, target=target, policy=auth_policy, execution_id=execution_id, occurred_at=upstream.occurred_at, parents=(upstream, guard)
         )
-        records.extend((observation, payload_guard, authorization))
+        records.extend((obs, guard, auth))
     if records:
         emitted = await emitter.emit_many(records)
-        for position, index in enumerate(fresh):
-            anchors[index] = DecisionAnchor.from_record(emitted[position * 3 + 2])
-    for index, request in enumerate(requests):
-        if index not in anchors:
-            anchors[index] = await authorize_financial_command(
+        for pos, idx in enumerate(fresh):
+            anchors[idx] = DecisionAnchor.from_record(emitted[pos * 3 + 2])
+    for idx, req in enumerate(requests):
+        if idx not in anchors:
+            anchors[idx] = await authorize_financial_command(
                 emitter=emitter,
                 user_id=user_id,
-                upstream_decision=request.upstream_decision,
-                entry_date=request.entry_date,
-                memo=request.memo,
-                lines_data=request.lines_data,
-                base_currency=request.base_currency,
-                source_id=request.source_id,
+                upstream_decision=req.upstream_decision,
+                entry_date=req.entry_date,
+                memo=req.memo,
+                lines_data=req.lines_data,
+                base_currency=req.base_currency,
+                source_id=req.source_id,
             )
-    return [anchors[index] for index in range(len(requests))]
+    return [anchors[i] for i in range(len(requests))]

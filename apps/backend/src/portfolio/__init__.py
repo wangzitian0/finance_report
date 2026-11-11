@@ -1,19 +1,4 @@
-"""``portfolio`` — the backend implementation of the ``portfolio`` package (#1422).
-
-Investment position accounting: buy/sell/dividend transactions posted
-through ``ledger.post_entry``, ``ManagedPosition``/``InvestmentLot``
-bookkeeping, and the read-side holdings/P&L/allocation/performance queries.
-See ``common/portfolio/contract.py`` for the full model and the positions-
-only boundary (portfolio consumes prices/FX via ``pricing``'s published
-surface, it never fetches or stores one — #1610).
-
-The write-side accounting service (``InvestmentAccountingService``) landed
-first (PR #1628); the read side followed in #1643 (holdings/P&L, allocation,
-performance, and the report-schedule assembly moved from ``services/``),
-plus the #1641 scope-discovery reads (``active_stock_symbols``/
-``position_currencies``). The data-layer projections are still reserved
-(declared in the contract's ``units`` with no module path).
-"""
+"""``portfolio`` — investment position accounting, holdings, allocation, and performance."""
 
 from __future__ import annotations
 

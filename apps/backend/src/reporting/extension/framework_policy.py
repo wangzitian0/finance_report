@@ -43,27 +43,150 @@ _REQUIRED_STATEMENTS = [
     "notes",
     "traceability_appendix",
 ]
+_DEFAULT_EVIDENCE = ["source_anchor", "ledger_or_portfolio_anchor", "review_state"]
+_DEFAULT_DISCLOSURE = ["basis", "source_coverage", "valuation_or_cutoff"]
+_DEFAULT_BLOCKERS = ["missing_source_anchor", "pending_review", "missing_measurement_basis"]
 
+_COMMON_SPECS: tuple[tuple[PolicyFactDomain, str, str, str, str, str, str, str], ...] = (
+    (
+        PolicyFactDomain.CASH,
+        "cash_in_transit",
+        "Recognize the ledger-owned Processing identity as funds in transit.",
+        "Include the exact posted balance with the same period-end currency translation as other cash.",
+        "Cash equivalent held in transit between custody accounts.",
+        "{fw} balance sheet separately presents cash in transit.",
+        "Unsettled funds remain visible until both transfer legs are posted.",
+        "balance_sheet=assets.cash_in_transit,cash_flow=cash.internal_transfers",
+    ),
+    (
+        PolicyFactDomain.CASH,
+        "bank_account,cash,deposit,fixture",
+        "Recognize cash movements on transaction date after source cutoff validation.",
+        "Measure cash at nominal amount; translate non-reporting currencies using transaction or period-end FX rules.",
+        "Cash and bank account asset.",
+        "{fw} balance sheet cash and cash equivalents.",
+        "Disclose source coverage, cutoff, currency, and unresolved bank statement gaps.",
+        "balance_sheet=assets.cash_and_cash_equivalents,cash_flow=cash.ending_cash",
+    ),
+    (
+        PolicyFactDomain.FUND,
+        "fund,money_market_fund,etf_fund,fixture",
+        "Recognize fund holdings when brokerage or custodian evidence confirms ownership.",
+        "Measure at observable fund NAV or quoted fair value when freshness evidence exists.",
+        "Investment asset, classified by liquidity and redemption terms.",
+        "{fw} investment schedule fund line.",
+        "Disclose valuation source, price date, liquidity terms, and stale NAV blockers.",
+        "balance_sheet=assets.investments.funds,notes=notes.fund_liquidity",
+    ),
+    (
+        PolicyFactDomain.DIVIDEND_INTEREST,
+        "dividend,interest,coupon,fixture",
+        "Recognize dividends and interest on entitlement, ex-date, payment date, or statement date per source evidence.",
+        "Measure gross and net cash amounts separately when withholding evidence exists.",
+        "Investment or bank income.",
+        "{fw} income statement dividend and interest income.",
+        "Disclose withholding, tax-note hooks, and source date used for recognition.",
+        "income_statement=income.dividends_and_interest,notes=notes.tax_hooks",
+    ),
+    (
+        PolicyFactDomain.BROKERAGE_FEE,
+        "commission,brokerage_fee,platform_fee,fixture",
+        "Recognize brokerage fees when the trade or broker statement evidence is available.",
+        "Measure fees at settled cash amount and preserve currency/FX treatment.",
+        "Cost basis adjustment or investment expense according to linked transaction type.",
+        "{fw} cash-flow and investment performance fee lines.",
+        "Disclose whether fees affect cost basis or period expense.",
+        "income_statement=expenses.investment_fees,cash_flow=investing.fees",
+    ),
+    (
+        PolicyFactDomain.FX,
+        "fx_transaction,fx_rate,currency_translation,fixture",
+        "Recognize FX effects when source currency differs from report currency.",
+        "Use transaction-date rates for transactions, average rates for period income where configured, and period-end rates for balances.",
+        "FX gain/loss, translation adjustment, or disclosure-only rate effect.",
+        "{fw} FX line mapping by statement type.",
+        "Disclose rate source, rate date, missing-rate blockers, and stale-rate fallback.",
+        "income_statement=income.fx_gain_loss,balance_sheet=equity.fx_translation",
+    ),
+    (
+        PolicyFactDomain.RESTRICTED_COMPENSATION,
+        "rsu,esop,stock_option,restricted_share,fixture",
+        "Recognize restricted compensation when grant, vesting, or exercise evidence exists.",
+        "Measure at accepted fair-value input with explicit restriction and liquidity treatment.",
+        "Restricted wealth or compensation schedule item, not default liquid net worth.",
+        "{fw} long-term compensation schedule.",
+        "Disclose vesting, restriction, liquidity class, valuation date, and manual valuation review.",
+        "balance_sheet=assets.restricted_compensation,notes=notes.restricted_asset_treatment",
+    ),
+    (
+        PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE,
+        "property,mortgage,private_asset,manual_asset,fixture",
+        "Recognize manual property, mortgage, and private assets only with explicit source date and owner review.",
+        "Measure using accepted manual valuation basis; block trusted totals when basis is missing.",
+        "Manual asset, private asset, or secured liability.",
+        "{fw} manual valuation and liability schedule.",
+        "Disclose valuation basis, confidence tier, source date, and trusted-total blocker state.",
+        "balance_sheet=assets.manual_private_assets,notes=notes.manual_valuation_basis",
+    ),
+    (
+        PolicyFactDomain.LIABILITY,
+        "loan,credit_card,mortgage_liability,payable,fixture",
+        "Recognize liabilities from statement, loan, or manual obligation evidence.",
+        "Measure at outstanding principal or statement balance with FX translation when needed.",
+        "Current or long-term liability by due date and instrument type.",
+        "{fw} balance sheet liability line.",
+        "Disclose source balance date, interest hooks, and unresolved liability coverage gaps.",
+        "balance_sheet=liabilities.financial_liabilities,notes=notes.liability_coverage",
+    ),
+    (
+        PolicyFactDomain.TRANSFER,
+        "internal_transfer,broker_transfer,cash_transfer,fixture",
+        "Recognize transfers when both legs or explicit pending processing evidence exist.",
+        "Measure transfer legs at source cash amounts and FX translated report-currency equivalents.",
+        "Internal movement, not income or expense.",
+        "{fw} cash-flow transfer reconciliation.",
+        "Disclose unmatched or in-transit transfer blockers.",
+        "cash_flow=cash.internal_transfers,notes=notes.transfer_matching",
+    ),
+    (
+        PolicyFactDomain.TAX_NOTE,
+        "withholding_tax,tax_note,tax_relevant_item,fixture",
+        "Preserve tax-relevant evidence as notes unless a deterministic ledger posting exists.",
+        "Measure withheld or tax-relevant amounts from source evidence without estimating tax filings.",
+        "Disclosure hook, withholding line, or tax-note appendix.",
+        "{fw} notes and tax-hook disclosure.",
+        "Disclose that the package is not tax advice or a tax filing.",
+        "notes=notes.tax_relevant_items",
+    ),
+)
 
-def _policy(
-    *,
-    recognition: str,
-    measurement: str,
-    classification: str,
-    presentation: str,
-    disclosure: str,
-) -> dict[PolicyDimension, str]:
-    return {
-        PolicyDimension.RECOGNITION: recognition,
-        PolicyDimension.MEASUREMENT: measurement,
-        PolicyDimension.CLASSIFICATION: classification,
-        PolicyDimension.PRESENTATION: presentation,
-        PolicyDimension.DISCLOSURE: disclosure,
-    }
+_ASSET_MAP = {
+    AssetType.STOCK: (PolicyFactDomain.LISTED_SECURITY, "listed_equity"),
+    AssetType.ETF: (PolicyFactDomain.LISTED_SECURITY, "etf"),
+    AssetType.MUTUAL_FUND: (PolicyFactDomain.FUND, "fund"),
+    AssetType.CASH: (PolicyFactDomain.CASH, "cash"),
+    AssetType.PROPERTY: (PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"),
+    AssetType.BOND: (PolicyFactDomain.LISTED_SECURITY, "bond"),
+    AssetType.OTHER: (PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "private_asset"),
+}
+_MANUAL_RESTRICTED = {
+    ManualValuationComponentType.ESOP: "esop",
+    ManualValuationComponentType.RSU: "rsu",
+    ManualValuationComponentType.STOCK_OPTIONS: "stock_option",
+}
+_MANUAL_LIABILITY = {
+    ManualValuationComponentType.MORTGAGE_BALANCE: "mortgage_liability",
+    ManualValuationComponentType.TAX_PAYABLE: "payable",
+    ManualValuationComponentType.OTHER_LIABILITY: "loan",
+}
+_ACCOUNT_MAP = {
+    AccountType.LIABILITY: (PolicyFactDomain.LIABILITY, "loan"),
+    AccountType.INCOME: (PolicyFactDomain.PERSONAL_INCOME, "unclassified_income"),
+    AccountType.EXPENSE: (PolicyFactDomain.PERSONAL_EXPENSE, "unclassified_expense"),
+}
 
 
 def _rule(
-    *,
     domain: PolicyFactDomain,
     supported_instrument_types: list[str],
     recognition: str,
@@ -79,236 +202,100 @@ def _rule(
     return FrameworkPolicyMatrixRule(
         domain=domain,
         supported_instrument_types=supported_instrument_types,
-        policy_by_dimension=_policy(
-            recognition=recognition,
-            measurement=measurement,
-            classification=classification,
-            presentation=presentation,
-            disclosure=disclosure,
-        ),
+        policy_by_dimension={
+            PolicyDimension.RECOGNITION: recognition,
+            PolicyDimension.MEASUREMENT: measurement,
+            PolicyDimension.CLASSIFICATION: classification,
+            PolicyDimension.PRESENTATION: presentation,
+            PolicyDimension.DISCLOSURE: disclosure,
+        },
         line_mappings=line_mappings,
-        required_evidence=(
-            ["source_anchor", "ledger_or_portfolio_anchor", "review_state"]
-            if required_evidence is None
-            else required_evidence
-        ),
-        disclosure_requirements=(
-            ["basis", "source_coverage", "valuation_or_cutoff"]
-            if disclosure_requirements is None
-            else disclosure_requirements
-        ),
-        blocker_conditions=blocker_conditions
-        if blocker_conditions is not None
-        else [
-            "missing_source_anchor",
-            "pending_review",
-            "missing_measurement_basis",
-        ],
+        required_evidence=list(_DEFAULT_EVIDENCE) if required_evidence is None else required_evidence,
+        disclosure_requirements=list(_DEFAULT_DISCLOSURE) if disclosure_requirements is None else disclosure_requirements,
+        blocker_conditions=list(_DEFAULT_BLOCKERS) if blocker_conditions is None else blocker_conditions,
     )
 
 
-def _personal_activity_rules(framework_label: str) -> list[FrameworkPolicyMatrixRule]:
-    rules = []
-    for domain, categories, fallback, instrument in (
-        (PolicyFactDomain.PERSONAL_INCOME, INCOME_CATEGORY_LINES, "OTHER_INCOME", "unclassified_income"),
-        (PolicyFactDomain.PERSONAL_EXPENSE, EXPENSE_CATEGORY_LINES, "OTHER_EXPENSE", "unclassified_expense"),
-    ):
-        for category, line_id in categories.items():
-            rules.append(
-                _rule(
-                    domain=domain,
-                    supported_instrument_types=[category, instrument] if category == fallback else [category],
-                    recognition="Recognize the exact accepted economic category frozen into the posted command.",
-                    measurement="Use posted amounts and the selected period-average currency conversion.",
-                    classification=L1_REGISTRY[line_id].label,
-                    presentation=f"{framework_label} {L1_REGISTRY[line_id].label}.",
-                    disclosure="Missing or unsupported historical categories remain other income or expenses.",
-                    line_mappings={"income_statement": line_id.value},
-                )
-            )
-    return rules
+def _parse_mappings(spec: str) -> dict[str, str]:
+    return dict(pair.split("=", 1) for pair in spec.split(","))
 
 
-def _common_rules(framework_label: str) -> list[FrameworkPolicyMatrixRule]:
+def _personal_activity_rules(fw: str) -> list[FrameworkPolicyMatrixRule]:
     return [
-        *_personal_activity_rules(framework_label),
         _rule(
-            domain=PolicyFactDomain.CASH,
-            supported_instrument_types=["cash_in_transit"],
-            recognition="Recognize the ledger-owned Processing identity as funds in transit.",
-            measurement="Include the exact posted balance with the same period-end currency translation as other cash.",
-            classification="Cash equivalent held in transit between custody accounts.",
-            presentation=f"{framework_label} balance sheet separately presents cash in transit.",
-            disclosure="Unsettled funds remain visible until both transfer legs are posted.",
-            line_mappings={"balance_sheet": "assets.cash_in_transit", "cash_flow": "cash.internal_transfers"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.CASH,
-            supported_instrument_types=["bank_account", "cash", "deposit", "fixture"],
-            recognition="Recognize cash movements on transaction date after source cutoff validation.",
-            measurement="Measure cash at nominal amount; translate non-reporting currencies using transaction or period-end FX rules.",
-            classification="Cash and bank account asset.",
-            presentation=f"{framework_label} balance sheet cash and cash equivalents.",
-            disclosure="Disclose source coverage, cutoff, currency, and unresolved bank statement gaps.",
-            line_mappings={"balance_sheet": "assets.cash_and_cash_equivalents", "cash_flow": "cash.ending_cash"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.FUND,
-            supported_instrument_types=["fund", "money_market_fund", "etf_fund", "fixture"],
-            recognition="Recognize fund holdings when brokerage or custodian evidence confirms ownership.",
-            measurement="Measure at observable fund NAV or quoted fair value when freshness evidence exists.",
-            classification="Investment asset, classified by liquidity and redemption terms.",
-            presentation=f"{framework_label} investment schedule fund line.",
-            disclosure="Disclose valuation source, price date, liquidity terms, and stale NAV blockers.",
-            line_mappings={"balance_sheet": "assets.investments.funds", "notes": "notes.fund_liquidity"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.DIVIDEND_INTEREST,
-            supported_instrument_types=["dividend", "interest", "coupon", "fixture"],
-            recognition="Recognize dividends and interest on entitlement, ex-date, payment date, or statement date per source evidence.",
-            measurement="Measure gross and net cash amounts separately when withholding evidence exists.",
-            classification="Investment or bank income.",
-            presentation=f"{framework_label} income statement dividend and interest income.",
-            disclosure="Disclose withholding, tax-note hooks, and source date used for recognition.",
-            line_mappings={"income_statement": "income.dividends_and_interest", "notes": "notes.tax_hooks"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.BROKERAGE_FEE,
-            supported_instrument_types=["commission", "brokerage_fee", "platform_fee", "fixture"],
-            recognition="Recognize brokerage fees when the trade or broker statement evidence is available.",
-            measurement="Measure fees at settled cash amount and preserve currency/FX treatment.",
-            classification="Cost basis adjustment or investment expense according to linked transaction type.",
-            presentation=f"{framework_label} cash-flow and investment performance fee lines.",
-            disclosure="Disclose whether fees affect cost basis or period expense.",
-            line_mappings={"income_statement": "expenses.investment_fees", "cash_flow": "investing.fees"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.FX,
-            supported_instrument_types=["fx_transaction", "fx_rate", "currency_translation", "fixture"],
-            recognition="Recognize FX effects when source currency differs from report currency.",
-            measurement="Use transaction-date rates for transactions, average rates for period income where configured, and period-end rates for balances.",
-            classification="FX gain/loss, translation adjustment, or disclosure-only rate effect.",
-            presentation=f"{framework_label} FX line mapping by statement type.",
-            disclosure="Disclose rate source, rate date, missing-rate blockers, and stale-rate fallback.",
-            line_mappings={"income_statement": "income.fx_gain_loss", "balance_sheet": "equity.fx_translation"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.RESTRICTED_COMPENSATION,
-            supported_instrument_types=["rsu", "esop", "stock_option", "restricted_share", "fixture"],
-            recognition="Recognize restricted compensation when grant, vesting, or exercise evidence exists.",
-            measurement="Measure at accepted fair-value input with explicit restriction and liquidity treatment.",
-            classification="Restricted wealth or compensation schedule item, not default liquid net worth.",
-            presentation=f"{framework_label} long-term compensation schedule.",
-            disclosure="Disclose vesting, restriction, liquidity class, valuation date, and manual valuation review.",
-            line_mappings={
-                "balance_sheet": "assets.restricted_compensation",
-                "notes": "notes.restricted_asset_treatment",
-            },
-        ),
-        _rule(
-            domain=PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE,
-            supported_instrument_types=["property", "mortgage", "private_asset", "manual_asset", "fixture"],
-            recognition="Recognize manual property, mortgage, and private assets only with explicit source date and owner review.",
-            measurement="Measure using accepted manual valuation basis; block trusted totals when basis is missing.",
-            classification="Manual asset, private asset, or secured liability.",
-            presentation=f"{framework_label} manual valuation and liability schedule.",
-            disclosure="Disclose valuation basis, confidence tier, source date, and trusted-total blocker state.",
-            line_mappings={"balance_sheet": "assets.manual_private_assets", "notes": "notes.manual_valuation_basis"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.LIABILITY,
-            supported_instrument_types=["loan", "credit_card", "mortgage_liability", "payable", "fixture"],
-            recognition="Recognize liabilities from statement, loan, or manual obligation evidence.",
-            measurement="Measure at outstanding principal or statement balance with FX translation when needed.",
-            classification="Current or long-term liability by due date and instrument type.",
-            presentation=f"{framework_label} balance sheet liability line.",
-            disclosure="Disclose source balance date, interest hooks, and unresolved liability coverage gaps.",
-            line_mappings={"balance_sheet": "liabilities.financial_liabilities", "notes": "notes.liability_coverage"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.TRANSFER,
-            supported_instrument_types=["internal_transfer", "broker_transfer", "cash_transfer", "fixture"],
-            recognition="Recognize transfers when both legs or explicit pending processing evidence exist.",
-            measurement="Measure transfer legs at source cash amounts and FX translated report-currency equivalents.",
-            classification="Internal movement, not income or expense.",
-            presentation=f"{framework_label} cash-flow transfer reconciliation.",
-            disclosure="Disclose unmatched or in-transit transfer blockers.",
-            line_mappings={"cash_flow": "cash.internal_transfers", "notes": "notes.transfer_matching"},
-        ),
-        _rule(
-            domain=PolicyFactDomain.TAX_NOTE,
-            supported_instrument_types=["withholding_tax", "tax_note", "tax_relevant_item", "fixture"],
-            recognition="Preserve tax-relevant evidence as notes unless a deterministic ledger posting exists.",
-            measurement="Measure withheld or tax-relevant amounts from source evidence without estimating tax filings.",
-            classification="Disclosure hook, withholding line, or tax-note appendix.",
-            presentation=f"{framework_label} notes and tax-hook disclosure.",
-            disclosure="Disclose that the package is not tax advice or a tax filing.",
-            line_mappings={"notes": "notes.tax_relevant_items"},
-        ),
+            domain,
+            [category, instrument] if category == fallback else [category],
+            "Recognize the exact accepted economic category frozen into the posted command.",
+            "Use posted amounts and the selected period-average currency conversion.",
+            L1_REGISTRY[line_id].label,
+            f"{fw} {L1_REGISTRY[line_id].label}.",
+            "Missing or unsupported historical categories remain other income or expenses.",
+            {"income_statement": line_id.value},
+        )
+        for domain, categories, fallback, instrument in (
+            (PolicyFactDomain.PERSONAL_INCOME, INCOME_CATEGORY_LINES, "OTHER_INCOME", "unclassified_income"),
+            (PolicyFactDomain.PERSONAL_EXPENSE, EXPENSE_CATEGORY_LINES, "OTHER_EXPENSE", "unclassified_expense"),
+        )
+        for category, line_id in categories.items()
     ]
 
 
 def get_framework_policy_matrix(framework_id: PersonalReportingFrameworkId) -> FrameworkPolicyMatrix:
-    """Return the deterministic v1 policy matrix for a supported framework."""
-    if framework_id == PersonalReportingFrameworkId.US_GAAP_LIKE:
-        listed_security = _rule(
-            domain=PolicyFactDomain.LISTED_SECURITY,
-            supported_instrument_types=["listed_equity", "listed_security", "etf", "bond", "fixture"],
-            recognition="Recognize listed securities when brokerage evidence confirms trade or holding ownership.",
-            measurement="Measure at quoted fair value when market data is fresh; preserve cost basis and unrealized gain evidence.",
-            classification="Marketable investment asset.",
-            presentation="US-like balance sheet marketable securities with unrealized gain note discipline.",
-            disclosure="Disclose price source, stale price blocker, cost basis, and unrealized gain presentation.",
-            line_mappings={
+    is_us = framework_id == PersonalReportingFrameworkId.US_GAAP_LIKE
+    fw = "US-like" if is_us else "HK-like"
+    listed_security = _rule(
+        PolicyFactDomain.LISTED_SECURITY,
+        ["listed_equity", "listed_security", "etf", "bond", "fixture"],
+        "Recognize listed securities when brokerage evidence confirms trade or holding ownership.",
+        (
+            "Measure at quoted fair value when market data is fresh; preserve cost basis and unrealized gain evidence."
+            if is_us
+            else "Measure at quoted fair value when market data is fresh; preserve cost basis and fair-value movement evidence."
+        ),
+        "Marketable investment asset."
+        if is_us
+        else "Financial asset measured with HK-like fair-value presentation.",
+        (
+            "US-like balance sheet marketable securities with unrealized gain note discipline."
+            if is_us
+            else "HK-like balance sheet financial assets at fair value with investment revaluation note discipline."
+        ),
+        (
+            "Disclose price source, stale price blocker, cost basis, and unrealized gain presentation."
+            if is_us
+            else "Disclose price source, stale price blocker, fair-value hierarchy hint, and revaluation presentation."
+        ),
+        (
+            {
                 "balance_sheet": "assets.marketable_securities",
                 "income_statement": "income.unrealized_investment_gain_loss",
                 "notes": "notes.us_like_market_price_basis",
-            },
-        )
-    else:
-        listed_security = _rule(
-            domain=PolicyFactDomain.LISTED_SECURITY,
-            supported_instrument_types=["listed_equity", "listed_security", "etf", "bond", "fixture"],
-            recognition="Recognize listed securities when brokerage evidence confirms trade or holding ownership.",
-            measurement="Measure at quoted fair value when market data is fresh; preserve cost basis and fair-value movement evidence.",
-            classification="Financial asset measured with HK-like fair-value presentation.",
-            presentation="HK-like balance sheet financial assets at fair value with investment revaluation note discipline.",
-            disclosure="Disclose price source, stale price blocker, fair-value hierarchy hint, and revaluation presentation.",
-            line_mappings={
+            }
+            if is_us
+            else {
                 "balance_sheet": "assets.financial_assets_at_fair_value",
                 "income_statement": "income.fair_value_change_in_financial_assets",
                 "notes": "notes.hk_like_fair_value_basis",
-            },
-        )
-
-    rules = [
-        listed_security,
-        *_common_rules("US-like" if framework_id == PersonalReportingFrameworkId.US_GAAP_LIKE else "HK-like"),
+            }
+        ),
+    )
+    common = [
+        _rule(d, inst.split(","), rec, meas, cls, pres.format(fw=fw), disc, _parse_mappings(maps))
+        for d, inst, rec, meas, cls, pres, disc, maps in _COMMON_SPECS
     ]
-    return FrameworkPolicyMatrix(framework_id=framework_id, version="2.0", rules=rules)
+    return FrameworkPolicyMatrix(
+        framework_id=framework_id,
+        version="2.0",
+        rules=[listed_security, *_personal_activity_rules(fw), *common],
+    )
 
 
 def _find_rule(matrix: FrameworkPolicyMatrix, fact: FrameworkPolicyFact) -> FrameworkPolicyMatrixRule | None:
     if fact.domain == PolicyFactDomain.UNSUPPORTED:
         return None
-    for rule in matrix.rules:
-        if rule.domain != fact.domain:
-            continue
-        if fact.instrument_type in rule.supported_instrument_types:
-            return rule
-    return None
-
-
-def _gap_for_fact(fact: FrameworkPolicyFact) -> FrameworkPolicyGap:
-    return FrameworkPolicyGap(
-        code="unsupported_policy_domain",
-        fact_id=fact.fact_id,
-        domain=fact.domain,
-        instrument_type=fact.instrument_type,
-        blocker=True,
-        reason="No deterministic v1 framework policy rule exists for this fact domain and instrument type.",
-        remediation="Add an explicit policy rule, accepted manual valuation basis, or reviewed structured policy field before trusted output.",
-        evidence_anchors=fact.anchors,
+    return next(
+        (r for r in matrix.rules if r.domain == fact.domain and fact.instrument_type in r.supported_instrument_types),
+        None,
     )
 
 
@@ -321,32 +308,22 @@ def _result_id(
     decisions: list[FrameworkPolicyDecision],
     gaps: list[FrameworkPolicyGap],
 ) -> str:
-    decision_payloads = [decision.model_dump(mode="json") for decision in decisions]
-    gap_payloads = [gap.model_dump(mode="json") for gap in gaps]
+    key_fn = lambda obj: json.dumps(obj, sort_keys=True, separators=(",", ":"))  # noqa: E731
     digest = canonical_json_digest(
         {
             "framework_id": framework_id.value,
             "matrix_version": matrix_version,
             "report_period_start": report_period_start.isoformat(),
             "report_period_end": report_period_end.isoformat(),
-            "decisions": sorted(
-                decision_payloads,
-                key=lambda decision: json.dumps(decision, sort_keys=True, separators=(",", ":")),
-            ),
-            "gaps": sorted(gap_payloads, key=lambda gap: json.dumps(gap, sort_keys=True, separators=(",", ":"))),
+            "decisions": sorted((d.model_dump(mode="json") for d in decisions), key=key_fn),
+            "gaps": sorted((g.model_dump(mode="json") for g in gaps), key=key_fn),
         }
     )[:16]
-    return (
-        f"policy-result:{framework_id.value}:{report_period_start.isoformat()}:{report_period_end.isoformat()}:{digest}"
-    )
+    return f"policy-result:{framework_id.value}:{report_period_start.isoformat()}:{report_period_end.isoformat()}:{digest}"
 
 
 def _anchor(
-    *,
-    anchor_type: str,
-    source_system: str,
-    source_id: object,
-    description: str | None = None,
+    anchor_type: str, source_system: str, source_id: object, description: str | None = None
 ) -> FrameworkPolicyEvidenceAnchor:
     return FrameworkPolicyEvidenceAnchor(
         anchor_id=f"{anchor_type}:{source_id}",
@@ -358,74 +335,28 @@ def _anchor(
 
 
 def _position_domain_and_instrument(position: AtomicPosition) -> tuple[PolicyFactDomain, str]:
-    asset_type = position.asset_type
-    if asset_type == AssetType.STOCK:
-        return PolicyFactDomain.LISTED_SECURITY, "listed_equity"
-    if asset_type == AssetType.ETF:
-        return PolicyFactDomain.LISTED_SECURITY, "etf"
-    if asset_type == AssetType.MUTUAL_FUND:
-        return PolicyFactDomain.FUND, "fund"
-    if asset_type == AssetType.CASH:
-        return PolicyFactDomain.CASH, "cash"
-    if asset_type == AssetType.PROPERTY:
-        return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"
-    if asset_type == AssetType.BOND:
-        # A bond is a marketable financial asset -> the listed-security line.
-        return PolicyFactDomain.LISTED_SECURITY, "bond"
-    if asset_type == AssetType.OTHER:
-        # An unclassified *position* (brokerage evidence) lands in the private-asset
-        # line; "private_asset" (not "manual_asset", which implies manual-valuation
-        # provenance) keeps the instrument type's source semantics honest.
-        return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "private_asset"
-    if asset_type is None:
+    if position.asset_type is None:
         return PolicyFactDomain.UNSUPPORTED, "unknown_asset"
-    return PolicyFactDomain.UNSUPPORTED, asset_type.value
+    return _ASSET_MAP.get(position.asset_type, (PolicyFactDomain.UNSUPPORTED, position.asset_type.value))
 
 
 def _manual_domain_and_instrument(snapshot: ManualValuationFact) -> tuple[PolicyFactDomain, str]:
-    restricted_component_instruments = {
-        ManualValuationComponentType.ESOP: "esop",
-        ManualValuationComponentType.RSU: "rsu",
-        ManualValuationComponentType.STOCK_OPTIONS: "stock_option",
-    }
-    liability_component_instruments = {
-        ManualValuationComponentType.MORTGAGE_BALANCE: "mortgage_liability",
-        ManualValuationComponentType.TAX_PAYABLE: "payable",
-        ManualValuationComponentType.OTHER_LIABILITY: "loan",
-    }
-    manual_asset_component_instruments = {
-        ManualValuationComponentType.PROPERTY_VALUE: "property",
-        ManualValuationComponentType.CPF_BALANCE: "manual_asset",
-        ManualValuationComponentType.RETIREMENT_ACCOUNT: "manual_asset",
-        ManualValuationComponentType.SOCIAL_SECURITY_PERSONAL_ACCOUNT: "manual_asset",
-        ManualValuationComponentType.LONG_TERM_BENEFIT_ASSET: "manual_asset",
-        ManualValuationComponentType.LONG_TERM_SAVINGS: "manual_asset",
-        ManualValuationComponentType.TAX_REFUND: "manual_asset",
-        ManualValuationComponentType.INSURANCE_CASH_VALUE: "manual_asset",
-        ManualValuationComponentType.OTHER_ASSET: "manual_asset",
-    }
-    if snapshot.component_type in restricted_component_instruments:
-        return PolicyFactDomain.RESTRICTED_COMPENSATION, restricted_component_instruments[snapshot.component_type]
-    if snapshot.component_type in liability_component_instruments:
-        return PolicyFactDomain.LIABILITY, liability_component_instruments[snapshot.component_type]
+    ct = snapshot.component_type
+    if ct in _MANUAL_RESTRICTED:
+        return PolicyFactDomain.RESTRICTED_COMPENSATION, _MANUAL_RESTRICTED[ct]
+    if ct in _MANUAL_LIABILITY:
+        return PolicyFactDomain.LIABILITY, _MANUAL_LIABILITY[ct]
     return (
         PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE,
-        manual_asset_component_instruments.get(snapshot.component_type, "manual_asset"),
+        "property" if ct == ManualValuationComponentType.PROPERTY_VALUE else "manual_asset",
     )
 
 
 def _account_domain_and_instrument(account: Account) -> tuple[PolicyFactDomain, str] | None:
     if account.type == AccountType.ASSET:
-        if getattr(account, "is_system", False) and getattr(account, "code", None) == ProcessingAccount().code:
-            return PolicyFactDomain.CASH, "cash_in_transit"
-        return PolicyFactDomain.CASH, "bank_account"
-    if account.type == AccountType.LIABILITY:
-        return PolicyFactDomain.LIABILITY, "loan"
-    if account.type == AccountType.INCOME:
-        return PolicyFactDomain.PERSONAL_INCOME, "unclassified_income"
-    if account.type == AccountType.EXPENSE:
-        return PolicyFactDomain.PERSONAL_EXPENSE, "unclassified_expense"
-    return None
+        is_transit = getattr(account, "is_system", False) and getattr(account, "code", None) == ProcessingAccount().code
+        return PolicyFactDomain.CASH, "cash_in_transit" if is_transit else "bank_account"
+    return _ACCOUNT_MAP.get(account.type)
 
 
 def derive_framework_policy_result(
@@ -435,36 +366,47 @@ def derive_framework_policy_result(
     report_period_end: date,
     facts: list[FrameworkPolicyFact],
 ) -> FrameworkPolicyResult:
-    """Derive a read-only framework policy result from framework-neutral facts."""
     matrix = get_framework_policy_matrix(framework_id)
     decisions: list[FrameworkPolicyDecision] = []
     gaps: list[FrameworkPolicyGap] = []
-
     for fact in facts:
         rule = _find_rule(matrix, fact)
         if rule is None:
-            gaps.append(_gap_for_fact(fact))
+            gaps.append(
+                FrameworkPolicyGap(
+                    code="unsupported_policy_domain",
+                    fact_id=fact.fact_id,
+                    domain=fact.domain,
+                    instrument_type=fact.instrument_type,
+                    blocker=True,
+                    reason="No deterministic v1 framework policy rule exists for this fact domain and instrument type.",
+                    remediation="Add an explicit policy rule, accepted manual valuation basis, or reviewed structured policy field before trusted output.",
+                    evidence_anchors=fact.anchors,
+                )
+            )
             continue
-
         line_mappings = dict(rule.line_mappings)
-        if fact.domain == PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE and fact.instrument_type == "property":
-            if framework_id == PersonalReportingFrameworkId.HKFRS_LIKE and fact.holding_intent == "investment":
-                line_mappings["balance_sheet"] = "assets.investment_property"
-
+        if (
+            fact.domain == PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE
+            and fact.instrument_type == "property"
+            and framework_id == PersonalReportingFrameworkId.HKFRS_LIKE
+            and fact.holding_intent == "investment"
+        ):
+            line_mappings["balance_sheet"] = "assets.investment_property"
+        p = rule.policy_by_dimension
         decisions.append(
             FrameworkPolicyDecision(
                 domain=fact.domain,
-                recognition=rule.policy_by_dimension[PolicyDimension.RECOGNITION],
-                measurement=rule.policy_by_dimension[PolicyDimension.MEASUREMENT],
-                classification=rule.policy_by_dimension[PolicyDimension.CLASSIFICATION],
-                presentation=rule.policy_by_dimension[PolicyDimension.PRESENTATION],
-                disclosure=rule.policy_by_dimension[PolicyDimension.DISCLOSURE],
+                recognition=p[PolicyDimension.RECOGNITION],
+                measurement=p[PolicyDimension.MEASUREMENT],
+                classification=p[PolicyDimension.CLASSIFICATION],
+                presentation=p[PolicyDimension.PRESENTATION],
+                disclosure=p[PolicyDimension.DISCLOSURE],
                 line_mappings=line_mappings,
                 evidence_anchors=fact.anchors,
                 accepted_value=rule.domain.value,
             )
         )
-
     return FrameworkPolicyResult(
         result_id=_result_id(
             framework_id,
@@ -488,12 +430,9 @@ def derive_framework_policy_result(
 def _parse_notes_metadata(notes: str | None) -> tuple[str | None, str | None]:
     if not notes:
         return None, None
-
-    intent_match = re.search(r"holding_intent:\s*(\w+)", notes, re.IGNORECASE)
-    horizon_match = re.search(r"horizon:\s*(\w+)", notes, re.IGNORECASE)
-    intent = intent_match.group(1).lower() if intent_match else None
-    horizon = horizon_match.group(1).lower() if horizon_match else None
-    return intent, horizon
+    intent_m = re.search(r"holding_intent:\s*(\w+)", notes, re.IGNORECASE)
+    horizon_m = re.search(r"horizon:\s*(\w+)", notes, re.IGNORECASE)
+    return (intent_m.group(1).lower() if intent_m else None, horizon_m.group(1).lower() if horizon_m else None)
 
 
 async def framework_policy_facts_for_user(
@@ -504,139 +443,117 @@ async def framework_policy_facts_for_user(
     report_period_end: date,
     as_of_date: date,
 ) -> list[FrameworkPolicyFact]:
-    """Build framework-neutral facts from existing source, ledger, and portfolio records."""
     facts: list[FrameworkPolicyFact] = []
-
-    account_result = await db.execute(select(Account).where(Account.user_id == user_id))
-    for account in account_result.scalars().all():
-        mapping = _account_domain_and_instrument(account)
-        if mapping is None:
-            continue
-        domain, instrument_type = mapping
-        facts.append(
-            FrameworkPolicyFact(
-                fact_id=f"account:{account.id}",
-                domain=domain,
-                instrument_type=instrument_type,
-                currency=account.currency,
-                event_date=as_of_date,
-                anchors=[
-                    _anchor(
-                        anchor_type="account",
-                        source_system="canonical_ledger",
-                        source_id=account.id,
-                        description=account.name,
-                    )
-                ],
+    for account in (await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all():
+        if (mapping := _account_domain_and_instrument(account)) is not None:
+            facts.append(
+                FrameworkPolicyFact(
+                    fact_id=f"account:{account.id}",
+                    domain=mapping[0],
+                    instrument_type=mapping[1],
+                    currency=account.currency,
+                    event_date=as_of_date,
+                    anchors=[_anchor("account", "canonical_ledger", account.id, account.name)],
+                )
             )
-        )
 
     category_rows = await db.execute(
         select(JournalLine, Account)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .join(Account, JournalLine.account_id == Account.id)
-        .where(JournalEntry.user_id == user_id, Account.user_id == user_id)
-        .where(active_journal_entry_filter(JournalEntry))
+        .where(JournalEntry.user_id == user_id, Account.user_id == user_id, active_journal_entry_filter(JournalEntry))
         .where(
             JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED,
             JournalEntry.decision_anchor_id.is_not(None),
+            JournalEntry.entry_date >= report_period_start,
+            JournalEntry.entry_date <= report_period_end,
+            Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)),
         )
-        .where(JournalEntry.entry_date >= report_period_start, JournalEntry.entry_date <= report_period_end)
-        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
     )
     for line, account in category_rows.all():
         category = (line.tags or {}).get("economic_category")
-        categories = INCOME_CATEGORY_LINES if account.type == AccountType.INCOME else EXPENSE_CATEGORY_LINES
-        if not isinstance(category, str) or category not in categories:
-            continue
-        facts.append(
-            FrameworkPolicyFact(
-                fact_id=f"journal_line:{line.id}",
-                domain=PolicyFactDomain.PERSONAL_INCOME
-                if account.type == AccountType.INCOME
-                else PolicyFactDomain.PERSONAL_EXPENSE,
-                instrument_type=category,
-                currency=line.currency,
-                anchors=[
-                    _anchor(
-                        anchor_type="journal_line",
-                        source_system="canonical_ledger",
-                        source_id=line.id,
-                        description="Accepted posted economic category",
-                    )
-                ],
+        is_income = account.type == AccountType.INCOME
+        if isinstance(category, str) and category in (INCOME_CATEGORY_LINES if is_income else EXPENSE_CATEGORY_LINES):
+            facts.append(
+                FrameworkPolicyFact(
+                    fact_id=f"journal_line:{line.id}",
+                    domain=PolicyFactDomain.PERSONAL_INCOME if is_income else PolicyFactDomain.PERSONAL_EXPENSE,
+                    instrument_type=category,
+                    currency=line.currency,
+                    anchors=[_anchor("journal_line", "canonical_ledger", line.id, "Accepted posted economic category")],
+                )
+            )
+
+    pos_rows = (
+        (
+            await db.execute(
+                select(AtomicPosition)
+                .where(AtomicPosition.user_id == user_id, AtomicPosition.snapshot_date <= as_of_date)
+                .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
             )
         )
-
-    position_result = await db.execute(
-        select(AtomicPosition)
-        .where(AtomicPosition.user_id == user_id)
-        .where(AtomicPosition.snapshot_date <= as_of_date)
-        .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
+        .scalars()
+        .all()
     )
     seen_positions: set[str] = set()
     latest_positions: list[AtomicPosition] = []
-    for position in position_result.scalars().all():
-        normalized_identifier = position.asset_identifier.strip().upper()
-        if normalized_identifier in seen_positions:
-            continue
-        seen_positions.add(normalized_identifier)
-        latest_positions.append(position)
+    for position in pos_rows:
+        norm = position.asset_identifier.strip().upper()
+        if norm not in seen_positions:
+            seen_positions.add(norm)
+            latest_positions.append(position)
 
-    latest_override_by_identifier: dict[str, MarketDataOverride] = {}
-    latest_stock_price_by_identifier: dict[str, StockPrice] = {}
+    overrides: dict[str, MarketDataOverride] = {}
+    stock_prices: dict[str, StockPrice] = {}
     if seen_positions:
-        override_result = await db.execute(
-            select(MarketDataOverride)
-            .where(MarketDataOverride.user_id == user_id)
-            .where(func.upper(MarketDataOverride.asset_identifier).in_(seen_positions))
-            .where(MarketDataOverride.price_date <= as_of_date)
-            .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
-        )
-        for override in override_result.scalars().all():
-            latest_override_by_identifier.setdefault(override.asset_identifier.strip().upper(), override)
-
-        stock_price_result = await db.execute(
-            select(StockPrice)
-            .where(StockPrice.symbol.in_(sorted(seen_positions)))
-            .where(StockPrice.price_date <= as_of_date)
-            .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
-        )
-        for stock_price in stock_price_result.scalars().all():
-            latest_stock_price_by_identifier.setdefault(stock_price.symbol.strip().upper(), stock_price)
+        for ov in (
+            (
+                await db.execute(
+                    select(MarketDataOverride)
+                    .where(
+                        MarketDataOverride.user_id == user_id,
+                        func.upper(MarketDataOverride.asset_identifier).in_(seen_positions),
+                        MarketDataOverride.price_date <= as_of_date,
+                    )
+                    .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            overrides.setdefault(ov.asset_identifier.strip().upper(), ov)
+        for sp in (
+            (
+                await db.execute(
+                    select(StockPrice)
+                    .where(StockPrice.symbol.in_(sorted(seen_positions)), StockPrice.price_date <= as_of_date)
+                    .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            stock_prices.setdefault(sp.symbol.strip().upper(), sp)
 
     for position in latest_positions:
         domain, instrument_type = _position_domain_and_instrument(position)
-        anchors = [
-            _anchor(
-                anchor_type="atomic_position",
-                source_system="portfolio_subledger",
-                source_id=position.id,
-                description=position.asset_identifier,
-            )
-        ]
-        asset_identifier = position.asset_identifier.strip().upper()
-        latest_override = latest_override_by_identifier.get(asset_identifier)
-        latest_stock_price = latest_stock_price_by_identifier.get(asset_identifier)
-        price_candidates: list[tuple[date, int, MarketDataOverride | StockPrice]] = []
-        if latest_stock_price is not None:
-            price_candidates.append((latest_stock_price.price_date, 0, latest_stock_price))
-        if latest_override is not None:
-            price_candidates.append((latest_override.price_date, 1, latest_override))
-        price = (
-            max(price_candidates, key=lambda candidate: (candidate[0], candidate[1]))[2] if price_candidates else None
-        )
-        if price is not None:
-            source_system = "market_data_override" if isinstance(price, MarketDataOverride) else "stock_price"
-            source_id = price.id
-            identifier = price.asset_identifier if isinstance(price, MarketDataOverride) else price.symbol
+        anchors = [_anchor("atomic_position", "portfolio_subledger", position.id, position.asset_identifier)]
+        norm = position.asset_identifier.strip().upper()
+        candidates: list[tuple[date, int, MarketDataOverride | StockPrice]] = []
+        sp_cand = stock_prices.get(norm)
+        if sp_cand is not None:
+            candidates.append((sp_cand.price_date, 0, sp_cand))
+        ov_cand = overrides.get(norm)
+        if ov_cand is not None:
+            candidates.append((ov_cand.price_date, 1, ov_cand))
+        if candidates:
+            price = max(candidates, key=lambda c: (c[0], c[1]))[2]
+            if isinstance(price, MarketDataOverride):
+                source_kind, ident = "market_data_override", price.asset_identifier
+            else:
+                source_kind, ident = "stock_price", price.symbol
             anchors.append(
-                _anchor(
-                    anchor_type="market_price",
-                    source_system=source_system,
-                    source_id=source_id,
-                    description=f"{identifier} price dated {price.price_date.isoformat()}",
-                )
+                _anchor("market_price", source_kind, price.id, f"{ident} price dated {price.price_date.isoformat()}")
             )
         facts.append(
             FrameworkPolicyFact(
@@ -650,8 +567,7 @@ async def framework_policy_facts_for_user(
             )
         )
 
-    manual_snapshots = await list_current_manual_valuation_facts(db, user_id, as_of_date=as_of_date)
-    for snapshot in manual_snapshots:
+    for snapshot in await list_current_manual_valuation_facts(db, user_id, as_of_date=as_of_date):
         domain, instrument_type = _manual_domain_and_instrument(snapshot)
         intent, horizon = _parse_notes_metadata(snapshot.notes)
         facts.append(
@@ -662,47 +578,37 @@ async def framework_policy_facts_for_user(
                 amount=Decimal(snapshot.value),
                 currency=snapshot.currency,
                 event_date=snapshot.as_of_date,
-                anchors=[
-                    _anchor(
-                        anchor_type="manual_valuation_snapshot",
-                        source_system="manual_valuation",
-                        source_id=snapshot.id,
-                        description=snapshot.source,
-                    )
-                ],
+                anchors=[_anchor("manual_valuation_snapshot", "manual_valuation", snapshot.id, snapshot.source)],
                 holding_intent=intent,
                 horizon=horizon,
             )
         )
 
-    dividend_result = await db.execute(
-        select(DividendIncome)
-        .where(DividendIncome.user_id == user_id)
-        .where(DividendIncome.payment_date >= report_period_start)
-        .where(DividendIncome.payment_date <= report_period_end)
-    )
-    for dividend in dividend_result.scalars().all():
+    for div in (
+        (
+            await db.execute(
+                select(DividendIncome).where(
+                    DividendIncome.user_id == user_id,
+                    DividendIncome.payment_date >= report_period_start,
+                    DividendIncome.payment_date <= report_period_end,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    ):
         facts.append(
             FrameworkPolicyFact(
-                fact_id=f"dividend_income:{dividend.id}",
+                fact_id=f"dividend_income:{div.id}",
                 domain=PolicyFactDomain.DIVIDEND_INTEREST,
                 instrument_type="dividend",
-                amount=Decimal(dividend.amount),
-                currency=dividend.currency,
-                event_date=dividend.payment_date,
-                anchors=[
-                    _anchor(
-                        anchor_type="dividend_income",
-                        source_system="portfolio_subledger",
-                        source_id=dividend.id,
-                    )
-                ],
+                amount=Decimal(div.amount),
+                currency=div.currency,
+                event_date=div.payment_date,
+                anchors=[_anchor("dividend_income", "portfolio_subledger", div.id)],
             )
         )
 
-    # The queries above leave the order of accounts, journal lines and dividends to the database.
-    # Every page of ``GET /reports/package/policy-decisions`` is a new request, so the decision
-    # order must not depend on it (#2583 S11). A fact id is unique, so this order is complete.
     return sorted(facts, key=lambda fact: fact.fact_id)
 
 
@@ -715,7 +621,6 @@ async def derive_user_framework_policy_result(
     report_period_end: date,
     as_of_date: date,
 ) -> FrameworkPolicyResult:
-    """Derive the selected framework policy result from current user facts without writes."""
     facts = await framework_policy_facts_for_user(
         db,
         user_id,

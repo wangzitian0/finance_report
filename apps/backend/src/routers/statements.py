@@ -60,11 +60,7 @@ from src.extraction import (
     supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
-from src.ledger import (
-    Account,
-    AccountType,
-    account_service,
-)
+from src.ledger import Account, AccountType, account_service
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
@@ -101,9 +97,9 @@ from src.schemas.review import (
 router = APIRouter(prefix="/statements", tags=["statements"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+_ALLOWED_EXTENSIONS = {"pdf", "csv", "png", "jpg", "jpeg"}
 logger = get_logger(__name__)
 
-# Track background parsing tasks to avoid garbage collection
 _PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
 _BROKERAGE_IMPORT_SERVICE = BrokeragePositionImportService()
 
@@ -119,98 +115,147 @@ def _posting_count_or_conflict(outcome: StatementPostingOutcome) -> int:
     return outcome.created_count
 
 
+async def _validate_vision_model(model: str | None) -> None:
+    if not model:
+        return
+    spec = await LitellmCatalog().get(model)
+    if spec is None:
+        raise_bad_request("Invalid model selection. Choose a model from /llm/catalog.")
+    if not spec.accepts(Modality.IMAGE):
+        raise_bad_request("Selected model does not support image/PDF inputs.")
+
+
 async def _resolve_uploaded_document(
-    db: AsyncSession,
-    statement: StatementSummary,
-    user_id: UUID,
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> UploadedDocument | None:
-    """Resolve the ODS ``UploadedDocument`` backing a statement envelope.
-
-    The canonical join is ``StatementSummary.uploaded_document_id``; fall back to the
-    shared ``(user_id, file_hash)`` key so file ops still resolve before the document
-    link has been written by the ingestion pipeline.
-    """
     if statement.uploaded_document_id is not None:
-        document = await db.get(UploadedDocument, statement.uploaded_document_id)
-        if document is not None and document.user_id == user_id:
-            return document
-
-    result = await db.execute(
-        select(UploadedDocument)
-        .where(UploadedDocument.user_id == user_id)
-        .where(UploadedDocument.file_hash == statement.file_hash)
-    )
-    return result.scalar_one_or_none()
+        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
+        if doc is not None and doc.user_id == user_id:
+            return doc
+    return (
+        await db.execute(
+            select(UploadedDocument).where(
+                UploadedDocument.user_id == user_id, UploadedDocument.file_hash == statement.file_hash
+            )
+        )
+    ).scalar_one_or_none()
 
 
 async def _resolve_uploaded_documents(
-    db: AsyncSession,
-    statements: Sequence[StatementSummary],
-    user_id: UUID,
+    db: AsyncSession, statements: Sequence[StatementSummary], user_id: UUID
 ) -> dict[UUID, UploadedDocument | None]:
-    """Resolve the backing ``UploadedDocument`` of many statements in at most two queries.
-
-    Same rules as :func:`_resolve_uploaded_document`: the canonical join is
-    ``uploaded_document_id`` (owned by ``user_id``); a statement without a usable link falls back
-    to the shared ``(user_id, file_hash)`` key.
-    """
-    document_ids = {s.uploaded_document_id for s in statements if s.uploaded_document_id is not None}
-    by_id: dict[UUID, UploadedDocument] = {}
-    if document_ids:
-        rows = await db.execute(
-            select(UploadedDocument).where(UploadedDocument.user_id == user_id, UploadedDocument.id.in_(document_ids))
-        )
-        by_id = {document.id: document for document in rows.scalars()}
-
+    doc_ids = {s.uploaded_document_id for s in statements if s.uploaded_document_id is not None}
+    by_id = (
+        {
+            d.id: d
+            for d in (
+                await db.execute(
+                    select(UploadedDocument).where(
+                        UploadedDocument.user_id == user_id, UploadedDocument.id.in_(doc_ids)
+                    )
+                )
+            ).scalars()
+        }
+        if doc_ids
+        else {}
+    )
     resolved: dict[UUID, UploadedDocument | None] = {}
-    needs_hash_lookup: list[StatementSummary] = []
-    for statement in statements:
-        document = by_id.get(statement.uploaded_document_id) if statement.uploaded_document_id is not None else None
-        resolved[statement.id] = document
-        if document is None:
-            needs_hash_lookup.append(statement)
-
-    if needs_hash_lookup:
-        file_hashes = {s.file_hash for s in needs_hash_lookup}
-        rows = await db.execute(
-            select(UploadedDocument).where(
-                UploadedDocument.user_id == user_id, UploadedDocument.file_hash.in_(file_hashes)
-            )
-        )
-        by_hash = {document.file_hash: document for document in rows.scalars()}
-        for statement in needs_hash_lookup:
-            resolved[statement.id] = by_hash.get(statement.file_hash)
+    missing: list[StatementSummary] = []
+    for s in statements:
+        doc = by_id.get(s.uploaded_document_id) if s.uploaded_document_id is not None else None
+        resolved[s.id] = doc
+        if doc is None:
+            missing.append(s)
+    if missing:
+        by_hash = {
+            d.file_hash: d
+            for d in (
+                await db.execute(
+                    select(UploadedDocument).where(
+                        UploadedDocument.user_id == user_id,
+                        UploadedDocument.file_hash.in_({s.file_hash for s in missing}),
+                    )
+                )
+            ).scalars()
+        }
+        for s in missing:
+            resolved[s.id] = by_hash.get(s.file_hash)
     return resolved
 
 
 async def _compose_statement_response(
-    db: AsyncSession,
-    statement: StatementSummary,
-    user_id: UUID,
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> BankStatementResponse:
-    """Build a ``BankStatementResponse`` from the DWD records for a statement."""
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     transactions = await resolve_statement_transactions(db, statement)
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
     return compose_statement_response(statement, uploaded_document, transactions, suggestions=suggestions)
 
 
-async def _get_statement_or_404(
-    db: AsyncSession,
-    statement_id: UUID,
-    user_id: UUID,
-) -> StatementSummary:
-    result = await db.execute(
-        select(StatementSummary).where(
-            StatementSummary.id == statement_id,
-            StatementSummary.user_id == user_id,
-            StatementSummary.status != BankStatementStatus.RETIRED,
+async def _get_statement_or_404(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
+    stmt = (
+        await db.execute(
+            select(StatementSummary).where(
+                StatementSummary.id == statement_id,
+                StatementSummary.user_id == user_id,
+                StatementSummary.status != BankStatementStatus.RETIRED,
+            )
         )
-    )
-    statement = result.scalar_one_or_none()
-    if statement is None:
+    ).scalar_one_or_none()
+    if stmt is None:
         raise_not_found("Statement")
-    return statement
+    return stmt
+
+
+async def _list_statements_by_where(db: AsyncSession, user_id: UUID, *clauses) -> BankStatementListResponse:
+    statements = (
+        (await db.execute(select(StatementSummary).where(*clauses).order_by(StatementSummary.created_at.desc())))
+        .scalars()
+        .all()
+    )
+    total = (await db.execute(select(func.count()).select_from(StatementSummary).where(*clauses))).scalar() or 0
+    documents = await _resolve_uploaded_documents(db, statements, user_id)
+    return BankStatementListResponse(
+        items=[compose_statement_list_item_response(s, documents[s.id]) for s in statements],
+        total=total,
+    )
+
+
+def _envelope_response(envelope, digest: str) -> ReviewedStatementEnvelopeResponse:
+    return ReviewedStatementEnvelopeResponse(
+        id=envelope.id,
+        source_result_digest=digest,
+        account_id=envelope.account_id,
+        currency=envelope.currency,
+        period_start=envelope.period_start,
+        period_end=envelope.period_end,
+        opening_balance=envelope.opening_balance,
+        closing_balance=envelope.closing_balance,
+        rationale=envelope.rationale,
+        review_trace_record_id=envelope.review_trace_record_id,
+        created_at=envelope.created_at,
+    )
+
+
+async def _enqueue_parse_job(
+    db: AsyncSession,
+    *,
+    job: ParseJob,
+    content: bytes,
+    file_type: str,
+) -> None:
+    task = await submit_parse_pipeline(job=job, content=content, db=db)
+    if task is not None:
+        _track_task(task)
+    logger.info(
+        "statement.parse.enqueued",
+        audit_event="statement.parse.enqueued",
+        request_id=job.request_id,
+        statement_id=str(job.statement_id),
+        filename=job.filename,
+        file_type=file_type,
+        model_to_use=job.model,
+    )
 
 
 async def _queue_statement_reparse(
@@ -226,19 +271,16 @@ async def _queue_statement_reparse(
         raise StorageError("Source document is no longer available for reparse")
     storage_key = uploaded_document.file_path
     filename = uploaded_document.original_filename
-
-    storage = StorageService()
-    content = await run_in_threadpool(storage.get_object, storage_key)
+    content = await run_in_threadpool(StorageService().get_object, storage_key)
     if reset_for_retry:
-        # A failed source fetch must leave the previous review state intact.
-        # Commit before dispatch so the worker sees the accepted retry state.
         statement.status = BankStatementStatus.PARSING
         statement.validation_error = None
         await db.commit()
         await db.refresh(statement)
     request_id = ensure_request_id()
     model_to_use = None if model == settings.multimodal_model else model
-    task = await submit_parse_pipeline(
+    await _enqueue_parse_job(
+        db,
         job=ParseJob(
             statement_id=statement.id,
             filename=filename,
@@ -251,32 +293,22 @@ async def _queue_statement_reparse(
             request_id=request_id,
         ),
         content=content,
-        db=db,
-    )
-    if task is not None:
-        _track_task(task)
-    logger.info(
-        "statement.parse.enqueued",
-        audit_event="statement.parse.enqueued",
-        request_id=request_id,
-        statement_id=str(statement.id),
-        filename=filename,
         file_type=filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf",
-        model_to_use=model_to_use,
     )
 
 
 async def _create_statement_account_from_confirmation(
-    db: DbSession,
-    statement: StatementSummary,
-    user_id: UUID,
+    db: DbSession, statement: StatementSummary, user_id: UUID
 ) -> Account:
-    """Create and bind a statement account after explicit Stage 1 user confirmation."""
     source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
     document = await _resolve_uploaded_document(db, statement, user_id)
-    bank_source = is_bank_custody_source(source, document)
-    if bank_source and statement.institution and statement.account_last4 and statement.currency:
-        resolved_account = await resolve_bank_custody_account(
+    if (
+        is_bank_custody_source(source, document)
+        and statement.institution
+        and statement.account_last4
+        and statement.currency
+    ):
+        resolved = await resolve_bank_custody_account(
             db,
             user_id=user_id,
             institution=statement.institution,
@@ -284,14 +316,13 @@ async def _create_statement_account_from_confirmation(
             currency=statement.currency,
             account_id=statement.account_id,
         )
-        statement.account_id = resolved_account.id
+        statement.account_id = resolved.id
         await db.flush()
-        return resolved_account
+        return resolved
     if statement.account_id:
-        account_result = await db.execute(
-            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
-        )
-        account = account_result.scalar_one_or_none()
+        account = (
+            await db.execute(select(Account).where(Account.id == statement.account_id, Account.user_id == user_id))
+        ).scalar_one_or_none()
         if account:
             return account
         raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
@@ -299,28 +330,28 @@ async def _create_statement_account_from_confirmation(
     currency = (statement.currency or "").strip().upper()
     if not currency:
         raise ValueError("Statement currency required before creating an account. Confirm the source currency first.")
-    institution = (statement.institution or "").strip()
-    account_name = institution or "Statement Account"
+    account_name = (statement.institution or "").strip() or "Statement Account"
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"
-
-    uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
-    source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
+    source_filename = document.original_filename if document else statement.file_hash
 
     async def _find_statement_account(session: AsyncSession) -> Account | None:
-        existing_result = await session.execute(
-            select(Account)
-            .where(Account.user_id == user_id)
-            .where(Account.name == account_name)
-            .where(Account.type == AccountType.ASSET)
-            .where(Account.currency == currency)
-            .where(Account.is_active.is_(True))
-            .order_by(Account.created_at, Account.id)
-            .limit(1)
-        )
-        return existing_result.scalar_one_or_none()
+        return (
+            await session.execute(
+                select(Account)
+                .where(
+                    Account.user_id == user_id,
+                    Account.name == account_name,
+                    Account.type == AccountType.ASSET,
+                    Account.currency == currency,
+                    Account.is_active.is_(True),
+                )
+                .order_by(Account.created_at, Account.id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
 
-    created_account = await account_service.find_or_create_account(
+    created = await account_service.find_or_create_account(
         db,
         user_id=user_id,
         find=_find_statement_account,
@@ -333,17 +364,13 @@ async def _create_statement_account_from_confirmation(
             description=f"Created from confirmed statement import {source_filename}",
         ),
     )
-    statement.account_id = created_account.id
+    statement.account_id = created.id
     await db.flush()
-    return created_account
-
-
-# --- Helper functions ---
+    return created
 
 
 def build_statement_storage_key(*, statement_id: UUID, file_hash: str, extension: str) -> str:
-    """Build a non-PII object key for uploaded statement content."""
-    safe_extension = extension.lower() if extension.lower() in {"pdf", "csv", "png", "jpg", "jpeg"} else "bin"
+    safe_extension = extension.lower() if extension.lower() in _ALLOWED_EXTENSIONS else "bin"
     return f"statements/{statement_id}/{file_hash[:16]}.{safe_extension}"
 
 
@@ -357,51 +384,20 @@ async def upload_statement(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    """
-    Upload a financial statement and enqueue parsing.
-
-    Supported file types: PDF, CSV, PNG, JPG. Model is optional for PDF/image uploads;
-    omitted model uses the OCR-first default pipeline.
-
-    Institution is optional for PDF/image uploads (AI auto-detects it from the
-    document). It is **required** for CSV uploads — the institution cannot be
-    auto-detected from CSV content, so a missing institution is rejected
-    synchronously with HTTP 400 rather than accepted and rejected asynchronously
-    by the parse worker (#1141 / #1087).
-    """
+    """Upload a financial statement and enqueue parsing."""
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
-
-    logger.info(
-        "Statement upload request received",
-        user_id=str(user_id),
-        filename=filename,
-        file_type=extension,
-        institution=institution or "(auto-detect)",
-        model_requested=model,
-        has_account_id=account_id is not None,
-    )
-
-    if extension not in ("pdf", "csv", "png", "jpg", "jpeg"):
+    if extension not in _ALLOWED_EXTENSIONS:
         raise_bad_request(f"Unsupported file type: {extension}")
 
-    # AC13.18.6 (#1141 / #1087): CSV parsing cannot auto-detect the institution the
-    # way PDF/image vision extraction can, so a CSV without an institution can only
-    # fail later inside the async parse worker ("Institution is required for CSV
-    # parsing"), leaving an orphaned PARSING record. Reject it synchronously here
-    # with an actionable 400 instead of accepting (202) then rejecting async.
-    # Normalize the institution up front: persist/pass the STRIPPED value so that
-    # leading/trailing whitespace can't break CSV institution routing downstream
-    # in ``ExtractionService._parse_csv_content()`` (#1141 / #1087).
     institution = institution.strip() if institution else None
     if extension == "csv" and not institution:
         raise_bad_request("Institution is required for CSV uploads. Please select an institution and retry.")
 
     if account_id is not None:
-        account_result = await db.execute(
-            select(Account.id).where(Account.id == account_id).where(Account.user_id == user_id)
-        )
-        if account_result.scalar_one_or_none() is None:
+        if (
+            await db.execute(select(Account.id).where(Account.id == account_id, Account.user_id == user_id))
+        ).scalar_one_or_none() is None:
             raise_not_found("Account")
 
     content = await file.read()
@@ -409,26 +405,22 @@ async def upload_statement(
         raise_too_large("File exceeds 10MB limit")
 
     file_hash = hashlib.sha256(content).hexdigest()
-    file_hash_prefix = file_hash[:12]
-    duplicate = await db.execute(
-        select(StatementSummary.id)
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.file_hash == file_hash)
-    )
-    if duplicate.scalar_one_or_none():
+    if (
+        await db.execute(
+            select(StatementSummary.id).where(
+                StatementSummary.user_id == user_id, StatementSummary.file_hash == file_hash
+            )
+        )
+    ).scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
 
     if extension != "csv":
-        if model:
-            spec = await LitellmCatalog().get(model)
-            if spec is None:
-                raise_bad_request("Invalid model selection. Choose a model from /llm/catalog.")
-            if not spec.accepts(Modality.IMAGE):
-                raise_bad_request("Selected model does not support image/PDF inputs.")
+        await _validate_vision_model(model)
 
     statement_id = uuid4()
     request_id = ensure_request_id()
     model_to_use = None if model == settings.multimodal_model else model
+    file_hash_prefix = file_hash[:12]
     logger.info(
         "statement.upload.accepted",
         audit_event="statement.upload.accepted",
@@ -444,12 +436,7 @@ async def upload_statement(
         file_hash_prefix=file_hash_prefix,
         has_account_id=account_id is not None,
     )
-    storage_key = build_statement_storage_key(
-        statement_id=statement_id,
-        file_hash=file_hash,
-        extension=extension,
-    )
-
+    storage_key = build_statement_storage_key(statement_id=statement_id, file_hash=file_hash, extension=extension)
     storage = StorageService()
     try:
         await run_in_threadpool(
@@ -475,6 +462,7 @@ async def upload_statement(
             safe_error_message=safe_error_message(str(exc)),
         )
         raise_service_unavailable(str(exc), cause=exc)
+
     logger.info(
         "statement.upload.storage_saved",
         audit_event="statement.upload.storage_saved",
@@ -491,24 +479,11 @@ async def upload_statement(
         file_hash=file_hash,
         institution=institution or "Pending Detection",
         status=BankStatementStatus.PARSING,
-        confidence_score=None,
-        balance_validated=None,
-        currency=None,
-        period_start=None,
-        period_end=None,
-        opening_balance=None,
-        closing_balance=None,
     )
-
     db.add(statement)
     try:
         await db.flush()
-        await register_statement_source(
-            db,
-            statement=statement,
-            storage_key=storage_key,
-            original_filename=filename,
-        )
+        await register_statement_source(db, statement=statement, storage_key=storage_key, original_filename=filename)
         await db.commit()
         await db.refresh(statement)
     except Exception as exc:
@@ -523,7 +498,8 @@ async def upload_statement(
             )
         raise_internal_error("Failed to persist statement metadata", cause=exc)
 
-    task = await submit_parse_pipeline(
+    await _enqueue_parse_job(
+        db,
         job=ParseJob(
             statement_id=statement_id,
             filename=filename,
@@ -536,22 +512,9 @@ async def upload_statement(
             request_id=request_id,
         ),
         content=content,
-        db=db,
-    )
-    if task is not None:
-        _track_task(task)
-    logger.info(
-        "statement.parse.enqueued",
-        audit_event="statement.parse.enqueued",
-        request_id=request_id,
-        statement_id=str(statement_id),
-        filename=filename,
         file_type=extension,
-        model_to_use=model_to_use,
     )
-
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    return await _compose_statement_response(db, statement, user_id)
+    return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
 @router.post("/{statement_id}/retry", response_model=BankStatementResponse)
@@ -562,125 +525,48 @@ async def retry_statement_parsing(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
+    """Retry parsing with an optional model override."""
     model_override = request.model if request else None
-
     statement = await _get_statement_or_404(db, statement_id, user_id)
-
-    if statement.status not in (
-        BankStatementStatus.PARSED,
-        BankStatementStatus.REJECTED,
-        BankStatementStatus.PARSING,
-    ):
+    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.REJECTED, BankStatementStatus.PARSING):
         raise_bad_request("Can only retry parsing for parsed, rejected, or stuck parsing statements")
-
-    selected_model = model_override
-
-    if model_override:
-        spec = await LitellmCatalog().get(model_override)
-        if spec is None:
-            raise_bad_request("Invalid model selection. Choose a model from /llm/catalog.")
-        if not spec.accepts(Modality.IMAGE):
-            raise_bad_request("Selected model does not support image/PDF inputs.")
-
+    await _validate_vision_model(model_override)
     try:
-        await _queue_statement_reparse(db, statement, user_id, model=selected_model, reset_for_retry=True)
+        await _queue_statement_reparse(db, statement, user_id, model=model_override, reset_for_retry=True)
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
-
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    return await _compose_statement_response(db, statement, user_id)
+    return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
 @router.get("", response_model=BankStatementListResponse)
-async def list_statements(
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> BankStatementListResponse:
-    """List all statements for the current user.
-
-    Each item is a summary envelope without embedded transactions, and the list uses a fixed number of SQL statements.
-    Use GET /statements/{id}/transactions to read the rows of one statement.
-    """
-    result = await db.execute(
-        select(StatementSummary)
-        .where(
-            StatementSummary.user_id == user_id,
-            StatementSummary.status != BankStatementStatus.RETIRED,
-        )
-        .order_by(StatementSummary.created_at.desc())
+async def list_statements(db: DbSession, user_id: CurrentUserId) -> BankStatementListResponse:
+    """List non-retired statements for the current user."""
+    return await _list_statements_by_where(
+        db, user_id, StatementSummary.user_id == user_id, StatementSummary.status != BankStatementStatus.RETIRED
     )
-    statements = result.scalars().all()
-
-    total_result = await db.execute(
-        select(func.count())
-        .select_from(StatementSummary)
-        .where(
-            StatementSummary.user_id == user_id,
-            StatementSummary.status != BankStatementStatus.RETIRED,
-        )
-    )
-    total = total_result.scalar() or 0
-
-    documents = await _resolve_uploaded_documents(db, statements, user_id)
-    items = [compose_statement_list_item_response(s, documents[s.id]) for s in statements]
-    return BankStatementListResponse(items=items, total=total)
 
 
 @router.get("/pending-review", response_model=BankStatementListResponse)
-async def list_pending_review(
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> BankStatementListResponse:
-    """List statements pending human review."""
-    result = await db.execute(
-        select(StatementSummary)
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.status == BankStatementStatus.PARSED)
-        .where(pending_stage1_review_filter())
-        .order_by(StatementSummary.created_at.desc())
+async def list_pending_review(db: DbSession, user_id: CurrentUserId) -> BankStatementListResponse:
+    """List statements pending Stage 1 human review."""
+    return await _list_statements_by_where(
+        db,
+        user_id,
+        StatementSummary.user_id == user_id,
+        StatementSummary.status == BankStatementStatus.PARSED,
+        pending_stage1_review_filter(),
     )
-    statements = result.scalars().all()
-
-    total_result = await db.execute(
-        select(func.count())
-        .select_from(StatementSummary)
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.status == BankStatementStatus.PARSED)
-        .where(pending_stage1_review_filter())
-    )
-    total = total_result.scalar() or 0
-
-    documents = await _resolve_uploaded_documents(db, statements, user_id)
-    items = [compose_statement_list_item_response(s, documents[s.id]) for s in statements]
-    return BankStatementListResponse(items=items, total=total)
 
 
 @router.get("/{statement_id}", response_model=BankStatementResponse)
-async def get_statement(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> BankStatementResponse:
+async def get_statement(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> BankStatementResponse:
     """Get a statement with all its transactions."""
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    return await _compose_statement_response(db, statement, user_id)
+    return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
 @router.get("/{statement_id}/document")
-async def get_statement_document(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> Response:
-    """Stream the original uploaded document for a statement, same-origin.
-
-    AC16.33.5: the Stage 1 review PDF preview embeds this authenticated,
-    same-origin endpoint as a ``blob:`` object URL instead of a cross-origin
-    object-storage URL the CSP cannot frame. Auth is the standard Bearer
-    dependency; the frontend fetches the bytes via ``apiDownload`` (which
-    carries the token) and never points an iframe directly at storage.
-    """
+async def get_statement_document(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> Response:
+    """Stream the original uploaded document for a statement, same-origin."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
@@ -688,25 +574,15 @@ async def get_statement_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No uploaded document is associated with this statement",
         )
-
     try:
-        storage = StorageService()
-        content = await asyncio.to_thread(storage.get_object, uploaded_document.file_path)
+        content = await asyncio.to_thread(StorageService().get_object, uploaded_document.file_path)
     except StorageError as exc:
-        logger.warning(
-            "Could not fetch statement document",
-            error=str(exc),
-            statement_id=str(statement_id),
-        )
+        logger.warning("Could not fetch statement document", error=str(exc), statement_id=str(statement_id))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Statement document is temporarily unavailable",
         ) from exc
-
     media_type = mimetypes.guess_type(uploaded_document.original_filename)[0] or "application/pdf"
-    # Inline so the browser renders the document in the review iframe rather
-    # than forcing a download; ``frame-ancestors 'none'`` still blocks framing
-    # from foreign origins.
     return Response(
         content=content,
         media_type=media_type,
@@ -716,9 +592,7 @@ async def get_statement_document(
 
 @router.get("/{statement_id}/transactions", response_model=BankStatementTransactionListResponse)
 async def list_statement_transactions(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    statement_id: UUID, db: DbSession, user_id: CurrentUserId
 ) -> BankStatementTransactionListResponse:
     """List transactions for a statement."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
@@ -726,42 +600,32 @@ async def list_statement_transactions(
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
     items = [
         AtomicTransactionResponse.from_atomic(
-            t,
-            statement.id,
-            suggestion=suggestions.get(t.id),
-            source_row=getattr(t, "source_row", idx + 1),
+            t, statement.id, suggestion=suggestions.get(t.id), source_row=getattr(t, "source_row", idx + 1)
         )
         for idx, t in enumerate(transactions)
     ]
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 
-# Synchronous 200: the import runs inline and returns the full BrokerageImportResponse
-# (counts + reconciliation results), so the operation is complete on response — not a
-# 202 background job (cf. #1099 AC-platform.29.1).
 @router.post(
     "/{statement_id}/brokerage/import",
     response_model=BrokerageImportResponse,
     status_code=status.HTTP_200_OK,
 )
 async def import_brokerage_statement_positions(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    statement_id: UUID, db: DbSession, user_id: CurrentUserId
 ) -> BrokerageImportResponse:
-    """Import portfolio positions from an already parsed brokerage statement."""
+    """Import portfolio positions from a parsed brokerage statement."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
-
     if statement.status not in BROKERAGE_IMPORTABLE_STATUSES:
         raise_bad_request(_brokerage_import_not_ready_reason(statement, len(transactions)))
 
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
-
-    payload = _brokerage_payload_from_persisted_extraction(statement=statement, uploaded_document=uploaded_document)
-    if payload is None:
-        payload = _brokerage_payload_from_statement(statement, transactions)
+    payload = _brokerage_payload_from_persisted_extraction(
+        statement=statement, uploaded_document=uploaded_document
+    ) or _brokerage_payload_from_statement(statement, transactions)
     request_id = ensure_request_id()
     source_document_id = str(statement.uploaded_document_id or statement.id)
     logger.info(
@@ -782,19 +646,13 @@ async def import_brokerage_statement_positions(
             filename=source_filename,
             source_document_id=source_document_id,
         )
-        # #1484: anchor the statement to the broker account the import reconciled
-        # into, closing the source→account traceability gap (a bank statement is
-        # linked the same way during posting). Only set it when not already linked.
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
-        # #2648: only a successful import removes the record of an earlier failed import.
         await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
         await db.commit()
     except Exception as exc:
         is_rejected = isinstance(exc, BrokerageImportRejectedError | PositionServiceError)
-        # #2649: a rejected source (HTTP 422 with a reason) is a warning, not a server fault.
-        log = logger.warning if is_rejected else logger.exception
-        log(
+        (logger.warning if is_rejected else logger.exception)(
             "statement.brokerage_import.failed",
             audit_event="statement.brokerage_import.failed",
             request_id=request_id,
@@ -805,8 +663,6 @@ async def import_brokerage_statement_positions(
             safe_error_message=safe_error_message(str(exc)),
         )
         await db.rollback()
-        # #2648: record the failure in a new transaction. A failure of this write is logged and the
-        # original import error is raised.
         try:
             await record_brokerage_import_failure(
                 db,
@@ -818,7 +674,7 @@ async def import_brokerage_statement_positions(
                 else (str(exc) if is_rejected else None),
             )
             await db.commit()
-        except Exception as record_exc:  # noqa: BLE001 - the import error below is the answer
+        except Exception as record_exc:  # noqa: BLE001
             await db.rollback()
             logger.warning(
                 "statement.brokerage_import.failure_not_recorded",
@@ -827,11 +683,9 @@ async def import_brokerage_statement_positions(
                 error_type=type(record_exc).__name__,
             )
         if isinstance(exc, PositionServiceError):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(exc),
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
         raise
+
     logger.info(
         "statement.brokerage_import.completed",
         audit_event="statement.brokerage_import.completed",
@@ -847,20 +701,13 @@ async def import_brokerage_statement_positions(
         reconcile_updated=import_result.reconcile_updated,
         reconcile_disposed=import_result.reconcile_disposed,
     )
-    # Report the statement's effective anchor: prefer the (possibly pre-existing)
-    # statement.account_id over the import's freshly-resolved one, so the response
-    # never says null while the statement is in fact linked (#1484).
     return BrokerageImportResponse(
         **{**import_result.__dict__, "account_id": statement.account_id or import_result.account_id}
     )
 
 
 @router.delete("/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_statement(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> None:
+async def delete_statement(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> None:
     """Retire a statement from product views while retaining source history."""
     try:
         await retire_statement(
@@ -874,14 +721,9 @@ async def delete_statement(
         raise_not_found("Statement", cause=exc)
 
 
-# --- Two-Stage Review Endpoints ---
-
-
 @router.get("/{statement_id}/review", response_model=StatementReviewResponse)
 async def get_statement_for_review(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    statement_id: UUID, db: DbSession, user_id: CurrentUserId
 ) -> StatementReviewResponse:
     """Get Stage 1 review data for a statement."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
@@ -891,49 +733,24 @@ async def get_statement_for_review(
     pdf_url = None
     if uploaded_document is not None:
         try:
-            storage = StorageService()
             pdf_url = await asyncio.to_thread(
-                storage.generate_presigned_url,
+                StorageService().generate_presigned_url,
                 key=uploaded_document.file_path,
                 expires_in=settings.statement_review_presign_expiry_seconds,
-                # #1391: the review URL is consumed by a browser, so it must use
-                # the public endpoint. Without this the presigned URL points at the
-                # internal object-storage host and the preview cannot load.
                 public=True,
             )
         except StorageError as exc:
             logger.warning(
-                "Could not generate presigned URL for review",
-                error=str(exc),
-                statement_id=str(statement_id),
+                "Could not generate presigned URL for review", error=str(exc), statement_id=str(statement_id)
             )
 
     validation_result = await validate_balance_chain(db, statement_id)
-    source_result_digest = None
-    source_missing_facts: list[str] = []
-    source_envelope_reviewable = False
-    reviewed_envelope = await current_reviewed_statement_envelope(
-        db,
-        user_id=user_id,
-        statement_id=statement.id,
-    )
-    source_result = await get_current_statement_extraction_result(
-        db,
-        user_id=user_id,
-        statement_id=statement.id,
-    )
-    if source_result is not None:
-        source_result_digest = source_result.content_digest
-        source_missing_facts = list(source_result.missing_required_facts)
-        source_envelope_reviewable = supports_reviewed_statement_envelope(source_result)
+    reviewed_envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)
+    source_result = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
+    source_result_digest = source_result.content_digest if source_result is not None else None
 
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
-    base_response = compose_statement_response(
-        statement,
-        uploaded_document,
-        transactions,
-        suggestions=suggestions,
-    )
+    base_response = compose_statement_response(statement, uploaded_document, transactions, suggestions=suggestions)
 
     return StatementReviewResponse(
         **base_response.model_dump(),
@@ -941,49 +758,20 @@ async def get_statement_for_review(
         stage1_reviewed_at=statement.stage1_reviewed_at,
         manual_opening_balance=statement.manual_opening_balance,
         source_result_digest=source_result_digest,
-        source_missing_facts=source_missing_facts,
-        source_envelope_reviewable=source_envelope_reviewable,
+        source_missing_facts=list(source_result.missing_required_facts) if source_result is not None else [],
+        source_envelope_reviewable=supports_reviewed_statement_envelope(source_result)
+        if source_result is not None
+        else False,
         preclassification_in_progress=is_preclassification_in_progress(statement.id),
-        reviewed_envelope=(
-            ReviewedStatementEnvelopeResponse(
-                id=reviewed_envelope.id,
-                source_result_digest=source_result_digest or "",
-                account_id=reviewed_envelope.account_id,
-                currency=reviewed_envelope.currency,
-                period_start=reviewed_envelope.period_start,
-                period_end=reviewed_envelope.period_end,
-                opening_balance=reviewed_envelope.opening_balance,
-                closing_balance=reviewed_envelope.closing_balance,
-                rationale=reviewed_envelope.rationale,
-                review_trace_record_id=reviewed_envelope.review_trace_record_id,
-                created_at=reviewed_envelope.created_at,
-            )
-            if reviewed_envelope is not None
-            else None
-        ),
+        reviewed_envelope=_envelope_response(reviewed_envelope, source_result_digest or "")
+        if reviewed_envelope is not None
+        else None,
         pdf_url=pdf_url,
-        balance_validation_result=BalanceValidationResult(
-            opening_balance=validation_result["opening_balance"],
-            closing_balance=validation_result["closing_balance"],
-            calculated_closing=validation_result["calculated_closing"],
-            opening_delta=validation_result["opening_delta"],
-            closing_delta=validation_result["closing_delta"],
-            opening_match=validation_result["opening_match"],
-            closing_match=validation_result["closing_match"],
-            validated_at=validation_result["validated_at"],
-            previous_closing_balance=validation_result.get("previous_closing_balance"),
-            previous_period_end=validation_result.get("previous_period_end"),
-            cross_period_delta=validation_result.get("cross_period_delta"),
-            cross_period_match=validation_result.get("cross_period_match"),
-            has_date_gap=validation_result.get("has_date_gap"),
-        ),
+        balance_validation_result=BalanceValidationResult.model_validate(validation_result),
     )
 
 
-@router.post(
-    "/{statement_id}/review/envelope",
-    response_model=ReviewedStatementEnvelopeResponse,
-)
+@router.post("/{statement_id}/review/envelope", response_model=ReviewedStatementEnvelopeResponse)
 async def confirm_statement_review_envelope(
     statement_id: UUID,
     request: ReviewedStatementEnvelopeRequest,
@@ -1006,20 +794,7 @@ async def confirm_statement_review_envelope(
     except (TypeError, ValueError) as exc:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-
-    return ReviewedStatementEnvelopeResponse(
-        id=envelope.id,
-        source_result_digest=request.source_result_digest,
-        account_id=envelope.account_id,
-        currency=envelope.currency,
-        period_start=envelope.period_start,
-        period_end=envelope.period_end,
-        opening_balance=envelope.opening_balance,
-        closing_balance=envelope.closing_balance,
-        rationale=envelope.rationale,
-        review_trace_record_id=envelope.review_trace_record_id,
-        created_at=envelope.created_at,
-    )
+    return _envelope_response(envelope, request.source_result_digest)
 
 
 @router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
@@ -1042,25 +817,20 @@ async def approve_statement_stage1(
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)
 
-        auto_filled_count = 0
-        if request and request.auto_fill_default_categories:
-            auto_filled_count = await auto_fill_default_statement_dispositions(db, statement, user_id)
-
+        auto_filled = (
+            await auto_fill_default_statement_dispositions(db, statement, user_id)
+            if request and request.auto_fill_default_categories
+            else 0
+        )
         outcome = await approve_statement_workflow(
-            db,
-            statement_id,
-            user_id,
-            dependencies=compose_statement_posting_dependencies(),
+            db, statement_id, user_id, dependencies=compose_statement_posting_dependencies()
         )
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    # Journal entries created include those posted directly via reviewed dispositions during auto-fill
-    # plus any additional entries created by approve_statement_workflow.
-    created_count = _posting_count_or_conflict(outcome) + auto_filled_count
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    response = await _compose_statement_response(db, statement, user_id)
+    created_count = _posting_count_or_conflict(outcome) + auto_filled
+    response = await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
     return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
 
 
@@ -1071,23 +841,17 @@ async def reject_statement_stage1(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    """Stage 1: Reject statement."""
+    """Stage 1: Reject statement and enqueue reparse."""
     try:
         statement = await reject_statement_workflow(
-            db,
-            statement_id,
-            user_id,
-            reason=decision.notes,
-            dependencies=compose_statement_posting_dependencies(),
+            db, statement_id, user_id, reason=decision.notes, dependencies=compose_statement_posting_dependencies()
         )
         await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
-
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    return await _compose_statement_response(db, statement, user_id)
+    return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
 @router.post("/{statement_id}/review/edit", response_model=Stage1ApprovalResponse)
@@ -1102,10 +866,7 @@ async def edit_and_approve_statement(
     try:
         statement = await edit_and_approve(db, statement_id, user_id, edits_data)
         outcome = await auto_create_posted_entries_for_statement(
-            db,
-            statement,
-            user_id,
-            dependencies=compose_statement_posting_dependencies(),
+            db, statement, user_id, dependencies=compose_statement_posting_dependencies()
         )
         await db.commit()
     except ValueError as e:
@@ -1113,8 +874,7 @@ async def edit_and_approve_statement(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     created_count = _posting_count_or_conflict(outcome)
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    response = await _compose_statement_response(db, statement, user_id)
+    response = await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
     return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
 
 
@@ -1131,12 +891,10 @@ async def set_statement_opening_balance(
         await db.commit()
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    return await _compose_statement_response(db, statement, user_id)
+    return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
 async def wait_for_parse_tasks() -> None:
-    """Wait for all pending background parsing tasks to complete. Useful for tests."""
+    """Wait for all pending background parsing tasks to complete."""
     if _PENDING_PARSE_TASKS:
         await asyncio.gather(*_PENDING_PARSE_TASKS, return_exceptions=True)

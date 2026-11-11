@@ -39,7 +39,7 @@ CONTRACT = PackageContract(
 @vo|base/promotion.py|InvariantResult PromotionDecision PromotionVerdict
 @svc|extension/promotion.py|evaluate_promotion tier_rank
 TraceRecord|agg|base/trace.py
-@vo|base/trace.py|TraceLineage TraceScope TraceScopeKind TraceTargetClass TraceCausality TraceDecisionOutcome TraceDecisionRef TraceDecisionPolicyRegistry TraceRecordType TraceResult VersionedTraceRef TraceAuthorityProfile
+@vo|base/trace.py|DeclarativeTracePolicy TraceLineage TraceScope TraceScopeKind TraceTargetClass TraceCausality TraceDecisionOutcome TraceDecisionRef TraceDecisionPolicyRegistry TraceRecordType TraceResult VersionedTraceRef TraceAuthorityProfile
 TraceRecordCodec|svc|extension/trace_codec.py
 TraceEmitter|svc|extension/trace_emitter.py
 TraceJUnitAdapter|svc|extension/trace_adapters.py
@@ -60,7 +60,7 @@ CurrencyBalance CurrencyBalances RECONCILIATION_AUTO_ACCEPT_SCORE
 RECONCILIATION_REVIEW_SCORE STATEMENT_BALANCE_TOLERANCE InvariantResult
 PromotionDecision PromotionVerdict evaluate_promotion tier_rank TraceRecord
 TraceLineage TraceScope TraceScopeKind TraceTargetClass TraceCausality
-TraceDecisionOutcome TraceDecisionRef TraceDecisionPolicy
+TraceDecisionOutcome TraceDecisionRef TraceDecisionPolicy DeclarativeTracePolicy
 TraceDecisionPolicyRegistry TraceDecisionHead TraceRecordType TraceResult
 VersionedTraceRef TraceAuthorityProfile TraceRecordCodec TraceEmitter
 TraceJUnitAdapter TERMINAL_AUDIT_POLICY_VERSION TerminalAuditSpec

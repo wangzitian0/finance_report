@@ -36,14 +36,8 @@ async def run_transfer_detection_phase(
     created_matches: list[ReconciliationMatch] = []
     base_currency: str | None = None
     for txn in transactions:
-        if txn.id in matched_txn_ids:
+        if txn.id in matched_txn_ids or not detect_transfer_pattern(txn.description):
             continue
-
-        if not detect_transfer_pattern(txn.description):
-            continue
-
-        # The Processing account holds the effective base currency. A row in another currency needs the
-        # FX-aware path, and a leg in its currency would fix the Processing currency of the user (#2415).
         if base_currency is None:
             base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
         if (txn.currency or "").upper() != base_currency:
@@ -56,12 +50,12 @@ async def run_transfer_detection_phase(
             continue
 
         try:
-            existing_transfer_match = await repository.claim_transaction(txn.id)
-            if existing_transfer_match:
+            existing = await repository.claim_transaction(txn.id)
+            if existing:
                 logger.warning(
                     "Transfer already matched - skipping duplicate match creation",
                     txn_id=str(txn.id),
-                    existing_match_id=str(existing_transfer_match.id),
+                    existing_match_id=str(existing.id),
                 )
                 matched_txn_ids.add(txn.id)
                 continue
@@ -96,9 +90,6 @@ async def run_transfer_detection_phase(
                 error=str(exc),
             )
         except Exception as exc:
-            # The caller owns the transaction. Propagating guarantees that a
-            # failed ledger command cannot commit a disposition reservation or
-            # a partial Processing effect.
             logger.exception(
                 "Transfer detection failed; propagating to transaction owner",
                 txn_id=str(txn.id),
@@ -108,9 +99,7 @@ async def run_transfer_detection_phase(
             raise
     if created_matches:
         logger.info(
-            "Transfer detection phase finished",
-            created_matches_count=len(created_matches),
-            user_id=str(user_id),
+            "Transfer detection phase finished", created_matches_count=len(created_matches), user_id=str(user_id)
         )
     return created_matches
 
@@ -126,16 +115,11 @@ async def post_transfer_leg(
     match_score: int,
     extra_breakdown: dict[str, float | str] | None = None,
 ) -> ReconciliationMatch:
-    """Post one Processing leg for a statement transaction and record it as a transfer-leg match.
-
-    An outgoing row debits Processing and credits the custody account. An incoming row debits the
-    custody account and credits Processing. The caller claims the transaction first
-    (``repository.claim_transaction``) and owns the database transaction and the error policy:
-    a currency problem raises before any entry exists.
-    """
-    leg_key = "transfer_out" if txn.direction == "OUT" else "transfer_in"
-    if txn.direction == "OUT":
-        transfer_entry = await create_transfer_out_entry(
+    """Post one Processing leg for a statement transaction and record it as a transfer-leg match."""
+    is_out = txn.direction == "OUT"
+    leg_key = "transfer_out" if is_out else "transfer_in"
+    transfer_entry = (
+        await create_transfer_out_entry(
             db=db,
             user_id=user_id,
             source_account_id=custody_account_id,
@@ -145,8 +129,8 @@ async def post_transfer_leg(
             currency=txn.currency,
             source_id=txn.id,
         )
-    else:
-        transfer_entry = await create_transfer_in_entry(
+        if is_out
+        else await create_transfer_in_entry(
             db=db,
             user_id=user_id,
             dest_account_id=custody_account_id,
@@ -156,6 +140,7 @@ async def post_transfer_leg(
             currency=txn.currency,
             source_id=txn.id,
         )
+    )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(transfer_entry.id)],
@@ -167,11 +152,4 @@ async def post_transfer_leg(
     await repository.add_match(match)
     if transfer_entry.status != JournalEntryStatus.VOID:
         transfer_entry.status = JournalEntryStatus.RECONCILED
-    logger.debug(
-        "Transfer leg posted to the Processing account",
-        txn_id=str(txn.id),
-        entry_id=str(transfer_entry.id),
-        direction=str(txn.direction),
-        amount=str(txn.amount),
-    )
     return match

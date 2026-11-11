@@ -17,9 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-# Eagerly register every ORM model on Base.metadata at app startup so SQLAlchemy
-# can resolve cross-module string relationships (replaces the former
-# ``from src.models import ...`` hub side effect; issue #1461).
 import src.orm_registry  # noqa: E402, F401
 from src.advisor import register_fx_pairs_read
 from src.boot import Bootloader, BootMode
@@ -90,183 +87,99 @@ from src.routers import (
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
-from src.runtime import (
-    register_known_storage_paths_provider,
-    run_storage_sweep,
-    runtime_system_router,
-)
-from src.schemas.errors import (
-    COMMON_ERROR_RESPONSES,
-    ErrorCode,
-    ErrorResponse,
-    error_code_for_status,
-)
+from src.runtime import register_known_storage_paths_provider, run_storage_sweep, runtime_system_router
+from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, error_code_for_status
 
-# Initialize logging early
 configure_logging()
 configure_otel_metrics()
 configure_database_pool_metrics(engine)
 logger = get_logger(__name__)
 
-# Wire the advisor's app-remainder read ports (#1671 Wave B): the advisor is a
-# carved package and must not import services/* itself. #1666 folded the
-# reporting summaries + readiness reads into the published src.reporting root
-# while this PR was in flight (advisor now imports those directly, no port
-# needed); the fx-pair composer is cross-domain composition at this
-# composition root (src/composition.py, #1610 P2 re-homed it from
-# services/market_data_scheduler.py), so it still arrives by injection.
 register_fx_pairs_read(observed_fx_pairs)
-
-# Wire reporting's manual-valuation lines port (#1666). FX rate lookup is no
-# port: ledger, extraction and reporting import src.pricing directly, because
-# pricing imports no other domain package (#2774).
 register_manual_valuation_lines_provider(
     build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
 )
-
 register_known_storage_paths_provider(get_known_storage_paths)
-
-# Wire ledger's and identity's StatementSummary read-model ports to the real
-# extraction-domain lookups (#1675 D6): extraction already depends_on both
-# ledger and identity, so a direct reverse import would cycle (both are domain,
-# L3, same rank).
 register_statement_coverage_reader(get_statement_coverage_rows)
 register_in_flight_parse_checker(find_in_flight_parse_id)
-
-# Wire extraction's managed-position reconciler port to the real portfolio
-# service (#1675 D5c): extraction and portfolio are same-layer domains, but
-# portfolio now imports extraction's published ORM entities, so extraction's
-# former direct PositionService import would close a dependency cycle. The
-# composition root wires the callable instead.
 register_position_reconciler(PositionService().reconcile_positions)
 
-# Wire the domain-event subscribers (#1642): the composition root owns the
-# SubscriberRegistry and the OutboxRelay that dispatches committed outbox rows
-# to them — platform (L1) must not import a domain package (L3), so the
-# registration happens here, the same inversion as the provider ports above.
-# First (precedent-setting) subscriber: pricing ingests extraction's
-# statement-extracted PriceObserved publications.
 outbox_subscribers = SubscriberRegistry()
 subscribe_price_ingest(outbox_subscribers, session_factory=async_session_maker)
 outbox_relay = OutboxRelay(outbox_subscribers)
-
-#: Seconds the outbox-relay background task sleeps between drain passes.
 OUTBOX_RELAY_POLL_SECONDS = 1.0
 
 
 async def run_outbox_relay(stop_event: asyncio.Event) -> None:
-    """Drain committed outbox rows periodically until shutdown.
-
-    The durable half of the transactional outbox (``common/platform/readme.md``
-    "Running the relay"): each pass opens a fresh session and dispatches one
-    batch of pending rows to the subscribed handlers. A failing pass is logged
-    and retried on the next pass — delivery is at-least-once and handlers are
-    idempotent, so a retry is always safe.
-    """
+    """Drain committed outbox rows periodically until shutdown."""
     while not stop_event.is_set():
         try:
             async with async_session_maker() as session:
                 await outbox_relay.run_once(session)
         except Exception:
             logger.exception("Outbox relay pass failed")
-
-        try:
+        with suppress(TimeoutError):
             await asyncio.wait_for(stop_event.wait(), timeout=OUTBOX_RELAY_POLL_SECONDS)
-        except TimeoutError:
-            continue
 
 
 def _init_otel_instrumentation() -> None:
-    """Initialize OpenTelemetry auto-instrumentation for SQLAlchemy and HTTPX.
-
-    These are global instrumentors that do not require the FastAPI app instance,
-    so they are wired here. FastAPI request instrumentation is bound to the app
-    instance in `_instrument_fastapi_app` after the app is created.
-    Must be called after the TracerProvider is configured.
-    """
     if not settings.otel_exporter_otlp_endpoint:
         return
-
     try:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # pyright: ignore[reportMissingImports]
         from opentelemetry.instrumentation.sqlalchemy import (
             SQLAlchemyInstrumentor,  # pyright: ignore[reportMissingImports]
         )
 
-        # Instrument SQLAlchemy with the async engine
         SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
-
-        # Instrument HTTPX for outbound HTTP calls
         HTTPXClientInstrumentor().instrument()
-
         logger.info("OTEL instrumentation initialized", components=["sqlalchemy", "httpx"])
-    except Exception:  # pragma: no cover - defensive import guard
+    except Exception:  # pragma: no cover
         logger.warning("OTEL instrumentation not available", exc_info=True)
 
 
 def _instrument_fastapi_app(app: FastAPI) -> None:
-    """Apply OpenTelemetry request instrumentation to the FastAPI app instance.
-
-    Uses ``FastAPIInstrumentor.instrument_app(app)`` (the supported per-app API).
-    The previous code used the base instrumentor's no-arg classmethod with no
-    instance and before the app existed, which raised and silently disabled
-    request tracing in production (see issue #768/#576).
-    """
     if not settings.otel_exporter_otlp_endpoint:
         return
-
     try:
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # pyright: ignore[reportMissingImports]
+        from opentelemetry.instrumentation.fastapi import (
+            FastAPIInstrumentor,  # pyright: ignore[reportMissingImports]
+        )
 
         FastAPIInstrumentor.instrument_app(app)
         mark_fastapi_instrumentation_active(True)
         logger.info("OTEL FastAPI request instrumentation applied")
-    except Exception:  # pragma: no cover - defensive import guard
+    except Exception:  # pragma: no cover
         mark_fastapi_instrumentation_active(False)
         logger.warning("OTEL FastAPI instrumentation not available", exc_info=True)
 
 
-# Initialize global (app-independent) instrumentation after logging is configured
 _init_otel_instrumentation()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Application lifespan - init DB on startup."""
+    """Application lifespan - init DB and background workers on startup."""
     _ = app
-    # Environment variable check
-    # Bootloader check (Critical Only)
-    # This ensures we have DB connectivity before accepting traffic
-    # Will sys.exit(1) if critical checks fail
     await Bootloader.validate(mode=BootMode.CRITICAL)
     Bootloader.print_config()
-
     await init_db()
     stop_event = asyncio.Event()
-    supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
-    # Scope discovery is inverted (#1610 P2): pricing's scheduler receives the
-    # composition root's cross-domain scope composer instead of reading other
-    # domains itself — same inversion as the provider ports registered above.
-    market_data_task = asyncio.create_task(run_market_data_scheduler(stop_event, market_data_scopes))
-    sweep_task = asyncio.create_task(run_storage_sweep(stop_event))
-    outbox_relay_task = asyncio.create_task(run_outbox_relay(stop_event))
+    tasks = [
+        asyncio.create_task(run_parsing_supervisor(stop_event)),
+        asyncio.create_task(run_market_data_scheduler(stop_event, market_data_scopes)),
+        asyncio.create_task(run_storage_sweep(stop_event)),
+        asyncio.create_task(run_outbox_relay(stop_event)),
+    ]
     log_observability_startup(logger)
     logger.info("Application started", version="0.1.0")
     yield
     stop_event.set()
-    supervisor_task.cancel()
-    market_data_task.cancel()
-    sweep_task.cancel()
-    outbox_relay_task.cancel()
-
-    with suppress(asyncio.CancelledError):
-        await supervisor_task
-    with suppress(asyncio.CancelledError):
-        await market_data_task
-    with suppress(asyncio.CancelledError):
-        await sweep_task
-    with suppress(asyncio.CancelledError):
-        await outbox_relay_task
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        with suppress(asyncio.CancelledError):
+            await task
     logger.info("Application shutting down")
 
 
@@ -276,98 +189,72 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-
-# Apply OTEL request instrumentation to the app instance (issue #768/#576).
 _instrument_fastapi_app(app)
 
-
-# Liveness and readiness probe paths. The container HEALTHCHECK and the deploy gates call
-# ``/health`` on a schedule; a 2xx response to a probe writes no request log line, because
-# those lines made 94.5% of the production log volume (#2860). This is the only definition of
-# the set: the rate-limit exemption below builds on it.
 _PROBE_PATHS = frozenset({"/health"})
+_RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
+    {"/ping", "/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
+)
 
 
 def _is_successful_probe(path: str, status_code: int) -> bool:
-    """Return True when a request to a probe path ended with a 2xx status."""
     return path in _PROBE_PATHS and 200 <= status_code < 300
+
+
+def _bind_request_ctx(request_id: str, method: str, path: str) -> None:
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(request_id=request_id, method=method, path=path)
+
+
+def _error_json(
+    status_code: int,
+    error_id: str,
+    detail: Any,
+    *,
+    request_id: str | None = None,
+    headers: dict[str, str] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> JSONResponse:
+    rid = request_id if request_id is not None else current_request_id()
+    content: dict[str, Any] = {"error_id": error_id, "detail": detail, "request_id": rid}
+    if extra:
+        content.update(extra)
+    return JSONResponse(status_code=status_code, content=content, headers=headers)
 
 
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next: Any) -> Response:
-    """Middleware to inject Request-ID and log request details.
-
-    A successful probe request logs no line. A failed probe, any other request and any
-    exception keep their line. Request metrics and the response ``X-Request-ID`` header
-    apply to every request, probes included.
-    """
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    # The 500 handler runs in ServerErrorMiddleware, outside the task that binds the
-    # contextvars below. It reads this same id from the request scope (#2649).
     request.state.request_id = request_id
-
-    # Clear and set contextvars for this request
-    # Note: structlog.contextvars are isolated per async context/task.
-    # We clear to ensure a clean slate for the top-level request task.
-    structlog.contextvars.clear_contextvars()
-    structlog.contextvars.bind_contextvars(
-        request_id=request_id,
-        method=request.method,
-        path=request.url.path,
-    )
-
+    _bind_request_ctx(request_id, request.method, request.url.path)
     start_time = time.perf_counter()
     try:
         response = await call_next(request)
-        duration = time.perf_counter() - start_time
-
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
         if not _is_successful_probe(request.url.path, response.status_code):
-            logger.info(
-                "HTTP Request",
-                status_code=response.status_code,
-                duration_ms=round(duration * 1000, 2),
-            )
+            logger.info("HTTP Request", status_code=response.status_code, duration_ms=duration_ms)
         record_http_request(
             method=request.method,
             route=http_route_label_from_scope(request.scope),
             status_code=response.status_code,
-            duration_ms=round(duration * 1000, 2),
+            duration_ms=duration_ms,
         )
-
-        # Inject Request-ID into response headers
         response.headers["X-Request-ID"] = request_id
         return response
     except Exception as exc:
-        duration = time.perf_counter() - start_time
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
         record_http_request(
             method=request.method,
             route=http_route_label_from_scope(request.scope),
             status_code=500,
-            duration_ms=round(duration * 1000, 2),
+            duration_ms=duration_ms,
         )
         logger.exception(
-            "HTTP Request Failed",
-            duration_ms=round(duration * 1000, 2),
-            error=str(exc),
-            error_id=ErrorIds.UNHANDLED_EXCEPTION,
+            "HTTP Request Failed", duration_ms=duration_ms, error=str(exc), error_id=ErrorIds.UNHANDLED_EXCEPTION
         )
         raise
 
 
-# Paths exempt from global API rate limiting: the probe paths plus the demo ping and the API docs
-_RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
-    {
-        "/ping",
-        "/docs",
-        "/docs/oauth2-redirect",
-        "/openapi.json",
-        "/redoc",
-    }
-)
-
-
-# Composition root owns the config-bound app-wide rate limiter; the platform
-# package stays config-free (only the RateLimiter class lives there).
 api_rate_limiter = RateLimiter(
     RateLimitConfig(
         max_requests=settings.api_rate_limit_requests,
@@ -379,21 +266,14 @@ api_rate_limiter = RateLimiter(
 
 @app.middleware("http")
 async def global_rate_limit_middleware(request: Request, call_next: Any) -> Response:
-    """Global API rate limiting middleware. Runs before logging middleware (LIFO order)."""
     path = request.url.path
-    if path in _RATE_LIMIT_EXEMPT_PATHS or path.startswith("/docs") or path.startswith("/redoc"):
+    if path in _RATE_LIMIT_EXEMPT_PATHS or path.startswith(("/docs", "/redoc")):
         return await call_next(request)
-
     client_ip = get_client_ip(request, trust_proxy=settings.trust_proxy)
     allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
     if not allowed:
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
-        structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(
-            request_id=request_id,
-            method=request.method,
-            path=path,
-        )
+        _bind_request_ctx(request_id, request.method, path)
         record_rate_limit_rejected(scope="global_api")
         log_security_warning(
             logger,
@@ -403,14 +283,11 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
             path=path,
             retry_after=retry_after,
         )
-        body = ErrorResponse(
-            error_id=ErrorCode.TOO_MANY_REQUESTS.value,
-            detail="Rate limit exceeded. Please try again later.",
+        return _error_json(
+            429,
+            ErrorCode.TOO_MANY_REQUESTS.value,
+            "Rate limit exceeded. Please try again later.",
             request_id=request_id,
-        )
-        return JSONResponse(
-            status_code=429,
-            content=body.model_dump(),
             headers={"Retry-After": str(retry_after), "X-Request-ID": request_id},
         )
     return await call_next(request)
@@ -418,7 +295,6 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
 
 @app.exception_handler(BaseAppException)
 async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
-    """Handle BaseAppException: return structured JSON with error_id and correct HTTP status."""
     _ = request
     request_id = current_request_id()
     logger.warning(
@@ -428,93 +304,46 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
         message=exc.message,
         request_id=request_id,
     )
-    body = ErrorResponse(error_id=exc.error_id, detail=exc.message, request_id=request_id)
-    return JSONResponse(status_code=exc.status_code, content=body.model_dump())
+    return _error_json(exc.status_code, exc.error_id, exc.message, request_id=request_id)
 
 
 @app.exception_handler(StatementClassificationBusy)
 async def statement_classification_busy_handler(request: Request, exc: StatementClassificationBusy) -> JSONResponse:
-    """Answer 409 when another task still classifies the statement of a request (#2637).
-
-    One handler serves every route that can wait for the lock: the approve, the fill and the correction. The
-    request changed nothing, and the session rolls back when the request ends.
-    """
     _ = request
-    request_id = current_request_id()
-    body = ErrorResponse(error_id=error_code_for_status(409).value, detail=str(exc), request_id=request_id)
-    return JSONResponse(status_code=409, content=body.model_dump())
+    return _error_json(409, error_code_for_status(409).value, str(exc))
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    """Emit the structured ``ErrorResponse`` shape for plain ``HTTPException``\\ s (#1005).
-
-    Routers that still raise ``HTTPException(detail="...")`` get a stable,
-    machine-readable ``error_id`` derived from the status code, so the frontend can
-    branch on a code instead of parsing ``detail`` text. ``detail`` is preserved as
-    a human-readable string for display and back-compat with existing callers.
-    """
     _ = request
-    request_id = current_request_id()
-    # Preserve the original ``detail`` verbatim: most call sites pass a string, but a
-    # few raise ``HTTPException(detail={...})`` with a structured body. We add
-    # ``error_id``/``request_id`` around it rather than coercing it to a string, so
-    # those structured-detail endpoints keep working.
-    content = {
-        "error_id": error_code_for_status(exc.status_code).value,
-        "detail": exc.detail,
-        "request_id": request_id,
-    }
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=content,
+    return _error_json(
+        exc.status_code,
+        error_code_for_status(exc.status_code).value,
+        exc.detail,
         headers=getattr(exc, "headers", None),
     )
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    """Add ``error_id`` and ``request_id`` to the FastAPI 422 body (#2649).
-
-    ``detail`` keeps the FastAPI list of errors without change, so existing callers still work.
-    """
     _ = request
-    content = {
-        "error_id": ErrorCode.UNPROCESSABLE_ENTITY.value,
-        "detail": jsonable_encoder(exc.errors()),
-        "request_id": current_request_id(),
-    }
-    return JSONResponse(status_code=422, content=content)
+    return _error_json(422, ErrorCode.UNPROCESSABLE_ENTITY.value, jsonable_encoder(exc.errors()))
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Global exception handler to ensure a consistent structured JSON response."""
-    # Log is already handled by middleware or logger.exception
-
-    # Only show exception details in DEBUG mode
-    if settings.debug:
-        detail = str(exc)
-        trace = traceback.format_exc()
-    else:
-        detail = "An internal server error occurred. Please try again later."
-        trace = None
-
-    # #2649: this handler runs in ServerErrorMiddleware, outside the request task, so the
-    # contextvar is empty here. logging_middleware put the same id in the request scope.
+    detail = str(exc) if settings.debug else "An internal server error occurred. Please try again later."
     request_id = getattr(request.state, "request_id", None) or current_request_id()
-    content: dict[str, Any] = ErrorResponse(
-        error_id=ErrorCode.INTERNAL_ERROR.value,
-        detail=detail,
+    return _error_json(
+        500,
+        ErrorCode.INTERNAL_ERROR.value,
+        detail,
         request_id=request_id,
-    ).model_dump()
-    if settings.debug:
-        content["trace"] = trace
-    headers = {"X-Request-ID": request_id} if request_id else None
-    return JSONResponse(status_code=500, content=content, headers=headers)
+        headers={"X-Request-ID": request_id} if request_id else None,
+        extra={"trace": traceback.format_exc()} if settings.debug else None,
+    )
 
 
-# CORS for frontend
 _cors_regex = settings.cors_origin_regex.strip() if settings.cors_origin_regex else ""
 app.add_middleware(
     CORSMiddleware,
@@ -525,34 +354,33 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-# Include routers. Every router declares the shared 4xx/5xx ErrorResponse contract
-# (#1005) so the structured-error shape is visible in the OpenAPI schema and the
-# generated frontend client.
-_router_kwargs = {"responses": COMMON_ERROR_RESPONSES}
-app.include_router(auth_router, **_router_kwargs)
-app.include_router(accounts.router, **_router_kwargs)
-app.include_router(app_config.router, **_router_kwargs)
-app.include_router(ai_feedback.router, **_router_kwargs)
-app.include_router(audit.router, **_router_kwargs)
-app.include_router(assets.router, **_router_kwargs)
-app.include_router(chat.router, **_router_kwargs)
-app.include_router(classifications.router, **_router_kwargs)
-app.include_router(corrections.router, **_router_kwargs)
-app.include_router(evidence.router, **_router_kwargs)
-app.include_router(journal.router, **_router_kwargs)
-app.include_router(market_data.router, **_router_kwargs)
-app.include_router(metrics.router, **_router_kwargs)
-app.include_router(income.router, **_router_kwargs)
-app.include_router(reports.router, **_router_kwargs)
-app.include_router(statements.router, **_router_kwargs)
-app.include_router(review.router, **_router_kwargs)
-app.include_router(review.conflicts_router, **_router_kwargs)
-app.include_router(reconciliation_router, **_router_kwargs)
-app.include_router(users_router, **_router_kwargs)
-app.include_router(user_settings.router, **_router_kwargs)
-app.include_router(llm.router, **_router_kwargs)
-app.include_router(portfolio.router, **_router_kwargs)
-app.include_router(workflow.router, **_router_kwargs)
-app.include_router(workflow.notifications_router, **_router_kwargs)
-app.include_router(runtime_system_router, **_router_kwargs)
-app.include_router(platform_system_router, **_router_kwargs)
+for _router in (
+    auth_router,
+    accounts.router,
+    app_config.router,
+    ai_feedback.router,
+    audit.router,
+    assets.router,
+    chat.router,
+    classifications.router,
+    corrections.router,
+    evidence.router,
+    journal.router,
+    market_data.router,
+    metrics.router,
+    income.router,
+    reports.router,
+    statements.router,
+    review.router,
+    review.conflicts_router,
+    reconciliation_router,
+    users_router,
+    user_settings.router,
+    llm.router,
+    portfolio.router,
+    workflow.router,
+    workflow.notifications_router,
+    runtime_system_router,
+    platform_system_router,
+):
+    app.include_router(_router, responses=COMMON_ERROR_RESPONSES)

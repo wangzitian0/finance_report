@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from src.audit import (
+    DeclarativeTracePolicy,
     Ratio,
     TraceAuthorityProfile,
-    TraceCausality,
     TraceDecisionOutcome,
     TraceDecisionPolicyRegistry,
     TraceRecord,
@@ -44,50 +44,26 @@ def _authority(*, tier: str, proof_kind: str, provenance: str, producer_version:
     )
 
 
-@dataclass(frozen=True, slots=True)
-class ExtractionInvariantTracePolicy:
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef(kind="invariant", id="extraction-result-integrity", version="1")
-
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
-
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.DIRECT
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
-
-    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
-        passed = len(parents) == 1 and parents[0].result is TraceResult.PASS
-        return TraceDecisionOutcome(
-            result=TraceResult.AUTHORITATIVE if passed else TraceResult.REJECTED,
-            reason_code="result_integrity_satisfied" if passed else "result_integrity_failed",
-            score=Ratio(Decimal("1" if passed else "0")),
-        )
+_CODE_AUTH = _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
 
 
 @dataclass(frozen=True, slots=True)
-class ExtractionPromotionTracePolicy:
-    @property
-    def assertion(self) -> VersionedTraceRef:
-        return VersionedTraceRef(kind="promotion", id="statement-extraction-promotion", version="1")
+class ExtractionInvariantTracePolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef(kind="invariant", id="extraction-result-integrity", version="1")
+    )
+    authority: TraceAuthorityProfile = field(default_factory=lambda: _CODE_AUTH)
+    pass_reason: str = "result_integrity_satisfied"
+    fail_reason: str = "result_integrity_failed"
+    with_unit_score: bool = True
 
-    @property
-    def authority(self) -> TraceAuthorityProfile:
-        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
 
-    @property
-    def causality(self) -> TraceCausality:
-        return TraceCausality.DIRECT
-
-    @property
-    def target_class(self) -> TraceTargetClass:
-        return TraceTargetClass.FINANCIAL
+@dataclass(frozen=True, slots=True)
+class ExtractionPromotionTracePolicy(DeclarativeTracePolicy):
+    assertion: VersionedTraceRef = field(
+        default_factory=lambda: VersionedTraceRef(kind="promotion", id="statement-extraction-promotion", version="1")
+    )
+    authority: TraceAuthorityProfile = field(default_factory=lambda: _CODE_AUTH)
 
     def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
         observation = next((item for item in parents if item.reason_code.startswith("extraction_")), None)
@@ -122,40 +98,21 @@ def extraction_trace_policy_registry() -> TraceDecisionPolicyRegistry:
 
 
 def build_extraction_trace_records(
-    result: StatementExtractionResult,
-    *,
-    user_id: UUID,
-    execution_id: str,
-    occurred_at: datetime,
+    result: StatementExtractionResult, *, user_id: UUID, execution_id: str, occurred_at: datetime
 ) -> tuple[TraceRecord, ...]:
-    """Build the exact observation -> code guard -> promotion causal graph."""
     scope = TraceScope.tenant(user_id)
-    target = VersionedTraceRef(
-        kind="statement_extraction_result",
-        id=str(result.result_id),
-        version=result.content_digest,
-    )
-    authority = {
+    target = VersionedTraceRef("statement_extraction_result", str(result.result_id), result.content_digest)
+    tier, proof, prov = {
         ExtractionMethod.DETERMINISTIC: ("CODE-ONLY", "exact", "deterministic"),
         ExtractionMethod.LIVE_LLM: ("LLM-LED", "invariant", "live_llm"),
         ExtractionMethod.GOLDEN_FIXTURE: ("CODE-LED", "property", "golden_fixture@extraction"),
     }[result.provenance.method]
-    complete = not result.missing_required_facts
-    result_observation = TraceRecord.observation(
+    result_obs = TraceRecord.observation(
         scope=scope,
         target=target,
         target_class=TraceTargetClass.FINANCIAL,
-        assertion=VersionedTraceRef(
-            kind="extraction",
-            id=result.source_type.value,
-            version=result.producer_version,
-        ),
-        authority=_authority(
-            tier=authority[0],
-            proof_kind=authority[1],
-            provenance=authority[2],
-            producer_version=result.producer_version,
-        ),
+        assertion=VersionedTraceRef("extraction", result.source_type.value, result.producer_version),
+        authority=_authority(tier=tier, proof_kind=proof, provenance=prov, producer_version=result.producer_version),
         result=TraceResult.PASS,
         execution_id=execution_id,
         evidence_manifest_digest=result.source_content_digest,
@@ -163,21 +120,16 @@ def build_extraction_trace_records(
         score=Ratio(result.confidence),
         reason_code=(
             "extraction_balance_validated"
-            if result.balance_validated is True and complete
+            if result.balance_validated is True and not result.missing_required_facts
             else "extraction_review_required"
         ),
     )
-    integrity_observation = TraceRecord.observation(
+    integrity_obs = TraceRecord.observation(
         scope=scope,
         target=target,
         target_class=TraceTargetClass.FINANCIAL,
-        assertion=VersionedTraceRef(kind="invariant", id="result-schema-and-digest", version="1"),
-        authority=_authority(
-            tier="CODE-ONLY",
-            proof_kind="exact",
-            provenance="deterministic",
-            producer_version="1",
-        ),
+        assertion=VersionedTraceRef("invariant", "result-schema-and-digest", "1"),
+        authority=_CODE_AUTH,
         result=TraceResult.PASS,
         execution_id=execution_id,
         evidence_manifest_digest=result.content_digest,
@@ -185,21 +137,20 @@ def build_extraction_trace_records(
         score=Ratio(Decimal("1")),
         reason_code="result_schema_and_digest_valid",
     )
-    invariant_policy = ExtractionInvariantTracePolicy()
-    integrity_decision = TraceRecord.decision(
+    integrity_dec = TraceRecord.decision(
         scope=scope,
         target=target,
-        policy=invariant_policy,
+        policy=ExtractionInvariantTracePolicy(),
         execution_id=execution_id,
         occurred_at=occurred_at,
-        parents=(integrity_observation,),
+        parents=(integrity_obs,),
     )
-    promotion_decision = TraceRecord.decision(
+    promotion_dec = TraceRecord.decision(
         scope=scope,
         target=target,
         policy=ExtractionPromotionTracePolicy(),
         execution_id=execution_id,
         occurred_at=occurred_at,
-        parents=(result_observation, integrity_decision),
+        parents=(result_obs, integrity_dec),
     )
-    return result_observation, integrity_observation, integrity_decision, promotion_decision
+    return result_obs, integrity_obs, integrity_dec, promotion_dec

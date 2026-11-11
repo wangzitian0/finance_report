@@ -28,9 +28,9 @@ from src.extraction.orm.statement_summary import StatementSummary
 
 
 def _unproven(
-    *,
     statement_id: UUID,
     reason_code: str,
+    *,
     source_result_id: UUID | None = None,
     source_result: StatementExtractionResult | None = None,
     effective_period_start: date | None = None,
@@ -53,184 +53,112 @@ def _unproven(
 
 
 async def resolve_statement_contribution(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-    statement_id: UUID,
+    db: AsyncSession, *, user_id: UUID, statement_id: UUID
 ) -> ResolvedStatementContribution:
-    """Resolve exactly one current statement source result, never a projection.
-
-    An exact current human envelope takes precedence when present. Otherwise a
-    complete source requires its current extraction-promotion decision, while
-    missing source facts require explicit review. A revoked human decision never
-    falls back to machine promotion; both paths pin the immutable result version.
-    """
+    """Resolve one current statement source result into an authoritative or unproven contribution."""
     statement = await db.get(StatementSummary, statement_id)
     if statement is None or statement.user_id != user_id:
-        return _unproven(statement_id=statement_id, reason_code="missing_statement")
+        return _unproven(statement_id, "missing_statement")
+    doc_id = statement.uploaded_document_id
     if statement.current_extraction_result_id is None:
-        return _unproven(
-            statement_id=statement.id,
-            reason_code="missing_current_source_result",
-            source_document_id=statement.uploaded_document_id,
-            account_id=statement.account_id,
-        )
+        return _unproven(statement.id, "missing_current_source_result", source_document_id=doc_id, account_id=statement.account_id)
 
     source_record = await db.get(StatementExtractionResultRecord, statement.current_extraction_result_id)
     if source_record is None or source_record.user_id != user_id or source_record.statement_id != statement.id:
-        return _unproven(
-            statement_id=statement.id,
-            reason_code="missing_current_source_result",
-            source_document_id=statement.uploaded_document_id,
-            account_id=statement.account_id,
-        )
+        return _unproven(statement.id, "missing_current_source_result", source_document_id=doc_id, account_id=statement.account_id)
     try:
         source_result = StatementExtractionResult.from_payload(source_record.payload)
     except (KeyError, TypeError, ValueError):
         return _unproven(
-            statement_id=statement.id,
+            statement.id,
+            "invalid_current_source_result",
             source_result_id=source_record.id,
-            reason_code="invalid_current_source_result",
-            source_document_id=statement.uploaded_document_id,
-            account_id=statement.account_id,
-        )
-    if source_result.content_digest != source_record.content_digest:
-        return _unproven(
-            statement_id=statement.id,
-            source_result_id=source_record.id,
-            source_result=source_result,
-            effective_period_start=source_result.period_start,
-            effective_period_end=source_result.period_end,
-            reason_code="source_result_digest_mismatch",
-            source_document_id=statement.uploaded_document_id,
+            source_document_id=doc_id,
             account_id=statement.account_id,
         )
 
+    statement_id_val = statement.id
+    initial_account_id = statement.account_id
+    source_record_id = source_record.id
+
+    def fail(
+        reason: str,
+        *,
+        acct: UUID | None = initial_account_id,
+        ps: date | None = source_result.period_start,
+        pe: date | None = source_result.period_end,
+    ) -> ResolvedStatementContribution:
+        return _unproven(
+            statement_id_val,
+            reason,
+            source_result_id=source_record_id,
+            source_result=source_result,
+            effective_period_start=ps,
+            effective_period_end=pe,
+            source_document_id=doc_id,
+            account_id=acct,
+        )
+
+    if source_result.content_digest != source_record.content_digest:
+        return fail("source_result_digest_mismatch")
+
     repository = SqlTraceRecordRepository(db, extraction_trace_policy_registry())
     scope = TraceScope.tenant(user_id)
-    effective_period_start: date | None = source_result.period_start
-    effective_period_end: date | None = source_result.period_end
+    eff_start: date | None = source_result.period_start
+    eff_end: date | None = source_result.period_end
     account_id = statement.account_id
     envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)
     if source_result.requires_review or envelope is not None:
         if envelope is None or envelope.source_result_id != source_record.id:
-            return _unproven(
-                statement_id=statement.id,
-                source_result_id=source_record.id,
-                source_result=source_result,
-                effective_period_start=source_result.period_start,
-                effective_period_end=source_result.period_end,
-                reason_code="missing_reviewed_envelope",
-                source_document_id=statement.uploaded_document_id,
-                account_id=statement.account_id,
-            )
+            return fail("missing_reviewed_envelope")
         if statement.account_id != envelope.account_id:
-            return _unproven(
-                statement_id=statement.id,
-                source_result_id=source_record.id,
-                source_result=source_result,
-                effective_period_start=source_result.period_start,
-                effective_period_end=source_result.period_end,
-                reason_code="custody_account_mismatch",
-                source_document_id=statement.uploaded_document_id,
-            )
+            return fail("custody_account_mismatch", acct=None)
         account_id = envelope.account_id
-        target = VersionedTraceRef(
-            kind="reviewed_statement_envelope",
-            id=str(source_result.result_id),
-            version=envelope.command_digest,
-        )
+        target = VersionedTraceRef("reviewed_statement_envelope", str(source_result.result_id), envelope.command_digest)
         assertion = ReviewedEnvelopeDecisionTracePolicy().assertion
         expected_decision_id = envelope.review_trace_record_id
-        effective_period_start = envelope.period_start
-        effective_period_end = envelope.period_end
+        eff_start, eff_end = envelope.period_start, envelope.period_end
     else:
         target = VersionedTraceRef(
-            kind="statement_extraction_result",
-            id=str(source_result.result_id),
-            version=source_result.content_digest,
+            "statement_extraction_result", str(source_result.result_id), source_result.content_digest
         )
         assertion = ExtractionPromotionTracePolicy().assertion
         expected_decision_id = None
 
     decision = await repository.current_decision(scope, TraceLineage.from_refs(target, assertion))
     if decision is None:
-        return _unproven(
-            statement_id=statement.id,
-            source_result_id=source_record.id,
-            source_result=source_result,
-            effective_period_start=source_result.period_start,
-            effective_period_end=source_result.period_end,
-            reason_code="missing_current_decision",
-            source_document_id=statement.uploaded_document_id,
-            account_id=account_id,
-        )
+        return fail("missing_current_decision", acct=account_id)
     if decision.target != target or (expected_decision_id is not None and decision.record_id != expected_decision_id):
-        return _unproven(
-            statement_id=statement.id,
-            source_result_id=source_record.id,
-            source_result=source_result,
-            effective_period_start=source_result.period_start,
-            effective_period_end=source_result.period_end,
-            reason_code="target_mismatched_decision",
-            source_document_id=statement.uploaded_document_id,
-            account_id=account_id,
-        )
+        return fail("target_mismatched_decision", acct=account_id)
     if decision.result is not TraceResult.AUTHORITATIVE:
-        return _unproven(
-            statement_id=statement.id,
-            source_result_id=source_record.id,
-            source_result=source_result,
-            effective_period_start=source_result.period_start,
-            effective_period_end=source_result.period_end,
-            reason_code="non_authoritative_decision",
-            source_document_id=statement.uploaded_document_id,
-            account_id=account_id,
-        )
+        return fail("non_authoritative_decision", acct=account_id)
     if (
         source_result.source_type is StatementSourceType.BANK
         or source_result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
     ) and account_id is None:
-        return _unproven(
-            statement_id=statement.id,
-            source_result_id=source_record.id,
-            source_result=source_result,
-            effective_period_start=effective_period_start,
-            effective_period_end=effective_period_end,
-            reason_code="missing_custody_account",
-            source_document_id=statement.uploaded_document_id,
-        )
+        return fail("missing_custody_account", acct=None, ps=eff_start, pe=eff_end)
     return ResolvedStatementContribution(
         statement_id=statement.id,
         source_result_id=source_record.id,
         source_result=source_result,
-        effective_period_start=effective_period_start,
-        effective_period_end=effective_period_end,
+        effective_period_start=eff_start,
+        effective_period_end=eff_end,
         state="authoritative",
         reason_code=None,
-        decision=TraceDecisionRef(
-            decision_id=decision.record_id,
-            target=decision.target,
-            assertion=decision.assertion,
-        ),
-        source_document_id=statement.uploaded_document_id,
+        decision=TraceDecisionRef(decision.record_id, decision.target, decision.assertion),
+        source_document_id=doc_id,
         account_id=account_id,
     )
 
 
 async def list_statement_contributions(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-    as_of: date,
+    db: AsyncSession, *, user_id: UUID, as_of: date
 ) -> tuple[ResolvedStatementContribution, ...]:
-    """Resolve only current source results whose statement period is in scope."""
     statement_ids = (
         (
             await db.execute(
                 select(StatementSummary.id)
-                .where(StatementSummary.user_id == user_id)
-                .where(StatementSummary.current_extraction_result_id.is_not(None))
+                .where(StatementSummary.user_id == user_id, StatementSummary.current_extraction_result_id.is_not(None))
                 .order_by(StatementSummary.id)
             )
         )
@@ -238,11 +166,8 @@ async def list_statement_contributions(
         .all()
     )
     contributions = [
-        await resolve_statement_contribution(db, user_id=user_id, statement_id=statement_id)
-        for statement_id in statement_ids
+        await resolve_statement_contribution(db, user_id=user_id, statement_id=sid) for sid in statement_ids
     ]
     return tuple(
-        contribution
-        for contribution in contributions
-        if contribution.effective_period_end is not None and contribution.effective_period_end <= as_of
+        c for c in contributions if c.effective_period_end is not None and c.effective_period_end <= as_of
     )

@@ -1,16 +1,10 @@
-"""`DependencyCheck` adapters — the concrete presence probes.
-
-These own the reachability logic (relocated from `apps/backend/src/boot.py`'s
-`_check_*`); `boot.Bootloader` now delegates to them. Config values are injected
-via the constructor (the adapters never reach a global `settings`), so the
-package stays a pure `kernel` leaf. Each returns an `infra2_sdk.runtime.health.ProbeResult`
-(binary status + detail + timing); probes never raise for an ordinary outage — an
-unreachable backend is `ABSENT`.
-"""
+"""`DependencyCheck` adapters — concrete presence probes."""
 
 from __future__ import annotations
 
+import asyncio
 import time
+from urllib.parse import urlparse
 
 from infra2_sdk.runtime import (
     HttpClientSettings,
@@ -23,13 +17,20 @@ from infra2_sdk.runtime.health import DependencyStatus, ProbeResult
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+_HTTP_5S = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
+
+
+def _ok(name: str, detail: str, start: float) -> ProbeResult:
+    return ProbeResult(name, DependencyStatus.PRESENT, detail, (time.perf_counter() - start) * 1000)
+
+
+def _absent(name: str, detail: str = "Not configured", start: float | None = None) -> ProbeResult:
+    elapsed = 0.0 if start is None else (time.perf_counter() - start) * 1000
+    return ProbeResult(name, DependencyStatus.ABSENT, detail, elapsed)
+
 
 class DatabaseCheck:
-    """Postgres reachability via `SELECT 1`.
-
-    The probe uses SQLAlchemy and asyncpg, not the SDK `probe_postgres`. The SDK probe
-    needs psycopg v3, and this image does not install it.
-    """
+    """Postgres reachability via `SELECT 1`."""
 
     name = "database"
 
@@ -43,25 +44,14 @@ class DatabaseCheck:
             engine = create_async_engine(self._database_url, echo=False)
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
-            return ProbeResult(
-                self.name,
-                DependencyStatus.PRESENT,
-                "Connection successful",
-                (time.perf_counter() - start) * 1000,
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
+            return _ok(self.name, "Connection successful", start)
+        except Exception as exc:  # noqa: BLE001
             detail = str(exc)
             try:
-                pg_settings = PostgresSettings(dsn=self._database_url)
-                detail = redact_postgres_error(detail, pg_settings)
-            except Exception:  # noqa: BLE001 - keep original message if parsing fails
+                detail = redact_postgres_error(detail, PostgresSettings(dsn=self._database_url))
+            except Exception:  # noqa: BLE001
                 pass
-            return ProbeResult(
-                self.name,
-                DependencyStatus.ABSENT,
-                detail,
-                (time.perf_counter() - start) * 1000,
-            )
+            return _absent(self.name, detail, start)
         finally:
             if engine is not None:
                 await engine.dispose()
@@ -93,8 +83,7 @@ class ObjectStorageCheck:
 
         start = time.perf_counter()
         try:
-            session = aioboto3.Session()
-            async with session.client(
+            async with aioboto3.Session().client(
                 "s3",
                 endpoint_url=self._endpoint,
                 aws_access_key_id=self._access_key,
@@ -103,27 +92,13 @@ class ObjectStorageCheck:
                 config=Config(connect_timeout=5, read_timeout=5),
             ) as s3:
                 await s3.head_bucket(Bucket=self._bucket)
-            return ProbeResult(
-                self.name,
-                DependencyStatus.PRESENT,
-                "Bucket accessible",
-                (time.perf_counter() - start) * 1000,
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
-            return ProbeResult(
-                self.name,
-                DependencyStatus.ABSENT,
-                str(exc),
-                (time.perf_counter() - start) * 1000,
-            )
+            return _ok(self.name, "Bucket accessible", start)
+        except Exception as exc:  # noqa: BLE001
+            return _absent(self.name, str(exc), start)
 
 
 class LlmCheck:
-    """AI provider configuration presence.
-
-    The model catalogue is local (`src/llm/catalog.py`), so there is no remote
-    probe: the dependency is PRESENT iff an API key is configured.
-    """
+    """AI provider configuration presence."""
 
     name = "llm"
 
@@ -143,22 +118,13 @@ class LlmCheck:
     async def probe(self) -> ProbeResult:
         start = time.perf_counter()
         if not isinstance(self._api_key, str) or not self._api_key:
-            return ProbeResult(
-                self.name,
-                DependencyStatus.ABSENT,
-                "Not configured",
-                (time.perf_counter() - start) * 1000,
-            )
-        return ProbeResult(
-            self.name,
-            DependencyStatus.PRESENT,
-            f"Configured provider={self._provider}, small={self._small_model}, multimodal={self._multimodal_model}",
-            (time.perf_counter() - start) * 1000,
-        )
+            return _absent(self.name, "Not configured", start)
+        detail = f"Configured provider={self._provider}, small={self._small_model}, multimodal={self._multimodal_model}"
+        return _ok(self.name, detail, start)
 
 
 class RedisCheck:
-    """Redis reachability via a raw TCP ``PING`` (no client library needed)."""
+    """Redis reachability via a raw TCP ``PING``."""
 
     name = "cache"
 
@@ -166,12 +132,9 @@ class RedisCheck:
         self._url = url
 
     async def probe(self) -> ProbeResult:
-        import asyncio
-        from urllib.parse import urlparse
-
-        start = time.perf_counter()
         if not self._url:
-            return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
+            return _absent(self.name)
+        start = time.perf_counter()
         try:
             parsed = urlparse(self._url)
             reader, writer = await asyncio.wait_for(
@@ -185,18 +148,10 @@ class RedisCheck:
                 writer.close()
                 await writer.wait_closed()
             if reply.startswith((b"+PONG", b"-NOAUTH", b"-ERR")):
-                # Any RESP reply (even an auth error) proves a Redis is listening.
-                return ProbeResult(
-                    self.name, DependencyStatus.PRESENT, "PING answered", (time.perf_counter() - start) * 1000
-                )
-            return ProbeResult(
-                self.name,
-                DependencyStatus.ABSENT,
-                f"Unexpected reply {reply[:20]!r}",
-                (time.perf_counter() - start) * 1000,
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
-            return ProbeResult(self.name, DependencyStatus.ABSENT, str(exc), (time.perf_counter() - start) * 1000)
+                return _ok(self.name, "PING answered", start)
+            return _absent(self.name, f"Unexpected reply {reply[:20]!r}", start)
+        except Exception as exc:  # noqa: BLE001
+            return _absent(self.name, str(exc), start)
 
 
 class WorkflowEngineCheck:
@@ -209,14 +164,12 @@ class WorkflowEngineCheck:
 
     async def probe(self) -> ProbeResult:
         if not self._api_url:
-            return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
-        url = f"{self._api_url.rstrip('/')}/health"
-        settings = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
-        return await probe_orchestrator(url, name=self.name, settings=settings)
+            return _absent(self.name)
+        return await probe_orchestrator(f"{self._api_url.rstrip('/')}/health", name=self.name, settings=_HTTP_5S)
 
 
 class TelemetryCheck:
-    """OTLP collector reachability via TCP connect (protocol-agnostic: gRPC or HTTP)."""
+    """OTLP collector reachability via TCP connect."""
 
     name = "telemetry"
 
@@ -224,27 +177,22 @@ class TelemetryCheck:
         self._endpoint = endpoint
 
     async def probe(self) -> ProbeResult:
-        import asyncio
-        from urllib.parse import urlparse
-
-        start = time.perf_counter()
         if not self._endpoint:
-            return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
+            return _absent(self.name)
+        start = time.perf_counter()
         try:
             parsed = urlparse(self._endpoint if "//" in self._endpoint else f"//{self._endpoint}")
             port = parsed.port or (443 if parsed.scheme == "https" else 4317)
             _reader, writer = await asyncio.wait_for(asyncio.open_connection(parsed.hostname, port), timeout=5)
             writer.close()
             await writer.wait_closed()
-            return ProbeResult(
-                self.name, DependencyStatus.PRESENT, "Collector reachable", (time.perf_counter() - start) * 1000
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
-            return ProbeResult(self.name, DependencyStatus.ABSENT, str(exc), (time.perf_counter() - start) * 1000)
+            return _ok(self.name, "Collector reachable", start)
+        except Exception as exc:  # noqa: BLE001
+            return _absent(self.name, str(exc), start)
 
 
 class AnalyticsCheck:
-    """OpenPanel API reachability — any HTTP response < 500 proves presence."""
+    """OpenPanel API reachability."""
 
     name = "analytics"
 
@@ -253,18 +201,14 @@ class AnalyticsCheck:
 
     async def probe(self) -> ProbeResult:
         if not self._api_url:
-            return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
-        settings = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
-        result = await probe_http(self._api_url, name=self.name, settings=settings)
-        return result
+            return _absent(self.name)
+        return await probe_http(self._api_url, name=self.name, settings=_HTTP_5S)
 
 
 class MarketDataCheck:
-    """Yahoo Finance reachability. Any non-5xx HTTP response (even 429) proves
-    the service is present — presence is not quota; a server error is ABSENT."""
+    """Yahoo Finance reachability."""
 
     name = "market_data"
-
     _PROBE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X"
 
     def __init__(self, *, timeout_seconds: int) -> None:
@@ -276,5 +220,4 @@ class MarketDataCheck:
             connect_timeout_seconds=float(self._timeout_seconds),
             user_agent="finance-report-smoke/1.0",
         )
-        result = await probe_http(self._PROBE_URL, name=self.name, settings=settings)
-        return result
+        return await probe_http(self._PROBE_URL, name=self.name, settings=settings)

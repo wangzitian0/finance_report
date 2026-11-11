@@ -11,28 +11,20 @@ from pydantic import BaseModel, Field
 from src.ledger import AccountType
 from src.schemas.base import BaseResponse, CurrencyCode, ListResponse, MoneyAmount
 
+MemoStr = Annotated[str, Field(min_length=1, max_length=500)]
+NameStr = Annotated[str, Field(min_length=1, max_length=255)]
+CodeStr = Annotated[str, Field(max_length=50)]
+DescStr = Annotated[str, Field(max_length=500)]
+
 
 class OpeningBalanceRequest(BaseModel):
-    """Guided opening-balance request (#949): map accounts to year-start balances.
-
-    Each account is increased to its balance on its normal side; the net offsets
-    into the system Opening Balance Equity account so the entry stays balanced.
-    """
-
     entry_date: date
     balances: dict[UUID, Annotated[Decimal, Field(gt=Decimal("0"), decimal_places=2)]]
     currency: CurrencyCode | None = None
-    memo: Annotated[str, Field(min_length=1, max_length=500)] = "Opening balances"
+    memo: MemoStr = "Opening balances"
 
 
 class OpeningBalanceReadinessResponse(BaseModel):
-    """Whether the user should be nudged to record opening balances (#949 / AC-ledger.16.1).
-
-    ``needs_opening_balance`` is true when the user has posted activity but no
-    opening-balance entry on or before the earliest such activity, so a cumulative
-    balance sheet would silently omit the starting position.
-    """
-
     needs_opening_balance: bool
     has_activity: bool
     has_opening_entry: bool
@@ -40,35 +32,27 @@ class OpeningBalanceReadinessResponse(BaseModel):
 
 
 class AccountBase(BaseModel):
-    """Base account schema."""
-
-    name: Annotated[str, Field(min_length=1, max_length=255)]
-    code: Annotated[str | None, Field(None, max_length=50)]
+    name: NameStr
+    code: CodeStr | None = None
     type: AccountType
     currency: CurrencyCode = "SGD"
     parent_id: UUID | None = None
-    description: Annotated[str | None, Field(None, max_length=500)] = None
+    description: DescStr | None = None
 
 
 class AccountCreate(AccountBase):
-    """Schema for creating an account."""
-
     pass
 
 
 class AccountUpdate(BaseModel):
-    """Schema for updating an account."""
-
-    name: Annotated[str | None, Field(None, min_length=1, max_length=255)] = None
-    code: Annotated[str | None, Field(None, max_length=50)] = None
-    description: Annotated[str | None, Field(None, max_length=500)] = None
+    name: NameStr | None = None
+    code: CodeStr | None = None
+    description: DescStr | None = None
     parent_id: UUID | None = None
     is_active: bool | None = None
 
 
 class AccountResponse(AccountBase, BaseResponse):
-    """Schema for account response."""
-
     id: UUID
     user_id: UUID
     is_active: bool

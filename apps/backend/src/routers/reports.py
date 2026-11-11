@@ -6,10 +6,11 @@ import asyncio
 import hashlib
 import json
 import zipfile
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from enum import Enum
 from io import BytesIO, StringIO
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query
@@ -100,25 +101,21 @@ def _target_currency_pair(currency: str | None, *, base_currency: str = "SGD") -
 
 
 async def _ensure_report_market_data_fresh(
-    db: DbSession,
-    user_id: CurrentUserId,
-    *,
-    currency: str | None,
-    end_date: date,
+    db: DbSession, user_id: CurrentUserId, *, currency: str | None, end_date: date
 ) -> None:
     base_currency = await get_effective_base_currency(db, user_id=user_id)
     target_pairs = _target_currency_pair(currency, base_currency=base_currency)
-    has_report_subjects = (
+    has_subjects = (
         await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1)) if target_pairs else None
     )
     try:
         fx_pairs = set(await observed_fx_pairs(db, user_id, include_default=False, base_currency=base_currency))
-        fx_pairs.update(target_pairs if has_report_subjects is not None else [])
+        fx_pairs.update(target_pairs if has_subjects is not None else [])
         stock_symbols = await active_stock_symbols(db, user_id)
         await ensure_market_data_fresh(db, fx_pairs=list(fx_pairs), stock_symbols=stock_symbols, end_date=end_date)
     except asyncio.CancelledError:
         raise
-    except Exception as exc:  # noqa: BLE001 - freshness is best-effort enrichment
+    except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Market-data freshness sync failed; rendering report with stored data",
             error=str(exc),
@@ -128,50 +125,69 @@ async def _ensure_report_market_data_fresh(
         )
 
 
-@router.get("/currencies", response_model=list[str])
-async def get_available_currencies(
-    *,
+_ReportT = TypeVar("_ReportT")
+
+
+async def _run_fresh_report(  # noqa: UP047
     db: DbSession,
-) -> list[str]:
+    user_id: CurrentUserId,
+    *,
+    currency: str | None,
+    end_date: date,
+    label: str,
+    build: Callable[[], Awaitable[_ReportT]],
+    commit: bool = True,
+) -> _ReportT:
+    try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
+        result = await build()
+    except ReportError as exc:
+        logger.warning(f"{label} failed", end_date=str(end_date), currency=currency, error=str(exc))
+        raise_bad_request(str(exc), cause=exc)
+    if commit:
+        await db.commit()
+    return result
+
+
+def _zip_streaming_response(zip_bytes: bytes, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(zip_bytes)),
+        },
+    )
+
+
+@router.get("/currencies", response_model=list[str])
+async def get_available_currencies(*, db: DbSession) -> list[str]:
     """Get list of currencies with FX data available."""
-    base_stmt = select(FxRate.base_currency).distinct()
-    quote_stmt = select(FxRate.quote_currency).distinct()
-    combined = union(base_stmt, quote_stmt).subquery()
-    result = await db.execute(select(combined.c.base_currency).order_by(combined.c.base_currency))
-    currencies = [row[0] for row in result.fetchall()]
-
+    combined = union(select(FxRate.base_currency).distinct(), select(FxRate.quote_currency).distinct()).subquery()
+    currencies = [
+        row[0] for row in (await db.execute(select(combined.c.base_currency).order_by(combined.c.base_currency))).fetchall()
+    ]
     base_currency = await get_effective_base_currency(db)
-    if base_currency not in currencies:
-        currencies = [base_currency] + currencies
-
-    return currencies
+    return currencies if base_currency in currencies else [base_currency, *currencies]
 
 
 class ExportFormat(str, Enum):
-    """Supported export formats."""
-
     CSV = "csv"
 
 
 class PackageSnapshotExportFormat(str, Enum):
-    """Supported saved package snapshot export formats."""
-
     JSON = "json"
     CSV = "csv"
     ZIP = "zip"
 
 
 class AnnualTaxArchiveRequest(BaseModel):
-    """Request payload for annual tax archive ZIP generation."""
-
     year: int = Field(ge=1900, le=2100)
     currency: str = Field(default="SGD", min_length=3, max_length=3)
     framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE
 
 
 class ExportReportType(str, Enum):
-    """Supported report types for export."""
-
     BALANCE_SHEET = "balance-sheet"
     INCOME_STATEMENT = "income-statement"
     CASH_FLOW = "cash-flow"
@@ -186,11 +202,8 @@ async def _package_period(
     as_of_date: date | None,
     currency: str | None,
 ) -> tuple[date, date, date, str]:
-    """Resolve the package period and currency, and refresh the market data."""
     report_start, report_end, report_as_of = _package_dates(
-        start_date=start_date,
-        end_date=end_date,
-        as_of_date=as_of_date,
+        start_date=start_date, end_date=end_date, as_of_date=as_of_date
     )
     if report_start > report_end:
         raise_bad_request("start_date must be before end_date")
@@ -211,11 +224,7 @@ async def preview_personal_report_package(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> PersonalReportPackagePreview:
-    """Build the typed preview document without persisting a snapshot, and return its bounded projection.
-
-    The traceability details and the input manifest entries load page by page from
-    ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries`` (#2583).
-    """
+    """Build the typed preview document without persisting a snapshot."""
     report_start, report_end, report_as_of, target_currency = await _package_period(
         db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
@@ -248,10 +257,7 @@ async def list_personal_report_package_line_details(
     user_id: CurrentUserId,
     pagination: Pagination,
 ) -> PersonalReportPackageLineDetailsPage:
-    """Return one page of the details of one traceability line anchor of the preview.
-
-    The details equal the details that a snapshot of the same period stores, in the same order.
-    """
+    """Return one page of traceability line anchor details."""
     report_start, report_end, report_as_of, target_currency = await _package_period(
         db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
@@ -289,20 +295,12 @@ async def list_personal_report_package_manifest_entries(
     user_id: CurrentUserId,
     pagination: Pagination,
 ) -> PersonalReportPackageManifestEntriesPage:
-    """Return one page of the input manifest of the preview.
-
-    The entries equal the input manifest that a snapshot of the same period stores, in the same order.
-    """
+    """Return one page of the preview input manifest."""
     report_start, report_end, report_as_of, target_currency = await _package_period(
         db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
     entries = await PackageAssembler().manifest_entries(
-        db,
-        user_id=user_id,
-        start_date=report_start,
-        end_date=report_end,
-        as_of_date=report_as_of,
-        currency=target_currency,
+        db, user_id=user_id, start_date=report_start, end_date=report_end, as_of_date=report_as_of, currency=target_currency
     )
     await db.commit()
     return PersonalReportPackageManifestEntriesPage(
@@ -324,20 +322,12 @@ async def list_personal_report_package_policy_decisions(
     user_id: CurrentUserId,
     pagination: Pagination,
 ) -> PersonalReportPackagePolicyDecisionsPage:
-    """Return one page of the framework policy decisions of the preview.
-
-    The decisions equal the decisions that a snapshot of the same period stores, in the same order.
-    """
-    report_start, report_end, report_as_of, _currency = await _package_period(
+    """Return one page of the preview framework policy decisions."""
+    report_start, report_end, report_as_of, _ = await _package_period(
         db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=None
     )
     decisions = await PackageAssembler().policy_decisions(
-        db,
-        user_id=user_id,
-        framework_id=framework_id,
-        start_date=report_start,
-        end_date=report_end,
-        as_of_date=report_as_of,
+        db, user_id=user_id, framework_id=framework_id, start_date=report_start, end_date=report_end, as_of_date=report_as_of
     )
     await db.commit()
     return PersonalReportPackagePolicyDecisionsPage(
@@ -360,11 +350,7 @@ async def list_personal_report_package_cash_flow_events(
     user_id: CurrentUserId,
     pagination: Pagination,
 ) -> CashFlowLineEventsPage:
-    """Return one page of the lineage records of one cash-flow line of the preview, in document order.
-
-    The records equal the records that a snapshot of the same period stores. The cash accounts are
-    the accounts of the authoritative bank statements, as in the package.
-    """
+    """Return one page of lineage records for a package cash-flow line."""
     report_start, report_end, report_as_of, target_currency = await _package_period(
         db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
@@ -380,9 +366,14 @@ async def list_personal_report_package_cash_flow_events(
     await db.commit()
     if events is None:
         raise_not_found("Cash-flow line")
-    bounds = {"line_id": line_id, "total": len(events), "limit": pagination.limit, "offset": pagination.offset}
     return CashFlowLineEventsPage.model_validate(
-        {**bounds, "events": events[pagination.offset : pagination.offset + pagination.limit]}
+        {
+            "line_id": line_id,
+            "total": len(events),
+            "limit": pagination.limit,
+            "offset": pagination.offset,
+            "events": events[pagination.offset : pagination.offset + pagination.limit],
+        }
     )
 
 
@@ -394,9 +385,7 @@ async def generate_personal_report_package_snapshot(
 ) -> PersonalReportPackageSnapshotResponse:
     """Generate and persist an immutable personal report package snapshot."""
     report_start, report_end, report_as_of = _package_dates(
-        start_date=request.start_date,
-        end_date=request.end_date,
-        as_of_date=request.as_of_date,
+        start_date=request.start_date, end_date=request.end_date, as_of_date=request.as_of_date
     )
     target_currency = _package_currency(request.currency or await get_effective_base_currency(db, user_id=user_id))
     snapshot_id = uuid4()
@@ -410,9 +399,7 @@ async def generate_personal_report_package_snapshot(
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
-        include_restricted=(
-            PACKAGE_INCLUDE_RESTRICTED if request.include_restricted is None else request.include_restricted
-        ),
+        include_restricted=PACKAGE_INCLUDE_RESTRICTED if request.include_restricted is None else request.include_restricted,
         lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
         snapshot_id=snapshot_id,
         frozen_at=frozen_at,
@@ -427,50 +414,42 @@ async def generate_personal_report_package_snapshot(
         snapshot_id=snapshot_id,
     )
     await db.commit()
-    _track_analytics(
-        "report_generated",
-        {"framework_id": request.framework_id.value, "currency": target_currency},
-    )
+    _track_analytics("report_generated", {"framework_id": request.framework_id.value, "currency": target_currency})
     try:
         return _package_snapshot_response(snapshot)
-    except PackageDocumentVersionError as exc:  # pragma: no cover - just-written documents validate above.
+    except PackageDocumentVersionError as exc:
         raise_bad_request(str(exc), cause=exc)
 
 
 @router.get("/package/snapshots", response_model=list[PersonalReportPackageSnapshotSummary])
 async def list_personal_report_package_snapshots(
-    db: DbSession,
-    user_id: CurrentUserId,
-    pagination: Pagination,
+    db: DbSession, user_id: CurrentUserId, pagination: Pagination
 ) -> list[PersonalReportPackageSnapshotSummary]:
     """List saved personal report package snapshots for the current user."""
-    stmt = (
-        select(ReportSnapshot)
-        .where(ReportSnapshot.user_id == user_id)
-        .where(ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
-        .order_by(ReportSnapshot.created_at.desc(), ReportSnapshot.id.desc())
-        .limit(pagination.limit)
-        .offset(pagination.offset)
-    )
-    result = await db.execute(stmt)
+    rows = (
+        await db.execute(
+            select(ReportSnapshot)
+            .where(ReportSnapshot.user_id == user_id, ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
+            .order_by(ReportSnapshot.created_at.desc(), ReportSnapshot.id.desc())
+            .limit(pagination.limit)
+            .offset(pagination.offset)
+        )
+    ).scalars().all()
     default_currency = await get_effective_base_currency(db, user_id=user_id)
-    return [
-        _package_snapshot_summary(snapshot, default_currency=default_currency) for snapshot in result.scalars().all()
-    ]
+    return [_package_snapshot_summary(s, default_currency=default_currency) for s in rows]
 
 
 @router.get("/package/snapshots/{snapshot_id}", response_model=PersonalReportPackageSnapshotResponse)
 async def get_personal_report_package_snapshot(
-    snapshot_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    snapshot_id: UUID, db: DbSession, user_id: CurrentUserId
 ) -> PersonalReportPackageSnapshotResponse:
     """Return one saved package snapshot without recalculating live report data."""
     snapshot = await db.scalar(
-        select(ReportSnapshot)
-        .where(ReportSnapshot.id == snapshot_id)
-        .where(ReportSnapshot.user_id == user_id)
-        .where(ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
+        select(ReportSnapshot).where(
+            ReportSnapshot.id == snapshot_id,
+            ReportSnapshot.user_id == user_id,
+            ReportSnapshot.report_type == SnapshotReportType.PACKAGE,
+        )
     )
     if snapshot is None:
         raise_not_found("Package snapshot")
@@ -493,13 +472,7 @@ def _package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> by
         for filename, content in files_data:
             data = content.encode("utf-8")
             zf.writestr(filename, data)
-            file_entries.append(
-                {
-                    "filename": filename,
-                    "sha256": hashlib.sha256(data).hexdigest(),
-                    "size_bytes": len(data),
-                }
-            )
+            file_entries.append({"filename": filename, "sha256": hashlib.sha256(data).hexdigest(), "size_bytes": len(data)})
         manifest = {
             "package_id": str(snapshot.id),
             "reporting_currency": snapshot.currency,
@@ -522,38 +495,22 @@ async def export_personal_report_package_snapshot(
     snapshot = await get_personal_report_package_snapshot(snapshot_id=snapshot_id, db=db, user_id=user_id)
     stem = f"personal-report-package-{snapshot.framework_id.value}-{snapshot.as_of_date}-{snapshot.id}"
     if format == PackageSnapshotExportFormat.ZIP:
-        zip_bytes = _package_snapshot_zip(snapshot)
-        filename = f"{stem}.zip"
-        return StreamingResponse(
-            BytesIO(zip_bytes),
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-                "Content-Length": str(len(zip_bytes)),
-            },
-        )
+        return _zip_streaming_response(_package_snapshot_zip(snapshot), f"{stem}.zip")
     if format == PackageSnapshotExportFormat.JSON:
         content = json.dumps(snapshot.model_dump(mode="json"), sort_keys=True)
         envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.JSON, filename=f"{stem}.json")
     else:
         content = _package_snapshot_csv(snapshot)
         envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=f"{stem}.csv")
-    return StreamingResponse(
-        StringIO(content),
-        media_type=envelope.media_type.value,
-        headers=envelope.to_headers(),
-    )
+    return StreamingResponse(StringIO(content), media_type=envelope.media_type.value, headers=envelope.to_headers())
 
 
 @router.post("/package/annual-archive")
 async def export_annual_tax_archive(
-    request: AnnualTaxArchiveRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    request: AnnualTaxArchiveRequest, db: DbSession, user_id: CurrentUserId
 ) -> StreamingResponse:
     """Generate and stream an annual tax & audit package archive ZIP."""
-    start_date = date(request.year, 1, 1)
-    end_date = date(request.year, 12, 31)
+    start_date, end_date = date(request.year, 1, 1), date(request.year, 12, 31)
     target_currency = _package_currency(request.currency)
     await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=end_date)
     snapshot = await generate_personal_report_package_snapshot(
@@ -567,16 +524,7 @@ async def export_annual_tax_archive(
             currency=target_currency,
         ),
     )
-    zip_bytes = _package_snapshot_zip(snapshot)
-    filename = f"annual-tax-archive-{request.year}.zip"
-    return StreamingResponse(
-        BytesIO(zip_bytes),
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Content-Length": str(len(zip_bytes)),
-        },
-    )
+    return _zip_streaming_response(_package_snapshot_zip(snapshot), f"annual-tax-archive-{request.year}.zip")
 
 
 @router.get("/coverage", response_model=ReportCoverageResponse)
@@ -586,11 +534,7 @@ async def report_coverage(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReportCoverageResponse:
-    """Return the first day that the default report view can start without a cash coverage gap.
-
-    Home and `/reports` bound their default view by it and name the accounts that set it (#2646).
-    The workflow readiness uses the same bound. ``as_of_date`` is the end of the shown period.
-    """
+    """Return the earliest date covered across authoritative custody accounts."""
     resolved = as_of_date or date.today()
     coverage = await _report_coverage(db, user_id=user_id, as_of=resolved)
     return ReportCoverageResponse(
@@ -611,25 +555,17 @@ async def balance_sheet(
     user_id: CurrentUserId,
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
-    try:
-        report_date = as_of_date or date.today()
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-        report = await generate_balance_sheet(
-            db,
-            user_id,
-            as_of_date=report_date,
-            currency=currency,
-            include_restricted=include_restricted,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Balance sheet generation failed",
-            as_of_date=str(as_of_date),
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+    report_date = as_of_date or date.today()
+    report = await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=report_date,
+        label="Balance sheet generation",
+        build=lambda: generate_balance_sheet(
+            db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+        ),
+    )
     return BalanceSheetResponse.model_validate(report)
 
 
@@ -642,25 +578,19 @@ async def balance_sheet_diagnostics(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> EquationDiagnosticResult:
-    """Diagnose accounting equation out-of-balance root cause (Flow 24)."""
+    """Diagnose accounting equation out-of-balance root cause."""
     report_date = as_of_date or date.today()
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-        return await run_balance_sheet_diagnostics(
-            db,
-            user_id,
-            as_of_date=report_date,
-            currency=currency,
-            include_restricted=include_restricted,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Balance sheet diagnostics failed",
-            as_of_date=str(report_date),
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
+    return await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=report_date,
+        label="Balance sheet diagnostics",
+        build=lambda: run_balance_sheet_diagnostics(
+            db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+        ),
+        commit=False,
+    )
 
 
 @router.get("/data-quality", response_model=PersonalDataQualityHealthResponse)
@@ -671,24 +601,17 @@ async def get_data_quality_health(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> PersonalDataQualityHealthResponse:
-    """Return comprehensive financial data quality, invariants, timeline, and action items."""
+    """Return personal financial data quality, invariants, timeline, and action items."""
     report_date = as_of_date or date.today()
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-        return await compute_personal_data_quality(
-            db,
-            user_id,
-            as_of_date=report_date,
-            currency=currency,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Data quality evaluation failed",
-            as_of_date=str(report_date),
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
+    return await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=report_date,
+        label="Data quality evaluation",
+        build=lambda: compute_personal_data_quality(db, user_id, as_of_date=report_date, currency=currency),
+        commit=False,
+    )
 
 
 @router.get("/account-lineage", response_model=AccountLineageResponse)
@@ -701,22 +624,11 @@ async def account_lineage(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AccountLineageResponse:
-    """List the journal lines contributing to one account's report balance.
-
-    Powers Balance Sheet / Income Statement amount drill-down: each returned
-    line carries a ``journal_line`` evidence anchor that the UI hands to
-    ``GET /api/evidence/lineage`` to reach statement transactions and source
-    documents.
-    """
+    """List the journal lines contributing to one account's report balance."""
     report_date = as_of_date or date.today()
     try:
         report = await get_account_lineage(
-            db,
-            user_id,
-            account_id,
-            as_of_date=report_date,
-            start_date=start_date,
-            currency=currency,
+            db, user_id, account_id, as_of_date=report_date, start_date=start_date, currency=currency
         )
     except ReportError as exc:
         raise_not_found(f"Account {account_id}", cause=exc)
@@ -735,29 +647,24 @@ async def income_statement(
     user_id: CurrentUserId,
 ) -> IncomeStatementResponse:
     """Get income statement for a period with optional filtering."""
-    resolved_end_date = end_date or date.today()
-    resolved_start_date = start_date or date(resolved_end_date.year, 1, 1)
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
-        report = await generate_income_statement(
+    resolved_end = end_date or date.today()
+    resolved_start = start_date or date(resolved_end.year, 1, 1)
+    report = await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=resolved_end,
+        label="Income statement generation",
+        build=lambda: generate_income_statement(
             db,
             user_id,
-            start_date=resolved_start_date,
-            end_date=resolved_end_date,
+            start_date=resolved_start,
+            end_date=resolved_end,
             currency=currency,
             tags=tags,
             account_type=account_type,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Income statement generation failed",
-            start_date=str(resolved_start_date),
-            end_date=str(resolved_end_date),
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+        ),
+    )
     return IncomeStatementResponse.model_validate(report)
 
 
@@ -770,26 +677,16 @@ async def cash_flow(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> CashFlowPreview:
-    """Get the bounded cash-flow statement; GET /reports/cash-flow/line-events pages the events of a line."""
+    """Get bounded cash-flow statement."""
     start, end = cash_flow_period(start_date, end_date)
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end)
-        # Prefer statement custody accounts; fall back to None when no bank
-        # statements exist so manual-entry cash accounts still resolve (#2765).
+
+    async def _build():
         custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
-        report = await generate_cash_flow(
+        return await generate_cash_flow(
             db, user_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
         )
-    except ReportError as exc:
-        logger.warning(
-            "Cash flow generation failed",
-            start_date=str(start),
-            end_date=str(end),
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+
+    report = await _run_fresh_report(db, user_id, currency=currency, end_date=end, label="Cash flow generation", build=_build)
     return CashFlowPreview.model_validate(cash_flow_preview(report))
 
 
@@ -804,23 +701,29 @@ async def list_cash_flow_line_events(
     user_id: CurrentUserId,
     pagination: Pagination,
 ) -> CashFlowLineEventsPage:
-    """Return one page of the lineage records of one cash-flow line, in document order (#2583)."""
+    """Return one page of lineage records for a cash-flow line."""
     start, end = cash_flow_period(start_date, end_date)
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end)
+
+    async def _build():
         custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
-        events = await cash_flow_line_events(
+        return await cash_flow_line_events(
             db, user_id, line_id=line_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
         )
-    except ReportError as exc:
-        logger.warning("Cash flow line events failed", line_id=line_id, error=str(exc))
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+
+    events = await _run_fresh_report(
+        db, user_id, currency=currency, end_date=end, label="Cash flow line events", build=_build
+    )
     if events is None:
         raise_not_found("Cash-flow line")
-    page = events[pagination.offset : pagination.offset + pagination.limit]
-    bounds = {"line_id": line_id, "total": len(events), "limit": pagination.limit, "offset": pagination.offset}
-    return CashFlowLineEventsPage.model_validate({**bounds, "events": page})
+    return CashFlowLineEventsPage.model_validate(
+        {
+            "line_id": line_id,
+            "total": len(events),
+            "limit": pagination.limit,
+            "offset": pagination.offset,
+            "events": events[pagination.offset : pagination.offset + pagination.limit],
+        }
+    )
 
 
 @router.get("/trend", response_model=AccountTrendResponse)
@@ -833,25 +736,14 @@ async def account_trend(
     user_id: CurrentUserId,
 ) -> AccountTrendResponse:
     """Get account trend data."""
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=date.today())
-        report = await get_account_trend(
-            db,
-            user_id,
-            account_id=account_id,
-            period=period.value,
-            currency=currency,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Account trend generation failed",
-            account_id=str(account_id),
-            period=period.value,
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+    report = await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=date.today(),
+        label="Account trend generation",
+        build=lambda: get_account_trend(db, user_id, account_id=account_id, period=period.value, currency=currency),
+    )
     return AccountTrendResponse.model_validate(report)
 
 
@@ -867,9 +759,13 @@ async def net_worth_timeseries(
     user_id: CurrentUserId,
 ) -> NetWorthTimeSeriesResponse:
     """Get daily or monthly net worth time-series."""
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=to_date)
-        report = await get_net_worth_timeseries(
+    report = await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=to_date,
+        label="Net worth time-series generation",
+        build=lambda: get_net_worth_timeseries(
             db,
             user_id,
             start_date=from_date,
@@ -877,18 +773,8 @@ async def net_worth_timeseries(
             granularity=granularity.value,
             currency=currency,
             include_restricted=include_restricted,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Net worth time-series generation failed",
-            from_date=str(from_date),
-            to_date=str(to_date),
-            granularity=granularity.value,
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+        ),
+    )
     return NetWorthTimeSeriesResponse.model_validate(report)
 
 
@@ -903,25 +789,16 @@ async def net_worth_allocation(
 ) -> NetWorthAllocationResponse:
     """Get signed net-worth allocation grouped by asset class, liquidity, and source currency."""
     report_date = as_of_date or date.today()
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-        report = await get_net_worth_allocation_schedule(
-            db,
-            user_id,
-            as_of_date=report_date,
-            currency=currency,
-            include_restricted=include_restricted,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Net worth allocation generation failed",
-            as_of_date=str(report_date),
-            currency=currency,
-            include_restricted=include_restricted,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+    report = await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=report_date,
+        label="Net worth allocation generation",
+        build=lambda: get_net_worth_allocation_schedule(
+            db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+        ),
+    )
     return NetWorthAllocationResponse.model_validate(report)
 
 
@@ -936,25 +813,16 @@ async def category_breakdown(
 ) -> CategoryBreakdownResponse:
     """Get income or expense category breakdown."""
     account_type = AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
-    try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=date.today())
-        report = await get_category_breakdown(
-            db,
-            user_id,
-            breakdown_type=account_type,
-            period=period.value,
-            currency=currency,
-        )
-    except ReportError as exc:
-        logger.warning(
-            "Category breakdown generation failed",
-            breakdown_type=breakdown_type.value,
-            period=period.value,
-            currency=currency,
-            error=str(exc),
-        )
-        raise_bad_request(str(exc), cause=exc)
-    await db.commit()
+    report = await _run_fresh_report(
+        db,
+        user_id,
+        currency=currency,
+        end_date=date.today(),
+        label="Category breakdown generation",
+        build=lambda: get_category_breakdown(
+            db, user_id, breakdown_type=account_type, period=period.value, currency=currency
+        ),
+    )
     return CategoryBreakdownResponse.model_validate(report)
 
 
@@ -974,77 +842,47 @@ async def export_report(
 ) -> StreamingResponse:
     """Export reports in CSV format."""
     _ = (format, framework_id)
-    output = StringIO()
-
     try:
         if report_type == ExportReportType.BALANCE_SHEET:
             report_date = as_of_date or date.today()
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-            balance_sheet_report = cast(
+            bs = cast(
                 dict[str, Any],
                 await generate_balance_sheet(
-                    db,
-                    user_id,
-                    as_of_date=report_date,
-                    currency=currency,
-                    include_restricted=include_restricted,
+                    db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
                 ),
             )
-            output.write(render_balance_sheet_csv(balance_sheet_report))
-            filename = f"balance-sheet-{balance_sheet_report['as_of_date']}.csv"
+            csv_text, filename = render_balance_sheet_csv(bs), f"balance-sheet-{bs['as_of_date']}.csv"
         elif report_type == ExportReportType.INCOME_STATEMENT:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for income statement export")
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
-            income_statement_report = cast(
+            inc = cast(
                 dict[str, Any],
-                await generate_income_statement(
-                    db,
-                    user_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    currency=currency,
-                ),
+                await generate_income_statement(db, user_id, start_date=start_date, end_date=end_date, currency=currency),
             )
-            output.write(render_income_statement_csv(income_statement_report))
-            filename = f"income-statement-{start_date}-to-{end_date}.csv"
+            csv_text, filename = render_income_statement_csv(inc), f"income-statement-{start_date}-to-{end_date}.csv"
         elif report_type == ExportReportType.CASH_FLOW:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for cash flow export")
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
             custody_ids = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end_date)
-            cash_flow_report = cast(
+            cf = cast(
                 dict[str, Any],
                 await generate_cash_flow(
-                    db,
-                    user_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    currency=currency,
-                    cash_account_ids=custody_ids or None,
+                    db, user_id, start_date=start_date, end_date=end_date, currency=currency, cash_account_ids=custody_ids or None
                 ),
             )
-            output.write(render_cash_flow_csv(cash_flow_report))
-            filename = f"cash-flow-{start_date}-to-{end_date}.csv"
-        else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
+            csv_text, filename = render_cash_flow_csv(cf), f"cash-flow-{start_date}-to-{end_date}.csv"
+        else:
             raise_bad_request("Unsupported report type")
     except ReportError as exc:
-        logger.warning(
-            "Report export failed",
-            report_type=report_type.value,
-            error=str(exc),
-        )
+        logger.warning("Report export failed", report_type=report_type.value, error=str(exc))
         raise_bad_request(str(exc), cause=exc)
 
     await db.commit()
-    content = output.getvalue()
-    output.close()
     envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=filename)
-    return StreamingResponse(
-        StringIO(content),
-        media_type=envelope.media_type.value,
-        headers=envelope.to_headers(),
-    )
+    return StreamingResponse(StringIO(csv_text), media_type=envelope.media_type.value, headers=envelope.to_headers())
 
 
 @router.get("/{report_type}/snapshots", response_model=list[ReportSnapshotSummary])
@@ -1054,22 +892,13 @@ async def list_report_snapshots(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> list[ReportSnapshotSummary]:
-    """List available report snapshots for a given report type.
-
-    AC18.4.2: ReportSnapshot (Layer 4) is queryable via API. ``report_type`` is
-    typed as the snapshot enum so an unknown value is rejected with 422 at the
-    boundary (#1008) instead of silently returning an empty list.
-    """
-    from sqlalchemy import select as sa_select
-
-    stmt = (
-        sa_select(ReportSnapshot)
-        .where(ReportSnapshot.report_type == report_type)
-        .where(ReportSnapshot.user_id == user_id)
-        .order_by(ReportSnapshot.created_at.desc())
-        .limit(50)
-    )
-    result = await db.execute(stmt)
-    snapshots = result.scalars().all()
-
-    return [ReportSnapshotSummary.model_validate(s) for s in snapshots]
+    """List available report snapshots for a given report type."""
+    rows = (
+        await db.execute(
+            select(ReportSnapshot)
+            .where(ReportSnapshot.report_type == report_type, ReportSnapshot.user_id == user_id)
+            .order_by(ReportSnapshot.created_at.desc())
+            .limit(50)
+        )
+    ).scalars().all()
+    return [ReportSnapshotSummary.model_validate(s) for s in rows]
