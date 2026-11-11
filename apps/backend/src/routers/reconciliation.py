@@ -30,7 +30,7 @@ from src.ledger import (
     submit_system_journal_entry,
 )
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
-from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
+from src.platform import get_owned_or_404, paginate, raise_bad_request, raise_not_found
 from src.reconciliation import (
     MatchNotFoundError,
     ReconciliationError,
@@ -40,6 +40,7 @@ from src.reconciliation import (
     ReviewedDispositionError,
     accept_match as accept_match_service,
     batch_accept as batch_accept_service,
+    count_pending_review_items,
     detect_anomalies,
     entry_total_amount,
     execute_matching,
@@ -278,27 +279,14 @@ async def list_matches(
     clauses = [AtomicTransaction.user_id == user_id]
     if status_filter:
         clauses.append(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
-    matches = (
-        (
-            await db.execute(
-                select(ReconciliationMatch)
-                .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-                .where(*clauses)
-                .order_by(ReconciliationMatch.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
-        )
-        .scalars()
-        .all()
+    query = (
+        select(ReconciliationMatch)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(*clauses)
     )
-    total = (
-        await db.execute(
-            select(func.count(ReconciliationMatch.id))
-            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-            .where(*clauses)
-        )
-    ).scalar_one()
+    matches, total = await paginate(
+        db, query, limit=limit, offset=offset, order_by=(ReconciliationMatch.created_at.desc(),)
+    )
     return ReconciliationMatchListResponse(items=await _load_match_responses(db, matches, user_id), total=total)
 
 
@@ -311,15 +299,7 @@ async def pending_review_queue(
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
-    total = (
-        await db.execute(
-            select(func.count(ReconciliationMatch.id))
-            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-            .where(
-                AtomicTransaction.user_id == user_id, ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW
-            )
-        )
-    ).scalar_one()
+    total = await count_pending_review_items(db, user_id=user_id)
     return ReconciliationMatchListResponse(items=await _load_match_responses(db, matches, user_id), total=total)
 
 
@@ -413,12 +393,9 @@ async def list_unmatched(
     if statement_id is not None:
         statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
         query = query.where(AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement)))
-    rows = (
-        (await db.execute(query.order_by(AtomicTransaction.txn_date.desc()).limit(limit).offset(offset)))
-        .scalars()
-        .all()
+    rows, total = await paginate(
+        db, query, limit=limit, offset=offset, order_by=(AtomicTransaction.txn_date.desc(),)
     )
-    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar_one()
     return UnmatchedTransactionsResponse(items=[BankTransactionSummary.model_validate(r) for r in rows], total=total)
 
 

@@ -69,50 +69,43 @@ async def count_pending_review_items(db: AsyncSession, *, user_id: UUID) -> int:
     )
 
 
+async def _get_locked_pending_match(db: AsyncSession, match_id: UUID | str, user_id: UUID) -> ReconciliationMatch:
+    """Fetch and lock a user-owned reconciliation match or raise MatchNotFoundError."""
+    match = (
+        await db.execute(
+            select(ReconciliationMatch)
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(ReconciliationMatch.id == match_id, AtomicTransaction.user_id == user_id)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    if not match:
+        raise MatchNotFoundError("Match not found")
+    return match
+
+
 async def accept_match(
     db: AsyncSession,
     match_id: UUID,
     *,
     user_id: UUID,
 ) -> ReconciliationMatch:
-    """Accept a pending reconciliation match.
-
-    Amount validation is unconditional: entry balance validation is never
-    skippable (red line; the former ``skip_amount_validation`` flag had zero
-    production callers and existed only to bypass it — removed in #1864).
-
-    Args:
-        db: Database session
-        match_id: ID of the match to accept
-        user_id: User ID for authorization
-
-    Raises:
-        ReconciliationError: If match not found or amount validation fails
-    """
-    result = await db.execute(
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(ReconciliationMatch.id == match_id)
-        .where(AtomicTransaction.user_id == user_id)
-        .with_for_update()
-    )
-    match = result.scalar_one_or_none()
-    if not match:
-        raise MatchNotFoundError("Match not found")
-
+    """Accept a pending reconciliation match after entry-balance verification."""
+    match = await _get_locked_pending_match(db, match_id, user_id)
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
 
     txn = await db.get(AtomicTransaction, match.atomic_txn_id)
 
     if txn and not match.journal_entry_ids:
-        existing_entry_result = await db.execute(
-            _anchored_entries(user_id=user_id, transaction_id=txn.id)
-            .where(JournalEntry.status != JournalEntryStatus.VOID)
-            .limit(1)
-            .with_for_update()
-        )
-        existing_entry = existing_entry_result.scalar_one_or_none()
+        existing_entry = (
+            await db.execute(
+                _anchored_entries(user_id=user_id, transaction_id=txn.id)
+                .where(JournalEntry.status != JournalEntryStatus.VOID)
+                .limit(1)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
         if existing_entry:
             match.journal_entry_ids = [str(existing_entry.id)]
         else:
@@ -121,24 +114,23 @@ async def accept_match(
                 "a pre-existing journal entry must exist, so post the source transaction first"
             )
 
-    # Validate that journal entry amounts match transaction amount
     if match.journal_entry_ids and txn:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        entries_result = await db.execute(
-            _anchored_entries(user_id=user_id)
-            .where(JournalEntry.id.in_(entry_ids))
-            .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+        entries = list(
+            (
+                await db.execute(
+                    _anchored_entries(user_id=user_id)
+                    .where(JournalEntry.id.in_(entry_ids))
+                    .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+                )
+            ).scalars()
         )
-        entries = list(entries_result.scalars())
         if len(entries) != len(set(entry_ids)):
             raise EntryCreationError(
                 "Reconciliation match references a journal entry without current decision authority"
             )
 
-        # Use entry_total_amount() to correctly sum all debit lines
         total_entry_amount = sum(entry_total_amount(entry, currency=txn.currency) for entry in entries)
-
-        # Allow 1% tolerance or $0.10, whichever is greater
         tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))
         if abs(total_entry_amount - txn.amount) > tolerance:
             raise AmountMismatchError(
@@ -150,10 +142,12 @@ async def accept_match(
 
     if match.journal_entry_ids:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        reconciled_entries_result = await db.execute(
-            select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
-        )
-        for entry in reconciled_entries_result.scalars():
+        reconciled_entries = (
+            await db.execute(
+                select(JournalEntry).where(JournalEntry.id.in_(entry_ids), JournalEntry.user_id == user_id)
+            )
+        ).scalars()
+        for entry in reconciled_entries:
             if entry.status != JournalEntryStatus.VOID:
                 entry.status = JournalEntryStatus.RECONCILED
 
@@ -169,23 +163,12 @@ async def reject_match(
     user_id: UUID,
 ) -> ReconciliationMatch:
     """Reject a pending reconciliation match."""
-    result = await db.execute(
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(ReconciliationMatch.id == match_id)
-        .where(AtomicTransaction.user_id == user_id)
-        .with_for_update()
-    )
-    match = result.scalar_one_or_none()
-    if not match:
-        raise MatchNotFoundError("Match not found")
-
+    match = await _get_locked_pending_match(db, match_id, user_id)
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
 
     match.status = ReconciliationStatus.REJECTED
     match.version += 1
-
     await db.flush()
     return match
 

@@ -11,6 +11,7 @@ from infra2_sdk.runtime.s3 import (
     S3Settings,
     create_s3_client,
     ensure_bucket,
+    put_object_bytes,
     read_object_bytes,
     redact_presigned_url,
 )
@@ -82,9 +83,14 @@ class StorageService:
 
     def upload_bytes(self, *, key: str, content: bytes, content_type: str | None = None) -> None:
         self._ensure_bucket()
-        extra = {"ContentType": content_type} if content_type else {}
         self._run_s3(
-            lambda: self.client.put_object(Bucket=self.bucket, Key=key, Body=content, **extra),
+            lambda: put_object_bytes(
+                self.client,
+                bucket=self.bucket,
+                key=key,
+                data=content,
+                content_type=content_type or "application/octet-stream",
+            ),
             log_msg="Failed to upload to S3",
             err_msg=f"Failed to upload {key} to {self.bucket}",
             bucket=self.bucket,

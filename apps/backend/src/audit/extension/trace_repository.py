@@ -90,13 +90,7 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             raise TraceRecordPersistenceError(f"TraceRecord append failed: {exc}") from exc
 
     def _remember_appended(self, record: TraceRecord) -> None:
-        """Record what an append proves, so that later reads in this unit of work need no query.
-
-        The validation has shown that every parent is a current head with current ancestry.
-        The lineage lock stays until the unit of work ends. So the new record is a head, and its
-        ancestry is current. A superseding record ends the head state of the record it replaces.
-        It also ends the ancestry of every descendant of that record, so the ancestry memo restarts.
-        """
+        """Cache a newly appended head and invalidate superseded lineage state."""
         key = (record.scope, record.record_id)
         self._cache[key] = record
         if record.supersedes_id is not None:
@@ -108,7 +102,7 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             self._decision_head_cache[(record.scope, record.lineage)] = record.record_id
 
     def _forget_appended(self, records: Sequence[TraceRecord]) -> None:
-        """Undo ``_remember_appended`` for records that did not reach the database."""
+        """Evict cached records that failed before reaching the database."""
         for record in records:
             key = (record.scope, record.record_id)
             self._cache.pop(key, None)
@@ -118,21 +112,12 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 del self._decision_head_cache[(record.scope, record.lineage)]
 
     async def append_many(self, records: Sequence[TraceRecord]) -> tuple[TraceRecord, ...]:
-        """Append an ordered causal set with a fixed number of statements.
-
-        The checks are those of ``append``: content idempotence, one current head for each decision
-        lineage, current parent heads, and replay of the decision policy. The set costs one lock
-        statement, one existence read, one head read and two inserts, whatever its size. A set that
-        holds a supersession keeps the per-record path. A supersession changes the heads that the
-        later records of the set read.
-        """
+        """Append an ordered causal batch with bounded lock and insert statements."""
         batch = tuple(records)
         if not batch:
             return ()
         try:
             if len({record.scope for record in batch}) > 1 or any(record.supersedes_id is not None for record in batch):
-                # Take the locks in key order first, as the fresh path does. Two writers of one set then
-                # wait in the same order, whichever path each of them takes.
                 await self._lock_lineages(batch)
                 return tuple([await self.append(record) for record in batch])
             return await self._append_fresh_set(batch)
@@ -387,8 +372,23 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 raise TraceRecordPersistenceError(_LINEAGE_FORK_MESSAGE)
         await self._validate_parents_and_policy(record)
 
+    def _replay_decision_digest(self, record: TraceRecord, parents: Sequence[TraceRecord], *, prefix: str = "") -> None:
+        """Verify that replaying the registered decision policy reproduces ``record.content_digest``."""
+        policy = self._policies.resolve(record.assertion)
+        rebuilt = TraceRecord.decision(
+            scope=record.scope,
+            target=record.target,
+            policy=policy,
+            execution_id=record.execution_id,
+            occurred_at=record.occurred_at,
+            parents=parents,
+            supersedes_id=record.supersedes_id,
+        )
+        if rebuilt.content_digest != record.content_digest:
+            raise TraceRecordPersistenceError(f"{prefix}decision policy replay does not match its digest")
+
     async def _validate_parents_and_policy(self, record: TraceRecord) -> None:
-        """Check that every parent is a current head and that the policy replays to the same digest."""
+        """Verify current parent heads and replay the registered decision policy."""
         if record.record_type is TraceRecordType.OBSERVATION:
             if record.parent_ids:
                 raise TraceRecordPersistenceError("observation cannot persist parent links")
@@ -403,18 +403,7 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 raise TraceRecordPersistenceError("every decision parent must be a current parent head")
             parents.append(parent)
 
-        policy = self._policies.resolve(record.assertion)
-        rebuilt = TraceRecord.decision(
-            scope=record.scope,
-            target=record.target,
-            policy=policy,
-            execution_id=record.execution_id,
-            occurred_at=record.occurred_at,
-            parents=parents,
-            supersedes_id=record.supersedes_id,
-        )
-        if rebuilt.content_digest != record.content_digest:
-            raise TraceRecordPersistenceError("decision policy replay does not match its digest")
+        self._replay_decision_digest(record, parents)
 
     async def _lock_lineage(self, record: TraceRecord) -> None:
         await self._db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(_lineage_lock_key(record), 0))))
@@ -574,18 +563,7 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 if parent is None:
                     raise TraceRecordPersistenceError("persisted decision parent is missing or cross-scope")
                 parents.append(parent)
-            policy = self._policies.resolve(record.assertion)
-            replayed = TraceRecord.decision(
-                scope=record.scope,
-                target=record.target,
-                policy=policy,
-                execution_id=record.execution_id,
-                occurred_at=record.occurred_at,
-                parents=parents,
-                supersedes_id=record.supersedes_id,
-            )
-            if replayed.content_digest != record.content_digest:
-                raise TraceRecordPersistenceError("persisted decision policy replay does not match its digest")
+            self._replay_decision_digest(record, parents, prefix="persisted ")
         return record
 
 
