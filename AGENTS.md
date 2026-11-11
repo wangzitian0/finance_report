@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=1a8dbf4c38035bab1df3316ed21b4af45f6a715f755ec3a9ad1d2fab40cdc724 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=97f424352b254749699daaf3a2a3584f9010907ca51d3d875bdd466059cc6f4c -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -26,6 +26,7 @@
 - **Review standing authorization:** Resolve a review thread after verifying in source code (not redacted diffs) that it is fixed or obsolete. Never resolve actionable or unverified feedback. Turn false reports into falsifiable invariant tests.
 - **Weighted review gates:** Each repository defines its own severity weights and blocking thresholds. Read literal `severity: <level>` tags; do not infer severity from prose.
 - **Merge when ready:** Once all merge conditions pass, merge and continue from the latest main rather than piling up divergent branches.
+- **Conflict-free merge window:** Merge conflict-free PRs (`mergeable=MERGEABLE`) within 24 hours of `main` without rebasing; post-merge CI validates `main`. Rebase on conflicts or after 24 hours.
 - **Delivery state invariant:** Never declare complete, done, or finished before merge to main and a verified Business Reality Probe (`ws-delivery-status`). State labels are `'Draft'`, `'Local verified'`, `'In review'`, `'Stage 1 Landed'`, and `'VERIFIED_COMPLETE'`.
 - **Anti-exclusion and reality invariant:** Exclusion is not resolution. Never exclude failing entities or add exemptions to manufacture green checks. A task is complete only when a physical reality probe confirms non-empty execution.
 - **Three-stage deployment prerequisite:** Stage 1 (Merge to main) is a non-bypassable physical prerequisite for Stage 2 and Stage 3. If HEAD is not on main, fail closed and refuse any deployment request.
@@ -151,9 +152,9 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - A merge that reaches **production** is a production change (Root section `Production reservation`). A protected-file change merges once the protected-file checklist in [branch-policy.md](docs/contributing/branch-policy.md) §4 passes. A merge that only triggers a preview/staging redeploy is the agent's call — see [branch-policy.md](docs/contributing/branch-policy.md) §4.
 - Install hooks with `make install`; run `moon run :lint && moon run :test` before pushing.
 - Resolve all Copilot review comments by fixing them or stating the rationale; reply on the thread before resolving it.
-- Verify `mergeable=MERGEABLE` and `mergeStateStatus=CLEAN` fresh before reporting ready (sibling merges can flip state to `DIRTY`/`BEHIND`); if blocked, report the blocker and next action ([docs/agents/orchestration.md](docs/agents/orchestration.md)).
+- Verify `mergeable=MERGEABLE` and `mergeStateStatus` in `CLEAN` or `BEHIND` (within 24 hours of `main`) fresh before reporting ready; rebase only on `DIRTY` conflicts or after 24 hours behind `main` ([docs/agents/orchestration.md](docs/agents/orchestration.md)).
 - State the exact deployed commit/version when claiming staging or production verification.
-- Keep watching open PRs for CI runs, review comments, and merge conflicts until merged ([docs/agents/orchestration.md](docs/agents/orchestration.md)). After merge, resync `main`, rebase remaining branches, and start the next slice.
+- Keep watching open PRs for CI runs, review comments, and merge conflicts until merged ([docs/agents/orchestration.md](docs/agents/orchestration.md)). After merge, resync `main`, rebase only conflicting or `>24h`-behind branches, and start the next slice.
 - Make reversible product decisions and record the rationale in the PR or issue. Only a production change waits for the user. While they wait, start the next independent planned slice.
 
 ---
