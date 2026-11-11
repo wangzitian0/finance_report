@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
@@ -17,6 +21,46 @@ logger = get_logger(__name__)
 
 PARSING_STALE_THRESHOLD = timedelta(minutes=5)
 PARSING_SUPERVISOR_INTERVAL_SECONDS = 60
+PARSING_HEARTBEAT_INTERVAL_SECONDS = 30
+_PARSING_STATUSES = [BankStatementStatus.PARSING, BankStatementStatus.PARSING.value]
+
+
+@asynccontextmanager
+async def parsing_heartbeat(
+    statement_id: UUID,
+    sessionmaker: async_sessionmaker[AsyncSession] | None = None,
+    *,
+    interval_seconds: float | None = None,
+) -> AsyncIterator[None]:
+    """Refresh `updated_at` of a parsing row while the parse runs.
+
+    The watchdog resets rows whose `updated_at` is older than the stale threshold. A long
+    statement needs more time than that threshold, so a live parse must show it is alive.
+    """
+    interval = PARSING_HEARTBEAT_INTERVAL_SECONDS if interval_seconds is None else interval_seconds
+    session_factory = sessionmaker or async_session_maker
+
+    async def beat() -> None:
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                async with session_factory() as session:
+                    await session.execute(
+                        update(StatementSummary)
+                        .where(StatementSummary.id == statement_id, StatementSummary.status.in_(_PARSING_STATUSES))
+                        .values(updated_at=datetime.now(UTC))
+                    )
+                    await session.commit()
+            except Exception:
+                logger.warning("statement.parsing.heartbeat_failed", statement_id=str(statement_id), exc_info=True)
+
+    task = asyncio.create_task(beat())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 async def reset_stale_parsing_jobs(
@@ -31,7 +75,7 @@ async def reset_stale_parsing_jobs(
     async with session_factory() as session:
         result = await session.execute(
             select(StatementSummary)
-            .where(StatementSummary.status.in_([BankStatementStatus.PARSING, BankStatementStatus.PARSING.value]))
+            .where(StatementSummary.status.in_(_PARSING_STATUSES))
             .where(StatementSummary.updated_at < cutoff)
         )
         stale_statements = result.scalars().all()
