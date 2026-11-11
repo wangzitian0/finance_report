@@ -1,4 +1,4 @@
-"""ExtractionService: core LLM parse path + mixin composition."""
+"""ExtractionService: core LLM parse path and mixin composition."""
 
 import asyncio
 import json
@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
@@ -57,28 +58,30 @@ from src.extraction.extension.deduplication import DeduplicationService, _decima
 from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
+from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import record_financial_invariant_violation
 
-# Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
 
 
 def _ai_stream_error() -> type[Exception]:
-    # Lazy: see the stream_ai_json proxy note (litellm-free package root).
     from src.llm import AIStreamError
 
     return AIStreamError
 
 
 def _institution_class(*, is_brokerage: bool) -> str:
-    """Anonymized, low-cardinality institution bucket for invariant metrics.
-
-    Deliberately coarse — ``"brokerage"`` vs ``"bank"`` — so the metric never
-    carries a real institution name or any account identifier (PII-free, bounded
-    label space).
-    """
     return "brokerage" if is_brokerage else "bank"
+
+
+def _format_failed_currencies(per_currency_result: dict[str, Any], prefix: str) -> str:
+    failed = [
+        f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
+        for r in per_currency_result.get("per_currency", [])
+        if not r.get("balance_valid")
+    ]
+    return f"{prefix}: {', '.join(failed)}" if failed else prefix
 
 
 class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
@@ -90,12 +93,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         self.multimodal_model = settings.multimodal_model
         self.deduplication_service = DeduplicationService()
 
-    async def _extract_csv_source(
-        self,
-        source: DocumentSource,
-        *,
-        institution: str | None,
-    ) -> dict[str, Any]:
+    async def _extract_csv_source(self, source: DocumentSource, *, institution: str | None) -> dict[str, Any]:
         if not source.content:
             raise ExtractionError("File content is required for CSV parsing")
         if not institution:
@@ -132,17 +130,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         force_model: str | None = None,
         db: AsyncSession | None = None,
     ) -> StatementExtractionResult:
-        """Parse document using AI vision models or CSV parser.
-
-        Every transport returns the same immutable source-to-fact result. When a
-        session is supplied, the ODS/DWD projection is persisted as a side effect,
-        but mutable ORM rows are never a second return contract.
-        """
+        """Parse document via AI vision or CSV parser into an immutable StatementExtractionResult."""
         if not isinstance(source, DocumentSource):
             raise TypeError("parse_document requires a DocumentSource")
 
         file_path = source.path
         original_filename = source.filename
+        display_filename = original_filename or (file_path.name if file_path else None)
         model = force_model or self.multimodal_model
         logger.info(
             "Parsing document",
@@ -157,75 +151,43 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 extracted = await self._extract_csv_source(source, institution=institution)
             elif file_type in ("pdf", "png", "jpg", "jpeg"):
                 extracted = await self._extract_vision_source(
-                    source,
-                    institution=institution,
-                    file_type=file_type,
-                    force_model=force_model,
-                    user_id=user_id,
+                    source, institution=institution, file_type=file_type, force_model=force_model, user_id=user_id
                 )
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
 
             extracted = normalize_statement_balance_payload(extracted)
-            detected_institution = extracted.get("institution")
-            final_institution = institution or detected_institution
+            final_institution = institution or extracted.get("institution")
             if not final_institution:
                 raise ExtractionError("Institution is required; extraction cannot invent source identity")
             is_brokerage_payload = looks_like_brokerage_payload(
-                extracted,
-                filename=original_filename or (file_path.name if file_path else None),
-                institution=final_institution,
+                extracted, filename=display_filename, institution=final_institution
             )
             brokerage_positions = (
-                parse_brokerage_positions(
-                    extracted,
-                    filename=original_filename or (file_path.name if file_path else None),
-                    institution=final_institution,
-                )
+                parse_brokerage_positions(extracted, filename=display_filename, institution=final_institution)
                 if is_brokerage_payload
                 else []
             )
             evidence_type = statement_evidence_type(
-                is_brokerage=is_brokerage_payload,
-                provider_payload=extracted,
-                positions=brokerage_positions,
+                is_brokerage=is_brokerage_payload, provider_payload=extracted, positions=brokerage_positions
             )
             is_position_snapshot = is_brokerage_payload and evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
 
             resolved_file_hash = source.content_hash
-            # Raw extracted statement currency (no fallback) — feeds the per-transaction
-            # ingest-boundary resolution (AC12.40) so a genuinely-missing currency is
-            # flagged for review rather than masked by the StatementSummary default.
             statement_payload = extracted.get("statement")
             nested_currency = statement_payload.get("currency") if isinstance(statement_payload, dict) else None
             raw_statement_currency = extracted.get("currency") or nested_currency
-            # Normalize the envelope currency (strip/upper) so the StatementSummary,
-            # the auto-created bank account, and the posting-account currency check all
-            # agree on a canonical ISO code. A non-normalized extraction ("sgd"/"SGD ")
-            # would otherwise mismatch `normalize_currency_code(statement.currency)` in
-            # the posting path and silently block auto-post (CR on #1467).
             statement_currency = normalize_currency_code(raw_statement_currency)
-            # A source can be syntactically parseable while omitting financial facts.
-            # Preserve the omission in the result and force review below; inventing a
-            # base currency or inferring a period would create false source truth.
             resolved_period_start = self._safe_optional_date(extracted.get("period_start"))
             resolved_period_end = self._safe_optional_date(extracted.get("period_end"))
             if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT and (
                 resolved_period_start is None or resolved_period_end is None
             ):
-                snapshot_dates = {
-                    position.snapshot_date for position in brokerage_positions if position.snapshot_date is not None
-                }
+                snapshot_dates = {pos.snapshot_date for pos in brokerage_positions if pos.snapshot_date is not None}
                 if len(snapshot_dates) == 1:
-                    snapshot_date = next(iter(snapshot_dates))
-                    resolved_period_start = snapshot_date
-                    resolved_period_end = snapshot_date
+                    resolved_period_start = resolved_period_end = next(iter(snapshot_dates))
 
             sanitized_account_last4 = self._sanitize_account_last4(extracted.get("account_last4"))
-            # Auto-create and link the physical bank account so a high-confidence,
-            # balance-validated statement can reach APPROVED and auto-post without
-            # the everyday user having to map an account first (#1444). The
-            # factual-account rules live in _resolve_bank_account_binding.
             account_id, sanitized_account_last4, bank_allocation = await self._resolve_bank_account_binding(
                 db=db,
                 user_id=user_id,
@@ -250,16 +212,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 extraction_metadata=None,
             )
 
-            # Per-currency balance derivation + self-check for both payload
-            # classes (brokerage NAV #1139 AC-B3; bank parity #1502 AC4.13.9):
-            # never cross-sum currencies; a failing per-currency self-check
-            # invalidates the statement. Full rationale in
-            # _compute_per_currency_balances.
             bank_balances, currency_balances_value, per_currency_invalid_note = self._compute_per_currency_balances(
                 extracted=extracted,
                 statement=statement,
                 is_brokerage_payload=is_brokerage_payload,
-                filename=original_filename or (file_path.name if file_path else None),
+                filename=display_filename,
                 institution=final_institution,
             )
             if currency_balances_value is not None:
@@ -267,41 +224,24 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
             transactions: list[ExtractedTransactionRow] = []
             net_transactions = Decimal("0.00")
-            # Per-document occurrence ordinal among rows that would otherwise hash
-            # identically (same date/amount/direction/description/reference/balance): lets
-            # genuinely repeated rows stay distinct instead of collapsing in the dedup hash —
-            # both balance-less repeats (two same-day CSV coffees) and same-balance repeats
-            # (#1254: two same-amount deposits printed against one carried-forward /
-            # brought-forward running balance across a page boundary).
             occurrence_counts: dict[tuple, int] = {}
             custody_scope = f"account:{account_id}" if account_id is not None else f"source:{source.content_hash}"
             for txn in extracted.get("transactions", []):
                 built = self._build_transaction_row(
                     txn=txn,
                     evidence_type=evidence_type,
-                    filename=original_filename or (file_path.name if file_path else "unknown"),
+                    filename=display_filename or "unknown",
                     raw_statement_currency=raw_statement_currency,
                     user_id=user_id,
                     occurrence_counts=occurrence_counts,
                     custody_scope=custody_scope,
                 )
-                if built is None:
-                    continue
-                transaction, signed_delta = built
-                net_transactions += signed_delta
-                transactions.append(transaction)
+                if built is not None:
+                    transaction, signed_delta = built
+                    net_transactions += signed_delta
+                    transactions.append(transaction)
 
-            # Within-document dedup-collapse signal (EPIC-026 AC26.8.1; #1254 class).
-            # Compare the rows kept for THIS parse against the distinct dedup hashes
-            # they produced. A positive count means two rows in this single document
-            # collided on one hash despite the per-document occurrence_index
-            # disambiguator — the silent within-parse row loss that #1254 fixed. This
-            # is computed only over this parse's freshly-built rows and BEFORE any DB
-            # upsert, so legitimate cross-document dedup (a re-uploaded statement
-            # collapsing against an already-persisted row) can never trip it. The
-            # detection log + metric below are pure observability; the value also
-            # feeds the BLOCKING LLM-LED gate (AC20.9.3, #1352) further down, where a
-            # positive count quarantines the extraction.
+            institution_class = _institution_class(is_brokerage=is_brokerage_payload)
             within_doc_collapse = count_within_document_dedup_collapse([t.dedup_hash for t in transactions])
             if within_doc_collapse > 0:
                 logger.warning(
@@ -310,33 +250,18 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     distinct_hashes=len(transactions) - within_doc_collapse,
                     collapsed_rows=within_doc_collapse,
                     is_brokerage=is_brokerage_payload,
-                    statement_file=original_filename or (file_path.name if file_path else "unknown"),
+                    statement_file=display_filename or "unknown",
                 )
-                record_financial_invariant_violation(
-                    kind="dedup_within_doc_collapse",
-                    institution_class=_institution_class(is_brokerage=is_brokerage_payload),
-                )
-                # Audit flag on the envelope's metadata so the collapse is queryable
-                # per statement, in addition to the blocking-gate quarantine below.
+                record_financial_invariant_violation(kind="dedup_within_doc_collapse", institution_class=institution_class)
                 metadata = statement.extraction_metadata if isinstance(statement.extraction_metadata, dict) else {}
-                metadata = {**metadata, "within_document_dedup_collapse": within_doc_collapse}
-                statement.extraction_metadata = metadata
+                statement.extraction_metadata = {**metadata, "within_document_dedup_collapse": within_doc_collapse}
 
-            # Validation
             balance_result = validate_balance_explicit(
                 opening=statement.opening_balance or Decimal("0.00"),
                 closing=statement.closing_balance or Decimal("0.00"),
                 net_transactions=net_transactions,
             )
             is_valid = balance_result["balance_valid"]
-            # Per-currency self-check governs for multi-currency statements — applied
-            # HERE, before confidence and routing, so both use the authoritative
-            # verdict rather than the meaningless cross-summed scalar. A failing
-            # per-currency check invalidates even if the scalar passed (#1160); a
-            # multi-currency bank that reconciled per currency is valid even though
-            # its cross-summed scalar "mismatches" (#1502 AC4.13.9). For the latter,
-            # confidence scores against a validated balance_result so it is not
-            # penalised for the scalar cross-sum.
             effective_balance_result = balance_result
             if per_currency_invalid_note is not None:
                 is_valid = False
@@ -349,46 +274,26 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     "notes": None,
                 }
             csv_balance_missing = extracted.get("balance_source") == "missing_from_csv_export"
-            # A CSV that declares both balances carries its own balance proof (#2476). The file is the
-            # source of the rows and of the balances. A mismatch is a fact about the file, not an
-            # error of the extraction, so a retry cannot fix it (#2504).
             csv_balance_declared = extracted.get("balance_source") == "declared_in_csv_export"
-            # The balance chain is *evaluable* only when the source carries both exact
-            # balance facts (AC20.9.4). Missing values must not turn into the vacuous
-            # 0 == 0 proof: an unevaluable statement is exempt from the LLM-LED balance
-            # gate (``declared_balance_absent``) and stays review-only.
             scalar_balance_evaluable = statement.opening_balance is not None and statement.closing_balance is not None
-            # A multi-currency bank statement proves the balance invariant via
-            # its declared per-currency ladders, even when no scalar aggregate
-            # exists. Do not confuse that valid proof with an absent balance.
             balance_evaluable = scalar_balance_evaluable or bank_balances is not None
             declared_balance_absent = not balance_evaluable
+
             source_fact_gaps = StatementExtractionResult.required_fact_kinds(
                 evidence_type=evidence_type,
                 period_start=resolved_period_start,
                 period_end=resolved_period_end,
-                # Exact per-currency balance buckets carry source-declared
-                # units when a multi-currency statement has no scalar header.
                 has_statement_currency=statement_currency is not None or bool(statement.currency_balances),
                 has_balances=bool(statement.currency_balances)
-                or (
-                    statement.currency is not None
-                    and statement.opening_balance is not None
-                    and statement.closing_balance is not None
-                ),
+                or (statement.currency is not None and scalar_balance_evaluable),
                 has_positions=bool(brokerage_positions),
-                has_unresolved_transaction_currency=any(
-                    transaction.currency_unresolved for transaction in transactions
-                ),
+                has_unresolved_transaction_currency=any(t.currency_unresolved for t in transactions),
             )
             source_review_reason = (
-                "Source is missing required facts: "
-                f"{', '.join(StatementExtractionResult.required_fact_labels(source_fact_gaps))}"
+                f"Source is missing required facts: {', '.join(StatementExtractionResult.required_fact_labels(source_fact_gaps))}"
                 if source_fact_gaps
                 else None
             )
-            # The model must not author the closing balance (#2394). A PDF text layer holds
-            # the printed numbers; a stored closing balance that it lacks goes to review.
             if file_type == "pdf" and not is_position_snapshot and bank_balances is None:
                 closing_source_verdict = check_closing_balance_against_text(
                     await asyncio.to_thread(
@@ -400,8 +305,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
                 if closing_source_verdict is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT:
                     record_financial_invariant_violation(
-                        kind="closing_balance_not_in_source",
-                        institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                        kind="closing_balance_not_in_source", institution_class=institution_class
                     )
                     if source_review_reason is None:
                         source_review_reason = (
@@ -409,61 +313,37 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         )
 
             if csv_balance_missing or source_review_reason is not None:
-                confidence = compute_confidence_score(
-                    extracted,
-                    {
-                        **balance_result,
-                        "balance_valid": is_valid if balance_evaluable else False,
-                        "balance_proof_available": balance_evaluable,
-                        "notes": source_review_reason or "Source CSV does not declare opening and closing balances",
-                    },
-                    is_brokerage=is_brokerage_payload,
-                    effective_txn_count=len(transactions),
+                confidence = min(
+                    compute_confidence_score(
+                        extracted,
+                        {
+                            **balance_result,
+                            "balance_valid": is_valid if balance_evaluable else False,
+                            "balance_proof_available": balance_evaluable,
+                            "notes": source_review_reason or "Source CSV does not declare opening and closing balances",
+                        },
+                        is_brokerage=is_brokerage_payload,
+                        effective_txn_count=len(transactions),
+                    ),
+                    59,
                 )
-                # A review-only source cannot cross the approval threshold even if
-                # its remaining facts happen to score highly.
-                confidence = min(confidence, 59)
                 status = BankStatementStatus.PARSED
             else:
-                # For confidence score, we use the original extracted dict to maintain logic.
-                # ``effective_balance_result`` carries the per-currency-governed verdict
-                # (#1502) so a reconciled multi-currency bank is not scored as a mismatch.
                 confidence = compute_confidence_score(
                     extracted,
                     effective_balance_result,
                     is_brokerage=is_brokerage_payload,
                     effective_txn_count=len(transactions),
                 )
-                # Routing differs by document class on purpose (#981): brokerage position snapshots
-                # reconcile via Layer-2 AtomicPosition snapshots, not a running-balance chain, so
-                # `balance_valid` is not their gating signal — they always go to `parsed`/review.
-                # Cash-only brokerage transaction ledgers (`not is_position_snapshot`) and bank
-                # statements route by `route_by_threshold`. As of #1141 an invalid balance
-                # chain also sends a statement to `parsed` (review with a validation_error),
-                # not `uploaded`: a parsed-but-unreconciled statement is reviewable, not a manual-
-                # entry dead-end. `uploaded` is now reserved for genuinely low-signal valid-balance
-                # parses (score < 60). Both classes therefore converge on `parsed`/review for the
-                # "balance invalid" outcome.
                 status = (
                     BankStatementStatus.PARSED if is_position_snapshot else route_by_threshold(confidence, is_valid)
                 )
                 if status == BankStatementStatus.APPROVED and account_id is None:
                     status = BankStatementStatus.PARSED
 
-            # (Per-currency governance of ``is_valid`` is applied above, before
-            # confidence/routing, so the verdict here is already authoritative.)
-            # Only assert a balance verdict when the chain was actually evaluable.
-            # A brokerage/no-balance statement has no opening+closing to check, so
-            # `validate_balance_explicit` returns a vacuous `0 == 0` True — report
-            # `None` (not-applicable) instead, so the UI never shows a green
-            # "validated" badge for something that was never validated (#1443). A
-            # real failure signal (per-currency NAV mismatch) still records False.
-            if not balance_evaluable and per_currency_invalid_note is None:
-                statement.balance_validated = None
-            else:
-                statement.balance_validated = is_valid
+            statement.balance_validated = None if (not balance_evaluable and per_currency_invalid_note is None) else is_valid
 
-            if len(transactions) == 0 and len(brokerage_positions) == 0:
+            if not transactions and not brokerage_positions:
                 statement.validation_error = (
                     "Document appears to contain no transactions or holdings in recognizable format."
                 )
@@ -478,94 +358,47 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             statement.confidence_score = confidence
             statement.status = status
 
-            # Promote invariant violations to structured, queryable counters
-            # (EPIC-026 AC26.8.1). These mirror the already-computed self-check
-            # results; they add observability ONLY and do not change is_valid,
-            # status, or the validation_error set above.
-            institution_class = _institution_class(is_brokerage=is_brokerage_payload)
             if not is_valid and per_currency_invalid_note is None and not csv_balance_missing:
-                # Scalar running-balance reconciliation failed. (The per-currency
-                # NAV failure already emits its own counter at detection time, and
-                # the inferred-CSV path is a review marker, not a true mismatch.)
-                record_financial_invariant_violation(
-                    kind="balance_mismatch",
-                    institution_class=institution_class,
-                )
-                # Deterministic chain-break detector: pinpoint a dropped/misparsed
-                # row when the mismatch has that shape. Emitted as a distinct,
-                # queryable signal; never alters routing.
+                record_financial_invariant_violation(kind="balance_mismatch", institution_class=institution_class)
                 chain_break = detect_balance_chain_break(
-                    extracted.get("transactions", []) or [],
-                    opening_balance=statement.opening_balance,
+                    extracted.get("transactions", []) or [], opening_balance=statement.opening_balance
                 )
                 if chain_break is not None:
                     logger.warning(
                         "Running-balance chain break detected",
                         break_index=chain_break.index,
                         delta=str(chain_break.delta),
-                        statement_file=original_filename or (file_path.name if file_path else "unknown"),
+                        statement_file=display_filename or "unknown",
                     )
-                    record_financial_invariant_violation(
-                        kind="chain_break",
-                        institution_class=institution_class,
-                    )
+                    record_financial_invariant_violation(kind="chain_break", institution_class=institution_class)
 
-            # Blocking LLM-LED tier invariant gate (EPIC-020 AC20.9.1/.2/.3/.4, #1352).
-            # The ``event → L2`` layer is LLM-LED: code may reject the LLM's
-            # extraction, never author it. Before #1352 a balance-chain failure or a
-            # within-document dedup collapse only *flagged* the statement and routed
-            # it to PARSED/review (#1141) — an internally-inconsistent extraction
-            # could still persist as reviewable financial truth. Now those two
-            # deterministic invariants are blocking: a failure quarantines the
-            # extraction to the existing ``rejected`` terminal state (already excluded
-            # from trusted report input by report_readiness) with a typed reason, and
-            # its Layer-2 rows are NOT written. The inferred-CSV review marker keeps
-            # its own routing; the balance gate exempts brokerage payloads (#981).
             llm_led_gate = evaluate_llm_led_extraction_gate(
                 is_brokerage=is_brokerage_payload,
                 balance_valid=is_valid,
                 within_doc_collapse=within_doc_collapse,
-                # An explicit source-fact absence is review-only, not a failed
-                # mathematical claim. A CSV that declares both balances and does not
-                # reconcile stays reviewable with its rows (#2504).
-                # The dedup invariant remains blocking.
                 balance_gate_exempt=csv_balance_missing or csv_balance_declared or declared_balance_absent,
             )
             if llm_led_gate.quarantined:
-                reason = llm_led_gate.reason
-                metric_kind = llm_led_gate.metric_kind
+                reason, metric_kind = llm_led_gate.reason, llm_led_gate.metric_kind
                 if reason is None or metric_kind is None:
                     raise ExtractionError("quarantined extraction gate requires a typed reason and metric")
                 status = BankStatementStatus.REJECTED
                 statement.status = status
                 statement.balance_validated = False
                 statement.stage1_status = Stage1Status.REJECTED
-                # The reason CODE is included verbatim so the terminal state is
-                # queryable by failure mode; the human message follows it.
                 statement.validation_error = f"{reason.value}: {llm_led_gate.message}"
-                record_financial_invariant_violation(
-                    kind=metric_kind,
-                    institution_class=institution_class,
-                )
+                record_financial_invariant_violation(kind=metric_kind, institution_class=institution_class)
                 logger.warning(
                     "LLM-LED invariant gate quarantined extraction (blocked from trusted truth)",
                     reason=reason.value,
                     is_brokerage=is_brokerage_payload,
-                    # Log the non-PII content hash, never the real statement filename
-                    # or local path (red-lines.md): the hash is enough to correlate
-                    # the quarantine with the upload without leaking PII.
                     file_hash=resolved_file_hash,
                 )
                 if bank_allocation is not None and db is not None:
-                    # Remove only this parse's unused allocation. Existing
-                    # account identities survive a later rejected statement.
                     await release_rejected_custody(db, bank_allocation)
                     if bank_allocation.account_created:
                         statement.account_id = None
 
-            # A statement that lands in review must carry an explicit pending_review marker so the
-            # queue does not rely on a NULL fallback. The auto-approve path owns the approved/None
-            # transitions for APPROVED rows, so only set this for review-bound PARSED statements.
             if status == BankStatementStatus.PARSED:
                 statement.stage1_status = Stage1Status.PENDING_REVIEW
 
@@ -600,16 +433,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 tx_count=len(transactions),
             )
 
-            # A quarantined extraction must never persist its Layer-2 rows: those
-            # rows are precisely the untrusted financial truth the gate exists to
-            # block. The statement *envelope* must still be persisted, though — its
-            # terminal ``rejected`` status and reason are exactly what the user and
-            # the review queue need. Skipping the write entirely (the prior
-            # behavior) left the row stuck in ``parsing`` forever even though the
-            # verdict was computed (#1452): ``dual_write_layer2`` is the only path
-            # that updates the API-visible row's status. So always write the
-            # envelope when ``db`` is present, but pass no transactions when
-            # quarantined so no Layer-2 financial rows are created.
             if db:
                 await dual_write_layer2(
                     db=db,
@@ -617,14 +440,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     statement=statement,
                     transactions=[] if llm_led_gate.quarantined else transactions,
                     file_path=file_path,
-                    original_filename=original_filename or (file_path.name if file_path else "unknown"),
+                    original_filename=display_filename or "unknown",
                     document_type=(
                         DocumentType.BROKERAGE_STATEMENT if is_brokerage_payload else DocumentType.BANK_STATEMENT
                     ),
                     extraction_metadata=result_metadata,
-                    # A quarantined extraction persists only its terminal rejected
-                    # envelope: no new Layer-2 rows, and (on re-parse) no detaching
-                    # of a prior good parse's existing Layer-2 facts (#1452 CR).
                     envelope_only=llm_led_gate.quarantined,
                 )
 
@@ -647,15 +467,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         sanitized_account_last4: str | None,
         is_brokerage_payload: bool,
     ) -> tuple[UUID | None, str | None, BankCustodyAllocation | None]:
-        """Auto-create/link the physical bank custody account (#1444).
-
-        A *factual* asset account keyed on institution + last4 + currency
-        (mirrors the brokerage auto-account path); category (counter-account)
-        classification stays a separate, user-adjustable layer. Skipped for
-        brokerage payloads (they own a broker account at import) and when no
-        db, real institution, or last4 is available to key a stable account.
-        Behavior-preserving extraction from ``parse_document`` (#2161 G-002).
-        """
         bank_allocation = None
         if db is not None and account_id is not None and not is_brokerage_payload:
             await validate_custody_account(db, user_id=user_id, account_id=account_id, currency=statement_currency)
@@ -671,10 +482,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
                 account_id = bank_allocation.account.id
             elif account_id is None:
-                from sqlalchemy import select
-
-                from src.extraction.orm.bank_custody_binding import BankCustodyBinding
-
                 bindings = (
                     (
                         await db.execute(
@@ -692,10 +499,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
                 if len(bindings) == 1:
                     await validate_custody_account(
-                        db,
-                        user_id=user_id,
-                        account_id=bindings[0].account_id,
-                        currency=statement_currency,
+                        db, user_id=user_id, account_id=bindings[0].account_id, currency=statement_currency
                     )
                     account_id = bindings[0].account_id
                     sanitized_account_last4 = bindings[0].account_last4
@@ -710,68 +514,26 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         filename: str | None,
         institution: str | None,
     ) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None, str | None]:
-        """Per-currency balance derivation + self-check for both payload classes.
-
-        Brokerage NAV (#1139 AC-B3) and bank parity (#1502 AC4.13.9): a
-        multi-currency statement holds positions/transactions in several
-        currencies at once; cross-summing them into one scalar is meaningless,
-        so each currency is reconciled as an independent closed loop. Returns
-        ``(bank_balances, currency_balances_to_persist, invalid_note)``:
-        ``bank_balances`` feeds the later balance-evaluability logic,
-        ``currency_balances_to_persist`` is the value for
-        ``statement.currency_balances`` (``None`` = leave unset), and
-        ``invalid_note`` propagates into ``balance_validated`` /
-        ``validation_error`` after the scalar check. Behavior-preserving
-        extraction from ``parse_document`` (#2161 G-002).
-        """
+        _ = statement
         per_currency_invalid_note: str | None = None
         currency_balances_value: list[dict[str, Any]] | None = None
+        institution_class = _institution_class(is_brokerage=is_brokerage_payload)
+
         if is_brokerage_payload:
-            brokerage_balances = brokerage_currency_balances(
-                extracted,
-                filename=filename,
-                institution=institution,
-            )
+            brokerage_balances = brokerage_currency_balances(extracted, filename=filename, institution=institution)
             if brokerage_balances:
-                # Reconcile each currency independently (open + ΣIN − ΣOUT ≈
-                # close per currency); never cross-sum. A snapshot has no cash
-                # flow, so each currency is a zero-net closed loop and must
-                # reconcile before we trust it.
                 per_currency_result = validate_balance_per_currency(
                     {"balances": brokerage_balances, "transactions": []}
                 )
                 if not per_currency_result["balance_valid"]:
-                    # Respect the self-check result: surface the failing
-                    # currencies so the persisted statement carries the invalid
-                    # flag rather than silently looking reconciled (#1160 CR1).
-                    failed = [
-                        f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
-                        for r in per_currency_result.get("per_currency", [])
-                        if not r.get("balance_valid")
-                    ]
-                    per_currency_invalid_note = (
-                        "Per-currency NAV self-check failed: " + ", ".join(failed)
-                        if failed
-                        else "Per-currency NAV self-check failed"
+                    per_currency_invalid_note = _format_failed_currencies(
+                        per_currency_result, "Per-currency NAV self-check failed"
                     )
                     logger.warning(
                         "Per-currency brokerage NAV failed self-check",
                         per_currency=per_currency_result["per_currency"],
                     )
-                    # Observability (EPIC-026 AC26.8.1): promote this invariant
-                    # violation to a structured, queryable counter. Pure
-                    # detection — the per_currency_invalid_note above already
-                    # owns the (unchanged) status/balance_validated behavior.
-                    record_financial_invariant_violation(
-                        kind="per_currency_nav",
-                        institution_class=_institution_class(is_brokerage=is_brokerage_payload),
-                    )
-                # Serialize Decimal -> str for the JSONB column (no float). The
-                # scalar opening/closing columns stay populated for the
-                # single-currency degenerate case and backward compatibility;
-                # this array is additive and never cross-sums currencies. The
-                # array is still persisted (it is the per-currency evidence), but
-                # the invalid flag above ensures it is not mistaken for valid.
+                    record_financial_invariant_violation(kind="per_currency_nav", institution_class=institution_class)
                 currency_balances_value = [
                     {
                         "currency": bucket["currency"],
@@ -780,51 +542,24 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     }
                     for bucket in brokerage_balances
                 ]
+            return None, currency_balances_value, per_currency_invalid_note
 
-        # AC4.13.9 (#1502): bank parity with the brokerage per-currency path.
-        # A multi-currency BANK statement (e.g. a DBS consolidated / multi-
-        # currency account) holds several currencies at once. Collapsing them
-        # into one scalar opening/closing — or worse, cross-summing the per-
-        # currency transaction nets — is meaningless. When the bank payload
-        # declares per-currency ``balances`` for >1 currency, persist the array
-        # and reconcile each currency independently; ``is_valid`` is then
-        # governed by that per-currency self-check below. Single-currency bank
-        # statements keep ``bank_balances=None`` and the unchanged scalar path.
         bank_balances = None
-        if not is_brokerage_payload:
-            # A malformed multi-currency payload (duplicate currency, non-numeric
-            # amount) must not crash the whole extraction: degrade to a flagged,
-            # reviewable statement instead of a 500. The deterministic invalid
-            # note routes it through the existing quarantine path.
-            try:
-                bank_balances = bank_currency_balances(extracted)
-            except (ValueError, InvalidOperation, TypeError) as exc:
-                bank_balances = None
-                per_currency_invalid_note = f"Per-currency balances could not be parsed: {exc}"
-                record_financial_invariant_violation(
-                    kind="per_currency_balance",
-                    institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+        try:
+            bank_balances = bank_currency_balances(extracted)
+        except (ValueError, InvalidOperation, TypeError) as exc:
+            per_currency_invalid_note = f"Per-currency balances could not be parsed: {exc}"
+            record_financial_invariant_violation(kind="per_currency_balance", institution_class=institution_class)
+        if bank_balances:
+            bank_per_currency = validate_balance_per_currency(
+                {"balances": bank_balances, "transactions": extracted.get("transactions", [])}
+            )
+            if not bank_per_currency["balance_valid"]:
+                per_currency_invalid_note = _format_failed_currencies(
+                    bank_per_currency, "Per-currency balance self-check failed"
                 )
-            if bank_balances:
-                bank_per_currency = validate_balance_per_currency(
-                    {"balances": bank_balances, "transactions": extracted.get("transactions", [])}
-                )
-                if not bank_per_currency["balance_valid"]:
-                    failed = [
-                        f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
-                        for r in bank_per_currency.get("per_currency", [])
-                        if not r.get("balance_valid")
-                    ]
-                    per_currency_invalid_note = (
-                        "Per-currency balance self-check failed: " + ", ".join(failed)
-                        if failed
-                        else "Per-currency balance self-check failed"
-                    )
-                    record_financial_invariant_violation(
-                        kind="per_currency_balance",
-                        institution_class=_institution_class(is_brokerage=is_brokerage_payload),
-                    )
-                currency_balances_value = bank_balances
+                record_financial_invariant_violation(kind="per_currency_balance", institution_class=institution_class)
+            currency_balances_value = bank_balances
         return bank_balances, currency_balances_value, per_currency_invalid_note
 
     def _build_transaction_row(
@@ -838,33 +573,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         occurrence_counts: dict[tuple, int],
         custody_scope: str,
     ) -> tuple[ExtractedTransactionRow, Decimal] | None:
-        """Build one ExtractedTransactionRow, or skip a brokerage non-bank row.
-
-        Returns ``(row, signed_delta)`` where signed_delta is ``+amount`` for
-        IN and ``-amount`` for OUT, or ``None`` for a brokerage row
-        deliberately skipped (POSITION_SNAPSHOT payloads may carry non-bank
-        rows). Raises ``ExtractionError`` for genuinely malformed rows.
-        ``occurrence_counts`` is the per-document dedup disambiguator
-        accumulator (#1254), mutated in place. Behavior-preserving extraction
-        from ``parse_document`` (#2161 G-002).
-        """
         if not txn.get("date") or txn.get("amount") is None:
             if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
-                logger.info(
-                    "Skipping non-bank transaction row in brokerage payload",
-                    filename=filename,
-                )
+                logger.info("Skipping non-bank transaction row in brokerage payload", filename=filename)
                 return None
             raise ExtractionError("Transaction missing required fields: date or amount")
 
-        # Handle case where the model returns date as non-string
-        txn_date_val = txn["date"]
-        if not isinstance(txn_date_val, str):
-            txn_date_val = str(txn_date_val)
-
-        # Every declared transaction must become a fact or an explicit
-        # source failure; aggregate balance equality cannot prove recall.
-        parsed_date = _tolerant_parse_date(txn_date_val)
+        parsed_date = _tolerant_parse_date(str(txn["date"]))
         if parsed_date is None:
             raise ExtractionError(
                 "Transaction date could not be parsed. No partial transaction set was imported; "
@@ -875,41 +590,21 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             amount = Decimal(str(txn["amount"]))
         except (ValueError, TypeError, InvalidOperation) as exc:
             if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
-                logger.info(
-                    "Skipping brokerage transaction row with non-bank amount",
-                    filename=filename,
-                )
+                logger.info("Skipping brokerage transaction row with non-bank amount", filename=filename)
                 return None
             raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
+
         amount, direction = normalize_amount_direction(amount, txn.get("direction"))
-        # EPIC-012 AC12.40.1/.2: establish the currency at the ingest boundary from
-        # the parsed transaction then the statement's RAW extracted currency. When
-        # neither is a valid ISO-4217 code, flag the row ``currency_unresolved`` so it
-        # is routed to human review instead of silently defaulting to the base currency.
         resolved_currency = resolve_ingest_currency(txn.get("currency"), raw_statement_currency)
         txn_currency = resolved_currency.code
         txn_balance_after = self._safe_decimal(txn.get("balance_after"))
         txn_direction = TransactionDirection.IN if direction == "IN" else TransactionDirection.OUT
-        # The statement prompt lets the model return null for a field it cannot read,
-        # so the key can be present with a None value. A missing, null or blank
-        # description falls back to the placeholder instead of rejecting the statement.
         raw_description = txn.get("description")
         txn_description = str(raw_description) if raw_description is not None else ""
         if not txn_description.strip():
             txn_description = "Unknown"
         txn_reference = txn.get("reference")
 
-        # Dedup disambiguator (see calculate_transaction_hash): the running balance
-        # (when present) paired with a per-document occurrence ordinal among rows that
-        # would otherwise hash identically. The ordinal is counted over the FULL hash
-        # key — including balance_after — so two genuinely-distinct same-date/same-amount
-        # rows that share one running balance (#1254: a deposit before a carried-forward
-        # row and an identical deposit after the brought-forward row across a page
-        # boundary) stay distinct instead of the second collapsing into the first. Rows
-        # with a different running balance get their own independent ordinal-0 counter, so
-        # this never merges rows that the balance already separates. 🚨 The extracted
-        # balance_after / occurrence_index are stashed on transient attributes that
-        # dual_write_layer2 reuses to keep its upsert hash identical.
         occ_key = (
             parsed_date,
             _decimal_key(amount),
@@ -934,7 +629,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             currency=txn_currency,
             custody_scope=custody_scope,
         )
-
         transaction = ExtractedTransactionRow(
             user_id=user_id,
             txn_date=parsed_date,
@@ -949,7 +643,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             dedup_hash=dedup_hash,
             custody_scope=custody_scope,
         )
-
         return transaction, (amount if direction == "IN" else -amount)
 
     async def _extract_with_balance_retry(
@@ -963,17 +656,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         filename: str | None,
         user_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Re-extract until the running-balance chain reconciles (#989 Step B).
-
-        A non-deterministic model can drop/misread a transaction so the same PDF
-        sometimes reconciles and sometimes does not. When a bank statement fails
-        balance validation, re-extract up to ``ai_extract_max_attempts`` times,
-        each with a *different but reproducible* seed, and keep the first parse
-        that reconciles. Brokerage payloads do not reconcile like bank statements
-        (they import via Layer-2 positions), so they are never retried. If no
-        attempt reconciles, the smallest-difference result is returned so routing
-        to ``uploaded`` is unchanged.
-        """
         max_attempts = max(1, settings.ai_extract_max_attempts)
         base_seed = settings.ai_json_seed
         best: dict[str, Any] | None = None
@@ -982,8 +664,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         last_error: ExtractionError | None = None
 
         for attempt in range(max_attempts):
-            # Attempt 0 uses the configured seed; retries vary it so each is a
-            # distinct deterministic sample (None base => provider-side variance).
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
             try:
                 extracted = await self.extract_financial_data(
@@ -997,20 +677,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     user_id=user_id,
                 )
             except ExtractionError as exc:
-                # A transient error on one attempt must not fail an upload that
-                # another attempt can satisfy. Skip it and keep trying remaining
-                # attempts (a later one may still reconcile); any earlier parse is
-                # retained as best/last_parse, and only the all-attempts-failed
-                # case re-raises below.
                 last_error = exc
                 continue
             extracted = normalize_statement_balance_payload(extracted)
             last_parse = extracted
 
             if looks_like_brokerage_payload(
-                extracted,
-                filename=filename,
-                institution=institution or extracted.get("institution"),
+                extracted, filename=filename, institution=institution or extracted.get("institution")
             ):
                 return extracted
 
@@ -1032,11 +705,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     )
                 return extracted
 
-            # Only parses whose balance was actually computable compete for "best".
-            # validate_balance sets balance_computable=False when the payload is
-            # structurally broken (missing/non-numeric amount) and its difference
-            # defaults to "0"; such a parse must not win over a numerically-close
-            # one just because its difference is 0.
             if result.get("balance_computable", True):
                 try:
                     diff = Decimal(str(result.get("difference", "0") or "0"))
@@ -1054,11 +722,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
             return best
         if last_parse is not None:
-            # No balance-computable parse, but at least one attempt produced a
-            # (structurally-broken) result; return it so parse_document reports the
-            # failure exactly as the single-call path did.
             return last_parse
-        # Every attempt raised — propagate so the upload fails as before.
         raise last_error or ExtractionError("Extraction failed after all retries")
 
     async def _extract_json_with_model(
@@ -1068,12 +732,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         seed_override: int | None = None,
         user_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Stream JSON extraction through one chat model.
-
-        There is no fallback chain (owner rule, #2643). A failed call raises one
-        ``ExtractionError`` whose text starts ``Extraction failed (<kind>):``; kind is
-        ``empty_response``, ``json_parse``, ``rate_limit``, ``timeout`` or ``http_error``.
-        """
         from src.observability import ErrorIds
 
         def failed(kind: str, detail: str) -> ExtractionError:
@@ -1087,7 +745,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         try:
             logger.info("Attempting AI extraction (streaming)", model=model)
-
             stream = stream_ai_json(
                 messages=messages,
                 model=model,
@@ -1099,18 +756,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 seed=seed_override if seed_override is not None else settings.ai_json_seed,
                 thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
             )
-
             content = await accumulate_stream(stream)
-
             if not content or not content.strip():
-                logger.error(
-                    "AI returned empty response",
-                    error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE,
-                    model=model,
-                )
+                logger.error("AI returned empty response", error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE, model=model)
                 raise failed(
-                    "empty_response",
-                    f"Model {model} returned empty response. Please retry with a different model.",
+                    "empty_response", f"Model {model} returned empty response. Please retry with a different model."
                 )
 
             try:
@@ -1120,8 +770,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 logger.info("AI extraction successful (streaming)", model=model)
                 return parsed
             except json.JSONDecodeError as e:
-                # A single malformed-but-recoverable response (markdown fence or
-                # prose around a valid object) should not reject the upload (#982).
                 repaired = self._repair_json_object(content)
                 if repaired is not None:
                     try:
@@ -1159,11 +807,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
                 raise failed("rate_limit", f"Model {model} rate limited: {error_msg}") from e
             if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-                logger.warning(
-                    "AI extraction timed out",
-                    error_id=ErrorIds.OPENROUTER_TIMEOUT,
-                    model=model,
-                )
+                logger.warning("AI extraction timed out", error_id=ErrorIds.OPENROUTER_TIMEOUT, model=model)
                 raise failed("timeout", f"Model {model} timed out: {error_msg}") from e
             logger.error(
                 "AI extraction HTTP error",
@@ -1208,7 +852,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         """Extract structured statement data with the vision model."""
         if file_content is None and not file_url:
             raise ExtractionError("File content is required")
-
         if not self.api_key:
             raise ExtractionError("AI provider API key not configured")
 
@@ -1217,7 +860,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             "png": "image/png",
             "jpg": "image/jpeg",
             "jpeg": "image/jpeg",
-            "image": "image/png",  # Default for generic "image"
+            "image": "image/png",
         }
         mime_type = mime_types.get(file_type, "application/pdf")
 
@@ -1232,10 +875,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
         )
 
-        # AC-B1 (#1139): producer routing. Decide the prompt class BEFORE the model
-        # call from pre-extraction signals (filename + institution) so brokerage
-        # statements get the positions-emitting prompt rather than the bank schema,
-        # which has no positions field. Bank documents keep the unchanged bank prompt.
         document_kind = (
             "brokerage" if looks_like_brokerage_document(filename=filename, institution=institution) else "bank"
         )
@@ -1247,26 +886,16 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 file_type=file_type,
             )
         prompt = get_parsing_prompt(institution, document_kind=document_kind)
-        # The multimodal role serves OCR and vision. Only an explicit force_model
-        # (a user's retry with another model) replaces it.
         model = force_model or self.multimodal_model
         if not model:
             raise ExtractionError("Multimodal model is not configured")
 
         media_batches = await asyncio.to_thread(
-            self._build_vision_media_payload_batches,
-            file_content,
-            file_url,
-            file_type,
-            mime_type,
+            self._build_vision_media_payload_batches, file_content, file_url, file_type, mime_type
         )
         del file_content
         return await self._extract_json_from_media_batches(
-            media_batches=media_batches,
-            model=model,
-            prompt=prompt,
-            seed_override=seed_override,
-            user_id=user_id,
+            media_batches=media_batches, model=model, prompt=prompt, seed_override=seed_override, user_id=user_id
         )
 
     async def _extract_json_from_media_batches(
@@ -1278,25 +907,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         seed_override: int | None,
         user_id: UUID | None,
     ) -> dict[str, Any]:
-        """Run one model call per media batch and merge the payloads (#1832, #2595).
-
-        Single-batch documents keep the exact pre-#1832 call shape. Multi-batch
-        documents get a per-part prompt (transactions from own pages only;
-        statement-level balances only when explicitly stated), sequential
-        batch-by-batch rendering and extraction so completed batch image payloads
-        are released before the next batch renders (#2595), and a pure merge.
-        """
-
         def _messages(part_prompt: str, media: list[dict[str, Any]]) -> list[dict[str, Any]]:
-            return [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": part_prompt},
-                        *media,
-                    ],
-                }
-            ]
+            return [{"role": "user", "content": [{"type": "text", "text": part_prompt}, *media]}]
 
         async def _load_batch(batch_index: int) -> list[dict[str, Any]]:
             pop_batch = getattr(media_batches, "pop_batch", None)
@@ -1309,20 +921,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             messages = _messages(prompt, single_batch)
             del single_batch
             return await self._extract_json_with_model(
-                messages=messages,
-                model=model,
-                seed_override=seed_override,
-                user_id=user_id,
+                messages=messages, model=model, seed_override=seed_override, user_id=user_id
             )
 
         part_count = len(media_batches)
         pages_per_call = self.PDF_VISION_MAX_PAGES
         total_pages = getattr(media_batches, "total_pages", None) or sum(len(media) for media in media_batches)
 
-        # Stage 1 (#2813): For multi-page PDFs (> 5 pages), extract document-level
-        # metadata in one shot from the deduplicated head + tail pages (first 5 +
-        # last 5 pages) so the model sees both the cover/opening summary and the
-        # final closing summary (including Balance Carried Forward totals).
         parts: list[dict[str, Any]] = []
         pop_meta = getattr(media_batches, "pop_head_tail_meta_pages", None)
         if callable(pop_meta):
@@ -1333,28 +938,17 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             tail_start = max(head_end, len(all_flat) - pages_per_call)
             meta_media = [*all_flat[:head_end], *all_flat[tail_start:]]
             meta_page_numbers = [*range(1, head_end + 1), *range(tail_start + 1, len(all_flat) + 1)]
-        meta_prompt = build_paged_meta_prompt(
-            prompt,
-            page_numbers=meta_page_numbers,
-            total_pages=total_pages,
+
+        meta_messages = _messages(
+            build_paged_meta_prompt(prompt, page_numbers=meta_page_numbers, total_pages=total_pages), meta_media
         )
-        meta_messages = _messages(meta_prompt, meta_media)
         del meta_media
         meta_part = await self._extract_json_with_model(
-            messages=meta_messages,
-            model=model,
-            seed_override=seed_override,
-            user_id=user_id,
+            messages=meta_messages, model=model, seed_override=seed_override, user_id=user_id
         )
         del meta_messages
-        # Stage 1 is strictly metadata; Stage 2 owns transactions and positions.
-        meta_clean = {k: v for k, v in meta_part.items() if k not in ("transactions", "positions")}
-        parts.append(meta_clean)
+        parts.append({k: v for k, v in meta_part.items() if k not in ("transactions", "positions")})
 
-        # Stage 2: Non-first parts carry page 1 as a leading context image: scanned
-        # statements and some brokers do not repeat table headers on
-        # continuation pages, so a bare batch cannot tell which column is
-        # withdrawal vs deposit or which currency applies (#1832).
         context_page: dict[str, Any] | None = None
         for part_index in range(1, part_count + 1):
             media = await _load_batch(part_index - 1)
@@ -1376,18 +970,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             messages = _messages(part_prompt, part_media)
             del media, part_media
             part = await self._extract_json_with_model(
-                messages=messages,
-                model=model,
-                seed_override=seed_override,
-                user_id=user_id,
+                messages=messages, model=model, seed_override=seed_override, user_id=user_id
             )
             del messages
             parts.append(part)
 
-        # If Stage 1 extracted an authoritative closing_balance from the head+tail
-        # summary pages and no Stage 2 batch overrode it (or if a Stage 2 batch
-        # emitted a stray value), preserve Stage 1's closing_balance when Stage 2's
-        # final batch did not explicitly state one.
         merged = merge_paged_extractions(parts)
         logger.info(
             "Merged paged vision extraction",

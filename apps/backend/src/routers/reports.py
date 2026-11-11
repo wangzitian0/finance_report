@@ -153,11 +153,23 @@ def _zip_streaming_response(zip_bytes: bytes, filename: str) -> StreamingRespons
     return StreamingResponse(
         BytesIO(zip_bytes),
         media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Content-Length": str(len(zip_bytes)),
-        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Content-Length": str(len(zip_bytes))},
     )
+
+
+def _stream_envelope_text(content: str, media_type: ExportStreamMediaType, filename: str) -> StreamingResponse:
+    envelope = ExportStreamEnvelope(media_type=media_type, filename=filename)
+    return StreamingResponse(StringIO(content), media_type=envelope.media_type.value, headers=envelope.to_headers())
+
+
+def _page_fields(items: list[Any], pagination: Pagination, items_key: str, **extra: Any) -> dict[str, Any]:
+    return {
+        **extra,
+        "total": len(items),
+        "limit": pagination.limit,
+        "offset": pagination.offset,
+        items_key: items[pagination.offset : pagination.offset + pagination.limit],
+    }
 
 
 @router.get("/currencies", response_model=list[str])
@@ -274,14 +286,7 @@ async def list_personal_report_package_line_details(
     if details is None:
         raise_not_found("Traceability line")
     await db.commit()
-    return PersonalReportPackageLineDetailsPage(
-        line_id=line_id,
-        anchor=anchor,
-        total=len(details),
-        limit=pagination.limit,
-        offset=pagination.offset,
-        details=details[pagination.offset : pagination.offset + pagination.limit],
-    )
+    return PersonalReportPackageLineDetailsPage(**_page_fields(details, pagination, "details", line_id=line_id, anchor=anchor))
 
 
 @router.get("/package/manifest-entries", response_model=PersonalReportPackageManifestEntriesPage)
@@ -303,12 +308,7 @@ async def list_personal_report_package_manifest_entries(
         db, user_id=user_id, start_date=report_start, end_date=report_end, as_of_date=report_as_of, currency=target_currency
     )
     await db.commit()
-    return PersonalReportPackageManifestEntriesPage(
-        total=len(entries),
-        limit=pagination.limit,
-        offset=pagination.offset,
-        entries=entries[pagination.offset : pagination.offset + pagination.limit],
-    )
+    return PersonalReportPackageManifestEntriesPage(**_page_fields(entries, pagination, "entries"))
 
 
 @router.get("/package/policy-decisions", response_model=PersonalReportPackagePolicyDecisionsPage)
@@ -330,12 +330,7 @@ async def list_personal_report_package_policy_decisions(
         db, user_id=user_id, framework_id=framework_id, start_date=report_start, end_date=report_end, as_of_date=report_as_of
     )
     await db.commit()
-    return PersonalReportPackagePolicyDecisionsPage(
-        total=len(decisions),
-        limit=pagination.limit,
-        offset=pagination.offset,
-        decisions=decisions[pagination.offset : pagination.offset + pagination.limit],
-    )
+    return PersonalReportPackagePolicyDecisionsPage(**_page_fields(decisions, pagination, "decisions"))
 
 
 @router.get("/package/cash-flow-events", response_model=CashFlowLineEventsPage)
@@ -366,15 +361,7 @@ async def list_personal_report_package_cash_flow_events(
     await db.commit()
     if events is None:
         raise_not_found("Cash-flow line")
-    return CashFlowLineEventsPage.model_validate(
-        {
-            "line_id": line_id,
-            "total": len(events),
-            "limit": pagination.limit,
-            "offset": pagination.offset,
-            "events": events[pagination.offset : pagination.offset + pagination.limit],
-        }
-    )
+    return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
 
 
 @router.post("/package/generate", response_model=PersonalReportPackageSnapshotResponse)
@@ -497,12 +484,10 @@ async def export_personal_report_package_snapshot(
     if format == PackageSnapshotExportFormat.ZIP:
         return _zip_streaming_response(_package_snapshot_zip(snapshot), f"{stem}.zip")
     if format == PackageSnapshotExportFormat.JSON:
-        content = json.dumps(snapshot.model_dump(mode="json"), sort_keys=True)
-        envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.JSON, filename=f"{stem}.json")
-    else:
-        content = _package_snapshot_csv(snapshot)
-        envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=f"{stem}.csv")
-    return StreamingResponse(StringIO(content), media_type=envelope.media_type.value, headers=envelope.to_headers())
+        return _stream_envelope_text(
+            json.dumps(snapshot.model_dump(mode="json"), sort_keys=True), ExportStreamMediaType.JSON, f"{stem}.json"
+        )
+    return _stream_envelope_text(_package_snapshot_csv(snapshot), ExportStreamMediaType.CSV, f"{stem}.csv")
 
 
 @router.post("/package/annual-archive")
@@ -715,15 +700,7 @@ async def list_cash_flow_line_events(
     )
     if events is None:
         raise_not_found("Cash-flow line")
-    return CashFlowLineEventsPage.model_validate(
-        {
-            "line_id": line_id,
-            "total": len(events),
-            "limit": pagination.limit,
-            "offset": pagination.offset,
-            "events": events[pagination.offset : pagination.offset + pagination.limit],
-        }
-    )
+    return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
 
 
 @router.get("/trend", response_model=AccountTrendResponse)
@@ -881,8 +858,7 @@ async def export_report(
         raise_bad_request(str(exc), cause=exc)
 
     await db.commit()
-    envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=filename)
-    return StreamingResponse(StringIO(csv_text), media_type=envelope.media_type.value, headers=envelope.to_headers())
+    return _stream_envelope_text(csv_text, ExportStreamMediaType.CSV, filename)
 
 
 @router.get("/{report_type}/snapshots", response_model=list[ReportSnapshotSummary])

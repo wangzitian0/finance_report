@@ -27,8 +27,7 @@ if TYPE_CHECKING:
 
 
 class PositionReconcileOutcome(Protocol):
-    """The reconcile summary the wired reconciler resolves to (duck-typed shape
-    of ``portfolio``'s ``ReconcileResult`` — no ``portfolio`` import here)."""
+    """Duck-typed reconcile summary matching ``portfolio``'s ``ReconcileResult``."""
 
     created: int
     updated: int
@@ -36,19 +35,14 @@ class PositionReconcileOutcome(Protocol):
     skipped: int
 
 
-# ``extraction`` and ``portfolio`` are same-layer domains, but ``portfolio``
-# must import extraction's published ORM entities (ManagedPosition et al.,
-# #1675 D5c) — so this module's former ``PositionService`` import would close a
-# dependency cycle. Same inversion as the #1675 D3 / #1676 provider ports: the
-# port lives here, ``main.py`` (L4 — allowed to import everything) wires the
-# real ``portfolio`` reconciler at startup; tests wire it (or a fake) directly.
+# L2 port wired at L4 startup (``main.py``) to avoid a ``portfolio`` <-> ``extraction`` cycle (#1675 D5c).
 _position_reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]] | None = None
 
 
 def register_position_reconciler(
     reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]],
 ) -> None:
-    """Wire the managed-position reconciler (see module note above)."""
+    """Wire the managed-position reconciler."""
     global _position_reconciler
     _position_reconciler = reconciler
 
@@ -90,25 +84,15 @@ class BrokerageImportResult:
     reconcile_updated: int
     reconcile_disposed: int
     skipped: int
-    # #1484: the broker ASSET account these positions reconciled into, so the
-    # caller can anchor the statement to it. None when no single account applies
-    # (e.g. zero positions, or a mixed-broker payload).
     account_id: UUID | None = None
 
 
-# The source states no as-of date, so the positions cannot be dated (#2649).
 BROKERAGE_SNAPSHOT_DATE_MISSING = "brokerage_snapshot_date_missing"
-# A position value does not fit the AtomicPosition columns (#2649).
 BROKERAGE_POSITION_OUT_OF_RANGE = "brokerage_position_out_of_range"
 
 
 class BrokerageImportRejectedError(BaseAppException, ValueError):
-    """The parsed source cannot become positions. The API returns HTTP 422 with the reason.
-
-    The error is a property of the source, not a server fault, so it must not become a
-    500 (#2649). It subclasses ``ValueError`` so existing ``except ValueError`` callers
-    still match.
-    """
+    """HTTP 422 rejection when parsed source positions fail validation (#2649)."""
 
     def __init__(self, error_id: str, message: str) -> None:
         super().__init__(error_id=error_id, message=message, status_code=422)
@@ -129,14 +113,7 @@ _MOOMOO_SUBSCRIPTION_RE = re.compile(
 
 
 def _clean_decimal(value: Any, *, field: str = "amount", row: object | None = None) -> Decimal | None:
-    """Parse an amount. Return ``None`` for empty or non-numeric text. Reject NaN and Infinity.
-
-    NaN and Infinity are not amounts, and a comparison on NaN raises ``InvalidOperation``.
-    Each parser reads amounts here, so this is the one place that rejects them with a
-    reason that names the ``field`` and the ``row`` (#2649). A skip would drop the row and
-    report success. Callers skip a row that is not a position (no symbol, a cash event)
-    before they read its amounts, so such a row never reaches this rejection.
-    """
+    """Parse an amount, return ``None`` for empty/non-numeric text, and reject NaN/Infinity (#2649)."""
     if value is None:
         return None
     if isinstance(value, Decimal):
@@ -158,11 +135,7 @@ def _clean_decimal(value: Any, *, field: str = "amount", row: object | None = No
 
 
 def _position_money(identifier: object, value: Decimal) -> Decimal:
-    """Round a position market value to cents, or reject it with a reason (#2649).
-
-    A value with too many digits cannot round to cents. ``_clean_decimal`` already rejects
-    NaN and Infinity.
-    """
+    """Round a position market value to cents, or reject out-of-range precision (#2649)."""
     try:
         return to_money(value)
     except InvalidOperation as exc:
@@ -184,7 +157,7 @@ def _parse_date(value: Any) -> date | None:
         year, month = (int(part) for part in text.split("-"))
         try:
             return date(year, month, monthrange(year, month)[1])
-        except ValueError:  # month 13 or year 0 is not a date (#2649)
+        except ValueError:
             return None
     if re.fullmatch(r"\d{4}/\d{2}/\d{2}", text):
         text = text.replace("/", "-")
@@ -202,41 +175,27 @@ def _coerce_date(value: Any) -> date | None:
     if value is None:
         return None
     text = str(value).strip()
-    if re.fullmatch(r"\d{4}-\d{2}", text):
-        return None
-    return _tolerant_parse_date(text)
+    return None if re.fullmatch(r"\d{4}-\d{2}", text) else _tolerant_parse_date(text)
 
 
 def _statement_dict(payload: dict[str, Any]) -> dict[str, Any]:
-    """Return the nested ``statement`` mapping, or an empty dict when absent.
-
-    Centralizes the ``isinstance(..., dict)`` narrowing so callers get a concrete
-    ``dict[str, Any]`` (not ``dict | Any | None``) for ``.get`` access.
-    """
+    """Return nested ``statement`` mapping or an empty dict."""
     statement = payload.get("statement")
     return statement if isinstance(statement, dict) else {}
 
 
 def _statement_date(payload: dict[str, Any]) -> date | None:
     statement = _statement_dict(payload)
-    for candidate in (
-        payload.get("snapshot_date"),
-        payload.get("as_of_date"),
-        payload.get("period_end"),
-        statement.get("snapshot_date"),
-        statement.get("as_of_date"),
-        statement.get("period_end"),
-    ):
-        parsed = _parse_date(candidate)
-        if parsed:
-            return parsed
+    for container in (payload, statement):
+        for key in ("snapshot_date", "as_of_date", "period_end"):
+            if parsed := _parse_date(container.get(key)):
+                return parsed
     return None
 
 
 def _payload_currency(payload: dict[str, Any], default: str = "USD") -> str:
     statement = _statement_dict(payload)
-    currency = payload.get("currency") or statement.get("currency") or default
-    return str(currency).upper()
+    return str(payload.get("currency") or statement.get("currency") or default).upper()
 
 
 def _asset_type(value: Any) -> AssetType | None:
@@ -271,20 +230,8 @@ def looks_like_brokerage_document(
     filename: str | None = None,
     institution: str | None = None,
 ) -> bool:
-    """Producer-side routing decision made BEFORE the model call (issue #1139 AC-B1).
-
-    ``looks_like_brokerage_payload`` runs AFTER extraction and inspects the parsed
-    output (positions/holdings keys). That is too late to choose the prompt: the
-    single bank ``SYSTEM_PROMPT`` has no positions field, so a brokerage statement
-    parsed through it never produces a holdings table to detect. This classifier uses
-    only the pre-extraction signals available at prompt-selection time — the upload
-    filename and the user-/header-supplied institution — reusing the same broker
-    keyword detection (``detect_broker``) so routing stays consistent with the
-    post-parse path. When it returns True the extraction service selects the
-    brokerage positions-emitting prompt.
-    """
-    broker = detect_broker(filename=filename, institution=institution, text=None)
-    return broker != "Unknown Broker"
+    """Pre-extraction prompt routing check using filename and institution (#1139 AC-B1)."""
+    return detect_broker(filename=filename, institution=institution, text=None) != "Unknown Broker"
 
 
 def looks_like_brokerage_payload(
@@ -296,14 +243,10 @@ def looks_like_brokerage_payload(
     """Return whether parsed extraction output should enter the brokerage import path."""
     if not isinstance(payload, dict):
         return False
-
-    # Typed persisted source kind is authoritative; every result serializes
-    # positions, including ordinary bank ledgers with an empty array.
     if payload.get("source_type") in {"bank_statement", "brokerage_statement"}:
         return payload["source_type"] == "brokerage_statement"
     if any(payload.get(key) for key in ("positions", "holdings", "securities")):
         return True
-
     statement = _statement_dict(payload)
     broker = detect_broker(
         filename=filename or str(payload.get("file") or ""),
@@ -314,17 +257,16 @@ def looks_like_brokerage_payload(
 
 
 def _iter_structured_positions(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    for key in ("positions", "holdings", "securities"):
-        value = payload.get(key)
-        if isinstance(value, list):
-            return [item for item in value if isinstance(item, dict)]
-    statement = payload.get("statement")
-    if isinstance(statement, dict):
+    for container in (payload, _statement_dict(payload)):
         for key in ("positions", "holdings", "securities"):
-            value = statement.get(key)
+            value = container.get(key)
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, dict)]
     return []
+
+
+def _optional_str(value: Any) -> str | None:
+    return str(value).strip() if value else None
 
 
 def _parse_structured_positions(
@@ -333,14 +275,10 @@ def _parse_structured_positions(
     snapshots: list[BrokeragePositionSnapshot] = []
     default_currency = _payload_currency(payload)
     for item in _iter_structured_positions(payload):
-        # #1389: prefer a ticker/symbol over a free-text asset_identifier. When the
-        # model emits a company name in asset_identifier but the real ticker in
-        # symbol/ticker, the name used to win and became the market-data lookup
-        # scope (which never resolves a price). A symbol/ticker is the canonical
-        # market key; fall back to asset_identifier/isin only when absent.
+        # Prefer ticker/symbol over free-text asset_identifier for market-data lookup (#1389).
         identifier = item.get("symbol") or item.get("ticker") or item.get("asset_identifier") or item.get("isin")
         if not identifier:
-            continue  # not a position row; skip it before its amounts are read (#2649)
+            continue
         quantity = _clean_decimal(
             item.get("quantity") or item.get("qty") or item.get("position"), field="quantity", row=identifier
         )
@@ -351,18 +289,17 @@ def _parse_structured_positions(
         )
         if quantity is None or market_value is None:
             continue
-        money = _position_money(identifier, market_value)
         snapshots.append(
             BrokeragePositionSnapshot(
                 snapshot_date=_parse_date(item.get("snapshot_date") or item.get("as_of_date")) or snapshot_date,
                 asset_identifier=str(identifier).strip(),
                 broker=str(item.get("broker") or broker),
                 quantity=quantity,
-                market_value=money,
+                market_value=_position_money(identifier, market_value),
                 currency=str(item.get("currency") or default_currency).upper(),
                 asset_type=_asset_type(item.get("asset_type") or item.get("asset_class")),
-                sector=str(item["sector"]).strip() if item.get("sector") else None,
-                geography=str(item["geography"]).strip() if item.get("geography") else None,
+                sector=_optional_str(item.get("sector")),
+                geography=_optional_str(item.get("geography")),
             )
         )
     return snapshots
@@ -375,8 +312,7 @@ def _parse_moomoo_subscription_positions(
     for event in payload.get("events") or payload.get("transactions") or []:
         if not isinstance(event, dict):
             continue
-        raw_text = str(event.get("raw_text") or "")
-        match = _MOOMOO_SUBSCRIPTION_RE.search(raw_text)
+        match = _MOOMOO_SUBSCRIPTION_RE.search(str(event.get("raw_text") or ""))
         if not match:
             if str(event.get("direction") or "").strip().upper() == "OUT":
                 continue
@@ -384,7 +320,7 @@ def _parse_moomoo_subscription_positions(
             if "Money Market Fund" not in description or any(
                 token in description.lower() for token in _FUTU_NON_POSITION_EVENT_TOKENS
             ):
-                continue  # not a position event; skip it before its amount is read (#2649)
+                continue
             amount = _clean_decimal(event.get("amount"), field="market_value", row=description)
             if amount is None or amount <= 0:
                 continue
@@ -401,17 +337,18 @@ def _parse_moomoo_subscription_positions(
             )
             continue
 
-        quantity = _clean_decimal(match.group("quantity"), field="quantity", row=match.group("name"))
-        market_value = _clean_decimal(match.group("value"), field="market_value", row=match.group("name"))
+        name = match.group("name")
+        quantity = _clean_decimal(match.group("quantity"), field="quantity", row=name)
+        market_value = _clean_decimal(match.group("value"), field="market_value", row=name)
         if quantity is None or market_value is None or quantity <= 0 or market_value <= 0:
             continue
         snapshots.append(
             BrokeragePositionSnapshot(
                 snapshot_date=snapshot_date,
-                asset_identifier=match.group("name").strip(),
+                asset_identifier=name.strip(),
                 broker=broker,
                 quantity=quantity,
-                market_value=_position_money(match.group("name"), market_value),
+                market_value=_position_money(name, market_value),
                 currency=match.group("currency").upper(),
                 asset_type=AssetType.MUTUAL_FUND,
             )
@@ -436,7 +373,7 @@ def _parse_moomoo_margin_history_positions(
             continue
         identifier = row.get("Symbol") or row.get("symbol") or row.get("Ticker") or row.get("ticker")
         if not identifier:
-            continue  # not a position row; skip it before its amounts are read (#2649)
+            continue
         quantity = _clean_decimal(
             row.get("Fill Qty") or row.get("fill_qty") or row.get("Quantity"), field="quantity", row=identifier
         )
@@ -456,16 +393,15 @@ def _parse_moomoo_margin_history_positions(
                     "quantity": Decimal("0"),
                     "market_value": Decimal("0"),
                     "currency": str(row.get("Currency") or row.get("currency") or default_currency).upper(),
-                    "sector": str(row["Sector"]).strip() if row.get("Sector") else None,
-                    "geography": str(row["Geography"]).strip() if row.get("Geography") else None,
+                    "sector": None,
+                    "geography": None,
                 },
             )
             aggregate["quantity"] += quantity
             aggregate["market_value"] += market_value
-            if row.get("Sector") and not aggregate.get("sector"):
-                aggregate["sector"] = str(row["Sector"]).strip()
-            if row.get("Geography") and not aggregate.get("geography"):
-                aggregate["geography"] = str(row["Geography"]).strip()
+            for attr, col in (("sector", "Sector"), ("geography", "Geography")):
+                if row.get(col) and not aggregate[attr]:
+                    aggregate[attr] = _optional_str(row[col])
         else:
             existing_aggregate = aggregates.get(asset_identifier)
             if existing_aggregate is None or existing_aggregate["quantity"] <= 0:
@@ -559,21 +495,9 @@ def _parse_futu_aggregate_position(
 
 
 class UnsupportedBrokerageCsvError(Exception):
-    """A CSV matched a known brokerage schema we deliberately do not import yet.
-
-    Raised for brokerage CSV shapes that are detected (so they must NOT fall
-    through to the bank transaction parser and surface a misleading
-    "No valid transactions found" error) but are intentionally out of scope —
-    currently brokerage *trade-history* CSVs (side/symbol/fill-quantity/...),
-    which have no positions snapshot to import. The message is user-actionable.
-    """
+    """Raised when a CSV matches an unsupported brokerage schema (e.g. trade history)."""
 
 
-# Header keyword sets used to classify a brokerage CSV by its column names.
-# Matching is done on lower-cased, stripped headers using substring containment
-# so minor broker-specific wording variations ("Mkt Value" vs "Market Value")
-# still classify. Kept deliberately narrow: only schemas we can confidently
-# recognize are routed away from the bank parser.
 _BROKERAGE_POSITIONS_REQUIRED_GROUPS: tuple[tuple[str, ...], ...] = (
     ("symbol", "ticker", "instrument", "security"),
     ("quantity", "qty", "shares", "position", "units"),
@@ -587,25 +511,12 @@ _BROKERAGE_TRADE_HISTORY_REQUIRED_GROUPS: tuple[tuple[str, ...], ...] = (
 )
 
 
-def _header_group_matches(headers_lower: list[str], group: tuple[str, ...]) -> bool:
-    return any(any(keyword in header for keyword in group) for header in headers_lower)
-
-
 def _all_header_groups_match(headers_lower: list[str], groups: tuple[tuple[str, ...], ...]) -> bool:
-    return all(_header_group_matches(headers_lower, group) for group in groups)
+    return all(any(any(keyword in header for keyword in group) for header in headers_lower) for group in groups)
 
 
 def classify_brokerage_csv(headers: list[str]) -> str | None:
-    """Classify a CSV by its header row into a known brokerage schema.
-
-    Returns ``"positions"`` for a brokerage positions/holdings export,
-    ``"trade_history"`` for a trade/fill export, or ``None`` when the headers do
-    not match any known brokerage schema (so bank CSV parsing proceeds).
-
-    Trade-history is checked first because it shares the symbol/quantity columns
-    of a positions export but adds a trade ``side``; a positions schema never
-    carries a side column, so this ordering keeps the two disjoint.
-    """
+    """Classify CSV headers into ``"positions"``, ``"trade_history"``, or ``None``."""
     headers_lower = [h.lower().strip() for h in headers if h]
     if not headers_lower:
         return None
@@ -619,10 +530,7 @@ def classify_brokerage_csv(headers: list[str]) -> str | None:
 def _find_csv_column(headers: list[str], candidates: tuple[str, ...]) -> str | None:
     """Return the original-cased header whose lower form contains any candidate."""
     for header in headers:
-        if not header:
-            continue
-        low = header.lower().strip()
-        if any(keyword in low for keyword in candidates):
+        if header and any(keyword in header.lower().strip() for keyword in candidates):
             return header
     return None
 
@@ -658,17 +566,7 @@ def parse_brokerage_positions_csv_rows(
     broker: str,
     default_currency: str = "USD",
 ) -> list[dict[str, Any]]:
-    """Map brokerage positions CSV rows into structured ``positions`` dicts.
-
-    Produces the same per-position shape (``asset_identifier``/``quantity``/
-    ``market_value``/``currency``...) consumed by ``_parse_structured_positions``
-    so the result flows through the existing brokerage import path. Rows missing
-    a symbol, quantity, or market value are skipped (a CSV can carry subtotal /
-    blank rows). Quantity and monetary fields are parsed as ``Decimal`` for
-    precision, then serialized back to ``str`` in the returned dict (JSON-safe
-    payload contract); the importer re-parses them via ``_clean_decimal`` in
-    ``_parse_structured_positions``.
-    """
+    """Map brokerage positions CSV rows into structured JSON-safe ``positions`` dicts."""
     symbol_col = _find_csv_column(headers, ("symbol", "ticker", "instrument", "security"))
     quantity_col = _find_csv_column(headers, ("quantity", "qty", "shares", "position", "units"))
     value_col = _find_csv_column(headers, ("market value", "mkt value", "market val", "marketvalue", "value"))
@@ -681,7 +579,7 @@ def parse_brokerage_positions_csv_rows(
     for row in rows:
         identifier = str(row.get(symbol_col, "") or "").strip() if symbol_col else ""
         if not identifier:
-            continue  # a subtotal or blank row; skip it before its amounts are read (#2649)
+            continue
         quantity = _clean_decimal(row.get(quantity_col), field="quantity", row=identifier) if quantity_col else None
         market_value = _clean_decimal(row.get(value_col), field="market_value", row=identifier) if value_col else None
         if market_value is None and price_col and quantity is not None:
@@ -698,9 +596,7 @@ def parse_brokerage_positions_csv_rows(
             "quantity": str(quantity),
             "market_value": str(to_money(market_value)),
             "currency": currency or default_currency.upper(),
-            "asset_type": (
-                str(row.get(asset_type_col)).strip() if asset_type_col and row.get(asset_type_col) else None
-            ),
+            "asset_type": _optional_str(row.get(asset_type_col)) if asset_type_col else None,
             "broker": broker,
         }
         if row_date is not None:
@@ -716,20 +612,7 @@ def parse_brokerage_csv_payload(
     institution: str,
     filename: str | None = None,
 ) -> dict[str, Any]:
-    """Build a brokerage positions payload from a CSV, or reject unsupported shapes.
-
-    Detects the brokerage CSV schema from ``headers`` and:
-
-    * positions/holdings → returns a ``{"institution", "positions", ...}`` payload
-      that satisfies ``looks_like_brokerage_payload`` and flows into the brokerage
-      position import path (AtomicPosition / reconciliation).
-    * trade-history → raises :class:`UnsupportedBrokerageCsvError` with an
-      actionable message (out of scope; never mapped into bank transactions).
-
-    Raises :class:`UnsupportedBrokerageCsvError` if the schema is brokerage but
-    yields zero importable positions, so the upload fails with a clear message
-    rather than the misleading generic bank "No valid transactions" error.
-    """
+    """Build a brokerage positions payload from a CSV, or raise ``UnsupportedBrokerageCsvError``."""
     broker = detect_broker(filename=filename, institution=institution, text=None)
     if broker == "Unknown Broker":
         broker = institution
@@ -766,16 +649,19 @@ def parse_brokerage_csv_payload(
         if (parsed_date := _coerce_date(pos.get("snapshot_date"))) is not None
     )
     if row_dates:
-        earliest_date = row_dates[0]
-        latest_date = row_dates[-1]
-        payload["snapshot_date"] = latest_date
-        payload["period_start"] = earliest_date
-        payload["period_end"] = latest_date
-        payload["statement"] = {
-            "period_start": earliest_date,
-            "period_end": latest_date,
-            "currency": currency,
-        }
+        earliest_date, latest_date = row_dates[0], row_dates[-1]
+        payload.update(
+            {
+                "snapshot_date": latest_date,
+                "period_start": earliest_date,
+                "period_end": latest_date,
+                "statement": {
+                    "period_start": earliest_date,
+                    "period_end": latest_date,
+                    "currency": currency,
+                },
+            }
+        )
     return payload
 
 
@@ -798,10 +684,9 @@ def parse_brokerage_positions(
     if structured:
         return structured
     if broker == "Moomoo":
-        margin_history = _parse_moomoo_margin_history_positions(payload, broker, snapshot_date)
-        if margin_history:
-            return margin_history
-        return _parse_moomoo_subscription_positions(payload, broker, snapshot_date)
+        return _parse_moomoo_margin_history_positions(
+            payload, broker, snapshot_date
+        ) or _parse_moomoo_subscription_positions(payload, broker, snapshot_date)
     if broker == "Futu":
         return _parse_futu_aggregate_position(payload, broker, snapshot_date)
     return []
@@ -813,13 +698,7 @@ def brokerage_currency_balances(
     filename: str | None = None,
     institution: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return only source-declared brokerage balance ladders.
-
-    A position snapshot is not a cash statement: summing market values and calling
-    the result both opening and closing balance fabricates a financial fact. Callers
-    retain an empty array when a broker supplied positions but no exact balance
-    ladder, which routes the result to review rather than pseudo-reconciliation.
-    """
+    """Return only source-declared brokerage balance ladders."""
     declared: dict[str, dict[str, Any]] = {}
     _ = (filename, institution)
     raw_balances = payload.get("balances")
@@ -840,19 +719,12 @@ def brokerage_currency_balances(
     return [declared[ccy] for ccy in sorted(declared)]
 
 
-# Broker codes that are not ISO-4217. Brokers use CNH for the offshore renminbi (#2649).
 _NON_ISO_BROKER_CURRENCIES: dict[str, str] = {"CNH": "the offshore renminbi"}
-# Upload types that the extraction service reads as a document with OCR or vision.
 _DOCUMENT_EXTENSIONS = frozenset({".pdf", ".png", ".jpg", ".jpeg"})
 
 
 def _unpriceable_currency_reason(code: str) -> str:
-    """Explain a currency that the money and FX layers cannot read, and what to do (#2649).
-
-    ``Currency`` accepts ISO-4217 codes only. The reconciler, the holdings read and the FX
-    conversion all build ``Money`` from the position currency, so a stored non-ISO code
-    returns 500 on each later read. The import rejects it before any row is written.
-    """
+    """Explain a non-ISO-4217 currency rejection and user remedy (#2649)."""
     known = _NON_ISO_BROKER_CURRENCIES.get(code)
     name = f"{code!r} ({known})" if known else repr(code)
     return (
@@ -863,7 +735,7 @@ def _unpriceable_currency_reason(code: str) -> str:
 
 
 def _undated_remedy(filename: str | None) -> str:
-    """Tell the user how to give the import a date. The text depends on the source type (#2649)."""
+    """Return source-type-specific remedy when positions carry no as-of date (#2649)."""
     extension = Path(filename).suffix.lower() if filename else ""
     if extension == ".csv":
         return "The CSV import does not read a date column. Upload the broker statement PDF that shows the as-of date."
@@ -872,16 +744,11 @@ def _undated_remedy(filename: str | None) -> str:
             "The parser did not read a statement date from this document. Retry the parse, "
             "or upload a statement page that shows the as-of date."
         )
-    # An API payload or a source with no known type: name the fields that carry the date.
     return "Give the source a statement period_end or a snapshot_date for each position, then import again."
 
 
 def _storable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> list[BrokeragePositionSnapshot]:
-    """Return the snapshots as the AtomicPosition columns store them, or reject one with a reason (#2649).
-
-    The limits come from the ORM columns, so they follow the schema. Each check runs before
-    any insert. Without it the insert or the reconciler fails and the API returns 500.
-    """
+    """Validate and round snapshots against ``AtomicPosition`` column limits (#2649)."""
     columns = AtomicPosition.__table__.c
     storable: list[BrokeragePositionSnapshot] = []
     for snapshot in snapshots:
@@ -905,11 +772,10 @@ def _storable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> list[Brok
         for field in ("quantity", "market_value"):
             amount = getattr(snapshot, field)
             numeric = cast(Numeric, columns[field].type)
-            if numeric.precision is None or numeric.scale is None:  # an unbounded column stores any finite amount
+            if numeric.precision is None or numeric.scale is None:
                 continue
             integer_digits = numeric.precision - numeric.scale
             try:
-                # Postgres rounds half away from zero to the column scale; round the same way first.
                 rounded[field] = amount.quantize(Decimal(1).scaleb(-numeric.scale), rounding=ROUND_HALF_UP)
             except InvalidOperation:
                 reject(f"the {field} {amount} is out of range.")
@@ -931,15 +797,9 @@ def _storable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> list[Brok
 def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
     if snapshot.snapshot_date is None:
         raise ValueError("Brokerage position snapshot date is required for import")
-    material = "|".join(
-        [
-            str(user_id),
-            snapshot.snapshot_date.isoformat(),
-            snapshot.asset_identifier,
-            snapshot.broker,
-        ]
+    return text_digest(
+        "|".join([str(user_id), snapshot.snapshot_date.isoformat(), snapshot.asset_identifier, snapshot.broker])
     )
-    return text_digest(material)
 
 
 class BrokeragePositionImportService:
@@ -955,11 +815,7 @@ class BrokeragePositionImportService:
         source_document_id: str | None = None,
         reconcile: bool = True,
     ) -> BrokerageImportResult:
-        # #1448: short positions (a margin short or a sold option) are signed — negative
-        # quantity AND negative market value — and import as first-class positions. The
-        # non-negative market-value / cost-basis CHECK constraints have been dropped, so a
-        # short reduces portfolio value instead of being skipped (which dropped real data)
-        # or crashing the import (constraint violation → 500).
+        # Short positions (#1448) carry signed negative quantity and market value.
         snapshots = parse_brokerage_positions(payload, filename=filename)
         if source_document_id is not None:
             if "\x00" in source_document_id:
@@ -974,7 +830,6 @@ class BrokeragePositionImportService:
                 )
         undated = sum(1 for snapshot in snapshots if snapshot.snapshot_date is None)
         if undated:
-            # The date must come from the source; this service never invents one (#2649).
             raise BrokerageImportRejectedError(
                 BROKERAGE_SNAPSHOT_DATE_MISSING,
                 f"The positions source does not state an as-of date for {undated} of "
@@ -989,7 +844,6 @@ class BrokeragePositionImportService:
         )
 
         for snapshot in snapshots:
-            dedup_hash = _dedup_hash(user_id, snapshot)
             insert_result = await db.execute(
                 postgresql_insert(AtomicPosition)
                 .values(
@@ -1003,7 +857,7 @@ class BrokeragePositionImportService:
                     asset_type=snapshot.asset_type,
                     sector=snapshot.sector,
                     geography=snapshot.geography,
-                    dedup_hash=dedup_hash,
+                    dedup_hash=_dedup_hash(user_id, snapshot),
                     source_documents={
                         "documents": [
                             {
@@ -1022,18 +876,11 @@ class BrokeragePositionImportService:
             else:
                 created += 1
 
-        reconcile_result = None
-        if reconcile and snapshots:
-            reconcile_result = await _get_position_reconciler()(db, user_id)
+        reconcile_result = await _get_position_reconciler()(db, user_id) if reconcile and snapshots else None
 
-        # #1484: anchor the statement to the broker account these positions
-        # reconciled into. Only resolve when the payload is a single broker (one
-        # account) — a statement spanning multiple brokers has no single anchor.
         account_id: UUID | None = None
         brokers = {snapshot.broker for snapshot in snapshots}
         if reconcile_result is not None and len(brokers) == 1:
-            # Use the one broker actually present (not result.broker, which falls
-            # back to the first snapshot) so the lookup is unambiguous.
             (single_broker,) = brokers
             account_id = await db.scalar(
                 select(Account.id)

@@ -1,4 +1,4 @@
-"""LLM record and replay cassette persistence and validation."""
+"""LLM record/replay cassette layer (EPIC-023 AC23.5)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 def _find_cassette_dir() -> Path:
-    """Locate ``common/testing/fixtures/llm_cassettes`` or return an image sentinel."""
+    """Locate ``common/testing/fixtures/llm_cassettes`` or fall back to an image-local sentinel."""
     for ancestor in Path(__file__).resolve().parents:
         candidate = ancestor / "common" / "testing" / "fixtures" / "llm_cassettes"
         if candidate.is_dir():
@@ -44,7 +44,7 @@ _IMAGE_BYTES_TAG = "image_bytes_sha256"
 
 
 class CassetteMode(StrEnum):
-    """Record and replay execution modes."""
+    """Record/replay modes."""
 
     REPLAY = "replay"
     RECORD = "record"
@@ -52,14 +52,14 @@ class CassetteMode(StrEnum):
 
 
 class CassetteTag(StrEnum):
-    """Claim scope for a recorded cassette response."""
+    """Evidence claim level of a recorded cassette."""
 
     CORRECTNESS = "correctness"
     FLOW_ONLY = "flow-only"
 
 
 class CassetteMiss(LLMError):
-    """Raise when replay mode finds no committed cassette for a request."""
+    """Raised in ``replay`` mode when no committed cassette matches the request."""
 
     def __init__(self, key: str, *, scene: str | None = None) -> None:
         self.key = key
@@ -72,7 +72,7 @@ class CassetteMiss(LLMError):
 
 
 class CassetteValidationError(LLMError):
-    """Raise when a correctness cassette fails ground-truth validation."""
+    """Raised when a ``correctness`` cassette fails ground-truth validation at record time."""
 
 
 ENGAGE_ENV = "LLM_CASSETTE_ENGAGE"
@@ -85,17 +85,14 @@ def _env_flag(name: str) -> bool:
 
 
 def layer_engaged() -> bool:
-    """Return True when the test harness activates the cassette layer."""
     return _env_flag(ENGAGE_ENV)
 
 
 def live_forced() -> bool:
-    """Return True when the environment forces live provider calls."""
     return _env_flag(LIVE_ENV)
 
 
 def refresh_requested() -> bool:
-    """Return True when local cassette re-recording is requested outside CI."""
     return _env_flag(REFRESH_ENV) and not in_ci()
 
 
@@ -108,7 +105,7 @@ def _hash_image_bytes(data: bytes | bytearray | memoryview) -> str:
 
 
 def _normalize(value: Any) -> Any:
-    """Strip volatile fields and replace raw image bytes with SHA-256 digests."""
+    """Strip volatile metadata fields and hash raw image bytes deterministically."""
     if isinstance(value, Mapping):
         return {str(k): _normalize(v) for k, v in value.items() if str(k).lower() not in _VOLATILE_KEYS}
     if isinstance(value, bytes | bytearray | memoryview):
@@ -126,7 +123,7 @@ def _canonical_request(
     messages: Sequence[Message],
     decode_params: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Build the model-agnostic semantic request payload."""
+    """Build the model-id-agnostic semantic request payload."""
     return {
         "role": str(role),
         "messages": _normalize(list(messages)),
@@ -140,7 +137,7 @@ def fingerprint(
     messages: Sequence[Message],
     decode_params: Mapping[str, Any] | None = None,
 ) -> str:
-    """Compute the SHA-256 digest of the canonical semantic request."""
+    """Compute SHA-256 of the canonical semantic request."""
     canonical = _canonical_request(role=role, messages=messages, decode_params=decode_params)
     blob = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
@@ -148,7 +145,7 @@ def fingerprint(
 
 @dataclass(frozen=True, slots=True)
 class Cassette:
-    """Committed record and replay entry holding semantic request and response."""
+    """One committed record/replay entry: semantic request plus frozen response."""
 
     key: str
     role: str
@@ -157,7 +154,6 @@ class Cassette:
     response: dict[str, Any]
 
     def to_json(self) -> dict[str, Any]:
-        # Name the digest field ``fingerprint`` to avoid generic-api-key false positives.
         return {
             "fingerprint": self.key,
             "role": self.role,
@@ -185,7 +181,7 @@ def session_served_keys() -> frozenset[str]:
 
 
 class CassetteStore:
-    """Filesystem store for committed cassette JSON files keyed by fingerprint."""
+    """Filesystem persistence of committed cassette JSON files keyed by fingerprint."""
 
     def __init__(self, directory: Path | None = None) -> None:
         self._dir = directory or CASSETTE_DIR
@@ -208,7 +204,7 @@ class CassetteStore:
         return frozenset(self._served)
 
     def put(self, cassette: Cassette) -> bool:
-        """Write ``cassette`` to disk when its canonical JSON bytes change."""
+        """Persist ``cassette`` idempotently; return True only when disk bytes changed."""
         self._dir.mkdir(parents=True, exist_ok=True)
         blob = json.dumps(cassette.to_json(), indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         path = self._path(cassette.key)
@@ -221,49 +217,44 @@ class CassetteStore:
 CorrectnessValidator = Callable[[dict[str, Any]], bool]
 
 
-def require_correctness_validator(
-    tag: CassetteTag,
-    validator: CorrectnessValidator | None,
-    *,
-    role: str,
-) -> None:
-    """Require a ground-truth validator before recording a correctness cassette."""
+def require_correctness_validator(tag: CassetteTag, validator: Any, *, role: str) -> None:
     if tag is CassetteTag.CORRECTNESS and validator is None:
-        raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
+        raise CassetteValidationError(
+            f"correctness cassette (role={role}) requires a ground-truth validator to record"
+        )
 
 
-def persist_validated_cassette(
+def persist_recorded_cassette(
     store: CassetteStore,
     *,
     key: str,
     role: str,
     tag: CassetteTag,
-    validator: CorrectnessValidator | None,
+    validator: Any,
     messages: Sequence[Message],
     decode_params: Mapping[str, Any] | None,
     response: dict[str, Any],
-    normalize_response: bool = False,
+    failure_noun: str = "response",
 ) -> bool:
-    """Validate correctness responses against ground truth and write the cassette."""
+    """Validate (when tagged correctness), normalize volatile fields, and write cassette to store."""
     if tag is CassetteTag.CORRECTNESS:
         try:
             ok = bool(validator(response)) if validator is not None else False
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 - any validator error refuses the record
             raise CassetteValidationError(
                 f"correctness validation raised for role={role}: {type(exc).__name__}"
             ) from exc
         if not ok:
             raise CassetteValidationError(
-                f"correctness cassette (role={role}, key={key}) refused: response failed "
+                f"correctness cassette (role={role}, key={key}) refused: {failure_noun} failed "
                 "ground-truth validation; recording it would freeze a wrong answer"
             )
-    stored_response = _normalize(response) if normalize_response else response
     request = _canonical_request(role=role, messages=messages, decode_params=decode_params)
-    return store.put(Cassette(key=key, role=role, tag=tag, request=request, response=stored_response))
+    return store.put(Cassette(key=key, role=role, tag=tag, request=request, response=_normalize(response)))
 
 
 class CassetteRecorder:
-    """Record or replay non-streaming chat-completion payloads."""
+    """Wrap an async chat-completion callable with record/replay policy."""
 
     def __init__(self, store: CassetteStore | None = None, *, mode: CassetteMode | None = None) -> None:
         self._store = store or CassetteStore()
@@ -288,13 +279,10 @@ class CassetteRecorder:
         tag: CassetteTag = CassetteTag.FLOW_ONLY,
         validator: CorrectnessValidator | None = None,
     ) -> dict[str, Any]:
-        """Return a completion response via live call, replay, or validated record."""
         mode = self.mode
         key = fingerprint(role=role, messages=messages, decode_params=decode_params)
-
         if mode is CassetteMode.OFF:
             return await live_call()
-
         if mode is CassetteMode.REPLAY:
             cassette = self._store.get(key)
             if cassette is None:
@@ -305,7 +293,7 @@ class CassetteRecorder:
 
         require_correctness_validator(tag, validator, role=role)
         response = await live_call()
-        changed = persist_validated_cassette(
+        changed = persist_recorded_cassette(
             self._store,
             key=key,
             role=role,
@@ -314,19 +302,17 @@ class CassetteRecorder:
             messages=messages,
             decode_params=decode_params,
             response=response,
-            normalize_response=True,
         )
         logger.info("llm cassette recorded", key=key, role=role, tag=tag.value, changed=changed)
         return response
 
 
 def miss_summary(keys: Sequence[str]) -> str:
-    """Format one batch summary for replay misses."""
+    """Format an actionable batch summary for replay misses."""
     if not keys:
         return ""
     unique = sorted(set(keys))
-    listed = ", ".join(unique)
     return (
-        f"{len(unique)} cassette(s) need re-record: {listed}; "
+        f"{len(unique)} cassette(s) need re-record: {', '.join(unique)}; "
         "run make llm-record (no committed cassette matched the request in replay mode)."
     )

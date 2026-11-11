@@ -1,4 +1,4 @@
-"""LiteLLM transport and record/replay cassette adapters."""
+"""litellm-backed transport with transparent and explicit cassette policy (EPIC-023)."""
 
 from __future__ import annotations
 
@@ -27,12 +27,12 @@ from src.llm.extension.cassette import (
     CassetteRecorder,
     CassetteStore,
     CassetteTag,
-    _canonical_request,
+    _canonical_request as _canonical_request,
     fingerprint,
     in_ci,
     layer_engaged,
     live_forced,
-    persist_validated_cassette,
+    persist_recorded_cassette,
     refresh_requested,
     require_correctness_validator,
 )
@@ -43,7 +43,7 @@ logger = get_logger(__name__)
 
 
 def _harden_litellm_logging() -> None:
-    """Disable LiteLLM request-body stdout logging."""
+    """Disable litellm stdout debug/message logging."""
     for attr, value in (("turn_off_message_logging", True), ("set_verbose", False), ("suppress_debug_info", True)):
         try:
             setattr(litellm, attr, value)
@@ -52,7 +52,7 @@ def _harden_litellm_logging() -> None:
 
 
 def _disable_litellm_aiohttp_transport() -> None:
-    """Force LiteLLM onto managed httpx transport to avoid aiohttp session leaks."""
+    """Force litellm onto httpx transport to prevent unclosed aiohttp sessions (#1442)."""
     try:
         litellm.disable_aiohttp_transport = True
     except Exception:  # noqa: BLE001
@@ -66,15 +66,14 @@ _GLM_53_FAMILY = re.compile(r"glm-5\.3(-[a-z]+)?", re.IGNORECASE)
 _RETRYABLE_EXC = frozenset(
     {"RateLimitError", "Timeout", "APIConnectionError", "ServiceUnavailableError", "InternalServerError"}
 )
+_PROVIDER_CODE = re.compile(r"""["']code["']\s*:\s*["']?(\d{3,5})["']?""")
+_CODE_TEXT = re.compile(r"\d{3,5}")
+_CHAIN_DEPTH = 4
+_STREAM_TEXT_KEY = "stream_text"
 
 
 def _is_retryable(exc: Exception) -> bool:
     return type(exc).__name__ in _RETRYABLE_EXC
-
-
-_PROVIDER_CODE = re.compile(r"""["']code["']\s*:\s*["']?(\d{3,5})["']?""")
-_CODE_TEXT = re.compile(r"\d{3,5}")
-_CHAIN_DEPTH = 4
 
 
 def _code_in_body(body: object) -> str | None:
@@ -102,6 +101,7 @@ def _provider_code(exc: BaseException) -> str | None:
 
 
 def _wrap(exc: Exception) -> LLMError:
+    """Wrap upstream provider errors without leaking request context text."""
     parts = [type(exc).__name__]
     status = getattr(exc, "status_code", None)
     if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
@@ -151,11 +151,8 @@ def _base_kwargs(
     return kwargs
 
 
-_STREAM_TEXT_KEY = "stream_text"
-
-
 def _stream_role(messages: Sequence[Message]) -> str:
-    """Return 'vision' when any message part carries image content, else 'text'."""
+    """Classify stream modality role as ``vision`` when any part carries an image, else ``text``."""
     for message in messages:
         content = message.get("content") if isinstance(message, Mapping) else None
         if not isinstance(content, list | tuple):
@@ -167,7 +164,7 @@ def _stream_role(messages: Sequence[Message]) -> str:
 
 
 async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
-    """Stream non-empty content deltas from LiteLLM and normalize provider errors."""
+    """Execute live litellm streaming call and yield non-empty content deltas."""
     start = time.perf_counter()
     chars = 0
     success = False
@@ -200,7 +197,7 @@ async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
 
 @dataclass(frozen=True, slots=True)
 class CassetteOptions:
-    """In-layer cassette controls kept out of transport signatures."""
+    """In-layer cassette test/record controls kept out of transport signatures."""
 
     store: CassetteStore | None = None
     mode: CassetteMode | None = None
@@ -260,39 +257,6 @@ def cassette_stream(transport: Callable[..., AsyncIterator[str]]) -> Callable[..
     return wrapped
 
 
-async def _record_stream_cassette(
-    live: Callable[[], AsyncIterator[str]],
-    *,
-    store: CassetteStore,
-    key: str,
-    role: str,
-    messages: Sequence[Message],
-    decode_params: Mapping[str, Any],
-    cassette: CassetteOptions,
-    mark_served: bool,
-) -> str:
-    """Accumulate one live stream, enforce correctness validation, and persist the cassette."""
-    _ = _canonical_request
-    require_correctness_validator(cassette.tag, cassette.validator, role=role)
-    text = "".join([content async for content in live()])
-    changed = persist_validated_cassette(
-        store,
-        key=key,
-        role=role,
-        tag=cassette.tag,
-        validator=cassette.validator,
-        messages=messages,
-        decode_params=decode_params,
-        response={_STREAM_TEXT_KEY: text},
-    )
-    if mark_served:
-        store.mark_served(key)
-        logger.info("llm cassette auto-recorded on miss", key=key, role=role, refresh=refresh_requested())
-    else:
-        logger.info("llm stream cassette recorded", key=key, role=role, tag=cassette.tag.value, changed=changed)
-    return text
-
-
 async def _cassette_stream_dispatch(
     transport: Callable[..., AsyncIterator[str]],
     messages: Sequence[Message],
@@ -304,7 +268,7 @@ async def _cassette_stream_dispatch(
     timeout: float | None,
     cassette: CassetteOptions,
 ) -> AsyncIterator[str]:
-    """Route a streaming LLM call through transparent or explicit cassette modes."""
+    """Apply transparent (#1596) or explicit test-seam (#1597) cassette policy around a live stream."""
     _provider_cache: list[ProviderRef] = [provider] if provider is not None else []
 
     async def _resolved_provider() -> ProviderRef:
@@ -326,7 +290,7 @@ async def _cassette_stream_dispatch(
         ):
             yield content
 
-    if cassette.mode is CassetteMode.OFF or (cassette.mode is None and (live_forced() or not layer_engaged())):
+    if (cassette.mode is None and (live_forced() or not layer_engaged())) or cassette.mode is CassetteMode.OFF:
         async for content in _live():
             yield content
         return
@@ -351,38 +315,37 @@ async def _cassette_stream_dispatch(
             live_provider = None
         if live_provider is None or not live_provider.api_key:
             raise CassetteMiss(key, scene=role)
-        if text := await _record_stream_cassette(
-            _live,
-            store=store,
-            key=key,
-            role=role,
-            messages=messages,
-            decode_params=decode_params,
-            cassette=cassette,
-            mark_served=True,
-        ):
-            yield text
-        return
-
-    if cassette.mode is CassetteMode.REPLAY:
-        replay_cassette = store.get(key)
-        if replay_cassette is None:
+        failure_noun = "response"
+    elif cassette.mode is CassetteMode.REPLAY:
+        hit = store.get(key)
+        if hit is None:
             raise CassetteMiss(key, scene=role)
         store.mark_served(key)
-        if text := str(replay_cassette.response.get(_STREAM_TEXT_KEY, "")):
+        if text := str(hit.response.get(_STREAM_TEXT_KEY, "")):
             yield text
         return
+    else:
+        failure_noun = "accumulated stream"
 
-    if text := await _record_stream_cassette(
-        _live,
-        store=store,
+    require_correctness_validator(cassette.tag, cassette.validator, role=role)
+    text = "".join([content async for content in _live()])
+    changed = persist_recorded_cassette(
+        store,
         key=key,
         role=role,
+        tag=cassette.tag,
+        validator=cassette.validator,
         messages=messages,
         decode_params=decode_params,
-        cassette=cassette,
-        mark_served=False,
-    ):
+        response={_STREAM_TEXT_KEY: text},
+        failure_noun=failure_noun,
+    )
+    if cassette.mode is None:
+        store.mark_served(key)
+        logger.info("llm cassette auto-recorded on miss", key=key, role=role, refresh=refresh_requested())
+    else:
+        logger.info("llm stream cassette recorded", key=key, role=role, tag=cassette.tag.value, changed=changed)
+    if text:
         yield text
 
 
@@ -401,9 +364,8 @@ async def cassette_completion(
     decode: DecodeParams = DecodeParams(),
     timeout: float | None = None,
 ) -> dict[str, Any]:
-    """Execute a non-streaming completion through the cassette recorder."""
+    """Cassette-aware non-streaming completion (EPIC-023 AC23.5)."""
     recorder = recorder or CassetteRecorder()
-    decode_params = decode.as_request()
 
     async def live_call() -> dict[str, Any]:
         kwargs = _base_kwargs(provider=provider, model_id=model_id, messages=messages, decode=decode)
@@ -418,20 +380,22 @@ async def cassette_completion(
             raise _wrap(exc) from exc
         if hasattr(response, "model_dump"):
             return dict(response.model_dump())
-        return dict(response) if isinstance(response, dict) else {"text": str(response)}
+        if isinstance(response, dict):
+            return dict(response)
+        return {"text": str(response)}
 
     return await recorder.call(
         live_call,
         role=role,
         messages=messages,
-        decode_params=decode_params,
+        decode_params=decode.as_request(),
         tag=tag,
         validator=validator,
     )
 
 
 async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:
-    """Resolve model_id against config_source to (provider, bare_model)."""
+    """Resolve ``model_id`` against ``config_source`` to ``(provider, bare_model)``."""
     providers = await config_source.list_providers()
     if not providers:
         raise LLMConfigError("No LLM provider configured")

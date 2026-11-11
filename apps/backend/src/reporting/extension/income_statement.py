@@ -18,10 +18,7 @@ from src.observability import ErrorIds, get_logger
 from src.pricing import FxWarning, PrefetchedFxRates, PricingError, convert_money
 from src.reporting.base.income_statement_calculator import calculate_income_statement_totals
 from src.reporting.base.l1_registry import economic_category_line
-from src.reporting.extension._core import (
-    _build_account_lines,
-    _load_accounts,
-)
+from src.reporting.extension._core import _build_account_lines, _load_accounts, _prefetch_fx_rates
 from src.reporting.extension.balance_sheet import _compute_unrealized_fx_gain_loss
 from src.reporting.extension.internal_transfer import _internal_transfer_adjustment
 from src.reporting.extension.reporting_calc import (
@@ -51,8 +48,6 @@ def _category_lines(lines: list[dict[str, Any]], balances: dict[tuple[UUID, str]
         if not parts:
             parts = [(economic_category_line(None, line["type"].value).value, Decimal("0"))]
         rounded = [_quantize_money(amount) for _, amount in parts]
-        # Preserve the existing account-level total; assign sub-cent residual to
-        # the largest component, with a stable line-id tie-break, never to FX P&L.
         rounded[0] += line["amount"] - sum(rounded, Decimal("0"))
         result.extend(
             {**line, "amount": amount, "economic_report_line_id": line_id}
@@ -66,27 +61,25 @@ def _fold_and_deduplicate_lines(
     *,
     filter_zero: bool = True,
 ) -> list[dict[str, Any]]:
-    """Aggregate lines by canonical name, type, currency, and economic category to eliminate duplicate rows."""
+    """Aggregate lines by canonical name, type, currency, and economic category."""
     aggregated: dict[tuple[str, str, str, str | None], dict[str, Any]] = {}
     for line in lines:
         amount = Decimal(str(line.get("amount", "0")))
         name = str(line.get("name", "")).strip()
-        line_type = str(line.get("type", ""))
-        source_curr = str(line.get("source_currency", "")).upper()
-        econ_line_id = line.get("economic_report_line_id")
-        key = (name, line_type, source_curr, econ_line_id)
+        key = (name, str(line.get("type", "")), str(line.get("source_currency", "")).upper(), line.get("economic_report_line_id"))
         if key not in aggregated:
             aggregated[key] = {**line, "name": name, "amount": amount}
         else:
             aggregated[key]["amount"] += amount
 
-    result = []
-    for line in aggregated.values():
-        if filter_zero and line["amount"] == Decimal("0.00"):
-            continue
-        line["amount"] = _quantize_money(line["amount"])
-        result.append(line)
-    return sorted(result, key=lambda x: str(x.get("name", "")).lower())
+    return sorted(
+        (
+            {**line, "amount": _quantize_money(line["amount"])}
+            for line in aggregated.values()
+            if not (filter_zero and line["amount"] == Decimal("0.00"))
+        ),
+        key=lambda x: str(x.get("name", "")).lower(),
+    )
 
 
 async def generate_income_statement(
@@ -107,16 +100,10 @@ async def generate_income_statement(
 
     target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     fx_warnings: list[FxWarning] = []
-
-    account_types: tuple[AccountType, ...]
-    if account_type:
-        account_types = (account_type,)
-    else:
-        account_types = (AccountType.INCOME, AccountType.EXPENSE)
+    account_types: tuple[AccountType, ...] = (account_type,) if account_type else (AccountType.INCOME, AccountType.EXPENSE)
 
     accounts = await _load_accounts(db, user_id, account_types)
     balances: dict[UUID, Decimal] = {account.id: Decimal("0") for account in accounts}
-
     period_totals: dict[date, dict[str, Decimal]] = {}
     category_balances: dict[tuple[UUID, str], Decimal] = defaultdict(lambda: Decimal("0"))
 
@@ -124,75 +111,52 @@ async def generate_income_statement(
         select(JournalLine, Account, JournalEntry)
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(Account.user_id == user_id)
-        .where(Account.type.in_(account_types))
-        .where(JournalEntry.user_id == user_id)
-        .where(active_journal_entry_filter(JournalEntry))
-        .where(JournalEntry.entry_date >= start_date)
-        .where(JournalEntry.entry_date <= end_date)
+        .where(
+            Account.user_id == user_id,
+            Account.type.in_(account_types),
+            JournalEntry.user_id == user_id,
+            active_journal_entry_filter(JournalEntry),
+            JournalEntry.entry_date >= start_date,
+            JournalEntry.entry_date <= end_date,
+        )
     )
-    result = await db.execute(stmt)
-
     entries_by_id: dict[UUID, list[tuple[JournalLine, Account, JournalEntry]]] = {}
     fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
 
-    for line, account, entry in result.all():
-        if entry.id not in entries_by_id:
-            entries_by_id[entry.id] = []
-        entries_by_id[entry.id].append((line, account, entry))
-
-        # Collect FX needs for pre-fetching
+    for line, account, entry in (await db.execute(stmt)).all():
+        entries_by_id.setdefault(entry.id, []).append((line, account, entry))
         if line.currency != target_currency:
-            # Period average need
             fx_needs.append((line.currency, target_currency, end_date, start_date, end_date))
-            # Monthly average need
             period_key = _month_start(entry.entry_date)
             month_end = _add_months(period_key, 1) - timedelta(days=1)
             fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
 
-    # Batch pre-fetch all needed FX rates
-    fx_rates = PrefetchedFxRates(fx_warnings, lazy_load=True)
-    if fx_needs:
-        try:
-            await fx_rates.prefetch(db, fx_needs)
-        except PricingError as exc:
-            logger.error(
-                "FX pre-fetch failed for income statement",
-                error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                error=str(exc),
-            )
-            raise ReportError(str(exc)) from exc
-
-    # Matched internal (own-account) transfers (#1123 AC3): exclude their legs from
-    # income/expense so they do not double-count; only the fee is a real expense.
+    fx_rates = await _prefetch_fx_rates(
+        db, fx_needs, "income statement", fx_warnings=fx_warnings, prefetched_cls=PrefetchedFxRates
+    )
     transfer_adjustment = await _internal_transfer_adjustment(
         db, user_id, target_currency, end_date, start_date=start_date
     )
-    excluded_entry_ids = transfer_adjustment.excluded_entry_ids
 
-    entries_to_include: set[UUID] = set()
     if tags:
-        for entry_id, lines_and_accounts in entries_by_id.items():
-            for line, account, entry in lines_and_accounts:
-                if line.tags:
-                    line_tags = set(k.lower() for k in line.tags.keys())
-                    if any(t.lower() in line_tags for t in tags):
-                        entries_to_include.add(entry_id)
-                        break
+        wanted = {t.lower() for t in tags}
+        entries_to_include = {
+            entry_id
+            for entry_id, items in entries_by_id.items()
+            if any(line.tags and any(k.lower() in wanted for k in line.tags) for line, _, _ in items)
+        }
     else:
-        entries_to_include = set(entries_by_id.keys())
-    entries_to_include -= excluded_entry_ids
+        entries_to_include = set(entries_by_id)
+    entries_to_include -= transfer_adjustment.excluded_entry_ids
 
     provenance_inputs_by_account: dict[UUID, list[DataProvenance | None]] = {}
     for entry_id, lines_and_accounts in entries_by_id.items():
         if entry_id not in entries_to_include:
             continue
-
         for line, account, entry in lines_and_accounts:
             provenance_inputs_by_account.setdefault(account.id, []).append(
                 _provenance_from_source_type(entry.source_type)
             )
-            # Resolve converted line total (pre-fetched rate with fallbacks)
             converted_total = await _convert_line_total_with_fallback(
                 db,
                 line=line,
@@ -203,7 +167,6 @@ async def generate_income_statement(
                 fx_rates=fx_rates,
                 fx_warnings=fx_warnings,
             )
-
             signed_total = _signed_amount(account.type, line.direction, converted_total)
             balances[account.id] += signed_total
             if include_economic_categories:
@@ -218,12 +181,10 @@ async def generate_income_statement(
                 )
                 category_balances[(account.id, report_line.value)] += signed_total
 
-            # For monthly trend buckets, use pre-fetched monthly average rate
             period_key = _month_start(entry.entry_date)
             month_end = _add_months(period_key, 1) - timedelta(days=1)
             rate_monthly = fx_rates.get_rate(line.currency, target_currency, entry.entry_date, period_key, month_end)
             if rate_monthly is None:
-                # Fallback to period total rate if monthly rate unavailable
                 logger.warning(
                     "Monthly average FX rate unavailable for trend, using period average",
                     error_id=ErrorIds.REPORT_FX_FALLBACK,
@@ -234,39 +195,18 @@ async def generate_income_statement(
             else:
                 converted_monthly = line.amount * rate_monthly
 
-            signed_monthly = _signed_amount(account.type, line.direction, converted_monthly)
             bucket = period_totals.setdefault(period_key, {"income": Decimal("0"), "expense": Decimal("0")})
-            if account.type == AccountType.INCOME:
-                bucket["income"] += signed_monthly
-            else:
-                bucket["expense"] += signed_monthly
+            bucket["income" if account.type == AccountType.INCOME else "expense"] += _signed_amount(
+                account.type, line.direction, converted_monthly
+            )
 
-    provenance_by_account = {
-        account_id: _combine_provenance(provenance_values)
-        for account_id, provenance_values in provenance_inputs_by_account.items()
-    }
-    income_lines = _build_account_lines(
-        accounts,
-        balances,
-        AccountType.INCOME,
-        provenance_by_account=provenance_by_account,
-    )
-    expense_lines = _build_account_lines(
-        accounts,
-        balances,
-        AccountType.EXPENSE,
-        provenance_by_account=provenance_by_account,
-    )
-
+    provenance_by_account = {aid: _combine_provenance(vals) for aid, vals in provenance_inputs_by_account.items()}
+    income_lines = _build_account_lines(accounts, balances, AccountType.INCOME, provenance_by_account=provenance_by_account)
+    expense_lines = _build_account_lines(accounts, balances, AccountType.EXPENSE, provenance_by_account=provenance_by_account)
     if include_economic_categories:
         income_lines = _category_lines(income_lines, category_balances)
         expense_lines = _category_lines(expense_lines, category_balances)
 
-    # The matched internal-transfer fee is the only expense that survives netting
-    # (#1123 AC3). Materialise it as a real expense LINE attributed to the account
-    # it was paid from, rather than bumping total_expenses out of band, so that
-    # ``total_expenses == sum(expense_lines)`` holds and the fee shows up in the
-    # drill-down and the monthly trend buckets (#1162 CR2).
     fee_account_name_by_id = {account.id: account.name for account in accounts}
     for from_account_id, converted_fee in transfer_adjustment.fee_by_account.items():
         expense_lines.append(
@@ -290,22 +230,15 @@ async def generate_income_statement(
         )
 
     totals = calculate_income_statement_totals(income_lines, expense_lines)
-    total_income = totals.total_income
-    total_expenses = totals.total_expenses
-    net_income = totals.net_income
-
     income_lines = _fold_and_deduplicate_lines(income_lines, filter_zero=True)
     expense_lines = _fold_and_deduplicate_lines(expense_lines, filter_zero=True)
 
-    # Add the fee into the correct monthly trend/period bucket so the trends and the
-    # expense totals stay coherent (#1162 CR2). Bucket by the earliest contributing
-    # conversion date; clamp into the reporting window so it always lands in a bucket.
     if transfer_adjustment.fee_total > 0 and transfer_adjustment.fee_trend_date is not None:
         fee_period_key = _month_start(min(max(transfer_adjustment.fee_trend_date, start_date), end_date))
-        fee_bucket = period_totals.setdefault(fee_period_key, {"income": Decimal("0"), "expense": Decimal("0")})
-        fee_bucket["expense"] += transfer_adjustment.fee_total
+        period_totals.setdefault(fee_period_key, {"income": Decimal("0"), "expense": Decimal("0")})["expense"] += (
+            transfer_adjustment.fee_total
+        )
 
-    # Calculate Unrealized FX Gain/Loss for the period
     unrealized_fx_change = await _calculate_unrealized_fx_change(
         db,
         user_id=user_id,
@@ -314,26 +247,16 @@ async def generate_income_statement(
         target_currency=target_currency,
         ending_unrealized_fx_gain_loss=ending_unrealized_fx_gain_loss,
     )
-
-    trend_items: list[dict[str, Any]] = []
-    for period_start in sorted(period_totals.keys()):
-        period_end = _month_end(period_start)
-        income_total = _quantize_money(period_totals[period_start]["income"])
-        expense_total = _quantize_money(period_totals[period_start]["expense"])
-        trend_items.append(
-            {
-                "period_start": period_start,
-                "period_end": min(period_end, end_date),
-                "total_income": income_total,
-                "total_expenses": expense_total,
-                "net_income": _quantize_money(income_total - expense_total),
-            }
-        )
-
-    # EPIC-018 Phase 4: Layer 3 classification breakdown
-    classification_breakdown = await _load_classification_breakdown(
-        db, user_id=user_id, account_types=account_types, start_date=start_date, end_date=end_date
-    )
+    trend_items = [
+        {
+            "period_start": period_start,
+            "period_end": min(_month_end(period_start), end_date),
+            "total_income": (inc_tot := _quantize_money(period_totals[period_start]["income"])),
+            "total_expenses": (exp_tot := _quantize_money(period_totals[period_start]["expense"])),
+            "net_income": _quantize_money(inc_tot - exp_tot),
+        }
+        for period_start in sorted(period_totals)
+    ]
 
     return {
         "start_date": start_date,
@@ -341,14 +264,16 @@ async def generate_income_statement(
         "currency": target_currency,
         "income": income_lines,
         "expenses": expense_lines,
-        "total_income": total_income,
-        "total_expenses": total_expenses,
-        "net_income": net_income,
+        "total_income": totals.total_income,
+        "total_expenses": totals.total_expenses,
+        "net_income": totals.net_income,
         "unrealized_fx_gain_loss": unrealized_fx_change,
-        "comprehensive_income": _quantize_money(net_income + unrealized_fx_change),
+        "comprehensive_income": _quantize_money(totals.net_income + unrealized_fx_change),
         "fx_warnings": fx_warnings,
         "trends": trend_items,
-        "classification_breakdown": classification_breakdown,
+        "classification_breakdown": await _load_classification_breakdown(
+            db, user_id=user_id, account_types=account_types, start_date=start_date, end_date=end_date
+        ),
     }
 
 
@@ -368,19 +293,19 @@ async def _convert_line_total_with_fallback(
     if rate_total is not None:
         return line.amount * rate_total
 
-    # Fallback to slow path if not pre-fetched (should be rare)
     try:
-        converted_money = await convert_money(
-            db,
-            line.money,
-            target_currency,
-            end_date,
-            average_start=start_date,
-            average_end=end_date,
-            fx_warnings=fx_warnings,
-            lazy_load=True,
-        )
-        return converted_money.amount
+        return (
+            await convert_money(
+                db,
+                line.money,
+                target_currency,
+                end_date,
+                average_start=start_date,
+                average_end=end_date,
+                fx_warnings=fx_warnings,
+                lazy_load=True,
+            )
+        ).amount
     except PricingError as exc:
         logger.warning(
             "Average FX rate unavailable, falling back to spot",
@@ -391,16 +316,8 @@ async def _convert_line_total_with_fallback(
             end_date=end_date,
             error=str(exc),
         )
-        # Fallback to spot rate at end_date
         try:
-            converted_money = await convert_money(
-                db,
-                line.money,
-                target_currency,
-                end_date,
-                lazy_load=True,
-            )
-            return converted_money.amount
+            return (await convert_money(db, line.money, target_currency, end_date, lazy_load=True)).amount
         except PricingError as final_exc:
             logger.error(
                 "All FX rate fallbacks failed for income statement",
@@ -422,20 +339,12 @@ async def _calculate_unrealized_fx_change(
 ) -> Decimal:
     """Calculate Unrealized FX Gain/Loss change for the period without full balance-sheet assembly."""
     start_fx = await _compute_unrealized_fx_gain_loss(
-        db,
-        user_id,
-        as_of_date=start_date - timedelta(days=1),
-        target_currency=target_currency,
+        db, user_id, as_of_date=start_date - timedelta(days=1), target_currency=target_currency
     )
     end_fx = (
         _quantize_money(Decimal(str(ending_unrealized_fx_gain_loss)))
         if ending_unrealized_fx_gain_loss is not None
-        else await _compute_unrealized_fx_gain_loss(
-            db,
-            user_id,
-            as_of_date=end_date,
-            target_currency=target_currency,
-        )
+        else await _compute_unrealized_fx_gain_loss(db, user_id, as_of_date=end_date, target_currency=target_currency)
     )
     return _quantize_money(end_fx - start_fx)
 
@@ -449,7 +358,6 @@ async def _load_classification_breakdown(
     end_date: date,
 ) -> list[dict[str, Any]]:
     """Build classification breakdown for applied layer-3 categorizations."""
-    classification_breakdown: list[dict[str, Any]] = []
     try:
         from src.extraction import ClassificationStatus
         from src.extraction.orm.layer2 import AtomicTransaction
@@ -464,32 +372,27 @@ async def _load_classification_breakdown(
             )
             .join(Account, TransactionClassification.account_id == Account.id)
             .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
-            .where(TransactionClassification.status == ClassificationStatus.APPLIED)
-            .where(Account.user_id == user_id)
-            .where(AtomicTransaction.user_id == user_id)
-            .where(Account.type.in_(account_types))
-            .where(AtomicTransaction.txn_date >= start_date)
-            .where(AtomicTransaction.txn_date <= end_date)
+            .where(
+                TransactionClassification.status == ClassificationStatus.APPLIED,
+                Account.user_id == user_id,
+                AtomicTransaction.user_id == user_id,
+                Account.type.in_(account_types),
+                AtomicTransaction.txn_date >= start_date,
+                AtomicTransaction.txn_date <= end_date,
+            )
             .group_by(Account.name, Account.type)
             .order_by(func.count(TransactionClassification.id).desc())
             .limit(50)
         )
-        cls_result = await db.execute(cls_stmt)
-        for row in cls_result.all():
-            classification_breakdown.append(
-                {
-                    "account_name": row.account_name,
-                    "account_type": (
-                        row.account_type.value if hasattr(row.account_type, "value") else str(row.account_type)
-                    ),
-                    "classified_count": row.count,
-                    "avg_confidence": round(float(row.avg_confidence or 0), 1),
-                }
-            )
+        return [
+            {
+                "account_name": row.account_name,
+                "account_type": row.account_type.value if hasattr(row.account_type, "value") else str(row.account_type),
+                "classified_count": row.count,
+                "avg_confidence": round(float(row.avg_confidence or 0), 1),
+            }
+            for row in (await db.execute(cls_stmt)).all()
+        ]
     except Exception as e:
-        logger.warning(
-            "Failed to build classification breakdown, skipping",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-    return classification_breakdown
+        logger.warning("Failed to build classification breakdown, skipping", error=str(e), error_type=type(e).__name__)
+        return []

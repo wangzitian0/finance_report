@@ -1,10 +1,4 @@
-"""Journal-entry creation from an atomic transaction (posting/classification seam).
-
-Shared by extraction's statement-posting use case and by reconciliation's
-explicit reviewed-disposition command. It lives in extraction because
-``AtomicTransaction`` is extraction's aggregate; no caller can use it to
-invent an account or an economic meaning.
-"""
+"""Journal-entry creation from an atomic transaction (posting/classification seam)."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -48,73 +42,53 @@ from src.observability import get_logger
 from src.pricing import ExchangeRateLookup, PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
+_ENTRY_RELOAD_CHUNK_SIZE = 1000
 
 
 async def _resolve_statement_summary(
-    db: AsyncSession,
-    txn: AtomicTransaction,
-    *,
-    user_id: UUID,
+    db: AsyncSession, txn: AtomicTransaction, *, user_id: UUID
 ) -> StatementSummary | None:
-    """Resolve the owning ``StatementSummary`` for an atomic transaction.
-
-    Walks ``txn.source_documents -> UploadedDocument -> StatementSummary`` and
-    returns the first source document's statement summary (in source-document
-    order). Returns ``None`` when no source document maps to a statement summary.
-    """
     doc_ids = extract_source_document_ids(txn.source_documents, doc_type=DocumentType.BANK_STATEMENT.value)
     if not doc_ids:
         return None
-
     result = await db.execute(
         select(StatementSummary)
         .join(UploadedDocument, StatementSummary.uploaded_document_id == UploadedDocument.id)
-        .where(StatementSummary.user_id == user_id)
-        .where(UploadedDocument.id.in_(doc_ids))
+        .where(StatementSummary.user_id == user_id, UploadedDocument.id.in_(doc_ids))
     )
     summaries = {summary.uploaded_document_id: summary for summary in result.scalars()}
-    for doc_id in doc_ids:
-        summary = summaries.get(doc_id)
-        if summary is not None:
-            return summary
-    return None
+    return next((summaries[doc_id] for doc_id in doc_ids if doc_id in summaries), None)
 
 
 async def get_or_create_account(
-    db: AsyncSession,
-    *,
-    name: str,
-    account_type: AccountType,
-    currency: str,
-    user_id: UUID,
+    db: AsyncSession, *, name: str, account_type: AccountType, currency: str, user_id: UUID
 ) -> Account:
-    """Fetch or create a default account.
-
-    The classifier and the one-click approval both resolve their default accounts here. An inactive account is
-    not the default, because posting refuses it. Two active rows with one name (a race of an older release)
-    resolve to the oldest one, not to an error. The creation commits in its own short transaction
-    (``find_or_create_account``), so several workers of one user never create two rows and never wait for each
-    other (#2415).
-    """
+    """Fetch or create an active default account, reusing the oldest on legacy duplicates."""
     cache = db.info.setdefault("_default_account_cache", {})
     cache_key = (user_id, name, account_type, currency)
     if cache_key in cache:
         return cache[cache_key]
 
     async def find(session: AsyncSession) -> Account | None:
-        result = await session.execute(
-            select(Account)
-            .where(Account.name == name)
-            .where(Account.type == account_type)
-            .where(Account.currency == currency)
-            .where(Account.user_id == user_id)
-            .where(Account.is_active.is_(True))
-            .order_by(Account.created_at, Account.id)
-            .limit(2)
+        accounts = list(
+            (
+                await session.execute(
+                    select(Account)
+                    .where(
+                        Account.name == name,
+                        Account.type == account_type,
+                        Account.currency == currency,
+                        Account.user_id == user_id,
+                        Account.is_active.is_(True),
+                    )
+                    .order_by(Account.created_at, Account.id)
+                    .limit(2)
+                )
+            )
+            .scalars()
+            .all()
         )
-        accounts = list(result.scalars().all())
         if len(accounts) > 1:
-            # A race of an older release. The oldest account is the one that every request uses from now on.
             logger.error(
                 "A user holds more than one default account with one name; the oldest is used",
                 user_id=str(user_id),
@@ -133,10 +107,30 @@ async def get_or_create_account(
     return account
 
 
+async def resolve_secondary_currency_custody_account(
+    db: AsyncSession, *, statement: StatementSummary, user_id: UUID, currency: str
+) -> Account:
+    """Resolve or create a custody asset account for a secondary statement currency."""
+    if statement.institution and statement.account_last4:
+        return await resolve_bank_custody_account(
+            db,
+            user_id=user_id,
+            institution=statement.institution,
+            account_last4=statement.account_last4,
+            currency=currency,
+            create_if_missing=True,
+        )
+    return await get_or_create_account(
+        db,
+        name=f"{statement.institution or 'Statement Account'} ({currency})",
+        account_type=AccountType.ASSET,
+        currency=currency,
+        user_id=user_id,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class PlannedEntryCommand:
-    """The validated journal command of one transaction, before the decision anchor exists."""
-
     txn: AtomicTransaction
     lines_data: list[dict]
     memo: str
@@ -160,24 +154,8 @@ async def _plan_entry_command(
     disposition: DispositionDecision | None = None,
     counter_account: Account | None = None,
 ) -> PlannedEntryCommand:
-    """Validate a transaction and its disposition, then build the journal command lines.
-
-    Uses the owning statement summary's linked account if available. Draft entries
-    may still use the legacy default account, but posted entries require an explicit
-    mapping. preloaded_statement/preloaded_bank_account may be passed by trusted callers
-    that already loaded them for the same authenticated user context.
-
-    The owning statement is resolved via ``txn.source_documents -> UploadedDocument
-    -> StatementSummary`` (atomic transactions have no ``statement_id``).
-    """
-    # Validate transaction belongs to user and resolve owning statement summary.
     if txn.user_id != user_id:
         raise ValueError("Transaction does not belong to user")
-
-    # Promotion-gate (EPIC-012 AC12.40.4): a transaction whose currency could not be
-    # established at the ingest boundary is non-authoritative. It cannot become a
-    # JournalLine until a reviewer specifies the currency (see resolve_transaction_currency).
-    # This is the load-bearing guard that makes JournalLine.currency human-confirmed.
     if getattr(txn, "currency_unresolved", False):
         raise CurrencyUnresolvedError(
             f"Transaction {txn.id} has an unresolved currency and cannot be promoted to a "
@@ -186,7 +164,6 @@ async def _plan_entry_command(
 
     statement = preloaded_statement
     if statement is not None:
-        # Caller must preload statement under the same authenticated user context.
         if statement.user_id != user_id:
             raise ValueError("Preloaded statement does not match transaction or user")
     else:
@@ -202,43 +179,26 @@ async def _plan_entry_command(
         except fx_rate_error or PricingError as exc:
             raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
-    # Use statement's linked account if available.
     statement_account_id = statement.account_id if statement else None
     bank_account: Account | None = preloaded_bank_account
     if bank_account is not None:
         if bank_account.user_id != user_id:
-            # Caller must preload bank account under the same authenticated user context.
             raise ValueError("Bank account does not belong to user")
         if statement_account_id and bank_account.id != statement_account_id:
             raise ValueError("Preloaded bank account does not match statement")
     elif statement_account_id:
-        account_result = await db.execute(
-            select(Account).where(Account.id == statement_account_id).where(Account.user_id == user_id)
-        )
-        bank_account = account_result.scalar_one_or_none()
+        bank_account = (
+            await db.execute(select(Account).where(Account.id == statement_account_id, Account.user_id == user_id))
+        ).scalar_one_or_none()
 
     if not bank_account:
         raise ValueError("Account mapping required before statement posting")
     if bank_account.type is not AccountType.ASSET or not bank_account.is_active:
         raise ValueError("Statement posting account must be an active asset account")
     if bank_account.currency != currency and statement is not None and len(statement.typed_currency_balances()) > 1:
-        if statement.institution and statement.account_last4:
-            bank_account = await resolve_bank_custody_account(
-                db,
-                user_id=user_id,
-                institution=statement.institution,
-                account_last4=statement.account_last4,
-                currency=currency,
-                create_if_missing=True,
-            )
-        else:
-            bank_account = await get_or_create_account(
-                db,
-                name=f"{statement.institution or 'Statement Account'} ({currency})",
-                account_type=AccountType.ASSET,
-                currency=currency,
-                user_id=user_id,
-            )
+        bank_account = await resolve_secondary_currency_custody_account(
+            db, statement=statement, user_id=user_id, currency=currency
+        )
     if bank_account.currency != currency:
         raise ValueError("Statement posting account currency must match the transaction currency")
     if bank_account.code == PROCESSING_ACCOUNT_CODE:
@@ -266,16 +226,15 @@ async def _plan_entry_command(
         )
     if not intent_matches_counter_account(disposition.intent, counter_account.type.value):
         raise ValueError("Disposition intent is incompatible with the counter-account type")
+
     if txn.direction == TransactionDirection.IN:
         if disposition.command.debit_role != "custody" or disposition.command.credit_role != "counter":
             raise ValueError("Disposition command conflicts with incoming transaction flow")
-        debit_account = bank_account
-        credit_account = counter_account
+        debit_account, credit_account = bank_account, counter_account
     else:
         if disposition.command.debit_role != "counter" or disposition.command.credit_role != "custody":
             raise ValueError("Disposition command conflicts with outgoing transaction flow")
-        debit_account = counter_account
-        credit_account = bank_account
+        debit_account, credit_account = counter_account, bank_account
 
     lines_data = [
         {
@@ -299,8 +258,6 @@ async def _plan_entry_command(
         for line in lines_data:
             if line["account_id"] == counter_account.id:
                 line["tags"] = {"economic_category": disposition.category}
-    # The description has no length limit, but the memo column does. Cut it once:
-    # the decision anchor and the command must hold the same memo.
     return PlannedEntryCommand(
         txn=txn,
         lines_data=lines_data,
@@ -331,6 +288,19 @@ def _posting_error(plan: PlannedEntryCommand, exc: ValidationError) -> ValueErro
     return ValueError(f"Generated entry does not balance: {exc}")
 
 
+async def _reload_entries_with_lines(db: AsyncSession, created: Sequence[JournalEntry]) -> list[JournalEntry]:
+    by_id: dict[UUID, JournalEntry] = {}
+    created_ids = [entry.id for entry in created]
+    for start in range(0, len(created_ids), _ENTRY_RELOAD_CHUNK_SIZE):
+        loaded = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.id.in_(created_ids[start : start + _ENTRY_RELOAD_CHUNK_SIZE]))
+            .options(selectinload(JournalEntry.lines))
+        )
+        by_id.update({entry.id: entry for entry in loaded.scalars().all()})
+    return [by_id[entry.id] for entry in created]
+
+
 async def _create_entry_from_txn(
     db: AsyncSession,
     txn: AtomicTransaction,
@@ -349,12 +319,6 @@ async def _create_entry_from_txn(
     trace_emitter: TraceEmitter | None = None,
     record_evidence: bool = True,
 ) -> JournalEntry:
-    """Create a journal entry from an atomic transaction.
-
-    When auto_post is True, the generated entry is first persisted as DRAFT with its lines
-    and then promoted to POSTED; otherwise it remains DRAFT. ``_plan_entry_command`` states
-    which account, currency and disposition checks run before the entry exists.
-    """
     plan = await _plan_entry_command(
         db,
         txn,
@@ -392,26 +356,13 @@ async def _create_entry_from_txn(
     except ValidationError as exc:
         raise _posting_error(plan, exc) from exc
 
-    # ``post_journal_entry`` returns an aggregate whose lines are not guaranteed
-    # to be loaded. The evidence write and every caller need the same complete
-    # entry boundary, rather than triggering unsupported async lazy loads.
-    entry_result = await db.execute(
-        select(JournalEntry).where(JournalEntry.id == entry.id).options(selectinload(JournalEntry.lines))
-    )
-    entry = entry_result.scalar_one()
-
+    (entry,) = await _reload_entries_with_lines(db, [entry])
     if record_evidence:
-        # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
-        # --contains--> JournalLine). Imported lazily to avoid an import cycle.
-        # Best-effort: provenance must never break journal posting.
         try:
             from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
             await EvidenceGraphIntegrationService().record_journal_posting(
-                db,
-                user_id=user_id,
-                atomic_transaction=txn,
-                journal_entry=entry,
+                db, user_id=user_id, atomic_transaction=txn, journal_entry=entry
             )
         except Exception as evidence_exc:
             logger.warning(
@@ -423,7 +374,6 @@ async def _create_entry_from_txn(
                     "journal_entry_id": str(entry.id),
                 },
             )
-
     return entry
 
 
@@ -445,9 +395,7 @@ async def create_entry_from_txn(
     trace_emitter: TraceEmitter | None = None,
     record_evidence: bool = True,
 ) -> JournalEntry:
-    """Create a journal entry, atomically including all auto-post side effects."""
-
-    async def create() -> JournalEntry:
+    async def _run() -> JournalEntry:
         return await _create_entry_from_txn(
             db,
             txn,
@@ -468,18 +416,12 @@ async def create_entry_from_txn(
 
     if auto_post:
         async with db.begin_nested():
-            return await create()
-    return await create()
-
-
-#: The reload of created entries names at most this many ids in one statement (bind parameter limit of the driver).
-_ENTRY_RELOAD_CHUNK_SIZE = 1000
+            return await _run()
+    return await _run()
 
 
 @dataclass(frozen=True, slots=True)
 class StatementEntryRequest:
-    """One transaction of a statement whose accepted disposition posts a journal entry."""
-
     txn: AtomicTransaction
     disposition: DispositionDecision
     counter_account: Account | None
@@ -500,13 +442,8 @@ async def create_entries_from_txns(
     fx_rate_error: type[Exception] | None,
     trace_emitter: TraceEmitter,
 ) -> list[JournalEntry]:
-    """Create the journal entries of many transactions of one statement.
-
-    Each entry equals the one that ``create_entry_from_txn`` creates for the same request with
-    ``record_evidence=False``. The command authorizations are written as one set, and the batch
-    runs in one savepoint: one failed entry rolls back every entry of the batch, and the caller
-    already aborts the posting in that case.
-    """
+    if not requests:
+        return []
 
     async def create() -> list[JournalEntry]:
         plans = [
@@ -551,20 +488,8 @@ async def create_entries_from_txns(
             )
         except ValidationError as exc:
             raise _posting_error(plans[0], exc) from exc
-        # ``post_journal_entry`` returns aggregates whose lines are not guaranteed to be loaded.
-        by_id: dict[UUID, JournalEntry] = {}
-        created_ids = [entry.id for entry in created]
-        for start in range(0, len(created_ids), _ENTRY_RELOAD_CHUNK_SIZE):
-            loaded = await db.execute(
-                select(JournalEntry)
-                .where(JournalEntry.id.in_(created_ids[start : start + _ENTRY_RELOAD_CHUNK_SIZE]))
-                .options(selectinload(JournalEntry.lines))
-            )
-            by_id.update({entry.id: entry for entry in loaded.scalars().all()})
-        return [by_id[entry.id] for entry in created]
+        return await _reload_entries_with_lines(db, created)
 
-    if not requests:
-        return []
     if auto_post:
         async with db.begin_nested():
             return await create()

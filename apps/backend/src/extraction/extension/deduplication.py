@@ -47,16 +47,12 @@ def _source_document_list(value: object) -> list[dict[str, str]]:
 
 
 def _decimal_key(value: Decimal) -> str:
-    """Canonical, scale-independent string for a Decimal used in dedup hashing.
-
-    ``Decimal('50')``, ``Decimal('50.00')`` and ``Decimal('50.000')`` all map to
-    ``'50'`` so values differing only in scale hash identically.
-    """
+    """Canonical scale-independent Decimal string for dedup hashing."""
     return format(value.normalize(), "f")
 
 
 class DeduplicationService:
-    """Service for managing Layer 2 deduplicated records with hash-based upsert logic."""
+    """Manage Layer 2 deduplicated atomic transactions with hash-based upsert."""
 
     @staticmethod
     def calculate_transaction_hash(
@@ -72,58 +68,26 @@ class DeduplicationService:
         currency: str | None = None,
         custody_scope: str | None = None,
     ) -> str:
-        """Calculate deduplication hash for atomic transaction.
-
-        Hash = SHA256(user_id|date|amount|direction|description|reference|disambiguator)
-
-        The disambiguator pairs the statement running balance (when present) with a
-        per-document ``occurrence_index`` so auto-dedup collapses only when we are
-        confident two rows are the SAME transaction, while preserving recall for
-        genuinely-distinct rows:
-
-        - ``balance_after`` present: the running balance normally pins the ledger
-          position, but it is **not** a unique key on its own. A statement can print the
-          *same* running balance against two genuinely-distinct same-date/same-amount
-          rows — e.g. a deposit immediately before a carried-forward balance row and an
-          identical deposit immediately after the brought-forward balance row across a
-          page boundary (#1254). The ``occurrence_index`` keeps those two real rows
-          distinct instead of silently dropping the second, while a re-uploaded statement
-          reproduces the same ordered rows (same balance + same ordinal per row) so the
-          genuine duplicate still collapses across documents.
-        - No running balance (e.g. CSV): the ``occurrence_index`` alone keeps
-          genuinely-repeated identical rows distinct (two $5 coffees on the same day are
-          two transactions). Cross-document duplicates of such rows are left to the
-          ``detect_duplicates`` consistency check for user review rather than dropped here.
-
-        Backward compatibility: the **first** occurrence (``occurrence_index == 0``) keeps
-        the legacy disambiguator byte-for-byte — ``"<balance>"`` when a balance is present
-        and ``"#0"`` when it is not — so every hash persisted under the previous scheme
-        still matches and cross-document dedup of already-stored rows is unaffected. Only
-        *subsequent* occurrences of an otherwise-identical row gain the ``"#<index>"``
-        tail (``"<balance>#1"``, ``"<balance>#2"`` …), which by definition never collided
-        with a stored hash before (the second row was being dropped). This delivers the
-        #1254 fix without changing any existing row's hash.
-
-        Decimal amounts are canonicalized (``Decimal('50')`` and ``Decimal('50.00')``
-        hash identically) so values that differ only in scale do not break dedup.
-        """
+        """Compute SHA-256 dedup hash preserving legacy index-0 disambiguator (#1254)."""
         balance_key = _decimal_key(balance_after) if balance_after is not None else ""
-        # occurrence_index == 0 -> legacy disambiguator (balance_key, or "#0" when balance-less),
-        # so previously-stored hashes are preserved. Only index >= 1 gains the distinguishing tail.
-        if occurrence_index == 0:
-            disambiguator = balance_key if balance_after is not None else "#0"
-        else:
-            disambiguator = f"{balance_key}#{occurrence_index}"
-        components = [
-            str(user_id),
-            txn_date.isoformat(),
-            _decimal_key(amount),
-            direction.value,
-            description.strip().lower(),
-            reference or "",
-            disambiguator,
-        ]
-        legacy_hash = text_digest("|".join(components))
+        disambiguator = (
+            (balance_key if balance_after is not None else "#0")
+            if occurrence_index == 0
+            else f"{balance_key}#{occurrence_index}"
+        )
+        legacy_hash = text_digest(
+            "|".join(
+                [
+                    str(user_id),
+                    txn_date.isoformat(),
+                    _decimal_key(amount),
+                    direction.value,
+                    description.strip().lower(),
+                    reference or "",
+                    disambiguator,
+                ]
+            )
+        )
         if currency is not None and custody_scope is not None:
             return versioned_transaction_hash(legacy_hash, currency, custody_scope)
         return legacy_hash
@@ -137,78 +101,52 @@ class DeduplicationService:
         source_doc_type: DocumentType,
         custody_account_id: UUID | None = None,
     ) -> AtomicTransaction:
-        """Upsert atomic transaction with deduplication.
-
-        If dedup_hash exists -> Append to source_documents array
-        If dedup_hash new -> Insert new record
-
-        ``row.currency_unresolved`` (EPIC-012 AC12.40.2) flags a new row whose currency
-        could not be determined at the ingest boundary; ``currency`` then holds a
-        non-authoritative placeholder and the row is blocked from promotion until a
-        reviewer specifies the currency.
-        """
-        user_id = row.user_id
-        txn_date = row.txn_date
-        amount = row.amount
+        """Upsert an atomic transaction, appending source lineage when hash matches."""
         direction = TransactionDirection(row.direction)
-        description = row.description
-        reference = row.reference
-        currency = row.currency
-        currency_unresolved = row.currency_unresolved
-        balance_after = row.balance_after
-        dedup_hash = self.calculate_transaction_hash(
-            user_id,
-            txn_date,
-            amount,
+        legacy_hash = self.calculate_transaction_hash(
+            row.user_id,
+            row.txn_date,
+            row.amount,
             direction,
-            description,
-            reference,
-            balance_after,
+            row.description,
+            row.reference,
+            row.balance_after,
             row.occurrence_index,
         )
         custody_scope = await source_custody_scope(
-            db, user_id=user_id, document_id=source_doc_id, account_id=custody_account_id
+            db, user_id=row.user_id, document_id=source_doc_id, account_id=custody_account_id
         )
         if row.custody_scope is not None and row.custody_scope != custody_scope:
             raise TransactionIdentityReviewRequired("Transaction identity requires review: source custody changed")
         expected_hash = (
-            versioned_transaction_hash(dedup_hash, currency, custody_scope)
+            versioned_transaction_hash(legacy_hash, row.currency, custody_scope)
             if row.custody_scope is not None
-            else dedup_hash
+            else legacy_hash
         )
         if expected_hash != row.dedup_hash:
             raise ValueError("Extracted transaction dedup hash does not match its typed fields")
-        legacy_hash = dedup_hash
         dedup_hash, existing = await resolve_transaction_identity(
-            db, user_id=user_id, legacy_hash=dedup_hash, currency=currency, custody_scope=custody_scope
+            db, user_id=row.user_id, legacy_hash=legacy_hash, currency=row.currency, custody_scope=custody_scope
         )
-
-        source_doc = {
-            "doc_id": str(source_doc_id),
-            "doc_type": source_doc_type.value,
-        }
+        source_doc = {"doc_id": str(source_doc_id), "doc_type": source_doc_type.value}
 
         if existing:
             await bind_transaction_identity(
                 db, transaction=existing, identity_hash=dedup_hash, legacy_hash=legacy_hash, custody_scope=custody_scope
             )
-            # A compatible alias preserves every historical fact, including a
-            # legacy missing balance; the new source result retains new evidence.
             source_docs = _source_document_list(existing.source_documents)
-
             if source_doc not in source_docs:
                 source_docs.append(source_doc)
                 existing.source_documents = source_docs
                 await db.flush()
             await self._upsert_transaction_source_link(
                 db,
-                user_id=user_id,
+                user_id=row.user_id,
                 atomic_txn_id=existing.id,
                 source_doc_id=source_doc_id,
                 source_doc_type=source_doc_type,
                 ordinal=source_docs.index(source_doc) if source_doc in source_docs else 0,
             )
-
             logger.info(
                 f"Appended source document to existing atomic transaction {existing.id}",
                 extra={
@@ -220,15 +158,15 @@ class DeduplicationService:
             return existing
 
         new_txn = AtomicTransaction(
-            user_id=user_id,
-            txn_date=txn_date,
-            amount=amount,
+            user_id=row.user_id,
+            txn_date=row.txn_date,
+            amount=row.amount,
             direction=direction,
-            description=description,
-            reference=reference,
-            currency=currency,
-            currency_unresolved=currency_unresolved,
-            balance_after=balance_after,
+            description=row.description,
+            reference=row.reference,
+            currency=row.currency,
+            currency_unresolved=row.currency_unresolved,
+            balance_after=row.balance_after,
             dedup_hash=dedup_hash,
             source_documents=[source_doc],
         )
@@ -239,19 +177,18 @@ class DeduplicationService:
         )
         await self._upsert_transaction_source_link(
             db,
-            user_id=user_id,
+            user_id=row.user_id,
             atomic_txn_id=new_txn.id,
             source_doc_id=source_doc_id,
             source_doc_type=source_doc_type,
             ordinal=0,
         )
-
         logger.info(
             f"Created new atomic transaction {new_txn.id}",
             extra={
                 "dedup_hash": dedup_hash,
-                "txn_date": str(txn_date),
-                "amount": str(amount),
+                "txn_date": str(row.txn_date),
+                "amount": str(row.amount),
                 "direction": direction.value,
             },
         )
@@ -299,25 +236,7 @@ async def dual_write_layer2(
     extraction_metadata: dict[str, Any] | None = None,
     envelope_only: bool = False,
 ) -> None:
-    """Persist the DWD ingestion result: ODS document, Layer-2 facts, conform summary.
-
-    Single source of truth for an ingested statement. Given the parsed
-    ``StatementSummary`` envelope and its typed extracted rows (produced by
-    ``ExtractionService.parse_document``), this:
-
-    1. creates the Layer-1 ``UploadedDocument`` (ODS),
-    2. upserts each ``AtomicTransaction`` using the DTO's explicit running
-       ``balance_after`` and occurrence index so its hash matches the precomputed
-       ``dedup_hash``,
-    3. links ``StatementSummary.uploaded_document_id`` to the ODS document and
-       persists the summary (DWD conform).
-
-    Precondition: each immutable row carries its precomputed ``dedup_hash`` and
-    every value needed by persistence; no transient ORM attributes are accepted.
-
-    Expected source-identity conflicts select the canonical winner under a
-    savepoint. Every other persistence failure raises ``RuntimeError``.
-    """
+    """Persist ODS document, Layer-2 atomic transactions, and conformed StatementSummary."""
     if any(not isinstance(txn, ExtractedTransactionRow) for txn in transactions):
         raise TypeError(
             "dual_write_layer2 requires ExtractedTransactionRow values; "
@@ -325,23 +244,14 @@ async def dual_write_layer2(
         )
 
     dedup_service = DeduplicationService()
-
     doc_type = document_type or DocumentType.BANK_STATEMENT
     file_hash = statement.file_hash
-    # The immutable result is passed as persistence metadata. Keep the DWD
-    # envelope and its ODS document on that same source-to-fact identity; a
-    # reused upload must not retain stale or absent result metadata.
     effective_metadata = extraction_metadata if extraction_metadata is not None else statement.extraction_metadata
     if effective_metadata is not None:
         statement.extraction_metadata = effective_metadata
 
     try:
         await _check_reparse_identity_conflicts(db, user_id, file_hash, effective_metadata)
-
-        # Get-or-create the ODS document. Reparse re-runs ingestion for the same
-        # (user_id, file_hash), so the document already exists; reuse it instead of
-        # raising on the unique key. Current-result membership selects effective
-        # facts while prior parse output remains available as historical evidence.
         uploaded_doc, document_created = await resolve_source_identity(
             db,
             SourceIdentityCommand(
@@ -355,19 +265,13 @@ async def dual_write_layer2(
         )
         if not document_created:
             uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
-            # The upload registers an artifact before parsing can determine
-            # whether it is a bank or brokerage statement.  Resolve that
-            # semantic type only once the typed parse result exists.
             uploaded_doc.document_type = doc_type
             if effective_metadata is not None:
                 uploaded_doc.extraction_metadata = effective_metadata
 
-        # Lazily import to avoid an import cycle (evidence_graph_integration imports
-        # models that transitively reach back here).
         from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
         evidence_graph = EvidenceGraphIntegrationService()
-
         layer2_count = (
             await _upsert_layer2_transactions(
                 db=db,
@@ -393,10 +297,6 @@ async def dual_write_layer2(
         )
 
         try:
-            # The artifact exists before parse dispatch, including brokerage
-            # statements with zero cash rows. Refresh its node independently of
-            # atomic-transaction lineage so the evidence type/status cannot stay
-            # at the provisional upload values.
             await evidence_graph.record_statement_source(
                 db,
                 user_id=user_id,
@@ -412,18 +312,15 @@ async def dual_write_layer2(
                 uploaded_document_id=str(uploaded_doc.id),
             )
         await db.flush()
-
         logger.info(
             "Dual write to Layer 2 completed",
             uploaded_doc_id=str(uploaded_doc.id),
             statement_summary_id=str(canonical_statement.id),
             layer2_transactions=layer2_count,
         )
-
     except TransactionIdentityReviewRequired:
         raise
     except Exception as e:
-        # All other errors are CRITICAL - must be visible to user
         logger.error(
             "Dual write to Layer 2 FAILED - data integrity compromised",
             error=str(e),
@@ -432,7 +329,6 @@ async def dual_write_layer2(
             file_hash=file_hash,
             layer2_transactions=len(transactions),
         )
-        # Re-raise to ensure caller knows dual-write failed
         raise RuntimeError(f"Failed to write to Layer 2: {e}") from e
 
 

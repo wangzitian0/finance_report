@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -523,15 +523,7 @@ class TraceRecord:
             "target": _ref_payload(self.target),
             "target_class": self.target_class.value,
             "assertion": _ref_payload(self.assertion),
-            "authority": {
-                "package": self.authority.package,
-                "tier": self.authority.tier,
-                "proof_kind": self.authority.proof_kind,
-                "provenance": self.authority.provenance,
-                "execution_stage": self.authority.execution_stage,
-                "assertion_owner_digest": self.authority.assertion_owner_digest,
-                "producer_version": self.authority.producer_version,
-            },
+            "authority": asdict(self.authority),
             "result": self.result.value,
             "execution_id": self.execution_id,
             "causality": self.causality.value if self.causality is not None else None,
@@ -631,12 +623,9 @@ def _validate_wire_scalars(payload: dict[str, Any]) -> None:
     }
     if any(not isinstance(payload.get(name), str) for name in string_fields):
         raise TraceRecordValidationError("TraceRecord wire scalar types are invalid")
-    if payload.get("causality") is not None and not isinstance(payload["causality"], str):
-        raise TraceRecordValidationError("TraceRecord causality must be a string or null")
-    if payload.get("score") is not None and not isinstance(payload["score"], str):
-        raise TraceRecordValidationError("TraceRecord score must be a string or null")
-    if payload.get("supersedes_id") is not None and not isinstance(payload["supersedes_id"], str):
-        raise TraceRecordValidationError("TraceRecord supersedes_id must be a string or null")
+    for name in ("causality", "score", "supersedes_id"):
+        if payload.get(name) is not None and not isinstance(payload[name], str):
+            raise TraceRecordValidationError(f"TraceRecord {name} must be a string or null")
     if not isinstance(payload.get("parent_ids"), list) or any(
         not isinstance(value, str) for value in payload["parent_ids"]
     ):

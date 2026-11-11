@@ -1,10 +1,4 @@
-"""Stage 1 statement review on the DWD conform (EPIC-011 Stage 3).
-
-Review state now lives on ``StatementSummary`` (the DWD conform), and the
-transactions it validates are Layer-2 ``AtomicTransaction`` rows resolved via the
-linked ODS ``UploadedDocument`` (``StatementSummary.uploaded_document_id`` ->
-``AtomicTransaction.source_documents[*].doc_id``).
-"""
+"""Stage 1 statement review and balance-chain validation on StatementSummary."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -16,7 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.audit.money.adopt import balance_check
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status, TransactionDirection
-from src.extraction.base.validation import STATEMENT_RESOLVED_TRANSACTIONS_ATTR
+from src.extraction.base.validation import (
+    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
+    should_invert_positive_balance_owed,
+)
 from src.extraction.extension.reviewed_statement_envelope import (
     get_current_statement_extraction_result,
     require_current_statement_envelope_trust,
@@ -30,7 +27,6 @@ from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdenti
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import account_service
 
-# Single-owned by the promotion gate (#930); kept as a local alias for readability.
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
 
@@ -39,7 +35,6 @@ class BalanceChainValidationError(ValueError):
 
 
 def pending_stage1_review_filter():
-    """Return the shared Stage 1 pending-review predicate for PARSED statements."""
     return or_(
         StatementSummary.stage1_status == Stage1Status.PENDING_REVIEW,
         StatementSummary.stage1_status.is_(None),
@@ -50,20 +45,14 @@ async def resolve_statement_transactions(
     db: AsyncSession,
     statement: StatementSummary,
 ) -> list[AtomicTransaction]:
-    """Resolve the Layer-2 atomic transactions for a statement envelope.
-
-    Joins ``StatementSummary.uploaded_document_id`` to ``AtomicTransaction`` rows
-    whose ``source_documents`` reference that ODS document. Returns transactions
-    ordered by ``txn_date`` then ``created_at`` for stable balance chaining.
-    """
+    """Resolve Layer-2 AtomicTransaction rows ordered by source_row, txn_date, created_at."""
     uploaded_doc_id = getattr(statement, "uploaded_document_id", None)
     if uploaded_doc_id is None:
         return []
 
-    doc_marker = [{"doc_id": str(uploaded_doc_id)}]
     query = select(AtomicTransaction).where(
         AtomicTransaction.user_id == statement.user_id,
-        AtomicTransaction.source_documents.contains(doc_marker),
+        AtomicTransaction.source_documents.contains([{"doc_id": str(uploaded_doc_id)}]),
     )
     metadata = statement.extraction_metadata
     payload = metadata.get("statement_extraction_result") if isinstance(metadata, dict) else None
@@ -78,10 +67,8 @@ async def resolve_statement_transactions(
     if isinstance(facts, list):
         if not facts:
             return []
-        current_ids = {fact["fact_id"] for fact in facts}
-        # Version-1 result snapshots remain readable through a validated v2
-        # alias, without rewriting their immutable fact IDs.
         scope = await source_custody_scope(db, user_id=statement.user_id, document_id=uploaded_doc_id)
+        current_ids = {fact["fact_id"] for fact in facts}
         current_ids.update(
             versioned_transaction_hash(fact["fact_id"], fact["currency"], scope)
             for fact in facts
@@ -93,8 +80,8 @@ async def resolve_statement_transactions(
             AtomicTransactionIdentity.identity_hash.in_(current_ids),
         )
         query = query.where(or_(AtomicTransaction.dedup_hash.in_(current_ids), AtomicTransaction.id.in_(alias_ids)))
-    result = await db.execute(query.order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at))
-    rows = list(result.scalars().all())
+
+    rows = list((await db.execute(query.order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at))).scalars().all())
     if isinstance(facts, list):
         if len(rows) != len(facts):
             raise ValueError("Current source transaction identity requires review: incomplete persisted facts")
@@ -125,27 +112,21 @@ async def resolve_statement_transactions(
                 if v2_hash != fact_id:
                     ordinals_by_hash.setdefault(v2_hash, []).append(ordinal)
             fact_keys.add(
-                (
-                    Decimal(str(fact["amount"])),
-                    fact["transaction_date"],
-                    fact["direction"],
-                    fact.get("currency"),
-                )
+                (Decimal(str(fact["amount"])), fact["transaction_date"], fact["direction"], fact.get("currency"))
             )
 
         used_ordinals: set[int] = set()
         for row in rows:
             row_date = row.txn_date.isoformat()
-            row_direction = row.direction.value if hasattr(row.direction, "value") else row.direction
-            if (row.amount, row_date, row_direction, row.currency) not in fact_keys and (
+            row_dir = row.direction.value if hasattr(row.direction, "value") else row.direction
+            if (row.amount, row_date, row_dir, row.currency) not in fact_keys and (
                 row.amount,
                 row_date,
-                row_direction,
+                row_dir,
                 None,
             ) not in fact_keys:
                 raise ValueError("Current source transaction identity requires review: source fact or currency differs")
             if row.id not in aliased_rows:
-                # A matching historical raw hash does not prove currency/custody.
                 _, resolved = await resolve_transaction_identity(
                     db,
                     user_id=statement.user_id,
@@ -162,8 +143,8 @@ async def resolve_statement_transactions(
             source_row = next(
                 (
                     ordinal
-                    for candidate_hash in candidate_hashes
-                    for ordinal in ordinals_by_hash.get(candidate_hash, ())
+                    for ch in candidate_hashes
+                    for ordinal in ordinals_by_hash.get(ch, ())
                     if ordinal not in used_ordinals
                 ),
                 next(ordinal for ordinal in range(1, len(rows) + 2) if ordinal not in used_ordinals),
@@ -177,13 +158,44 @@ async def resolve_statement_transactions(
     return rows
 
 
-def _direction_is_in(direction: object) -> bool:
-    value = direction.value if hasattr(direction, "value") else direction
-    return value == TransactionDirection.IN.value
+def _direction_val(direction: object) -> object:
+    return direction.value if hasattr(direction, "value") else direction
 
 
 def _signed_txn_amount(txn: AtomicTransaction) -> Decimal:
-    return txn.amount if _direction_is_in(txn.direction) else -txn.amount
+    return txn.amount if _direction_val(txn.direction) == TransactionDirection.IN.value else -txn.amount
+
+
+def _undeclared_currency_row(currency: str, net: Decimal) -> dict:
+    expected, delta = balance_check(Decimal("0"), Decimal("0"), net, currency)
+    return {
+        "currency": currency,
+        "opening_balance": None,
+        "closing_balance": None,
+        "calculated_closing": str(expected),
+        "closing_delta": str(delta),
+        "closing_match": False,
+        "declared_balance": False,
+    }
+
+
+def _per_currency_validation_response(
+    per_currency: list[dict], primary_currency: str, *, declared_mode: bool
+) -> dict:
+    primary = next((row for row in per_currency if row["currency"] == primary_currency), per_currency[0])
+    return {
+        "opening_balance": primary["opening_balance"],
+        "closing_balance": primary["closing_balance"],
+        "calculated_closing": primary["calculated_closing"],
+        "opening_delta": "0",
+        "closing_delta": primary["closing_delta"],
+        "opening_match": declared_mode,
+        "closing_known": declared_mode,
+        "closing_match": primary["closing_match"] if declared_mode else False,
+        "balance_valid": all(row["closing_match"] for row in per_currency) if declared_mode else False,
+        "per_currency": per_currency,
+        "validated_at": datetime.now(UTC).isoformat(),
+    }
 
 
 async def validate_balance_chain(
@@ -207,18 +219,14 @@ async def validate_balance_chain(
     if len(typed_balances):
         nets = {currency: Decimal("0") for currency in typed_balances.currencies()}
         for txn in transactions:
-            currency = txn.currency.strip().upper()
-            nets.setdefault(currency, Decimal("0"))
-            nets[currency] += _signed_txn_amount(txn)
+            ccy = txn.currency.strip().upper()
+            nets[ccy] = nets.get(ccy, Decimal("0")) + _signed_txn_amount(txn)
 
         per_currency = []
         for balance in typed_balances:
             currency = balance.currency.code
             expected, delta = balance_check(
-                balance.opening.amount,
-                balance.closing.amount,
-                nets.get(currency, Decimal("0")),
-                currency,
+                balance.opening.amount, balance.closing.amount, nets.get(currency, Decimal("0")), currency
             )
             per_currency.append(
                 {
@@ -233,18 +241,7 @@ async def validate_balance_chain(
             )
         declared = set(typed_balances.currencies())
         for currency in sorted(set(nets) - declared):
-            expected, delta = balance_check(Decimal("0"), Decimal("0"), nets[currency], currency)
-            per_currency.append(
-                {
-                    "currency": currency,
-                    "opening_balance": None,
-                    "closing_balance": None,
-                    "calculated_closing": str(expected),
-                    "closing_delta": str(delta),
-                    "closing_match": False,
-                    "declared_balance": False,
-                }
-            )
+            per_currency.append(_undeclared_currency_row(currency, nets[currency]))
 
         primary_currency = (statement.currency or "").strip().upper()
         if (
@@ -252,74 +249,18 @@ async def validate_balance_chain(
             and primary_currency not in declared
             and not any(row["currency"] == primary_currency for row in per_currency)
         ):
-            per_currency.append(
-                {
-                    "currency": primary_currency,
-                    "opening_balance": None,
-                    "closing_balance": None,
-                    "calculated_closing": "0",
-                    "closing_delta": "0",
-                    "closing_match": False,
-                    "declared_balance": False,
-                }
-            )
+            per_currency.append(_undeclared_currency_row(primary_currency, Decimal("0")))
 
-        primary = next(
-            (row for row in per_currency if row["currency"] == primary_currency),
-            per_currency[0],
-        )
-        return {
-            "opening_balance": primary["opening_balance"],
-            "closing_balance": primary["closing_balance"],
-            "calculated_closing": primary["calculated_closing"],
-            "opening_delta": "0",
-            "closing_delta": primary["closing_delta"],
-            "opening_match": True,
-            "closing_known": True,
-            "closing_match": primary["closing_match"],
-            "balance_valid": all(row["closing_match"] for row in per_currency),
-            "per_currency": per_currency,
-            "validated_at": datetime.now(UTC).isoformat(),
-        }
+        return _per_currency_validation_response(per_currency, primary_currency, declared_mode=True)
 
     transaction_currencies = {txn.currency.strip().upper() for txn in transactions}
     scalar_currency = (statement.currency or "").strip().upper()
     if len(transaction_currencies) > 1 or (transaction_currencies and scalar_currency not in transaction_currencies):
         nets = {currency: Decimal("0") for currency in transaction_currencies}
         for txn in transactions:
-            currency = txn.currency.strip().upper()
-            nets[currency] += _signed_txn_amount(txn)
-        per_currency = []
-        for currency in sorted(nets):
-            expected, delta = balance_check(Decimal("0"), Decimal("0"), nets[currency], currency)
-            per_currency.append(
-                {
-                    "currency": currency,
-                    "opening_balance": None,
-                    "closing_balance": None,
-                    "calculated_closing": str(expected),
-                    "closing_delta": str(delta),
-                    "closing_match": False,
-                    "declared_balance": False,
-                }
-            )
-        primary = next(
-            (row for row in per_currency if row["currency"] == scalar_currency),
-            per_currency[0],
-        )
-        return {
-            "opening_balance": primary["opening_balance"],
-            "closing_balance": primary["closing_balance"],
-            "calculated_closing": primary["calculated_closing"],
-            "opening_delta": "0",
-            "closing_delta": primary["closing_delta"],
-            "opening_match": False,
-            "closing_known": False,
-            "closing_match": False,
-            "balance_valid": False,
-            "per_currency": per_currency,
-            "validated_at": datetime.now(UTC).isoformat(),
-        }
+            nets[txn.currency.strip().upper()] += _signed_txn_amount(txn)
+        per_currency = [_undeclared_currency_row(ccy, nets[ccy]) for ccy in sorted(nets)]
+        return _per_currency_validation_response(per_currency, scalar_currency, declared_mode=False)
 
     opening_balance = statement.effective_opening_balance() or Decimal("0")
     opening_delta = Decimal("0.00")
@@ -331,11 +272,10 @@ async def validate_balance_chain(
 
     if (
         closing_known
-        and closing_delta > BALANCE_TOLERANCE
-        and txn_sum != Decimal("0")
-        and len(transactions) >= 2
         and statement.closing_balance is not None
-        and abs((opening_balance - txn_sum) - statement.closing_balance) <= Decimal("0.01")
+        and should_invert_positive_balance_owed(
+            opening_balance, statement.closing_balance, txn_sum, len(transactions), tolerance=BALANCE_TOLERANCE
+        )
     ):
         opening_balance = -opening_balance
         statement.opening_balance = opening_balance
@@ -349,11 +289,6 @@ async def validate_balance_chain(
     prev_statement = await _get_previous_approved_statement(db, statement)
     result: dict = {
         "opening_balance": str(opening_balance),
-        # #1390: a missing closing balance is unknown, not "matched". Report it as
-        # null (not the literal string "None"), and don't claim a chain match when
-        # there is no declared closing balance to compare against. The approval
-        # gate (`_raise_if_balance_chain_invalid`) keys off `closing_known` so its
-        # behavior for unverifiable statements is unchanged.
         "closing_balance": str(statement.closing_balance) if closing_known else None,
         "calculated_closing": str(calculated_closing),
         "opening_delta": str(opening_delta),
@@ -368,16 +303,15 @@ async def validate_balance_chain(
     }
     if prev_statement is not None and prev_statement.closing_balance is not None:
         cross_period_delta = opening_balance - prev_statement.closing_balance
-        has_date_gap = bool(
-            statement.period_start
-            and prev_statement.period_end
-            and (statement.period_start - prev_statement.period_end).days > 1
-        )
         result["previous_closing_balance"] = str(prev_statement.closing_balance)
         result["previous_period_end"] = prev_statement.period_end.isoformat() if prev_statement.period_end else None
         result["cross_period_delta"] = str(cross_period_delta)
         result["cross_period_match"] = abs(cross_period_delta) <= account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE
-        result["has_date_gap"] = has_date_gap
+        result["has_date_gap"] = bool(
+            statement.period_start
+            and prev_statement.period_end
+            and (statement.period_start - prev_statement.period_end).days > 1
+        )
     return result
 
 
@@ -398,39 +332,33 @@ async def _get_previous_approved_statement(db: AsyncSession, statement: Statemen
         if statement.account_last4:
             filters.append(StatementSummary.account_last4 == statement.account_last4)
 
-    prev_result = await db.execute(
-        select(StatementSummary).where(and_(*filters)).order_by(desc(StatementSummary.period_end)).limit(1)
-    )
-    return prev_result.scalar_one_or_none()
+    return (
+        await db.execute(
+            select(StatementSummary).where(and_(*filters)).order_by(desc(StatementSummary.period_end)).limit(1)
+        )
+    ).scalar_one_or_none()
 
 
-async def _get_statement_for_update(
-    db: AsyncSession,
-    statement_id: UUID,
-    user_id: UUID,
-) -> StatementSummary:
-    result = await db.execute(
-        select(StatementSummary)
-        .where(StatementSummary.id == statement_id)
-        .where(StatementSummary.user_id == user_id)
-        .with_for_update()
-    )
-    statement = result.scalar_one_or_none()
+async def _get_statement_for_update(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
+    statement = (
+        await db.execute(
+            select(StatementSummary)
+            .where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
     if not statement:
         raise ValueError("Statement not found or access denied")
     return statement
 
 
 def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: bool = False) -> None:
-    per_currency = validation_result.get("per_currency", [])
-    failed_currencies = [row["currency"] for row in per_currency if not row["closing_match"]]
+    failed_currencies = [
+        row["currency"] for row in validation_result.get("per_currency", []) if not row["closing_match"]
+    ]
     if failed_currencies:
         raise BalanceChainValidationError(f"Balance mismatch for currency: {', '.join(failed_currencies)}")
 
-    # Route the Stage-1 approval decision through the promotion gate: the
-    # balance-chain checks are the deterministic invariants, with no confidence
-    # term (min_confidence=0). The gate disposes; a failed invariant blocks
-    # approval. Behavior is identical to the prior inline checks.
     verdict = evaluate_promotion(
         [
             InvariantResult(
@@ -441,10 +369,6 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
             ),
             InvariantResult(
                 name="closing_balance_chain",
-                # Preserve prior gate behavior: an unverifiable (no declared
-                # closing balance) statement is non-blocking, exactly as the old
-                # vacuous closing_match=True allowed. Only a *known* mismatch
-                # blocks approval.
                 passed=(not validation_result.get("closing_known", True)) or validation_result["closing_match"],
                 delta=Decimal(validation_result["closing_delta"]),
                 tolerance=BALANCE_TOLERANCE,
@@ -455,14 +379,12 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
     )
     if verdict.is_authoritative:
         return
-
     if verdict.failed_invariant == "opening_balance_chain":
         suffix = " after edits" if after_edits else ""
         raise BalanceChainValidationError(
             f"Opening balance mismatch{suffix}: delta={validation_result['opening_delta']} exceeds tolerance "
             f"{BALANCE_TOLERANCE}"
         )
-
     if after_edits:
         raise BalanceChainValidationError(
             f"Balance still invalid after edits: delta={validation_result['closing_delta']}"
@@ -473,41 +395,27 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
 
 
 def _has_unresolved_statement_conflicts(transactions: list[AtomicTransaction]) -> bool:
-    seen: dict[tuple, AtomicTransaction] = {}
-    by_abs_amount: dict[tuple, AtomicTransaction] = {}
-
+    seen: set[tuple] = set()
+    by_abs_amount: dict[tuple, object] = {}
     for txn in transactions:
-        direction = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
-        # Include the running balance in the duplicate key so the guard stays consistent with the
-        # dedup disambiguator (deduplication.calculate_transaction_hash): two rows with different
-        # ``balance_after`` are real distinct transactions the dedup layer deliberately kept apart,
-        # not duplicates. Equal/absent balances remain ambiguous and are still flagged for review.
+        direction = _direction_val(txn.direction)
         balance_key = None if txn.balance_after is None else txn.balance_after.normalize()
         duplicate_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), direction, balance_key)
         if duplicate_key in seen:
             return True
-        seen[duplicate_key] = txn
+        seen.add(duplicate_key)
 
         transfer_key = (txn.txn_date, txn.amount.copy_abs())
-        paired = by_abs_amount.get(transfer_key)
-        paired_direction = (
-            (paired.direction.value if hasattr(paired.direction, "value") else paired.direction)
-            if paired is not None
-            else None
-        )
-        if paired is not None and paired_direction != direction:
+        paired_dir = by_abs_amount.get(transfer_key)
+        if paired_dir is not None and paired_dir != direction:
             return True
-        by_abs_amount[transfer_key] = txn
-
+        by_abs_amount[transfer_key] = direction
     return False
 
 
 def _raise_if_statement_conflicts_unresolved(
     statement: StatementSummary, transactions: list[AtomicTransaction]
 ) -> None:
-    # #962: a reviewer can explicitly resolve the duplicate / transfer-pair
-    # candidates (confirming they are distinct or a real transfer). Once resolved,
-    # the statement is approvable instead of permanently stuck in ``parsed``.
     if statement.stage1_conflicts_resolved_at is not None:
         return
     if _has_unresolved_statement_conflicts(transactions):
@@ -548,82 +456,43 @@ async def approve_statement_with_transactions(
     statement.balance_validation_result = validation_result
     statement.status = BankStatementStatus.APPROVED
     setattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, transactions)
-
     await db.flush()
     return statement, transactions
 
 
-async def approve_statement(
-    db: AsyncSession,
-    statement_id: UUID,
-    user_id: UUID,
-) -> StatementSummary:
+async def approve_statement(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
     statement, _ = await approve_statement_with_transactions(db, statement_id, user_id)
     return statement
 
 
 async def reject_statement(
-    db: AsyncSession,
-    statement_id: UUID,
-    user_id: UUID,
-    reason: str | None = None,
+    db: AsyncSession, statement_id: UUID, user_id: UUID, reason: str | None = None
 ) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.stage1_status = Stage1Status.REJECTED
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.status = BankStatementStatus.REJECTED
-    # A reject triggers a reparse: the next transaction set must be re-reviewed,
-    # so a prior conflict resolution (#962) must not carry over.
     statement.stage1_conflicts_resolved_at = None
     if reason:
         statement.validation_error = reason
-
     await db.flush()
     return statement
 
 
-async def resolve_statement_conflicts(
-    db: AsyncSession,
-    statement_id: UUID,
-    user_id: UUID,
-) -> StatementSummary:
-    """Mark a statement's Stage-1 duplicate/transfer-pair candidates as resolved (#962).
-
-    The reviewer has confirmed the flagged rows are genuinely distinct (or a real
-    transfer pair), so the approval guard should stop blocking. Idempotent: the
-    timestamp simply records that a resolution decision was made.
-    """
+async def resolve_statement_conflicts(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.stage1_conflicts_resolved_at = datetime.now(UTC)
     await db.flush()
     return statement
 
 
-async def edit_and_approve(
-    db: AsyncSession,
-    statement_id: UUID,
-    user_id: UUID,
-    edits: list[dict],
-) -> StatementSummary:
-    """Editing parsed transactions is unsupported.
-
-    Layer-2 ``AtomicTransaction`` rows are immutable / write-once: their identity
-    (and dedup hash) is fixed at ingestion, so per-transaction corrections cannot
-    be applied in place without corrupting deduplication and lineage. Reviewers
-    must reject the statement and re-parse the corrected source instead.
-
-    TODO(EPIC-012): introduce an explicit correction / re-parse flow that supersedes
-    the original atomic rows rather than mutating them.
-    """
+async def edit_and_approve(db: AsyncSession, statement_id: UUID, user_id: UUID, edits: list[dict]) -> StatementSummary:
     _ = (db, statement_id, user_id, edits)
     raise ValueError("Editing parsed transactions is unsupported; reject and re-parse the statement instead.")
 
 
 async def set_opening_balance(
-    db: AsyncSession,
-    statement_id: UUID,
-    user_id: UUID,
-    opening_balance: Decimal,
+    db: AsyncSession, statement_id: UUID, user_id: UUID, opening_balance: Decimal
 ) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.manual_opening_balance = opening_balance

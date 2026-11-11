@@ -27,18 +27,14 @@ from src.ledger import (
     account_service,
 )
 from src.ledger.orm.journal import active_journal_entry_filter
-from src.observability import ErrorIds, get_logger
-from src.pricing import PrefetchedFxRates, PricingError
+from src.pricing import PrefetchedFxRates
 from src.reporting.base.cash_flow_calculator import calculate_cash_flow_bridge
-from src.reporting.extension._core import _line_total
+from src.reporting.extension._core import _line_total, _load_accounts, _prefetch_fx_rates
 from src.reporting.extension.reporting_calc import ReportError, _normalize_currency, _quantize_money
 
-logger = get_logger(__name__)
 _PROCESSING_ACCOUNT = ProcessingAccount()
 _AUTO_BANK_ACCOUNT_CODE = "AUTO-BANK"
 
-#: Plain-language cause and next action for each cash-flow proof reason (#2466).
-#: Every reason that ``generate_cash_flow`` emits has one entry here.
 CASH_FLOW_UNPROVEN_FALLBACK_TEXT = (
     "Cash-flow event classification or lineage is unproven and cannot authorize a package."
 )
@@ -91,17 +87,13 @@ _STATEMENT_CATEGORY_ACTIVITIES: dict[str, tuple[CashActivity, AccountType]] = {
     "INVESTMENT_TRADE": ("Investing", AccountType.ASSET),
 }
 _SECTIONS = ("operating", "investing", "financing")
-#: Line id of the lineage records of unclassified cash events (#2583).
 CASH_FLOW_UNCLASSIFIED_LINE_ID = "unclassified"
-#: Line id of the lineage records of opening stock that the period first evidences (#2583).
 CASH_FLOW_OPENING_STOCK_LINE_ID = "opening_stock"
 _FIXED_LINE_IDS = frozenset({CASH_FLOW_UNCLASSIFIED_LINE_ID, CASH_FLOW_OPENING_STOCK_LINE_ID})
 
 
 @dataclass(frozen=True, slots=True)
 class _EntryFacts:
-    """The journal-entry columns that cash-event classification and lineage read."""
-
     id: UUID
     entry_date: date
     memo: str
@@ -113,8 +105,6 @@ class _EntryFacts:
 
 @dataclass(frozen=True, slots=True)
 class _LineFacts:
-    """The journal-line columns that cash-event classification and lineage read."""
-
     id: UUID
     direction: Direction
     amount: Decimal
@@ -125,8 +115,6 @@ class _LineFacts:
 
 @dataclass(frozen=True, slots=True)
 class _CashEvent:
-    """One tenant-safe journal event that touches an authoritative cash identity."""
-
     entry: _EntryFacts
     cash_lines: tuple[tuple[_LineFacts, Account], ...]
     counterpart_lines: tuple[tuple[_LineFacts, Account], ...]
@@ -149,8 +137,10 @@ class _CashEvent:
             if event_type is not None:
                 explicit_activity = _EXPLICIT_EVENT_ACTIVITIES.get(event_type)
                 allowed_companions = _EXPLICIT_EVENT_COMPANIONS.get(event_type, frozenset())
-                counterpart_event_types = {line.event_type for line, _account in self.counterpart_lines}
-                if explicit_activity is not None and counterpart_event_types <= allowed_companions:
+                if (
+                    explicit_activity is not None
+                    and {line.event_type for line, _ in self.counterpart_lines} <= allowed_companions
+                ):
                     return explicit_activity
 
         if (
@@ -159,7 +149,7 @@ class _CashEvent:
             and len(self.cash_lines) == 1
             and len(self.counterpart_lines) == 1
         ):
-            cash_line, _cash_account = self.cash_lines[0]
+            cash_line, _ = self.cash_lines[0]
             counter_line, counter_account = self.counterpart_lines[0]
             category = counter_line.economic_category
             if (
@@ -173,9 +163,6 @@ class _CashEvent:
 
         counterpart_types = {account.type for _line, account in self.counterpart_lines}
         if counterpart_types and counterpart_types <= {AccountType.INCOME, AccountType.EXPENSE}:
-            # P&L accounts are unambiguous operating evidence. Balance-sheet
-            # account types cannot distinguish AR/AP settlement from investing
-            # or financing, so unsupported events deliberately remain unproven.
             return "Operating"
         return None
 
@@ -212,20 +199,14 @@ async def _load_cash_events(
     cash_account_ids: frozenset[UUID],
     account_by_id: dict[UUID, Account],
 ) -> tuple[_CashEvent, ...]:
-    """Load complete entries only when both the entry and every account belong to the tenant.
-
-    The read selects columns, not ORM rows: one year of data has about 2000 lines (#2583).
-    ``account_by_id`` holds the accounts of the tenant. The read adds an account that the
-    caller did not load, for example an account that a concurrent request created.
-    """
-    stmt = _cash_event_rows_statement(user_id, end_date=end_date, cash_account_ids=cash_account_ids)
-    rows = (await db.execute(stmt)).all()
+    """Load complete cash-touching entries belonging solely to the tenant (#2583)."""
+    rows = (
+        await db.execute(_cash_event_rows_statement(user_id, end_date=end_date, cash_account_ids=cash_account_ids))
+    ).all()
     missing_account_ids = {row.account_id for row in rows}.difference(account_by_id)
     if missing_account_ids:
-        added = await db.execute(
-            select(Account).where(Account.user_id == user_id).where(Account.id.in_(missing_account_ids))
-        )
-        account_by_id.update((account.id, account) for account in added.scalars())
+        added = await db.scalars(select(Account).where(Account.user_id == user_id, Account.id.in_(missing_account_ids)))
+        account_by_id.update((account.id, account) for account in added)
     grouped: dict[UUID, tuple[_EntryFacts, list[tuple[_LineFacts, Account]]]] = {}
     for row in rows:
         group = grouped.get(row.entry_id)
@@ -242,15 +223,19 @@ async def _load_cash_events(
                 ),
                 [],
             )
-        line = _LineFacts(
-            id=row.line_id,
-            direction=row.direction,
-            amount=row.amount,
-            currency=row.currency,
-            event_type=row.event_type,
-            economic_category=row.economic_category,
+        group[1].append(
+            (
+                _LineFacts(
+                    id=row.line_id,
+                    direction=row.direction,
+                    amount=row.amount,
+                    currency=row.currency,
+                    event_type=row.event_type,
+                    economic_category=row.economic_category,
+                ),
+                account_by_id[row.account_id],
+            )
         )
-        group[1].append((line, account_by_id[row.account_id]))
 
     events: list[_CashEvent] = []
     for entry, lines in grouped.values():
@@ -273,10 +258,7 @@ def _cash_event_rows_statement(
     end_date: date,
     cash_account_ids: frozenset[UUID] | None = None,
 ) -> Select[tuple[Any, ...]]:
-    """Build the complete-entry query so tenant predicates remain directly provable.
-
-    Each row holds the columns of ``_LineFacts`` and ``_EntryFacts`` and the line's account id.
-    """
+    """Build the complete-entry query so tenant predicates remain directly provable."""
     foreign_line = aliased(JournalLine)
     foreign_account = aliased(Account)
     cash_line = aliased(JournalLine)
@@ -314,9 +296,10 @@ def _cash_event_rows_statement(
     )
     if cash_account_ids is not None:
         has_cash_leg = exists(
-            select(cash_line.id)
-            .where(cash_line.journal_entry_id == JournalEntry.id)
-            .where(cash_line.account_id.in_(cash_account_ids))
+            select(cash_line.id).where(
+                cash_line.journal_entry_id == JournalEntry.id,
+                cash_line.account_id.in_(cash_account_ids),
+            )
         )
         stmt = stmt.where(has_cash_leg)
     return stmt
@@ -324,8 +307,6 @@ def _cash_event_rows_statement(
 
 @dataclass(frozen=True, slots=True)
 class _LineRecord:
-    """One lineage record of the period and the statement line that shows it (#2583)."""
-
     line_id: str
     entry_date: date
     memo: str
@@ -343,17 +324,13 @@ class _CashFlowBuild:
 
 
 def cash_flow_period(start_date: date | None, end_date: date | None) -> tuple[date, date]:
-    """Return the requested cash-flow period. The default is the year to date of the end date."""
+    """Return the requested cash-flow period (defaults to year-to-date of end_date)."""
     resolved_end_date = end_date or date.today()
     return start_date or date(resolved_end_date.year, 1, 1), resolved_end_date
 
 
 def cash_flow_line_id(item: Mapping[str, Any]) -> str:
-    """Return the id of the statement line that shows one activity item (#2583).
-
-    Items with equal category, description and account id are on one line. The description
-    holds the flow direction and the counterpart names, so each line has one direction.
-    """
+    """Return deterministic statement line ID for an activity item (#2583)."""
     category = str(item["category"])
     key = "\x1f".join((category, str(item.get("description") or ""), str(item.get("account_id") or "")))
     return f"{category.lower()}-{text_digest(key)[:16]}"
@@ -369,10 +346,11 @@ async def generate_cash_flow(
     cash_account_ids: frozenset[UUID] | None = None,
 ) -> dict[str, object]:
     """Generate cash flow from journal-entry cash-touch events, never account-period inference."""
-    build = await _build_cash_flow(
-        db, user_id, start_date=start_date, end_date=end_date, currency=currency, cash_account_ids=cash_account_ids
-    )
-    return build.document
+    return (
+        await _build_cash_flow(
+            db, user_id, start_date=start_date, end_date=end_date, currency=currency, cash_account_ids=cash_account_ids
+        )
+    ).document
 
 
 async def cash_flow_line_events(
@@ -385,28 +363,16 @@ async def cash_flow_line_events(
     currency: str | None = None,
     cash_account_ids: frozenset[UUID] | None = None,
 ) -> list[dict[str, object]] | None:
-    """Return the lineage records of one statement line in document order, or None for no line (#2583).
-
-    The records come from the builder of ``generate_cash_flow``. Each record adds the entry
-    date, the entry memo and the cash movement to its lineage. The line ids are the ids of
-    ``cash_flow_preview`` and the two fixed ids of the unclassified and opening-stock records.
-    """
+    """Return lineage records of one statement line in document order, or None for unknown line (#2583)."""
     build = await _build_cash_flow(
         db, user_id, start_date=start_date, end_date=end_date, currency=currency, cash_account_ids=cash_account_ids
     )
     events = [record.event() for record in build.records if record.line_id == line_id]
-    if not events and line_id not in _FIXED_LINE_IDS:
-        return None
-    return events
+    return None if not events and line_id not in _FIXED_LINE_IDS else events
 
 
 def cash_flow_preview(document: Mapping[str, Any]) -> dict[str, object]:
-    """Project a cash-flow document to its bounded preview (#2583).
-
-    Each section has one line for each ``cash_flow_line_id``, with the sum and the count of its
-    items, largest absolute amount first. ``lineage_summary`` counts the lineage records.
-    ``cash_flow_line_events`` returns the records of one line.
-    """
+    """Project a cash-flow document to its bounded preview (#2583)."""
     preview: dict[str, object] = {
         key: value for key, value in document.items() if key not in (*_SECTIONS, "event_lineage")
     }
@@ -415,8 +381,7 @@ def cash_flow_preview(document: Mapping[str, Any]) -> dict[str, object]:
         for item in document.get(section) or ():
             line_id = cash_flow_line_id(item)
             amount = Decimal(str(item["amount"]))
-            line = lines.get(line_id)
-            if line is None:
+            if (line := lines.get(line_id)) is None:
                 lines[line_id] = {**item, "line_id": line_id, "amount": amount, "event_count": 1}
             else:
                 line["amount"] += amount
@@ -447,11 +412,7 @@ def _line_record(event: _CashEvent, line_id: str, amount: Decimal, lineage: dict
 def _select_cash_account_ids(
     accounts: Sequence[Account], cash_account_ids: frozenset[UUID] | None
 ) -> tuple[frozenset[UUID], frozenset[UUID]]:
-    """Return the cash accounts of a cash flow and the exact identities among them.
-
-    With no explicit identity, a name match selects the cash accounts (a compatibility fallback).
-    The system Processing account is a ledger-defined cash equivalent and is always included.
-    """
+    """Return effective cash account IDs (including system Processing) and exact selected IDs."""
     account_ids = {account.id for account in accounts}
     exact_selected_ids: set[UUID] = set()
     if cash_account_ids is None:
@@ -460,16 +421,12 @@ def _select_cash_account_ids(
             account.id
             for account in accounts
             if account.type == AccountType.ASSET
-            and (
-                account.code == _AUTO_BANK_ACCOUNT_CODE or any(keyword in account.name.lower() for keyword in keywords)
-            )
+            and (account.code == _AUTO_BANK_ACCOUNT_CODE or any(kw in account.name.lower() for kw in keywords))
         }
     else:
         selected_ids = {account_id for account_id in cash_account_ids if account_id in account_ids}
         exact_selected_ids = set(selected_ids)
 
-    # Processing is a ledger-defined cash equivalent: including it makes both legs
-    # of an in-transit internal transfer neutral without name inference.
     selected_ids.update(
         account.id
         for account in accounts
@@ -481,7 +438,7 @@ def _select_cash_account_ids(
 async def cash_opening_positions(
     db: AsyncSession, user_id: UUID, *, as_of: date, cash_account_ids: frozenset[UUID]
 ) -> tuple[Any, ...]:
-    """The opening positions of the cash accounts, effective on or before ``as_of``."""
+    """Return opening positions of cash accounts effective on or before as_of."""
     from src.ledger import list_opening_positions
 
     return tuple(
@@ -492,22 +449,14 @@ async def cash_opening_positions(
 
 
 def opening_coverage_start(opening_positions: Iterable[Any]) -> date | None:
-    """The first day that a cash-flow period can start with the opening position of every cash account.
-
-    It is the latest effective date of the positions. A period that starts before it has the proof
-    reason ``opening_coverage_starts_after_period``. Report period bounds read this function (#2646).
-    """
+    """Return the latest effective date among opening positions (#2646)."""
     return max((position.effective_date for position in opening_positions), default=None)
 
 
 @dataclass(frozen=True, slots=True)
 class CashCoverage:
-    """``opening_coverage_start`` of a set of cash accounts, and the accounts that set it."""
-
     start: date | None
-    #: The names of the cash accounts whose opening position is on ``start``, sorted.
     limiting_account_names: tuple[str, ...]
-    #: The latest approved statement period end on or before ``as_of`` (#2726).
     latest_statement_end: date | None = None
 
 
@@ -519,13 +468,8 @@ async def cash_coverage(
     cash_account_id_sets: Sequence[frozenset[UUID] | None],
     latest_statement_end: date | None = None,
 ) -> CashCoverage:
-    """The coverage start over the cash accounts that ``generate_cash_flow`` selects for each id set.
-
-    ``None`` in ``cash_account_id_sets`` stands for the name-match selection. The latest opening
-    over the union is the latest of the per-set bounds, so a period that starts on it passes the
-    check of every set. One read of the accounts and one of the opening positions.
-    """
-    accounts = list((await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all())
+    """Return coverage start over the union of cash accounts selected by each ID set."""
+    accounts = await _load_accounts(db, user_id)
     cash_ids: set[UUID] = set()
     for ids in cash_account_id_sets:
         cash_ids.update(_select_cash_account_ids(accounts, ids)[0])
@@ -533,11 +477,7 @@ async def cash_coverage(
     start = opening_coverage_start(positions)
     names = {account.id: account.name for account in accounts}
     limiting = sorted({names[p.account_id] for p in positions if p.effective_date == start and p.account_id in names})
-    return CashCoverage(
-        start=start,
-        limiting_account_names=tuple(limiting),
-        latest_statement_end=latest_statement_end,
-    )
+    return CashCoverage(start=start, limiting_account_names=tuple(limiting), latest_statement_end=latest_statement_end)
 
 
 async def _build_cash_flow(
@@ -549,14 +489,13 @@ async def _build_cash_flow(
     currency: str | None,
     cash_account_ids: frozenset[UUID] | None,
 ) -> _CashFlowBuild:
-    """Build the cash-flow document and its line records in one pass over the cash events."""
+    """Build the cash-flow document and its line records in one pass over cash events."""
     if start_date > end_date:
         raise ReportError("start_date must be before end_date")
     target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
 
-    accounts = list((await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all())
+    accounts = await _load_accounts(db, user_id)
     account_by_id = {account.id: account for account in accounts}
-    explicit_cash_identity = cash_account_ids is not None
     effective_cash_ids, exact_selected_ids = _select_cash_account_ids(accounts, cash_account_ids)
     events = await _load_cash_events(
         db, user_id, end_date=end_date, cash_account_ids=effective_cash_ids, account_by_id=account_by_id
@@ -577,18 +516,10 @@ async def _build_cash_flow(
             fx_needs.add((source, target_currency, end_date, None, None))
             if event.entry.entry_date < start_date:
                 fx_needs.add((source, target_currency, start_date, None, None))
-            if start_date <= event.entry.entry_date <= end_date:
+            elif event.entry.entry_date <= end_date:
                 fx_needs.add((source, target_currency, event.entry.entry_date, None, None))
 
-    fx_rates = PrefetchedFxRates(lazy_load=True)
-    if fx_needs:
-        try:
-            await fx_rates.prefetch(db, list(fx_needs))
-        except PricingError as exc:
-            logger.error(
-                "FX pre-fetch failed for cash flow", error_id=ErrorIds.REPORT_GENERATION_FAILED, error=str(exc)
-            )
-            raise ReportError(str(exc)) from exc
+    fx_rates = await _prefetch_fx_rates(db, list(fx_needs), "cash flow", prefetched_cls=PrefetchedFxRates)
 
     def converted_delta(line: _LineFacts, rate_date: date) -> Decimal:
         source = line.currency.upper()
@@ -599,38 +530,37 @@ async def _build_cash_flow(
 
     beginning_cash = Decimal("0")
     ending_cash = Decimal("0")
-    operating_items: list[dict[str, object]] = []
-    investing_items: list[dict[str, object]] = []
-    financing_items: list[dict[str, object]] = []
+    activity_items: dict[CashActivity, list[dict[str, object]]] = {
+        "Operating": [],
+        "Investing": [],
+        "Financing": [],
+    }
     event_lineage: list[dict[str, object]] = []
     records: list[_LineRecord] = []
     unclassified_cash = Decimal("0")
     opening_stock_adjustment = Decimal("0")
     proof_reasons: set[str] = set()
-    if not explicit_cash_identity:
+    if cash_account_ids is None:
         proof_reasons.add("cash_identity_compatibility_fallback")
     elif not exact_selected_ids:
         proof_reasons.add("cash_identity_missing")
 
-    for position in opening_positions:
-        if position.state != "authoritative" or position.decision is None:
-            proof_reasons.add("opening_position_unproven")
+    if any(position.state != "authoritative" or position.decision is None for position in opening_positions):
+        proof_reasons.add("opening_position_unproven")
     coverage_start = opening_coverage_start(opening_positions)
     if coverage_start is not None and coverage_start > start_date:
         proof_reasons.add("opening_coverage_starts_after_period")
 
     for event in events:
-        beginning_movement = Decimal("0")
-        if event.entry.entry_date < start_date:
-            beginning_movement = sum(
-                (converted_delta(line, start_date) for line, _account in event.cash_lines), Decimal("0")
-            )
-            beginning_cash += beginning_movement
-        ending_movement = sum((converted_delta(line, end_date) for line, _account in event.cash_lines), Decimal("0"))
+        beginning_movement = (
+            sum((converted_delta(line, start_date) for line, _ in event.cash_lines), Decimal("0"))
+            if event.entry.entry_date < start_date
+            else Decimal("0")
+        )
+        beginning_cash += beginning_movement
+        ending_movement = sum((converted_delta(line, end_date) for line, _ in event.cash_lines), Decimal("0"))
         ending_cash += ending_movement
-        if not event.has_authoritative_decision and (
-            beginning_movement != Decimal("0") or ending_movement != Decimal("0")
-        ):
+        if not event.has_authoritative_decision and (beginning_movement or ending_movement):
             proof_reasons.add("cash_event_decision_unproven")
         if not (start_date <= event.entry.entry_date <= end_date):
             continue
@@ -650,10 +580,10 @@ async def _build_cash_flow(
                 and event.has_authoritative_decision
             )
         )
-        opening_amount = sum(
-            (converted_delta(line, event.entry.entry_date) for line, _account in opening_lines), Decimal("0")
-        )
         if opening_lines:
+            opening_amount = sum(
+                (converted_delta(line, event.entry.entry_date) for line, _ in opening_lines), Decimal("0")
+            )
             if event.entry.entry_date == start_date:
                 beginning_cash += opening_amount
             else:
@@ -661,11 +591,12 @@ async def _build_cash_flow(
             lineage = _event_lineage(event, activity=None, reason_code="opening_stock")
             event_lineage.append(lineage)
             records.append(_line_record(event, CASH_FLOW_OPENING_STOCK_LINE_ID, opening_amount, lineage))
-        opening_line_ids = {line.id for line, _account in opening_lines}
+
+        opening_line_ids = {line.id for line, _ in opening_lines}
         movement = sum(
             (
                 converted_delta(line, event.entry.entry_date)
-                for line, _account in event.cash_lines
+                for line, _ in event.cash_lines
                 if line.id not in opening_line_ids
             ),
             Decimal("0"),
@@ -681,24 +612,22 @@ async def _build_cash_flow(
             records.append(_line_record(event, CASH_FLOW_UNCLASSIFIED_LINE_ID, movement, lineage))
             continue
         counterpart_accounts = {account.id: account for _line, account in event.counterpart_lines}
+        names_label = ", ".join(sorted(account.name for account in counterpart_accounts.values()))
         item = {
             "category": activity,
-            "subcategory": ", ".join(sorted(account.name for account in counterpart_accounts.values())),
+            "subcategory": names_label,
             "amount": _quantize_money(movement),
-            "description": f"{'Inflow' if movement > 0 else 'Outflow'} - "
-            + ", ".join(sorted(account.name for account in counterpart_accounts.values())),
+            "description": f"{'Inflow' if movement > 0 else 'Outflow'} - {names_label}",
             "account_id": next(iter(counterpart_accounts)) if len(counterpart_accounts) == 1 else None,
         }
         lineage = _event_lineage(event, activity=activity, reason_code=None)
         event_lineage.append(lineage)
         records.append(_line_record(event, cash_flow_line_id(item), movement, lineage))
-        if activity == "Operating":
-            operating_items.append(item)
-        elif activity == "Investing":
-            investing_items.append(item)
-        else:
-            financing_items.append(item)
+        activity_items[activity].append(item)
 
+    operating_items = activity_items["Operating"]
+    investing_items = activity_items["Investing"]
+    financing_items = activity_items["Financing"]
     for items in (operating_items, investing_items, financing_items):
         items.sort(key=lambda item: abs(Decimal(str(item["amount"]))), reverse=True)
 
@@ -706,18 +635,13 @@ async def _build_cash_flow(
     investing_total = _line_total(investing_items)
     financing_total = _line_total(financing_items)
     calculated_fx_effect = Decimal("0")
-    if bool(fx_needs):
+    if fx_needs:
         for event in events:
-            for line, _account in event.cash_lines:
-                source = line.currency.upper()
-                if source == target_currency:
-                    continue
-                if event.entry.entry_date < start_date:
-                    calculated_fx_effect += converted_delta(line, end_date) - converted_delta(line, start_date)
-                elif start_date <= event.entry.entry_date <= end_date:
-                    calculated_fx_effect += converted_delta(line, end_date) - converted_delta(
-                        line, event.entry.entry_date
-                    )
+            ref_date = start_date if event.entry.entry_date < start_date else event.entry.entry_date
+            if ref_date <= end_date:
+                for line, _ in event.cash_lines:
+                    if line.currency.upper() != target_currency:
+                        calculated_fx_effect += converted_delta(line, end_date) - converted_delta(line, ref_date)
     fx_effect = _quantize_money(calculated_fx_effect)
 
     bridge = calculate_cash_flow_bridge(
@@ -730,17 +654,15 @@ async def _build_cash_flow(
         opening_stock_adjustment=opening_stock_adjustment,
         fx_effect=fx_effect,
     )
-    if bool(fx_needs) and bridge.discrepancy != Decimal("0.00"):
+    if fx_needs and bridge.discrepancy != Decimal("0.00"):
         from src.reporting.base.balance_sheet_calculator import absorb_translation_rounding
 
-        rounded_figure_count = len(operating_items) + len(investing_items) + len(financing_items) + 4
         adjusted_fx_effect = absorb_translation_rounding(
             cta_adjustment=fx_effect,
             residual=bridge.discrepancy,
-            rounded_figure_count=rounded_figure_count,
+            rounded_figure_count=len(operating_items) + len(investing_items) + len(financing_items) + 4,
         )
         if adjusted_fx_effect != fx_effect:
-            fx_effect = adjusted_fx_effect
             bridge = calculate_cash_flow_bridge(
                 beginning_cash=beginning_cash,
                 ending_cash=ending_cash,
@@ -749,35 +671,37 @@ async def _build_cash_flow(
                 financing_total=financing_total,
                 unclassified_cash=unclassified_cash,
                 opening_stock_adjustment=opening_stock_adjustment,
-                fx_effect=fx_effect,
+                fx_effect=adjusted_fx_effect,
             )
 
-    document: dict[str, object] = {
-        "start_date": start_date,
-        "end_date": end_date,
-        "currency": target_currency,
-        "operating": operating_items,
-        "investing": investing_items,
-        "financing": financing_items,
-        "summary": {
-            "operating_activities": bridge.operating_total,
-            "investing_activities": bridge.investing_total,
-            "financing_activities": bridge.financing_total,
-            "net_cash_flow": bridge.net_cash_flow,
-            "beginning_cash": _quantize_money(beginning_cash),
-            "ending_cash": _quantize_money(ending_cash),
+    return _CashFlowBuild(
+        document={
+            "start_date": start_date,
+            "end_date": end_date,
+            "currency": target_currency,
+            "operating": operating_items,
+            "investing": investing_items,
+            "financing": financing_items,
+            "summary": {
+                "operating_activities": bridge.operating_total,
+                "investing_activities": bridge.investing_total,
+                "financing_activities": bridge.financing_total,
+                "net_cash_flow": bridge.net_cash_flow,
+                "beginning_cash": _quantize_money(beginning_cash),
+                "ending_cash": _quantize_money(ending_cash),
+            },
+            "cash_bridge": {
+                "classified_activity": bridge.classified_activity,
+                "unclassified_cash": _quantize_money(unclassified_cash),
+                "fx_effect": bridge.fx_effect,
+                "opening_stock_adjustment": _quantize_money(opening_stock_adjustment),
+                "cash_delta": bridge.cash_delta,
+                "discrepancy": bridge.discrepancy,
+                "reconciles": bridge.reconciles,
+            },
+            "event_lineage": event_lineage,
+            "proof_state": "proven" if not proof_reasons else "unproven",
+            "proof_reasons": sorted(proof_reasons),
         },
-        "cash_bridge": {
-            "classified_activity": bridge.classified_activity,
-            "unclassified_cash": _quantize_money(unclassified_cash),
-            "fx_effect": bridge.fx_effect,
-            "opening_stock_adjustment": _quantize_money(opening_stock_adjustment),
-            "cash_delta": bridge.cash_delta,
-            "discrepancy": bridge.discrepancy,
-            "reconciles": bridge.reconciles,
-        },
-        "event_lineage": event_lineage,
-        "proof_state": "proven" if not proof_reasons else "unproven",
-        "proof_reasons": sorted(proof_reasons),
-    }
-    return _CashFlowBuild(document=document, records=tuple(records))
+        records=tuple(records),
+    )
