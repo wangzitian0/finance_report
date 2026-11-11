@@ -22,3 +22,11 @@ def test_AC_runtime_guard_proofs_13_unknown_source_class_name_exits_with_the_fie
     with pytest.raises(SystemExit) as stop: gen._environment_contract()
     assert 'not_a_setting' in str(stop.value); assert str(stop.value).startswith('ENV_SOURCE_CLASSES:')
 def test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation(): 'AC-runtime.guard-proofs.14'; committed = _committed_manifest(); by_env = {entry['env']: entry for entry in committed['fields']}; assert by_env['DATABASE_URL']['sensitive'] is True; assert by_env['REDIS_URL']['sensitive'] is True; assert gen.manifest_gate_errors() == []; counterexample = json.loads(gen.render_required_env_manifest(gen.collect_backend_fields())); counterexample['fields'].append({'field': 'synthetic_downstream_url', 'env': 'SYNTHETIC_DOWNSTREAM_URL', 'aliases': [], 'required': False, 'injected': False, 'has_default': True, 'sensitive': False, 'group': 'Application', 'description': 'Synthetic service URL', 'source': 'runtime', 'empty_ok': False, 'scope': 'env', 'provided_by': '', 'composed_from': 'https://service:{SYNTHETIC_SECRET}@internal:8080', 'mirror_to_1password': False, 'ci': 'forbidden', 'store_key': '', 'vault': False}); errors = gen.manifest_gate_errors(counterexample); assert any(('composed_from references undeclared SYNTHETIC_SECRET' in err for err in errors)), f'Expected counterexample with dropped producer to fail offline gate, got: {errors}'
+def test_runtime_hooks_gate_errors_rejects_v1_manifest(tmp_path):
+    v1_payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
+    v1_payload['schema_version'] = 1
+    v1_payload['slots'].pop('prod_gate', None)
+    v1_path = tmp_path / 'runtime-hooks.manifest.json'
+    v1_path.write_text(json.dumps(v1_payload), encoding='utf-8')
+    errors = gen.runtime_hooks_gate_errors(v1_path)
+    assert errors == ['runtime-hooks.manifest.json: expected schema_version 2, got 1']
