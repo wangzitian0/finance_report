@@ -1,29 +1,4 @@
-"""LLM record/replay cassette layer (EPIC-023 AC23.5).
-
-Make LLM calls deterministic in CI via a record/replay (cassette) layer. A
-cassette is a committed JSON file holding the *semantic* request fingerprint and
-the frozen provider response. Three modes, selected by ``LLM_CASSETTE_MODE``:
-
-- ``replay`` (CI default): serve the recorded response with **zero network and no
-  API key**. A cache MISS is a HARD FAILURE — it raises with an actionable batch
-  summary ("N cassettes need re-record: <keys>; run make llm-record"); it never
-  falls back to the network.
-- ``record`` (local, with a provider key): perform the real provider call and
-  write/update the cassette. Re-recording an unchanged request is idempotent.
-- ``off`` (local dev default): normal live call, no cassette involvement.
-
-Scope (anti-false-confidence): record/replay is regression protection for KNOWN
-inputs only. It does NOT discover new real-world document shapes (that stays the
-staging real-doc audit loop), and **CI green != a real unknown statement works**.
-Provider-specific correctness is the staging ``-m llm`` gate's job, not the
-cassette tests'. See ``common/llm/readme.md#cassettes``.
-
-The fingerprint is computed on the *semantic request and modality role* —
-``sha256(normalize(role + messages + decode params + image-bytes hash))`` — and
-deliberately **NOT the exact model id**, so changing the model id does not
-invalidate every cassette: refreshing content is a re-record, the key is stable.
-Volatile fields (timestamps, random request ids) are stripped before hashing.
-"""
+"""LLM record and replay cassette persistence and validation."""
 
 from __future__ import annotations
 
@@ -43,18 +18,7 @@ logger = get_logger(__name__)
 
 
 def _find_cassette_dir() -> Path:
-    """Locate ``common/testing/fixtures/llm_cassettes`` from the repo root.
-
-    Cassettes live under the `testing` package's fixture home so they are
-    reviewed in the diff (the frozen response is visible) — deliberately
-    **outside** ``apps/backend``, so the Docker build (``COPY src ./src`` only,
-    no ``common/``) never ships them. That means this module also loads inside
-    the built image, where there is no monorepo root above ``/app`` to find:
-    walk upward bounded by the filesystem root (never past it, unlike a fixed
-    ``parents[N]``) and fall back to a sentinel that simply has no cassettes.
-    ``off`` mode (the image's runtime default) never reads this path; only the
-    full-checkout CI/local ``replay``/``record`` paths do.
-    """
+    """Locate ``common/testing/fixtures/llm_cassettes`` or return an image sentinel."""
     for ancestor in Path(__file__).resolve().parents:
         candidate = ancestor / "common" / "testing" / "fixtures" / "llm_cassettes"
         if candidate.is_dir():
@@ -62,17 +26,8 @@ def _find_cassette_dir() -> Path:
     return Path(__file__).resolve().parent / "_no_cassettes_in_this_image"
 
 
-# Where committed cassettes live: the `testing` package's fixture home, so they
-# are reviewed in the diff (the frozen response is visible) and never shipped in
-# the app image.
 CASSETTE_DIR = _find_cassette_dir()
 
-# Env var selecting the mode; CI defaults to replay, local dev to off.
-
-# Fields that never affect the response semantically — stripped before hashing so
-# a re-record with a new timestamp / request id does not change the key. This is
-# the ONLY normalisation applied to message/param content; anything else that can
-# change the bytes the provider sees MUST change the fingerprint (see tests).
 _VOLATILE_KEYS = frozenset(
     {
         "timestamp",
@@ -85,14 +40,11 @@ _VOLATILE_KEYS = frozenset(
         "nonce",
     }
 )
-
-# A short prefix for image-bytes references so the hashing is deterministic and
-# the cassette key stays stable regardless of where the bytes came from.
 _IMAGE_BYTES_TAG = "image_bytes_sha256"
 
 
 class CassetteMode(StrEnum):
-    """The three record/replay modes."""
+    """Record and replay execution modes."""
 
     REPLAY = "replay"
     RECORD = "record"
@@ -100,26 +52,14 @@ class CassetteMode(StrEnum):
 
 
 class CassetteTag(StrEnum):
-    """What a cassette's frozen response is allowed to claim.
-
-    - ``CORRECTNESS``: the response was validated against fixture ground-truth at
-      record time (a ``correctness`` cassette MUST refuse to record if validation
-      fails). A passing replay therefore asserts the LLM read the inputs right.
-    - ``FLOW_ONLY``: asserts response *handling* only — it never claims the LLM
-      read numbers correctly. Used for wiring/plumbing tests.
-    """
+    """Claim scope for a recorded cassette response."""
 
     CORRECTNESS = "correctness"
     FLOW_ONLY = "flow-only"
 
 
 class CassetteMiss(LLMError):
-    """Raised in ``replay`` mode when no cassette matches the request.
-
-    Carries the missing key so the runner can batch-summarise every miss in a
-    single actionable message instead of N cryptic errors. Never retryable — the
-    fix is to re-record, not to retry.
-    """
+    """Raise when replay mode finds no committed cassette for a request."""
 
     def __init__(self, key: str, *, scene: str | None = None) -> None:
         self.key = key
@@ -132,18 +72,8 @@ class CassetteMiss(LLMError):
 
 
 class CassetteValidationError(LLMError):
-    """A ``correctness`` cassette failed ground-truth validation at record time.
+    """Raise when a correctness cassette fails ground-truth validation."""
 
-    Refusing to record (rather than silently freezing a wrong response) is the
-    whole point of the ``correctness`` tag: a frozen-wrong response would make CI
-    green while asserting the LLM read numbers it never read.
-    """
-
-
-# --- Transparent per-request decision knobs (#1596) -------------------------
-# All layer-owned. Downstream code and tests never read these: the test harness
-# engages the layer once (conftest), deployments/workflows may force LIVE, and
-# operators refresh via `make llm-record`. Priority: LIVE > engaged > live.
 
 ENGAGE_ENV = "LLM_CASSETTE_ENGAGE"
 LIVE_ENV = "LLM_LIVE"
@@ -155,19 +85,17 @@ def _env_flag(name: str) -> bool:
 
 
 def layer_engaged() -> bool:
-    """The cassette layer is active (bootstrapped once by the test harness)."""
+    """Return True when the test harness activates the cassette layer."""
     return _env_flag(ENGAGE_ENV)
 
 
 def live_forced() -> bool:
-    """Explicit deployment/workflow config: always the real provider (staging
-    ``-m llm`` gates, prod). Deliberate config — allowed even in CI."""
+    """Return True when the environment forces live provider calls."""
     return _env_flag(LIVE_ENV)
 
 
 def refresh_requested() -> bool:
-    """Operator re-record of existing cassettes (`make llm-record`). Never in CI:
-    cassettes are only ever written locally and reviewed in the diff."""
+    """Return True when local cassette re-recording is requested outside CI."""
     return _env_flag(REFRESH_ENV) and not in_ci()
 
 
@@ -180,25 +108,11 @@ def _hash_image_bytes(data: bytes | bytearray | memoryview) -> str:
 
 
 def _normalize(value: Any) -> Any:
-    """Recursively strip volatile fields and reduce image bytes to a stable hash.
-
-    The result is a canonical, JSON-serialisable structure used both as the
-    fingerprint input and as the stored ``request`` block. Only provably
-    output-irrelevant fields are removed (``_VOLATILE_KEYS``); everything else —
-    every byte the provider would see — is preserved so a meaningful change
-    produces a different key.
-    """
+    """Strip volatile fields and replace raw image bytes with SHA-256 digests."""
     if isinstance(value, Mapping):
-        out: dict[str, Any] = {}
-        for k, v in value.items():
-            key = str(k)
-            if key.lower() in _VOLATILE_KEYS:
-                continue
-            out[key] = _normalize(v)
-        return out
+        return {str(k): _normalize(v) for k, v in value.items() if str(k).lower() not in _VOLATILE_KEYS}
     if isinstance(value, bytes | bytearray | memoryview):
         return _hash_image_bytes(value)
-    # str is a Sequence; handle it before the generic sequence branch.
     if isinstance(value, str):
         return value
     if isinstance(value, Sequence):
@@ -212,12 +126,7 @@ def _canonical_request(
     messages: Sequence[Message],
     decode_params: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """The semantic request payload — model id deliberately excluded.
-
-    ``role`` is the modality role (e.g. the :class:`~src.llm.base.types.Scene`
-    value or ``"text"``/``"vision"``), NOT the model id, so swapping models keeps
-    the key stable while a different call site / modality produces a different key.
-    """
+    """Build the model-agnostic semantic request payload."""
     return {
         "role": str(role),
         "messages": _normalize(list(messages)),
@@ -231,11 +140,7 @@ def fingerprint(
     messages: Sequence[Message],
     decode_params: Mapping[str, Any] | None = None,
 ) -> str:
-    """``sha256`` of the canonical semantic request (model-id-agnostic).
-
-    Image content given as raw bytes is reduced to a content hash so two requests
-    with the same image bytes share a key regardless of transport encoding.
-    """
+    """Compute the SHA-256 digest of the canonical semantic request."""
     canonical = _canonical_request(role=role, messages=messages, decode_params=decode_params)
     blob = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
@@ -243,7 +148,7 @@ def fingerprint(
 
 @dataclass(frozen=True, slots=True)
 class Cassette:
-    """One committed record/replay entry: the semantic request plus its response."""
+    """Committed record and replay entry holding semantic request and response."""
 
     key: str
     role: str
@@ -252,10 +157,7 @@ class Cassette:
     response: dict[str, Any]
 
     def to_json(self) -> dict[str, Any]:
-        # The fingerprint field is named ``fingerprint`` (not ``key``) on purpose:
-        # a 64-char hex value next to a JSON field literally named ``key`` trips
-        # the secret-scanner's generic-api-key rule (the value looks like an API
-        # key). It is a content hash, not a credential.
+        # Name the digest field ``fingerprint`` to avoid generic-api-key false positives.
         return {
             "fingerprint": self.key,
             "role": self.role,
@@ -275,10 +177,6 @@ class Cassette:
         )
 
 
-#: Session-wide record of every cassette served in this process — the orphan
-#: gate's substrate (#1596 AC-llm.10.6): a committed cassette that NO suite run
-#: ever serves is a changed-prompt leftover. Per-process (xdist workers each
-#: dump their own set via the harness sessionfinish hook).
 _SESSION_SERVED: set[str] = set()
 
 
@@ -287,18 +185,10 @@ def session_served_keys() -> frozenset[str]:
 
 
 class CassetteStore:
-    """Read/write committed cassette JSON files keyed by fingerprint.
-
-    One file per key (``<key>.json``) so a re-record only re-touches the affected
-    cassette and the diff stays reviewable. The store does no network I/O — it is
-    pure filesystem persistence of frozen responses.
-    """
+    """Filesystem store for committed cassette JSON files keyed by fingerprint."""
 
     def __init__(self, directory: Path | None = None) -> None:
         self._dir = directory or CASSETTE_DIR
-        # Which cassettes this store served (fingerprints) — the substrate for
-        # orphan detection (#1596): a committed cassette no full suite ever
-        # serves is a leftover from a changed prompt.
         self._served: set[str] = set()
 
     def _path(self, key: str) -> Path:
@@ -318,13 +208,7 @@ class CassetteStore:
         return frozenset(self._served)
 
     def put(self, cassette: Cassette) -> bool:
-        """Persist ``cassette``; return ``True`` if the bytes changed on disk.
-
-        Idempotent: re-recording an unchanged request writes identical canonical
-        JSON, so the file content (and the diff) is unchanged and ``False`` is
-        returned. Volatile fields were already stripped by the fingerprint path,
-        so a re-record never churns the file just because of a new timestamp.
-        """
+        """Write ``cassette`` to disk when its canonical JSON bytes change."""
         self._dir.mkdir(parents=True, exist_ok=True)
         blob = json.dumps(cassette.to_json(), indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         path = self._path(cassette.key)
@@ -334,31 +218,60 @@ class CassetteStore:
         return True
 
 
-# A correctness validator takes the recorded response dict and returns True when
-# it matches the fixture ground-truth. Returning False (or raising) refuses the
-# record. ``flow-only`` cassettes pass ``None``.
 CorrectnessValidator = Callable[[dict[str, Any]], bool]
 
 
-class CassetteRecorder:
-    """Wraps a chat-completion callable with record/replay behaviour.
+def require_correctness_validator(
+    tag: CassetteTag,
+    validator: CorrectnessValidator | None,
+    *,
+    role: str,
+) -> None:
+    """Require a ground-truth validator before recording a correctness cassette."""
+    if tag is CassetteTag.CORRECTNESS and validator is None:
+        raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
 
-    ``live_call`` is the real (async) provider call: ``await live_call() -> dict``
-    returning the response payload to freeze. It is invoked ONLY in ``record`` and
-    ``off`` modes — never in ``replay`` (so replay needs no API key and makes no
-    network call). The recorder is provider-agnostic: any provider's response dict
-    can be frozen, so re-recording works with any provider key, not only GLM.
-    """
+
+def persist_validated_cassette(
+    store: CassetteStore,
+    *,
+    key: str,
+    role: str,
+    tag: CassetteTag,
+    validator: CorrectnessValidator | None,
+    messages: Sequence[Message],
+    decode_params: Mapping[str, Any] | None,
+    response: dict[str, Any],
+    normalize_response: bool = False,
+) -> bool:
+    """Validate correctness responses against ground truth and write the cassette."""
+    if tag is CassetteTag.CORRECTNESS:
+        try:
+            ok = bool(validator(response)) if validator is not None else False
+        except Exception as exc:  # noqa: BLE001
+            raise CassetteValidationError(
+                f"correctness validation raised for role={role}: {type(exc).__name__}"
+            ) from exc
+        if not ok:
+            raise CassetteValidationError(
+                f"correctness cassette (role={role}, key={key}) refused: response failed "
+                "ground-truth validation; recording it would freeze a wrong answer"
+            )
+    stored_response = _normalize(response) if normalize_response else response
+    request = _canonical_request(role=role, messages=messages, decode_params=decode_params)
+    return store.put(Cassette(key=key, role=role, tag=tag, request=request, response=stored_response))
+
+
+class CassetteRecorder:
+    """Record or replay non-streaming chat-completion payloads."""
 
     def __init__(self, store: CassetteStore | None = None, *, mode: CassetteMode | None = None) -> None:
         self._store = store or CassetteStore()
         self._mode = mode
-        # Misses collected during a replay run, so the runner can batch-summarise.
         self._misses: list[str] = []
 
     @property
     def mode(self) -> CassetteMode:
-        # No process-level mode env (#1597): explicit arg (in-layer seam) or live.
         return self._mode if self._mode is not None else CassetteMode.OFF
 
     @property
@@ -375,7 +288,7 @@ class CassetteRecorder:
         tag: CassetteTag = CassetteTag.FLOW_ONLY,
         validator: CorrectnessValidator | None = None,
     ) -> dict[str, Any]:
-        """Return a response for the request, recording or replaying per mode."""
+        """Return a completion response via live call, replay, or validated record."""
         mode = self.mode
         key = fingerprint(role=role, messages=messages, decode_params=decode_params)
 
@@ -387,45 +300,28 @@ class CassetteRecorder:
             if cassette is None:
                 self._misses.append(key)
                 raise CassetteMiss(key, scene=role)
-            # Orphan-gate accounting (#1597): explicit-seam replays count as
-            # serves too, or the gate would misread in-layer fixtures as orphans.
             self._store.mark_served(key)
             return cassette.response
 
-        # record: real provider call + persist (validated for correctness tags).
-        if tag is CassetteTag.CORRECTNESS and validator is None:
-            raise CassetteValidationError(
-                f"correctness cassette (role={role}) requires a ground-truth validator to record"
-            )
+        require_correctness_validator(tag, validator, role=role)
         response = await live_call()
-        if tag is CassetteTag.CORRECTNESS:
-            # Validate the RAW provider response (what it actually returned).
-            ok = False
-            try:
-                ok = bool(validator(response)) if validator is not None else False
-            except Exception as exc:  # noqa: BLE001 - any validator error refuses the record
-                raise CassetteValidationError(
-                    f"correctness validation raised for role={role}: {type(exc).__name__}"
-                ) from exc
-            if not ok:
-                raise CassetteValidationError(
-                    f"correctness cassette (role={role}, key={key}) refused: response failed "
-                    "ground-truth validation; recording it would freeze a wrong answer"
-                )
-        # Strip volatile fields (timestamps, random ids) from the STORED response
-        # too, so re-recording an unchanged semantic response rewrites identical
-        # bytes — a provider's per-call ``id``/``created``/``request_id`` must not
-        # churn the committed cassette.
-        stored_response = _normalize(response)
-        request = _canonical_request(role=role, messages=messages, decode_params=decode_params)
-        cassette = Cassette(key=key, role=role, tag=tag, request=request, response=stored_response)
-        changed = self._store.put(cassette)
+        changed = persist_validated_cassette(
+            self._store,
+            key=key,
+            role=role,
+            tag=tag,
+            validator=validator,
+            messages=messages,
+            decode_params=decode_params,
+            response=response,
+            normalize_response=True,
+        )
         logger.info("llm cassette recorded", key=key, role=role, tag=tag.value, changed=changed)
         return response
 
 
 def miss_summary(keys: Sequence[str]) -> str:
-    """The actionable batch summary for replay misses (one message, not N errors)."""
+    """Format one batch summary for replay misses."""
     if not keys:
         return ""
     unique = sorted(set(keys))

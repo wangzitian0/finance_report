@@ -13,6 +13,32 @@ from enum import StrEnum
 from typing import Protocol
 
 
+def _find_cycle(providers: dict[str, tuple[str, ...]]) -> tuple[str, ...] | None:
+    visited: set[str] = set()
+    active: list[str] = []
+    active_set: set[str] = set()
+
+    def visit(pkg: str) -> tuple[str, ...] | None:
+        if pkg in active_set:
+            return (*active[active.index(pkg) :], pkg)
+        if pkg in visited:
+            return None
+        active.append(pkg)
+        active_set.add(pkg)
+        for dep in providers[pkg]:
+            if (cycle := visit(dep)) is not None:
+                return cycle
+        active.pop()
+        active_set.remove(pkg)
+        visited.add(pkg)
+        return None
+
+    for pkg in sorted(providers):
+        if (cycle := visit(pkg)) is not None:
+            return cycle
+    return None
+
+
 class DependencyDeclaration(Protocol):
     """The contract facts required to construct the dependency graph."""
 
@@ -63,36 +89,6 @@ class DependencyGraph:
                 for name, consumers in self.transitive_consumers.items()
             },
         }
-
-
-def _find_cycle(providers: dict[str, tuple[str, ...]]) -> tuple[str, ...] | None:
-    visited: set[str] = set()
-    active: list[str] = []
-    active_set: set[str] = set()
-
-    def visit(package: str) -> tuple[str, ...] | None:
-        if package in active_set:
-            start = active.index(package)
-            return (*active[start:], package)
-        if package in visited:
-            return None
-
-        active.append(package)
-        active_set.add(package)
-        for provider in providers[package]:
-            cycle = visit(provider)
-            if cycle is not None:
-                return cycle
-        active.pop()
-        active_set.remove(package)
-        visited.add(package)
-        return None
-
-    for package in sorted(providers):
-        cycle = visit(package)
-        if cycle is not None:
-            return cycle
-    return None
 
 
 def build_dependency_graph(

@@ -10,11 +10,11 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
-from src.audit import STATEMENT_SOURCE_TYPES, SqlTraceRecordRepository, TraceDecisionPolicyRegistry, TraceEmitter
+from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry, TraceEmitter
 from src.config import settings
 from src.config_app import get_effective_base_currency
 from src.database import async_session_maker
@@ -48,7 +48,6 @@ from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
     account_service,
-    current_anchored_journal_entries,
     initialize_opening_positions,
     ledger_trace_policy_registry,
     used_currencies,
@@ -63,6 +62,7 @@ from src.reconciliation import (
     ReviewedDispositionDependencies,
     accepted_transfer_txn_ids,
     post_named_transfer_legs,
+    posted_statement_source_ids,
     release_transaction_dispositions,
     submit_reviewed_disposition,
     supersede_transaction_transfer_legs,
@@ -257,19 +257,10 @@ def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):
             ReconciliationMatch.atomic_txn_id.is_not(None),
         )
     )
-    posted_subq = (
-        current_anchored_journal_entries(
-            user_id=user_id,
-            target_kind="journal_command",
-            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
-        )
-        .with_only_columns(JournalEntry.source_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES), JournalEntry.status != JournalEntryStatus.VOID)
-    )
     return select(AtomicTransaction).where(
         effective_statement_transaction_filter(user_id, statement.id),
         AtomicTransaction.id.notin_(matched_subq),
-        AtomicTransaction.id.notin_(posted_subq),
+        AtomicTransaction.id.notin_(posted_statement_source_ids(user_id)),
     )
 
 

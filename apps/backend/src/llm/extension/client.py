@@ -1,12 +1,4 @@
-"""litellm-backed transport (EPIC-023 EPIC A).
-
-``litellm_stream`` is the single chokepoint that talks to litellm; everything
-provider-specific is resolved by :mod:`src.llm.extension.routing`, and ``drop_params=True``
-lets litellm silently drop fields a given model rejects (e.g. Z.AI/GLM rejecting
-``seed`` — the quirk that previously needed bespoke handling). Provider/model
-selection is shared via :func:`resolve_provider_and_model`; the service-facing
-entry point is :mod:`src.llm.extension.streaming` (which counts request/token usage).
-"""
+"""LiteLLM transport and record/replay cassette adapters."""
 
 from __future__ import annotations
 
@@ -30,19 +22,19 @@ from src.llm.base import (
     ReasoningEffort,
 )
 from src.llm.extension.cassette import (
-    Cassette as _Cassette,
     CassetteMiss,
     CassetteMode,
     CassetteRecorder,
     CassetteStore,
     CassetteTag,
-    CassetteValidationError,
     _canonical_request,
     fingerprint,
     in_ci,
     layer_engaged,
     live_forced,
+    persist_validated_cassette,
     refresh_requested,
+    require_correctness_validator,
 )
 from src.llm.extension.routing import build_call
 from src.observability import get_logger
@@ -51,40 +43,26 @@ logger = get_logger(__name__)
 
 
 def _harden_litellm_logging() -> None:
-    """Stop litellm from printing request bodies (which carry the provider api_key
-    + prompt) to stdout. Best-effort + guarded so a renamed attribute in a future
-    litellm version can never break import."""
+    """Disable LiteLLM request-body stdout logging."""
     for attr, value in (("turn_off_message_logging", True), ("set_verbose", False), ("suppress_debug_info", True)):
         try:
             setattr(litellm, attr, value)
-        except Exception:  # noqa: BLE001 - logging hardening is never fatal
+        except Exception:  # noqa: BLE001
             pass
 
 
 def _disable_litellm_aiohttp_transport() -> None:
-    """Route litellm through its httpx transport instead of the default aiohttp one.
-
-    litellm's aiohttp transport lazily creates an ``aiohttp.ClientSession`` per
-    request handler and never closes it (no shared ``litellm.aclient_session``),
-    so every ``acompletion`` leaks an "Unclosed client session" — an ERROR-level
-    log plus a real socket/fd leak that accumulates under sustained parsing
-    (#1442). The httpx transport litellm manages itself does not leak. Guarded so
-    a future litellm rename can never break import."""
+    """Force LiteLLM onto managed httpx transport to avoid aiohttp session leaks."""
     try:
         litellm.disable_aiohttp_transport = True
-    except Exception:  # noqa: BLE001 - transport hardening is never fatal
+    except Exception:  # noqa: BLE001
         pass
 
 
 _harden_litellm_logging()
 _disable_litellm_aiohttp_transport()
 
-# The GLM 5.3 family: the base model and its one-word variants, including later ones.
-# The wire adapter below applies to the family, so no model id is listed here. The SDK
-# should own this rule (step 2 of #2624).
 _GLM_53_FAMILY = re.compile(r"glm-5\.3(-[a-z]+)?", re.IGNORECASE)
-
-# litellm exception names that represent transient conditions worth retrying.
 _RETRYABLE_EXC = frozenset(
     {"RateLimitError", "Timeout", "APIConnectionError", "ServiceUnavailableError", "InternalServerError"}
 )
@@ -94,11 +72,6 @@ def _is_retryable(exc: Exception) -> bool:
     return type(exc).__name__ in _RETRYABLE_EXC
 
 
-# Z.ai and other providers put a numeric error code in the response body, for example
-# {"error":{"code":"1302",...}}. One status maps to many causes (concurrency, quota,
-# no resource package); the code tells them apart (#2580). litellm turns a standard
-# body into message text only, so the code is read from the body of the chained
-# provider error. The text pattern is the fallback for a body written into the text.
 _PROVIDER_CODE = re.compile(r"""["']code["']\s*:\s*["']?(\d{3,5})["']?""")
 _CODE_TEXT = re.compile(r"\d{3,5}")
 _CHAIN_DEPTH = 4
@@ -107,14 +80,11 @@ _CHAIN_DEPTH = 4
 def _code_in_body(body: object) -> str | None:
     if not isinstance(body, Mapping):
         return None
-    inner = body.get("error")
-    for source in (inner, body):
+    for source in (body.get("error"), body):
         if not isinstance(source, Mapping):
             continue
         code = source.get("code")
-        if isinstance(code, bool) or not isinstance(code, str | int):
-            continue
-        if _CODE_TEXT.fullmatch(str(code)):
+        if not isinstance(code, bool) and isinstance(code, str | int) and _CODE_TEXT.fullmatch(str(code)):
             return str(code)
     return None
 
@@ -124,8 +94,7 @@ def _provider_code(exc: BaseException) -> str | None:
     for _ in range(_CHAIN_DEPTH):
         if current is None:
             break
-        code = _code_in_body(getattr(current, "body", None))
-        if code:
+        if code := _code_in_body(getattr(current, "body", None)):
             return code
         current = current.__cause__ or current.__context__
     match = _PROVIDER_CODE.search(str(exc))
@@ -133,16 +102,11 @@ def _provider_code(exc: BaseException) -> str | None:
 
 
 def _wrap(exc: Exception) -> LLMError:
-    # Surface only the exception class, the integer HTTP status and a numeric
-    # provider code in the raised message — upstream provider errors can embed
-    # request context (endpoints, headers, payload fragments), so no free text
-    # passes. The full detail is logged server-side (with the logger) by the caller.
     parts = [type(exc).__name__]
     status = getattr(exc, "status_code", None)
     if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
         parts.append(f"http {status}")
-    code = _provider_code(exc)
-    if code:
+    if code := _provider_code(exc):
         parts.append(f"provider code {code}")
     return LLMError(f"LLM provider call failed ({', '.join(parts)})", retryable=_is_retryable(exc))
 
@@ -154,11 +118,8 @@ def _base_kwargs(
     messages: Sequence[Message],
     decode: DecodeParams,
 ) -> dict[str, Any]:
-    call = build_call(provider, model_id)
-    kwargs = call.kwargs()
+    kwargs = build_call(provider, model_id).kwargs()
     kwargs["messages"] = list(messages)
-    # Let litellm drop params a given model rejects instead of erroring (the
-    # Z.AI/GLM seed/response_format class of HTTP 400s).
     kwargs["drop_params"] = True
     if decode.max_tokens is not None:
         kwargs["max_tokens"] = decode.max_tokens
@@ -167,21 +128,10 @@ def _base_kwargs(
     if decode.reasoning is not None and decode.reasoning is not ReasoningEffort.NONE:
         kwargs["reasoning_effort"] = decode.reasoning.value
     elif provider.protocol is ProtocolFamily.GOOGLE_GEMINI:
-        # Gemini 2.5+ "thinks" by default and those thinking tokens are charged
-        # against max_output_tokens, so a verbose extraction (raw_text + category
-        # per row) hits finish="length" and truncates mid-JSON -> 0 parsed rows.
-        # Disable thinking when no reasoning is requested. Live-call kwarg ONLY —
-        # deliberately NOT mirrored into the cassette fingerprint decode params, so
-        # a Gemini-recorded cassette still replays under any default provider.
         kwargs["reasoning_effort"] = "disable"
     if decode.seed is not None:
-        # Native param so drop_params can strip it for models that reject seed.
         kwargs["seed"] = decode.seed
     if decode.extra_body:
-        # Wire-level protocol filter (#1597): do_sample/thinking are semantic
-        # request knobs that always live in the fingerprint, but only
-        # OpenAI-compatible providers accept them on the wire — Gemini/Anthropic
-        # reject unknown request fields with HTTP 400.
         body = dict(decode.extra_body)
         if provider.protocol is not ProtocolFamily.OPENAI_COMPATIBLE:
             body.pop("do_sample", None)
@@ -191,56 +141,33 @@ def _base_kwargs(
     if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE and _GLM_53_FAMILY.fullmatch(
         model_id.removeprefix("openai/")
     ):
-        # GLM 5.3 requires thinking and accepts low/high/max, not disabled or
-        # medium. Adapt only live wire kwargs so caller intent/cassette keys
-        # remain provider-independent. Avoid the provider's default max effort
-        # for extraction and other callers that requested no extended thinking.
         body = dict(kwargs.get("extra_body", {}))
         body["thinking"] = {**body.get("thinking", {}), "type": "enabled"}
         kwargs["extra_body"] = body
         kwargs["reasoning_effort"] = (
             "high" if decode.reasoning in {ReasoningEffort.MEDIUM, ReasoningEffort.HIGH} else "low"
         )
-        # The pinned LiteLLM registry may predate these models. Keep its
-        # OpenAI parameter filter from silently dropping our bounded effort.
         kwargs["allowed_openai_params"] = ["reasoning_effort"]
     return kwargs
 
 
-# The streaming cassette's frozen-response convention: a streamed completion has
-# no single provider "response dict", so we freeze the *accumulated text* under
-# this key. Replay synthesises a stream from it (one chunk); the key is the only
-# field replay reads, so any extra metadata a recorder adds is ignored.
 _STREAM_TEXT_KEY = "stream_text"
 
 
 def _stream_role(messages: Sequence[Message]) -> str:
-    """Derive the cassette fingerprint role from the message modality.
-
-    ``"vision"`` when any message content carries an image part (an ``image_url``
-    part, or a part/dict whose ``type`` mentions ``image``); ``"text"`` otherwise.
-    Callers need no change — the streaming transport classifies its own modality,
-    matching the text/default-config-vision split that flows through this path.
-    """
+    """Return 'vision' when any message part carries image content, else 'text'."""
     for message in messages:
         content = message.get("content") if isinstance(message, Mapping) else None
         if not isinstance(content, list | tuple):
             continue
         for part in content:
-            if not isinstance(part, Mapping):
-                continue
-            part_type = str(part.get("type", "")).lower()
-            if "image" in part_type or "image_url" in part:
+            if isinstance(part, Mapping) and ("image" in str(part.get("type", "")).lower() or "image_url" in part):
                 return "vision"
     return "text"
 
 
 async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
-    """The real litellm streaming call — yields content deltas, skipping empties.
-
-    Extracted so OFF (passthrough) and RECORD (passthrough + accumulate) share the
-    exact same transport; provider failures are normalised to ``LLMError`` here so
-    both modes see the identical error contract OFF always had."""
+    """Stream non-empty content deltas from LiteLLM and normalize provider errors."""
     start = time.perf_counter()
     chars = 0
     success = False
@@ -258,12 +185,10 @@ async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
         success = True
     except LLMError:
         raise
-    except Exception as exc:  # noqa: BLE001 - normalise every provider failure
+    except Exception as exc:  # noqa: BLE001
         logger.error("litellm stream failed", model=kwargs.get("model"), error=str(exc), error_type=type(exc).__name__)
         raise _wrap(exc) from exc
     finally:
-        # success=False covers both provider errors and a consumer that abandons
-        # the generator early — dashboards can filter completed-OK from the rest.
         logger.info(
             "litellm stream finished",
             model=kwargs.get("model"),
@@ -275,7 +200,7 @@ async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
 
 @dataclass(frozen=True, slots=True)
 class CassetteOptions:
-    """In-layer cassette test/record controls kept out of transport signatures."""
+    """In-layer cassette controls kept out of transport signatures."""
 
     store: CassetteStore | None = None
     mode: CassetteMode | None = None
@@ -335,6 +260,39 @@ def cassette_stream(transport: Callable[..., AsyncIterator[str]]) -> Callable[..
     return wrapped
 
 
+async def _record_stream_cassette(
+    live: Callable[[], AsyncIterator[str]],
+    *,
+    store: CassetteStore,
+    key: str,
+    role: str,
+    messages: Sequence[Message],
+    decode_params: Mapping[str, Any],
+    cassette: CassetteOptions,
+    mark_served: bool,
+) -> str:
+    """Accumulate one live stream, enforce correctness validation, and persist the cassette."""
+    _ = _canonical_request
+    require_correctness_validator(cassette.tag, cassette.validator, role=role)
+    text = "".join([content async for content in live()])
+    changed = persist_validated_cassette(
+        store,
+        key=key,
+        role=role,
+        tag=cassette.tag,
+        validator=cassette.validator,
+        messages=messages,
+        decode_params=decode_params,
+        response={_STREAM_TEXT_KEY: text},
+    )
+    if mark_served:
+        store.mark_served(key)
+        logger.info("llm cassette auto-recorded on miss", key=key, role=role, refresh=refresh_requested())
+    else:
+        logger.info("llm stream cassette recorded", key=key, role=role, tag=cassette.tag.value, changed=changed)
+    return text
+
+
 async def _cassette_stream_dispatch(
     transport: Callable[..., AsyncIterator[str]],
     messages: Sequence[Message],
@@ -346,36 +304,7 @@ async def _cassette_stream_dispatch(
     timeout: float | None,
     cassette: CassetteOptions,
 ) -> AsyncIterator[str]:
-    """Apply cassette policy around a live stream.
-
-    The streaming bridge for the cassette layer (EPIC-023 AC23.6): the real
-    extraction transport is streaming and previously bypassed the record/replay
-    layer entirely, so PR CI never exercised the LLM path. This routes the stream
-    through that layer while preserving streaming for the caller.
-
-    Explicit ``cassette_mode`` (IN-LAYER test seam only; no process env):
-
-    - ``off`` — EXACT prior behaviour: a live ``litellm.acompletion(stream=True)``
-      passthrough, deltas yielded as they arrive. Prod/staging run ``off`` so the
-      staging ``-m llm`` gate stays live and real; this branch touches no cassette.
-    - ``record`` — the real streaming call, accumulating the full text, then freeze
-      a cassette (a ``correctness`` tag validates the accumulated text first), and
-      yield the text so the caller still works. No re-stream of frozen bytes.
-    - ``replay`` — fingerprint + cassette lookup with **zero network and no API
-      key**; HIT synthesises the stream from the frozen text (one chunk); MISS is a
-      hard ``CassetteMiss`` (never a network fallback).
-
-    The fingerprint role is derived from the messages (``vision`` if any image
-    part, else ``text``) and the key is model-id-agnostic — callers are unchanged.
-
-    Note: we deliberately do NOT request ``stream_options={"include_usage": True}`` —
-    Z.AI/GLM rejects unknown params with HTTP 400 and litellm won't drop it (it's a
-    supported openai-compatible field). Token usage is estimated by the caller from
-    text instead (see ``src.llm.extension.streaming``)."""
-    cassette_store = cassette.store
-    cassette_mode = cassette.mode
-    cassette_tag = cassette.tag
-    cassette_validator = cassette.validator
+    """Route a streaming LLM call through transparent or explicit cassette modes."""
     _provider_cache: list[ProviderRef] = [provider] if provider is not None else []
 
     async def _resolved_provider() -> ProviderRef:
@@ -397,83 +326,7 @@ async def _cassette_stream_dispatch(
         ):
             yield content
 
-    # ------- Transparent per-request decision (#1596) -------
-    # No explicit legacy mode anywhere: the LAYER decides per request; downstream
-    # cannot know (and never says) whether the response is real or frozen.
-    # The explicit cassette_mode arg is the IN-LAYER test seam only (#1597);
-    # no process env selects modes anymore — the layer decides per request.
-    if cassette_mode is None:
-        if live_forced() or not layer_engaged():
-            # Explicit LIVE (staging -m llm gates, prod) or the layer is simply
-            # not engaged (app runtime): exact live passthrough, store untouched.
-            async for content in _live():
-                yield content
-            return
-
-        t_role = _stream_role(messages)
-        t_decode = decode.as_request()
-        t_key = fingerprint(role=t_role, messages=messages, decode_params=t_decode)
-        t_store = cassette_store or CassetteStore()
-        t_hit = t_store.get(t_key)
-
-        if t_hit is not None and not refresh_requested():
-            # HIT serves the frozen response — credentials are never resolved.
-            t_store.mark_served(t_key)
-            text = str(t_hit.response.get(_STREAM_TEXT_KEY, ""))
-            if text:
-                yield text
-            return
-
-        if in_ci():
-            # Reaching here in CI means a MISS: refresh_requested() is always
-            # False in CI, so any HIT was already served above. A MISS in CI is
-            # ALWAYS the hard failure — even with a key present.
-            raise CassetteMiss(t_key, scene=t_role)
-
-        # Local MISS (or explicit refresh): a real call needs usable credentials.
-        try:
-            live_provider = await _resolved_provider()
-        except LLMConfigError:
-            live_provider = None
-        if live_provider is None or not live_provider.api_key:
-            raise CassetteMiss(t_key, scene=t_role)
-
-        if cassette_tag is CassetteTag.CORRECTNESS and cassette_validator is None:
-            raise CassetteValidationError(
-                f"correctness cassette (role={t_role}) requires a ground-truth validator to record"
-            )
-        parts: list[str] = []
-        async for content in _live():
-            parts.append(content)
-        text = "".join(parts)
-        if cassette_tag is CassetteTag.CORRECTNESS:
-            try:
-                ok = bool(cassette_validator({_STREAM_TEXT_KEY: text}))
-            except Exception as exc:  # noqa: BLE001 - any validator error refuses the record
-                raise CassetteValidationError(
-                    f"correctness validation raised for role={t_role}: {type(exc).__name__}"
-                ) from exc
-            if not ok:
-                raise CassetteValidationError(
-                    f"correctness cassette (role={t_role}, key={t_key}) refused: response failed "
-                    "ground-truth validation; recording it would freeze a wrong answer"
-                )
-        request = _canonical_request(role=t_role, messages=messages, decode_params=t_decode)
-        t_store.put(
-            _Cassette(key=t_key, role=t_role, tag=cassette_tag, request=request, response={_STREAM_TEXT_KEY: text})
-        )
-        t_store.mark_served(t_key)
-        logger.info("llm cassette auto-recorded on miss", key=t_key, role=t_role, refresh=refresh_requested())
-        if text:
-            yield text
-        return
-
-    # ------- Historical explicit-mode contract (kept as an in-layer test seam) -------
-    # In-layer seam only: cassette_mode is None was handled above (transparent).
-    mode = cassette_mode if cassette_mode is not None else CassetteMode.OFF
-
-    if mode is CassetteMode.OFF:
-        # OFF: the prior passthrough, byte-for-byte. Keeps prod/staging live & real.
+    if cassette.mode is CassetteMode.OFF or (cassette.mode is None and (live_forced() or not layer_engaged())):
         async for content in _live():
             yield content
         return
@@ -481,55 +334,55 @@ async def _cassette_stream_dispatch(
     role = _stream_role(messages)
     decode_params = decode.as_request()
     key = fingerprint(role=role, messages=messages, decode_params=decode_params)
-    store = cassette_store or CassetteStore()
+    store = cassette.store or CassetteStore()
 
-    if mode is CassetteMode.REPLAY:
-        replay_cassette = store.get(key)
-        if replay_cassette is None:
-            # Hard fail — no network fallback (replay needs no key, makes no call).
+    if cassette.mode is None:
+        hit = store.get(key)
+        if hit is not None and not refresh_requested():
+            store.mark_served(key)
+            if text := str(hit.response.get(_STREAM_TEXT_KEY, "")):
+                yield text
+            return
+        if in_ci():
             raise CassetteMiss(key, scene=role)
-        # Orphan-gate accounting (#1597): explicit-seam replays are serves too.
-        store.mark_served(key)
-        text = str(replay_cassette.response.get(_STREAM_TEXT_KEY, ""))
-        # Synthesise the stream from the frozen text as a single chunk; the caller
-        # accumulates it back to the same string it would have streamed live.
-        if text:
+        try:
+            live_provider = await _resolved_provider()
+        except LLMConfigError:
+            live_provider = None
+        if live_provider is None or not live_provider.api_key:
+            raise CassetteMiss(key, scene=role)
+        if text := await _record_stream_cassette(
+            _live,
+            store=store,
+            key=key,
+            role=role,
+            messages=messages,
+            decode_params=decode_params,
+            cassette=cassette,
+            mark_served=True,
+        ):
             yield text
         return
 
-    # RECORD: real streaming call + accumulate, then freeze and replay-yield.
-    if cassette_tag is CassetteTag.CORRECTNESS and cassette_validator is None:
-        raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
-    recorded_parts: list[str] = []
-    async for content in _live():
-        recorded_parts.append(content)
-    text = "".join(recorded_parts)
-    response = {_STREAM_TEXT_KEY: text}
-    if cassette_tag is CassetteTag.CORRECTNESS:
-        ok = False
-        try:
-            ok = bool(cassette_validator(response)) if cassette_validator is not None else False
-        except Exception as exc:  # noqa: BLE001 - any validator error refuses the record
-            raise CassetteValidationError(
-                f"correctness validation raised for role={role}: {type(exc).__name__}"
-            ) from exc
-        if not ok:
-            raise CassetteValidationError(
-                f"correctness cassette (role={role}, key={key}) refused: accumulated stream failed "
-                "ground-truth validation; recording it would freeze a wrong answer"
-            )
-    request = _canonical_request(role=role, messages=messages, decode_params=decode_params)
-    recorded_cassette = _Cassette(
+    if cassette.mode is CassetteMode.REPLAY:
+        replay_cassette = store.get(key)
+        if replay_cassette is None:
+            raise CassetteMiss(key, scene=role)
+        store.mark_served(key)
+        if text := str(replay_cassette.response.get(_STREAM_TEXT_KEY, "")):
+            yield text
+        return
+
+    if text := await _record_stream_cassette(
+        _live,
+        store=store,
         key=key,
         role=role,
-        tag=cassette_tag,
-        request=request,
-        response=response,
-    )
-    changed = store.put(recorded_cassette)
-    logger.info("llm stream cassette recorded", key=key, role=role, tag=cassette_tag.value, changed=changed)
-    # Yield the recorded text so a record run still produces output for the caller.
-    if text:
+        messages=messages,
+        decode_params=decode_params,
+        cassette=cassette,
+        mark_served=False,
+    ):
         yield text
 
 
@@ -548,48 +401,24 @@ async def cassette_completion(
     decode: DecodeParams = DecodeParams(),
     timeout: float | None = None,
 ) -> dict[str, Any]:
-    """Cassette-aware non-streaming completion (EPIC-023 AC23.5).
-
-    The chokepoint that gives CI deterministic LLM responses. In ``replay`` mode
-    it returns the committed cassette response with **zero network and no API
-    key**; a miss is a hard failure (``CassetteMiss``), never a network fallback.
-    In ``record`` mode it performs the real litellm call and freezes the response
-    (validated against ground-truth for a ``correctness`` cassette). In ``off``
-    mode it is a plain live call.
-
-    The fingerprint keys on ``role`` (the semantic modality role / scene), the
-    messages, and the decode params — NOT ``model_id`` — so swapping models does
-    not invalidate cassettes; ``model_id`` is used only by the live call.
-    """
+    """Execute a non-streaming completion through the cassette recorder."""
     recorder = recorder or CassetteRecorder()
-    # Decode params that actually change the bytes the provider emits — the model
-    # id is intentionally excluded (model-id-agnostic keying). Shared with the
-    # streaming path so a streamed and non-streamed call key the same way.
     decode_params = decode.as_request()
 
     async def live_call() -> dict[str, Any]:
-        kwargs = _base_kwargs(
-            provider=provider,
-            model_id=model_id,
-            messages=messages,
-            decode=decode,
-        )
+        kwargs = _base_kwargs(provider=provider, model_id=model_id, messages=messages, decode=decode)
         if timeout is not None:
             kwargs["timeout"] = timeout
         try:
             response = await litellm.acompletion(**kwargs)
         except LLMError:
             raise
-        except Exception as exc:  # noqa: BLE001 - normalise every provider failure
+        except Exception as exc:  # noqa: BLE001
             logger.error("litellm completion failed", model=kwargs.get("model"), error_type=type(exc).__name__)
             raise _wrap(exc) from exc
-        # litellm responses expose ``model_dump`` (pydantic) or are dict-like; fall
-        # back to a minimal text projection so any provider's shape is freezable.
         if hasattr(response, "model_dump"):
             return dict(response.model_dump())
-        if isinstance(response, dict):
-            return dict(response)
-        return {"text": str(response)}
+        return dict(response) if isinstance(response, dict) else {"text": str(response)}
 
     return await recorder.call(
         live_call,
@@ -602,20 +431,7 @@ async def cassette_completion(
 
 
 async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:
-    """Resolve ``model_id`` against ``config_source`` to ``(provider, bare_model)``.
-
-    A binding may qualify its model as ``provider_id/model`` (DB-backed config
-    always does, so the exact provider is selected even with several configured).
-    If the leading segment is a known provider id, it is used and stripped — for
-    any provider count. Otherwise: with a single provider the whole ``model_id``
-    is the model (it may contain slashes — OpenRouter's ``vendor/model``); with
-    several providers an unqualified or unknown-provider id is a config error,
-    never a silent fallback to the wrong credentials.
-
-    Used by the ``ai_streaming`` transport so the per-user binding's provider
-    qualifier is honoured everywhere (a user with several providers must not fail
-    closed on a qualified binding).
-    """
+    """Resolve model_id against config_source to (provider, bare_model)."""
     providers = await config_source.list_providers()
     if not providers:
         raise LLMConfigError("No LLM provider configured")
