@@ -16,7 +16,9 @@ from common.meta.base.gate_util import (
     display_path,
     duplicate_values,
     markdown_table_cells,
+    parse_ast_cached,
     pytest_decorator_markers,
+    read_text_cached,
 )
 from common.meta.extension.generate_ac_registry import load_registry_entries
 from common.testing.ac_traceability_refs import AC_PATTERN
@@ -191,7 +193,7 @@ def _macro_ownership_section(text: str) -> str | None:
 def _python_anchors(path: Path) -> dict[str, TestAnchor]:
     anchors: dict[str, TestAnchor] = {}
     try:
-        module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        module = parse_ast_cached(path)
     except (SyntaxError, UnicodeDecodeError, OSError):
         return anchors
     for node in ast.walk(module):
@@ -210,7 +212,7 @@ def _python_anchors(path: Path) -> dict[str, TestAnchor]:
 def _typescript_anchors(path: Path) -> dict[str, TestAnchor]:
     anchors: dict[str, TestAnchor] = {}
     try:
-        text = path.read_text(encoding="utf-8")
+        text = read_text_cached(path)
     except (UnicodeDecodeError, OSError):
         return anchors
     for match in TEST_CALL_RE.finditer(text):
@@ -220,7 +222,9 @@ def _typescript_anchors(path: Path) -> dict[str, TestAnchor]:
 
 
 @functools.lru_cache(maxsize=1024)
-def _cached_file_anchors(path_str: str, mtime_ns: int) -> dict[str, TestAnchor]:
+def _cached_file_anchors(
+    path_str: str, mtime_ns: int, size: int
+) -> dict[str, TestAnchor]:
     path = Path(path_str)
     if path.suffix == ".py":
         return _python_anchors(path)
@@ -231,10 +235,13 @@ def _cached_file_anchors(path_str: str, mtime_ns: int) -> dict[str, TestAnchor]:
 
 def _find_anchor(path: Path, test_name: str) -> TestAnchor | None:
     try:
-        mtime_ns = path.stat().st_mtime_ns
+        resolved = path.resolve()
+        st = resolved.stat()
     except OSError:
         return None
-    return _cached_file_anchors(str(path.resolve()), mtime_ns).get(test_name)
+    return _cached_file_anchors(str(resolved), st.st_mtime_ns, st.st_size).get(
+        test_name
+    )
 
 
 def _validate_shape(proof: dict[str, Any], index: int) -> list[str]:

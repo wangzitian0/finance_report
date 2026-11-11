@@ -17,10 +17,13 @@ Pure-Python, no key/network/DB — runs in the lint job.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+
+from common.meta.base.gate_util import read_text_cached
 
 # Band names are the SINGLE authority vocabulary (common.meta.base.authority_matrix):
 # the detected band scale IS the declared PackageTier scale — imported, not
@@ -70,8 +73,24 @@ def band(llm_share: float) -> str:
     return LLM_ONLY
 
 
+@functools.lru_cache(maxsize=8)
+def _cached_test_index(root_str: str) -> dict[str, tuple[Path, ...]]:
+    root = Path(root_str)
+    index: dict[str, list[Path]] = {}
+    for dirpath, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in _SKIP_DIR_NAMES]
+        for f in files:
+            if f.endswith((".py", ".tsx", ".ts")):
+                path = Path(dirpath) / f
+                index.setdefault(f, []).append(path)
+    return {k: tuple(v) for k, v in index.items()}
+
+
 def build_test_index(root: Path = REPO_ROOT) -> dict[str, list[Path]]:
     """Index test files by basename once (basename -> all paths with that name)."""
+    resolved = root.resolve()
+    if resolved == REPO_ROOT:
+        return {k: list(v) for k, v in _cached_test_index(str(resolved)).items()}
     index: dict[str, list[Path]] = {}
     for dirpath, dirs, files in os.walk(root):
         dirs[:] = [d for d in dirs if d not in _SKIP_DIR_NAMES]
@@ -109,9 +128,12 @@ def is_llm_test(
     if _cache is not None and path in _cache:
         return _cache[path]
     try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return None
+        text = read_text_cached(path)
+    except (OSError, UnicodeDecodeError):
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return None
     verdict = any(marker in text for marker in LLM_TEST_MARKERS)
     if _cache is not None:
         _cache[path] = verdict

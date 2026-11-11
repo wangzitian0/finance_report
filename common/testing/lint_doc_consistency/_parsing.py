@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from common.testing.lint_doc_consistency import _base
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -20,7 +19,7 @@ except ImportError:  # pragma: no cover - environment guard
 
 
 from common.meta.base.gate_util import display_path
-from common.testing.ac_scan import EXCLUDED_DIRS, TEST_FILE_SUFFIXES
+from common.testing.ac_scan import EXCLUDED_DIRS, collect_references, find_test_files
 from common.testing.lint_doc_consistency._base import (
     AC_PATTERN,
     MKDOCS_CONFIG,
@@ -170,27 +169,16 @@ def collect_ac_refs_in_epics(epic_files: list[Path]) -> dict[str, set[str]]:
 
 
 def collect_ac_refs_in_tests(test_roots: list[Path]) -> dict[str, set[str]]:
-    refs: dict[str, set[str]] = {}
-    for base in test_roots:
-        if not base.exists():
-            continue
-        for root, dirs, files in os.walk(base):
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
-            for fname in files:
-                if not (
-                    fname.startswith("test_") or fname.endswith(TEST_FILE_SUFFIXES)
-                ):
-                    continue
-                fpath = Path(root) / fname
-                try:
-                    text = fpath.read_text(encoding="utf-8", errors="ignore")
-                except OSError:
-                    continue
-                for match in AC_PATTERN.finditer(text):
-                    refs.setdefault(match.group(0), set()).add(
-                        str(fpath.relative_to(_base.REPO_ROOT))
-                    )
-    return refs
+    test_files = find_test_files(test_roots)
+    stats = collect_references(
+        test_files,
+        display_path=lambda fpath: str(fpath.relative_to(_base.REPO_ROOT)),
+    )
+    return {
+        ac_id: set(str(p) for p in s.all_files)
+        for ac_id, s in stats.items()
+        if s.all_files
+    }
 
 
 def _is_excluded_path(path: Path) -> bool:

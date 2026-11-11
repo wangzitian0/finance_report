@@ -34,7 +34,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import NamedTuple
 
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -258,7 +258,7 @@ def check_rule_cross_references() -> list[Violation]:
 # ---------------------------------------------------------------------------
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="SSOT ownership lint (tools/check_ssot_ownership.py)"
     )
@@ -310,16 +310,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate(
-        "SSOT-OWNERSHIP", lambda _repo_root: findings, [], failure_status=status
-    )
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":

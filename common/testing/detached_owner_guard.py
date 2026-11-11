@@ -9,7 +9,11 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.meta.base.gate_util import display_path
+from common.meta.base.gate_util import (
+    display_path,
+    parse_ast_cached,
+    read_text_cached,
+)
 
 DEFAULT_TEST_ROOTS = (Path("apps/backend/tests"),)
 # Counts only persisted (session-written) detached owners — the real foreign-key risk.
@@ -142,8 +146,8 @@ def scan_file(path: Path, *, repo_root: Path) -> list[DetachedOwnerFinding]:
     the real foreign-key risk. Transient in-memory constructions and bare service
     arguments are not counted.
     """
-    source_text = path.read_text(encoding="utf-8")
-    tree = ast.parse(source_text, filename=str(path))
+    source_text = read_text_cached(path)
+    tree = parse_ast_cached(path)
     relative_path = display_path(path, repo_root)
     # Judge persistence within each function so a var name added in one test
     # cannot mark a same-named transient construction in another test.

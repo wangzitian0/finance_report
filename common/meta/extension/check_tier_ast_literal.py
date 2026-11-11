@@ -20,7 +20,6 @@ leave the tier undecided; its ACs are legitimately untagged until it ships.)
 from __future__ import annotations
 
 import argparse
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -63,32 +62,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
-    errors = violations(args.repo_root.resolve())
-    if errors:
-        for message in errors:
-            print(f"::error title=AC tier AST literal::{message}", file=sys.stderr)
-        print(
-            f"[TIER-AST] FAILED: {len(errors)} package(s) whose tier the registry "
-            "cannot read statically (AST vs model drift).",
-            file=sys.stderr,
-        )
-        return 1
-    print("[TIER-AST] PASSED: every shipped package tier is an AST-readable literal.")
-    return 0
-
-
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
     return run_gate(
-        "TIER-AST-LITERAL", lambda _repo_root: findings, [], failure_status=status
+        "TIER-AST-LITERAL",
+        violations,
+        argv,
+        annotation_title="AC tier AST literal",
     )
 
 

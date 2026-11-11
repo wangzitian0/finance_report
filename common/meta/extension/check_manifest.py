@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import NamedTuple
 
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
 
 try:
     import yaml
@@ -225,7 +225,7 @@ def check_anchor_refs_exist(concepts: dict) -> list[Violation]:
     return violations
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate common/meta/data/MANIFEST.yaml consistency."
     )
@@ -275,14 +275,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate("MANIFEST", lambda _repo_root: findings, [], failure_status=status)
+    return run_cli_command(_main, argv)
 
 
 if __name__ == "__main__":

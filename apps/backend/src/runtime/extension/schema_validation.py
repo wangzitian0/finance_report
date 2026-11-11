@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -148,11 +148,11 @@ def generate_fix_suggestions(config_result: dict[str, Any], schemas_result: dict
         print()
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Validate Pydantic schemas and config")
     parser.add_argument("--fix", action="store_true", help="Generate fix suggestions")
     parser.add_argument("--paths", nargs="*", metavar="PATH", help="Validate only changed config/schema paths.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     root = get_project_root()
     config_path = root / "apps/backend/src/config.py"
     schemas_dir = root / "apps/backend/src/schemas"

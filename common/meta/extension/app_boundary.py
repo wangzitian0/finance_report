@@ -19,6 +19,8 @@ import ast
 import json
 from pathlib import Path
 
+from common.meta.base.gate_util import parse_ast_cached
+
 #: The app-domain-logic subdirs the ``backend`` super-package owns. Shared infra
 #: leaves (``database`` / ``config`` / ``models`` / ``schemas`` / ``migrations``)
 #: are a *different* concern (they are candidates for their own low packages) and
@@ -40,7 +42,7 @@ def l4_deep_import_edges(backend_src: Path, package_names: set[str]) -> list[str
         if rel.parts[0] not in L4_DELIVERY_PATHS and rel.name != "composition.py":
             continue
         try:
-            tree = ast.parse(py.read_text(encoding="utf-8"))
+            tree = parse_ast_cached(py)
         except SyntaxError:
             continue
         for node in ast.walk(tree):
@@ -119,7 +121,7 @@ def cross_boundary_edges(
         rel = py.relative_to(repo_root)
         in_carved = top in carved_names
         try:
-            tree = ast.parse(py.read_text(encoding="utf-8"))
+            tree = parse_ast_cached(py)
         except SyntaxError:
             continue
         for module, name in _iter_src_imports(tree):

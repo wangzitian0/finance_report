@@ -17,7 +17,13 @@ from common.meta.base.authority_matrix import (
     AC_TIERS,
     TIER_DEFAULT_PROOF_KIND,
 )
-from common.meta.base.gate_util import call_name, expand_test_path, parse_acs_table
+from common.meta.base.gate_util import (
+    call_name,
+    expand_test_path,
+    parse_acs_table,
+    parse_ast_cached,
+    read_text_cached,
+)
 
 EPIC_DIR = "docs/project"
 
@@ -299,7 +305,7 @@ def _extract_roadmap_expr(
 
 
 def _parse_contract_call(contract_path: Path) -> ast.Call | None:
-    tree = ast.parse(contract_path.read_text(encoding="utf-8"))
+    tree = parse_ast_cached(contract_path)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and call_name(node.func) == "PackageContract":
             return node
@@ -328,7 +334,7 @@ def package_contract_meta(contract_path: Path) -> dict | None:
 
 def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
     """Statically read a contract's ``roadmap`` entries."""
-    tree = ast.parse(contract_path.read_text(encoding="utf-8"))
+    tree = parse_ast_cached(contract_path)
     records: list[dict] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and call_name(node.func) == "PackageContract":
@@ -390,7 +396,7 @@ def extract_acs(
     existing_acs = existing_acs or {}
     all_acs: dict[str, dict] = {}
     for path in _epic_files(source_dir):
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in read_text_cached(path).splitlines():
             definition = _extract_ac_definition(line)
             if definition is None:
                 continue

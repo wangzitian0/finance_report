@@ -10,7 +10,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_cli import run_cli_command
+from common.meta.base.gate_util import parse_ast_cached
 from common.testing.ac_graph import AcGraph, build_ac_graph
 from common.testing.protection import (
     PROTECTION_TYPES,
@@ -36,7 +37,7 @@ def _real_test(repo_root: Path, file_rel: str, test_name: str) -> bool:
     if not path.exists():
         return False
     try:
-        module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        module = parse_ast_cached(path)
     except (OSError, SyntaxError):
         return False
     return any(
@@ -126,16 +127,22 @@ def check_integrity(graph: AcGraph) -> list[str]:
     return [ob.message for ob in _integrity_obligations(graph) if not ob.ok]
 
 
-def check_repo_contracts(repo_root: Path) -> list[str]:
+def check_repo_contracts(repo_root: Path, graph: AcGraph | None = None) -> list[str]:
     from common.testing.check_ac_traceability import (
         run_traceability,
         traceability_failure_messages,
     )
     from common.testing.check_critical_proof_matrix import validate_matrix_contract
+    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
+    matrix_result = (
+        validate_matrix_contract(repo_root, build_matrix_from_graph(graph))
+        if graph is not None
+        else validate_matrix_contract(repo_root)
+    )
     return [
         *traceability_failure_messages(run_traceability(repo_root)),
-        *validate_matrix_contract(repo_root).errors,
+        *matrix_result.errors,
     ]
 
 
@@ -161,7 +168,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(
+def _run_ac_index(
     argv: Sequence[str] | None = None,
     *,
     repo_integrity_checks: Sequence[RepoIntegrityCheck] = (),
@@ -180,7 +187,7 @@ def _run_command(
             print(f"  {ptype}: {raised[ptype]}")
         return 0
 
-    integrity_errors = check_integrity(graph) + check_repo_contracts(repo_root)
+    integrity_errors = check_integrity(graph) + check_repo_contracts(repo_root, graph)
     for check in repo_integrity_checks:
         integrity_errors.extend(check(repo_root, graph))
     if integrity_errors:
@@ -231,18 +238,12 @@ def run_ac_index(
     *,
     repo_integrity_checks: Sequence[RepoIntegrityCheck] = (),
 ) -> int:
-    try:
-        status = (
-            _run_command(argv, repo_integrity_checks=repo_integrity_checks)
-            if repo_integrity_checks
-            else _run_command(argv)
-        )
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate("AC-INDEX", lambda _repo_root: findings, [], failure_status=status)
+    return run_cli_command(
+        lambda cli_argv: _run_ac_index(
+            cli_argv, repo_integrity_checks=repo_integrity_checks
+        ),
+        argv,
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

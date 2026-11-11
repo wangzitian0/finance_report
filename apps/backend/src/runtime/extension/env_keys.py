@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import re
 import sys
 from pathlib import Path
@@ -41,9 +42,7 @@ def check_consistency(field_keys: dict[str, frozenset[str]], env_example_keys: s
     """Check that .env.example documents every ``Settings`` field."""
     accepted = set().union(*field_keys.values())
     undocumented = {"/".join(sorted(keys)) for keys in field_keys.values() if not keys & env_example_keys}
-    suspicious = {
-        k for k in env_example_keys - accepted if not k.startswith(("NEXT_PUBLIC_", "DOKPLOY_"))
-    }
+    suspicious = {k for k in env_example_keys - accepted if not k.startswith(("NEXT_PUBLIC_", "DOKPLOY_"))}
     return {
         "config_field_count": len(field_keys),
         "env_example_keys": env_example_keys,
@@ -65,23 +64,30 @@ def print_report(result: dict[str, Any], verbose: bool = False) -> None:
         print("\n[INFO] In .env.example but NOT in config.py (Frontend/Infra?):")
         for key in sorted(result["suspicious_extra_keys"]):
             print(f"   - {key}")
-    print("\n✅ Consistency check passed!" if result["is_consistent"] else "\n❌ Inconsistency found, please fix and retry")
+    print(
+        "\n✅ Consistency check passed!"
+        if result["is_consistent"]
+        else "\n❌ Inconsistency found, please fix and retry"
+    )
     print(f"\n{'=' * 60}")
 
 
 def generate_fix_suggestions(result: dict[str, Any]) -> None:
     if result["undocumented_in_example"]:
-        print("\n[FIX] Regenerate the backend block of .env.example:\n    python tools/generate_env_reference.py\n" + "-" * 40)
+        print(
+            "\n[FIX] Regenerate the backend block of .env.example:\n    python tools/generate_env_reference.py\n"
+            + "-" * 40
+        )
         for key in sorted(result["undocumented_in_example"]):
             print(f"{key}=")
         print("-" * 40)
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Environment variable consistency check")
     parser.add_argument("--diff", action="store_true", help="Show detailed diff")
     parser.add_argument("--fix", action="store_true", help="Generate fix suggestions")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     root = get_project_root()
     env_example_path = root / ".env.example"
     print(f"Project root: {root}\n.env.example:  {env_example_path.relative_to(root)}")

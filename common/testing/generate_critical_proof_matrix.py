@@ -33,7 +33,11 @@ from typing import Any
 
 import yaml
 
-from common.meta.base.gate_util import display_path
+from common.meta.base.gate_util import (
+    display_path,
+    parse_ast_cached,
+    read_text_cached,
+)
 from common.testing.ac_proof_execution import normalize_proof_execution
 from common.testing.ac_proof import GOVERNANCE_STRENGTHS
 
@@ -130,17 +134,17 @@ def _decorator_proof_call(node: ast.AST) -> ast.Call | None:
 
 @functools.lru_cache(maxsize=2048)
 def _cached_file_proofs(
-    path_str: str, repo_root_str: str, mtime_ns: int
+    path_str: str, repo_root_str: str, mtime_ns: int, size: int
 ) -> tuple[CollectedProof, ...]:
     path = Path(path_str)
     repo_root = Path(repo_root_str)
     try:
-        text = path.read_text(encoding="utf-8")
+        text = read_text_cached(path)
     except (OSError, UnicodeDecodeError):
         return ()
     if DECORATOR_NAME not in text:
         return ()
-    module = ast.parse(text, filename=str(path))
+    module = parse_ast_cached(path)
     rel_file = display_path(path, repo_root)
     collected: list[CollectedProof] = []
     for node in ast.walk(module):
@@ -216,11 +220,14 @@ def _cached_file_proofs(
 
 def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
     try:
-        mtime_ns = path.stat().st_mtime_ns
+        resolved = path.resolve()
+        st = resolved.stat()
+        mtime_ns, size = st.st_mtime_ns, st.st_size
     except OSError:
-        mtime_ns = 0
+        resolved = path.resolve()
+        mtime_ns, size = 0, 0
     cached = _cached_file_proofs(
-        str(path.resolve()), str(repo_root.resolve()), mtime_ns
+        str(resolved), str(repo_root.resolve()), mtime_ns, size
     )
     return [
         CollectedProof(
