@@ -17,9 +17,7 @@ from common.testing.source_capability_proof import (  # noqa: E402
     validate_source_capability_proofs,
 )
 
-_OWNER = run_path(
-    ROOT_DIR / "apps/backend/src/extraction/base/source_capability.py"
-)
+_OWNER = run_path(ROOT_DIR / "apps/backend/src/extraction/base/source_capability.py")
 SOURCE_CAPABILITIES = tuple(_OWNER["SOURCE_CAPABILITIES"])
 SourceCapability = _OWNER["SourceCapability"]
 SourceCapabilityStatus = _OWNER["SourceCapabilityStatus"]

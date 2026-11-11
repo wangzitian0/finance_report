@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that CI/deploy SSOT prose and issue templates match workflows.
-
-This contract is the mechanical guard for issue #531: prose in
-``common/testing/ci-cd.md``, ``common/runtime/deployment.md``, and
-``common/runtime/environments.md`` must not drift from the actual
-``.github/workflows/*.yml`` job ids and triggers, and issue templates must only
-use labels that exist in the repository's label taxonomy.
-
-The contract is intentionally *declarative*: the expected job ids and triggers
-for each governed workflow are spelled out in :data:`WORKFLOW_CONTRACT`, then
-checked against the parsed YAML. When a workflow's real job id or trigger
-changes, this contract fails until both the workflow declaration and the
-documented standard are reconciled — so the SSOT references the live contract
-instead of stale prose.
-
-It does NOT assert on mutable live-run status (run ids, timing, conclusions);
-those belong in CI artifacts, not static docs.
-"""
+"""Validate that CI/deploy SSOT prose and issue templates match workflows."""
 
 from __future__ import annotations
 
@@ -28,21 +11,10 @@ from typing import Any
 
 import yaml
 
-# ---------------------------------------------------------------------------
-# Declarative contract: the documented standard for each governed workflow.
-# ---------------------------------------------------------------------------
-
-# GitHub Actions normalizes a bare ``on:`` key to the YAML boolean True; read
-# triggers from the parsed mapping defensively against both spellings.
 ON_KEYS = ("on", True)
 
-# Each governed workflow declares the job ids it MUST expose (so referenced /
-# required check names stay stable) and the trigger events it MUST fire on. The
-# tuples are required subsets: a workflow may add jobs/triggers, but removing or
-# renaming a documented one fails the contract.
 WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
     ".github/workflows/ci.yml": {
-        # The classifier job id is `changes` (NOT `classify-changes`).
         "jobs": (
             "changes",
             "lint",
@@ -69,15 +41,9 @@ APP_WORKFLOW_FILES = (
     ".github/workflows/docs.yml",
 )
 
-# Triggers a workflow must NOT declare. Staging auto-following `main` is the
-# specific drift #531 fixes: the staging workflow must stay manual-only.
 WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
 WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {}
 
-# Governed main-only CI jobs (#1811, mechanizing the #1686 lane invariant).
-# Every job in .github/workflows/ci.yml whose execution condition restricts it
-# to main branch pushes must declare either pr_rehearsal (dry-run command) or
-# failure_isolation (non-blocking step-level isolation).
 MAIN_ONLY_JOBS: dict[str, dict[str, Any]] = {
     "unified-coverage-baseline-pr": {
         "pr_rehearsal": (
@@ -131,29 +97,18 @@ ACTION_RUNTIME_METADATA_GLOBS = (
     ".github/actions/**/*.yaml",
 )
 
-# Stale prose that must never reappear in the CI/deploy SSOT, keyed by file.
-# Each entry is (forbidden substring, explanation of the correct fact).
+_SHARD_MSG = (
+    "the shard count is set only by the `backend` job matrix in ci.yml "
+    "(#2688), not by a range/number in ci-cd.md"
+)
+_CLASSIFIER_MSG = "the CI classifier job id is `changes`, not `classify-changes`"
+
 SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
     "common/testing/ci-cd.md": (
-        (
-            "classify-changes",
-            "the CI classifier job id is `changes`, not `classify-changes`",
-        ),
-        (
-            "Shards 1-8",
-            "the shard count is set only by the `backend` job matrix in ci.yml "
-            "(#2688), not by a range in ci-cd.md",
-        ),
-        (
-            "4 seeded file-level shards",
-            "the shard count is set only by the `backend` job matrix in ci.yml "
-            "(#2688), not by a number in ci-cd.md",
-        ),
-        (
-            "Shards 1-5",
-            "the shard count is set only by the `backend` job matrix in ci.yml "
-            "(#2688), not by a range in ci-cd.md",
-        ),
+        ("classify-changes", _CLASSIFIER_MSG),
+        ("Shards 1-8", _SHARD_MSG),
+        ("4 seeded file-level shards", _SHARD_MSG),
+        ("Shards 1-5", _SHARD_MSG),
     ),
     "common/runtime/deployment.md": (
         (
@@ -162,10 +117,7 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
         ),
     ),
     "common/runtime/environments.md": (
-        (
-            "classify-changes",
-            "the CI classifier job id is `changes`, not `classify-changes`",
-        ),
+        ("classify-changes", _CLASSIFIER_MSG),
         (
             "matches GitHub CI exactly",
             "local CI uses scripts/test_lifecycle.py + compose while GitHub CI "
@@ -175,33 +127,18 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
-# Prose the CI/deploy SSOT MUST contain so the docs positively reference the
-# live job ids / triggers (not just avoid the stale strings).
 SSOT_REQUIRED_PROSE: dict[str, tuple[str, ...]] = {
     "common/testing/ci-cd.md": (
         "`.github/workflows/ci.yml`",
         "single CI metrics contract",
     ),
-    "common/runtime/deployment.md": (
-        "Manual dispatch only",
-        "workflow_dispatch",
-    ),
-    "common/runtime/environments.md": (
-        "same gate family",
-        "workflow_dispatch",
-    ),
+    "common/runtime/deployment.md": ("Manual dispatch only", "workflow_dispatch"),
+    "common/runtime/environments.md": ("same gate family", "workflow_dispatch"),
 }
-
-# ---------------------------------------------------------------------------
-# Issue-template label taxonomy.
-# ---------------------------------------------------------------------------
 
 ISSUE_TEMPLATE_DIR = ".github/ISSUE_TEMPLATE"
 NON_TEMPLATE_FILES = {"config.yml"}
 
-# Current repository labels (mirror of `gh label list`). The stale `infra` /
-# `feature` labels are intentionally absent: templates must use `infrastructure`
-# / `enhancement`.
 KNOWN_LABELS = frozenset(
     {
         "bug",
@@ -223,24 +160,28 @@ KNOWN_LABELS = frozenset(
         "priority: low",
         "priority: medium",
         "question",
-        "surface: accounting",
-        "surface: ai-ocr",
-        "surface: backend",
-        "surface: ci",
-        "surface: docs",
-        "surface: extraction",
-        "surface: frontend",
-        "surface: infra",
-        "surface: portfolio",
-        "surface: reconciliation",
-        "surface: reporting",
-        "surface: testing",
-        "surface: tooling",
+        *(
+            f"surface: {s}"
+            for s in (
+                "accounting",
+                "ai-ocr",
+                "backend",
+                "ci",
+                "docs",
+                "extraction",
+                "frontend",
+                "infra",
+                "portfolio",
+                "reconciliation",
+                "reporting",
+                "testing",
+                "tooling",
+            )
+        ),
         "wontfix",
     }
 )
 
-# Labels removed from the taxonomy that must never reappear in a template.
 STALE_LABELS = frozenset({"infra", "feature"})
 
 
@@ -259,11 +200,15 @@ def load_yaml(repo_root: Path, relative_path: str) -> dict:
     return loaded
 
 
+def workflow_on_value(workflow: dict) -> object | None:
+    for key in ON_KEYS:
+        if key in workflow:
+            return workflow[key]
+    return None
+
+
 def workflow_triggers(workflow: dict) -> set[str]:
-    """Return the set of trigger event names declared by a workflow `on:`."""
     on_value = workflow_on_value(workflow)
-    if on_value is None:
-        return set()
     if isinstance(on_value, str):
         return {on_value}
     if isinstance(on_value, (list, dict)):
@@ -271,24 +216,10 @@ def workflow_triggers(workflow: dict) -> set[str]:
     return set()
 
 
-def workflow_on_value(workflow: dict) -> object | None:
-    """Return the raw workflow `on:` value, handling PyYAML's boolean key."""
-    on_value = None
-    for key in ON_KEYS:
-        if key in workflow:
-            on_value = workflow[key]
-            break
-    return on_value
-
-
 def workflow_push_branches(workflow: dict) -> set[str]:
     on_value = workflow_on_value(workflow)
-    if not isinstance(on_value, dict):
-        return set()
-    push = on_value.get("push")
-    if not isinstance(push, dict):
-        return set()
-    branches = push.get("branches")
+    push = on_value.get("push") if isinstance(on_value, dict) else None
+    branches = push.get("branches") if isinstance(push, dict) else None
     if isinstance(branches, str):
         return {branches}
     if isinstance(branches, list):
@@ -298,9 +229,7 @@ def workflow_push_branches(workflow: dict) -> set[str]:
 
 def workflow_job_ids(workflow: dict) -> set[str]:
     jobs = workflow.get("jobs")
-    if not isinstance(jobs, dict):
-        return set()
-    return {str(job_id) for job_id in jobs}
+    return {str(job_id) for job_id in jobs} if isinstance(jobs, dict) else set()
 
 
 def workflow_file_set(repo_root: Path, relative_dir: str) -> set[str]:
@@ -308,9 +237,9 @@ def workflow_file_set(repo_root: Path, relative_dir: str) -> set[str]:
     if not workflow_dir.exists():
         return set()
     return {
-        f".github/workflows/{path.name}" for path in sorted(workflow_dir.glob("*.yml"))
-    } | {
-        f".github/workflows/{path.name}" for path in sorted(workflow_dir.glob("*.yaml"))
+        f".github/workflows/{path.name}"
+        for ext in ("*.yml", "*.yaml")
+        for path in sorted(workflow_dir.glob(ext))
     }
 
 
@@ -319,7 +248,6 @@ def workflow_set_display(paths: set[str], *, prefix: str = "") -> list[str]:
 
 
 def iter_action_uses(value: object) -> set[str]:
-    """Collect external `uses:` action references from workflow-like YAML."""
     found: set[str] = set()
     if isinstance(value, dict):
         uses = value.get("uses")
@@ -340,8 +268,6 @@ def workflow_action_uses(repo_root: Path) -> set[str]:
             try:
                 data = load_yaml(repo_root, str(path.relative_to(repo_root)))
             except ValueError:
-                # YAML validity is checked elsewhere in the same contract path;
-                # avoid duplicate parse noise here.
                 continue
             uses.update(iter_action_uses(data))
     return uses
@@ -365,56 +291,43 @@ def check_workflows(repo_root: Path, errors: list[str]) -> None:
             continue
 
         job_ids = workflow_job_ids(workflow)
-        for expected_job in expected["jobs"]:
-            if expected_job not in job_ids:
-                errors.append(
-                    f"{path}: documented job id {expected_job!r} is missing "
-                    f"from the workflow (found: {sorted(job_ids)})"
-                )
+        errors.extend(
+            f"{path}: documented job id {job!r} is missing from the workflow (found: {sorted(job_ids)})"
+            for job in expected["jobs"]
+            if job not in job_ids
+        )
 
         triggers = workflow_triggers(workflow)
-        for expected_trigger in expected["triggers"]:
-            if expected_trigger not in triggers:
-                errors.append(
-                    f"{path}: documented trigger {expected_trigger!r} is "
-                    f"missing from the workflow (found: {sorted(triggers)})"
-                )
-
-        for forbidden_trigger in WORKFLOW_FORBIDDEN_TRIGGERS.get(path, ()):
-            if forbidden_trigger in triggers:
-                errors.append(
-                    f"{path}: trigger {forbidden_trigger!r} is forbidden by "
-                    "the documented standard (this workflow must stay "
-                    "manual-only)"
-                )
-
+        errors.extend(
+            f"{path}: documented trigger {trig!r} is missing from the workflow (found: {sorted(triggers)})"
+            for trig in expected["triggers"]
+            if trig not in triggers
+        )
+        errors.extend(
+            f"{path}: trigger {trig!r} is forbidden by the documented standard (this workflow must stay manual-only)"
+            for trig in WORKFLOW_FORBIDDEN_TRIGGERS.get(path, ())
+            if trig in triggers
+        )
         push_branches = workflow_push_branches(workflow)
-        for forbidden_branch in WORKFLOW_FORBIDDEN_PUSH_BRANCHES.get(path, ()):
-            if forbidden_branch in push_branches:
-                errors.append(
-                    f"{path}: push branch {forbidden_branch!r} is forbidden; "
-                    "deploy.yml may only use push for release tag promotion"
-                )
+        errors.extend(
+            f"{path}: push branch {branch!r} is forbidden; deploy.yml may only use push for release tag promotion"
+            for branch in WORKFLOW_FORBIDDEN_PUSH_BRANCHES.get(path, ())
+            if branch in push_branches
+        )
 
 
 def find_main_only_jobs(workflow: dict[str, Any]) -> set[str]:
-    """Identify jobs in ci.yml whose execution condition restricts them to main push."""
     jobs = workflow.get("jobs", {})
     if not isinstance(jobs, dict):
         return set()
     main_only: set[str] = set()
     for job_id, job in jobs.items():
-        if not isinstance(job, dict):
+        if_expr = job.get("if") if isinstance(job, dict) else None
+        if not isinstance(if_expr, str) or "refs/heads/main" not in if_expr:
             continue
-        if_expr = job.get("if")
-        if not isinstance(if_expr, str):
-            continue
-        if "refs/heads/main" not in if_expr:
-            continue
-        # If it has an alternative branch for PRs (like frontend_changed, image_build_required, pull_request)
         if "||" in if_expr and any(
-            token in if_expr
-            for token in ("frontend_changed", "image_build_required", "pull_request")
+            t in if_expr
+            for t in ("frontend_changed", "image_build_required", "pull_request")
         ):
             continue
         main_only.add(str(job_id))
@@ -422,7 +335,6 @@ def find_main_only_jobs(workflow: dict[str, Any]) -> set[str]:
 
 
 def check_main_only_jobs(repo_root: Path, errors: list[str]) -> None:
-    """Enforce pre-main rehearsal and failure isolation for main-only jobs (#1811)."""
     ci_path = ".github/workflows/ci.yml"
     try:
         workflow = load_yaml(repo_root, ci_path)
@@ -440,7 +352,6 @@ def check_main_only_jobs(repo_root: Path, errors: list[str]) -> None:
             f"{ci_path}: main-only job(s) {missing} must declare pr_rehearsal "
             "or failure_isolation in MAIN_ONLY_JOBS (#1811)."
         )
-
     stale = sorted(declared - set(jobs.keys()))
     if stale:
         errors.append(
@@ -448,31 +359,26 @@ def check_main_only_jobs(repo_root: Path, errors: list[str]) -> None:
         )
 
     finish_needs = set(jobs.get("finish", {}).get("needs", []))
-
     for job_id, spec in MAIN_ONLY_JOBS.items():
         if job_id not in jobs:
             continue
-        rehearsal = spec.get("pr_rehearsal")
-        isolation = spec.get("failure_isolation")
+        rehearsal, isolation = spec.get("pr_rehearsal"), spec.get("failure_isolation")
         if not rehearsal and not isolation:
             errors.append(
                 f"{ci_path}: {job_id} must declare at least one of pr_rehearsal or failure_isolation."
             )
-
         if isolation:
             if job_id in finish_needs:
                 errors.append(
                     f"{ci_path}: {job_id} declares failure_isolation=True but is a blocking "
                     "dependency of the 'finish' job."
                 )
-            job_steps = jobs[job_id].get("steps", [])
-            has_isolated_step = any(
+            if not any(
                 isinstance(step, dict)
                 and step.get("continue-on-error") is True
                 and "run" in step
-                for step in job_steps
-            )
-            if not has_isolated_step:
+                for step in jobs[job_id].get("steps", [])
+            ):
                 errors.append(
                     f"{ci_path}: {job_id} declares failure_isolation=True but has no run step "
                     "with continue-on-error: true."
@@ -480,38 +386,34 @@ def check_main_only_jobs(repo_root: Path, errors: list[str]) -> None:
 
 
 def check_ssot_docs(repo_root: Path, errors: list[str]) -> None:
+    all_paths = dict.fromkeys((*SSOT_FORBIDDEN_PROSE, *SSOT_REQUIRED_PROSE))
+    contents: dict[str, str] = {}
+    for path in all_paths:
+        try:
+            contents[path] = read_text(repo_root, path)
+        except OSError as exc:
+            errors.append(f"{path}: governed SSOT doc could not be read ({exc})")
     for path, forbidden in SSOT_FORBIDDEN_PROSE.items():
-        try:
-            content = read_text(repo_root, path)
-        except OSError as exc:
-            errors.append(f"{path}: governed SSOT doc could not be read ({exc})")
-            continue
-        for needle, explanation in forbidden:
-            if needle in content:
-                errors.append(
-                    f"{path}: stale prose {needle!r} must not appear ({explanation})"
-                )
-
+        if path in contents:
+            errors.extend(
+                f"{path}: stale prose {needle!r} must not appear ({explanation})"
+                for needle, explanation in forbidden
+                if needle in contents[path]
+            )
     for path, required in SSOT_REQUIRED_PROSE.items():
-        try:
-            content = read_text(repo_root, path)
-        except OSError as exc:
-            errors.append(f"{path}: governed SSOT doc could not be read ({exc})")
-            continue
-        for needle in required:
-            if needle not in content:
-                errors.append(
-                    f"{path}: required reference {needle!r} is missing; the "
-                    "doc must positively reference the live workflow contract"
-                )
+        if path in contents:
+            errors.extend(
+                f"{path}: required reference {needle!r} is missing; the "
+                "doc must positively reference the live workflow contract"
+                for needle in required
+                if needle not in contents[path]
+            )
 
 
 def check_issue_templates(repo_root: Path, errors: list[str]) -> None:
     template_dir = repo_root / ISSUE_TEMPLATE_DIR
     template_paths = sorted(
-        path
-        for path in template_dir.glob("*.yml")
-        if path.name not in NON_TEMPLATE_FILES
+        p for p in template_dir.glob("*.yml") if p.name not in NON_TEMPLATE_FILES
     )
     if not template_paths:
         errors.append(f"{ISSUE_TEMPLATE_DIR}: no issue templates found")
@@ -533,14 +435,12 @@ def check_issue_templates(repo_root: Path, errors: list[str]) -> None:
             errors.append(f"{rel}: `labels` must be a list")
             continue
         label_set = {str(label) for label in labels}
-
         stale = sorted(label_set & STALE_LABELS)
         if stale:
             errors.append(
                 f"{rel}: uses removed/stale labels {stale} — use "
                 "`infrastructure`/`enhancement`, not `infra`/`feature`"
             )
-
         unknown = sorted(label_set - KNOWN_LABELS)
         if unknown:
             errors.append(
@@ -548,13 +448,7 @@ def check_issue_templates(repo_root: Path, errors: list[str]) -> None:
             )
 
 
-def required_string(
-    mapping: dict,
-    key: str,
-    *,
-    context: str,
-    errors: list[str],
-) -> str:
+def required_string(mapping: dict, key: str, *, context: str, errors: list[str]) -> str:
     value = mapping.get(key)
     if not isinstance(value, str) or not value.strip():
         errors.append(f"{ACTION_RUNTIME_INVENTORY}: {context} missing `{key}`")
@@ -584,17 +478,9 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
         if not isinstance(entry, dict):
             errors.append(f"{ACTION_RUNTIME_INVENTORY}: action entries must be maps")
             continue
-        uses = required_string(
-            entry,
-            "uses",
-            context="action entry",
-            errors=errors,
-        )
+        uses = required_string(entry, "uses", context="action entry", errors=errors)
         status = required_string(
-            entry,
-            "runtime_status",
-            context=f"action {uses!r}",
-            errors=errors,
+            entry, "runtime_status", context=f"action {uses!r}", errors=errors
         )
         if not uses:
             continue
@@ -603,22 +489,19 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
         inventoried[uses] = {**entry, "runtime_status": status}
         if status not in ACTION_RUNTIME_STATUSES:
             errors.append(
-                f"{ACTION_RUNTIME_INVENTORY}: {uses} has invalid "
-                f"runtime_status {status!r}"
+                f"{ACTION_RUNTIME_INVENTORY}: {uses} has invalid runtime_status {status!r}"
             )
         required_string(entry, "owner", context=f"action {uses!r}", errors=errors)
 
     missing = sorted(used_actions - set(inventoried))
     if missing:
         errors.append(
-            f"{ACTION_RUNTIME_INVENTORY}: workflow action(s) missing from "
-            f"runtime inventory: {missing}"
+            f"{ACTION_RUNTIME_INVENTORY}: workflow action(s) missing from runtime inventory: {missing}"
         )
     stale = sorted(set(inventoried) - used_actions)
     if stale:
         errors.append(
-            f"{ACTION_RUNTIME_INVENTORY}: runtime inventory action(s) are not "
-            f"used by workflows/composite actions: {stale}"
+            f"{ACTION_RUNTIME_INVENTORY}: runtime inventory action(s) are not used by workflows/composite actions: {stale}"
         )
 
     exception_actions: dict[str, dict] = {}
@@ -627,10 +510,7 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
             errors.append(f"{ACTION_RUNTIME_INVENTORY}: exception entries must be maps")
             continue
         uses = required_string(
-            exception,
-            "uses",
-            context="exception entry",
-            errors=errors,
+            exception, "uses", context="exception entry", errors=errors
         )
         if not uses:
             continue
@@ -650,54 +530,55 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
     expected_forced_count = inventory.get("forced_node20_metadata_count_must_be")
     if not isinstance(expected_forced_count, int):
         errors.append(
-            f"{ACTION_RUNTIME_INVENTORY}: "
-            "forced_node20_metadata_count_must_be must be an integer"
+            f"{ACTION_RUNTIME_INVENTORY}: forced_node20_metadata_count_must_be must be an integer"
         )
     elif expected_forced_count != len(forced_actions):
         errors.append(
-            f"{ACTION_RUNTIME_INVENTORY}: "
-            "forced_node20_metadata_count_must_be must match runtime inventory "
+            f"{ACTION_RUNTIME_INVENTORY}: forced_node20_metadata_count_must_be must match runtime inventory "
             f"(expected={expected_forced_count}, actual={len(forced_actions)})"
         )
 
     if forced_actions != set(exception_actions):
         errors.append(
-            f"{ACTION_RUNTIME_INVENTORY}: forced Node20 metadata actions must "
-            "match exceptions exactly "
+            f"{ACTION_RUNTIME_INVENTORY}: forced Node20 metadata actions must match exceptions exactly "
             f"(forced={sorted(forced_actions)}, exceptions={sorted(exception_actions)})"
         )
 
-    workflow_paths = sorted(
-        (repo_root / ".github" / "workflows").glob("*.yml")
-    ) + sorted((repo_root / ".github" / "workflows").glob("*.yaml"))
-    if forced_actions:
-        for workflow_path in workflow_paths:
-            workflow_text = workflow_path.read_text(encoding="utf-8")
-            if 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' not in workflow_text:
-                rel = workflow_path.relative_to(repo_root)
-                errors.append(
-                    f"{rel}: forced Node20 metadata exceptions exist, so the "
-                    "workflow must keep FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 enabled"
-                )
-    else:
-        for workflow_path in workflow_paths:
-            workflow_text = workflow_path.read_text(encoding="utf-8")
-            if "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in workflow_text:
-                rel = workflow_path.relative_to(repo_root)
-                errors.append(
-                    f"{rel}: no forced Node20 metadata exceptions remain, so "
-                    "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 must be removed"
-                )
+    workflow_paths = [
+        p
+        for ext in ("*.yml", "*.yaml")
+        for p in sorted((repo_root / ".github" / "workflows").glob(ext))
+    ]
+    for workflow_path in workflow_paths:
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        rel = workflow_path.relative_to(repo_root)
+        if (
+            forced_actions
+            and 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' not in workflow_text
+        ):
+            errors.append(
+                f"{rel}: forced Node20 metadata exceptions exist, so the "
+                "workflow must keep FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 enabled"
+            )
+        elif (
+            not forced_actions and "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in workflow_text
+        ):
+            errors.append(
+                f"{rel}: no forced Node20 metadata exceptions remain, so "
+                "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 must be removed"
+            )
 
 
 def run_contract(repo_root: Path) -> int:
     errors: list[str] = []
-    check_workflows(repo_root, errors)
-    check_main_only_jobs(repo_root, errors)
-    check_ssot_docs(repo_root, errors)
-    check_issue_templates(repo_root, errors)
-    check_action_runtime_inventory(repo_root, errors)
-
+    for check in (
+        check_workflows,
+        check_main_only_jobs,
+        check_ssot_docs,
+        check_issue_templates,
+        check_action_runtime_inventory,
+    ):
+        check(repo_root, errors)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

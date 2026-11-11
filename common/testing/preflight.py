@@ -1,19 +1,4 @@
-"""Diff-aware pre-push verification dispatcher.
-
-The repo enforces a strict set of gates in CI and pre-commit (EPIC -> AC -> test
-traceability, SSOT ownership, doc-nav consistency, schema contracts, migration
-risk, env-key consistency, ruff, the transaction-boundary meta-test). Knowing
-*which* of those to run after a given change is tribal knowledge — easy to forget,
-so failures surface only after pushing.
-
-This module maps changed files to the relevant gate commands and runs only those,
-so an agent or operator catches problems locally first. It does not replace any CI
-gate; it mirrors a subset of them, scoped to the diff.
-
-The deterministic check scripts stay where they are (``tools/`` + ``common/``);
-this is only the dispatcher. ``runner`` and ``git`` are injectable so the mapping
-and orchestration are unit-testable without spawning processes.
-"""
+"""Diff-aware pre-push verification dispatcher."""
 
 from __future__ import annotations
 
@@ -28,36 +13,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
-# Placeholder in a command that is replaced with the running interpreter, so the
-# sub-checks run under the same Python (and therefore the same dependencies).
 PY = "{python}"
-# A command can ask for exactly the paths that selected its check. This keeps
-# debt-aware validators scoped to the diff instead of turning old violations
-# into false failures for an unrelated schema edit.
 MATCHING_PATHS = "{matching_paths}"
 
 Runner = Callable[[Sequence[str], str], int]
 Git = Callable[[Sequence[str]], str]
 
-
-# Check tiers (#1810 G-static-parity): "static" gates are seconds-level file
-# parsers — the mandatory pre-push parity set; "heavy" gates run whole test or
-# build suites (minutes-level) and are opted into via --tier=heavy/full.
 TIERS: tuple[str, ...] = ("static", "heavy")
+DEFAULT_SUBPROCESS_TIMEOUT: int = 180
 
 
 @dataclass(frozen=True)
 class Check:
-    """A named gate: run ``commands`` when a changed path matches a ``glob``.
-
-    ``cwd`` is the working directory (relative to the repo root) the commands run
-    in. Backend gates use ``apps/backend`` so ``ruff`` discovers the backend Ruff
-    config and ``pytest`` can import ``src.*`` — matching how CI invokes them.
-
-    ``tier`` classifies the gate's cost (see :data:`TIERS`): ``static`` for the
-    seconds-level checks, ``heavy`` for the expensive suite/build gates.
-    """
+    """A named gate that runs ``commands`` when a changed path matches ``globs``."""
 
     name: str
     globs: tuple[str, ...]
@@ -67,10 +35,25 @@ class Check:
     tier: str = "static"
 
 
-# Backend files that shape the OpenAPI document: route handlers (FastAPI copies
-# their docstrings into route descriptions), request/response schemas and the app
-# factory. The api-reference gate and the openapi-spec gate read that one document,
-# so both take the same inputs (#2372).
+def _py_check(
+    name: str,
+    globs: tuple[str, ...],
+    script: str,
+    *args: str,
+    why: str,
+    cwd: str = ".",
+    tier: str = "static",
+) -> Check:
+    return Check(
+        name=name,
+        globs=globs,
+        commands=((PY, script, *args),),
+        why=why,
+        cwd=cwd,
+        tier=tier,
+    )
+
+
 OPENAPI_INPUT_GLOBS: tuple[str, ...] = (
     "apps/backend/src/routers/*.py",
     "apps/backend/src/*/extension/api/*.py",
@@ -78,23 +61,16 @@ OPENAPI_INPUT_GLOBS: tuple[str, ...] = (
     "apps/backend/src/main.py",
 )
 
-# Ordered cheapest/most-localizing first. ``fnmatch`` treats ``*`` as matching
-# across ``/`` too, so a single ``*`` already spans nested directories.
 CHECKS: tuple[Check, ...] = (
-    Check(
-        name="ac-traceability",
-        globs=("docs/project/EPIC*.md",),
-        commands=(
-            # The single AC-index gate (matches CI): its INTEGRITY gate folds in
-            # the former standalone CI-stage traceability and critical-proof-matrix
-            # contracts, so local preflight runs exactly what CI enforces.
-            (PY, "tools/check_ac_index.py"),
-        ),
-        why="EPIC/AC changed: re-run the single AC-index gate (folds in EPIC->AC->test traceability + critical-proof contract)",
+    _py_check(
+        "ac-traceability",
+        ("docs/project/EPIC*.md",),
+        "tools/check_ac_index.py",
+        why="EPIC/AC changed: re-run the single AC-index gate",
     ),
-    Check(
-        name="ac-proof-traceability",
-        globs=(
+    _py_check(
+        "ac-proof-traceability",
+        (
             "tests/*.py",
             "apps/backend/tests/*.py",
             "apps/frontend/*.test.ts",
@@ -102,14 +78,11 @@ CHECKS: tuple[Check, ...] = (
             "apps/frontend/*.spec.ts",
             "apps/frontend/*.spec.tsx",
         ),
-        commands=((PY, "tools/check_ac_index.py"),),
-        why="Test proof changed: re-run the single AC-index integrity gate so every declared AC reference remains discoverable before CI",
+        "tools/check_ac_index.py",
+        why="Test proof changed: re-run the single AC-index integrity gate",
     ),
     Check(
         name="ssot-ownership",
-        # docs/ssot/ is retired (#1823); the concept registry lives at
-        # common/meta/data/MANIFEST.yaml now, so that path (not the dead
-        # directory) is what should re-trigger this gate.
         globs=("common/meta/data/MANIFEST.yaml", "common/*/contract.py"),
         commands=(
             (PY, "tools/check_ssot_ownership.py"),
@@ -117,119 +90,104 @@ CHECKS: tuple[Check, ...] = (
         ),
         why="Concept registry or contract changed: enforce single-owner + manifest integrity",
     ),
-    Check(
-        name="doc-consistency",
-        globs=("docs/*", "mkdocs.yml", "vision.md", "README.md"),
-        commands=((PY, "tools/lint_doc_consistency.py"),),
+    _py_check(
+        "doc-consistency",
+        ("docs/*", "mkdocs.yml", "vision.md", "README.md"),
+        "tools/lint_doc_consistency.py",
         why="docs changed: nav coverage + cross-reference consistency",
     ),
-    Check(
-        name="taxonomy-drift",
-        globs=(
+    _py_check(
+        "taxonomy-drift",
+        (
             "*.md",
             "common/meta/data/*.yaml",
             "tests/*.py",
             "common/*.py",
             "tools/*.py",
         ),
-        commands=((PY, "tools/check_taxonomy_drift.py"),),
+        "tools/check_taxonomy_drift.py",
         why="prose/tests changed: retired package-taxonomy vocabulary must not be presented as current (AC-meta.vocab.1)",
     ),
-    Check(
-        name="schema-validate",
-        globs=("apps/backend/src/schemas/*.py",),
-        commands=((PY, "tools/validate_schemas.py", "--paths", MATCHING_PATHS),),
+    _py_check(
+        "schema-validate",
+        ("apps/backend/src/schemas/*.py",),
+        "tools/validate_schemas.py",
+        "--paths",
+        MATCHING_PATHS,
         why="Pydantic schema changed: validate schema contracts",
     ),
-    Check(
-        name="api-reference",
-        globs=OPENAPI_INPUT_GLOBS,
-        commands=((PY, "../../tools/generate_api_reference.py", "--check"),),
-        why="router/schema changed: the generated OpenAPI reference (docs/reference/api.md) must be regenerated — mirrors the CI 'Generated API Reference Check' Lint gate",
+    _py_check(
+        "api-reference",
+        OPENAPI_INPUT_GLOBS,
+        "../../tools/generate_api_reference.py",
+        "--check",
+        why="router/schema changed: docs/reference/api.md must be regenerated",
         cwd="apps/backend",
     ),
-    Check(
-        name="router-contract",
-        globs=("apps/backend/src/routers/*.py",),
-        commands=(
-            (
-                PY,
-                "-m",
-                "pytest",
-                "tests/tooling/test_audit_router_contracts.py::test_findings_doc_is_in_sync",
-                "-q",
-                "--no-cov",
-            ),
-        ),
-        why="router changed: docs/reference/router-contract-maturity.md must be regenerated (tools/audit_router_contracts.py --output ...) — mirrors the CI Tooling/Common Coverage gate",
+    _py_check(
+        "router-contract",
+        ("apps/backend/src/routers/*.py",),
+        "-m",
+        "pytest",
+        "tests/tooling/test_audit_router_contracts.py::test_findings_doc_is_in_sync",
+        "-q",
+        "--no-cov",
+        why="router changed: docs/reference/router-contract-maturity.md must be in sync",
     ),
-    Check(
-        name="migration-risk",
-        globs=("apps/backend/migrations/*",),
-        commands=((PY, "tools/check_migration_risk.py"),),
+    _py_check(
+        "migration-risk",
+        ("apps/backend/migrations/*",),
+        "tools/check_migration_risk.py",
         why="Alembic migration changed: classify migration risk",
     ),
-    Check(
-        name="env-keys",
-        globs=(".env.example", ".env", ".env.*"),
-        commands=((PY, "tools/check_env_keys.py"),),
+    _py_check(
+        "env-keys",
+        (".env.example", ".env", ".env.*"),
+        "tools/check_env_keys.py",
         why="env files changed: env-var key consistency",
     ),
     Check(
         name="backend-format",
         globs=("apps/backend/*.py",),
         commands=(
-            # Run Ruff from the same venv as the dispatcher.  Resolving a bare
-            # shell command can select an unrelated global Ruff version.
             (PY, "-m", "ruff", "check", "src", "tests"),
             (PY, "-m", "ruff", "format", "--check", "src", "tests"),
         ),
         why="backend Python changed: ruff lint + format check",
         cwd="apps/backend",
     ),
-    Check(
-        name="transaction-boundary",
-        globs=("apps/backend/src/extraction/extension/statement_*.py",),
-        commands=(
-            (
-                PY,
-                "-m",
-                "pytest",
-                "tests/infra/test_transaction_boundaries.py",
-                "-q",
-                "--no-cov",
-                "-n",
-                "0",
-            ),
-        ),
+    _py_check(
+        "transaction-boundary",
+        ("apps/backend/src/extraction/extension/statement_*.py",),
+        "-m",
+        "pytest",
+        "tests/infra/test_transaction_boundaries.py",
+        "-q",
+        "--no-cov",
+        "-n",
+        "0",
         why="service changed: re-run the commit/transaction-boundary meta-test",
         cwd="apps/backend",
     ),
-    Check(
-        name="bench-articulation",
-        globs=(
+    _py_check(
+        "bench-articulation",
+        (
             "apps/backend/src/ledger/*.py",
             "apps/backend/src/pricing/*.py",
             "apps/backend/src/reporting/*.py",
             "apps/backend/tests/reporting/test_bench_articulation_matrix.py",
         ),
-        commands=(
-            (
-                PY,
-                "-m",
-                "pytest",
-                "tests/reporting/test_bench_articulation_matrix.py",
-                "-q",
-                "--no-cov",
-            ),
-        ),
-        why="financial calculation logic changed: BenchV2 articulation matrix must balance (isolated PostgreSQL test namespace)",
+        "-m",
+        "pytest",
+        "tests/reporting/test_bench_articulation_matrix.py",
+        "-q",
+        "--no-cov",
+        why="financial calculation logic changed: BenchV2 articulation matrix must balance",
         cwd="apps/backend",
-        tier="static",
     ),
-    Check(
-        name="money-mutation",
-        globs=(
+    _py_check(
+        "money-mutation",
+        (
             "apps/backend/src/ledger/*.py",
             "apps/backend/src/extraction/extension/classification.py",
             "apps/backend/src/extraction/extension/transaction_classification.py",
@@ -239,14 +197,15 @@ CHECKS: tuple[Check, ...] = (
             "common/testing/data/money-mutations.json",
             "tools/check_mutations.py",
         ),
-        commands=((PY, "tools/check_mutations.py", "--advisory"),),
-        why="money/classification code changed: run advisory mutation reproof against declared invariants (#2448)",
-        tier="static",
+        "tools/check_mutations.py",
+        "--advisory",
+        why="money/classification code changed: run advisory mutation reproof (#2448)",
     ),
-    Check(
-        name="env-reference",
-        globs=("apps/backend/src/config.py",),
-        commands=((PY, "tools/generate_env_reference.py", "--check"),),
+    _py_check(
+        "env-reference",
+        ("apps/backend/src/config.py",),
+        "tools/generate_env_reference.py",
+        "--check",
         why="config.py changed: regenerate .env.example + env reference and assert no drift",
     ),
     Check(
@@ -258,9 +217,9 @@ CHECKS: tuple[Check, ...] = (
         ),
         why="router/schema changed: openapi.json and frontend api-types must remain in sync (#1004, #2134)",
     ),
-    Check(
-        name="package-contract",
-        globs=(
+    _py_check(
+        "package-contract",
+        (
             "common/*/contract.py",
             "common/meta/extension/check_package_contract.py",
             "tools/check_package_contract.py",
@@ -268,12 +227,12 @@ CHECKS: tuple[Check, ...] = (
             "tests/tooling/*.py",
             "apps/backend/tests/*.py",
         ),
-        commands=((PY, "tools/check_package_contract.py"),),
+        "tools/check_package_contract.py",
         why="package contract, published interface, or invariant test ref changed: validate all package contracts (#2713)",
     ),
-    Check(
-        name="package-migration-safety",
-        globs=(
+    _py_check(
+        "package-migration-safety",
+        (
             "common/*",
             "tools/*",
             "tests/*",
@@ -284,12 +243,12 @@ CHECKS: tuple[Check, ...] = (
             "apps/frontend/*.spec.tsx",
             "docs/project/EPIC*.md",
         ),
-        commands=((PY, "tools/check_package_migration_safety.py"),),
+        "tools/check_package_migration_safety.py",
         why="gate source, contracts, or test proofs changed: validate consolidated package migration safety gates",
     ),
-    Check(
-        name="workflow-contract",
-        globs=(
+    _py_check(
+        "workflow-contract",
+        (
             ".github/workflows/*.yml",
             ".github/ISSUE_TEMPLATE/*.yml",
             "common/testing/ci-cd.md",
@@ -298,94 +257,94 @@ CHECKS: tuple[Check, ...] = (
             "tools/check_workflow_contract.py",
             "common/meta/extension/workflow_contract.py",
         ),
-        commands=((PY, "tools/check_workflow_contract.py"),),
+        "tools/check_workflow_contract.py",
         why="CI workflows, deployment/environment docs, or issue templates changed: validate workflow contract and taxonomy",
     ),
-    Check(
-        name="governance-exceptions",
-        globs=(
+    _py_check(
+        "governance-exceptions",
+        (
             "common/meta/data/governance-exceptions.yaml",
             "tools/check_governance_exceptions.py",
             "common/meta/extension/check_governance_exceptions.py",
         ),
-        commands=((PY, "tools/check_governance_exceptions.py"),),
+        "tools/check_governance_exceptions.py",
         why="governance exceptions changed: validate bottom-up proof-exception registry",
     ),
-    Check(
-        name="context-contract",
-        globs=(
+    _py_check(
+        "context-contract",
+        (
             "common/*/contract.py",
             "common/meta/base/package_contract.py",
             "common/meta/extension/check_context_contract.py",
             "tools/check_context_contract.py",
         ),
-        commands=((PY, "tools/check_context_contract.py"),),
-        why="package contract or context gate changed: context declarations and dependency semantics only shrink from the audited baseline",
+        "tools/check_context_contract.py",
+        why="package contract or context gate changed: context declarations and dependency semantics only shrink",
     ),
-    Check(
-        name="semantic-ownership",
-        globs=(
+    _py_check(
+        "semantic-ownership",
+        (
             "common/*/contract.py",
             "common/meta/base/package_contract.py",
             "common/meta/extension/check_semantic_ownership.py",
             "tools/check_semantic_ownership.py",
         ),
-        commands=((PY, "tools/check_semantic_ownership.py"),),
+        "tools/check_semantic_ownership.py",
         why="package semantic declarations changed: every governed DDD concept must retain one canonical owner",
     ),
-    Check(
-        name="tooling",
-        globs=("tools/*", "common/*"),
-        commands=((PY, "-m", "pytest", "tests/tooling/", "-q", "--no-cov"),),
-        why="tooling/common changed: run tests/tooling (tool-wrapper sys.path contract + dispatchers)",
+    _py_check(
+        "tooling",
+        ("tools/*", "common/*"),
+        "-m",
+        "pytest",
+        "tests/tooling/",
+        "-q",
+        "--no-cov",
+        why="tooling/common changed: run tests/tooling",
         tier="heavy",
     ),
-    Check(
-        name="app-boundary",
-        globs=("apps/backend/src/*.py",),
-        commands=((PY, "tools/check_app_boundary.py"),),
-        why="backend source changed: the L4 backend super-package edge ratchet — no NEW "
-        "cross-boundary edge (remainder↔carved package) may appear; the baseline only shrinks",
+    _py_check(
+        "app-boundary",
+        ("apps/backend/src/*.py",),
+        "tools/check_app_boundary.py",
+        why="backend source changed: L4 backend super-package edge ratchet",
     ),
-    Check(
-        name="public-orm-exports",
-        globs=(
+    _py_check(
+        "public-orm-exports",
+        (
             "apps/backend/src/*/__init__.py",
             "common/meta/extension/public_orm_exports.py",
             "common/meta/extension/check_public_orm_exports.py",
             "tools/check_public_orm_exports.py",
         ),
-        commands=((PY, "tools/check_public_orm_exports.py"),),
-        why="package-root public language or ORM-export ratchet changed: persistence "
-        "types must remain an exact shrink-only baseline",
+        "tools/check_public_orm_exports.py",
+        why="package-root public language or ORM-export ratchet changed",
     ),
-    Check(
-        name="base-purity",
-        globs=(
+    _py_check(
+        "base-purity",
+        (
             "apps/backend/src/*.py",
             "common/meta/extension/base_purity.py",
             "common/meta/extension/check_base_purity.py",
             "tools/check_base_purity.py",
         ),
-        commands=((PY, "tools/check_base_purity.py"),),
-        why="package base-layer or base-purity gate changed: ORM, config, observability, "
-        "network, and session debt must remain an exact shrink-only baseline",
+        "tools/check_base_purity.py",
+        why="package base-layer or base-purity gate changed",
     ),
-    Check(
-        name="unit-accountability",
-        globs=(
+    _py_check(
+        "unit-accountability",
+        (
             "common/*/contract.py",
             "common/meta/data/unit-accountability-baseline.json",
             "common/meta/extension/check_unit_accountability.py",
             "tools/check_unit_accountability.py",
         ),
-        commands=((PY, "tools/check_unit_accountability.py"),),
-        why="package unit declarations changed: unbound units and incomplete repository "
-        "pairs must remain an exact shrink-only baseline",
+        "tools/check_unit_accountability.py",
+        why="package unit declarations changed: unbound units and incomplete repository pairs must remain shrink-only",
     ),
-    Check(
-        name="toolchain-contract",
-        globs=(
+    _py_check(
+        "toolchain-contract",
+        (
             "toolchain.toml",
             ".python-version",
             ".node-version",
@@ -399,102 +358,103 @@ CHECKS: tuple[Check, ...] = (
             "docker-compose*.yml",
             "apps/*/Dockerfile",
         ),
-        commands=((PY, "tools/check_toolchain_contract.py"),),
+        "tools/check_toolchain_contract.py",
         why="toolchain contracts and version declarations must not drift",
     ),
-    Check(
-        name="ci-metrics-contract",
-        globs=(
+    _py_check(
+        "ci-metrics-contract",
+        (
             ".github/workflows/ci.yml",
             "common/testing/ci-cd.md",
             "tools/check_ci_metrics_contract.py",
             "common/meta/extension/metrics_contract.py",
         ),
-        commands=((PY, "tools/check_ci_metrics_contract.py"),),
+        "tools/check_ci_metrics_contract.py",
         why="CI workflow metrics contract must not drift",
     ),
-    Check(
-        name="detached-owner-shortcuts",
-        globs=(
+    _py_check(
+        "detached-owner-shortcuts",
+        (
             "apps/backend/tests/**.py",
             "tools/check_detached_owner_shortcuts.py",
             "common/testing/detached_owner_guard.py",
         ),
-        commands=((PY, "tools/check_detached_owner_shortcuts.py"),),
+        "tools/check_detached_owner_shortcuts.py",
         why="backend tests must not reintroduce un-baselined detached owner uuid4 shortcuts",
     ),
-    Check(
-        name="epic-status",
-        globs=(
+    _py_check(
+        "epic-status",
+        (
             "README.md",
             "docs/project/EPIC*.md",
             "tools/generate_epic_status.py",
             "common/meta/extension/epic_status.py",
         ),
-        commands=((PY, "tools/generate_epic_status.py", "--check"),),
+        "tools/generate_epic_status.py",
+        "--check",
         why="EPIC status pointer block in README must not drift",
     ),
-    Check(
-        name="ac-tier-baseline",
-        globs=(
+    _py_check(
+        "ac-tier-baseline",
+        (
             "common/meta/data/ac-tier-baseline.json",
             "tools/check_ac_tier_baseline.py",
             "common/meta/extension/check_ac_tier_baseline.py",
         ),
-        commands=((PY, "tools/check_ac_tier_baseline.py"),),
+        "tools/check_ac_tier_baseline.py",
         why="AC authority tier debt only shrinks",
     ),
-    Check(
-        name="ac-proof-kind",
-        globs=(
+    _py_check(
+        "ac-proof-kind",
+        (
             "docs/project/EPIC*.md",
             "tools/check_ac_proof_kind.py",
             "common/meta/extension/check_ac_proof_kind.py",
         ),
-        commands=((PY, "tools/check_ac_proof_kind.py"),),
+        "tools/check_ac_proof_kind.py",
         why="enforce tier -> valid proof kind matrix",
     ),
-    Check(
-        name="tier-imports",
-        globs=(
+    _py_check(
+        "tier-imports",
+        (
             "apps/backend/src/*.py",
             "tools/check_tier_imports.py",
             "common/meta/extension/tier_imports.py",
         ),
-        commands=((PY, "tools/check_tier_imports.py"),),
+        "tools/check_tier_imports.py",
         why="CODE-ONLY financial core must not import LLM layer",
     ),
-    Check(
-        name="llm-cassettes",
-        globs=(
+    _py_check(
+        "llm-cassettes",
+        (
             "common/testing/fixtures/llm_cassettes/**.json",
             "tools/check_llm_cassettes.py",
             "common/testing/check_llm_cassettes.py",
             "apps/backend/src/extraction/base/validation.py",
         ),
-        commands=((PY, "tools/check_llm_cassettes.py"),),
+        "tools/check_llm_cassettes.py",
         why="statement extraction cassettes must satisfy balance-chain invariant",
     ),
-    Check(
-        name="cassette-graded-eval",
-        globs=(
+    _py_check(
+        "cassette-graded-eval",
+        (
             "common/testing/fixtures/llm_cassettes/**.json",
             "tools/check_cassette_graded_eval.py",
             "common/testing/check_cassette_graded_eval.py",
         ),
-        commands=((PY, "tools/check_cassette_graded_eval.py"),),
+        "tools/check_cassette_graded_eval.py",
         why="cassette graded accuracy eval ratchet",
     ),
-    Check(
-        name="lockfile-registry",
-        globs=(
+    _py_check(
+        "lockfile-registry",
+        (
             "package-lock.json",
             "*package-lock.json",
             "apps/frontend/package.json",
             "tools/check_lockfile_registry.py",
             "common/testing/lockfile_registry.py",
         ),
-        commands=((PY, "tools/check_lockfile_registry.py"),),
+        "tools/check_lockfile_registry.py",
         why="lockfile or registry gate changed: every resolved package URL must use https://registry.npmjs.org/ (#2668)",
     ),
     Check(
@@ -512,7 +472,6 @@ CHECKS: tuple[Check, ...] = (
         ),
         why="frontend changed: eslint + tsc typecheck + openapi api-types contract sync",
         cwd="apps/frontend",
-        tier="static",
     ),
     Check(
         name="frontend",
@@ -521,7 +480,7 @@ CHECKS: tuple[Check, ...] = (
             ("npm", "run", "test:coverage"),
             ("npm", "run", "build"),
         ),
-        why="frontend changed: vitest coverage gate + next build (layout/route type rules)",
+        why="frontend changed: vitest coverage gate + next build",
         cwd="apps/frontend",
         tier="heavy",
     ),
@@ -544,12 +503,7 @@ def select_checks(
     checks: Sequence[Check] = CHECKS,
     tier: str = "full",
 ) -> list[Check]:
-    """Return the checks whose globs match at least one changed file (in order).
-
-    ``tier`` composes with the glob selection: ``"full"`` (default) keeps every
-    matching check — the exact pre-tier behavior; a named tier (:data:`TIERS`)
-    keeps only the matching checks of that tier.
-    """
+    """Return checks whose globs match at least one changed file for ``tier``."""
     if tier != "full" and tier not in TIERS:
         raise ValueError(f"unknown tier {tier!r}: expected one of {('full', *TIERS)}")
     files = list(changed_files)
@@ -566,12 +520,7 @@ def select_named_checks(
     *,
     checks: Sequence[Check] = CHECKS,
 ) -> list[Check]:
-    """Return the checks with the given names, in registry order.
-
-    CI calls this path (``--only``) so that CI and the local pre-push run use one
-    command list. An unknown name raises ``ValueError``: a typo must not select
-    zero gates and report success (#2378).
-    """
+    """Return checks with the given names in registry order, failing on unknowns."""
     wanted = list(dict.fromkeys(names))
     known = {check.name for check in checks}
     unknown = [name for name in wanted if name not in known]
@@ -589,71 +538,44 @@ def _default_git(args: Sequence[str]) -> str:
 
 
 def changed_files(base: str | None = None, *, git: Git = _default_git) -> list[str]:
-    """Union of committed-vs-base, staged, unstaged, and untracked paths.
-
-    Untracked files are included (via ``ls-files --others``) so a brand-new file —
-    which ``git diff`` does not report — is still checked before it is committed.
-    """
+    """Union of committed-vs-base, staged, unstaged, and untracked paths."""
     if base is None:
         base = git(["merge-base", "HEAD", "origin/main"]).strip() or "HEAD"
     out: set[str] = set()
-    commands = (
+    for args in (
         ["diff", "--name-only", base],
         ["diff", "--name-only"],
         ["diff", "--name-only", "--cached"],
         ["ls-files", "--others", "--exclude-standard"],
-    )
-    for args in commands:
+    ):
         out.update(line for line in git(args).splitlines() if line.strip())
     return sorted(out)
 
 
-DEFAULT_SUBPROCESS_TIMEOUT: int = 180
-
-
 def _child_env() -> dict[str, str]:
-    """Build subprocess environment with an isolated TEST_NAMESPACE for preflight checks."""
     env = os.environ.copy()
     env.setdefault("TEST_NAMESPACE", f"preflight_{os.getpid()}")
     return env
 
 
-def _default_runner(argv: Sequence[str], cwd: str) -> int:
+def _exec_runner(argv: Sequence[str], cwd: str, *, quiet: bool = False) -> int:
     try:
-        return subprocess.run(
-            list(argv),
-            cwd=cwd,
-            env=_child_env(),
-            check=False,
-            timeout=DEFAULT_SUBPROCESS_TIMEOUT,
-        ).returncode
-    except subprocess.TimeoutExpired:
-        print(
-            f"::error::Gate command timed out after {DEFAULT_SUBPROCESS_TIMEOUT}s: {' '.join(argv)}",
-            flush=True,
+        kwargs = (
+            {"capture_output": True, "text": True, "errors": "replace"} if quiet else {}
         )
-        return 124
-
-
-def _default_quiet_runner(argv: Sequence[str], cwd: str) -> int:
-    try:
         proc = subprocess.run(
             list(argv),
             cwd=cwd,
             env=_child_env(),
-            capture_output=True,
-            text=True,
-            errors="replace",
             check=False,
             timeout=DEFAULT_SUBPROCESS_TIMEOUT,
+            **kwargs,
         )
-        if proc.returncode != 0:
-            if proc.stdout:
-                sys.stdout.write(proc.stdout)
-                sys.stdout.flush()
-            if proc.stderr:
-                sys.stderr.write(proc.stderr)
-                sys.stderr.flush()
+        if quiet and proc.returncode != 0:
+            for stream, buf in ((sys.stdout, proc.stdout), (sys.stderr, proc.stderr)):
+                if buf:
+                    stream.write(buf)
+                    stream.flush()
         return proc.returncode
     except subprocess.TimeoutExpired:
         print(
@@ -661,6 +583,14 @@ def _default_quiet_runner(argv: Sequence[str], cwd: str) -> int:
             flush=True,
         )
         return 124
+
+
+def _default_runner(argv: Sequence[str], cwd: str) -> int:
+    return _exec_runner(argv, cwd, quiet=False)
+
+
+def _default_quiet_runner(argv: Sequence[str], cwd: str) -> int:
+    return _exec_runner(argv, cwd, quiet=True)
 
 
 def _resolve(
@@ -681,14 +611,12 @@ def _resolve(
 
 
 def _unquote_porcelain_path(raw: str) -> str:
-    """Unquote a C-quoted path emitted by ``git status --porcelain``."""
     if len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
         return raw[1:-1].replace('\\"', '"').replace("\\\\", "\\")
     return raw
 
 
 def _working_tree_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, str]:
-    """Capture ``git status --porcelain`` and SHA-256 digests of dirty/untracked files (#2712)."""
     proc = subprocess.run(
         ["git", "status", "--porcelain"],
         cwd=repo_root,
@@ -705,10 +633,11 @@ def _working_tree_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, str]:
             rel_path = rel_path.split(" -> ", 1)[1]
         rel_path = _unquote_porcelain_path(rel_path)
         full_path = repo_root / rel_path
-        if full_path.is_file():
-            snapshot[rel_path] = hashlib.sha256(full_path.read_bytes()).hexdigest()
-        else:
-            snapshot[rel_path] = "<non-file>"
+        snapshot[rel_path] = (
+            hashlib.sha256(full_path.read_bytes()).hexdigest()
+            if full_path.is_file()
+            else "<non-file>"
+        )
     return snapshot
 
 
@@ -722,7 +651,7 @@ def run_checks(
     quiet: bool = False,
     repo_root: Path | None = None,
 ) -> list[CheckResult]:
-    """Run each check's commands; a check fails fast on the first non-zero command."""
+    """Run each check's commands, failing fast on the first non-zero command."""
     python = python or sys.executable
     root = repo_root or REPO_ROOT
     guard_tree = (
@@ -739,23 +668,17 @@ def run_checks(
         if ci and not quiet:
             print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
         before_snapshot = _working_tree_snapshot(root) if guard_tree else {}
-        ok = True
-        for command in check.commands:
-            if (
-                runner(_resolve(command, python, matching_paths=matching_paths), cwd)
-                != 0
-            ):
-                ok = False
-                break
-        if guard_tree:
-            after_snapshot = _working_tree_snapshot(root)
-            if after_snapshot != before_snapshot:
-                ok = False
-                print(
-                    f"::error::Gate {check.name} mutated the working tree during execution",
-                    file=sys.stderr,
-                    flush=True,
-                )
+        ok = all(
+            runner(_resolve(command, python, matching_paths=matching_paths), cwd) == 0
+            for command in check.commands
+        )
+        if guard_tree and _working_tree_snapshot(root) != before_snapshot:
+            ok = False
+            print(
+                f"::error::Gate {check.name} mutated the working tree during execution",
+                file=sys.stderr,
+                flush=True,
+            )
         if ci:
             if not quiet:
                 print("::endgroup::", flush=True)
@@ -765,16 +688,21 @@ def run_checks(
     return results
 
 
+def _collect_matching_tests(
+    search_dir: Path, base_root: Path, stem: str, dest: set[str]
+) -> None:
+    if search_dir.is_dir():
+        for match in search_dir.rglob(f"test_{stem}*.py"):
+            if match.is_file():
+                dest.add(str(match.relative_to(base_root)))
+
+
 def resolve_changed_pytest_targets(
     changed_files_list: Iterable[str],
     *,
     repo_root: Path = REPO_ROOT,
 ) -> tuple[list[str], list[str]]:
-    """Map changed repository-relative paths to (root_test_targets, backend_test_targets).
-
-    ``root_test_targets`` are relative to ``repo_root`` (``tests/...``).
-    ``backend_test_targets`` are relative to ``apps/backend`` (``tests/...``).
-    """
+    """Map changed repo-relative paths to (root_test_targets, backend_test_targets)."""
     root_selected: set[str] = set()
     backend_selected: set[str] = set()
     backend_root = repo_root / "apps" / "backend"
@@ -793,24 +721,19 @@ def resolve_changed_pytest_targets(
             if (repo_root / rel).is_file():
                 root_selected.add(rel)
             continue
-
         stem = path_obj.stem
         if stem == "__init__":
             continue
-
-        if rel.startswith("apps/backend/src/") and backend_tests_dir.is_dir():
-            for match in backend_tests_dir.rglob(f"test_{stem}*.py"):
-                if match.is_file():
-                    backend_selected.add(str(match.relative_to(backend_root)))
+        if rel.startswith("apps/backend/src/"):
+            _collect_matching_tests(
+                backend_tests_dir, backend_root, stem, backend_selected
+            )
         elif rel.startswith(("common/", "tools/")):
-            if root_tests_dir.is_dir():
-                for match in root_tests_dir.rglob(f"test_{stem}*.py"):
-                    if match.is_file():
-                        root_selected.add(str(match.relative_to(repo_root)))
-            if rel.startswith("common/") and backend_tests_dir.is_dir():
-                for match in backend_tests_dir.rglob(f"test_{stem}*.py"):
-                    if match.is_file():
-                        backend_selected.add(str(match.relative_to(backend_root)))
+            _collect_matching_tests(root_tests_dir, repo_root, stem, root_selected)
+            if rel.startswith("common/"):
+                _collect_matching_tests(
+                    backend_tests_dir, backend_root, stem, backend_selected
+                )
 
     return sorted(root_selected), sorted(backend_selected)
 
@@ -824,62 +747,15 @@ def run(
     parser = argparse.ArgumentParser(
         description="Run the gate checks relevant to the current diff."
     )
-    parser.add_argument(
-        "--base", default=None, help="Diff base (default: merge-base with origin/main)."
-    )
-    parser.add_argument(
-        "--list", action="store_true", help="List the checks that would run, then exit."
-    )
-    parser.add_argument(
-        "--changed",
-        nargs="*",
-        default=None,
-        help="Explicit changed-file list (overrides git; for scripting/tests).",
-    )
-    parser.add_argument(
-        "--tier",
-        choices=("full", *TIERS),
-        default="full",
-        help=(
-            "Which cost tier to run: 'static' = the seconds-level pre-push "
-            "parity gates, 'heavy' = the expensive suite/build gates, "
-            "'full' (default) = both."
-        ),
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Select all registered checks for the tier regardless of diff.",
-    )
-    parser.add_argument(
-        "--only",
-        action="append",
-        default=None,
-        metavar="NAME",
-        help=(
-            "Run only the named gate, whatever the diff (repeatable). "
-            "Ignores --tier. Cannot combine with --all or --changed. "
-            "CI uses this to run the same commands as the local run."
-        ),
-    )
-    parser.add_argument(
-        "--pytest-changed",
-        action="store_true",
-        help=(
-            "Also execute fail-fast pytest on unit test files directly mapped from the current diff (--no-cov -n 0)."
-        ),
-    )
-    parser.add_argument(
-        "--ci",
-        action="store_true",
-        help="Format logs with GitHub Actions ::group:: folding and ::error:: annotations.",
-    )
-    parser.add_argument(
-        "-q",
-        "--quiet",
-        action="store_true",
-        help="Print single summary line when checks pass. Print full details when a check fails.",
-    )
+    parser.add_argument("--base", default=None)
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--changed", nargs="*", default=None)
+    parser.add_argument("--tier", choices=("full", *TIERS), default="full")
+    parser.add_argument("--all", action="store_true")
+    parser.add_argument("--only", action="append", default=None, metavar="NAME")
+    parser.add_argument("--pytest-changed", action="store_true")
+    parser.add_argument("--ci", action="store_true")
+    parser.add_argument("-q", "--quiet", action="store_true")
     args = parser.parse_args(argv)
 
     if args.only:
@@ -889,7 +765,7 @@ def run(
             selected = select_named_checks(args.only)
         except ValueError as exc:
             parser.error(str(exc))
-        files = ()
+        files: Sequence[str] = ()
     elif args.all:
         files = ()
         selected = [
@@ -923,24 +799,28 @@ def run(
     effective_runner = (
         _default_quiet_runner if runner is _default_runner and args.quiet else runner
     )
-
     root_targets, backend_targets = (
         resolve_changed_pytest_targets(files) if args.pytest_changed else ([], [])
     )
-
     if not selected and not root_targets and not backend_targets:
         print("preflight: no relevant gates for the current diff.")
         return 0
 
+    def _report_result(name: str, ok: bool) -> None:
+        if not args.quiet:
+            print(f"  [{'ok' if ok else 'FAIL'}] {name}")
+        elif not ok:
+            print(f"  [FAIL] {name}")
+
     failed: list[str] = []
     if selected:
         if not args.quiet:
-            if args.only:
-                print(f"preflight: running {len(selected)} named gate(s)...")
-            else:
-                print(
-                    f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
-                )
+            msg = (
+                f"preflight: running {len(selected)} named gate(s)..."
+                if args.only
+                else f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
+            )
+            print(msg)
         results = run_checks(
             selected,
             changed_files=files,
@@ -948,14 +828,10 @@ def run(
             ci=args.ci,
             quiet=args.quiet,
         )
-        if not args.quiet:
-            for result in results:
-                print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
-        else:
-            for result in results:
-                if not result.ok:
-                    print(f"  [FAIL] {result.name}")
-        failed.extend(r.name for r in results if not r.ok)
+        for result in results:
+            _report_result(result.name, result.ok)
+            if not result.ok:
+                failed.append(result.name)
 
     pytest_suites_ran = 0
     if args.pytest_changed and not failed:
@@ -978,10 +854,7 @@ def run(
                 "0",
             ]
             ok = effective_runner(cmd, str(target_cwd)) == 0
-            if not args.quiet:
-                print(f"  [{'ok' if ok else 'FAIL'}] {label}")
-            elif not ok:
-                print(f"  [FAIL] {label}")
+            _report_result(label, ok)
             if not ok:
                 failed.append(label)
 

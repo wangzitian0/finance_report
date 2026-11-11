@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import ast
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Any, Literal
 
 from common.meta.base.gate_util import call_name
 
-INVENTORY_PATH = Path(__file__).resolve().parents[1] / "data/fk-cascade-ownership.json"
-DEBT_BASELINE_PATH = (
-    Path(__file__).resolve().parents[1] / "data/fk-cascade-debt-baseline.json"
-)
+_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+INVENTORY_PATH = _DATA_DIR / "fk-cascade-ownership.json"
+DEBT_BASELINE_PATH = _DATA_DIR / "fk-cascade-debt-baseline.json"
 
 CascadeClass = Literal[
     "aggregate_internal",
@@ -21,12 +21,7 @@ CascadeClass = Literal[
     "cross_domain",
     "retention_sensitive",
 ]
-_CLASSES = {
-    "aggregate_internal",
-    "purge_owned",
-    "cross_domain",
-    "retention_sensitive",
-}
+_CLASSES = {"aggregate_internal", "purge_owned", "cross_domain", "retention_sensitive"}
 
 
 class CascadeInventoryError(ValueError):
@@ -35,8 +30,6 @@ class CascadeInventoryError(ValueError):
 
 @dataclass(frozen=True, order=True)
 class CascadeSite:
-    """One scalar or composite CASCADE realized on a mapped table."""
-
     site: str
     source_owner: str
     target_table: str
@@ -45,8 +38,6 @@ class CascadeSite:
 
 @dataclass(frozen=True)
 class CascadeOwnership:
-    """Reviewed ownership decision for one cascade declaration."""
-
     site: str
     source_owner: str
     target_owner: str
@@ -58,24 +49,24 @@ class CascadeOwnership:
 def _assigned_name(statement: ast.stmt) -> tuple[str | None, ast.AST | None]:
     if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
         return statement.target.id, statement.value
-    if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-        target = statement.targets[0]
-        if isinstance(target, ast.Name):
-            return target.id, statement.value
+    if (
+        isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+    ):
+        return statement.targets[0].id, statement.value
     return None, None
 
 
 def _constructor_aliases(tree: ast.Module) -> dict[str, str]:
-    aliases: dict[str, str] = {}
-    for node in tree.body:
-        if not isinstance(node, ast.ImportFrom) or not (node.module or "").startswith(
-            "sqlalchemy"
-        ):
-            continue
-        for imported in node.names:
-            if imported.name in {"ForeignKey", "ForeignKeyConstraint"}:
-                aliases[imported.asname or imported.name] = imported.name
-    return aliases
+    return {
+        imported.asname or imported.name: imported.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        and (node.module or "").startswith("sqlalchemy")
+        for imported in node.names
+        if imported.name in {"ForeignKey", "ForeignKeyConstraint"}
+    }
 
 
 def _import_aliases(tree: ast.Module) -> dict[str, str]:
@@ -98,6 +89,14 @@ def _call_argument(call: ast.Call, keyword: str, position: int) -> ast.expr | No
     return keyword_values[0] if keyword_values else positional
 
 
+def _str_const(node: ast.AST | None) -> str | None:
+    return (
+        node.value
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        else None
+    )
+
+
 def _cascade_target(
     node: ast.AST, aliases: dict[str, str]
 ) -> tuple[str, str, str | None] | None:
@@ -107,31 +106,32 @@ def _cascade_target(
     resolved_name = aliases.get(syntactic_name or "", syntactic_name)
     if resolved_name not in {"ForeignKey", "ForeignKeyConstraint"}:
         return None
-    if any(isinstance(argument, ast.Starred) for argument in node.args) or any(
-        keyword.arg is None for keyword in node.keywords
+    if any(isinstance(arg, ast.Starred) for arg in node.args) or any(
+        kw.arg is None for kw in node.keywords
     ):
         raise CascadeInventoryError(
             f"{resolved_name} uses unpacked arguments that ownership review cannot resolve"
         )
-    ondelete_position = 5 if resolved_name == "ForeignKey" else 4
-    ondelete = _call_argument(node, "ondelete", ondelete_position)
+    ondelete = _call_argument(
+        node, "ondelete", 5 if resolved_name == "ForeignKey" else 4
+    )
     if ondelete is None:
         return None
-    if not (isinstance(ondelete, ast.Constant) and isinstance(ondelete.value, str)):
+    ondelete_val = _str_const(ondelete)
+    if ondelete_val is None:
         raise CascadeInventoryError(
             f"{resolved_name} ondelete must be a literal for ownership review"
         )
-    if ondelete.value.strip().upper() != "CASCADE":
+    if ondelete_val.strip().upper() != "CASCADE":
         return None
     if resolved_name == "ForeignKey":
         if not node.args:
             raise CascadeInventoryError("CASCADE ForeignKey has no target argument")
-        target = node.args[0]
-        if not (isinstance(target, ast.Constant) and isinstance(target.value, str)):
+        target_value = _str_const(node.args[0])
+        if target_value is None:
             raise CascadeInventoryError(
                 "CASCADE ForeignKey target must be a literal for ownership review"
             )
-        target_value = target.value
         return target_value, target_value.split(".", 1)[0], None
 
     if len(node.args) < 2:
@@ -144,23 +144,17 @@ def _cascade_target(
             "CASCADE ForeignKeyConstraint remote targets must be literal strings"
         )
     targets = tuple(
-        element.value
-        for element in remote_targets.elts
-        if isinstance(element, ast.Constant) and isinstance(element.value, str)
+        val for el in remote_targets.elts if (val := _str_const(el)) is not None
     )
     if len(targets) != len(remote_targets.elts):
         raise CascadeInventoryError(
             "CASCADE ForeignKeyConstraint remote targets must be literal strings"
         )
-    constraint_name_node = _call_argument(node, "name", 2)
-    if not (
-        isinstance(constraint_name_node, ast.Constant)
-        and isinstance(constraint_name_node.value, str)
-    ):
+    constraint_name = _str_const(_call_argument(node, "name", 2))
+    if constraint_name is None:
         raise CascadeInventoryError(
             "CASCADE ForeignKeyConstraint must have a literal name"
         )
-    constraint_name = constraint_name_node.value
     target_tables = {target.split(".", 1)[0] for target in targets}
     if len(target_tables) != 1:
         raise CascadeInventoryError(
@@ -172,12 +166,8 @@ def _cascade_target(
 def _literal_tablename(node: ast.ClassDef) -> str | None:
     for statement in node.body:
         field, value = _assigned_name(statement)
-        if (
-            field == "__tablename__"
-            and isinstance(value, ast.Constant)
-            and isinstance(value.value, str)
-        ):
-            return value.value
+        if field == "__tablename__" and (table := _str_const(value)) is not None:
+            return table
     return None
 
 
@@ -204,18 +194,11 @@ def _assigned_field(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> str | Non
     cursor = node
     while cursor in parents:
         cursor = parents[cursor]
-        if isinstance(cursor, ast.stmt):
-            field, _value = _assigned_name(cursor)
-            if field is not None:
-                return field
-    return None
-
-
-def _base_name(node: ast.expr) -> str | None:
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        return node.attr
+        if (
+            isinstance(cursor, ast.stmt)
+            and (field := _assigned_name(cursor)[0]) is not None
+        ):
+            return field
     return None
 
 
@@ -241,7 +224,7 @@ def _mixin_consumers(
         candidate: ast.ClassDef, ancestor: str, seen: frozenset[str]
     ) -> bool:
         for base in candidate.bases:
-            base_name = _base_name(base)
+            base_name = call_name(base)
             if base_name is None:
                 continue
             base_name = aliases_by_class.get(candidate, {}).get(base_name, base_name)
@@ -250,27 +233,24 @@ def _mixin_consumers(
             if base_name in seen:
                 continue
             for intermediate in definitions.get(base_name, []):
-                if _literal_tablename(intermediate) is not None:
-                    continue
-                if _defines_field(intermediate, field):
-                    continue
-                if inherits_through_mixins(intermediate, ancestor, seen | {base_name}):
-                    return True
+                if _literal_tablename(intermediate) is None and not _defines_field(
+                    intermediate, field
+                ):
+                    if inherits_through_mixins(
+                        intermediate, ancestor, seen | {base_name}
+                    ):
+                        return True
         return False
 
-    consumers: list[tuple[Path, str, ast.ClassDef]] = []
-    for relative, source_owner, tree in parsed_sources:
-        for candidate in ast.walk(tree):
-            if not isinstance(candidate, ast.ClassDef):
-                continue
-            if _literal_tablename(candidate) is None:
-                continue
-            if not inherits_through_mixins(candidate, mixin.name, frozenset()):
-                continue
-            if _defines_field(candidate, field):
-                continue
-            consumers.append((relative, source_owner, candidate))
-    return tuple(consumers)
+    return tuple(
+        (relative, source_owner, candidate)
+        for relative, source_owner, tree in parsed_sources
+        for candidate in ast.walk(tree)
+        if isinstance(candidate, ast.ClassDef)
+        and _literal_tablename(candidate) is not None
+        and inherits_through_mixins(candidate, mixin.name, frozenset())
+        and not _defines_field(candidate, field)
+    )
 
 
 def _site_label(node: ast.Call, parents: dict[ast.AST, ast.AST]) -> str:
@@ -282,16 +262,12 @@ def _site_label(node: ast.Call, parents: dict[ast.AST, ast.AST]) -> str:
             isinstance(cursor, ast.Call)
             and call_name(cursor.func) == "Column"
             and cursor.args
-            and isinstance(cursor.args[0], ast.Constant)
-            and isinstance(cursor.args[0].value, str)
         ):
-            column_name = cursor.args[0].value
-        field, _value = (
-            _assigned_name(cursor) if isinstance(cursor, ast.stmt) else (None, None)
-        )
+            if (col := _str_const(cursor.args[0])) is not None:
+                column_name = col
+        field = _assigned_name(cursor)[0] if isinstance(cursor, ast.stmt) else None
         if field is None:
             continue
-
         scopes: list[str] = []
         scope_cursor = cursor
         while scope_cursor in parents:
@@ -300,10 +276,10 @@ def _site_label(node: ast.Call, parents: dict[ast.AST, ast.AST]) -> str:
                 scope_cursor, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
             ):
                 scopes.append(scope_cursor.name)
-        label_parts = [*reversed(scopes), field]
+        parts = [*reversed(scopes), field]
         if column_name is not None and column_name != field:
-            label_parts.append(column_name)
-        return ".".join(label_parts)
+            parts.append(column_name)
+        return ".".join(parts)
     return f"line_{node.lineno}_{node.col_offset}"
 
 
@@ -313,12 +289,8 @@ def _table_owners(
     owners: dict[str, set[str]] = {}
     for _relative, source_owner, tree in parsed_sources:
         for node in ast.walk(tree):
-            if not isinstance(node, ast.ClassDef):
-                continue
-            table = _literal_tablename(node)
-            if table is not None:
+            if isinstance(node, ast.ClassDef) and (table := _literal_tablename(node)):
                 owners.setdefault(table, set()).add(source_owner)
-
     resolved: dict[str, str] = {}
     for table, table_owners in owners.items():
         if len(table_owners) != 1:
@@ -331,21 +303,17 @@ def _table_owners(
 
 def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
     """Return every literal production cascade declaration, or fail closed."""
-
-    parsed_sources: list[tuple[Path, str, ast.Module]] = []
-    for source_path in sorted(source_root.rglob("*.py")):
-        if "__pycache__" in source_path.parts:
-            continue
-        relative = source_path.relative_to(source_root)
-        parsed_sources.append(
-            (
-                relative,
-                relative.parts[0],
-                ast.parse(
-                    source_path.read_text(encoding="utf-8"), filename=str(source_path)
-                ),
-            )
+    parsed_sources = [
+        (
+            rel := source_path.relative_to(source_root),
+            rel.parts[0],
+            ast.parse(
+                source_path.read_text(encoding="utf-8"), filename=str(source_path)
+            ),
         )
+        for source_path in sorted(source_root.rglob("*.py"))
+        if "__pycache__" not in source_path.parts
+    ]
 
     table_owners = _table_owners(parsed_sources)
     sites: list[CascadeSite] = []
@@ -378,31 +346,24 @@ def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
                     )
                 origins = [
                     (
-                        consumer_relative,
-                        consumer_owner,
+                        c_rel,
+                        c_owner,
                         label.replace(
-                            f"{enclosing_class.name}.",
-                            f"{consumer.name}.",
-                            1,
+                            f"{enclosing_class.name}.", f"{consumer.name}.", 1
                         ),
                     )
-                    for consumer_relative, consumer_owner, consumer in consumers
+                    for c_rel, c_owner, consumer in consumers
                 ]
 
-            for origin_relative, origin_owner, origin_label in origins:
-                site = f"{origin_relative.as_posix()}::{origin_label}->{target}"
+            for origin_rel, origin_owner, origin_label in origins:
+                site = f"{origin_rel.as_posix()}::{origin_label}->{target}"
                 target_owner = table_owners.get(target_table)
                 if target_owner is None:
                     raise CascadeInventoryError(
                         f"{site}: target table {target_table!r} has no literal table owner"
                     )
                 sites.append(
-                    CascadeSite(
-                        site=site,
-                        source_owner=origin_owner,
-                        target_table=target_table,
-                        target_owner=target_owner,
-                    )
+                    CascadeSite(site, origin_owner, target_table, target_owner)
                 )
 
     if not sites:
@@ -414,17 +375,19 @@ def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
     return tuple(sorted(sites))
 
 
+def _read_cascade_json(path: Path, label: str) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CascadeInventoryError(f"cannot read {label}: {path}") from exc
+
+
 def load_inventory(path: Path) -> tuple[CascadeOwnership, ...]:
     """Load the reviewed inventory with strict keys and duplicate rejection."""
-
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise CascadeInventoryError(f"cannot read cascade inventory: {path}") from exc
+    payload = _read_cascade_json(path, "cascade inventory")
     if not isinstance(payload, list) or not payload:
         raise CascadeInventoryError("cascade inventory must be a non-empty list")
 
-    records: list[CascadeOwnership] = []
     required = {
         "site",
         "source_owner",
@@ -433,6 +396,7 @@ def load_inventory(path: Path) -> tuple[CascadeOwnership, ...]:
         "rationale",
         "issue",
     }
+    records: list[CascadeOwnership] = []
     for index, raw in enumerate(payload):
         if not isinstance(raw, dict) or set(raw) != required:
             raise CascadeInventoryError(
@@ -443,20 +407,14 @@ def load_inventory(path: Path) -> tuple[CascadeOwnership, ...]:
                 f"inventory record {index} has unknown classification"
             )
         records.append(CascadeOwnership(**raw))
-    if len({record.site for record in records}) != len(records):
+    if len({r.site for r in records}) != len(records):
         raise CascadeInventoryError("cascade inventory contains duplicate sites")
     return tuple(records)
 
 
 def load_debt_baseline(path: Path) -> frozenset[str]:
     """Load the exact set of reviewed cascade debt sites."""
-
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise CascadeInventoryError(
-            f"cannot read cascade debt baseline: {path}"
-        ) from exc
+    payload = _read_cascade_json(path, "cascade debt baseline")
     if not isinstance(payload, dict) or set(payload) != {"debt_sites"}:
         raise CascadeInventoryError(
             "cascade debt baseline must contain exactly the debt_sites key"
@@ -477,17 +435,10 @@ def validate_debt_ratchet(
     inventory: Sequence[CascadeOwnership], baseline: frozenset[str]
 ) -> None:
     """Reject new debt and force resolved sites out of the shrink-only baseline."""
-
-    current = {
-        record.site
-        for record in inventory
-        if record.classification != "aggregate_internal"
-    }
-    new = sorted(current - baseline)
-    stale = sorted(baseline - current)
-    if new:
+    current = {r.site for r in inventory if r.classification != "aggregate_internal"}
+    if new := sorted(current - baseline):
         raise CascadeInventoryError(f"cascade debt grew; new={new}")
-    if stale:
+    if stale := sorted(baseline - current):
         raise CascadeInventoryError(
             f"resolved debt remains baselined and must be pruned; stale={stale}"
         )
@@ -497,15 +448,13 @@ def validate_inventory(
     sites: Sequence[CascadeSite], inventory: Sequence[CascadeOwnership]
 ) -> None:
     """Require exact discovery coverage and internally coherent decisions."""
-
     discovered = {site.site: site for site in sites}
     reviewed = {record.site: record for record in inventory}
     if discovered.keys() != reviewed.keys():
-        missing = sorted(discovered.keys() - reviewed.keys())
-        stale = sorted(reviewed.keys() - discovered.keys())
         raise CascadeInventoryError(
             "cascade inventory does not equal discovery; "
-            f"missing={missing}, stale={stale}"
+            f"missing={sorted(discovered.keys() - reviewed.keys())}, "
+            f"stale={sorted(reviewed.keys() - discovered.keys())}"
         )
 
     for key, site in discovered.items():
@@ -522,7 +471,8 @@ def validate_inventory(
             raise CascadeInventoryError(f"{key}: rationale is not reviewable")
 
         same_owner = site.source_owner == site.target_owner
-        if record.classification == "aggregate_internal":
+        cls = record.classification
+        if cls == "aggregate_internal":
             if not same_owner:
                 raise CascadeInventoryError(
                     f"{key}: aggregate_internal requires the same source/target owner"
@@ -531,21 +481,21 @@ def validate_inventory(
                 raise CascadeInventoryError(
                     f"{key}: approved aggregate_internal survivor cannot carry debt"
                 )
-        elif record.classification == "purge_owned":
+        elif cls == "purge_owned":
             if site.target_table != "users" or same_owner:
                 raise CascadeInventoryError(
                     f"{key}: purge_owned is only valid for cross-owner users FKs"
                 )
             if record.issue != "#1848":
                 raise CascadeInventoryError(f"{key}: purge-owned debt must name #1848")
-        elif record.classification == "cross_domain":
+        elif cls == "cross_domain":
             if same_owner or site.target_table == "users":
                 raise CascadeInventoryError(
                     f"{key}: cross_domain requires different owners and a non-user target"
                 )
             if record.issue != "#1848":
                 raise CascadeInventoryError(f"{key}: cross-domain debt must name #1848")
-        elif record.classification == "retention_sensitive":
+        elif cls == "retention_sensitive":
             if not same_owner:
                 raise CascadeInventoryError(
                     f"{key}: retention_sensitive requires the same source/target owner"
@@ -554,5 +504,5 @@ def validate_inventory(
                 raise CascadeInventoryError(
                     f"{key}: retention-sensitive debt must name #1848"
                 )
-        else:  # pragma: no cover - load_inventory rejects this shape
+        else:  # pragma: no cover
             raise CascadeInventoryError(f"{key}: unknown classification")

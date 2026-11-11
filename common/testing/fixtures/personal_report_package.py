@@ -70,84 +70,51 @@ class RepresentativePackageFixture:
     @property
     def restricted_components(self) -> tuple[ManualComponentFixture, ...]:
         return tuple(
-            component
-            for component in self.manual_components
-            if component.liquidity_class == "restricted"
+            c for c in self.manual_components if c.liquidity_class == "restricted"
         )
 
     def component(self, component_type: str, source: str) -> ManualComponentFixture:
-        for component in self.manual_components:
-            if (
-                component.component_type == component_type
-                and component.source == source
-            ):
-                return component
+        for c in self.manual_components:
+            if c.component_type == component_type and c.source == source:
+                return c
         raise KeyError(f"Unknown package fixture component: {component_type}/{source}")
-
-
-def _bank_rows(csv_path: Path) -> list[dict[str, str]]:
-    with csv_path.open(newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
-    if not rows:
-        raise ValueError(f"Representative package fixture has no bank rows: {csv_path}")
-    return rows
 
 
 def _expected_outputs(
     csv_path: Path, manual_components: tuple[ManualComponentFixture, ...]
 ) -> ExpectedPackageOutputs:
-    rows = _bank_rows(csv_path)
-    amounts = [money_amount(row["Amount"]) for row in rows]
-    income = sum((amount for amount in amounts if amount > 0), Decimal("0.00"))
-    expenses = sum((-amount for amount in amounts if amount < 0), Decimal("0.00"))
-    statement_periods = {
-        (row["Statement Period Start"], row["Statement Period End"]) for row in rows
-    }
-    if len(statement_periods) != 1:
+    with csv_path.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    if not rows:
+        raise ValueError(f"Representative package fixture has no bank rows: {csv_path}")
+    amounts = [money_amount(r["Amount"]) for r in rows]
+    income = sum((a for a in amounts if a > 0), Decimal("0.00"))
+    expenses = sum((-a for a in amounts if a < 0), Decimal("0.00"))
+    periods = {(r["Statement Period Start"], r["Statement Period End"]) for r in rows}
+    if len(periods) != 1:
         raise ValueError(
             "Representative package fixture has conflicting statement periods"
         )
-    period_start, period_end = (
-        date.fromisoformat(value) for value in statement_periods.pop()
-    )
-    manual_asset_total = sum(
-        (
-            component.value
-            for component in manual_components
-            if component.liquidity_class in {"illiquid", "restricted"}
-        ),
+    start_s, end_s = periods.pop()
+    by_class = lambda cls_set: sum(  # noqa: E731
+        (c.value for c in manual_components if c.liquidity_class in cls_set),
         Decimal("0.00"),
     )
-    manual_liability_total = sum(
-        (
-            component.value
-            for component in manual_components
-            if component.liquidity_class == "liability"
-        ),
-        Decimal("0.00"),
-    )
-    restricted_total = sum(
-        (
-            component.value
-            for component in manual_components
-            if component.liquidity_class == "restricted"
-        ),
-        Decimal("0.00"),
-    )
+    asset_tot = by_class({"illiquid", "restricted"})
+    liab_tot = by_class({"liability"})
+    rest_tot = by_class({"restricted"})
     return ExpectedPackageOutputs(
         transaction_count=len(rows),
-        period_start=period_start,
-        period_end=period_end,
+        period_start=date.fromisoformat(start_s),
+        period_end=date.fromisoformat(end_s),
         income=money_amount(income),
         expenses=money_amount(expenses),
         net_income=money_amount(income - expenses),
         bank_cash=money_amount(income - expenses),
-        manual_asset_total=money_amount(manual_asset_total),
-        manual_liability_total=money_amount(manual_liability_total),
-        restricted_fair_value_total=money_amount(restricted_total),
-        net_worth_adjustment_gain_loss=money_amount(
-            manual_asset_total - manual_liability_total
-        ),
+        manual_asset_total=money_amount(asset_tot),
+        manual_liability_total=money_amount(liab_tot),
+        restricted_fair_value_total=money_amount(rest_tot),
+        net_worth_adjustment_gain_loss=money_amount(asset_tot - liab_tot),
         brokerage_market_value=PORTFOLIO_AUDIT_FIXTURE.report_package_market_value_sgd,
         brokerage_position_count=len(PORTFOLIO_AUDIT_FIXTURE.report_package_positions),
         dividend_income=PORTFOLIO_AUDIT_FIXTURE.expected_activity_totals.dividend_income_sgd,
@@ -156,42 +123,39 @@ def _expected_outputs(
     )
 
 
-_MANUAL_COMPONENTS = (
-    ManualComponentFixture(
-        component_type="property_value",
-        source="Family Home",
-        value=Decimal("1100000.00"),
-        notes="Independent appraisal report reference A-12",
-        liquidity_class="illiquid",
-    ),
-    ManualComponentFixture(
-        component_type="mortgage_balance",
-        source="Home Loan",
-        value=Decimal("360000.00"),
-        notes="Loan reference 2026-01",
-        liquidity_class="liability",
-    ),
-    ManualComponentFixture(
-        component_type="esop",
-        source="ACME ESOP",
-        value=Decimal("85000.00"),
-        notes="ESOP vesting starts over 4 years",
-        liquidity_class="restricted",
-    ),
-    ManualComponentFixture(
-        component_type="rsu",
-        source="ACME RSU",
-        value=Decimal("42000.00"),
-        notes="RSU vesting 25% annually",
-        liquidity_class="restricted",
-    ),
-    ManualComponentFixture(
-        component_type="stock_options",
-        source="ACME Options",
-        value=Decimal("29000.00"),
-        notes="Stock options cliff vest at 3 years",
-        liquidity_class="restricted",
-    ),
+_MANUAL_COMPONENTS = tuple(
+    ManualComponentFixture(ct, src, Decimal(val), notes, cls)
+    for ct, src, val, notes, cls in (
+        (
+            "property_value",
+            "Family Home",
+            "1100000.00",
+            "Independent appraisal report reference A-12",
+            "illiquid",
+        ),
+        (
+            "mortgage_balance",
+            "Home Loan",
+            "360000.00",
+            "Loan reference 2026-01",
+            "liability",
+        ),
+        (
+            "esop",
+            "ACME ESOP",
+            "85000.00",
+            "ESOP vesting starts over 4 years",
+            "restricted",
+        ),
+        ("rsu", "ACME RSU", "42000.00", "RSU vesting 25% annually", "restricted"),
+        (
+            "stock_options",
+            "ACME Options",
+            "29000.00",
+            "Stock options cliff vest at 3 years",
+            "restricted",
+        ),
+    )
 )
 
 _BANK_FIXTURE = BankFixture(
@@ -201,7 +165,7 @@ _BANK_FIXTURE = BankFixture(
 
 REPRESENTATIVE_PACKAGE_FIXTURE = RepresentativePackageFixture(
     bank=_BANK_FIXTURE,
-    brokerage=BrokerageFixture(source="moomoo", institution="Moomoo Personal Package"),
+    brokerage=BrokerageFixture("moomoo", "Moomoo Personal Package"),
     manual_components=_MANUAL_COMPONENTS,
     expected_outputs=_expected_outputs(_BANK_FIXTURE.csv_path, _MANUAL_COMPONENTS),
     required_note_ids=frozenset(

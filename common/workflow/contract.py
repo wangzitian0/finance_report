@@ -1,4 +1,4 @@
-"""Machine-checkable PackageContract for ``workflow``."""
+"""PackageContract for ``workflow``."""
 
 from __future__ import annotations
 
@@ -68,17 +68,19 @@ package-ownership|Workflow vocabulary, derivation.|$t/test_s3_pr_d_structure.py:
     roadmap=acs(
         "workflow",
         """
-@$be/workflow/test_workflow_sync_gate.py|P0
-sync.1|At 1000 journal entries, GET /workflow/status builds no traceability appendix.|test_AC_workflow_sync_1_year_scale_status_read_is_bounded_and_write_free
-sync.2|An insert or an update of a derivation source row makes the next workflow read derive the events again.|test_AC_workflow_sync_2_a_source_change_derives_events_again
-sync.3|The source fingerprint reads every model table, except tables that an explicit exclusion names with a reason.|test_AC_workflow_sync_3_fingerprint_classifies_every_table
-sync.4|The source fingerprint changes on a user, child, global, date, or settings change.|test_AC_workflow_sync_4_fingerprint_changes_only_with_an_input
-sync.5|A workflow read reuses the last derivation only.|test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again
-sync.7|Sync_workflow_events_for_user and get_workflow_status catch ReportError during package readiness evaluation and surface a blocked readiness state.|test_AC_workflow_sync_7_report_error_becomes_blocked_readiness_state|P1
-@-|P1
-vocabulary-ownership.1|Workflow event, lifecycle, status.|$t/test_vocabulary_ownership.py::test_AC_workflow_vocabulary_ownership_1_workflow_owns_payloads
-package.1|Workflow is a governed package and composes published extraction and reporting reads.|$t/test_s3_pr_d_structure.py::test_AC_workflow_package_1_owns_contract_and_direct_domain_reads|P0
-sync.6|Stored_package_readiness returns the readiness of the last derivation only.|$be/workflow/test_stored_package_readiness.py::test_AC_workflow_sync_6_stored_readiness_is_returned_only_while_the_derivation_is_reusable
+@$be/workflow/test_workflow_sync_gate.py
+sync.1||test_AC_workflow_sync_1_year_scale_status_read_is_bounded_and_write_free
+sync.2||test_AC_workflow_sync_2_a_source_change_derives_events_again
+sync.3||test_AC_workflow_sync_3_fingerprint_classifies_every_table
+sync.4||test_AC_workflow_sync_4_fingerprint_changes_only_with_an_input
+sync.5||test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again
+sync.7||test_AC_workflow_sync_7_report_error_becomes_blocked_readiness_state|P1
+@$t/test_vocabulary_ownership.py|P1
+vocabulary-ownership.1||test_AC_workflow_vocabulary_ownership_1_workflow_owns_payloads
+@$t/test_s3_pr_d_structure.py
+package.1||test_AC_workflow_package_1_owns_contract_and_direct_domain_reads
+@$be/workflow/test_stored_package_readiness.py|P1
+sync.6||test_AC_workflow_sync_6_stored_readiness_is_returned_only_while_the_derivation_is_reusable
 """,
     ),
     concepts=concepts(

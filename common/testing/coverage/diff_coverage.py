@@ -1,32 +1,5 @@
 #!/usr/bin/env python3
-"""Diff-scoped PR coverage gate (#1810, G-diff-coverage).
-
-On pull requests the BLOCKING coverage verdict is computed from the PR's own
-diff plus per-component LCOV: every changed/added line that falls inside a
-governed source tree (``common/meta/extension/coverage/policy.py``) must be
-covered by tests at or above the threshold (default 85%). A red verdict names
-the uncovered lines as ``file: uncovered lines a-b, c`` ranges, so the fix is
-never a guess. The component-percentage ratchet
-(``calculate_unified_coverage.py``) stays the blocking water-line on main
-pushes only.
-
-Scope rules:
-
-- Changed files that resolve to no coverage component (docs, tests, configs,
-  workflows, policy-excluded files) are out of scope — ignored.
-- A changed line absent from a PRESENT file record is non-executable
-  (blank/comment) — skipped.
-- A changed in-scope file entirely absent from its component's loaded LCOV is
-  counted conservatively: its added non-blank, non-comment lines are
-  uncovered. This is exactly the "new file with zero tests" hole.
-- A component whose LCOV artifact is entirely absent is skipped with a loud
-  warning — lenient parity with the CI merge step, which tolerates
-  legitimately-absent artifacts.
-
-Local parity: run your test suite with ``--cov`` (producing an LCOV for the
-touched component), then ``python tools/check_diff_coverage.py --base
-origin/main``.
-"""
+"""Diff-scoped PR coverage gate (#1810, G-diff-coverage)."""
 
 from __future__ import annotations
 
@@ -35,10 +8,9 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 from common.meta.extension.coverage.policy import (
     COMPONENTS,
@@ -48,42 +20,27 @@ from common.meta.extension.coverage.policy import (
 from common.testing.coverage.lcov import parse_line_hits
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
-
 DEFAULT_THRESHOLD = 85.0
 DEFAULT_BASE = "origin/main"
-
-#: Env fallbacks for the CLI flags (flag wins when both are given).
 THRESHOLD_ENV = "DIFF_COVERAGE_THRESHOLD"
 BASE_ENV = "DIFF_COVERAGE_BASE"
 
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
-
-#: Line prefixes treated as non-executable for the conservative
-#: missing-from-LCOV rule (Python and TS/TSX comment markers).
 _COMMENT_PREFIXES = ("#", "//")
 
 
 def parse_unified_diff(diff_text: str) -> dict[str, set[int]]:
-    """Map ``git diff -U0`` output to {repo-relative path: added line numbers}.
-
-    Tracks ``+++ b/<path>`` targets and ``@@ -a[,b] +c[,d] @@`` hunk headers:
-    the new-side lines are ``c..c+d-1`` (``d`` defaults to 1; ``d=0`` is a pure
-    deletion and contributes no lines). Deleted files (``+++ /dev/null``) and
-    pure renames (no hunks) contribute nothing.
-    """
+    """Map ``git diff -U0`` output to {repo-relative path: added line numbers}."""
     changed: dict[str, set[int]] = {}
     current: str | None = None
     for line in diff_text.splitlines():
         if line.startswith("+++ "):
-            target = line[4:].strip()
-            if target.startswith('"') and target.endswith('"'):
-                target = target[1:-1]
-            if target == "/dev/null":
-                current = None
-            elif target.startswith("b/"):
-                current = target[2:]
-            else:
-                current = target
+            target = line[4:].strip().strip('"')
+            current = (
+                None
+                if target == "/dev/null"
+                else (target[2:] if target.startswith("b/") else target)
+            )
             continue
         match = _HUNK_RE.match(line)
         if match and current is not None:
@@ -98,29 +55,23 @@ def resolve_component(
     repo_relative_path: str,
     components: tuple[CoverageComponent, ...] = COMPONENTS,
 ) -> tuple[CoverageComponent, str] | None:
-    """Resolve a changed repo-relative path to (component, LCOV source path).
-
-    A path is in scope iff it lives under a component's governed source root,
-    carries one of the component's extensions, and is not policy-excluded.
-    Returns ``None`` for out-of-scope paths (docs, tests, configs, workflows).
-    """
+    """Resolve a changed repo-relative path to (component, LCOV source path)."""
     path = repo_relative_path.replace("\\", "/")
     for component in components:
         prefix_parts = [
-            part for part in (component.component_root, component.source_subdir) if part
+            p for p in (component.component_root, component.source_subdir) if p
         ]
-        source_prefix = "/".join(prefix_parts) + "/"
-        if not path.startswith(source_prefix):
+        if not path.startswith("/".join(prefix_parts) + "/") or not path.endswith(
+            component.extensions
+        ):
             continue
-        if not path.endswith(component.extensions):
-            continue
-        if component.component_root:
-            component_relative = path[len(component.component_root) + 1 :]
-        else:
-            component_relative = path
-        if component.is_excluded(component_relative):
-            continue
-        return component, component_relative
+        component_relative = (
+            path[len(component.component_root) + 1 :]
+            if component.component_root
+            else path
+        )
+        if not component.is_excluded(component_relative):
+            return component, component_relative
     return None
 
 
@@ -129,13 +80,7 @@ def parse_lcov_line_hits(
     component: CoverageComponent,
     repo_root: Path = ROOT_DIR,
 ) -> dict[str, dict[int, int]]:
-    """Parse LCOV ``DA:<line>,<hits>`` records per normalized source path.
-
-    Sources are normalized via ``component.normalize_lcov_source`` and hits
-    are summed across duplicate ``SF:`` records for the same source (merged
-    shards), mirroring the flush/accumulate semantics of
-    ``calculate_unified_coverage.parse_lcov_records``.
-    """
+    """Parse LCOV ``DA:<line>,<hits>`` records per normalized source path."""
     return parse_line_hits(
         lcov_path,
         normalize_source=lambda src: component.normalize_lcov_source(src, repo_root),
@@ -144,65 +89,45 @@ def parse_lcov_line_hits(
 
 
 def _significant_lines(file_path: Path, line_numbers: set[int]) -> tuple[int, ...]:
-    """Filter added line numbers down to non-blank, non-comment lines.
-
-    Used by the conservative missing-from-LCOV rule. When the file cannot be
-    read, every added line counts (stay conservative).
-    """
     try:
         lines = file_path.read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError:
         return tuple(sorted(line_numbers))
-    significant: list[int] = []
-    for line_no in sorted(line_numbers):
-        if not 1 <= line_no <= len(lines):
-            continue
-        stripped = lines[line_no - 1].strip()
-        if not stripped or stripped.startswith(_COMMENT_PREFIXES):
-            continue
-        significant.append(line_no)
-    return tuple(significant)
+    return tuple(
+        line_no
+        for line_no in sorted(line_numbers)
+        if 1 <= line_no <= len(lines)
+        and (stripped := lines[line_no - 1].strip())
+        and not stripped.startswith(_COMMENT_PREFIXES)
+    )
 
 
 @dataclass(frozen=True)
 class FileVerdict:
-    """Per-file diff-coverage verdict (line numbers are repo-file 1-based)."""
-
     path: str
     component: str
     covered_lines: tuple[int, ...]
     uncovered_lines: tuple[int, ...]
-    #: True when the file has no record in its component's (present) LCOV —
-    #: the conservative "new file with zero tests" case.
     missing_from_lcov: bool = False
 
 
 @dataclass(frozen=True)
 class DiffCoverageReport:
-    """Aggregated diff-coverage verdict over every in-scope changed file."""
-
     files: tuple[FileVerdict, ...]
-    #: Components with in-scope changed files but an entirely absent LCOV
-    #: artifact — skipped leniently (CI merge-step parity), warned loudly.
     skipped_components: tuple[str, ...]
 
     @property
     def measurable_lines(self) -> int:
-        return sum(
-            len(verdict.covered_lines) + len(verdict.uncovered_lines)
-            for verdict in self.files
-        )
+        return sum(len(v.covered_lines) + len(v.uncovered_lines) for v in self.files)
 
     @property
     def covered_count(self) -> int:
-        return sum(len(verdict.covered_lines) for verdict in self.files)
+        return sum(len(v.covered_lines) for v in self.files)
 
     @property
     def percent(self) -> float | None:
         measurable = self.measurable_lines
-        if measurable == 0:
-            return None
-        return self.covered_count / measurable * 100
+        return None if measurable == 0 else self.covered_count / measurable * 100
 
 
 def evaluate_diff_coverage(
@@ -213,17 +138,14 @@ def evaluate_diff_coverage(
     """Compute the diff-coverage verdict for parsed changed lines."""
     lcov_cache: dict[str, dict[str, dict[int, int]] | None] = {}
     verdicts: list[FileVerdict] = []
-    skipped_components: list[str] = []
+    skipped_components: set[str] = set()
 
     for path in sorted(changed_lines):
         lines = changed_lines[path]
-        if not lines:
-            continue
-        resolved = resolve_component(path, components)
+        resolved = resolve_component(path, components) if lines else None
         if resolved is None:
             continue
         component, component_relative = resolved
-
         if component.name not in lcov_cache:
             lcov_path = component.lcov_path(repo_root)
             lcov_cache[component.name] = (
@@ -233,8 +155,7 @@ def evaluate_diff_coverage(
             )
         component_hits = lcov_cache[component.name]
         if component_hits is None:
-            if component.name not in skipped_components:
-                skipped_components.append(component.name)
+            skipped_components.add(component.name)
             continue
 
         file_hits = component_hits.get(component_relative)
@@ -250,21 +171,18 @@ def evaluate_diff_coverage(
             )
             continue
 
-        covered: list[int] = []
-        uncovered: list[int] = []
-        for line_no in sorted(lines):
-            if line_no not in file_hits:
-                continue  # non-executable (blank/comment): not in the record
-            if file_hits[line_no] > 0:
-                covered.append(line_no)
-            else:
-                uncovered.append(line_no)
+        covered = tuple(
+            ln for ln in sorted(lines) if ln in file_hits and file_hits[ln] > 0
+        )
+        uncovered = tuple(
+            ln for ln in sorted(lines) if ln in file_hits and file_hits[ln] <= 0
+        )
         verdicts.append(
             FileVerdict(
                 path=path,
                 component=component.name,
-                covered_lines=tuple(covered),
-                uncovered_lines=tuple(uncovered),
+                covered_lines=covered,
+                uncovered_lines=uncovered,
             )
         )
 
@@ -284,9 +202,9 @@ def format_line_ranges(lines: Iterable[int]) -> str:
     for line_no in ordered[1:]:
         if line_no == previous + 1:
             previous = line_no
-            continue
-        ranges.append((start, previous))
-        start = previous = line_no
+        else:
+            ranges.append((start, previous))
+            start = previous = line_no
     ranges.append((start, previous))
     return ", ".join(
         str(first) if first == last else f"{first}-{last}" for first, last in ranges
@@ -319,54 +237,16 @@ def git_diff_text(base: str, repo_root: Path = ROOT_DIR) -> str:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Diff-scoped PR coverage gate (#1810): changed/added lines in "
-            "governed source trees must be covered by tests at or above the "
-            "threshold."
-        )
+        description="Diff-scoped PR coverage gate (#1810)."
     )
-    parser.add_argument(
-        "--base",
-        default=None,
-        help=(
-            "Base ref for the merge-base diff (default: the "
-            f"{BASE_ENV} env var, else {DEFAULT_BASE!r}). Ignored when "
-            "--diff-file is given."
-        ),
-    )
-    parser.add_argument(
-        "--threshold",
-        type=float,
-        default=None,
-        help=(
-            "Minimum percent of measurable changed lines that must be covered "
-            f"(default: the {THRESHOLD_ENV} env var, else {DEFAULT_THRESHOLD:g})."
-        ),
-    )
-    parser.add_argument(
-        "--diff-file",
-        default=None,
-        metavar="PATH",
-        help=(
-            "Read unified diff text from PATH instead of running git "
-            "(deterministic input for tests and offline runs)."
-        ),
-    )
-    parser.add_argument(
-        "--repo-root",
-        default=None,
-        metavar="PATH",
-        help=(
-            "Repository root to resolve LCOV artifacts and changed files "
-            "against (default: this checkout)."
-        ),
-    )
+    parser.add_argument("--base", default=None)
+    parser.add_argument("--threshold", type=float, default=None)
+    parser.add_argument("--diff-file", default=None, metavar="PATH")
+    parser.add_argument("--repo-root", default=None, metavar="PATH")
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point: exit 0 on pass (or nothing to gate), 1 below threshold,
-    2 on usage/environment errors."""
     try:
         args = parse_args(argv)
     except SystemExit as exc:
@@ -381,18 +261,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 threshold = float(raw_threshold)
             except ValueError:
                 print(
-                    f"❌ Invalid {THRESHOLD_ENV}: {raw_threshold!r} "
-                    "(expected a number)",
+                    f"❌ Invalid {THRESHOLD_ENV}: {raw_threshold!r} (expected a number)",
                     file=sys.stderr,
                 )
                 return 2
         else:
             threshold = DEFAULT_THRESHOLD
 
-    print("=" * 60)
-    print("Diff Coverage Gate (#1810)")
-    print("=" * 60)
-
+    print(f"{'=' * 60}\nDiff Coverage Gate (#1810)\n{'=' * 60}")
     if args.diff_file:
         diff_path = Path(args.diff_file)
         if not diff_path.exists():
@@ -410,7 +286,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"   diff source: git diff --merge-base {base} HEAD")
 
     report = evaluate_diff_coverage(parse_unified_diff(diff_text), repo_root)
-
     for name in report.skipped_components:
         component = get_component(name)
         print(
@@ -430,17 +305,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not verdict.uncovered_lines:
             continue
         ranges = format_line_ranges(verdict.uncovered_lines)
-        if verdict.missing_from_lcov:
-            print(
-                f"❌ {verdict.path}: uncovered lines {ranges} "
-                f"(file not in {verdict.component} LCOV — a new file with zero "
-                "tests? all added code lines counted uncovered)"
-            )
-        else:
-            print(f"❌ {verdict.path}: uncovered lines {ranges}")
+        suffix = (
+            f" (file not in {verdict.component} LCOV — a new file with zero tests? all added code lines counted uncovered)"
+            if verdict.missing_from_lcov
+            else ""
+        )
+        print(f"❌ {verdict.path}: uncovered lines {ranges}{suffix}")
 
     percent = report.percent
-    assert percent is not None  # measurable_lines > 0 here
+    assert percent is not None
     summary = (
         f"diff coverage: {percent:.1f}% ({report.covered_count}/"
         f"{report.measurable_lines} measurable changed lines covered), "

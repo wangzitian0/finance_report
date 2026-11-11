@@ -14,7 +14,12 @@ from enum import StrEnum
 from pathlib import Path
 
 from common.meta.base.gate_cli import run_gate
-from common.meta.base.gate_util import display_path, duplicate_values
+from common.meta.base.gate_util import (
+    display_path,
+    duplicate_values,
+    markdown_table_cells,
+    pytest_decorator_markers,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_E2E_ROOTS = ("tests/e2e",)
@@ -39,10 +44,11 @@ EPIC_RE = re.compile(r"\bEPIC-\d{3}\b")
 README_EPIC_LINK_RE = re.compile(r"\[(EPIC-\d{3})\]\(([^)]+)\)")
 EPIC_FILE_KIND_RE = re.compile(r"<!--\s*epic-file:\s*(design-doc|goal-stub)\s*-->")
 
+_markdown_cells = markdown_table_cells
+_decorator_markers = pytest_decorator_markers
+
 
 class ProjectEpicKind(StrEnum):
-    """E2E ownership requirement derived from the EPIC's declared file type."""
-
     RESIDUE = "residue"
     DESIGN_DOC = "design-doc"
     GOAL_STUB = "goal-stub"
@@ -50,8 +56,6 @@ class ProjectEpicKind(StrEnum):
 
 @dataclass(frozen=True)
 class ProjectEpic:
-    """One project EPIC and whether its remaining scope needs a product E2E."""
-
     id: str
     path: str
     kind: ProjectEpicKind
@@ -92,10 +96,18 @@ class TraceabilityResult:
     readme_errors: list[str] = field(default_factory=list)
 
     @property
+    def project_epic_ids(self) -> list[str]:
+        return [epic.id for epic in self.project_epics]
+
+    @property
+    def required_project_epics(self) -> list[str]:
+        return [epic.id for epic in self.project_epics if epic.requires_product_e2e]
+
+    @property
     def covered_epics(self) -> list[str]:
         known = set(self.project_epic_ids)
         return sorted(
-            {epic for test in self.tests for epic in test.epic_ids if epic in known}
+            {epic for t in self.tests for epic in t.epic_ids if epic in known}
         )
 
     @property
@@ -105,14 +117,6 @@ class TraceabilityResult:
     @property
     def missing_epics(self) -> list[str]:
         return sorted(set(self.required_project_epics) - set(self.covered_epics))
-
-    @property
-    def project_epic_ids(self) -> list[str]:
-        return [epic.id for epic in self.project_epics]
-
-    @property
-    def required_project_epics(self) -> list[str]:
-        return [epic.id for epic in self.project_epics if epic.requires_product_e2e]
 
     @property
     def unknown_epic_refs(self) -> dict[str, list[E2ETest]]:
@@ -127,15 +131,12 @@ class TraceabilityResult:
     @property
     def readme_epic_map_errors(self) -> list[str]:
         errors = list(self.readme_errors)
-        project = set(self.project_epic_ids)
-        readme = set(self.readme_epics)
-        missing = sorted(project - readme)
-        unknown = sorted(readme - project)
-        if missing:
+        project, readme = set(self.project_epic_ids), set(self.readme_epics)
+        if missing := sorted(project - readme):
             errors.append(
                 f"README EPIC map missing project EPICs: {', '.join(missing)}"
             )
-        if unknown:
+        if unknown := sorted(readme - project):
             errors.append(
                 f"README EPIC map includes unknown EPICs: {', '.join(unknown)}"
             )
@@ -143,24 +144,24 @@ class TraceabilityResult:
 
     @property
     def errors(self) -> list[str]:
-        errors: list[str] = []
-        errors.extend(self.readme_epic_map_errors)
-        for parse_error in self.parse_errors:
-            errors.append(
-                f"{parse_error.file}: could not parse Python AST: {parse_error.message}"
-            )
-        for asset in self.unclassified_e2e_assets:
-            errors.append(
+        return [
+            *self.readme_epic_map_errors,
+            *(
+                f"{pe.file}: could not parse Python AST: {pe.message}"
+                for pe in self.parse_errors
+            ),
+            *(
                 f"{asset}: unclassified E2E-like asset outside declared product or non-product roots"
-            )
-        for test in self.tests_without_epics:
-            errors.append(f"{test.anchor}: missing EPIC ID")
-        for epic, tests in sorted(self.unknown_epic_refs.items()):
-            for test in tests:
-                errors.append(f"{test.anchor}: unknown EPIC ID {epic}")
-        for epic in self.missing_epics:
-            errors.append(f"{epic}: no product E2E owner test")
-        return errors
+                for asset in self.unclassified_e2e_assets
+            ),
+            *(f"{test.anchor}: missing EPIC ID" for test in self.tests_without_epics),
+            *(
+                f"{test.anchor}: unknown EPIC ID {epic}"
+                for epic, tests in sorted(self.unknown_epic_refs.items())
+                for test in tests
+            ),
+            *(f"{epic}: no product E2E owner test" for epic in self.missing_epics),
+        ]
 
 
 def discover_project_epics(repo_root: Path) -> list[ProjectEpic]:
@@ -174,8 +175,7 @@ def discover_project_epics(repo_root: Path) -> list[ProjectEpic]:
         marker = EPIC_FILE_KIND_RE.search(text)
         kind = ProjectEpicKind(marker.group(1)) if marker else ProjectEpicKind.RESIDUE
         has_epic_residue = "<!-- epic-owned:" in text
-        existing = epics.get(epic_id)
-        if existing is None or kind is ProjectEpicKind.RESIDUE or has_epic_residue:
+        if epic_id not in epics or kind is ProjectEpicKind.RESIDUE or has_epic_residue:
             epics[epic_id] = ProjectEpic(
                 id=epic_id,
                 path=display_path(path, repo_root),
@@ -185,28 +185,20 @@ def discover_project_epics(repo_root: Path) -> list[ProjectEpic]:
     return [epics[epic_id] for epic_id in sorted(epics)]
 
 
-def _markdown_cells(line: str) -> list[str]:
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
-
-
 def _validate_readme_epic_link(
-    repo_root: Path,
-    epic_id: str,
-    target: str,
-    row_number: int,
+    repo_root: Path, epic_id: str, target: str, row_number: int
 ) -> list[str]:
-    errors: list[str] = []
     clean_target = target.split("#", 1)[0]
     target_epic = Path(clean_target).name.split(".", 1)[0]
     if not clean_target.startswith("docs/project/") or target_epic != epic_id:
-        errors.append(
+        return [
             f"README.md:{row_number} {epic_id} link target does not match row EPIC: {target}"
-        )
-    elif not (repo_root / clean_target).exists():
-        errors.append(
+        ]
+    if not (repo_root / clean_target).exists():
+        return [
             f"README.md:{row_number} {epic_id} link target does not exist: {target}"
-        )
-    return errors
+        ]
+    return []
 
 
 def discover_readme_epics(repo_root: Path) -> tuple[list[str], list[str]]:
@@ -215,11 +207,14 @@ def discover_readme_epics(repo_root: Path) -> tuple[list[str], list[str]]:
         return [], ["README.md missing"]
 
     lines = readme.read_text(encoding="utf-8").splitlines()
-    section_start: int | None = None
-    for index, line in enumerate(lines):
-        if re.fullmatch(r"#{2,6}\s+EPIC Map\s*", line.strip()):
-            section_start = index + 1
-            break
+    section_start = next(
+        (
+            idx + 1
+            for idx, line in enumerate(lines)
+            if re.fullmatch(r"#{2,6}\s+EPIC Map\s*", line.strip())
+        ),
+        None,
+    )
     if section_start is None:
         return [], ["README.md missing `## EPIC Map` section"]
 
@@ -228,10 +223,10 @@ def discover_readme_epics(repo_root: Path) -> tuple[list[str], list[str]]:
         line = lines[index]
         if re.match(r"^#{2,6}\s+", line):
             break
-        if not line.lstrip().startswith("|"):
-            continue
-        cells = [cell.lower() for cell in _markdown_cells(line)]
-        if cells and cells[0] == "epic":
+        if (
+            line.lstrip().startswith("|")
+            and (_markdown_cells(line) or [""])[0].lower() == "epic"
+        ):
             table_start = index + 1
             break
     if table_start is None:
@@ -246,37 +241,27 @@ def discover_readme_epics(repo_root: Path) -> tuple[list[str], list[str]]:
                 break
             continue
         cells = _markdown_cells(line)
-        if not cells:
+        if not cells or not cells[0] or set(cells[0].strip()) <= {"-", ":"}:
             continue
         first = cells[0]
-        if not first or set(first.strip()) <= {"-", ":"}:
-            continue
         link_matches = README_EPIC_LINK_RE.findall(first)
-        matches = [epic_id for epic_id, _target in link_matches]
+        matches = [eid for eid, _ in link_matches] or EPIC_RE.findall(first)
         if not matches:
-            matches = EPIC_RE.findall(first)
-        if matches:
-            epic_ids.extend(matches)
-            if not link_matches:
-                for epic_id in matches:
-                    errors.append(
-                        f"README.md:{index + 1} {epic_id} row must link to docs/project/{epic_id}*.md"
-                    )
-                continue
-            for epic_id, target in link_matches:
-                errors.extend(
-                    _validate_readme_epic_link(
-                        repo_root,
-                        epic_id,
-                        target,
-                        index + 1,
-                    )
-                )
+            continue
+        epic_ids.extend(matches)
+        if not link_matches:
+            errors.extend(
+                f"README.md:{index + 1} {eid} row must link to docs/project/{eid}*.md"
+                for eid in matches
+            )
+            continue
+        for eid, target in link_matches:
+            errors.extend(_validate_readme_epic_link(repo_root, eid, target, index + 1))
 
-    duplicates = duplicate_values(epic_ids)
-    for epic_id in duplicates:
-        errors.append(f"README EPIC map duplicates EPIC row: {epic_id}")
-
+    errors.extend(
+        f"README EPIC map duplicates EPIC row: {eid}"
+        for eid in duplicate_values(epic_ids)
+    )
     if not epic_ids:
         return [], ["README.md EPIC Map table has no EPIC rows"]
     return sorted(set(epic_ids)), errors
@@ -285,13 +270,12 @@ def discover_readme_epics(repo_root: Path) -> tuple[list[str], list[str]]:
 def discover_e2e_files(
     repo_root: Path, e2e_roots: tuple[str, ...] = DEFAULT_E2E_ROOTS
 ) -> list[Path]:
-    files: list[Path] = []
-    for root in e2e_roots:
-        base = repo_root / root
-        if not base.exists():
-            continue
-        files.extend(sorted(base.rglob("test_*.py")))
-    return sorted(files)
+    return sorted(
+        path
+        for root in e2e_roots
+        if (repo_root / root).exists()
+        for path in (repo_root / root).rglob("test_*.py")
+    )
 
 
 def _has_excluded_part(path: Path) -> bool:
@@ -304,9 +288,10 @@ def _is_e2e_like_asset(path: Path, repo_root: Path) -> bool:
     rel_parts = Path(display_path(path, repo_root)).parts
     if _has_excluded_part(Path(*rel_parts)):
         return False
-    parent_parts = [part.lower() for part in rel_parts[:-1]]
-    file_name = rel_parts[-1].lower()
-    return any("e2e" in part for part in parent_parts) or file_name == "e2e-test.sh"
+    return (
+        any("e2e" in part.lower() for part in rel_parts[:-1])
+        or rel_parts[-1].lower() == "e2e-test.sh"
+    )
 
 
 def _under_any(rel_path: str, roots: tuple[str, ...]) -> bool:
@@ -319,8 +304,8 @@ def discover_e2e_assets(repo_root: Path) -> list[str]:
     assets: list[str] = []
     for root, dirs, files in os.walk(repo_root):
         dirs[:] = [d for d in dirs if d not in EXCLUDED_SCAN_DIRS]
-        for f in files:
-            path = Path(root) / f
+        for fname in files:
+            path = Path(root) / fname
             if _is_e2e_like_asset(path, repo_root):
                 assets.append(display_path(path, repo_root))
     return sorted(assets)
@@ -345,17 +330,6 @@ def find_unclassified_e2e_assets(
     return assets, sorted(unclassified)
 
 
-def _decorator_markers(node: ast.AST) -> set[str]:
-    markers: set[str] = set()
-    for decorator in getattr(node, "decorator_list", []):
-        text = ast.unparse(decorator)
-        prefix = "pytest.mark."
-        if text.startswith(prefix):
-            marker = text[len(prefix) :].split("(", 1)[0].split(".", 1)[0]
-            markers.add(marker)
-    return markers
-
-
 def _collect_tests_from_file(
     path: Path, repo_root: Path
 ) -> tuple[list[E2ETest], ParseError | None]:
@@ -365,24 +339,24 @@ def _collect_tests_from_file(
     except SyntaxError as exc:
         return [], ParseError(file=rel_path, message=str(exc))
 
-    tests: list[E2ETest] = []
-    for node in ast.walk(module):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        if not node.name.startswith("test_"):
-            continue
-        markers = _decorator_markers(node) & E2E_MARKERS
-        doc = ast.get_docstring(node) or ""
-        stable_anchor_text = f"{node.name}\n{doc}"
-        tests.append(
-            E2ETest(
-                file=rel_path,
-                line=node.lineno,
-                name=node.name,
-                markers=tuple(sorted(markers)),
-                epic_ids=tuple(sorted(set(EPIC_RE.findall(stable_anchor_text)))),
-            )
+    tests = [
+        E2ETest(
+            file=rel_path,
+            line=node.lineno,
+            name=node.name,
+            markers=tuple(sorted(_decorator_markers(node) & E2E_MARKERS)),
+            epic_ids=tuple(
+                sorted(
+                    set(
+                        EPIC_RE.findall(f"{node.name}\n{ast.get_docstring(node) or ''}")
+                    )
+                )
+            ),
         )
+        for node in ast.walk(module)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test_")
+    ]
     return tests, None
 
 
@@ -397,9 +371,7 @@ def collect_e2e_tests(
         tests.extend(file_tests)
         if parse_error is not None:
             parse_errors.append(parse_error)
-    return sorted(
-        tests, key=lambda test: (test.file, test.line, test.name)
-    ), parse_errors
+    return sorted(tests, key=lambda t: (t.file, t.line, t.name)), parse_errors
 
 
 def check_traceability(
@@ -409,16 +381,15 @@ def check_traceability(
     project_epics = discover_project_epics(repo_root)
     readme_epics, readme_errors = discover_readme_epics(repo_root)
     tests, parse_errors = collect_e2e_tests(repo_root, e2e_roots)
-    e2e_assets, unclassified_e2e_assets = find_unclassified_e2e_assets(
-        repo_root,
-        product_roots=e2e_roots,
+    e2e_assets, unclassified = find_unclassified_e2e_assets(
+        repo_root, product_roots=e2e_roots
     )
     return TraceabilityResult(
         project_epics=project_epics,
         readme_epics=readme_epics,
         tests=tests,
         e2e_assets=e2e_assets,
-        unclassified_e2e_assets=unclassified_e2e_assets,
+        unclassified_e2e_assets=unclassified,
         parse_errors=parse_errors,
         readme_errors=readme_errors,
     )
@@ -440,11 +411,8 @@ def render_report(result: TraceabilityResult) -> str:
         f"Unknown EPIC refs: {len(result.unknown_epic_refs)}",
         "",
     ]
-
     if result.errors:
-        lines.extend(["## Errors", ""])
-        lines.extend(f"- {error}" for error in result.errors)
-        lines.append("")
+        lines.extend(["## Errors", "", *(f"- {e}" for e in result.errors), ""])
     else:
         lines.extend(["No E2E EPIC traceability errors found.", ""])
 
@@ -452,18 +420,15 @@ def render_report(result: TraceabilityResult) -> str:
         ["## Test Owners", "", "| Test | Markers | EPIC IDs |", "|---|---|---|"]
     )
     for test in result.tests:
-        markers = ", ".join(test.markers) if test.markers else "-"
-        epics = ", ".join(test.epic_ids) if test.epic_ids else "-"
+        markers = ", ".join(test.markers) or "-"
+        epics = ", ".join(test.epic_ids) or "-"
         lines.append(f"| `{test.anchor}` | {markers} | {epics} |")
-
     return "\n".join(lines) + "\n"
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Check that product E2E test functions and project EPICs are linked."
-        )
+        description="Check that product E2E test functions and project EPICs are linked."
     )
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument(
@@ -479,10 +444,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def _run_command(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    repo_root = Path(args.repo_root)
-    result = check_traceability(repo_root, tuple(args.e2e_roots))
+    result = check_traceability(Path(args.repo_root), tuple(args.e2e_roots))
     report = render_report(result)
-
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -497,7 +460,6 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-
     print("E2E EPIC TRACEABILITY GATE PASSED")
     return 0
 

@@ -31,7 +31,9 @@ class GovernanceGuarantee(BaseModel):
     required_proof_strength: ProofStrength
     enforcing_gate: str
 
-    @field_validator("id", "statement", "detector", "target", "lock", "proof", "enforcing_gate")
+    @field_validator(
+        "id", "statement", "detector", "target", "lock", "proof", "enforcing_gate"
+    )
     @classmethod
     def _nonempty(cls, value: str) -> str:
         if not value.strip():

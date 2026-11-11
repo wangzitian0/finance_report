@@ -1,84 +1,4 @@
-"""``check_package_contract`` — the gate that validates packages against contracts.
-
-Governance in the package model is *computed from contracts*, not hand-kept. The
-authoritative spec for each package lives in ``common/<pkg>/`` (its ``readme.md``
-+ ``contract.py``); the running code lives in the *implementations* the contract
-points at. ``implementations["be"]`` is a **repo-relative** path — usually
-``apps/backend/src/<pkg>``, but not required (the meta package points its BE
-implementation at ``common/meta`` itself). For every registered package this gate
-asserts:
-
-  (a) ``contract.interface`` equals the BE implementation's ``__init__.__all__``
-      (the published language and the contract agree);
-  (b) every ``invariants[].test`` and ``roadmap[].test`` (``"path::func"``)
-      resolves to a real test function in the repo — a Python ``def``/``async
-      def`` for a pytest path, or (#1820) a vitest/Playwright ``it(...)``/
-      ``test(...)`` title for a ``*.test.ts``/``*.test.tsx``/``*.spec.ts``/
-      ``*.spec.tsx`` path, letting a package's ``roadmap`` anchor a
-      cross-runtime AC to its frontend half without a Python proxy test;
-  (c) ``depends_on`` introduces no forbidden edge — a package's implementation
-      modules must not import a higher layer of the five-layer topology
-      (``meta < infra < middleware < domain < app``; mirrors the spirit of
-      ``tests/tooling/test_ledger_module.py``: down only);
-  (d) the building-block layering holds for any package that adopts the
-      ``base/extension/`` split — base stays pure (mechanism A), each declared
-      ``unit`` sits in the layer its ``kind`` dictates (``KIND_LAYER``), a
-      ``repository`` unit splits into a base port + an extension adapter
-      (mechanism B), and ``data`` is a sink nothing else imports (the read-model);
-  (e) one transaction belongs to exactly one domain (issue #1460, Decision B): a
-      cross-domain reference goes through the *published* interface or by id + a
-      domain event — never a shared cross-domain transaction. Two static edges are
-      enforced. The **import edge** (``_check_cross_domain_deep_import``,
-      AC-meta.txn.1/.2): an impl module may reach another registered package only
-      via its bare published root (``import src.<other>``) or a symbol in that
-      package's ``__all__`` (``from src.<other>... import <published name>``); an
-      import of an *unpublished* internal (a submodule, another aggregate's object,
-      or another domain's ORM/models written in-transaction) is rejected — whether
-      the module path is the package root or a deep submodule. The **ORM-navigation
-      edge** (``_check_cross_domain_fk``, AC-meta.txn.3): a ``relationship(...)``
-      whose target model is owned by another registered package is rejected — a
-      cross-domain reference must resolve the id via the interface/event, never
-      navigate an ORM object graph. A bare ``ForeignKey`` column (no
-      ``relationship``) is allowed cross-domain — it is a DB-level referential-
-      integrity invariant, not code-level coupling (#1675). The runtime atomicity
-      of the outbox (AC-meta.event.1) is a behavioural property proven by the
-      platform package's own tests, not by this structural gate.
-  (f) a public function name has one package owner: duplicate snake_case names
-      in package contract interfaces are rejected, while type names remain free
-      to express shared protocol vocabulary (for example ``Unit``).
-
-      *Port-exception decision (counter):* counter imports the platform bus port
-      ``from src.platform import OutboxEventBus`` and the base ports
-      ``from src.platform.base import EventBus`` / ``DomainEvent`` — each name is in
-      ``platform.__all__``, so the imports resolve to *published* symbols and are
-      allowed (the same exception lets ``unit_price`` import the published ``Money``
-      / ``Quantity`` value types from their defining modules, and how ``money`` /
-      ``quantity`` import the published ``Ratio`` via its root ``from src.audit.ratio
-      import Ratio``). The rule rejects imports of *unpublished* internals (including
-      a root import of a submodule), not paths to published symbols — so no current
-      package regresses.
-
-  (g) a declared ``CommandBoundary`` resolves to exactly one definition in the
-      package implementation, and that definition carries no dynamic type
-      (a ``dict`` annotation or ``Callable[..., X]`` on a field, parameter,
-      variadic parameter or return, nested or quoted included; a missing
-      return annotation or an ``Any``/``dict``/``list`` return; an unannotated
-      ``currency``/``date`` parameter). No other gate
-      reads the field types of a decision-authorized financial command
-      (AC-meta.public-boundary.2, #2758).
-
-This module is the meta package's ``extension`` layer (the impure edge: it walks
-the filesystem and parses ASTs). It imports the ``base`` model
-(:mod:`common.meta.base.package_contract`) — never ``data``.
-
-Packages are discovered by scanning ``common/*/contract.py`` for a module-level
-``CONTRACT = PackageContract(...)``; that single registry keeps the gate additive
-— a new package is governed the moment it ships a ``common/<pkg>/contract.py``.
-The meta package ``common/meta`` self-hosts: it ships its own contract and
-is validated by this very gate.
-
-stdlib + pydantic only (no app/framework imports) so the gate runs anywhere.
-"""
+"""``check_package_contract`` — gate validating packages against contracts."""
 
 from __future__ import annotations
 
@@ -92,9 +12,9 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from common.meta.base.dependency_graph import build_dependency_graph
 from common.meta.base.gate_cli import run_gate
 from common.meta.base.gate_util import call_name
-from common.meta.base.dependency_graph import build_dependency_graph
 from common.meta.base.package_contract import (
     KIND_LAYER,
     LAYER_RANK,
@@ -103,38 +23,25 @@ from common.meta.base.package_contract import (
     Unit,
 )
 
-# This module lives at common/meta/extension/check_package_contract.py, so the
-# repo root is four parents up (extension -> meta -> common -> repo).
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_GLOB = "common/*/contract.py"
-
-# Layer rank for the DAG rule: a package may never import a HIGHER layer (no
-# upward edges), and same-layer (sideways) edges are allowed only when declared in
-# ``depends_on`` AND acyclic — "never up, never sideways-cyclic". The upward guard
-# is ``_check_no_forbidden_edge``'s ``target_rank > my_rank``; acyclicity is
-# enforced globally by ``_check_no_dependency_cycle``. So a cohesive family (e.g.
-# the value types money/ratio/quantity/unit_price) can share one ``middleware``
-# layer and depend on each other acyclically, instead of being spread up the
-# ladder. The rank table is the five-layer topology owned by meta's base
-# (``meta < infra < middleware < domain < app``).
 _CLASS_RANK = LAYER_RANK
-
-# Packages a given class is forbidden to import, by the import prefix
-# ``src.<pkg>``. We enforce the strongest, statically-checkable edge: a
-# non-``core`` package must not import another *registered* package of a higher
-# class. This mirrors test_ledger_module.py's "no upward edge" guard.
+_KNOWN_UPWARD_EXCEPTIONS: dict[tuple[str, str], str] = {}
+_FRONTEND_TEST_SUFFIXES = (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
+_JS_TEST_DECL = re.compile(
+    r"""\b(?:it|test)(?:\.(?:only|skip))?\s*\(\s*(['"`])(?P<name>.*?)\1""",
+    re.DOTALL,
+)
+_DYNAMIC_ANNOTATION = re.compile(r"\b(?:dict|Dict)\b|\bCallable\[\s*\.\.\.")
+_DYNAMIC_RETURN = re.compile(r"(?:Any|dict|list)\b")
+_FINANCIAL_PRIMITIVE_PARAMS = frozenset(
+    {"currency", "date", "posted_at", "occurred_at"}
+)
 
 
 @dataclass(frozen=True)
 class DiscoveredPackage:
-    """A package found by the registry scan.
-
-    ``spec_dir`` is the authoritative ``common/<pkg>/`` directory (where the
-    contract + readme live). ``impl_dir`` is the BE implementation directory the
-    contract points at via ``implementations["be"]`` — the code whose ``__all__``
-    must equal ``contract.interface`` and whose modules the DAG rule scans. A
-    package with no BE implementation has ``impl_dir is None``.
-    """
+    """A package discovered by the ``common/*/contract.py`` registry scan."""
 
     name: str
     spec_dir: Path
@@ -143,19 +50,23 @@ class DiscoveredPackage:
 
     @property
     def src_dir(self) -> Path:
-        """Back-compat alias: the directory whose ``__all__`` the gate checks."""
         return self.impl_dir or self.spec_dir
 
 
-def _contained_impl_dir(be_rel: str | None, repo_root: Path) -> Path | None:
-    """Resolve ``implementations["be"]`` to a repo-contained directory, or None.
+@lru_cache(maxsize=2048)
+def _parse_py(path: Path) -> ast.Module:
+    return ast.parse(path.read_text(encoding="utf-8"))
 
-    ``be_rel`` must be a *repo-relative* path. We reject an absolute path or one
-    that escapes ``repo_root`` (``..``) and return ``None`` — so the gate never
-    reads or scans outside the repo, and ``check_package`` reports the missing BE
-    implementation as a contract violation instead of crashing on a later
-    ``relative_to(repo_root)``.
-    """
+
+def _iter_py_trees(root: Path, *, skip: Path | None = None):
+    if not root.exists():
+        return
+    for py in sorted(root.rglob("*.py")):
+        if py != skip:
+            yield py, _parse_py(py)
+
+
+def _contained_impl_dir(be_rel: str | None, repo_root: Path) -> Path | None:
     if not be_rel:
         return None
     candidate = Path(be_rel)
@@ -169,40 +80,30 @@ def _contained_impl_dir(be_rel: str | None, repo_root: Path) -> Path | None:
 
 
 def _impl_module_prefix(impl_dir: Path, repo_root: Path) -> str:
-    """The dotted import prefix the implementation dir is importable under.
-
-    The gate's layering checks need to recognise a package's *own* layer imports
-    (``...extension`` / ``...data``) by their absolute module path. That path
-    depends on which ``sys.path`` root contains the implementation:
-    ``apps/backend/src/counter`` is importable as ``src.counter`` (``apps/backend``
-    is on the path), while ``common/meta`` is importable as ``common.meta`` (the
-    repo root is on the path). We derive the prefix from the dir location instead
-    of assuming ``src.<name>``, so meta self-hosts correctly.
-    """
     backend = (repo_root / "apps" / "backend").resolve()
     impl = impl_dir.resolve()
     root = repo_root.resolve()
-    if impl == backend or backend in impl.parents:
-        rel = impl.relative_to(backend)
-    else:
-        rel = impl.relative_to(root)
+    rel = (
+        impl.relative_to(backend)
+        if impl == backend or backend in impl.parents
+        else impl.relative_to(root)
+    )
     return ".".join(rel.parts)
 
 
 def discover_packages(repo_root: Path = REPO_ROOT) -> list[DiscoveredPackage]:
-    """Scan ``common/*/contract.py`` for ``CONTRACT`` instances."""
     found: list[DiscoveredPackage] = []
     for contract_path in sorted(repo_root.glob(PACKAGE_GLOB)):
-        spec_dir = contract_path.parent
         contract = _load_contract(contract_path, repo_root)
         if contract is None:
             continue
-        impl_dir = _contained_impl_dir(contract.implementations.get("be"), repo_root)
         found.append(
             DiscoveredPackage(
                 name=contract.name,
-                spec_dir=spec_dir,
-                impl_dir=impl_dir,
+                spec_dir=contract_path.parent,
+                impl_dir=_contained_impl_dir(
+                    contract.implementations.get("be"), repo_root
+                ),
                 contract=contract,
             )
         )
@@ -212,34 +113,14 @@ def discover_packages(repo_root: Path = REPO_ROOT) -> list[DiscoveredPackage]:
 def _registered_prefixes(
     packages: list[DiscoveredPackage], repo_root: Path
 ) -> dict[str, str]:
-    """Package name -> its real dotted import prefix.
-
-    Most packages implement under ``apps/backend/src/<name>`` (importable as
-    ``src.<name>``); a few (meta, config, testing) implement directly under
-    ``common/<name>`` (importable as ``common.<name>``). :func:`_impl_module_prefix`
-    already derives the right one from the directory location — this just builds
-    the name -> prefix map once so the edge scan can recognise *either* form
-    instead of assuming ``src.`` (the pre-#1674 blind spot that made a real
-    ``common.<pkg>`` edge invisible to both the undeclared- and unused-edge
-    checks). A package with no implementation yet has nothing to scan for, so it
-    is omitted.
-    """
-    prefixes: dict[str, str] = {}
-    for p in packages:
-        if p.impl_dir is not None and p.impl_dir.exists():
-            prefixes[p.name] = _impl_module_prefix(p.impl_dir, repo_root)
-    return prefixes
+    return {
+        p.name: _impl_module_prefix(p.impl_dir, repo_root)
+        for p in packages
+        if p.impl_dir is not None and p.impl_dir.exists()
+    }
 
 
 def _target_package_from_module(mod: str, prefixes: dict[str, str]) -> str | None:
-    """The registered package name that owns dotted module ``mod``, or ``None``.
-
-    Matches the package's own prefix exactly or a ``prefix.`` submodule — e.g.
-    ``src.counter`` and ``src.counter.base.tally`` both resolve to ``counter``;
-    ``common.testing`` and ``common.testing.base_values`` both resolve to
-    ``testing``. A module that matches no known prefix (a stdlib/third-party
-    import, or a package with no implementation to have a prefix for) is ``None``.
-    """
     for name, prefix in prefixes.items():
         if mod == prefix or mod.startswith(prefix + "."):
             return name
@@ -249,19 +130,11 @@ def _target_package_from_module(mod: str, prefixes: dict[str, str]) -> str | Non
 def _load_contract(
     contract_path: Path, repo_root: Path = REPO_ROOT
 ) -> PackageContract | None:
-    """Import ``contract.py`` and return its module-level ``CONTRACT``, if any.
-
-    ``repo_root`` and ``repo_root/apps/backend`` are placed on ``sys.path`` so a
-    ``contract.py``'s ``from common.meta...`` import and any BE-package
-    import (``src.*``) it needs both resolve.
-    """
     backend_root = repo_root / "apps" / "backend"
     for path in (str(repo_root), str(backend_root)):
         if path not in sys.path:
             sys.path.insert(0, path)
-
     rel = contract_path.relative_to(repo_root)
-    # e.g. common.counter.contract / common.meta.contract
     module_name = ".".join(rel.with_suffix("").parts)
     spec = importlib.util.spec_from_file_location(module_name, contract_path)
     if spec is None or spec.loader is None:
@@ -270,23 +143,15 @@ def _load_contract(
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     contract = getattr(module, "CONTRACT", None)
-    if isinstance(contract, PackageContract):
-        return contract
-    return None
+    return contract if isinstance(contract, PackageContract) else None
 
 
 def _package_all(src_dir: Path) -> list[str]:
-    """Statically read ``__all__`` from a package ``__init__.py`` (no import)."""
-    init_path = src_dir / "__init__.py"
-    tree = ast.parse(init_path.read_text(encoding="utf-8"))
+    tree = _parse_py(src_dir / "__init__.py")
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == "__all__":
-                    # Only a literal list/tuple has ``.elts``; a computed
-                    # ``__all__`` (e.g. ``sorted(...)``) is not statically
-                    # readable, so return [] (an interface mismatch the gate
-                    # reports) instead of crashing on the missing attribute.
                     if not isinstance(node.value, (ast.List, ast.Tuple)):
                         return []
                     return [
@@ -297,34 +162,7 @@ def _package_all(src_dir: Path) -> list[str]:
     return []
 
 
-# Frontend test-file suffixes a ``"path::func"`` ref may also resolve against
-# (#1820): a package's roadmap can anchor a cross-runtime AC to its vitest/
-# Playwright half instead of routing every FE behavior through a Python proxy
-# test. Matches the suffix vocabulary the AC-traceability scanner already uses
-# (``common.testing.ac_graph.TEST_FILE_SUFFIXES`` /
-# ``common.testing.check_ac_traceability.TEST_FILE_SUFFIXES``) — duplicated
-# here, not imported: ``meta`` (this package) declares ``depends_on=[]``, and
-# importing ``common.testing`` (``infra``, a higher layer) would be exactly the
-# upward/undeclared edge ``_check_no_forbidden_edge`` below rejects (the one
-# prior "meta imports common.testing" exception was resolved by RELOCATING the
-# code into meta, per #1679, not by keeping the edge). Keep the two lists in
-# sync by hand if either vocabulary changes.
-_FRONTEND_TEST_SUFFIXES = (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
-
-# One vitest/Playwright test declaration: `it("name", ...)` / `test("name",
-# ...)`, optionally `.only`/`.skip`-modified (both suites share this call
-# shape). The name is captured verbatim between the matching quote characters
-# — no escape processing — mirroring the deliberately narrow "does a real
-# declaration with this title exist" proof the Python branch below performs
-# (an AST match on a real `def`/`async def`), not a full TS parse/compile.
-_JS_TEST_DECL = re.compile(
-    r"""\b(?:it|test)(?:\.(?:only|skip))?\s*\(\s*(['"`])(?P<name>.*?)\1""",
-    re.DOTALL,
-)
-
-
 def _frontend_test_names(text: str) -> set[str]:
-    """Every `it(...)`/`test(...)` title declared in a vitest/Playwright file."""
     return {m.group("name") for m in _JS_TEST_DECL.finditer(text)}
 
 
@@ -335,17 +173,14 @@ def _frontend_test_names_for_path(path: Path) -> set[str]:
 
 @lru_cache(maxsize=1024)
 def _python_test_names(path: Path) -> set[str]:
-    """Parse AST once per test file and return all def/async def names."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
     return {
         node.name
-        for node in ast.walk(tree)
+        for node in ast.walk(_parse_py(path))
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
 
 
 def _resolve_test(ref: str, repo_root: Path) -> str | None:
-    """Return an error string if ``"path::func"`` does not resolve, else None."""
     if "::" not in ref:
         return f"test ref {ref!r} is not in 'path::func' form"
     rel_path, func = ref.split("::", 1)
@@ -353,68 +188,30 @@ def _resolve_test(ref: str, repo_root: Path) -> str | None:
     if not test_path.exists():
         return f"test file does not exist: {rel_path}"
     if rel_path.endswith(_FRONTEND_TEST_SUFFIXES):
-        names = _frontend_test_names_for_path(test_path)
-        if func not in names:
+        if func not in _frontend_test_names_for_path(test_path):
             return f"test title {func!r} not found in {rel_path}"
         return None
-    names = _python_test_names(test_path)
-    if func not in names:
+    if func not in _python_test_names(test_path):
         return f"test function {func!r} not found in {rel_path}"
     return None
 
 
 def _iter_cross_package_imports(pkg: DiscoveredPackage, prefixes: dict[str, str]):
-    """Yield ``(file, target_package_name)`` for every cross-package import
-    found under ``pkg``'s implementation, resolved against ``prefixes`` (see
-    :func:`_registered_prefixes` / :func:`_target_package_from_module`). Shared
-    scan so the forbidden-edge check and the unused-dependency check (#1674)
-    agree on exactly what counts as "an import of package X" — one AST walk,
-    one resolution rule, both directions of honesty.
-    """
     if pkg.impl_dir is None or not pkg.impl_dir.exists():
         return
-    for py in sorted(pkg.impl_dir.rglob("*.py")):
-        if py == pkg.impl_dir / "contract.py":
-            # A common-implemented package (meta/config/testing) self-hosts:
-            # impl_dir == spec_dir, so its own contract.py — which every package's
-            # contract.py imports common.meta.package_contract just to declare
-            # CONTRACT = PackageContract(...) — would otherwise be scanned as
-            # "the implementation" and falsely read as a real edge to meta. The
-            # contract-declaration boilerplate is not a governed dependency.
-            continue
-        tree = ast.parse(py.read_text(encoding="utf-8"))
+    for py, tree in _iter_py_trees(pkg.impl_dir, skip=pkg.impl_dir / "contract.py"):
         for node in ast.walk(tree):
             mods: list[str] = []
             if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                # `from src.pkg import X` -> "src.pkg" resolves directly; but
-                # `from src import pkg` -> module is the bare "src", which
-                # matches no package prefix on its own. Also qualify each
-                # imported name onto the module (`src.pkg`) so that form
-                # resolves too — mirrors check_tier_imports.imported_modules.
-                mods = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
+                mods = [node.module, *(f"{node.module}.{a.name}" for a in node.names)]
             elif isinstance(node, ast.Import):
                 mods = [a.name for a in node.names]
             targets: list[str] = []
             for mod in mods:
                 target = _target_package_from_module(mod, prefixes)
-                if target is None or target == pkg.name or target in targets:
-                    continue
-                targets.append(target)
-            for target in targets:
-                yield py, target
-
-
-# Documented, issue-tracked rank exceptions — deliberately narrow, not a general
-# escape hatch. Mirrors the existing "Port-exception decision (counter)" pattern
-# in this module's header docstring: a known violation gets a cited reason and a
-# tracked fix, not a silent pass.
-#
-# Empty as of #1679: the one tracked exception (meta importing
-# common.testing.generate_ac_registry / ac_registry_format / coverage.policy)
-# was resolved by relocating those modules into meta itself, so the edge no
-# longer exists to exempt. Kept as a typed, documented mechanism for the next
-# one rather than removed outright.
-_KNOWN_UPWARD_EXCEPTIONS: dict[tuple[str, str], str] = {}
+                if target and target != pkg.name and target not in targets:
+                    targets.append(target)
+                    yield py, target
 
 
 def _check_no_forbidden_edge(
@@ -422,23 +219,9 @@ def _check_no_forbidden_edge(
     registered: dict[str, str],
     prefixes: dict[str, str] | None = None,
 ) -> list[str]:
-    """No module in ``pkg`` may import a registered package of a higher class.
-
-    ``registered`` maps package name -> class. We scan every ``.py`` under the
-    package for a cross-package import (recognising each target's real prefix —
-    ``src.<other>`` normally, ``common.<other>`` for a common-implemented
-    package like meta/config/testing; see :func:`_registered_prefixes`) and flag
-    any target whose rank exceeds this package's rank (an upward edge), or an
-    import of a package not declared in ``depends_on`` (a sideways/undeclared
-    edge). Self-imports are always allowed. ``prefixes=None`` falls back to
-    assuming every registered name is importable as ``src.<name>`` — the
-    pre-#1674 behaviour, for callers that have not computed the real map.
-    A handful of known, issue-tracked upward edges are exempted — see
-    :data:`_KNOWN_UPWARD_EXCEPTIONS`.
-    """
-    offenders: list[str] = []
     if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
+        return []
+    offenders: list[str] = []
     my_rank = _CLASS_RANK[pkg.contract.klass]
     allowed = set(pkg.contract.depends_on)
     resolved_prefixes = (
@@ -450,17 +233,15 @@ def _check_no_forbidden_edge(
         target_rank = _CLASS_RANK[registered[target]]
         rel = py.relative_to(REPO_ROOT)
         if target_rank > my_rank:
-            if (pkg.name, target) in _KNOWN_UPWARD_EXCEPTIONS:
-                continue
-            offenders.append(
-                f"{rel}: upward import of '{target}' "
-                f"(class {registered[target]}) from '{pkg.name}' "
-                f"(class {pkg.contract.klass})"
-            )
+            if (pkg.name, target) not in _KNOWN_UPWARD_EXCEPTIONS:
+                offenders.append(
+                    f"{rel}: upward import of '{target}' "
+                    f"(class {registered[target]}) from '{pkg.name}' "
+                    f"(class {pkg.contract.klass})"
+                )
         elif target not in allowed:
             offenders.append(
-                f"{rel}: imports '{target}' which is not in "
-                f"depends_on={sorted(allowed)}"
+                f"{rel}: imports '{target}' which is not in depends_on={sorted(allowed)}"
             )
     return offenders
 
@@ -470,34 +251,23 @@ def _check_unused_dependency(
     registered: dict[str, str],
     prefixes: dict[str, str] | None = None,
 ) -> list[str]:
-    """A ``depends_on`` entry with zero real imports describes a *target*, not
-    the current graph — the reverse blind spot of :func:`_check_no_forbidden_edge`
-    (#1674). 16 such edges were found repo-wide in the 2026-07-09 audit: contracts
-    written to the design the package is migrating *toward*, never cleaned up
-    once code did or didn't catch up.
-
-    Only enforced for a ``status="active"`` package with a real implementation
-    to scan. A ``draft`` package (or one with no implementation yet) is allowed
-    to declare where it's going before the code exists — that is a stated
-    target, not a false claim about today.
-    """
-    offenders: list[str] = []
-    if pkg.contract.status != "active":
-        return offenders
-    if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
+    if (
+        pkg.contract.status != "active"
+        or pkg.impl_dir is None
+        or not pkg.impl_dir.exists()
+    ):
+        return []
     resolved_prefixes = (
         prefixes if prefixes is not None else {n: f"src.{n}" for n in registered}
     )
     used = {target for _, target in _iter_cross_package_imports(pkg, resolved_prefixes)}
     impl_rel = pkg.impl_dir.relative_to(REPO_ROOT)
-    for dep in sorted(pkg.contract.depends_on):
-        if dep not in used:
-            offenders.append(
-                f"depends_on includes '{dep}' but no import of it exists under "
-                f"{impl_rel} — wire the dependency or remove the declaration"
-            )
-    return offenders
+    return [
+        f"depends_on includes '{dep}' but no import of it exists under "
+        f"{impl_rel} — wire the dependency or remove the declaration"
+        for dep in sorted(pkg.contract.depends_on)
+        if dep not in used
+    ]
 
 
 def _check_cross_domain_deep_import(
@@ -505,55 +275,23 @@ def _check_cross_domain_deep_import(
     registered: dict[str, str],
     published: dict[str, list[str]],
 ) -> list[str]:
-    """One-transaction-per-domain, the import edge (AC-meta.txn.1 / .2).
-
-    A package's implementation may reference another *registered* package only
-    through that package's **published interface** — either the bare package root
-    (``import src.<other>``) or a symbol the target publishes in its ``__all__``
-    (``published[<other>]``). Every name in a ``from src.<other>... import N1,
-    N2, ...`` must itself be in the target's ``__all__``; an import that reaches an
-    **unpublished internal** of another domain is rejected: cross-domain references
-    go through the published language (or by id + a domain event), never by reaching
-    into another aggregate's internals (txn.1) or writing another domain's
-    ORM/models in the same transaction (txn.2).
-
-    The published-symbol rule is uniform across the module path: a ``from`` import
-    is allowed iff each imported name is in the target's ``__all__``, whether the
-    module is the package root or a deep submodule. This is how ``counter`` imports
-    the platform base ports (``from src.platform.base import EventBus`` —
-    ``EventBus`` ∈ ``platform.__all__``) and how ``unit_price`` imports the
-    published ``Money`` / ``Quantity`` value types from their defining modules — and
-    why a *root* import of an unpublished name (``from src.<other> import
-    <submodule>``) is rejected just like a deep reach. A plain ``import
-    src.<other>.<sub>`` names no symbol and so can never be a published reference —
-    it is always rejected; only the bare ``import src.<other>`` root is allowed.
-
-    ``published`` maps package name -> its ``__all__`` (computed once by
-    :func:`run`). Imports of *unregistered* modules (shared infra such as
-    ``src.database``) are out of scope — only edges between registered packages are
-    governed.
-    """
-    offenders: list[str] = []
     if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
-    for py in sorted(pkg.impl_dir.rglob("*.py")):
-        tree = ast.parse(py.read_text(encoding="utf-8"))
+        return []
+    offenders: list[str] = []
+    for py, tree in _iter_py_trees(pkg.impl_dir):
+        rel = py.relative_to(REPO_ROOT)
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
                 parts = node.module.split(".")
-                if len(parts) < 2 or parts[0] != "src":
+                if (
+                    len(parts) < 2
+                    or parts[0] != "src"
+                    or parts[1] == pkg.name
+                    or parts[1] not in registered
+                ):
                     continue
                 target = parts[1]
-                if target == pkg.name or target not in registered:
-                    continue
-                # Every name in a `from src.<other> import N1, N2, ...` must be a
-                # symbol the target publishes in its __all__ — whether the module is
-                # the package root (`from src.<other> import N`) or a deep path
-                # (`from src.<other>.<mod> import N`). A root import is NOT waved
-                # through: `from src.<other> import <submodule>` or an unpublished
-                # name bypasses the published interface just as a deep reach does.
                 pub = set(published.get(target, []))
-                rel = py.relative_to(REPO_ROOT)
                 for alias in node.names:
                     if alias.name == "*" or alias.name not in pub:
                         offenders.append(
@@ -568,13 +306,13 @@ def _check_cross_domain_deep_import(
             elif isinstance(node, ast.Import):
                 for alias in node.names:
                     parts = alias.name.split(".")
-                    if len(parts) < 2 or parts[0] != "src":
-                        continue
-                    target = parts[1]
-                    if target == pkg.name or target not in registered:
-                        continue
-                    if len(parts) > 2:
-                        rel = py.relative_to(REPO_ROOT)
+                    if (
+                        len(parts) > 2
+                        and parts[0] == "src"
+                        and parts[1] != pkg.name
+                        and parts[1] in registered
+                    ):
+                        target = parts[1]
                         offenders.append(
                             f"{rel}: deep cross-domain import 'import {alias.name}' "
                             f"targets a submodule of package '{target}'. Import the "
@@ -585,7 +323,6 @@ def _check_cross_domain_deep_import(
 
 
 def _classdef_tablename(node: ast.ClassDef) -> str | None:
-    """The ``__tablename__`` string literal a SQLAlchemy model class declares, if any."""
     for stmt in node.body:
         targets: list[ast.expr] = []
         value: ast.expr | None = None
@@ -607,21 +344,12 @@ def _classdef_tablename(node: ast.ClassDef) -> str | None:
 def _collect_orm_ownership(
     packages: list[DiscoveredPackage],
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """Map every ORM table name and model class name to its owning package.
-
-    A package owns a table/model when one of its implementation modules declares a
-    class with ``__tablename__ = "<table>"``. The two maps (table name -> package,
-    model class name -> package) let :func:`_check_cross_domain_fk` decide whether a
-    ``ForeignKey`` string or a ``relationship`` target crosses a domain boundary.
-    First declaration wins (``setdefault``) so the maps are deterministic.
-    """
     table_owner: dict[str, str] = {}
     model_owner: dict[str, str] = {}
     for pkg in packages:
         if pkg.impl_dir is None or not pkg.impl_dir.exists():
             continue
-        for py in sorted(pkg.impl_dir.rglob("*.py")):
-            tree = ast.parse(py.read_text(encoding="utf-8"))
+        for _, tree in _iter_py_trees(pkg.impl_dir):
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
                     table = _classdef_tablename(node)
@@ -637,77 +365,35 @@ def _check_cross_domain_fk(
     _table_owner: dict[str, str],
     model_owner: dict[str, str],
 ) -> list[str]:
-    """One-transaction-per-domain, the ORM-navigation edge (AC-meta.txn.3).
-
-    A SQLAlchemy ``relationship(...)`` whose target model belongs to **another**
-    registered package is rejected — cross-domain object-graph navigation
-    (``obj.other_domain_thing.field``) is the DDD violation: it lets one
-    package's code silently reach into another's aggregate, and turns an
-    innocent attribute access into an implicit cross-domain query. A
-    cross-domain reference must resolve the id via the interface/event, never
-    navigate an ORM relationship.
-
-    A bare ``ForeignKey("<table>.<col>")`` column is **not** flagged. Unlike
-    ``relationship()``, a FK constraint carries no object-graph navigation —
-    it is a database-level referential-integrity invariant, not a code-level
-    coupling. In this codebase's modular monolith (one process, one Postgres
-    instance, one transaction manager — not independently-deployable
-    services), that invariant is a cheap, valuable safety net against
-    orphaned financial rows and costs nothing architecturally as long as
-    nothing navigates through it. Cross-domain FK columns were banned
-    alongside relationships until 2026-07-11; this narrowed the rule to what
-    it was actually protecting against (see #1675).
-
-    Detection is **AST-only and best-effort**, scoped to the reliably-decidable
-    form: ``relationship("<ClassName>")`` / ``relationship(<ClassName>)`` — the
-    target model class name is read from a string or bare ``Name`` argument.
-
-    It deliberately does NOT resolve dynamic targets (a ``relationship`` given
-    an imported alias or an expression) — those are left to runtime/migration
-    review rather than flagged here, to avoid false positives. ``model_owner``
-    (the class name → owning-package map) comes from
-    :func:`_collect_orm_ownership`; ``_table_owner`` is accepted but unused
-    since the FK-string check it fed was retired (#1675) — kept so the call
-    site's positional args stay symmetric with :func:`_collect_orm_ownership`'s
-    return shape.
-    """
-    offenders: list[str] = []
     if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
-    for py in sorted(pkg.impl_dir.rglob("*.py")):
-        tree = ast.parse(py.read_text(encoding="utf-8"))
+        return []
+    offenders: list[str] = []
+    for py, tree in _iter_py_trees(pkg.impl_dir):
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
+            if (
+                not isinstance(node, ast.Call)
+                or call_name(node.func) != "relationship"
+                or not node.args
+            ):
                 continue
-            name = call_name(node.func)
-            if name == "relationship" and node.args:
-                arg = node.args[0]
-                cls: str | None = None
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                    cls = arg.value
-                elif isinstance(arg, ast.Name):
-                    cls = arg.id
-                owner = model_owner.get(cls) if cls else None
-                if owner and owner in registered and owner != pkg.name:
-                    rel = py.relative_to(REPO_ROOT)
-                    offenders.append(
-                        f"{rel}: cross-domain relationship('{cls}') targets a model "
-                        f"owned by package '{owner}'. A cross-domain reference must "
-                        f"be an id column resolved via the interface/event, not an "
-                        f"ORM relationship."
-                    )
+            arg = node.args[0]
+            cls = (
+                arg.value
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                else (arg.id if isinstance(arg, ast.Name) else None)
+            )
+            owner = model_owner.get(cls) if cls else None
+            if owner and owner in registered and owner != pkg.name:
+                offenders.append(
+                    f"{py.relative_to(REPO_ROOT)}: cross-domain relationship('{cls}') targets a model "
+                    f"owned by package '{owner}'. A cross-domain reference must "
+                    f"be an id column resolved via the interface/event, not an "
+                    f"ORM relationship."
+                )
     return offenders
 
 
 def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
-    """Validate the declared graph with meta's single pure topology policy.
-
-    Same-class (sideways) edges are allowed when declared, so the no-cycle rule is
-    enforced globally here rather than by a strict rank ordering ("never up, never
-    sideways-cyclic"). The compatibility name remains because existing callers use
-    it, but duplicate/unknown/self dependencies now fail through the same graph
-    builder consumed by the data projection.
-    """
     try:
         build_dependency_graph([package.contract for package in packages])
     except ValueError as exc:
@@ -716,27 +402,14 @@ def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
 
 
 def _sibling_import_hit(node: ast.AST, prefix: str, sibling: str) -> str | None:
-    """If ``node`` imports the package's own ``<sibling>`` layer, describe it.
-
-    Recognises the package's own sibling-layer import in every form — relative
-    (``from ..<sibling> import x`` / ``from .. import <sibling>``) and absolute
-    (``from <prefix>.<sibling>... import x`` / ``from <prefix> import <sibling>`` /
-    ``import <prefix>.<sibling>...``). ``prefix`` is the implementation's dotted
-    import path (see :func:`_impl_module_prefix`). Returns ``None`` when the node
-    does not reach the sibling layer.
-    """
     own = f"{prefix}.{sibling}"
     if isinstance(node, ast.ImportFrom):
-        mod = node.module or ""
-        names = node.names
+        mod, names = node.module or "", node.names
         if node.level and (
             mod.split(".")[0] == sibling
             or any(a.name == sibling or a.name.startswith(f"{sibling}.") for a in names)
         ):
-            return (
-                f"(relative level {node.level}) "
-                f"{mod or '.'.join(a.name for a in names)}"
-            )
+            return f"(relative level {node.level}) {mod or '.'.join(a.name for a in names)}"
         if mod.startswith(own):
             return mod
         if mod == prefix and any(
@@ -753,10 +426,8 @@ def _sibling_import_hit(node: ast.AST, prefix: str, sibling: str) -> str | None:
 def _layer_imports(
     layer_dir: Path, prefix: str, sibling: str
 ) -> list[tuple[Path, str]]:
-    """Every ``.py`` under ``layer_dir`` that imports the own ``<sibling>`` layer."""
     hits: list[tuple[Path, str]] = []
-    for py in sorted(layer_dir.rglob("*.py")):
-        tree = ast.parse(py.read_text(encoding="utf-8"))
+    for py, tree in _iter_py_trees(layer_dir):
         for node in ast.walk(tree):
             hit = _sibling_import_hit(node, prefix, sibling)
             if hit:
@@ -764,63 +435,45 @@ def _layer_imports(
     return hits
 
 
-def _check_layer_purity(pkg: DiscoveredPackage) -> list[str]:
-    """If a package's implementation uses ``base/`` + ``extension/`` layers, the
-    ``base/`` layer must not import the package's own ``extension/`` — base is the
-    pure, downward-only core; the edges live in extension (base down / extension
-    up). This is mechanism A applied within the package.
+def _has_base_extension_split(pkg: DiscoveredPackage) -> bool:
+    return bool(
+        pkg.impl_dir
+        and pkg.impl_dir.exists()
+        and (pkg.impl_dir / "base").exists()
+        and (pkg.impl_dir / "extension").exists()
+    )
 
-    Additive: a package that does not use the two-layer split is skipped, so the
-    role-folder packages keep passing unchanged.
-    """
-    offenders: list[str] = []
-    if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
-    base_dir, ext_dir = pkg.impl_dir / "base", pkg.impl_dir / "extension"
-    if not (base_dir.exists() and ext_dir.exists()):
-        return offenders
+
+def _check_layer_purity(pkg: DiscoveredPackage) -> list[str]:
+    if not _has_base_extension_split(pkg) or pkg.impl_dir is None:
+        return []
     prefix = _impl_module_prefix(pkg.impl_dir, REPO_ROOT)
-    for py, hit in _layer_imports(base_dir, prefix, "extension"):
-        offenders.append(
-            f"{py.relative_to(REPO_ROOT)}: base/ imports the package's own "
-            f"extension/ ('{hit}') — base must stay pure"
-        )
-    return offenders
+    return [
+        f"{py.relative_to(REPO_ROOT)}: base/ imports the package's own "
+        f"extension/ ('{hit}') — base must stay pure"
+        for py, hit in _layer_imports(pkg.impl_dir / "base", prefix, "extension")
+    ]
 
 
 def _check_data_is_sink(pkg: DiscoveredPackage) -> list[str]:
-    """If a package has a ``data/`` layer, nothing in ``base/`` or ``extension/``
-    may import it — ``data`` is the read-model / projection, a leaf sink computed
-    FROM the write side. Keeping it a sink is what makes the projection safe: the
-    write side never depends on its own read model.
-
-    Additive: a package without a ``data/`` layer is skipped.
-    """
-    offenders: list[str] = []
-    if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
-    if not (pkg.impl_dir / "data").exists():
-        return offenders
+    if (
+        pkg.impl_dir is None
+        or not pkg.impl_dir.exists()
+        or not (pkg.impl_dir / "data").exists()
+    ):
+        return []
     prefix = _impl_module_prefix(pkg.impl_dir, REPO_ROOT)
-    for layer in ("base", "extension"):
-        layer_dir = pkg.impl_dir / layer
-        if not layer_dir.exists():
-            continue
-        for py, hit in _layer_imports(layer_dir, prefix, "data"):
-            offenders.append(
-                f"{py.relative_to(REPO_ROOT)}: {layer}/ imports the package's own "
-                f"data/ ('{hit}') — data is a read-model sink; nothing may import it"
-            )
-    return offenders
+    return [
+        f"{py.relative_to(REPO_ROOT)}: {layer}/ imports the package's own "
+        f"data/ ('{hit}') — data is a read-model sink; nothing may import it"
+        for layer in ("base", "extension")
+        if (pkg.impl_dir / layer).exists()
+        for py, hit in _layer_imports(pkg.impl_dir / layer, prefix, "data")
+    ]
 
 
 def _check_repository_unit(pkg: DiscoveredPackage, unit: Unit) -> list[str]:
-    """A ``repository`` unit must split: port in ``base/``, adapter in ``extension/``.
-
-    This is mechanism B (dependency inversion) made checkable: the abstract port
-    the pure core depends on lives in ``base``; the concrete adapter that touches
-    I/O lives in ``extension`` and depends back on the port.
-    """
+    assert pkg.impl_dir is not None
     offenders: list[str] = []
     port, impl = unit.module, unit.impl
     if port is not None and port.split("/")[0] != "base":
@@ -842,60 +495,33 @@ def _check_repository_unit(pkg: DiscoveredPackage, unit: Unit) -> list[str]:
 
 
 def _check_kind_placement(pkg: DiscoveredPackage) -> list[str]:
-    """Each declared ``unit`` must live in the layer its ``kind`` dictates.
-
-    The building-block table is :data:`KIND_LAYER`; this check enforces it. A
-    value-object/entity/aggregate/factory/domain-event belongs in ``base``, a
-    domain-service/event-bus in ``extension``, a projection in ``data``, and a
-    repository splits across ``base`` + ``extension`` (see
-    :func:`_check_repository_unit`).
-
-    Additive on two axes: a package that has not adopted the physical
-    ``base/extension/`` split is skipped entirely, and within an adopted package a
-    unit with no ``module`` path (kind declared for the taxonomy only) is skipped.
-    """
+    if not _has_base_extension_split(pkg) or pkg.impl_dir is None:
+        return []
     offenders: list[str] = []
-    if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
-    base_dir, ext_dir = pkg.impl_dir / "base", pkg.impl_dir / "extension"
-    if not (base_dir.exists() and ext_dir.exists()):
-        return offenders
     for unit in pkg.contract.units:
         expected = KIND_LAYER[unit.kind]
         if expected == SPLIT:
             offenders.extend(_check_repository_unit(pkg, unit))
-            continue
-        if unit.module is None:
-            continue
-        top = unit.module.split("/")[0]
-        if top != expected:
-            offenders.append(
-                f"unit {unit.name!r} (kind {unit.kind.value!r}) declares module "
-                f"{unit.module!r} but its kind belongs in '{expected}/'"
-            )
-            continue
-        if not (pkg.impl_dir / unit.module).exists():
-            offenders.append(
-                f"unit {unit.name!r}: declared module {unit.module!r} does not exist"
-            )
+        elif unit.module is not None:
+            if unit.module.split("/")[0] != expected:
+                offenders.append(
+                    f"unit {unit.name!r} (kind {unit.kind.value!r}) declares module "
+                    f"{unit.module!r} but its kind belongs in '{expected}/'"
+                )
+            elif not (pkg.impl_dir / unit.module).exists():
+                offenders.append(
+                    f"unit {unit.name!r}: declared module {unit.module!r} does not exist"
+                )
     return offenders
-
-
-_DYNAMIC_ANNOTATION = re.compile(r"\b(?:dict|Dict)\b|\bCallable\[\s*\.\.\.")
-_DYNAMIC_RETURN = re.compile(r"(?:Any|dict|list)\b")
-_FINANCIAL_PRIMITIVE_PARAMS = frozenset(
-    {"currency", "date", "posted_at", "occurred_at"}
-)
 
 
 def _command_definitions(
     impl_dir: Path, symbol: str
 ) -> list[ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef]:
-    """Every top-level class or function named ``symbol`` in the implementation."""
     found: list[ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef] = []
     for path in sorted(impl_dir.rglob("*.py")):
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = _parse_py(path)
         except (OSError, SyntaxError, UnicodeDecodeError):
             continue
         found.extend(
@@ -910,29 +536,28 @@ def _command_definitions(
 def _dynamic_type_findings(
     node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> list[str]:
-    """Name each dynamic type on a command's own fields, parameters and return."""
-    findings: list[str] = []
     if isinstance(node, ast.ClassDef):
-        for child in node.body:
-            if isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
-                if _DYNAMIC_ANNOTATION.search(ast.unparse(child.annotation)):
-                    findings.append(f"dynamic type on field '{child.target.id}'")
-        return findings
-    arguments = node.args
-    parameters = [
-        *arguments.posonlyargs,
-        *arguments.args,
-        *arguments.kwonlyargs,
-        *(item for item in (arguments.vararg, arguments.kwarg) if item is not None),
+        return [
+            f"dynamic type on field '{child.target.id}'"
+            for child in node.body
+            if isinstance(child, ast.AnnAssign)
+            and isinstance(child.target, ast.Name)
+            and _DYNAMIC_ANNOTATION.search(ast.unparse(child.annotation))
+        ]
+    findings: list[str] = []
+    args = node.args
+    params = [
+        *args.posonlyargs,
+        *args.args,
+        *args.kwonlyargs,
+        *(x for x in (args.vararg, args.kwarg) if x is not None),
     ]
-    for arg in parameters:
+    for arg in params:
         if arg.annotation is None:
             if arg.arg in _FINANCIAL_PRIMITIVE_PARAMS:
                 findings.append(f"untyped financial parameter '{arg.arg}'")
         elif _DYNAMIC_ANNOTATION.search(ast.unparse(arg.annotation)):
             findings.append(f"dynamic type on parameter '{arg.arg}'")
-    # A missing return annotation is a missing return shape. A dynamic type
-    # anywhere in the return, including a quoted one, is dynamic.
     returned = "Any" if node.returns is None else ast.unparse(node.returns)
     if _DYNAMIC_RETURN.match(returned) or _DYNAMIC_ANNOTATION.search(returned):
         findings.append("dynamic return type")
@@ -940,7 +565,6 @@ def _dynamic_type_findings(
 
 
 def _check_command_boundaries(pkg: DiscoveredPackage) -> list[str]:
-    """Each declared command boundary has one definition without dynamic types (g)."""
     boundaries = pkg.contract.command_boundaries
     if not boundaries:
         return []
@@ -975,16 +599,7 @@ def check_package(
     model_owner: dict[str, str] | None = None,
     prefixes: dict[str, str] | None = None,
 ) -> list[str]:
-    """Return the list of contract violations for one package (empty == OK).
-
-    The one-transaction-per-domain checks (e) need cross-package maps and so are
-    additive on their inputs: they run only when :func:`run` supplies ``published``
-    (the import edge) / ``table_owner`` (the FK edge). A direct ``check_package``
-    call without them skips those checks, exactly as before.
-    """
     errors: list[str] = []
-
-    # (a) interface == the BE implementation's __init__.__all__
     impl_dir = pkg.impl_dir
     if impl_dir is None:
         if pkg.contract.interface:
@@ -1006,72 +621,41 @@ def check_package(
                 f"    __init__.__all__:   {sorted(declared_all)}"
             )
 
-    # (b) every invariant/roadmap test resolves to a real test function
-    for inv in pkg.contract.invariants:
-        err = _resolve_test(inv.test, repo_root)
-        if err:
-            errors.append(f"[{pkg.name}] invariant '{inv.id}': {err}")
-    for ac in pkg.contract.roadmap:
-        err = _resolve_test(ac.test, repo_root)
-        if err:
-            errors.append(f"[{pkg.name}] roadmap '{ac.id}': {err}")
+    for label, items in (
+        ("invariant", pkg.contract.invariants),
+        ("roadmap", pkg.contract.roadmap),
+    ):
+        for item in items:
+            err = _resolve_test(item.test, repo_root)
+            if err:
+                errors.append(f"[{pkg.name}] {label} '{item.id}': {err}")
 
-    # (c) no forbidden dependency edge (DAG rule)
-    errors.extend(
-        f"[{pkg.name}] {e}" for e in _check_no_forbidden_edge(pkg, registered, prefixes)
-    )
-
-    # (c2) no unused dependency declaration (#1674 contract-honesty gate): the
-    # declared graph must describe reality, not just the target design.
-    errors.extend(
-        f"[{pkg.name}] {e}" for e in _check_unused_dependency(pkg, registered, prefixes)
-    )
-
-    # (d) building-block layering (additive — only for packages using the split):
-    #     base stays pure (A), each unit sits in its kind's layer + repository
-    #     splits (B), and data is a read-model sink nothing imports.
-    errors.extend(f"[{pkg.name}] {e}" for e in _check_layer_purity(pkg))
-    errors.extend(f"[{pkg.name}] {e}" for e in _check_kind_placement(pkg))
-    errors.extend(f"[{pkg.name}] {e}" for e in _check_data_is_sink(pkg))
-
-    # (g) a declared command boundary has one typed definition (AC-meta.public-boundary.2)
-    errors.extend(f"[{pkg.name}] {e}" for e in _check_command_boundaries(pkg))
-
-    # (e) one-transaction-per-domain (issue #1460): a cross-domain reference goes
-    #     through the published interface or by id + event — never a deep reach
-    #     into another domain's internals (txn.1/.2) or a cross-domain FK (txn.3).
-    #     Additive: each sub-check runs only when run() supplies its cross-package map.
+    subchecks = [
+        *_check_no_forbidden_edge(pkg, registered, prefixes),
+        *_check_unused_dependency(pkg, registered, prefixes),
+        *_check_layer_purity(pkg),
+        *_check_kind_placement(pkg),
+        *_check_data_is_sink(pkg),
+        *_check_command_boundaries(pkg),
+    ]
     if published is not None:
-        errors.extend(
-            f"[{pkg.name}] {e}"
-            for e in _check_cross_domain_deep_import(pkg, registered, published)
-        )
+        subchecks.extend(_check_cross_domain_deep_import(pkg, registered, published))
     if table_owner is not None:
-        errors.extend(
-            f"[{pkg.name}] {e}"
-            for e in _check_cross_domain_fk(
-                pkg, registered, table_owner, model_owner or {}
-            )
+        subchecks.extend(
+            _check_cross_domain_fk(pkg, registered, table_owner, model_owner or {})
         )
-
+    errors.extend(f"[{pkg.name}] {e}" for e in subchecks)
     return errors
 
 
 def _check_duplicate_public_function_exports(
     packages: list[DiscoveredPackage],
 ) -> list[str]:
-    """Reject duplicate snake_case names in package public interfaces.
-
-    Public functions follow snake_case while exported types use CapWords. The
-    distinction lets packages share protocol vocabulary such as ``Unit`` while
-    making a function's behavioral owner unambiguous across bounded contexts.
-    """
     owners: dict[str, set[str]] = {}
     for package in packages:
         for symbol in package.contract.interface:
             if re.fullmatch(r"[a-z][a-z0-9_]*", symbol):
                 owners.setdefault(symbol, set()).add(package.name)
-
     return [
         f"public function '{symbol}' is exported by multiple packages: "
         f"{', '.join(sorted(package_names))}"
@@ -1083,7 +667,6 @@ def _check_duplicate_public_function_exports(
 def _check_authored_truth_surfaces(
     packages: list[DiscoveredPackage], repo_root: Path
 ) -> list[str]:
-    """Require package owners and reject parallel checkbox-worklist surfaces."""
     errors = [
         f"{package.name}: missing required authored surface: readme.md"
         for package in packages
@@ -1103,11 +686,32 @@ def _check_authored_truth_surfaces(
     return errors
 
 
+def _validation_context(packages: list[DiscoveredPackage], repo_root: Path):
+    registered = {p.name: p.contract.klass for p in packages}
+    prefixes = _registered_prefixes(packages, repo_root)
+    published = {
+        p.name: _package_all(p.impl_dir)
+        for p in packages
+        if p.impl_dir is not None and (p.impl_dir / "__init__.py").exists()
+    }
+    table_owner, model_owner = _collect_orm_ownership(packages)
+    return registered, prefixes, published, table_owner, model_owner
+
+
+def _ok_summary(pkg: DiscoveredPackage) -> str:
+    return (
+        f"  {pkg.name} (class {pkg.contract.klass}): "
+        f"{len(pkg.contract.interface)} interface symbol(s), "
+        f"{len(pkg.contract.invariants)} invariant(s), "
+        f"{len(pkg.contract.roadmap)} roadmap AC(s) — OK"
+    )
+
+
 _RUN_CACHE: dict[Path, tuple[bool, list[str]]] = {}
 
 
 def clear_run_cache(target: Path | None = None) -> None:
-    """Clear session cache for package contract validation results."""
+    _parse_py.cache_clear()
     _python_test_names.cache_clear()
     _frontend_test_names_for_path.cache_clear()
     if target is not None:
@@ -1120,67 +724,44 @@ def check_single_package(
     package_name: str,
     repo_root: Path = REPO_ROOT,
 ) -> tuple[bool, list[str]]:
-    """Validate a single discovered package; return (ok, messages)."""
+    _parse_py.cache_clear()
     packages = discover_packages(repo_root)
     pkg = next((p for p in packages if p.name == package_name), None)
     if pkg is None:
         return False, [f"package '{package_name}' not discovered"]
-    registered = {p.name: p.contract.klass for p in packages}
-    prefixes = _registered_prefixes(packages, repo_root)
-    published = {
-        p.name: _package_all(p.impl_dir)
-        for p in packages
-        if p.impl_dir is not None and (p.impl_dir / "__init__.py").exists()
-    }
-    table_owner, model_owner = _collect_orm_ownership(packages)
-    all_errors = _check_authored_truth_surfaces([pkg], repo_root)
-    errs = check_package(
-        pkg,
-        registered,
-        repo_root,
-        published=published,
-        table_owner=table_owner,
-        model_owner=model_owner,
-        prefixes=prefixes,
+    registered, prefixes, published, table_owner, model_owner = _validation_context(
+        packages, repo_root
     )
-    if errs:
-        all_errors.extend(errs)
-    messages: list[str] = []
-    if not all_errors:
-        messages.append(
-            f"  {pkg.name} (class {pkg.contract.klass}): "
-            f"{len(pkg.contract.interface)} interface symbol(s), "
-            f"{len(pkg.contract.invariants)} invariant(s), "
-            f"{len(pkg.contract.roadmap)} roadmap AC(s) — OK"
-        )
-    return (not all_errors, messages + all_errors)
+    all_errors = [
+        *_check_authored_truth_surfaces([pkg], repo_root),
+        *check_package(
+            pkg,
+            registered,
+            repo_root,
+            published=published,
+            table_owner=table_owner,
+            model_owner=model_owner,
+            prefixes=prefixes,
+        ),
+    ]
+    return (
+        not all_errors,
+        ([_ok_summary(pkg)] if not all_errors else []) + all_errors,
+    )
 
 
 def run(
     repo_root: Path = REPO_ROOT, *, use_cache: bool = True
 ) -> tuple[bool, list[str]]:
-    """Validate every discovered package; return (ok, messages)."""
     resolved = repo_root.resolve()
     if use_cache and resolved in _RUN_CACHE:
         ok, msgs = _RUN_CACHE[resolved]
         return (ok, list(msgs))
-
+    _parse_py.cache_clear()
     packages = discover_packages(repo_root)
-    registered = {p.name: p.contract.klass for p in packages}
-    # Every registered package's real import prefix (src.<name> or, for a
-    # common-implemented package like meta/config/testing, common.<name>) — see
-    # _registered_prefixes. Used by both the forbidden-edge and unused-dependency
-    # checks so neither is blind to a common.<pkg> edge (#1674).
-    prefixes = _registered_prefixes(packages, repo_root)
-    # Cross-package maps for the one-transaction-per-domain checks (issue #1460):
-    # each package's published __all__ (the import edge) and the ORM table/model
-    # ownership (the FK edge).
-    published = {
-        p.name: _package_all(p.impl_dir)
-        for p in packages
-        if p.impl_dir is not None and (p.impl_dir / "__init__.py").exists()
-    }
-    table_owner, model_owner = _collect_orm_ownership(packages)
+    registered, prefixes, published, table_owner, model_owner = _validation_context(
+        packages, repo_root
+    )
     messages: list[str] = []
     all_errors = _check_authored_truth_surfaces(packages, repo_root)
     for pkg in packages:
@@ -1196,17 +777,11 @@ def run(
         if errs:
             all_errors.extend(errs)
         else:
-            messages.append(
-                f"  {pkg.name} (class {pkg.contract.klass}): "
-                f"{len(pkg.contract.interface)} interface symbol(s), "
-                f"{len(pkg.contract.invariants)} invariant(s), "
-                f"{len(pkg.contract.roadmap)} roadmap AC(s) — OK"
-            )
+            messages.append(_ok_summary(pkg))
     all_errors.extend(_check_no_dependency_cycle(packages))
     all_errors.extend(_check_duplicate_public_function_exports(packages))
     if not packages:
         all_errors.append("no packages discovered (expected at least 'counter')")
-
     result = (not all_errors, messages + all_errors)
     if use_cache:
         _RUN_CACHE[resolved] = (result[0], list(result[1]))
@@ -1214,25 +789,14 @@ def run(
 
 
 def _run_command(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point: print results and exit non-zero on any violation."""
     parser = argparse.ArgumentParser(description="Validate package contracts.")
-    parser.add_argument(
-        "--repo-root",
-        default=str(REPO_ROOT),
-        help="repo root (defaults to the detected root)",
-    )
+    parser.add_argument("--repo-root", default=str(REPO_ROOT))
     args = parser.parse_args(argv)
     ok, messages = run(Path(args.repo_root))
-    header = "PACKAGE CONTRACT"
-    if ok:
-        print(f"[{header}] PASSED")
-        for line in messages:
-            print(line)
-        return 0
-    print(f"[{header}] FAILED")
+    print(f"[PACKAGE CONTRACT] {'PASSED' if ok else 'FAILED'}")
     for line in messages:
         print(line)
-    return 1
+    return 0 if ok else 1
 
 
 def main(argv: Sequence[str] | None = None) -> int:

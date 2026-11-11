@@ -1,4 +1,5 @@
 """Mari Bank PDF generator."""
+
 from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
@@ -11,7 +12,7 @@ from .base_generator import BasePDFGenerator
 
 class MariGenerator(BasePDFGenerator):
     """Generate Mari Bank statement PDF."""
-    
+
     def generate(
         self,
         output_path: Path,
@@ -23,7 +24,7 @@ class MariGenerator(BasePDFGenerator):
         doc = self.create_document(output_path)
         elements = []
         styles = getSampleStyleSheet()
-        
+
         # Header
         font_family, font_size = self._get_font("header")
         header_style = ParagraphStyle(
@@ -34,17 +35,17 @@ class MariGenerator(BasePDFGenerator):
             spaceAfter=12,
         )
         elements.append(Paragraph("Mari Bank - E-Statement", header_style))
-        
+
         # Statement Period
         period_str = f"STATEMENT PERIOD: {period_start.strftime('%d %b %Y').upper()} to {period_end.strftime('%d %b %Y').upper()}"
         elements.append(Paragraph(period_str, styles["Normal"]))
         elements.append(Spacer(1, 20))
-        
+
         # Account Info
         account_no = f"****{account_last4}"
         elements.append(Paragraph(f"Account: {account_no}", styles["Normal"]))
         elements.append(Spacer(1, 20))
-        
+
         # Generate transactions
         opening_balance = Decimal("3000.00")
         txns, closing_balance = generate_mari_transactions(
@@ -52,16 +53,22 @@ class MariGenerator(BasePDFGenerator):
             count=12,
             opening_balance=opening_balance,
         )
-        
+
         # Calculate totals
         total_outgoing = sum(abs(t["amount"]) for t in txns if t["outgoing"])
         total_incoming = sum(t["amount"] for t in txns if t["incoming"])
-        
+
         # Account Summary Table
         if "account_summary" in self.template["tables"]:
             summary_config = self.template["tables"]["account_summary"]
             summary_data = [
-                ["Account", "Opening Balance", "Total Outgoing", "Total Incoming", "Ending Balance"],
+                [
+                    "Account",
+                    "Opening Balance",
+                    "Total Outgoing",
+                    "Total Incoming",
+                    "Ending Balance",
+                ],
                 [
                     account_no,
                     f"SGD {opening_balance:,.2f}",
@@ -70,7 +77,9 @@ class MariGenerator(BasePDFGenerator):
                     f"SGD {closing_balance:,.2f}",
                 ],
             ]
-            summary_table = Table(summary_data, colWidths=self._get_column_widths(summary_config))
+            summary_table = Table(
+                summary_data, colWidths=self._get_column_widths(summary_config)
+            )
             summary_table.setStyle(self._create_table_style(summary_config))
             elements.append(summary_table)
             elements.append(Spacer(1, 20))
@@ -92,18 +101,18 @@ class MariGenerator(BasePDFGenerator):
             interest_table.setStyle(self._create_table_style(interest_config))
             elements.append(interest_table)
             elements.append(Spacer(1, 20))
-        
+
         # Transaction Details
         elements.append(Paragraph("TRANSACTION DETAILS", styles["Heading2"]))
         elements.append(Spacer(1, 10))
-        
+
         table_config = self.template["tables"]["transaction_details"]
         columns = table_config["columns"]
-        
+
         # Table header
         header_row = [col["name"] for col in columns]
         data = [header_row]
-        
+
         # Transaction rows
         for txn in txns:
             row = [
@@ -113,13 +122,13 @@ class MariGenerator(BasePDFGenerator):
                 txn["incoming"],
             ]
             data.append(row)
-        
+
         # Create table
         col_widths = self._get_column_widths(table_config)
         table = Table(data, colWidths=col_widths)
         table.setStyle(self._create_table_style(table_config))
         elements.append(table)
-        
+
         # Build PDF
         doc.build(elements)
         print(f"✅ Generated Mari Bank PDF: {output_path}")

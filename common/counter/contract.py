@@ -1,4 +1,4 @@
-"""Machine-checkable PackageContract for ``counter``."""
+"""PackageContract for ``counter``."""
 
 from __future__ import annotations
 
@@ -49,11 +49,11 @@ CounterRepository|repo|base/repository.py|extension/sql.py
 Count CounterError CounterKey CounterRepository Incremented InvalidCounterKeyError
 NegativeCountError get_count increment read_count record_increment
 """.split(),
-    events="Incremented".split(),
+    events=["Incremented"],
     invariants=invs(
         """
 key-valid|A CounterKey must be a non-empty lowercase dotted 'domain.action' identifier.|$be/counter/test_key.py::test_counter_key_rejects_invalid
-count-non-negative|A Count is a non-negative tally; a negative value is unrepresentable.|$be/counter/test_count.py::test_count_rejects_negative
+count-non-negative|A Count is a non-negative tally.|$be/counter/test_count.py::test_count_rejects_negative
 @$t/test_counter_package.py
 converges-by-layer|The package converges into base/ (pure core) + extension/ (edges).|test_AC_counter_1_1_counter_converges_by_layer
 interface-equals-published-language|The published language (contract.interface) equals __init__.__all__.|test_AC_counter_1_1_only_all_is_the_published_language
@@ -66,12 +66,16 @@ async-repository-composition|CounterRepository is async, SqlCounterRepository st
     roadmap=acs(
         "counter",
         """
-@-|P0
-1.1|CounterKey validates the namespaced lowercase dotted 'domain.action' shape and rejects invalid keys with InvalidCounterKeyError.|$be/counter/test_key.py::test_counter_key_rejects_invalid
-1.2|Count is a non-negative tally.|$be/counter/test_count.py::test_count_rejects_negative
-1.3|Increment bumps the per- tally by one, returns the new per-user Count.|$be/counter/test_increment.py::test_increment_is_per_user|P1
-1.4|Get_count returns the per-user count for a concrete user_id and the global count.|$be/counter/test_query.py::test_global_vs_per_user_count|P1
-repository.5|The async CounterRepository port is structurally implemented by SqlCounterRepository and production API composition executes the same increment/get_count operations used by fakes.|$t/test_s3_pr_d_structure.py::test_AC_counter_repository_5_async_adapter_and_api_composition
+@$be/counter/test_key.py
+1.1||test_counter_key_rejects_invalid
+@$be/counter/test_count.py
+1.2||test_count_rejects_negative
+@$be/counter/test_increment.py|P1
+1.3||test_increment_is_per_user
+@$be/counter/test_query.py|P1
+1.4||test_global_vs_per_user_count
+@$t/test_s3_pr_d_structure.py
+repository.5||test_AC_counter_repository_5_async_adapter_and_api_composition
 """,
     ),
 )

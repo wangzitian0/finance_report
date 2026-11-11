@@ -1,25 +1,4 @@
-"""Shared CI/nightly evidence bundle (#1690, gate re-architecture Phase 4).
-
-ONE generator, TWO producers today:
-
-- main-branch CI (``ci.yml``), after ``unified-coverage`` + ``ac-behavioral-ratchet``
-  complete, on every push to ``main``.
-- the nightly ``audit-replay.yml`` run, which additionally supplies
-  ``provider_health`` from the staging AI/OCR gate's own result.
-
-A future third consumer (#1654's prod SLA report) is expected to reuse this
-exact schema rather than build a second aggregation pipeline — see
-``docs/project/EPIC-008.testing-strategy.md`` (AC8.13.164/AC8.13.165).
-
-Deliberately reads already-computed CI artifacts (``unified-coverage.json``, the
-persisted ratchet baseline files, the committed cassette corpus) rather than
-re-running the gates that produced them — those gates already ran earlier in
-the same job graph; this module only aggregates their output into one citable
-bundle: a gate map (lane -> job -> blocking?), the raise-only ratchet water
-lines (coverage / AC behavioural score / AC authority tier / protection floor),
-corpus per-field accuracy (from the cassette graded-eval corpus), and —
-when the caller supplies it — provider/canary health.
-"""
+"""Shared CI and nightly evidence bundle aggregator (#1690)."""
 
 from __future__ import annotations
 
@@ -32,9 +11,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
 BUNDLE_VERSION = 1
-
 
 _CI_LANE_BY_JOB: dict[str, str] = {
     "changes": "classification",
@@ -54,144 +31,6 @@ _CI_LANE_BY_JOB: dict[str, str] = {
     "ac-behavioral-ratchet": "ac-ratchet",
 }
 
-
-def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
-    """Load the gate map directly from the .github/workflows/ci.yml SSOT."""
-    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
-    if not workflow_path.exists():
-        return ()
-
-    try:
-        import yaml
-    except ImportError:  # pragma: no cover
-        return ()
-
-    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-    if not isinstance(workflow, dict):
-        return ()
-    jobs = workflow.get("jobs", {})
-    if not isinstance(jobs, dict):
-        return ()
-    finish = jobs.get("finish", {})
-    if not isinstance(finish, dict):
-        return ()
-    finish_needs = finish.get("needs", [])
-    if not isinstance(finish_needs, list):
-        return ()
-    required_jobs = {str(job_id) for job_id in finish_needs}
-    check_script = "\n".join(
-        str(step.get("run", ""))
-        for step in finish.get("steps", [])
-        if isinstance(step, dict)
-    )
-    result: list[dict[str, Any]] = []
-    for job_id in jobs:
-        job_name = str(job_id)
-        if job_name not in required_jobs:
-            continue
-        lane = _CI_LANE_BY_JOB.get(job_name, job_name.split("-", 1)[0])
-        conditional = f'needs.{job_name}.result }}}}" != "skipped"' in check_script
-        result.append(
-            {
-                "lane": lane,
-                "job": job_name,
-                "blocking": "conditional" if conditional else True,
-            }
-        )
-    return tuple(result)
-
-
-# Gate map: lane -> job -> blocking?. Loaded dynamically from the authoritative
-# CI workflow SSOT (.github/workflows/ci.yml).
-GATE_MAP: tuple[dict[str, Any], ...] = load_gate_map(REPO_ROOT)
-
-
-def _read_json(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def coverage_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    """The unified-coverage ratchet: current % + per-component breakdown."""
-    payload = _read_json(repo_root / "unified-coverage.json")
-    if payload is None:
-        return {"available": False}
-    return {
-        "available": True,
-        "coverage_percent": payload.get("coverage_percent"),
-        "breakdown": payload.get("breakdown", {}),
-    }
-
-
-def ac_score_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    """The per-AC behavioural-score floor (common/testing/data/ac-score-baseline.jsonl)."""
-    from common.testing.jsonl_baseline import load_jsonl
-
-    path = repo_root / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
-    payload = (
-        load_jsonl(path, identifier_key="ac_id", collection_key="acs")
-        if path.exists()
-        else {"acs": {}}
-    )
-    acs = payload.get("acs", {})
-    scores = [float(record.get("score", 0.0)) for record in acs.values()]
-    return {
-        "baselined_ac_count": len(acs),
-        "mean_floor_score": round(statistics.fmean(scores), 4) if scores else None,
-    }
-
-
-def ac_tier_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    """The AC authority-tier untagged-debt ratchet (shrink-only)."""
-    from common.meta.extension.check_ac_tier_baseline import load_baseline
-
-    untagged = load_baseline(
-        repo_root / "common" / "meta" / "data" / "ac-tier-baseline.json"
-    )
-    return {"untagged_debt_count": len(untagged)}
-
-
-def protection_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    """The per-type protection count floor (has_real_ref/has_proof/has_mirror)."""
-    from common.testing.protection import PROTECTION_TYPES, load_floor
-
-    path = repo_root / "common" / "testing" / "data" / "protection-floor.json"
-    return {
-        "floor": (
-            load_floor(path) if path.exists() else dict.fromkeys(PROTECTION_TYPES, 0)
-        )
-    }
-
-
-def cassette_eval_water_line() -> dict[str, Any]:
-    """Corpus per-field accuracy + the corpus-count floor (#1681/AC-llm.8.8).
-
-    Unlike the other water-lines above, this always reads the REAL committed
-    cassette corpus — ``cassette_graded_eval.evaluate()``'s ground-truth/cassette
-    directories are not parameterizable by ``repo_root`` (they resolve from
-    this repo's own layout), and a synthetic corpus would not be a meaningful
-    accuracy figure anyway.
-    """
-    from common.testing.cassette_eval_baseline import load_corpus_count_floor
-    from common.testing.cassette_graded_eval import evaluate
-
-    findings = evaluate()
-    current = findings.get("_current", {})
-    scores = [float(record.get("score", 0.0)) for record in current.values()]
-    return {
-        "case_count": len(current),
-        "corpus_count_floor": load_corpus_count_floor(),
-        "mean_field_accuracy": round(statistics.fmean(scores), 4) if scores else None,
-        "regressions": len(findings.get("regressions", [])),
-        "missing": len(findings.get("missing", [])),
-    }
-
-
-# Ratchet-baseline discovery (#1826, G-no-silent-baseline-aging). GLOB, not a
-# hand-kept list: a NEW baseline/exceptions/floor file under common/ or docs/
-# automatically appears in the bundle with zero code changes, so frozen debt
-# that nobody is burning becomes visible instead of eternal.
 _BASELINE_GLOBS: tuple[str, ...] = (
     "common/**/*baseline*.json",
     "common/**/*baseline*.jsonl",
@@ -204,16 +43,118 @@ _BASELINE_GLOBS: tuple[str, ...] = (
 )
 
 
-def _baseline_entry_count(path: Path) -> int | None:
-    """Logical entry count of a ratchet baseline/exceptions file.
+def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
+    """Load the gate map directly from the .github/workflows/ci.yml SSOT."""
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    if not workflow_path.exists():
+        return ()
+    try:
+        import yaml
+    except ImportError:  # pragma: no cover
+        return ()
 
-    Format-aware but deliberately generic (the point is aging VISIBILITY, not
-    per-ratchet semantics): a JSON list counts its items; a JSON dict counts
-    the items of its sized values (lists/dicts, after dropping ``_``-prefixed
-    meta keys and ``version``), else sums scalar-int counters (e.g. a
-    ``{"total": N}`` mirror count), else counts its keys; JSONL counts
-    non-empty lines; markdown counts table body rows.
-    """
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    if not isinstance(workflow, dict):
+        return ()
+    jobs = workflow.get("jobs", {})
+    if not isinstance(jobs, dict):
+        return ()
+    finish = jobs.get("finish", {})
+    if not isinstance(finish, dict) or not isinstance(finish.get("needs", []), list):
+        return ()
+
+    required_jobs = {str(job_id) for job_id in finish.get("needs", [])}
+    check_script = "\n".join(
+        str(step.get("run", ""))
+        for step in finish.get("steps", [])
+        if isinstance(step, dict)
+    )
+    return tuple(
+        {
+            "lane": _CI_LANE_BY_JOB.get(str(job_id), str(job_id).split("-", 1)[0]),
+            "job": str(job_id),
+            "blocking": (
+                "conditional"
+                if f'needs.{job_id}.result }}}}" != "skipped"' in check_script
+                else True
+            ),
+        }
+        for job_id in jobs
+        if str(job_id) in required_jobs
+    )
+
+
+GATE_MAP: tuple[dict[str, Any], ...] = load_gate_map(REPO_ROOT)
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def coverage_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    payload = _read_json(repo_root / "unified-coverage.json")
+    if payload is None:
+        return {"available": False}
+    return {
+        "available": True,
+        "coverage_percent": payload.get("coverage_percent"),
+        "breakdown": payload.get("breakdown", {}),
+    }
+
+
+def ac_score_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    from common.testing.jsonl_baseline import load_jsonl
+
+    path = repo_root / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
+    acs = (
+        load_jsonl(path, identifier_key="ac_id", collection_key="acs").get("acs", {})
+        if path.exists()
+        else {}
+    )
+    scores = [float(r.get("score", 0.0)) for r in acs.values()]
+    return {
+        "baselined_ac_count": len(acs),
+        "mean_floor_score": round(statistics.fmean(scores), 4) if scores else None,
+    }
+
+
+def ac_tier_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    from common.meta.extension.check_ac_tier_baseline import load_baseline
+
+    untagged = load_baseline(
+        repo_root / "common" / "meta" / "data" / "ac-tier-baseline.json"
+    )
+    return {"untagged_debt_count": len(untagged)}
+
+
+def protection_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    from common.testing.protection import PROTECTION_TYPES, load_floor
+
+    path = repo_root / "common" / "testing" / "data" / "protection-floor.json"
+    return {
+        "floor": load_floor(path)
+        if path.exists()
+        else dict.fromkeys(PROTECTION_TYPES, 0)
+    }
+
+
+def cassette_eval_water_line() -> dict[str, Any]:
+    from common.testing.cassette_eval_baseline import load_corpus_count_floor
+    from common.testing.cassette_graded_eval import evaluate
+
+    findings = evaluate()
+    current = findings.get("_current", {})
+    scores = [float(r.get("score", 0.0)) for r in current.values()]
+    return {
+        "case_count": len(current),
+        "corpus_count_floor": load_corpus_count_floor(),
+        "mean_field_accuracy": round(statistics.fmean(scores), 4) if scores else None,
+        "regressions": len(findings.get("regressions", [])),
+        "missing": len(findings.get("missing", [])),
+    }
+
+
+def _baseline_entry_count(path: Path) -> int | None:
     text = path.read_text(encoding="utf-8")
     if path.suffix == ".jsonl":
         return sum(1 for line in text.splitlines() if line.strip())
@@ -244,15 +185,13 @@ def _baseline_entry_count(path: Path) -> int | None:
             if line.lstrip().startswith("|") and line.rstrip().endswith("|")
         ]
         separators = [row for row in pipe_rows if set(row.strip()) <= set("|-: ")]
-        # Each table contributes one header row and one separator row.
         return max(0, len(pipe_rows) - 2 * len(separators))
     return None
 
 
 def _last_shrink_date(repo_root: Path, rel_path: str) -> str | None:
-    """ISO date of the file's last commit (a shrink-only file's last shrink)."""
     try:
-        proc = subprocess.run(  # noqa: S603 - fixed argv, repo-local
+        proc = subprocess.run(  # noqa: S603
             ["git", "log", "-1", "--format=%cI", "--", rel_path],
             cwd=repo_root,
             capture_output=True,
@@ -261,35 +200,25 @@ def _last_shrink_date(repo_root: Path, rel_path: str) -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    if proc.returncode != 0:
-        return None
-    return proc.stdout.strip() or None
+    return proc.stdout.strip() or None if proc.returncode == 0 else None
 
 
 def ratchet_baseline_inventory(repo_root: Path = REPO_ROOT) -> list[dict[str, Any]]:
-    """Every glob-discovered ratchet baseline: path, entry count, last shrink."""
     found = {
         path
         for pattern in _BASELINE_GLOBS
         for path in repo_root.glob(pattern)
         if path.is_file()
     }
-    # Check once instead of spawning a `git log` per file — outside a git
-    # working tree (e.g. a tmp_path in tests) every one of those would fail.
     is_git_repo = (repo_root / ".git").exists()
-    inventory: list[dict[str, Any]] = []
-    for path in sorted(found):
-        rel = path.relative_to(repo_root).as_posix()
-        inventory.append(
-            {
-                "file": rel,
-                "entry_count": _baseline_entry_count(path),
-                "last_shrink": (
-                    _last_shrink_date(repo_root, rel) if is_git_repo else None
-                ),
-            }
-        )
-    return inventory
+    return [
+        {
+            "file": (rel := path.relative_to(repo_root).as_posix()),
+            "entry_count": _baseline_entry_count(path),
+            "last_shrink": _last_shrink_date(repo_root, rel) if is_git_repo else None,
+        }
+        for path in sorted(found)
+    ]
 
 
 def build_evidence_bundle(
@@ -298,19 +227,9 @@ def build_evidence_bundle(
     gate_results: dict[str, str] | None = None,
     provider_health: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Assemble the shared evidence bundle from already-computed CI artifacts.
-
-    ``gate_results`` (job id -> GitHub Actions job ``.result``, e.g.
-    ``"success"``) is supplied by the CI caller from its own job graph — this
-    function never re-runs a gate to get it. ``provider_health`` is populated
-    by the nightly audit-replay producer (the staging AI/OCR gate's
-    ``ai_ocr_status``/``ai_ocr_exit_code``); the main-branch CI producer omits
-    it (not available in that context — no provider-backed gate runs there).
-    """
-    gate_map = load_gate_map(repo_root)
     return {
         "version": BUNDLE_VERSION,
-        "gate_map": [dict(entry) for entry in gate_map],
+        "gate_map": [dict(entry) for entry in load_gate_map(repo_root)],
         "gate_results": dict(gate_results) if gate_results else {},
         "ratchets": {
             "coverage": coverage_water_line(repo_root),
@@ -325,28 +244,26 @@ def build_evidence_bundle(
 
 
 def render_markdown(bundle: dict[str, Any]) -> str:
-    """Render the bundle as a GitHub-step-summary-ready markdown document."""
-    lines = ["## Evidence Bundle", ""]
-
-    lines.append("### Gate Map")
-    lines.append("")
-    lines.append("| Lane | Job | Blocking | Result |")
-    lines.append("|---|---|---|---|")
+    lines = [
+        "## Evidence Bundle",
+        "",
+        "### Gate Map",
+        "",
+        "| Lane | Job | Blocking | Result |",
+        "|---|---|---|---|",
+    ]
     gate_results = bundle.get("gate_results", {})
     for entry in bundle.get("gate_map", []):
         job = entry["job"]
-        result = gate_results.get(job, "n/a")
         blocking = entry["blocking"]
         blocking_label = (
             str(blocking).lower() if isinstance(blocking, bool) else blocking
         )
         lines.append(
-            f"| `{entry['lane']}` | `{job}` | `{blocking_label}` | `{result}` |"
+            f"| `{entry['lane']}` | `{job}` | `{blocking_label}` | `{gate_results.get(job, 'n/a')}` |"
         )
 
-    lines.append("")
-    lines.append("### Ratchet Water Lines")
-    lines.append("")
+    lines.extend(["", "### Ratchet Water Lines", ""])
     ratchets = bundle.get("ratchets", {})
     coverage = ratchets.get("coverage", {})
     if coverage.get("available"):
@@ -355,6 +272,7 @@ def render_markdown(bundle: dict[str, Any]) -> str:
             lines.append(f"  - `{name}`: `{data.get('coverage_percent')}%`")
     else:
         lines.append("- Coverage: not available in this run")
+
     ac_score = ratchets.get("ac_score", {})
     lines.append(
         f"- AC behavioural score: `{ac_score.get('baselined_ac_count')}` baselined "
@@ -364,46 +282,39 @@ def render_markdown(bundle: dict[str, Any]) -> str:
     lines.append(
         f"- AC authority-tier untagged debt: `{ac_tier.get('untagged_debt_count')}`"
     )
-    protection = ratchets.get("protection", {}).get("floor", {})
-    for ptype, floor in protection.items():
+    for ptype, floor in ratchets.get("protection", {}).get("floor", {}).items():
         lines.append(f"  - protection `{ptype}` floor: `{floor}`")
 
-    lines.append("")
-    lines.append("### Corpus Per-Field Accuracy")
-    lines.append("")
     cassette_eval = bundle.get("cassette_eval", {})
-    lines.append(
-        f"- `{cassette_eval.get('case_count')}` case(s) "
-        f"(floor `{cassette_eval.get('corpus_count_floor')}`), "
-        f"mean field-accuracy `{cassette_eval.get('mean_field_accuracy')}`"
+    lines.extend(
+        [
+            "",
+            "### Corpus Per-Field Accuracy",
+            "",
+            f"- `{cassette_eval.get('case_count')}` case(s) "
+            f"(floor `{cassette_eval.get('corpus_count_floor')}`), "
+            f"mean field-accuracy `{cassette_eval.get('mean_field_accuracy')}`",
+            f"- Regressions: `{cassette_eval.get('regressions')}`, "
+            f"Missing: `{cassette_eval.get('missing')}`",
+            "",
+            "### Ratchet Baseline Inventory",
+            "",
+        ]
     )
-    lines.append(
-        f"- Regressions: `{cassette_eval.get('regressions')}`, "
-        f"Missing: `{cassette_eval.get('missing')}`"
-    )
-
-    lines.append("")
-    lines.append("### Ratchet Baseline Inventory")
-    lines.append("")
     inventory = bundle.get("baseline_inventory", [])
     if inventory:
-        lines.append("| Baseline | Entries | Last shrink |")
-        lines.append("|---|---|---|")
+        lines.extend(["| Baseline | Entries | Last shrink |", "|---|---|---|"])
         for entry in inventory:
             lines.append(
-                f"| `{entry['file']}` | `{entry['entry_count']}` "
-                f"| `{entry['last_shrink']}` |"
+                f"| `{entry['file']}` | `{entry['entry_count']}` | `{entry['last_shrink']}` |"
             )
     else:
         lines.append("- No ratchet baseline files discovered")
 
     provider_health = bundle.get("provider_health")
-    lines.append("")
-    lines.append("### Provider / Canary Health")
-    lines.append("")
+    lines.extend(["", "### Provider / Canary Health", ""])
     if provider_health:
-        for key, value in provider_health.items():
-            lines.append(f"- `{key}`: `{value}`")
+        lines.extend(f"- `{k}`: `{v}`" for k, v in provider_health.items())
     else:
         lines.append("- Not available in this run (no provider-backed gate ran)")
 
@@ -415,31 +326,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Generate the shared CI/nightly evidence bundle (#1690)."
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help="Output JSON file for the evidence bundle (required unless --dry-run is set).",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Rehearse evidence bundle generation without side effects.",
-    )
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--github-summary", type=Path, default=None)
-    parser.add_argument(
-        "--gate-results",
-        type=str,
-        default=None,
-        help="JSON object of job id -> GitHub Actions job .result.",
-    )
-    parser.add_argument(
-        "--provider-status",
-        type=str,
-        default=None,
-        help="Provider/canary health status string (e.g. the staging AI/OCR "
-        "gate's ai_ocr_status). Omitted -> provider_health is null.",
-    )
+    parser.add_argument("--gate-results", type=str, default=None)
+    parser.add_argument("--provider-status", type=str, default=None)
     parser.add_argument("--provider-exit-code", type=str, default=None)
     args = parser.parse_args(argv)
 
@@ -478,7 +369,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.github_summary:
         with args.github_summary.open("a", encoding="utf-8") as fh:
             fh.write(rendered)
-
     return 0
 
 

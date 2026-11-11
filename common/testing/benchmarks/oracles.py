@@ -1,14 +1,4 @@
-"""Physical truth oracles for Bench V2 financial scenario benchmarks.
-
-Defines the 4 pillars of benchmark physical verification:
-  1. AI Semantic Grounding Oracle: Query AI advisor for net worth and assert
-     correct figures with zero hallucinated discrepancy tokens.
-  2. Zero Console Error Invariant: Browser checks assert zero console errors
-     (catching CSP violations and uncaught exceptions).
-  3. DOM Hygiene Scanner: Automated scanner rejects developer jargon in DOM.
-  4. Triple Accounting Articulation Invariant: Enforce Assets == Liabilities + Equity
-     and Net Worth == Assets - Liabilities == Ending Equity across all cases.
-"""
+"""Physical truth oracles for Bench V2 financial scenario benchmarks."""
 
 from __future__ import annotations
 
@@ -67,10 +57,7 @@ HALLUCINATED_DISCREPANCY_TOKENS: list[str] = [
     "对不上",
 ]
 
-# A negation word starts a word. A letter, a digit or a hyphen before it means that it is
-# part of another word: "casino" and "non-zero" are no negation.
 _WORD_START = r"(?<![a-z0-9-])"
-# A negation word ends a word. "zero-balance" is no negation.
 _WORD_END = r"(?![a-z0-9-])"
 _ISSUE = (
     r"(?:balance\s+|ledger\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)"
@@ -88,14 +75,10 @@ _NEGATION_PREFIX = (
     rf"|rather\s+than|(?:did|do|does)\s*(?:not|n[\x27\']t)\s+{_FIND_VERB}(?:\s+any)?"
     r"|(?:found|find|see|saw|detected)\s+no)"
 )
-
-# A review heading is a negation only when the words after it negate (#2484).
 _REVIEW_WORD = (
     r"(?:check|verification|audit|review|analysis|analyses|assessment)(?:s|es)?"
 )
 _HEADING = rf"(?:balance\s+|ledger\s+)?discrepanc(?:y|ies)(?:\s+{_REVIEW_WORD})?"
-# These may stand between the heading and the verdict: a qualifier in brackets, the word
-# "result", markdown marks (** _ # > |), list marks, a colon and a verb such as "found".
 _BETWEEN = (
     r"(?:\s*\([^)]*\))?(?:\s+(?:result|results|status|outcome|summary))?"
     r"[\s:\uff1a\-\u2014\u2013*_#>|\u2022\u00b7]*"
@@ -123,33 +106,26 @@ NEGATED_DISCREPANCY_PATTERNS: list[str] = [
 ]
 
 
+def _dec(d: dict[str, Any], key: str, default: str = "0.00") -> Decimal:
+    return Decimal(str(d.get(key) if key in d and d.get(key) is not None else default))
+
+
 def assert_triple_accounting_articulation(
     bs: dict[str, Any],
     is_stmt: dict[str, Any] | None = None,
     tolerance: Decimal = Decimal("0.05"),
 ) -> None:
-    """Validate Pillar 4: Triple Accounting Articulation Invariant.
-
-    1. Fundamental Equation: Assets == Liabilities + Ending Total Equity (delta == 0.00).
-    2. Net Worth Identity: Net Worth == Total Assets - Total Liabilities.
-    3. Equity Rollforward: Ending Total Equity == Opening Equity + Net Income + Adjustments.
-    4. If Income Statement is provided: bs.net_income == is_stmt.net_income.
-    """
-    total_assets = Decimal(str(bs["total_assets"]))
-    total_liabilities = Decimal(str(bs["total_liabilities"]))
-    opening_equity = Decimal(str(bs["total_equity"]))
-    bs_net_income = Decimal(str(bs.get("net_income") or "0.00"))
-    unrealized_fx = Decimal(str(bs.get("unrealized_fx_gain_loss") or "0.00"))
-    cta_adj = Decimal(str(bs.get("cta_adjustment") or "0.00"))
-    nw_adj = Decimal(str(bs.get("net_worth_adjustment_gain_loss") or "0.00"))
-    equation_delta = Decimal(str(bs.get("equation_delta") or "0.00"))
-    is_balanced = bs.get("is_balanced", False)
-
-    # 1. Fundamental balance sheet identity
-    ending_total_equity = (
-        opening_equity + bs_net_income + unrealized_fx + cta_adj + nw_adj
+    net_worth = Decimal(str(bs["total_assets"])) - Decimal(str(bs["total_liabilities"]))
+    bs_ni = _dec(bs, "net_income")
+    ending_equity = (
+        Decimal(str(bs["total_equity"]))
+        + bs_ni
+        + _dec(bs, "unrealized_fx_gain_loss")
+        + _dec(bs, "cta_adjustment")
+        + _dec(bs, "net_worth_adjustment_gain_loss")
     )
-    net_worth = total_assets - total_liabilities
+    equation_delta = _dec(bs, "equation_delta")
+    is_balanced = bs.get("is_balanced", False)
 
     assert is_balanced is True, (
         f"Pillar 4 Invariant Failure: Balance Sheet not balanced: is_balanced={is_balanced}, equation_delta={equation_delta}"
@@ -157,19 +133,14 @@ def assert_triple_accounting_articulation(
     assert abs(equation_delta) <= tolerance, (
         f"Pillar 4 Invariant Failure: Equation delta {equation_delta} exceeds tolerance {tolerance}"
     )
-
-    # 2. Net worth identity
-    net_worth_delta = abs(net_worth - ending_total_equity)
-    assert net_worth_delta <= tolerance, (
-        f"Pillar 4 Invariant Failure: Net Worth ({net_worth}) != Ending Total Equity ({ending_total_equity}), diff={net_worth_delta}"
+    nw_delta = abs(net_worth - ending_equity)
+    assert nw_delta <= tolerance, (
+        f"Pillar 4 Invariant Failure: Net Worth ({net_worth}) != Ending Total Equity ({ending_equity}), diff={nw_delta}"
     )
-
-    # 3. Triple articulation with Income Statement if provided
     if is_stmt is not None:
-        is_net_income = Decimal(str(is_stmt["net_income"]))
-        ni_diff = abs(bs_net_income - is_net_income)
-        assert ni_diff <= tolerance, (
-            f"Pillar 4 Invariant Failure: Balance Sheet Net Income ({bs_net_income}) does not match Income Statement Net Income ({is_net_income})"
+        is_ni = Decimal(str(is_stmt["net_income"]))
+        assert abs(bs_ni - is_ni) <= tolerance, (
+            f"Pillar 4 Invariant Failure: Balance Sheet Net Income ({bs_ni}) does not match Income Statement Net Income ({is_ni})"
         )
 
 
@@ -178,48 +149,44 @@ def assert_ai_advisor_semantic_grounding(
     expected_figures: list[str],
     forbidden_tokens: list[str] | None = None,
 ) -> None:
-    """Validate Pillar 1: AI Semantic Grounding Oracle.
-
-    Asserts that the AI advisor response contains expected balance numbers
-    and zero hallucinated discrepancy or ledger imbalance tokens.
-    """
     tokens = (
         forbidden_tokens
         if forbidden_tokens is not None
         else HALLUCINATED_DISCREPANCY_TOKENS
     )
-    # One pass over the answer. A look-ahead reads the words of the answer.
-    # It does not read the marker of an earlier pattern (#2484).
-    sanitized_answer = re.sub(
-        "|".join(f"(?:{pattern})" for pattern in NEGATED_DISCREPANCY_PATTERNS),
+    sanitized = re.sub(
+        "|".join(f"(?:{p})" for p in NEGATED_DISCREPANCY_PATTERNS),
         " [negated_consistency_assertion] ",
         answer.lower(),
         flags=re.IGNORECASE,
     )
-
     for token in tokens:
-        assert token.lower() not in sanitized_answer, (
+        assert token.lower() not in sanitized, (
             f"Pillar 1 Invariant Failure: AI Advisor hallucinated discrepancy/imbalance token '{token}' in response: {answer}"
         )
     if expected_figures:
-        found_any = any(fig in answer for fig in expected_figures)
-        assert found_any, (
+        assert any(fig in answer for fig in expected_figures), (
             f"Pillar 1 Invariant Failure: AI Advisor answer did not contain any expected figures {expected_figures}. Answer: {answer}"
         )
 
 
-def scan_dom_hygiene(
-    text: str,
-    forbidden_tokens: list[str] | None = None,
-) -> list[str]:
-    """Validate Pillar 3: Scan text or DOM content for developer jargon."""
+def scan_dom_hygiene(text: str, forbidden_tokens: list[str] | None = None) -> list[str]:
     tokens = forbidden_tokens if forbidden_tokens is not None else FORBIDDEN_DOM_JARGON
-    violations: list[str] = []
-    text_lower = text.lower()
-    for token in tokens:
-        if token.lower() in text_lower:
-            violations.append(f"Detected forbidden developer jargon: '{token}'")
-    return violations
+    low = text.lower()
+    return [
+        f"Detected forbidden developer jargon: '{t}'"
+        for t in tokens
+        if t.lower() in low
+    ]
+
+
+def _skipped(reason: str) -> dict[str, Any]:
+    return {
+        "status": "SKIPPED",
+        "reason": reason,
+        "console_errors": [],
+        "dom_violations": [],
+    }
 
 
 def verify_browser_ui_hygiene(
@@ -231,33 +198,30 @@ def verify_browser_ui_hygiene(
     allow_skip_if_no_browser: bool = True,
     viewports: list[dict[str, int]] | None = None,
 ) -> dict[str, Any]:
-    """Validate Pillar 2 (Zero Console Error) & Pillar 3 (DOM Hygiene Scanner).
-
-    Uses Playwright to navigate authenticated routes and verifies:
-      - Zero console error logs (catching CSP violations and unhandled exceptions)
-      - Zero developer jargon in rendered DOM
-      - Zero horizontal overflow across configured desktop and mobile viewports
-    """
-    if routes is None:
-        routes = list(DEFAULT_BENCHMARK_UI_ROUTES)
+    routes = list(DEFAULT_BENCHMARK_UI_ROUTES) if routes is None else routes
     if not routes:
         raise ValueError("verify_browser_ui_hygiene requires at least one route")
-    if viewports is not None:
-        active_viewports = list(viewports)
-    elif viewport is not None:
-        active_viewports = [viewport]
-    else:
-        active_viewports = list(DEFAULT_BENCHMARK_UI_VIEWPORTS)
-
+    active_viewports = (
+        list(viewports)
+        if viewports is not None
+        else (
+            [viewport] if viewport is not None else list(DEFAULT_BENCHMARK_UI_VIEWPORTS)
+        )
+    )
     target_auth = auth_context or runner.last_auth_context
     if not target_auth:
         raise ValueError("verify_browser_ui_hygiene requires an active auth_context")
 
-    # Validate the auth context before any browser check, so a bad context fails closed
-    # whether or not Playwright is installed.
     from tests.e2e.auth_cookie import build_runner_browser_session
 
     cookie, init_script = build_runner_browser_session(target_auth, runner.base_url)
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        if allow_skip_if_no_browser:
+            return _skipped("playwright_not_installed")
+        raise
 
     console_errors: list[str] = []
     page_errors: list[str] = []
@@ -265,74 +229,47 @@ def verify_browser_ui_hygiene(
     visited_routes: list[str] = []
     route_errors: list[str] = []
     failed_routes: set[str] = set()
-    viewports_verified = [f"{vp['width']}x{vp['height']}" for vp in active_viewports]
 
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        if allow_skip_if_no_browser:
-            print(
-                "  ⚠️ Playwright not installed in environment; skipping browser hygiene check"
-            )
-            return {
-                "status": "SKIPPED",
-                "reason": "playwright_not_installed",
-                "console_errors": [],
-                "dom_violations": [],
-            }
-        raise
+    def record_route_error(route: str, msg: str) -> None:
+        if route not in failed_routes:
+            failed_routes.add(route)
+            route_errors.append(f"[{route}] {msg}")
 
     with sync_playwright() as p:
         try:
             browser = p.chromium.launch(headless=True)
         except Exception as exc:
             if allow_skip_if_no_browser:
-                print(
-                    f"  ⚠️ Playwright chromium launch failed: {exc}; skipping browser hygiene check"
-                )
-                return {
-                    "status": "SKIPPED",
-                    "reason": str(exc),
-                    "console_errors": [],
-                    "dom_violations": [],
-                }
+                return _skipped(str(exc))
             raise
-
         try:
             for vp in active_viewports:
                 vp_label = f"{vp['width']}x{vp['height']}"
                 context = browser.new_context(viewport=vp)
                 context.add_cookies([cookie])
                 context.add_init_script(init_script)
-
                 page = context.new_page()
-
-                def on_console(msg: Any) -> None:
-                    if msg.type == "error":
-                        text = msg.text
-                        if "favicon.ico" in text:
-                            return
-                        console_errors.append(f"[{page.url}] {text}")
-
-                def on_page_error(exc: Any) -> None:
-                    page_errors.append(f"[{page.url}] {exc}")
-
-                page.on("console", on_console)
-                page.on("pageerror", on_page_error)
+                page.on(
+                    "console",
+                    lambda msg, p=page: console_errors.append(f"[{p.url}] {msg.text}")
+                    if msg.type == "error" and "favicon.ico" not in msg.text
+                    else None,
+                )
+                page.on(
+                    "pageerror",
+                    lambda exc, p=page: page_errors.append(f"[{p.url}] {exc}"),
+                )
 
                 for route in routes:
-                    target_url = f"{runner.base_url}{route}"
                     try:
-                        response = page.goto(
-                            target_url,
+                        resp = page.goto(
+                            f"{runner.base_url}{route}",
                             timeout=timeout_ms,
                             wait_until="domcontentloaded",
                         )
-                        status_code = getattr(response, "status", None)
-                        if status_code is not None and status_code >= 400:
-                            if route not in failed_routes:
-                                failed_routes.add(route)
-                                route_errors.append(f"[{route}] HTTP {status_code}")
+                        sc = getattr(resp, "status", None)
+                        if sc is not None and sc >= 400:
+                            record_route_error(route, f"HTTP {sc}")
                             continue
                         try:
                             page.wait_for_load_state("networkidle", timeout=5000)
@@ -343,11 +280,10 @@ def verify_browser_ui_hygiene(
                         if final_path.startswith("/login") and not route.startswith(
                             "/login"
                         ):
-                            if route not in failed_routes:
-                                failed_routes.add(route)
-                                route_errors.append(
-                                    f"[{route}] redirected to {final_path}: the session is not authenticated"
-                                )
+                            record_route_error(
+                                route,
+                                f"redirected to {final_path}: the session is not authenticated",
+                            )
                             continue
                         eval_fn = getattr(page, "evaluate", None)
                         if callable(eval_fn):
@@ -355,28 +291,23 @@ def verify_browser_ui_hygiene(
                                 "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
                             )
                             if isinstance(dims, dict):
-                                scroll_width = int(dims.get("scrollWidth", vp["width"]))
-                                inner_width = int(dims.get("innerWidth", vp["width"]))
-                                if scroll_width > inner_width:
-                                    if route not in failed_routes:
-                                        failed_routes.add(route)
-                                        route_errors.append(
-                                            f"[{route}] horizontal overflow at {vp_label}: scrollWidth={scroll_width} > innerWidth={inner_width}"
-                                        )
+                                sw = int(dims.get("scrollWidth", vp["width"]))
+                                iw = int(dims.get("innerWidth", vp["width"]))
+                                if sw > iw:
+                                    record_route_error(
+                                        route,
+                                        f"horizontal overflow at {vp_label}: scrollWidth={sw} > innerWidth={iw}",
+                                    )
                                     continue
                         body_text = page.inner_text("body")
                         if route not in visited_routes:
                             visited_routes.append(route)
-
-                        violations = scan_dom_hygiene(body_text)
-                        for v in violations:
+                        for v in scan_dom_hygiene(body_text):
                             entry = f"[{route}] {v}"
                             if entry not in dom_violations:
                                 dom_violations.append(entry)
                     except Exception as exc:
-                        if route not in failed_routes:
-                            failed_routes.add(route)
-                            route_errors.append(f"[{route}] navigation failed: {exc}")
+                        record_route_error(route, f"navigation failed: {exc}")
         finally:
             browser.close()
 
@@ -393,11 +324,12 @@ def verify_browser_ui_hygiene(
         raise AssertionError(
             f"Pillar 3 Invariant Failure: DOM hygiene violations detected: {dom_violations}"
         )
-
     return {
         "status": "PASS",
         "visited_routes": visited_routes,
-        "viewports_verified": viewports_verified,
+        "viewports_verified": [
+            f"{vp['width']}x{vp['height']}" for vp in active_viewports
+        ],
         "route_errors": route_errors,
         "console_errors": all_console_issues,
         "dom_violations": dom_violations,
