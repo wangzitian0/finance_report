@@ -107,43 +107,25 @@ export interface FxWarning {
   [key: string]: string | undefined;
 }
 
-export type BalanceSheetResponse = Omit<
+type WithFxWarnings<T, Extra extends keyof T = never> = Omit<
+  T,
+  "fx_warnings" | Extra
+> & { fx_warnings?: FxWarning[] } & ([Extra] extends [never]
+    ? unknown
+    : { [K in Extra]?: FxWarning[] });
+
+export type BalanceSheetResponse = WithFxWarnings<
   Schemas["BalanceSheetResponse"],
-  "fx_warnings" | "opening_balance_warnings"
-> & {
-  fx_warnings?: FxWarning[];
-  opening_balance_warnings?: FxWarning[];
-};
-
+  "opening_balance_warnings"
+>;
 export type IncomeStatementTrend = Schemas["IncomeStatementTrend"];
-
-export type IncomeStatementResponse = Omit<
-  Schemas["IncomeStatementResponse"],
-  "fx_warnings"
-> & {
-  fx_warnings?: FxWarning[];
-};
-
+export type IncomeStatementResponse = WithFxWarnings<Schemas["IncomeStatementResponse"]>;
 export type CashFlowItem = Schemas["CashFlowItem"];
-
 export type CashFlowSummary = Schemas["CashFlowSummary"];
-
-export type CashFlowResponse = Omit<
-  Schemas["CashFlowResponse"],
-  "fx_warnings"
-> & {
-  fx_warnings?: FxWarning[];
-};
-
+export type CashFlowResponse = WithFxWarnings<Schemas["CashFlowResponse"]>;
 /** One line of the bounded cash-flow statement. Its events load page by page (#2583). */
 export type CashFlowLine = Schemas["CashFlowLine"];
-
-export type CashFlowPreview = Omit<
-  Schemas["CashFlowPreview"],
-  "fx_warnings"
-> & {
-  fx_warnings?: FxWarning[];
-};
+export type CashFlowPreview = WithFxWarnings<Schemas["CashFlowPreview"]>;
 
 export type CashFlowLineEvent = Schemas["CashFlowLineEvent"];
 
@@ -216,12 +198,11 @@ export interface PersonalReportPackageFrozenEvidence {
   framework_policy_decisions: Schemas["FrameworkPolicyDecision"][];
 }
 
-export interface PersonalReportPackageReadinessViewModel {
-  package_id: string;
-  state: Schemas["PersonalReportPackageReadinessState"];
-  label: string;
-  action_href: string;
-  blocking_count: number;
+export interface PersonalReportPackageReadinessViewModel
+  extends Omit<
+    Schemas["PersonalReportPackageReadinessResponse"],
+    "blockers" | "input_coverage"
+  > {
   blockers: Schemas["PersonalReportPackageReadinessBlocker"][];
   input_coverage: Schemas["PersonalReportPackageInputCoverage"];
 }
@@ -255,28 +236,22 @@ export function evidenceReferences(
   return Array.from(new Set(references)).sort();
 }
 
-export interface PersonalReportPackageDocumentViewModel {
-  schema_version: "2";
-  lifecycle: PersonalReportPackageDocumentLifecycle;
+export interface PersonalReportPackageDocumentViewModel
+  extends Omit<
+    Schemas["PersonalReportPackageDocument"],
+    | "snapshot_id"
+    | "package_decision_id"
+    | "frozen_at"
+    | "readiness"
+    | "framework_policy"
+    | "sections"
+    | "input_manifest"
+  > {
   snapshot_id: string | null;
   package_decision_id: string | null;
-  generated_at: string;
   frozen_at: string | null;
-  package_id: string;
-  status: PersonalReportPackageSnapshotSummary["status"];
-  context: {
-    framework_id: Schemas["PersonalReportingFrameworkId"];
-    start_date: string;
-    end_date: string;
-    as_of_date: string;
-    currency: string;
-    /** The restricted-holdings scope (#2645). Absent in a document frozen before #2645. */
-    include_restricted?: boolean | null;
-  };
-  contract: PersonalReportPackageContractResponse;
   readiness: PersonalReportPackageReadinessViewModel;
   framework_policy: PackageFrameworkPolicy;
-  statement_disposition_policy?: PersonalReportPackageStatementDispositionPolicy | null;
   sections: PersonalReportPackageSectionsViewModel;
   /** Null for a preview. */
   frozen_evidence: PersonalReportPackageFrozenEvidence | null;
@@ -402,13 +377,14 @@ export function normalizeAdvisorSuggestions(
 function summarizeTraceabilityAnchor(
   anchor: PersonalReportPackageTraceabilityAnchor,
 ): PersonalReportPackageTraceabilityAnchorSummary {
+  const { details, ...rest } = anchor;
   return {
-    state: anchor.state,
+    ...rest,
     source_types: anchor.source_types ?? [],
     entry_statuses: anchor.entry_statuses ?? [],
     identifier_fields: anchor.identifier_fields ?? [],
     unavailable_reason: anchor.unavailable_reason ?? null,
-    detail_count: (anchor.details ?? []).length,
+    detail_count: (details ?? []).length,
   };
 }
 
@@ -420,22 +396,16 @@ function summarizeTraceabilityAppendix(
   appendix: PersonalReportPackageTraceabilityResponse,
 ): PersonalReportPackageTraceabilitySummary {
   return {
-    section_id: appendix.section_id,
-    label: appendix.label,
-    status: appendix.status,
-    lines: appendix.lines.map((line) => ({
-      line_id: line.line_id,
-      section_id: line.section_id,
-      label: line.label,
+    ...appendix,
+    lines: appendix.lines.map(({ source_anchor, ledger_anchor, ...line }) => ({
+      ...line,
       amount_field: line.amount_field ?? null,
       currency_field: line.currency_field ?? null,
-      source_state: line.source_state,
-      source_anchor: summarizeTraceabilityAnchor(line.source_anchor),
-      ledger_anchor: summarizeTraceabilityAnchor(line.ledger_anchor),
+      source_anchor: summarizeTraceabilityAnchor(source_anchor),
+      ledger_anchor: summarizeTraceabilityAnchor(ledger_anchor),
       anchor_count: line.anchor_count ?? 0,
       blocker_codes: line.blocker_codes ?? [],
     })),
-    completeness_warnings: appendix.completeness_warnings,
   };
 }
 
@@ -444,6 +414,7 @@ export function normalizePersonalReportPackageDocument(
   document: Schemas["PersonalReportPackageDocument"],
 ): PersonalReportPackageDocument {
   const snapshotId = document.snapshot_id ?? null;
+  const { decisions, gaps = [] } = document.framework_policy;
   return normalizePackagePayload(document, {
     snapshot_id: snapshotId,
     package_decision_id: document.package_decision_id ?? null,
@@ -452,11 +423,8 @@ export function normalizePersonalReportPackageDocument(
       document.sections.traceability_appendix,
     ),
     policy_counts: {
-      decision_count: document.framework_policy.decisions.length,
-      evidence_reference_count: evidenceReferences([
-        ...document.framework_policy.decisions,
-        ...(document.framework_policy.gaps ?? []),
-      ]).length,
+      decision_count: decisions.length,
+      evidence_reference_count: evidenceReferences([...decisions, ...gaps]).length,
     },
     frozen_evidence:
       snapshotId && document.lifecycle === "frozen"
@@ -464,7 +432,7 @@ export function normalizePersonalReportPackageDocument(
             snapshot_id: snapshotId,
             traceability_appendix: document.sections.traceability_appendix,
             input_manifest: document.input_manifest,
-            framework_policy_decisions: document.framework_policy.decisions,
+            framework_policy_decisions: decisions,
           }
         : null,
   });
@@ -474,15 +442,13 @@ export function normalizePersonalReportPackageDocument(
 export function normalizePersonalReportPackagePreview(
   preview: PersonalReportPackagePreview,
 ): PersonalReportPackageDocument {
+  const { decision_count, evidence_reference_count } = preview.framework_policy;
   return normalizePackagePayload(preview, {
     snapshot_id: null,
     package_decision_id: null,
     frozen_at: null,
     traceability_appendix: preview.sections.traceability_appendix,
-    policy_counts: {
-      decision_count: preview.framework_policy.decision_count,
-      evidence_reference_count: preview.framework_policy.evidence_reference_count,
-    },
+    policy_counts: { decision_count, evidence_reference_count },
     frozen_evidence: null,
   });
 }
@@ -500,21 +466,19 @@ function normalizePackagePayload(
     frozen_evidence: PersonalReportPackageFrozenEvidence | null;
   },
 ): PersonalReportPackageDocument {
-  const coverage = document.readiness.input_coverage ?? {
-    manifest_decision_count: 0,
-    authoritative_input_count: 0,
-    unproven_input_count: 0,
+  const { balance_sheet, income_statement, cash_flow } = document.sections;
+  const withAnchors = <T extends { evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][] }>(
+    rows: readonly T[],
+  ) => rows.map((row) => ({ ...row, evidence_anchors: row.evidence_anchors ?? [] }));
+  const { input_manifest: _unused, ...docBase } = document as Schemas["PersonalReportPackageDocument"] & {
+    input_manifest?: unknown;
   };
+  void _unused;
   return {
-    schema_version: document.schema_version,
-    lifecycle: document.lifecycle,
+    ...docBase,
     snapshot_id: identity.snapshot_id,
     package_decision_id: identity.package_decision_id,
-    generated_at: document.generated_at,
     frozen_at: identity.frozen_at,
-    package_id: document.package_id,
-    status: document.status,
-    context: document.context,
     statement_disposition_policy: document.statement_disposition_policy ?? null,
     frozen_evidence: identity.frozen_evidence,
     contract: {
@@ -524,50 +488,42 @@ function normalizePackagePayload(
     readiness: {
       ...document.readiness,
       blockers: document.readiness.blockers ?? [],
-      input_coverage: coverage,
+      input_coverage: document.readiness.input_coverage ?? {
+        manifest_decision_count: 0,
+        authoritative_input_count: 0,
+        unproven_input_count: 0,
+      },
     },
     framework_policy: {
       ...document.framework_policy,
       ...identity.policy_counts,
-      decisions: document.framework_policy.decisions
-        .slice(0, PACKAGE_POLICY_PREVIEW_DECISIONS)
-        .map((decision) => ({
-          ...decision,
-          evidence_anchors: decision.evidence_anchors ?? [],
-        })),
-      gaps: (document.framework_policy.gaps ?? []).map((gap) => ({
-        ...gap,
-        evidence_anchors: gap.evidence_anchors ?? [],
-      })),
+      decisions: withAnchors(
+        document.framework_policy.decisions.slice(0, PACKAGE_POLICY_PREVIEW_DECISIONS),
+      ),
+      gaps: withAnchors(document.framework_policy.gaps ?? []),
     },
     sections: {
       ...document.sections,
       balance_sheet: {
-        ...document.sections.balance_sheet,
-        fx_warnings: normalizeFxWarningRows(
-          document.sections.balance_sheet.fx_warnings,
-        ),
+        ...balance_sheet,
+        fx_warnings: normalizeFxWarningRows(balance_sheet.fx_warnings),
         opening_balance_warnings: normalizeFxWarningRows(
-          document.sections.balance_sheet.opening_balance_warnings,
+          balance_sheet.opening_balance_warnings,
         ),
       },
       income_statement: {
-        ...document.sections.income_statement,
-        fx_warnings: normalizeFxWarningRows(
-          document.sections.income_statement.fx_warnings,
-        ),
+        ...income_statement,
+        fx_warnings: normalizeFxWarningRows(income_statement.fx_warnings),
       },
       cash_flow: {
-        start_date: document.sections.cash_flow.start_date,
-        end_date: document.sections.cash_flow.end_date,
-        currency: document.sections.cash_flow.currency,
-        summary: document.sections.cash_flow.summary,
-        cash_bridge: document.sections.cash_flow.cash_bridge,
-        proof_state: document.sections.cash_flow.proof_state,
-        proof_reasons: document.sections.cash_flow.proof_reasons,
-        fx_warnings: normalizeFxWarningRows(
-          document.sections.cash_flow.fx_warnings,
-        ),
+        start_date: cash_flow.start_date,
+        end_date: cash_flow.end_date,
+        currency: cash_flow.currency,
+        summary: cash_flow.summary,
+        cash_bridge: cash_flow.cash_bridge,
+        proof_state: cash_flow.proof_state,
+        proof_reasons: cash_flow.proof_reasons,
+        fx_warnings: normalizeFxWarningRows(cash_flow.fx_warnings),
       },
       traceability_appendix: identity.traceability_appendix,
     },

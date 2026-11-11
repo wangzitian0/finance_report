@@ -1,643 +1,364 @@
-"""The ``reconciliation`` package's machine-checkable :class:`PackageContract`."""
+"""Machine-checkable PackageContract for ``reconciliation``."""
 
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ac,
-    ConceptRecord,
-    ContextRelation,
     ContextScope,
     GovernanceGuarantee,
     GovernanceInitiative,
-    Invariant,
-    Kind,
     PackageContract,
-    Unit,
+    acs,
+    concepts,
+    invs,
+    rels,
+    units,
 )
 
-# fmt: off
 CONTRACT = PackageContract(
     name="reconciliation",
     status="active",
     tier="CODE-ONLY",
-    # #1674 contract-honesty audit (2026-07-09): portfolio/platform/pricing/config
-    # were declared but had zero real imports — removed. Re-add each with its
-    # first real import, not before (a declared-but-unused edge now fails
-    # check_package_contract).
-    # llm added #1670; ai_semantic_score itself relocated OUT of this package
-    # and into llm (AC-llm.semantic-scoring.1, #1859 flagged the CODE-ONLY
-    # violation — a genuine LLM call cannot live in a CODE-ONLY module per
-    # common/meta/readme.md's Cross-tier MUST rule 2). extension/matching.py's
-    # score_single/score_group still CONSUME llm.ai_semantic_score as an
-    # external advisory signal over its own build_reconciliation_prompt()
-    # output (graceful fallback to a neutral 50 on any error — never a hard
-    # dependency on model correctness); the llm edge stays declared here.
-    # pricing re-added #1675: extension/fx_transfer.py + fx_transfer_discovery.py
-    # read the FxConversion model, now published on pricing's root.
-    # platform re-added #1675 D6: orm/reconciliation.py + orm/consistency_check.py
-    # use the base ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin), moved
-    # from src/models/base.py to platform.orm.base.
-    depends_on=[
-        "audit",
-        "extraction",
-        "ledger",
-        "llm",
-        "observability",
-        "platform",
-        "pricing",
-    ],
+    depends_on="audit extraction ledger llm observability platform pricing".split(),
+    roles="base extension data".split(),
+    implementations={"be": "apps/backend/src/reconciliation", "fe": None},
     context=ContextScope(
-        purpose="Own the confidence-scored matching and review lifecycle that links independent source transactions to ledger facts without merging either source.",
+        purpose="Own the confidence-scored matching and review lifecycle that links independent source transactions to ledger facts.",
         in_scope=[
-            "ReconciliationMatch lifecycle, candidate generation, scoring, and review decisions",
-            "many-to-one and FX transfer matching, anomaly and consistency diagnostics",
-            "reconciliation statistics and match-outcome evidence",
+            "ReconciliationMatch lifecycle, candidate generation, scoring.",
+            "Many-to-one and FX transfer matching, anomaly and consistency diagnostics.",
+            "Reconciliation statistics and match-outcome evidence.",
         ],
         out_of_scope=[
-            "source-document and AtomicTransaction ownership",
-            "journal-entry ownership, double-entry posting, and price-observation resolution",
-            "shared money, model-provider, telemetry, persistence, and workflow ownership",
+            "Source-document and AtomicTransaction ownership.",
+            "Journal-entry ownership, double-entry posting.",
+            "Shared money, model-provider, telemetry, persistence.",
         ],
     ),
-    relationships=[
-        ContextRelation(
-            provider="audit",
-            consumer="reconciliation",
-            mode="published-language",
-            reason="Uses audit monetary, ratio, provenance, and promotion language for matching evidence.",
-        ),
-        ContextRelation(
-            provider="extraction",
-            consumer="reconciliation",
-            mode="projection",
-            reason="Reads extraction-owned AtomicTransaction facts and reviewed dispositions as one side of matching without owning source parsing or provenance.",
-        ),
-        ContextRelation(
-            provider="ledger",
-            consumer="reconciliation",
-            mode="published-language",
-            reason="Uses ledger journal/account language as the independent accounting side of a match without posting or owning journal facts.",
-        ),
-        ContextRelation(
-            provider="llm",
-            consumer="reconciliation",
-            mode="published-language",
-            reason="Uses the LLM semantic-score facade as an advisory signal while the match decision and safe fallback remain reconciliation-owned.",
-        ),
-        ContextRelation(
-            provider="observability",
-            consumer="reconciliation",
-            mode="published-language",
-            reason="Uses published safe logging and reconciliation-outcome telemetry language.",
-        ),
-        ContextRelation(
-            provider="platform",
-            consumer="reconciliation",
-            mode="composition",
-            reason="Uses platform persistence mixins without owning generic persistence behavior.",
-        ),
-        ContextRelation(
-            provider="pricing",
-            consumer="reconciliation",
-            mode="published-language",
-            reason="Uses pricing FX-conversion language for cross-currency transfer matching.",
-        ),
-    ],
-    roles=["base", "extension", "data"],
-    units=[
-        # ── taxonomy-only ORM units (module unset — the gate skips placement,
-        # the #1675 idiom). The mapped classes live in orm/reconciliation.py
-        # (#1675 D5): ledger's journal_entries is a bare FK column (the unused
-        # journal_entry relationship() was removed per the 2026-07-11 ruling);
-        # the atomic_transaction relationship survives until D4 moves
-        # AtomicTransaction into extraction and de-navigates it. ──
-        Unit(name="ReconciliationMatch", kind=Kind.AGGREGATE_ROOT),
-        Unit(name="ReconciliationMatchJournalEntry", kind=Kind.ENTITY),
-        Unit(name="ReconciliationStatus", kind=Kind.VALUE_OBJECT),
-        Unit(
-            name="ReconciliationConfig", kind=Kind.VALUE_OBJECT, module="base/config.py"
-        ),
-        Unit(name="MatchCandidate", kind=Kind.VALUE_OBJECT, module="base/config.py"),
-        Unit(name="ReconciliationStats", kind=Kind.PROJECTION, module="data/stats.py"),
-        Unit(
-            name="load_reconciliation_config",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/config.py",
-        ),
-        Unit(
-            name="ReconciliationRepository",
-            kind=Kind.REPOSITORY,
-            module="base/repository.py",
-            impl="extension/repository.py",
-        ),
-        Unit(
-            name="execute_matching",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
-        ),
-        Unit(
-            name="persist_transfer_pairs",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/transfer_pairs.py",
-        ),
-        Unit(
-            name="prune_candidates",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/candidate_policy.py",
-        ),
-        Unit(
-            name="build_many_to_one_groups",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/candidate_policy.py",
-        ),
-        Unit(
-            name="get_reconciliation_stats",
-            kind=Kind.PROJECTION,
-            module="data/stats.py",
-        ),
-        Unit(
-            name="score_amount", kind=Kind.DOMAIN_SERVICE, module="extension/scoring.py"
-        ),
-        Unit(
-            name="score_date", kind=Kind.DOMAIN_SERVICE, module="extension/scoring.py"
-        ),
-        Unit(
-            name="score_description",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/scoring.py",
-        ),
-        Unit(
-            name="score_business_logic",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/scoring.py",
-        ),
-        Unit(
-            name="score_pattern",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/scoring.py",
-        ),
-        Unit(
-            name="EventBusMatchOutcome",
-            kind=Kind.EVENT_BUS,
-            module="extension/matching.py",
-        ),
-        Unit(
-            name="ReconciliationStatsProjection",
-            kind=Kind.PROJECTION,
-            module="data/stats.py",
-        ),
-        Unit(name="ScoreBreakdownProjection", kind=Kind.PROJECTION),
-        Unit(name="MatchStatusHistoryProjection", kind=Kind.PROJECTION),
-        Unit(name="UnmatchedTransactionsProjection", kind=Kind.PROJECTION),
-        Unit(name="TransferLeg", kind=Kind.VALUE_OBJECT),
-        Unit(
-            name="pair_fx_legs",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/fx_transfer.py",
-        ),
-        Unit(
-            name="discover_fx_conversions",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/fx_transfer_discovery.py",
-        ),
-        Unit(
-            name="detect_anomalies",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/anomaly.py",
-        ),
-        Unit(
-            name="run_all_consistency_checks",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/consistency_checks.py",
-        ),
-        Unit(
-            name="ReviewedDispositionCommand",
-            kind=Kind.VALUE_OBJECT,
-            module="base/reviewed_disposition.py",
-        ),
-        Unit(
-            name="ReviewedDispositionDependencies",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/reviewed_disposition.py",
-        ),
-        Unit(
-            name="submit_reviewed_disposition",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/reviewed_disposition.py",
-        ),
-        Unit(
-            name="paired_transfer_entry_ids",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/transfer_pairs.py",
-        ),
-    ],
-    implementations={"be": "apps/backend/src/reconciliation", "fe": None},
-    interface=[
-        "AmountMismatchError",
-        "CheckResolutionAction",
-        "CheckStatus",
-        "CheckType",
-        "ConsistencyCheck",
-        "ConsistencyCheckNotFoundError",
-        "DEFAULT_CONFIG",
-        "DEFAULT_RATE_TOLERANCE",
-        "DEFAULT_TIME_WINDOW",
-        "EntryCreationError",
-        "FxTransferError",
-        "InvalidCheckActionError",
-        "MAX_COMBINATION_CANDIDATES",
-        "MatchCandidate",
-        "MatchNotFoundError",
-        "MatchingContext",
-        "NamedTransfer",
-        "RECONCILIATION_SEMANTIC_PROMPT",
-        "ReconciliationConfig",
-        "ReconciliationError",
-        "ReconciliationMatch",
-        "ReconciliationMatchJournalEntry",
-        "ReconciliationStats",
-        "ReconciliationStatus",
-        "ReviewedDispositionCommand",
-        "ReviewedDispositionDependencies",
-        "ReviewedDispositionError",
-        "TransferLeg",
-        "_candidate_is_better",
-        "_find_many_to_one_candidates",
-        "_find_normal_candidates",
-        "_find_transfer_candidates",
-        "_within_combination_tolerance",
-        "accept_match",
-        "accepted_transfer_txn_ids",
-        "apply_reconciliation_feedback",
-        "auto_accept",
-        "batch_accept",
-        "build_many_to_one_groups",
-        "build_reconciliation_prompt",
-        "classify_internal_transfer",
-        "count_pending_review_items",
-        "derive_reconciliation_score_tier",
-        "detect_anomalies",
-        "discover_fx_conversions",
-        "entry_bank_side_amount",
-        "entry_total_amount",
-        "execute_matching",
-        "extract_merchant_tokens",
-        "get_pending_items",
-        "get_reconciliation_stats",
-        "get_stage2_queue",
-        "has_unresolved_checks",
-        "is_cross_period",
-        "is_entry_balanced",
-        "list_checks",
-        "load_reconciliation_config",
-        "normalize_text",
-        "pair_fx_legs",
-        "paired_transfer_entry_ids",
-        "post_named_transfer_legs",
-        "posted_statement_source_ids",
-        "prune_candidates",
-        "reject_match",
-        "release_transaction_dispositions",
-        "resolve_check",
-        "run_all_consistency_checks",
-        "score_amount",
-        "score_business_logic",
-        "score_date",
-        "score_description",
-        "score_group",
-        "score_single",
-        "score_pattern",
-        "submit_reviewed_disposition",
-        "supersede_transaction_transfer_legs",
-        "sync_reconciliation_match_journal_entry_links",
-        "weighted_total",
-    ],
-    events=["WorkflowEvent.reconciliation_match_outcome"],
-    invariants=[
-        Invariant(
-            id="converges-by-layer",
-            statement=(
-                "The package converges into base/ (value objects + repository port) + "
-                "extension/ (matching/services/adapters) + data/ (stats projection)."
-            ),
-            test="tests/tooling/test_reconciliation_package.py::test_reconciliation_converges_by_layer",
-        ),
-        Invariant(
-            id="interface-equals-published-language",
-            statement="The published language (contract.interface) equals __init__.__all__.",
-            test="tests/tooling/test_reconciliation_package.py::test_reconciliation_only_all_is_the_published_language",
-        ),
-        Invariant(
-            id="base-layer-pure",
-            statement="base/ never imports the package's own extension/ or ORM/runtime adapters.",
-            test="tests/tooling/test_reconciliation_package.py::test_reconciliation_base_layer_is_pure",
-        ),
-        Invariant(
-            id="passes-own-governance-gate",
-            statement="check_package_contract validates reconciliation with no violations.",
-            test="tests/tooling/test_reconciliation_package.py::test_reconciliation_package_contract_gate_passes",
-        ),
-    ],
-    roadmap=[
-        ac('AC-reconciliation.rejection-recovery.4', 'Historical retired or superseded source facts cannot reenter unmatched queues, automatic candidates, or direct reviewed posting.', 'apps/backend/tests/reconciliation/test_rejection_recovery.py::test_historical_source_transactions_are_not_actionable'),
-        ac('AC-reconciliation.rejection-recovery.1', 'Rejected suggestions remain historical evidence while the source transaction becomes manually actionable.', 'apps/backend/tests/reconciliation/test_rejection_recovery.py::test_rejected_match_can_be_reviewed'),
-        ac('AC-reconciliation.rejection-recovery.2', 'Active matches cannot be bypassed and background reruns honor rejected suggestions.', 'apps/backend/tests/reconciliation/test_rejection_recovery.py::test_active_match_blocks_and_rerun_honors_rejection'),
-        ac('AC-reconciliation.rejection-recovery.3', 'Concurrent manual recovery creates at most one source journal command.', 'apps/backend/tests/reconciliation/test_rejection_recovery.py::test_concurrent_review_after_rejection'),
-        ac('AC-reconciliation.candidate-policy.1', 'Live matching and the deterministic accuracy audit share candidate enumeration, rule scoring and source-rank ordering; journal evidence precedes transfer-keyword fallback in both paths.', 'apps/backend/tests/reconciliation/test_candidate_policy.py::test_live_and_audit_choose_the_same_evidence', proof_kind='property'),
-        ac('AC-reconciliation.config-boundary.1', 'Configuration values have no direct runtime or ledger dependency; retired base behaviors have exactly one extension owner.', 'tests/tooling/test_reconciliation_config_boundary.py::test_configuration_ownership_is_explicit', proof_kind='property'),
-        ac('AC-reconciliation.config-boundary.2', 'The runtime loader reads the documented backend configuration file, parses YAML booleans explicitly, preserves defaults/YAML/environment precedence and cache reload semantics, and keeps the published interface.', 'apps/backend/tests/reconciliation/test_config_boundary.py::test_runtime_configuration_file_precedence_and_cache', proof_kind='property'),
-        ac('AC-reconciliation.config-boundary.3', 'Relocated entry readers preserve currency-filtered Money totals, ledger balance validation, and deterministic source-rank tie breaking.', 'apps/backend/tests/reconciliation/test_config_boundary.py::test_entry_readers_preserve_money_and_candidate_semantics', proof_kind='property'),
-        ac('AC-reconciliation.match.1', 'At most one active ReconciliationMatch exists per AtomicTransaction; newer matches supersede prior active rows.', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_many_to_one_keeps_same_existing_match'),
-        ac('AC-reconciliation.match.2', 'Reconciliation status follows PENDING_REVIEW→ACCEPTED/AUTO_ACCEPTED/REJECTED→SUPERSEDED and posted entries are immutable.', 'apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py::test_normal_matching_auto_accept_reconciles_entries'),
-        ac('AC-reconciliation.score.1', 'Match score is weighted composite amount/date/description/business/history in [0,100].', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_weighted_total_and_balance_helpers', priority='P1'),
-        ac('AC-reconciliation.score.2', 'Scores at/above auto-accept threshold auto-accept; review-band scores route to PENDING_REVIEW.', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_auto_accept_threshold', priority='P1'),
-        ac('AC-reconciliation.stats.1', 'Stats projection match_rate is consistent with active accepted/auto-accepted match states.', 'apps/backend/tests/reconciliation/test_reconciliation_stats.py::test_get_reconciliation_stats_dedups_multiple_accepted_matches', priority='P2'),
-        ac('AC-reconciliation.txn.1', 'ReconciliationMatch references AtomicTransaction and JournalEntry by id only (no cross-domain FK).', 'apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries'),
-        # ============================= matching-core (AC4.1) =============================
-        ac('AC-reconciliation.matching-core.1', 'score_amount returns 100 for an exact amount match and graduated lower scores (90/70/40/0) as the absolute and percentage delta from the target amount widens.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_score_amount_branches'),
-        ac('AC-reconciliation.matching-core.2', 'score_date returns 100 for a same-day match and graduated lower scores (90/75/0) as the day gap widens, with a same-window cross-month bonus over a plain in-month gap of the same size.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_score_date_branches'),
-        ac('AC-reconciliation.matching-core.3', 'score_amount applies tiered tolerance bands (exact, 0.5%-or-tighter, $5 flat, multi-entry tolerance, ratio-based fallback) rather than a single pass/fail cutoff, including scoring a zero-amount transaction as 0.', 'apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py::test_score_amount_tiers'),
-        ac('AC-reconciliation.matching-core.4', 'score_description normalizes text (case/punctuation-insensitive) and returns >=95 for near-identical descriptions differing only by case, while returning 0 for None, blank, or punctuation-only inputs.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_normalize_and_description_scoring', priority='P1'),
-        # ============================= group-matching (AC4.2) =============================
-        ac('AC-reconciliation.group-matching.1', "execute_matching groups same-day, same-description bank transactions that sum to one manual journal entry's amount into a many-to-one match and auto-accepts all of them.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_many_to_one_group'),
-        ac('AC-reconciliation.group-matching.2', 'score_group adds a many_to_one_bonus (10 points) when scoring a batch-payment total against a single matching journal entry, pushing the composite score above the auto-accept threshold without coupled boolean flags.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_score_group_many_to_one_bonus', priority='P1'),
-        ac('AC-reconciliation.group-matching.3', "execute_matching finds the combination of multiple journal entries (one-to-many split) whose lines sum to a single transaction's amount, records a multi_entry count in the score breakdown, and auto-accepts the best combination.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_multi_entry_combinations', priority='P1'),
-        # ============================= review-queue (AC4.3) =============================
-        # NB: old AC4.3.1 is NOT here -- it is a duplicate of the already-migrated
-        # AC-reconciliation.score.2 (identical test: test_auto_accept_threshold).
-        ac('AC-reconciliation.review-queue.1', 'accept_match, reject_match, and batch_accept transition PENDING_REVIEW matches to ACCEPTED/REJECTED/ACCEPTED respectively, and accepting a match reconciles its linked journal entry (status -> RECONCILED).', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_review_queue_actions_and_entry_creation'),
-        ac('AC-reconciliation.review-queue.2', "The reconciliation router's accept_match/reject_match/batch_accept service calls transition matches to ACCEPTED/REJECTED/ACCEPTED and batch_accept reports the accepted count.", 'apps/backend/tests/reconciliation/test_reconciliation_router_additional.py::test_accept_reject_batch_accept', priority='P1'),
-        ac('AC-reconciliation.review-queue.3', 'POST /reconciliation/matches/{id}/accept returns 200 with the match status set to ACCEPTED.', 'apps/backend/tests/api/test_reconciliation_router.py::test_accept_match_success', priority='P1'),
-        ac('AC-reconciliation.review-queue.4', "POST /reconciliation/matches/{id}/accept for a non-existent match id returns 404 with 'Match' in the error detail.", 'apps/backend/tests/api/test_reconciliation_router.py::test_accept_match_not_found', priority='P1'),
-        ac('AC-reconciliation.review-queue.5', 'POST /reconciliation/matches/{id}/reject returns 200 with the match status set to REJECTED.', 'apps/backend/tests/api/test_reconciliation_router.py::test_reject_match_success', priority='P1'),
-        ac('AC-reconciliation.review-queue.6', "POST /reconciliation/matches/{id}/reject for a non-existent match id returns 404 with 'Match' in the error detail.", 'apps/backend/tests/api/test_reconciliation_router.py::test_reject_match_not_found', priority='P1'),
-        ac('AC-reconciliation.review-queue.7', 'GET /reconciliation/stats returns 200 with a stats payload containing total/matched/unmatched counts, match_rate, and score_distribution.', 'apps/backend/tests/api/test_reconciliation_router.py::test_reconciliation_stats_success', priority='P1'),
-        ac('AC-reconciliation.review-queue.8', 'GET /reconciliation/unmatched returns 200 with a paginated items/total payload listing unmatched transactions.', 'apps/backend/tests/api/test_reconciliation_router.py::test_list_unmatched_success', priority='P1'),
-        ac('AC-reconciliation.review-queue.9', 'POST /reconciliation/unmatched/{txn_id}/reviewed-disposition creates one source-anchored journal entry only when the user supplies an explicit economic intent, compatible active counter-account, category where P&L applies, and non-blank review rationale; invalid semantic input fails closed at the API boundary.', 'apps/backend/tests/api/test_reconciliation_router.py::test_submit_reviewed_disposition_from_unmatched_success'),
-        ac('AC-reconciliation.review-queue.10', "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition for a non-existent transaction id returns 404 with 'Transaction' in the error detail.", 'apps/backend/tests/api/test_reconciliation_router.py::test_submit_reviewed_disposition_not_found'),
-        ac('AC-reconciliation.review-queue.11', 'Reconciliation endpoints reject unauthenticated requests with 401 (verified via GET /reconciliation/stats on an unauthenticated client).', 'apps/backend/tests/api/test_reconciliation_router.py::test_unauthenticated_access', priority='P1'),
-        ac('AC-reconciliation.review-queue.12', "GET /reconciliation/unmatched scopes results to the authenticated user and never returns another user's transactions.", 'apps/backend/tests/api/test_reconciliation_router.py::test_user_isolation', priority='P1'),
-        ac('AC-reconciliation.review-queue.13', 'The legacy unparameterized create-entry and batch-create endpoints are absent, so an unmatched source transaction cannot become a journal entry through a default account or Uncategorized fallback.', 'apps/backend/tests/api/test_reconciliation_router.py::test_legacy_unmatched_entry_routes_are_absent'),
-        ac('AC-reconciliation.review-queue.14', 'accept_match reconciles only a pre-existing linked source entry; without one it leaves the match pending and never creates a journal entry or rewrites immutable source provenance.', 'apps/backend/tests/reconciliation/test_review_queue.py::test_accept_match_without_reviewed_disposition_requires_entry_context'),
-        ac('AC-reconciliation.review-queue.15', "GET /reconciliation/unmatched accepts an optional statement_id and then returns only unresolved transactions anchored to that user-owned statement; an unknown or foreign statement fails closed without exposing another user's queue.", 'apps/backend/tests/api/test_reconciliation_router.py::test_AC_reconciliation_review_queue_15_filters_unmatched_by_statement'),
-        ac('AC-reconciliation.reviewed-disposition.1', 'A reviewed-disposition command is idempotent only for the same immutable normalized intent, counter-account, applicable category, and rationale/evidence digest; changing any semantic field after posting conflicts without superseding its TraceRecord decision or entry.', 'apps/backend/tests/api/test_reconciliation_router.py::test_reviewed_disposition_is_idempotent_and_rejects_account_intent_conflict'),
-        ac('AC-reconciliation.reviewed-disposition.2', 'The unmatched-transaction UI requires intent, a compatible counter account, required P&L category, and rationale, then calls only the reviewed-disposition endpoint; it exposes no raw create-entry or batch-create action.', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action'),
-        ac('AC-reconciliation.reviewed-disposition.3', 'A reviewed-disposition command rejects an unmatched transfer or a transaction that already has a current non-rejected reconciliation match, and neither rejection writes a source journal entry.', 'apps/backend/tests/api/test_reconciliation_router.py::test_reviewed_disposition_rejects_unmatched_bypasses_without_persisting'),
-        ac('AC-reconciliation.reviewed-disposition.4', 'The injected TraceEmitter appends the manual observation and CODE-ONLY disposition/invariant TraceRecord causal set in the same caller-owned transaction as posting; trace or posting failure rolls back the complete causal set and journal entry.', 'apps/backend/tests/api/test_reconciliation_router.py::test_reviewed_disposition_rolls_back_its_decision_when_posting_fails'),
-        ac('AC-reconciliation.reviewed-disposition.5', 'A capability-level structural lock enumerates reconciliation posting and match side effects: the reviewed-disposition service requires an injected TraceEmitter and DispositionPolicy, while raw posting, match-side source promotion, and fabricated-confidence classification surrogates are absent.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_unmatched_posting_has_one_reviewed_writer_boundary'),
-        # ============================= performance (AC4.4) =============================
-        ac('AC-reconciliation.performance.1', 'execute_matching processes 100 transactions against 20 candidate entries in under 5 seconds (representative sample standing in for the 10,000-transaction target).', 'apps/backend/tests/reconciliation/test_performance.py::test_batch_1000_transactions_reasonable_time', priority='P1'),
-        ac('AC-reconciliation.performance.2', 'score_single still scores a transaction dated one day before month-end against an entry dated the first of the next month at >=70 (cross-month date proximity).', 'apps/backend/tests/reconciliation/test_performance.py::test_month_end_to_month_start_match', priority='P1'),
-        # ============================= anomaly-detection (AC4.5) =============================
-        ac('AC-reconciliation.anomaly-detection.1', 'detect_anomalies flags LARGE_AMOUNT and FREQUENCY_SPIKE for an outsized transaction against a merchant with recent history, and flags NEW_MERCHANT and WEEKEND_LARGE for a large transaction on a weekend with no prior merchant history.', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_detect_anomalies_flags_expected_patterns', priority='P2'),
-        ac('AC-reconciliation.anomaly-detection.2', "GET /reconciliation/transactions/{txn_id}/anomalies for a non-existent transaction id returns 404 with 'Transaction' in the error detail.", 'apps/backend/tests/api/test_reconciliation_router.py::test_list_anomalies_not_found', priority='P1'),
-        # ============================= source-type-transfer (AC4.6) =============================
-        # NB: old AC4.6.4 is NOT here -- its test/file were not found under any name (flagged).
-        ac('AC-reconciliation.source-type-transfer.1', "score_amount's absolute tolerance boundary holds exactly at 0.10: a $0.10 delta still scores 90 while a $0.11 delta scores below 90.", 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_amount_tolerance_0_10_boundary'),
-        ac('AC-reconciliation.source-type-transfer.2', 'execute_matching matches an OUT transfer transaction and its paired IN transaction (within days, opposite direction, same amount) each to their own generated system Processing entry and auto-accepts both without double-booking one side against the other.', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_transfer_pair_not_double_counted'),
-        ac('AC-reconciliation.source-type-transfer.3', 'When two candidate journal entries tie on score, _candidate_is_better deterministically prefers the MANUAL-sourced entry over the AUTO_PARSED one, recording a higher source_type_winner_rank than source_type_loser_rank in the breakdown.', 'apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py::test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust'),
-        ac('AC-reconciliation.source-type-transfer.4', "execute_matching's conflict resolution assigns a source_type_winner_rank of 4.0 to a MANUAL entry and source_type_loser_rank of 1.0 to a same-score AUTO_PARSED entry, so the manual entry wins the match end to end.", 'apps/backend/tests/reconciliation/test_source_type.py::test_manual_wins_conflict_resolution', priority='P1'),
-        ac('AC-reconciliation.source-type-transfer.5', 'The Stage-1 duplicate guard does NOT flag two transactions identical in date/description/amount/direction as duplicate candidates when their balance_after (running balance) values differ.', 'apps/backend/tests/review/test_statement_validation.py::test_duplicate_guard_distinguishes_by_balance_after', priority='P1'),
-        ac('AC-reconciliation.source-type-transfer.6', 'The Stage-1 duplicate guard still flags two transactions identical in date/description/amount/direction as duplicate candidates when balance_after is equal on both or absent on both (ambiguous, needs review).', 'apps/backend/tests/review/test_statement_validation.py::test_duplicate_guard_flags_when_balance_after_equal_or_absent', priority='P1'),
-        ac('AC-reconciliation.source-type-transfer.7', "execute_matching's layer-2 matching path stamps atomic_txn_id on the resulting ReconciliationMatch when a many-to-one group is auto-accepted.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_many_to_one_layer2_sets_atomic_txn_id', priority='P1'),
-        # ============================= recovered-coverage (AC4.7) =============================
-        ac('AC-reconciliation.recovered-coverage.1', 'POST /corrections persists a category correction for a transaction and GET /corrections/stats subsequently reports it in total_corrections and top_corrections.', 'apps/backend/tests/api/test_corrections_router.py::test_post_create_correction_and_stats', priority='P1'),
-        ac('AC-reconciliation.recovered-coverage.2', "execute_matching's phase-2 combination search skips a 3-entry combination when one of the candidate entries is unbalanced, so no match is produced.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_three_entry_combination_skips_unbalanced_member', priority='P1'),
-        ac('AC-reconciliation.recovered-coverage.3', "execute_matching's layer-2 path records an atomic match for a single-entry candidate and supports transfer-pair logging within the same phase.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_layer2_atomic_match_and_transfer_pair_logging', priority='P1'),
-        # ============================= bank-side-amount (AC4.9) =============================
-        ac('AC-reconciliation.bank-side-amount.1', "score_single computes the 'amount' score dimension from the bank/cash account's line amount (not the total of all entry debits) so a split entry with clearing/payable lines still yields a 100.0 amount score for a matching outflow.", 'apps/backend/tests/reconciliation/test_reconciliation_financial_logic.py::test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow'),
-        ac('AC-reconciliation.bank-side-amount.2', 'Retrying accept_match_service on an already-ACCEPTED match returns the same version and the same journal_entry_ids without creating a duplicate journal entry.', 'apps/backend/tests/api/test_review_router.py::test_accept_match_retry_is_idempotent_after_success'),
-        ac('AC-reconciliation.bank-side-amount.3', "create_entry_from_txn with auto_post=True raises ValueError('... not active ...') and creates no journal entry when the statement's linked account is inactive.", 'apps/backend/tests/api/test_review_router.py::test_create_entry_from_txn_auto_post_rejects_inactive_statement_account'),
-        ac('AC-reconciliation.bank-side-amount.4', 'get_stage2_review_queue returns a pending PENDING_REVIEW match with a confidence_tier of MEDIUM derived from its match_score (75).', 'apps/backend/tests/api/test_review_router.py::test_get_stage2_review_queue_with_pending_match', priority='P1'),
-        ac('AC-reconciliation.bank-side-amount.5', 'derive_reconciliation_score_tier maps a reconciliation match_score to LOW (<60 or None), MEDIUM (60-84), or HIGH (>=85).', 'apps/backend/tests/reconciliation/test_confidence_tier.py::test_ac4_9_4_derive_reconciliation_score_tier', priority='P1'),
-        # ============================= audit-harness (AC4.10) =============================
-        # NB: old AC4.10.3 is NOT here -- its test asserts a literal substring of
-        # EPIC-004's own markdown text, so it stays EPIC-owned (same category as
-        # AC12.25.1 in EPIC-012).
-        ac('AC-reconciliation.audit-harness.1', "The reconciliation audit harness's build_report/write_report emit a JSON report (with metadata, summary accuracy/false-positive-rate fields, and pass/fail targets) and a companion Markdown report.", 'tests/tooling/test_reconciliation_audit.py::test_AC4_10_1_reconciliation_audit_report_schema_and_outputs', priority='P1'),
-        ac('AC-reconciliation.audit-harness.2', "The reconciliation audit harness's diagnostics report an intentionally-seeded false-positive scenario, identifying it by scenario id in the audit output.", 'tests/tooling/test_reconciliation_audit.py::test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive', priority='P1'),
-        # ============================= uuid-path-params (AC4.12) =============================
-        ac('AC-reconciliation.uuid-path-params.1', 'POST /reconciliation/matches/{match_id}/accept with a non-UUID match_id returns 422 at the FastAPI path-param boundary rather than reaching the query layer.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC4_12_1_accept_match_malformed_uuid_returns_422', priority='P2'),
-        ac('AC-reconciliation.uuid-path-params.2', 'POST /reconciliation/unmatched/{txn_id}/reviewed-disposition with a non-UUID txn_id returns 422 at the FastAPI path-param boundary rather than reaching the query layer.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC4_12_2_reviewed_disposition_malformed_uuid_returns_422', priority='P2'),
-        # ============================= per-currency-balance (AC4.13) =============================
-        ac('AC-reconciliation.per-currency-balance.1', "validate_balance_per_currency reconciles a multi-currency statement's SGD and USD buckets independently (each via its own open+in-out=close check) and never produces a cross-currency summed total.", 'apps/backend/tests/accounting/test_validation.py::test_AC1_per_currency_reconcile_does_not_cross_sum'),
-        ac('AC-reconciliation.per-currency-balance.2', 'validate_balance_per_currency flags only the offending currency (USD short by 50) as invalid while the correctly-balanced SGD bucket stays valid, never collapsing both into one aggregate flag.', 'apps/backend/tests/accounting/test_validation.py::test_AC1_per_currency_reconcile_flags_only_offending_currency'),
-        ac('AC-reconciliation.per-currency-balance.3', 'validate_balance_per_currency falls back to a single synthetic currency bucket and reproduces the legacy scalar balance check when the payload has no balances array, only opening_balance/closing_balance.', 'apps/backend/tests/accounting/test_validation.py::test_AC1_single_currency_degenerate_path_still_passes'),
-        ac('AC-reconciliation.per-currency-balance.4', "The degenerate single-currency validation path still detects and flags a balance mismatch when opening+transactions doesn't equal closing.", 'apps/backend/tests/accounting/test_validation.py::test_AC1_single_currency_degenerate_path_detects_mismatch', priority='P1'),
-        ac('AC-reconciliation.per-currency-balance.5', 'The CurrencyBalance schema normalizes a lower-case currency code to upper-case ISO and round-trips opening/closing as Decimal.', 'apps/backend/tests/accounting/test_validation.py::test_AC1_currency_balance_schema_round_trips_decimals', priority='P1'),
-        ac('AC-reconciliation.per-currency-balance.6', "validate_balance_per_currency surfaces a transaction in a currency with no declared balance bucket (e.g. EUR) as its own per-currency result flagged declared_balance=False and forces the overall result invalid, instead of silently dropping that currency's money.", 'apps/backend/tests/accounting/test_validation.py::test_AC1_orphan_currency_transaction_is_surfaced_not_dropped'),
-        ac('AC-reconciliation.per-currency-balance.7', 'validate_balance_per_currency rejects a balances array containing two buckets for the same currency (balance_computable=False, empty per_currency) instead of silently collapsing them into one arbitrary bucket.', 'apps/backend/tests/accounting/test_validation.py::test_AC1_duplicate_currency_in_balances_is_rejected', priority='P1'),
-        ac('AC-reconciliation.per-currency-balance.8', 'bank_currency_balances returns the per-currency array (as JSONB-ready string amounts) only when a bank statement payload declares more than one currency, and returns None for a single-currency or scalar-only payload so the existing scalar path is unchanged.', 'apps/backend/tests/accounting/test_validation.py::test_AC4_13_9_bank_currency_balances_emitted_only_when_multi_currency'),
-        ac('AC-reconciliation.per-currency-balance.9', "ExtractionService.parse_document persists a multi-currency bank statement's per-currency currency_balances (not collapsed to one scalar currency) and sets balance_validated True because each currency independently reconciles.", 'apps/backend/tests/extraction/test_bank_multi_currency_balances.py::test_AC4_13_9_bank_multi_currency_statement_persists_balances_and_per_currency_governs'),
-        # ============================= fx-transfer (AC4.14) =============================
-        ac('AC-reconciliation.fx-transfer.1', 'pair_fx_legs pairs an out-leg in one currency with an in-leg in another for the same owner when the implied rate (out_amount/in_amount) is within tolerance of the market rate, regardless of argument order.', 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance'),
-        ac('AC-reconciliation.fx-transfer.2', 'pair_fx_legs returns None when the implied rate deviates from the market rate beyond tolerance (~10% off) and still pairs when the market rate is close to the implied rate.', 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC2_implied_rate_outside_tolerance_does_not_pair'),
-        ac('AC-reconciliation.fx-transfer.3', 'pair_fx_legs refuses to pair legs that fall outside the configured time window, share the same direction, or belong to different owners.', 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC2_non_candidate_legs_do_not_pair'),
-        ac('AC-reconciliation.fx-transfer.4', 'classify_internal_transfer marks a paired FX transfer as an internal transfer with zero income_amount and zero expense_amount, while an unpaired leg keeps normal (non-netted) classification.', 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC3_internal_transfer_classified_net_zero'),
-        ac('AC-reconciliation.fx-transfer.5', "classify_internal_transfer's net_worth_delta is exactly zero for a fee-less paired transfer and exactly -fee when a fee is present, with no other net-worth impact.", 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee'),
-        ac('AC-reconciliation.fx-transfer.6', 'round_trip_realized_pnl returns exactly 0.00 for a same-day round trip at an unchanged rate with no fee, and exactly -fee when a fee is charged.', 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee'),
-        ac('AC-reconciliation.fx-transfer.7', 'round_trip_realized_pnl yields zero P&L for an unchanged-rate conversion event; the rate move is the holding-period revaluation that reporting derives from the ledger, never a conversion-event income/expense line, and the JournalEntrySourceType.FX_REVALUATION vocabulary entry stays for stored rows.', 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type', priority='P1'),
-        ac('AC-reconciliation.fx-transfer.8', 'build_fx_conversion constructs an FxConversion record from a paired leg whose amount_from/amount_to round-trip as Decimal with normalized ISO currency codes.', 'apps/backend/tests/accounting/test_fx_transfer.py::test_AC2_fx_conversion_model_round_trips_decimals', priority='P1'),
-        ac('AC-reconciliation.fx-transfer.9', "generate_income_statement excludes a recorded internal transfer's income/expense legs entirely and includes only the transfer's fee as an expense line, so net_income reflects salary income minus the fee only, with the fee visible as a single drill-downable expense line and in the monthly trend bucket.", 'apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py::test_AC3_internal_transfer_excluded_from_income_statement_e2e'),
-        ac('AC-reconciliation.fx-transfer.10', "generate_balance_sheet's cumulative net_income excludes a recorded internal transfer's legs and reflects only the fee, matching the income statement's net contribution.", 'apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py::test_AC3_internal_transfer_net_income_fee_only_e2e'),
-        ac('AC-reconciliation.fx-transfer.11', 'discover_fx_conversions auto-discovers an unambiguous out-leg/in-leg cross-currency conversion directly from raw asset-account journal lines (no recorded fx_conversions row), recovering the correct accounts, amounts, currencies, and implied rate.', 'apps/backend/tests/accounting/test_fx_transfer_discovery.py::test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger'),
-        ac('AC-reconciliation.fx-transfer.12', 'discover_fx_conversions refuses to pair an out-leg that matches two candidate in-legs on the same day, leaving all of them unpaired rather than guessing.', 'apps/backend/tests/accounting/test_fx_transfer_discovery.py::test_AC2_discover_skips_ambiguous_candidate_legs'),
-        ac('AC-reconciliation.fx-transfer.13', 'generate_income_statement and generate_balance_sheet, with no recorded fx_conversions row at all, still auto-discover a cross-currency transfer from raw ledger lines and exclude it end to end so net income equals salary income only (no fee on this transfer).', 'apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py::test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e'),
-        ac('AC-reconciliation.fx-transfer.14', 'For a same-day round-trip cross-currency conversion (both legs mis-booked as income/expense, no recorded fx_conversions), auto-discovery nets both conversions through the live income statement so net income shows ~zero P&L from the round trip.', 'apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py::test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report'),
-        # ── group reconciliation-engine: end-to-end run/stats/match E2E (was
-        # EPIC-008 AC8.5, migration closeout continuation, #1663 / #1711) ──
-        ac('AC-reconciliation.reconciliation-engine.1', 'The reconciliation engine runs end to end through the API.', 'apps/backend/tests/reconciliation/test_reconciliation_shift_left.py::test_reconciliation_scoring_engine_algorithms'),
-        ac('AC-reconciliation.reconciliation-engine.2', 'The reconciliation stats endpoint returns run statistics.', 'apps/backend/tests/reconciliation/test_reconciliation_shift_left.py::test_reconciliation_stats_endpoint', priority='P1'),
-        ac('AC-reconciliation.reconciliation-engine.3', 'A reconciliation match can be accepted through the API.', 'apps/backend/tests/reconciliation/test_reconciliation_shift_left.py::test_reconciliation_match_state_and_acceptance', priority='P1'),
-        # ── group consistency-checks: detect_duplicates/detect_transfer_pairs/
-        # resolve_check/list_checks edge-case behavior (was EPIC-016
-        # AC16.4, migration closeout continuation, #1663 / #1711) ──
-        ac('AC-reconciliation.consistency-checks.1', "detect_duplicates runs a global scan across all of the user's transactions when no statement_id is provided.", 'apps/backend/tests/review/test_consistency_checks.py::test_global_scan_no_statement_id', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.2', 'detect_duplicates is idempotent — it does not create duplicate checks on re-run.', 'apps/backend/tests/review/test_consistency_checks.py::test_idempotent_duplicate_detection', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.3', "detect_transfer_pairs runs a global scan across all of the user's transactions when no statement_id is provided.", 'apps/backend/tests/review/test_consistency_checks.py::test_global_scan_no_statement_id', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.4', 'resolve_check raises ValueError on an invalid resolution action.', 'apps/backend/tests/review/test_consistency_checks.py::test_resolve_check_invalid_action_raises', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.5', 'resolve_check raises ValueError when the check is not found.', 'apps/backend/tests/review/test_consistency_checks.py::test_resolve_check_not_found_raises', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.6', 'resolve_check sets FLAGGED status when action=flag.', 'apps/backend/tests/review/test_consistency_checks.py::test_resolve_check_sets_flagged', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.7', 'list_checks filters pending results by severity.', 'apps/backend/tests/review/test_consistency_checks.py::test_get_pending_filters_by_severity', priority='P1'),
-        # ── group stage2-batch: Stage-2 batch approve blocking + typed contract
-        # (was EPIC-016 AC16.22.3-4/AC16.35, migration closeout continuation,
-        # #1663 / #1711) ──
-        ac('AC-reconciliation.stage2-batch.1', 'A Stage-2 pending_review -> accepted transition is blocked while unresolved consistency checks exist.', 'apps/backend/tests/api/test_review_router.py::test_batch_approve_matches_blocked_by_unresolved_checks'),
-        ac('AC-reconciliation.stage2-batch.2', 'A Stage-2 batch approve may reconcile an existing source entry but cannot create a journal entry for a pending match without a reviewed economic disposition; the match remains pending and no entry is written.', 'apps/backend/tests/api/test_review_router.py::test_batch_approve_matches_without_entry_requires_review'),
-        ac('AC-reconciliation.stage2-batch.3', 'An empty batch approve returns the typed counters with no success field.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC16_35_1_batch_approve_empty_returns_typed_response', priority='P1'),
-        ac('AC-reconciliation.stage2-batch.4', 'Unresolved consistency checks block batch approve with a 409 structured error.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC16_35_2_batch_approve_blocked_returns_409', priority='P1'),
-        # ── group review-hardening: Stage-2 queue requests the full unresolved
-        # blocker set instead of truncating (was EPIC-016 AC16.32.3, migration
-        # closeout continuation, #1663 / #1711) ──
-        ac('AC-reconciliation.review-hardening.1', 'Stage-2 review check lists request the full unresolved blocker set needed to unblock batch approval, instead of silently truncating at the backend default page size.', 'apps/backend/tests/api/test_review_router.py::test_AC16_32_3_stage2_queue_returns_all_pending_checks'),
-        ac('AC-reconciliation.review-hardening.2', '``accept_match`` validates journal-entry amounts against the transaction unconditionally: the public signature carries no bypass flag, and accepting a match whose entry total mismatches the transaction amount raises (entry balance validation is never skippable — red line, #1864 S1).', 'apps/backend/tests/reconciliation/test_review_queue.py::test_AC_review_hardening_2_accept_match_validation_unconditional'),
-        # ── group audit-anchors: reconciliation-to-ledger anchor referential
-        # integrity (was EPIC-018 AC18.11.1, migration closeout continuation,
-        # #1663 / #1711) ──
-        ac('AC-reconciliation.audit-anchors.1', 'Reconciliation match journal-entry anchors are represented by a normalized link table that rejects missing or cross-user journal entries.', 'apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries'),
-        # ── group layer2-dedup: balance-aware Layer 2 dedup keeps many-to-one
-        # matching correct (was EPIC-011 AC11.16.2, migration closeout
-        # continuation, #1663 / #1711) ──
-        ac('AC-reconciliation.layer2-dedup.1', 'Many-to-one matching works on Layer 2 when running balances keep batch transactions distinct.', 'apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py::test_execute_matching_many_to_one_batch'),
-        # ── group dwd-cutover: PR-B DWD (Layer 2) read cutover for transfer
-        # detection (was EPIC-011 AC11.17, migration closeout continuation,
-        # #1663 / #1711) ──
-        ac('AC-reconciliation.dwd-cutover.1', 'Transfer OUT/IN detection resolves the custody account from the DWD (Layer 2) conform and creates the Processing entry under the Layer-2 read path.', 'apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py::test_transfer_out_creates_match'),
-        ac('AC-reconciliation.dwd-cutover.2', 'Mixed transfer and normal transactions both reconcile correctly under the Layer-2 read path.', 'apps/backend/tests/reconciliation/test_transfer_integration.py::test_mixed_transactions_both_phases_execute'),
-        # ── group run-scoped-review: Stage-2 run-scoped review queue filtering
-        # (was EPIC-019 AC19.11.1, migration closeout continuation, #1663 /
-        # #1711) ──
-        ac('AC-reconciliation.run-scoped-review.1', '/audit?run_id={runId} uses a run-scoped Stage-2 queue and batch-approval API, so approving a run cannot approve pending matches from another workflow session or batch.', 'apps/backend/tests/api/test_review_router.py::test_AC19_11_1_stage2_run_queue_filters_by_run_id'),
-        # ── group consistency-checks (continued): Stage 2 dedup/transfer-pair
-        # detection (was EPIC-016 AC16.2.1/AC16.2.2, #1821 Wave A
-        # pending-package move; AC16.2.3 "batch approve blocked if unresolved
-        # checks" was a duplicate of the already-migrated
-        # AC-reconciliation.stage2-batch.1 citing the identical test and is
-        # deleted without a new roadmap entry) ──
-        ac('AC-reconciliation.consistency-checks.8', 'Deduplication detection accuracy is >= 95% on the consistency-check corpus.', 'apps/backend/tests/review/test_consistency_checks.py::test_detect_duplicates', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.9', 'Transfer-pair detection accuracy is >= 90% on the consistency-check corpus.', 'apps/backend/tests/review/test_consistency_checks.py::test_detect_transfer_pairs', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.10', '``GET /statements/consistency-checks/list`` enforces a bounded page size: ``limit`` is declared with ``ge=1, le=200`` and an over-limit request is rejected with 422 instead of being accepted unbounded (#1864 S1).', 'apps/backend/tests/review/test_consistency_checks.py::test_AC_consistency_checks_10_list_endpoint_rejects_unbounded_limit', priority='P1'),
-        ac('AC-reconciliation.consistency-checks.11', 'Consistency check detection (detect_duplicates and detect_transfer_pairs) strictly partitions by transaction currency, preventing false duplicate and cross-currency transfer pair collisions.', 'apps/backend/tests/review/test_falsifiable_consistency.py::test_consistency_checks_strictly_partition_by_currency', priority='P1'),
-        # ── group stage2-batch (continued): reconcile-referenced-entry /
-        # idempotent-retry half not yet covered by .1-.4 (was EPIC-016
-        # AC16.24.4, #1821 Wave A pending-package move) ──
-        ac('AC-reconciliation.stage2-batch.5', 'Stage 2 batch approval reconciles a match against an existing referenced journal entry rather than creating a duplicate (the create-missing-entry-once half is already AC-reconciliation.stage2-batch.2).', 'apps/backend/tests/api/test_review_router.py::test_batch_approve_matches_reconciles_referenced_entry', priority='P1'),
-        # ── group conflict-resolution: Stage 1 duplicate/transfer-pair
-        # conflict gate + resolution endpoint (was EPIC-016 AC16.32.1,
-        # AC16.34.1, AC16.34.2 backend halves, #1821 Wave A pending-package
-        # move; each row also cites a frontend test that stays untracked by
-        # this Python-only roadmap) ──
-        ac('AC-reconciliation.conflict-resolution.1', 'Stage 1 approval and edit-approval are blocked while duplicate or transfer-pair conflict candidates remain unresolved.', 'apps/backend/tests/api/test_review_router.py::test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts'),
-        ac('AC-reconciliation.conflict-resolution.2', "POST /api/review/conflicts/{statement_id}/resolve records the reviewer's resolution; the Stage-1 approval guard honors it so a previously-blocked statement with duplicate/transfer-pair candidates can be approved, and an unknown statement returns 404 (also proven by test_AC16_34_1_resolve_conflicts_404_for_unknown_statement in the same file).", 'apps/backend/tests/api/test_review_router.py::test_AC16_34_1_resolve_unblocks_stage1_approval'),
-        ac('AC-reconciliation.conflict-resolution.3', 'A reject/reparse clears a prior conflict resolution so the fresh transaction set must be re-reviewed.', 'apps/backend/tests/api/test_review_router.py::test_AC16_34_2_reject_clears_conflict_resolution'),
-        # ── group candidate-matching: transfer/candidate-matching helper
-        # unit tests (was EPIC-012 AC12.18.7 stub, #1821 Wave A
-        # pending-package move) ──
-        ac('AC-reconciliation.candidate-matching.1', '_find_transfer_candidates, _find_normal_candidates, and _find_many_to_one_candidates (transfer/candidate-matching helpers) are covered by pure unit tests.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring_helpers.py::test_find_transfer_candidates_returns_pair', priority='P2'),
-        # ── group conflict-resolution (continued): the conflicts endpoint's
-        # response contract (was EPIC-016 AC16.13.13/AC16.13.14, #1821 Wave
-        # A horizontal move) ──
-        ac('AC-reconciliation.conflict-resolution.4', 'GET /api/review/conflicts/{statement_id} returns {duplicates: [...], transfer_pairs: [...]}, consumed by ConflictResolutionDialog.', 'apps/backend/tests/review/test_review_conflicts_router.py::test_review_conflicts_returns_duplicate_and_transfer_candidates'),
-        ac('AC-reconciliation.conflict-resolution.5', 'The conflicts endpoint returns 404 when the statement_id is not found.', 'apps/backend/tests/review/test_review_conflicts_router.py::test_review_conflicts_returns_404_for_missing_statement'),
-        # NOTE: AC4.10.3 (CI hard-gates the reconciliation audit thresholds)
-        # was evaluated for the #1821 Wave A horizontal move and REJECTED,
-        # per EPIC-004's own pre-existing "Retained" note: its proving test
-        # asserts a literal substring of the EPIC file's own text
-        # ("10,000-transaction runtime targets"), making it a doc-governance
-        # self-check, not reconciliation package behavior. Left as
-        # `horizontal` in EPIC-004.
-        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
-        # (two-stage-review-ui) ──
-        ac('AC-reconciliation.fe-stage2-review.1', 'Stage 2 UI supports batch operations', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.2.4/AC16.17.3 approves selected matches through the batch approval API', priority='P1'),
-        ac('AC-reconciliation.fe-stage2-review.2', 'The `/reconciliation` page renders the reconciliation workbench. The workbench holds the unmatched board and the review queue as tabs', 'apps/frontend/src/__tests__/reconciliationEntryPages.test.tsx::AC16.16.4 renders workbench in reconciliation page', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.3', 'Stage 2 review queue shows failure fallback and supports retry', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.1 shows an error fallback and retries the Stage 2 queue fetch', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.4', 'Stage 2 review queue indicates unresolved checks and disables batch approval', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.2.3/AC16.17.2 disables batch approval while unresolved checks remain', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.5', 'Stage 2 review queue rejects selected matches through the batch rejection API (the batch approve half of this workflow is proven by AC-reconciliation.fe-stage2-review.1)', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.3 rejects selected matches through the batch rejection API', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.6', 'Stage 2 review queue resolves consistency checks through dialog actions', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.4 resolves a consistency check from the dialog actions', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.7', 'Reconciliation workbench loads stats and pending queue with default selection', 'apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC16.20.1 loads stats and pending queue with default selection', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.8', 'Reconciliation workbench triggers run, accept, reject, and batch accept APIs', 'apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC16.20.2 triggers run, batch, accept, and reject APIs', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.9', 'Unmatched board requires an explicit reviewed disposition and exposes no raw create-entry or batch-create action.', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.10', 'Unmatched board flag and hide actions update local triage state without creating an accounting decision.', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.11', 'Score distribution renders 0% height for buckets with value 0', 'apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC16.20.6 score distribution renders 0% height for buckets with value 0', priority='P1'),
-        ac('AC-reconciliation.fe-stage2-review.12', 'Review, journal details, and mobile navigation surfaces do not create document-level horizontal scrolling at phone widths', 'apps/frontend/playwright/mobile-ux.spec.ts::AC16.25.1 mobile review routes avoid document horizontal scrolling'),
-        ac('AC-reconciliation.fe-stage2-review.13', 'AI suggestion review queue exposes accept, reject, correction, and edit-accept actions directly in a mobile card layout', 'apps/frontend/playwright/mobile-ux.spec.ts::AC16.25.2 AI suggestions mobile cards expose feedback actions'),
-        ac('AC-reconciliation.fe-stage2-review.14', 'Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible without horizontal dragging', 'apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC8.13.76/AC16.26.2 mobile queue renders selectable match cards and batch actions'),
-        ac('AC-reconciliation.fe-stage2-review.15', 'Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without document-level horizontal scrolling', 'apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.26.3 mobile run review preserves approval gate and pending match workflow'),
-        ac('AC-reconciliation.fe-stage2-review.16', 'Stage 1 and Stage 2 mobile review lists render without JavaScript breakpoint gating that can create first-paint blank content', 'apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.27.1 keeps mobile pending-match cards in the DOM without matchMedia gating'),
-        ac('AC-reconciliation.fe-stage2-review.17', 'Stage 2 desktop review keeps pending match rows readable at 1440px with the sidebar visible without local horizontal clipping', 'apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs'),
-        ac('AC-reconciliation.fe-stage2-review.18', 'Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair', 'apps/frontend/src/__tests__/statementDetailReview.test.tsx::AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.19', 'Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string', 'apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.20', 'Stage 2 run-level review at `/audit?run_id=<id>` summarizes duplicate, transfer-pair, and anomaly checks for a batch', 'apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.21', 'Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved', 'apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.22', 'Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved', 'apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.3 approves all pending matches through the batch approval API', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.23', 'Stage 1 conflict dialog loads duplicate and transfer-pair candidates from `GET /api/review/conflicts/{statement_id}` instead of fake review payload fields', 'apps/frontend/src/__tests__/statementDetailReview.test.tsx::AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist'),
-        ac('AC-reconciliation.fe-stage2-review.24', 'Stage 2 run review page states that it uses the shared Stage 2 queue endpoint when no run-scoped queue API exists', 'apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval'),
-        ac('AC-reconciliation.fe-stage2-review.25', 'Unmatched transaction flag/hide actions are labeled as local-only triage; raw batch-create is not an available action.', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision'),
-        ac('AC-reconciliation.fe-stage2-review.26', 'Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size. Backend half (`test_AC16_32_3_stage2_queue_returns_all_pending_checks`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.review-hardening.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here.', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.32.3 requests an expanded consistency-check limit for unblockable queues'),
-        ac('AC-reconciliation.fe-stage2-review.27', 'The ConflictResolutionDialog `Resolve` / `Link Pair` buttons call the resolve endpoint with the matching action and disable while a resolution is in flight (previously dead, no-op buttons)', 'apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx::AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action'),
-        ac('AC-reconciliation.fe-stage2-review.28', 'The review queue tab of `/reconciliation` (`/reconciliation?tab=review-queue`) renders the Stage-2 review queue with its heading', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.36.1 renders the Stage-2 review queue with its heading in the reconciliation tab', priority='P1'),
-        ac('AC-reconciliation.fe-stage2-review.29', 'The review queue tab loads the global queue (no run filter)', 'apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.36.2 loads the global queue (no run filter) in the reconciliation tab', priority='P2'),
-        ac('AC-reconciliation.fe-stage2-review.30', 'The unmatched board honors a statement_id scope, preserves the statement-review return target, and shows a clear return action when every scoped transaction has received a reviewed disposition.', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.fe-stage2-review.30 scopes the queue and returns to statement review'),
-        ac('AC-reconciliation.fe-stage2-review.31', 'The unmatched board initializes every reviewed disposition as unknown regardless of cash direction and requires the reviewer to select economic intent explicitly before compatible accounts or posting become available.', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.fe-stage2-review.31 requires explicit intent instead of deriving it from direction'),
-        ac('AC-reconciliation.fe-tabs.1', 'The `/reconciliation` page shows the tab that the query parameter `tab` names: `matches` shows the matches workbench, `unmatched` shows the unmatched board and `review-queue` shows the review queue. Each tab is a link to a URL that names its tab, so the review queue is one click from the workbench', 'apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC-reconciliation.fe-tabs.1 shows the tab that the tab query parameter names and links each tab to its URL', priority='P1'),
-        ac('AC-reconciliation.fe-tabs.2', 'With no `tab` value or an unknown value, `/reconciliation` waits for the statistics, then opens on Unmatched when an unmatched row exists and on Matches otherwise (#2646)', 'apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC-reconciliation.fe-tabs.2 opens on Unmatched when an unmatched row exists and on Matches otherwise', priority='P1'),
-        ac('AC-reconciliation.first-use.1', 'Missing counter-account setup reuses the ledger account form without losing the selected transaction or reviewed draft; creation alone never selects a disposition or posts an entry.', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.first-use.1 creates a missing account and resumes the same explicit review'),
-        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
-        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
-        ac('AC-reconciliation.fe-ia-reconciliation.1', 'The AI suggestions queue on `/audit` is reachable from AI Settings, so the AI-suggestion review surface is not orphaned', 'apps/frontend/src/__tests__/aiSettingsPage.test.tsx::AC22.4.3 links to the AI suggestion review surface so it is not orphaned', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.2', 'E2E: a user with Stage 1 and Stage 2 attention sees both in the upload page workflow notices and can open each detail surface', 'apps/frontend/playwright/epic022-attention-journey.spec.ts::${label}: both Stage 1 and Stage 2 attention surface in the upload workflow notices with deep links', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.3', 'The Needs Confirmation queue on `/audit` folds the open attention sources (Stage 1 statement review, reconciliation review, unmatched transactions, stalled processing transfers) into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state when nothing needs attention', 'apps/frontend/src/__tests__/attention.test.ts::AC22.6.1 folds the open attention sources into one list sorted by ascending confidence', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.4', 'Home shows one action banner from the same attention model: the count of the confidence queue and its first item, with a link to `/audit?tab=needs-you`. It shows nothing when nothing needs attention (#2646 replaced the trust meter)', 'apps/frontend/src/__tests__/homeActionBanner.test.tsx::AC22.6.2 shows the confirmation count of the attention sources and links to the /audit queue', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.5', 'Desktop and mobile smoke covers the Needs Confirmation queue on `/audit` and the Home trust meter without layout overflow', 'apps/frontend/playwright/attention-surface.spec.ts::${label} renders the attention queue ranked by confidence without overflow', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.6', 'Each attention-queue item surfaces a plain-language reason it was flagged — distinct per cause — alongside its confidence score', 'apps/frontend/src/__tests__/attention.test.ts::AC22.11.2 every item explains why it was flagged', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.7', 'Attention-origin action links preserve `from=attention`, and the linked statement-review destination renders a return link to `/audit` while direct-entry upload/statement fallbacks remain unchanged', 'apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.8', 'Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant, so low-confidence explanations keep readable contrast', 'apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.9', 'The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior', 'apps/frontend/src/__tests__/stage2ReviewQueueParts.test.tsx::AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks', priority='P1'),
-        ac('AC-reconciliation.fe-ia-reconciliation.10', 'The unmatched item of the confidence queue takes the description of the newest unmatched row as its title, with the count of the other rows. Without a description it keeps its count title (#2646)', 'apps/frontend/src/__tests__/attention.test.ts::AC-reconciliation.fe-ia-reconciliation.10 names the unmatched item by its newest row', priority='P1'),
-        # ── Wave B (#1821): frontend-proof rows migrated from the
-        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac('AC-reconciliation.fe-remainder-reconciliation.1', 'The unmatched transaction board models unmatched amounts as shared `MoneyValue` payloads and renders queue/detail/created-entry amounts through Decimal-safe currency formatting, not JavaScript number locale formatting', 'apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting'),
-        ac('AC-reconciliation.fe-remainder-reconciliation.2', 'The AI suggestions queue on `/audit` lists pending AI classifications and AI reconciliation matches in score band 60-84 with `{transaction, suggested_category_or_match, ai_score, ai_reasoning}`', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.3 — AI Suggestion Review Queue page renders suggestions', priority='P2'),
-        ac('AC-reconciliation.fe-remainder-reconciliation.3', 'Queue actions: `Accept`, `Reject`, `Edit-then-Accept`; each action calls `POST /api/ai/feedback` with `{suggestion_id, action, corrected_value?}` to feed the feedback loop', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.4 — feedback POST on accept/reject/edit', priority='P2'),
-        # ── closing the two remaining EPIC-018 AC18.3.x "Untested"
-        # pending-package rows now that a real test exercises score_single's
-        # hybrid-AI branch directly (AC18.3.1's separate tier-boundary blocker is
-        # unrelated and untouched — see docs/project/EPIC-018.ai-driven-pipeline.md) ──
-        ac('AC-reconciliation.1803.1', 'Hybrid scoring: score_single blends 0.7 * algorithmic + 0.3 * AI semantic score, applied only when the pre-AI weighted total is in the 60-84 review band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_score_single_applies_hybrid_ai_scoring', priority='P1'),
-        ac('AC-reconciliation.1803.2', 'Feature flag ENABLE_AI_RECONCILIATION gates the hybrid-AI branch: when off, score_single never calls the AI semantic scorer, even for a pre-AI total in the 60-84 band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_score_single_flag_off_skips_ai_scoring', priority='P1'),
-        ac('AC-reconciliation.1803.3', 'execute_matching resolves enable_ai_reconciliation from the per-user ai_settings override before it applies the base configuration (#2417).', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_AC_reconciliation_1803_3_execute_matching_uses_per_user_ai_reconciliation_override', priority='P1'),
-        # #1866 PR-A: reconciliation/ledger signature surgery.  The split is
-        # intentionally package-local: reconciliation owns orchestration,
-        # errors, and the similarity policy; ledger separately owns posting
-        # and balance-space guarantees in AC-ledger.signature.*.
-        ac('AC-reconciliation.signature-surgery.1', 'Public reconciliation extension functions have fully annotated signatures and no more than eight parameters; matching phases receive a typed context.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_public_reconciliation_signatures_are_typed_and_bounded', priority='P1'),
-        ac('AC-reconciliation.signature-surgery.2', 'execute_matching drives the ReconciliationRepository port and each phase returns its created matches instead of mutating an output list.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_matching_phases_return_created_matches', priority='P1'),
-        ac('AC-reconciliation.signature-surgery.3', 'Normal single-/multi-entry scoring and many-to-one group scoring use distinct typed entry points; normal multi-entry candidates retain widened amount tolerance, and the AI switch is supplied through ReconciliationConfig rather than read in scoring.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_scoring_has_explicit_modes_and_no_hidden_environment_switch', priority='P1'),
-        ac('AC-reconciliation.signature-surgery.4', 'Reconciliation failures use typed domain errors, router status mapping does not inspect exception text, and consistency-check actions are enum-typed; the legacy raw-entry routes are the only ValueError handlers and must roll back before returning a bad request.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_reconciliation_errors_and_resolve_actions_are_typed', priority='P1'),
-        ac('AC-reconciliation.signature-surgery.5', 'Reconciliation owns the sole SequenceMatcher description-similarity kernel; ledger transfer pairing consumes that score while retaining ledger weights.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_description_similarity_has_one_owner_and_both_consumers_agree', priority='P1'),
-        ac('AC-reconciliation.signature-surgery.6', 'Transfer detection propagates processing-account currency conflicts instead of reporting a successful no-op run.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_transfer_detection_surfaces_processing_currency_conflicts'),
-        ac('AC-reconciliation.signature-surgery.7', 'Transfer detection leaves a foreign-account candidate unmatched when it requires an FX-aware posting path, while preserving the typed Processing-account configuration conflict.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_transfer_detection_leaves_foreign_account_candidate_unmatched'),
-        # #1969: one canonical disposition head, not a parallel governance
-        # mechanism beside ReconciliationMatch.
-        ac('AC-reconciliation.economic-disposition.1', 'An eligible journal candidate wins before transfer fallback, so transfer-shaped descriptions cannot create a Processing entry when normal matching succeeds.', 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_1_normal_candidate_precedes_transfer'),
-        ac('AC-reconciliation.economic-disposition.2', 'The database permits at most one active economic-disposition head for each AtomicTransaction while retaining append-only superseded history.', 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_2_database_rejects_duplicate_active_heads'),
-        ac('AC-reconciliation.economic-disposition.3', 'Independent sessions racing on one AtomicTransaction converge on one winner, and the loser reuses it without duplicating ledger effects.', 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_3_two_sessions_converge'),
-        ac('AC-reconciliation.economic-disposition.4', 'A transfer pair persists both uniquely owned disposition legs, its decision version, and review state, and paired/unpaired queries reflect stored reality.', 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_4_transfer_pair_round_trip'),
-        ac('AC-reconciliation.economic-disposition.5', 'Every statement-to-ledger amount comparison names the transaction currency, and lines in another currency never enter its nominal sum.', 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_5_currency_is_explicit'),
-        ac('AC-reconciliation.economic-disposition.6', 'Retry, worker restart, and phase permutation preserve disposition, journal, and transfer-pair cardinality after success or a rolled-back partial attempt.', 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_6_retry_and_phase_permutation_are_idempotent'),
-        ac('AC-reconciliation.economic-disposition.7', "Processing effects are invoked only through ledger's typed command after a current reconciliation decision claim; reconciliation owns no alternate posting path.", 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_7_processing_uses_typed_ledger_boundary'),
-        ac('AC-reconciliation.economic-disposition.8', 'The governance detail projects exact detector, proof-strength, target-SHA, and enforcement state for every economic-disposition guarantee.', 'apps/backend/tests/reconciliation/test_economic_disposition_governance.py::test_AC_reconciliation_economic_disposition_8_governance_detail_is_exact'),
-        # ── group named-transfer-legs: a row that the AI named a movement between own accounts posts a Processing leg (#2415) ──
-        ac('AC-reconciliation.named-transfer-legs.1', 'post_named_transfer_legs posts the same Processing leg as the keyword fallback for a transaction that the AI classification named a transfer or a card repayment. An outgoing row debits Processing and credits the custody account. An incoming row does the reverse. The match is accepted, carries the AI score (100 when the user chose the class), and records the class in its score breakdown.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_1_an_outgoing_row_posts_dr_processing_cr_bank', priority='P0', proof_kind='property'),
-        ac('AC-reconciliation.named-transfer-legs.2', 'A named transaction is skipped, without an error and without a ledger effect, when it already has a live match (a pending or accepted match; a rejected or superseded match is history), when its statement has no linked account, when its currency or the currency of its custody account is not the effective base currency, or when the Processing account holds another currency. A row that a pre-check skips never creates the Processing account. A ledger refusal skips one leg, keeps the others, and leaves no entry and no match for that leg. The Processing account may stay, because it commits in its own transaction.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_2_a_second_call_posts_nothing_more', priority='P0', proof_kind='property'),
-        ac('AC-reconciliation.named-transfer-legs.3', 'Two transactions with the same date, text and amount get two legs with two journal entries. Each leg carries the id of its source transaction, in the keyword fallback as well.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_3_two_identical_rows_post_two_legs', priority='P0', proof_kind='property'),
-        ac('AC-reconciliation.named-transfer-legs.4', 'The legs from post_named_transfer_legs carry the normalized anchors, so the pairing step of the next reconciliation run pairs them with the other side of the transfer. The function itself does not pair.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_4_the_legs_pair_in_the_next_reconciliation_run', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.named-transfer-legs.5', 'The memo of a transfer leg holds at most 500 characters, the size of the memo column. A transaction with a description of 495 characters posts one leg, and a second call finds the same entry.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_5_a_long_description_posts_a_leg_with_a_bounded_memo', priority='P0', proof_kind='property'),
-        ac('AC-reconciliation.named-transfer-legs.6', 'The keyword fallback posts a Processing leg only for a transaction in the effective base currency. A transaction in another currency creates no leg and no Processing account. Each keyword leg carries the id of its source transaction.', 'apps/backend/tests/reconciliation/test_keyword_leg_base_currency.py::test_AC_reconciliation_named_transfer_legs_6_a_foreign_row_posts_no_leg_and_creates_no_account', priority='P0', proof_kind='property'),
-        # ── group 2465: rows posted from a statement count as matched (#2465) ──
-        ac('AC-reconciliation.2465.1', 'A transaction with a live posted journal entry from its own statement counts as matched in get_reconciliation_stats, using the same posted_statement_source_ids query as the unmatched list (#2465).', 'apps/backend/tests/reconciliation/test_reconciliation_stats.py::test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.2465.2', 'On the statement page transaction table, a transaction whose statement is approved defaults to matched status when an explicit transaction status is omitted (#2465).', 'apps/frontend/src/__tests__/TransactionTable.test.tsx::AC-reconciliation.2465.2 defaults transaction status to matched when the statement is approved', priority='P1'),
-        # ── group 2548: CJK/cut-memo scoring, 1:1 entry exclusivity, stats parity, and anomaly/consistency guardrails (#2457, #2548) ──
-        ac('AC-reconciliation.2548.1', 'normalize_text and extract_merchant_tokens preserve Unicode/CJK merchant text, and candidate scoring compares fit_journal_memo(transaction.description) against single-entry memos so CJK and >500-char statement descriptions score >= 85 on matching date and amount (#2457, #2548).', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_AC_reconciliation_2548_1_cjk_and_truncated_memo_scoring', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.2548.2', 'Normal 1:1 matching enforces single-claim journal entry exclusivity within a batch and across active matches, so two identical-amount transactions on the same day cannot claim the same single journal entry (#2548).', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_AC_reconciliation_2548_2_normal_matching_enforces_entry_exclusivity', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.2548.3', 'get_reconciliation_stats applies effective_statement_transaction_filter, ignores superseded matches, and excludes PENDING_REVIEW from unmatched_transactions so stats.unmatched_transactions equals the /reconciliation/unmatched total (#2548).', 'apps/backend/tests/reconciliation/test_reconciliation_stats.py::test_AC_reconciliation_2548_3_stats_unmatched_aligns_with_unmatched_query', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.2548.4', 'detect_anomalies scopes 30-day average and 90-day merchant history queries to the transaction currency, effective statement membership, and dates on or before txn.txn_date (#2548).', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_AC_reconciliation_2548_4_detect_anomalies_scopes_currency_and_date_window', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.2548.5', 'detect_duplicates requires same-day (days == 0) and compatible account scope, and detect_transfer_pairs excludes same-statement or same-account purchase-and-refund pairs (#2548).', 'apps/backend/tests/review/test_consistency_checks.py::test_AC_reconciliation_2548_5_consistency_checks_guard_same_account_refund_and_adjacent_day_spend', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.2561.1', 'list_pending_transactions excludes a statement transaction that its own statement already posted, so a reconciliation run creates no match for it, and get_reconciliation_stats still counts it as matched (#2561, #2554).', 'apps/backend/tests/reconciliation/test_reconciliation_stats.py::test_AC_reconciliation_2561_1_run_after_statement_posting_creates_no_self_match', priority='P1', proof_kind='property'),
-        # ── group 2617: reconciliation statistics do not read the matches of other users (#2617) ──
-        ac('AC-reconciliation.2617.1', 'With 100 more users and their accepted matches in the database, GET /reconciliation/stats reads at most 1.25 times the rows (plus 100) that it reads for one user alone, and it reads no match row of another user. The counts for the user do not change (#2617).', 'apps/backend/tests/reconciliation/test_multi_tenant_stats_budget.py::test_AC_reconciliation_2617_1_stats_do_not_read_matches_of_other_tenants', priority='P1', proof_kind='property'),
-        ac('AC-reconciliation.2617.2', 'get_reconciliation_stats returns the values of the version before #2617 (counts, match rate and score distribution) for twelve transactions in every match state, with the accepted matches of other users present (#2617).', 'apps/backend/tests/reconciliation/test_multi_tenant_stats_budget.py::test_AC_reconciliation_2617_2_stats_equal_the_pre_change_values', priority='P1', proof_kind='exact'),
-        # ── group 2823: Stage-1 firstItem priority in HomeActionBanner and complete LEDGER_DERIVED_QUERY_KEYS invalidation (#2823) ──
-        ac('AC-reconciliation.2823.1', 'pickHomeAction selects a pending Stage-1 statement_review item ahead of Stage-2 unmatched_transactions for the Home action banner firstItem, and LEDGER_DERIVED_QUERY_KEYS invalidates reports, ai suggestions, statement-review, pending-statements, statement-conflicts, and journal-entries (#2823).', 'apps/frontend/src/__tests__/homeActionBanner.test.tsx::AC-reconciliation.2823.1 prioritises pending Stage-1 statement_review over unmatched_transactions in firstItem', priority='P1'),
-        # ── group 2826: Stage-2 reconciliation scope excludes unapproved Stage-1 statements at the source filter (#2826) ──
-        ac('AC-reconciliation.2826.1', 'effective_statement_transaction_filter(include_pending_stage1=False) restricts statement-backed transactions to APPROVED statements so get_reconciliation_stats and unscoped GET /reconciliation/unmatched exclude unapproved Stage-1 statement rows without downstream subtraction patches, while statement_id-scoped GET /reconciliation/unmatched retains Stage-1 review access (#2826).', 'apps/backend/tests/reconciliation/test_reconciliation_stats.py::test_AC_reconciliation_2826_1_stage2_scope_excludes_unapproved_stage1_statements', priority='P0', proof_kind='property'),
-        # ── group 2884: the matcher input reads rows of statements in Stage-1 review (#2884) ──
-        ac('AC-reconciliation.2884.1', 'list_pending_transactions reads current rows of every statement that is not RETIRED or REJECTED (the default flag of effective_statement_transaction_filter), so execute_matching records both legs of a transfer whose two statements wait for Stage-1 approval, and that approval needs no manual disposition (#2884).', 'apps/backend/tests/reconciliation/test_transfer_integration.py::test_AC_reconciliation_2884_1_matching_run_pairs_transfer_legs_of_parsed_statements', priority='P0', proof_kind='property'),
-        # ── group 2888: a released row supersedes its matches and breaks its transfer pair (#2888) ──
-        ac('AC-reconciliation.2888.1', 'release_transaction_dispositions supersedes the active matches of the released rows, and a transfer pair counts as paired only while both leg dispositions are current, so the other leg returns to the in-transit list (#2888).', 'apps/backend/tests/reconciliation/test_statement_release.py::test_AC_reconciliation_2888_1_released_leg_breaks_the_pair_for_readers', priority='P0', proof_kind='property'),
-        # ── group 2677: enable_ai_reconciliation defaults to True and converges on Settings (#2677) ──
-        ac('AC-reconciliation.2677.1', 'enable_ai_reconciliation defaults to True in Settings and DEFAULT_CONFIG, and load_reconciliation_config resolves environment overrides through Settings without a duplicate inline boolean parser (#2677).', 'apps/backend/tests/reconciliation/test_config_boundary.py::test_AC_reconciliation_2677_1_ai_reconciliation_defaults_true_and_reads_settings', priority='P1', proof_kind='property'),
-    ],
+    relationships=rels(
+        "reconciliation",
+        """
+audit|published-language|Uses audit monetary, ratio, provenance.
+extraction|projection|Reads extraction-owned AtomicTransaction facts and reviewed dispositions as one side of matching.
+ledger|published-language|Uses ledger journal/account language as the independent accounting side of a match.
+llm|published-language|Uses the LLM semantic-score facade as an advisory signal.
+observability|published-language|Uses published safe logging and reconciliation-outcome telemetry language.
+platform|composition|Uses platform persistence mixins.
+pricing|published-language|Uses pricing FX-conversion language for cross-currency transfer matching.
+""",
+    ),
+    units=units(
+        """
+ReconciliationMatch|agg
+ReconciliationMatchJournalEntry|ent
+@vo|-|ReconciliationStatus TransferLeg
+@vo|base/config.py|ReconciliationConfig MatchCandidate
+@proj|data/stats.py|ReconciliationStats get_reconciliation_stats ReconciliationStatsProjection
+load_reconciliation_config|svc|extension/config.py
+execute_matching|svc|extension/matching.py
+@svc|extension/transfer_pairs.py|persist_transfer_pairs paired_transfer_entry_ids
+@svc|extension/candidate_policy.py|prune_candidates build_many_to_one_groups
+@svc|extension/scoring.py|score_amount score_date score_description score_business_logic score_pattern
+EventBusMatchOutcome|bus|extension/matching.py
+@proj|-|ScoreBreakdownProjection MatchStatusHistoryProjection UnmatchedTransactionsProjection
+pair_fx_legs|svc|extension/fx_transfer.py
+discover_fx_conversions|svc|extension/fx_transfer_discovery.py
+detect_anomalies|svc|extension/anomaly.py
+run_all_consistency_checks|svc|extension/consistency_checks.py
+ReviewedDispositionCommand|vo|base/reviewed_disposition.py
+@svc|extension/reviewed_disposition.py|ReviewedDispositionDependencies submit_reviewed_disposition
+ReconciliationRepository|repo|base/repository.py|extension/repository.py
+"""
+    ),
+    interface="""
+AmountMismatchError CheckResolutionAction CheckStatus CheckType ConsistencyCheck
+ConsistencyCheckNotFoundError DEFAULT_CONFIG DEFAULT_RATE_TOLERANCE
+DEFAULT_TIME_WINDOW EntryCreationError FxTransferError InvalidCheckActionError
+MAX_COMBINATION_CANDIDATES MatchCandidate MatchNotFoundError MatchingContext
+NamedTransfer RECONCILIATION_SEMANTIC_PROMPT ReconciliationConfig
+ReconciliationError ReconciliationMatch ReconciliationMatchJournalEntry
+ReconciliationStats ReconciliationStatus ReviewedDispositionCommand
+ReviewedDispositionDependencies ReviewedDispositionError TransferLeg
+_candidate_is_better _find_many_to_one_candidates _find_normal_candidates
+_find_transfer_candidates _within_combination_tolerance accept_match
+accepted_transfer_txn_ids apply_reconciliation_feedback auto_accept batch_accept
+build_many_to_one_groups build_reconciliation_prompt classify_internal_transfer
+count_pending_review_items derive_reconciliation_score_tier detect_anomalies
+discover_fx_conversions entry_bank_side_amount entry_total_amount execute_matching
+extract_merchant_tokens get_pending_items get_reconciliation_stats get_stage2_queue
+has_unresolved_checks is_cross_period is_entry_balanced list_checks
+load_reconciliation_config normalize_text pair_fx_legs paired_transfer_entry_ids
+post_named_transfer_legs posted_statement_source_ids prune_candidates reject_match
+release_transaction_dispositions resolve_check run_all_consistency_checks
+score_amount score_business_logic score_date score_description score_group
+score_single score_pattern submit_reviewed_disposition
+supersede_transaction_transfer_legs sync_reconciliation_match_journal_entry_links
+weighted_total
+""".split(),
+    events="WorkflowEvent.reconciliation_match_outcome".split(),
+    invariants=invs(
+        """
+@$t/test_reconciliation_package.py
+converges-by-layer|The package converges into base/ + extension/ + data/.|test_reconciliation_converges_by_layer
+interface-equals-published-language|The published language (contract.interface) equals __init__.__all__.|test_reconciliation_only_all_is_the_published_language
+base-layer-pure|Base/ never imports the package's own extension/ or ORM/runtime adapters.|test_reconciliation_base_layer_is_pure
+passes-own-governance-gate|Check_package_contract validates reconciliation with no violations.|test_reconciliation_package_contract_gate_passes
+"""
+    ),
+    roadmap=acs(
+        "reconciliation",
+        """
+@$be/reconciliation/test_rejection_recovery.py|P0
+rejection-recovery.4|Historical retired or superseded source facts cannot reenter unmatched queues, automatic candidates, or direct reviewed posting.|test_historical_source_transactions_are_not_actionable
+rejection-recovery.1|Rejected suggestions remain historical evidence.|test_rejected_match_can_be_reviewed
+rejection-recovery.2|Active matches cannot be bypassed and background reruns honor rejected suggestions.|test_active_match_blocks_and_rerun_honors_rejection
+rejection-recovery.3|Concurrent manual recovery creates at most one source journal command.|test_concurrent_review_after_rejection
+@$be/reconciliation/test_config_boundary.py|P0|done|property
+config-boundary.2|The runtime loader reads the documented backend configuration file, parses YAML booleans explicitly, preserves defaults/YAML/environment precedence and cache reload semantics.|test_runtime_configuration_file_precedence_and_cache
+config-boundary.3|Relocated entry readers preserve currency-filtered Money totals, ledger balance validation.|test_entry_readers_preserve_money_and_candidate_semantics
+2677.1|Enable_ai_reconciliation defaults to True in Settings and DEFAULT_CONFIG.|test_AC_reconciliation_2677_1_ai_reconciliation_defaults_true_and_reads_settings|P1
+@$be/reconciliation/test_reconciliation_engine.py|P1
+match.1|At most one active ReconciliationMatch exists per AtomicTransaction.|test_execute_matching_many_to_one_keeps_same_existing_match|P0
+score.2|Scores at/above auto-accept threshold auto-accept.|test_auto_accept_threshold
+group-matching.1|Execute_matching groups same-day, same-description bank transactions that sum to one manual journal entry's amount into a many-to-one match and auto-accepts all of them.|test_execute_matching_many_to_one_group|P0
+group-matching.3|Execute_matching finds the combination of multiple journal entries whose lines sum to a single transaction's amount, records a multi_entry count in the score breakdown.|test_execute_matching_multi_entry_combinations
+review-queue.1|Accept_match, reject_match.|test_review_queue_actions_and_entry_creation|P0
+anomaly-detection.1|Detect_anomalies flags LARGE_AMOUNT and FREQUENCY_SPIKE for an outsized transaction against a merchant with recent history.|test_detect_anomalies_flags_expected_patterns|P2
+source-type-transfer.2|Execute_matching matches an OUT transfer transaction and its paired IN transaction each to their own generated system Processing entry and auto-accepts both.|test_transfer_pair_not_double_counted|P0
+source-type-transfer.7|Execute_matching's layer-2 matching path stamps atomic_txn_id on the resulting ReconciliationMatch.|test_execute_matching_many_to_one_layer2_sets_atomic_txn_id
+recovered-coverage.2|Execute_matching's phase-2 combination search skips a 3-entry combination.|test_execute_matching_three_entry_combination_skips_unbalanced_member
+recovered-coverage.3|Execute_matching's layer-2 path records an atomic match for a single-entry candidate and supports transfer-pair logging within the same phase.|test_execute_matching_layer2_atomic_match_and_transfer_pair_logging
+2548.2|Normal 1:1 matching enforces single-claim journal entry exclusivity within a batch and.|test_AC_reconciliation_2548_2_normal_matching_enforces_entry_exclusivity|:property
+2548.4|Detect_anomalies scopes 30-day average and 90-day merchant history queries to the transaction currency, effective statement membership.|test_AC_reconciliation_2548_4_detect_anomalies_scopes_currency_and_date_window|:property
+@$be/reconciliation/test_reconciliation_matching_unit.py|P0
+match.2|Reconciliation status follows PENDING_REVIEW→ACCEPTED/AUTO_ACCEPTED/REJECTED→SUPERSEDED and posted entries are immutable.|test_normal_matching_auto_accept_reconciles_entries
+matching-core.3|Score_amount applies tiered tolerance bands.|test_score_amount_tiers
+source-type-transfer.3|_candidate_is_better deterministically prefers the MANUAL-sourced entry over the AUTO_PARSED one, recording a higher source_type_winner_rank than source_type_loser_rank in the breakdown.|test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust
+layer2-dedup.1|Many-to-one matching works on Layer 2.|test_execute_matching_many_to_one_batch
+dwd-cutover.1|Transfer OUT/IN detection resolves the custody account from the DWD conform and creates the Processing entry under the Layer-2 read path.|test_transfer_out_creates_match
+@$be/reconciliation/test_reconciliation_scoring.py|P1
+score.1|Match score is weighted composite amount/date/description/business/history in [0,100].|test_weighted_total_and_balance_helpers
+matching-core.1|Score_amount returns 100 for an exact amount match and graduated lower scores as the absolute and percentage delta from the target amount widens.|test_score_amount_branches|P0
+matching-core.2|Score_date returns 100 for a same-day match and graduated lower scores as the day gap widens, with a same-window cross-month bonus over a plain in-month gap of the same size.|test_score_date_branches|P0
+matching-core.4|Score_description normalizes text and returns >=95 for near-identical descriptions differing only by case.|test_normalize_and_description_scoring
+group-matching.2|Score_group adds a many_to_one_bonus.|test_score_group_many_to_one_bonus
+source-type-transfer.1|Score_amount's absolute tolerance boundary holds exactly at 0.10.|test_amount_tolerance_0_10_boundary|P0
+2548.1|Normalize_text and extract_merchant_tokens preserve Unicode/CJK merchant text.|test_AC_reconciliation_2548_1_cjk_and_truncated_memo_scoring|:property
+@$be/reconciliation/test_reconciliation_stats.py|P1|done|property
+stats.1|Stats projection match_rate is consistent with active accepted/auto-accepted match states.|test_get_reconciliation_stats_dedups_multiple_accepted_matches|P2:-
+2465.1|A transaction with a live posted journal entry from its own statement counts as matched in get_reconciliation_stats, using the same posted_statement_source_ids query as the unmatched list.|test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched
+2548.3|Get_reconciliation_stats applies effective_statement_transaction_filter, ignores superseded matches.|test_AC_reconciliation_2548_3_stats_unmatched_aligns_with_unmatched_query
+2561.1|List_pending_transactions excludes a statement transaction that its own statement already posted.|test_AC_reconciliation_2561_1_run_after_statement_posting_creates_no_self_match
+2826.1|Effective_statement_transaction_filter restricts statement-backed transactions to APPROVED statements.|test_AC_reconciliation_2826_1_stage2_scope_excludes_unapproved_stage1_statements|P0
+@$be/infra/test_audit_anchor_schema_invariants.py|P0
+txn.1|ReconciliationMatch references AtomicTransaction and JournalEntry by id only.|test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries
+audit-anchors.1|Reconciliation match journal-entry anchors are represented by a normalized link table that rejects missing or cross-user journal entries.|test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries
+@$be/api/test_reconciliation_router.py|P1
+review-queue.3|POST /reconciliation/matches/{id}/accept returns 200 with the match status set to ACCEPTED.|test_accept_match_success
+review-queue.4|POST /reconciliation/matches/{id}/accept for a non-existent match id returns 404 with 'Match' in the error detail.|test_accept_match_not_found
+review-queue.5|POST /reconciliation/matches/{id}/reject returns 200 with the match status set to REJECTED.|test_reject_match_success
+review-queue.6|POST /reconciliation/matches/{id}/reject for a non-existent match id returns 404 with 'Match' in the error detail.|test_reject_match_not_found
+review-queue.7|GET /reconciliation/stats returns 200 with a stats payload containing total/matched/unmatched counts, match_rate.|test_reconciliation_stats_success
+review-queue.8|GET /reconciliation/unmatched returns 200 with a paginated items/total payload listing unmatched transactions.|test_list_unmatched_success
+review-queue.9|POST /reconciliation/unmatched/{txn_id}/reviewed-disposition creates one source-anchored journal entry only.|test_submit_reviewed_disposition_from_unmatched_success|P0
+review-queue.10|POST /reconciliation/unmatched/{txn_id}/reviewed-disposition for a non-existent transaction id returns 404 with 'Transaction' in the error detail.|test_submit_reviewed_disposition_not_found|P0
+review-queue.11|Reconciliation endpoints reject unauthenticated requests with 401.|test_unauthenticated_access
+review-queue.12|GET /reconciliation/unmatched scopes results to the authenticated user and never returns another user's transactions.|test_user_isolation
+review-queue.13|The legacy unparameterized create-entry and batch-create endpoints are absent.|test_legacy_unmatched_entry_routes_are_absent|P0
+review-queue.15|GET /reconciliation/unmatched accepts an optional statement_id and then returns only unresolved transactions anchored to that user-owned statement.|test_AC_reconciliation_review_queue_15_filters_unmatched_by_statement|P0
+reviewed-disposition.1|A reviewed-disposition command is idempotent only for the same immutable normalized intent, counter-account, applicable category.|test_reviewed_disposition_is_idempotent_and_rejects_account_intent_conflict|P0
+reviewed-disposition.3|A reviewed-disposition command rejects an unmatched transfer or a transaction that already has a current non-rejected reconciliation match.|test_reviewed_disposition_rejects_unmatched_bypasses_without_persisting|P0
+reviewed-disposition.4|The injected TraceEmitter appends the manual observation and CODE-ONLY disposition/invariant TraceRecord causal set in the same caller-owned transaction as posting.|test_reviewed_disposition_rolls_back_its_decision_when_posting_fails|P0
+anomaly-detection.2|GET /reconciliation/transactions/{txn_id}/anomalies for a non-existent transaction id returns 404 with 'Transaction' in the error detail.|test_list_anomalies_not_found
+@$be/reconciliation/test_review_queue.py|P0
+review-queue.14|Accept_match reconciles only a pre-existing linked source entry.|test_accept_match_without_reviewed_disposition_requires_entry_context
+review-hardening.2|`accept_match` validates journal-entry amounts against the transaction unconditionally.|test_AC_review_hardening_2_accept_match_validation_unconditional
+@$fe/__tests__/unmatchedBoardComponent.test.tsx|P0
+reviewed-disposition.2|The unmatched-transaction UI requires intent, a compatible counter account, required P&L category.|AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action
+fe-stage2-review.9|Unmatched board requires an explicit reviewed disposition and exposes no raw create-entry or batch-create action.|AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action|P2
+fe-stage2-review.10|Unmatched board flag and hide actions update local triage state.|AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision|P2
+fe-stage2-review.25|Unmatched transaction flag/hide actions are labeled as local-only triage.|AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision
+fe-stage2-review.30|The unmatched board honors a statement_id scope, preserves the statement-review return target.|AC-reconciliation.fe-stage2-review.30 scopes the queue and returns to statement review
+fe-stage2-review.31|The unmatched board initializes every reviewed disposition as unknown regardless of cash direction and requires the reviewer to select economic intent explicitly.|AC-reconciliation.fe-stage2-review.31 requires explicit intent instead of deriving it from direction
+first-use.1|Missing counter-account setup reuses the ledger account form.|AC-reconciliation.first-use.1 creates a missing account and resumes the same explicit review
+fe-remainder-reconciliation.1|The unmatched transaction board models unmatched amounts as shared `MoneyValue` payloads and renders queue/detail/created-entry amounts.|AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting
+@$be/reconciliation/test_signature_surgery.py|P1
+reviewed-disposition.5|A capability-level structural lock enumerates reconciliation posting and match side effects.|test_unmatched_posting_has_one_reviewed_writer_boundary|P0
+signature-surgery.1|Public reconciliation extension functions have fully annotated signatures and no more than eight parameters.|test_public_reconciliation_signatures_are_typed_and_bounded
+signature-surgery.2|Execute_matching drives the ReconciliationRepository port and each phase returns its created matches.|test_matching_phases_return_created_matches
+signature-surgery.3|Normal single-/multi-entry scoring and many-to-one group scoring use distinct typed entry points.|test_scoring_has_explicit_modes_and_no_hidden_environment_switch
+signature-surgery.4|Reconciliation failures use typed domain errors, router status mapping does not inspect exception text.|test_reconciliation_errors_and_resolve_actions_are_typed
+signature-surgery.5|Reconciliation owns the sole SequenceMatcher description-similarity kernel.|test_description_similarity_has_one_owner_and_both_consumers_agree
+signature-surgery.6|Transfer detection propagates processing-account currency conflicts.|test_transfer_detection_surfaces_processing_currency_conflicts|P0
+signature-surgery.7|Transfer detection leaves a foreign-account candidate unmatched.|test_transfer_detection_leaves_foreign_account_candidate_unmatched|P0
+@$be/reconciliation/test_performance.py|P1
+performance.1|Execute_matching processes 100 transactions against 20 candidate entries in under 5 seconds.|test_batch_1000_transactions_reasonable_time
+performance.2|Score_single still scores a transaction dated one day.|test_month_end_to_month_start_match
+@$be/review/test_statement_validation.py|P1
+source-type-transfer.5|The Stage-1 duplicate guard does NOT flag two transactions identical in date/description/amount/direction as duplicate candidates.|test_duplicate_guard_distinguishes_by_balance_after
+source-type-transfer.6|The Stage-1 duplicate guard still flags two transactions identical in date/description/amount/direction as duplicate candidates.|test_duplicate_guard_flags_when_balance_after_equal_or_absent
+@$be/api/test_review_router.py|P0
+bank-side-amount.2|Retrying accept_match_service on an already-ACCEPTED match returns the same version and the same journal_entry_ids.|test_accept_match_retry_is_idempotent_after_success
+bank-side-amount.3|Create_entry_from_txn with auto_post=True raises ValueError and creates no journal entry.|test_create_entry_from_txn_auto_post_rejects_inactive_statement_account
+bank-side-amount.4|Get_stage2_review_queue returns a pending PENDING_REVIEW match with a confidence_tier of MEDIUM derived from its match_score.|test_get_stage2_review_queue_with_pending_match|P1
+stage2-batch.1|A Stage-2 pending_review -> accepted transition is blocked.|test_batch_approve_matches_blocked_by_unresolved_checks
+stage2-batch.2|A Stage-2 batch approve may reconcile an existing source entry but cannot create a journal entry for a pending match.|test_batch_approve_matches_without_entry_requires_review
+review-hardening.1|Stage-2 review check lists request the full unresolved blocker set needed to unblock batch approval.|test_AC16_32_3_stage2_queue_returns_all_pending_checks
+run-scoped-review.1|/audit?run_id={runId} uses a run-scoped Stage-2 queue and batch-approval API.|test_AC19_11_1_stage2_run_queue_filters_by_run_id
+stage2-batch.5|Stage 2 batch approval reconciles a match against an existing referenced journal entry.|test_batch_approve_matches_reconciles_referenced_entry|P1
+conflict-resolution.1|Stage 1 approval and edit-approval are blocked.|test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts
+conflict-resolution.2|POST /api/review/conflicts/{statement_id}/resolve records the reviewer's resolution.|test_AC16_34_1_resolve_unblocks_stage1_approval
+conflict-resolution.3|A reject/reparse clears a prior conflict resolution.|test_AC16_34_2_reject_clears_conflict_resolution
+@$t/test_reconciliation_audit.py|P1
+audit-harness.1|The reconciliation audit harness's build_report/write_report emit a JSON report and a companion Markdown report.|test_AC4_10_1_reconciliation_audit_report_schema_and_outputs
+audit-harness.2|The reconciliation audit harness's diagnostics report an intentionally-seeded false-positive scenario, identifying it by scenario id in the audit output.|test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive
+@$be/api/test_typed_contract_sweep.py|P2
+uuid-path-params.1|POST /reconciliation/matches/{match_id}/accept with a non-UUID match_id returns 422 at the FastAPI path-param boundary.|test_AC4_12_1_accept_match_malformed_uuid_returns_422
+uuid-path-params.2|POST /reconciliation/unmatched/{txn_id}/reviewed-disposition with a non-UUID txn_id returns 422 at the FastAPI path-param boundary.|test_AC4_12_2_reviewed_disposition_malformed_uuid_returns_422
+stage2-batch.3|An empty batch approve returns the typed counters with no success field.|test_AC16_35_1_batch_approve_empty_returns_typed_response|P1
+stage2-batch.4|Unresolved consistency checks block batch approve with a 409 structured error.|test_AC16_35_2_batch_approve_blocked_returns_409|P1
+@$be/accounting/test_validation.py|P0
+per-currency-balance.1|Validate_balance_per_currency reconciles a multi-currency statement's SGD and USD buckets independently and never produces a cross-currency summed total.|test_AC1_per_currency_reconcile_does_not_cross_sum
+per-currency-balance.2|Validate_balance_per_currency flags only the offending currency as invalid.|test_AC1_per_currency_reconcile_flags_only_offending_currency
+per-currency-balance.3|Validate_balance_per_currency falls back to a single synthetic currency bucket and reproduces the legacy scalar balance check.|test_AC1_single_currency_degenerate_path_still_passes
+per-currency-balance.4|The degenerate single-currency validation path still detects and flags a balance mismatch.|test_AC1_single_currency_degenerate_path_detects_mismatch|P1
+per-currency-balance.5|The CurrencyBalance schema normalizes a lower-case currency code to upper-case ISO and round-trips opening/closing as Decimal.|test_AC1_currency_balance_schema_round_trips_decimals|P1
+per-currency-balance.6|Validate_balance_per_currency surfaces a transaction in a currency with no declared balance bucket as its own per-currency result flagged declared_balance=False and forces the overall result invalid.|test_AC1_orphan_currency_transaction_is_surfaced_not_dropped
+per-currency-balance.7|Validate_balance_per_currency rejects a balances array containing two buckets for the same currency.|test_AC1_duplicate_currency_in_balances_is_rejected|P1
+per-currency-balance.8|Bank_currency_balances returns the per-currency array only.|test_AC4_13_9_bank_currency_balances_emitted_only_when_multi_currency
+@$be/accounting/test_fx_transfer.py|P0
+fx-transfer.1|Pair_fx_legs pairs an out-leg in one currency with an in-leg in another for the same owner.|test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance
+fx-transfer.2|Pair_fx_legs returns None.|test_AC2_implied_rate_outside_tolerance_does_not_pair
+fx-transfer.3|Pair_fx_legs refuses to pair legs that fall outside the configured time window, share the same direction, or belong to different owners.|test_AC2_non_candidate_legs_do_not_pair
+fx-transfer.4|Classify_internal_transfer marks a paired FX transfer as an internal transfer with zero income_amount and zero expense_amount.|test_AC3_internal_transfer_classified_net_zero
+fx-transfer.5|Classify_internal_transfer's net_worth_delta is exactly zero for a fee-less paired transfer and exactly -fee.|test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee
+fx-transfer.6|Round_trip_realized_pnl returns exactly 0.00 for a same-day round trip at an unchanged rate with no fee.|test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee
+fx-transfer.7|Round_trip_realized_pnl yields zero P&L for an unchanged-rate conversion event.|test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type|P1
+fx-transfer.8|Build_fx_conversion constructs an FxConversion record from a paired leg whose amount_from/amount_to round-trip as Decimal with normalized ISO currency codes.|test_AC2_fx_conversion_model_round_trips_decimals|P1
+@$be/reporting/test_fx_ledger_autodiscovery_e2e.py|P0
+fx-transfer.9|Generate_income_statement excludes a recorded internal transfer's income/expense legs entirely and includes only the transfer's fee as an expense line.|test_AC3_internal_transfer_excluded_from_income_statement_e2e
+fx-transfer.10|Generate_balance_sheet's cumulative net_income excludes a recorded internal transfer's legs and reflects only the fee, matching the income statement's net contribution.|test_AC3_internal_transfer_net_income_fee_only_e2e
+fx-transfer.13|Generate_income_statement and generate_balance_sheet, with no recorded fx_conversions row at all, still auto-discover a cross-currency transfer from raw ledger lines and exclude it end to end.|test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e
+fx-transfer.14|Auto-discovery nets both conversions.|test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report
+@$be/accounting/test_fx_transfer_discovery.py|P0
+fx-transfer.11|Discover_fx_conversions auto-discovers an unambiguous out-leg/in-leg cross-currency conversion directly from raw asset-account journal lines, recovering the correct accounts, amounts, currencies.|test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger
+fx-transfer.12|Discover_fx_conversions refuses to pair an out-leg that matches two candidate in-legs on the same day.|test_AC2_discover_skips_ambiguous_candidate_legs
+@$be/reconciliation/test_reconciliation_shift_left.py|P1
+reconciliation-engine.1|The reconciliation engine runs end to end through the API.|test_reconciliation_scoring_engine_algorithms|P0
+reconciliation-engine.2|The reconciliation stats endpoint returns run statistics.|test_reconciliation_stats_endpoint
+reconciliation-engine.3|A reconciliation match can be accepted through the API.|test_reconciliation_match_state_and_acceptance
+@$be/review/test_consistency_checks.py|P1
+consistency-checks.1|Detect_duplicates runs a global scan.|test_global_scan_no_statement_id
+consistency-checks.2|Detect_duplicates is idempotent.|test_idempotent_duplicate_detection
+consistency-checks.3|Detect_transfer_pairs runs a global scan.|test_global_scan_no_statement_id
+consistency-checks.4|Resolve_check raises ValueError on an invalid resolution action.|test_resolve_check_invalid_action_raises
+consistency-checks.5|Resolve_check raises ValueError when the check is not found.|test_resolve_check_not_found_raises
+consistency-checks.6|Resolve_check sets FLAGGED status when action=flag.|test_resolve_check_sets_flagged
+consistency-checks.7|List_checks filters pending results by severity.|test_get_pending_filters_by_severity
+consistency-checks.8|Deduplication detection accuracy is >= 95% on the consistency-check corpus.|test_detect_duplicates
+consistency-checks.9|Transfer-pair detection accuracy is >= 90% on the consistency-check corpus.|test_detect_transfer_pairs
+consistency-checks.10|`GET /statements/consistency-checks/list` enforces a bounded page size.|test_AC_consistency_checks_10_list_endpoint_rejects_unbounded_limit
+2548.5|Detect_duplicates requires same-day and compatible account scope.|test_AC_reconciliation_2548_5_consistency_checks_guard_same_account_refund_and_adjacent_day_spend|:property
+@$be/reconciliation/test_transfer_integration.py|P0
+dwd-cutover.2|Mixed transfer and normal transactions both reconcile correctly under the Layer-2 read path.|test_mixed_transactions_both_phases_execute
+2884.1|List_pending_transactions reads current rows of every statement that is not RETIRED or REJECTED.|test_AC_reconciliation_2884_1_matching_run_pairs_transfer_legs_of_parsed_statements|:property
+@$be/review/test_review_conflicts_router.py|P0
+conflict-resolution.4|GET /api/review/conflicts/{statement_id} returns {duplicates.|test_review_conflicts_returns_duplicate_and_transfer_candidates
+conflict-resolution.5|The conflicts endpoint returns 404.|test_review_conflicts_returns_404_for_missing_statement
+@$fe/__tests__/reviewQueuePage.test.tsx|P2
+fe-stage2-review.1|Stage 2 UI supports batch operations.|AC16.2.4/AC16.17.3 approves selected matches through the batch approval API|P1
+fe-stage2-review.3|Stage 2 review queue shows failure fallback and supports retry.|AC16.17.1 shows an error fallback and retries the Stage 2 queue fetch
+fe-stage2-review.4|Stage 2 review queue indicates unresolved checks and disables batch approval.|AC16.2.3/AC16.17.2 disables batch approval while unresolved checks remain
+fe-stage2-review.5|Stage 2 review queue rejects selected matches.|AC16.17.3 rejects selected matches through the batch rejection API
+fe-stage2-review.6|Stage 2 review queue resolves consistency checks.|AC16.17.4 resolves a consistency check from the dialog actions
+fe-stage2-review.26|Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval.|AC16.32.3 requests an expanded consistency-check limit for unblockable queues|P0
+fe-stage2-review.28|The review queue tab of `/reconciliation` renders the Stage-2 review queue with its heading.|AC16.36.1 renders the Stage-2 review queue with its heading in the reconciliation tab|P1
+fe-stage2-review.29|The review queue tab loads the global queue (no run filter).|AC16.36.2 loads the global queue (no run filter) in the reconciliation tab
+@$fe/__tests__/reconciliationWorkbenchComponent.test.tsx|P1
+fe-stage2-review.7|Reconciliation workbench loads stats and pending queue with default selection.|AC16.20.1 loads stats and pending queue with default selection|P2
+fe-stage2-review.8|Reconciliation workbench triggers run, accept, reject.|AC16.20.2 triggers run, batch, accept, and reject APIs|P2
+fe-stage2-review.11|Score distribution renders 0% height for buckets with value 0.|AC16.20.6 score distribution renders 0% height for buckets with value 0
+fe-tabs.1|The `/reconciliation` page shows the tab that the query parameter `tab` names.|AC-reconciliation.fe-tabs.1 shows the tab that the tab query parameter names and links each tab to its URL
+fe-tabs.2|With no `tab` value or an unknown value, `/reconciliation` waits for the statistics, then opens on Unmatched.|AC-reconciliation.fe-tabs.2 opens on Unmatched when an unmatched row exists and on Matches otherwise
+@apps/frontend/playwright/mobile-ux.spec.ts|P0
+fe-stage2-review.12|Review, journal details, and mobile navigation surfaces do not create document-level horizontal scrolling at phone widths.|AC16.25.1 mobile review routes avoid document horizontal scrolling
+fe-stage2-review.13|AI suggestion review queue exposes accept, reject, correction.|AC16.25.2 AI suggestions mobile cards expose feedback actions
+@$fe/__tests__/stage2ReviewQueueCoverage99.test.tsx|P0
+fe-stage2-review.14|Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible.|AC8.13.76/AC16.26.2 mobile queue renders selectable match cards and batch actions
+fe-stage2-review.15|Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths.|AC16.26.3 mobile run review preserves approval gate and pending match workflow
+fe-stage2-review.16|Stage 1 and Stage 2 mobile review lists render.|AC16.27.1 keeps mobile pending-match cards in the DOM without matchMedia gating
+fe-stage2-review.17|Stage 2 desktop review keeps pending match rows readable at 1440px with the sidebar visible.|AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs
+fe-stage2-review.19|Stage 2 listing exposes severity filter, check-type filter.|AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes|P2
+@$fe/__tests__/statementDetailReview.test.tsx|P2
+fe-stage2-review.18|Conflict resolution dialog `<ConflictResolutionDialog />` opens.|AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist
+fe-stage2-review.23|Stage 1 conflict dialog loads duplicate and transfer-pair candidates from `GET /api/review/conflicts/{statement_id}`.|AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist|P0
+@$fe/__tests__/reviewRunPage.test.tsx|P2
+fe-stage2-review.20|Stage 2 run-level review at `/audit?run_id=<id>` summarizes duplicate, transfer-pair.|AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval
+fe-stage2-review.21|Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval.|AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval
+fe-stage2-review.22|Stage 2 run-level approval submits all pending matches.|AC16.24.3 approves all pending matches through the batch approval API
+fe-stage2-review.24|Stage 2 run review page states that it uses the shared Stage 2 queue endpoint.|AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval|P0
+@$fe/__tests__/attention.test.ts|P1
+fe-ia-reconciliation.3|The Needs Confirmation queue on `/audit` folds the open attention sources into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state.|AC22.6.1 folds the open attention sources into one list sorted by ascending confidence
+fe-ia-reconciliation.6|Each attention-queue item surfaces a plain-language reason it was flagged.|AC22.11.2 every item explains why it was flagged
+fe-ia-reconciliation.10|The unmatched item of the confidence queue takes the description of the newest unmatched row as its title, with the count of the other rows.|AC-reconciliation.fe-ia-reconciliation.10 names the unmatched item by its newest row
+@$fe/__tests__/homeActionBanner.test.tsx|P1
+fe-ia-reconciliation.4|Home shows one action banner from the same attention model.|AC22.6.2 shows the confirmation count of the attention sources and links to the /audit queue
+2823.1|PickHomeAction selects a pending Stage-1 statement_review item ahead of Stage-2 unmatched_transactions for the Home action banner firstItem.|AC-reconciliation.2823.1 prioritises pending Stage-1 statement_review over unmatched_transactions in firstItem
+@$fe/__tests__/attentionQueue.test.tsx|P1
+fe-ia-reconciliation.7|Attention-origin action links preserve `from=attention`.|AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links
+fe-ia-reconciliation.8|Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant.|AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links
+@$fe/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx|P2
+fe-remainder-reconciliation.2|The AI suggestions queue on `/audit` lists pending AI classifications and AI reconciliation matches in score band 60-84 with `{transaction, suggested_category_or_match, ai_score, ai_reasoning}`.|AC18.5.3 — AI Suggestion Review Queue page renders suggestions
+fe-remainder-reconciliation.3|Queue actions: `Accept`, `Reject`, `Edit-then-Accept`.|AC18.5.4 — feedback POST on accept/reject/edit
+@$be/reconciliation/test_reconciliation_hybrid_scoring.py|P1
+1803.1|Hybrid scoring: score_single blends 0.7 * algorithmic + 0.3 * AI semantic score, applied only.|test_score_single_applies_hybrid_ai_scoring
+1803.2|Feature flag ENABLE_AI_RECONCILIATION gates the hybrid-AI branch.|test_score_single_flag_off_skips_ai_scoring
+1803.3|Execute_matching resolves enable_ai_reconciliation from the per-user ai_settings override.|test_AC_reconciliation_1803_3_execute_matching_uses_per_user_ai_reconciliation_override
+@$be/reconciliation/test_economic_disposition.py|P0
+economic-disposition.1|An eligible journal candidate wins.|test_AC_reconciliation_economic_disposition_1_normal_candidate_precedes_transfer
+economic-disposition.2|The database permits at most one active economic-disposition head for each AtomicTransaction.|test_AC_reconciliation_economic_disposition_2_database_rejects_duplicate_active_heads
+economic-disposition.3|Independent sessions racing on one AtomicTransaction converge on one winner.|test_AC_reconciliation_economic_disposition_3_two_sessions_converge
+economic-disposition.4|A transfer pair persists both uniquely owned disposition legs, its decision version.|test_AC_reconciliation_economic_disposition_4_transfer_pair_round_trip
+economic-disposition.5|Every statement-to-ledger amount comparison names the transaction currency.|test_AC_reconciliation_economic_disposition_5_currency_is_explicit
+economic-disposition.6|Retry, worker restart, and phase permutation preserve disposition, journal.|test_AC_reconciliation_economic_disposition_6_retry_and_phase_permutation_are_idempotent
+economic-disposition.7|Processing effects are invoked only.|test_AC_reconciliation_economic_disposition_7_processing_uses_typed_ledger_boundary
+@$be/reconciliation/test_named_transfer_legs.py|P0|done|property
+named-transfer-legs.1|Post_named_transfer_legs posts the same Processing leg as the keyword fallback for a transaction that the AI classification named a transfer or a card repayment.|test_AC_reconciliation_named_transfer_legs_1_an_outgoing_row_posts_dr_processing_cr_bank
+named-transfer-legs.2|A named transaction is skipped.|test_AC_reconciliation_named_transfer_legs_2_a_second_call_posts_nothing_more
+named-transfer-legs.3|Two transactions with the same date, text and amount get two legs with two journal entries.|test_AC_reconciliation_named_transfer_legs_3_two_identical_rows_post_two_legs
+named-transfer-legs.4|The legs from post_named_transfer_legs carry the normalized anchors.|test_AC_reconciliation_named_transfer_legs_4_the_legs_pair_in_the_next_reconciliation_run|P1
+named-transfer-legs.5|The memo of a transfer leg holds at most 500 characters, the size of the memo column.|test_AC_reconciliation_named_transfer_legs_5_a_long_description_posts_a_leg_with_a_bounded_memo
+@$be/reconciliation/test_multi_tenant_stats_budget.py|P1|done|property
+2617.1|With 100 more users and their accepted matches in the database, GET /reconciliation/stats reads at most 1.25 times the rows that it reads for one user alone.|test_AC_reconciliation_2617_1_stats_do_not_read_matches_of_other_tenants
+2617.2|Get_reconciliation_stats returns the values of the version.|test_AC_reconciliation_2617_2_stats_equal_the_pre_change_values|:exact
+@-|P1
+candidate-policy.1|Live matching and the deterministic accuracy audit share candidate enumeration, rule scoring and source-rank ordering.|$be/reconciliation/test_candidate_policy.py::test_live_and_audit_choose_the_same_evidence|P0:property
+config-boundary.1|Configuration values have no direct runtime or ledger dependency.|$t/test_reconciliation_config_boundary.py::test_configuration_ownership_is_explicit|P0:property
+review-queue.2|The reconciliation router's accept_match/reject_match/batch_accept service calls transition matches to ACCEPTED/REJECTED/ACCEPTED and batch_accept reports the accepted count.|$be/reconciliation/test_reconciliation_router_additional.py::test_accept_reject_batch_accept
+source-type-transfer.4|Execute_matching's conflict resolution assigns a source_type_winner_rank of 4.0 to a MANUAL entry and source_type_loser_rank of 1.0 to a same-score AUTO_PARSED entry.|$be/reconciliation/test_source_type.py::test_manual_wins_conflict_resolution
+recovered-coverage.1|POST /corrections persists a category correction for a transaction and GET /corrections/stats subsequently reports it in total_corrections and top_corrections.|$be/api/test_corrections_router.py::test_post_create_correction_and_stats
+bank-side-amount.1|Score_single computes the 'amount' score dimension from the bank/cash account's line amount.|$be/reconciliation/test_reconciliation_financial_logic.py::test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow|P0
+bank-side-amount.5|Derive_reconciliation_score_tier maps a reconciliation match_score to LOW, MEDIUM, or HIGH.|$be/reconciliation/test_confidence_tier.py::test_ac4_9_4_derive_reconciliation_score_tier
+per-currency-balance.9|ExtractionService.parse_document persists a multi-currency bank statement's per-currency currency_balances and sets balance_validated True because each currency independently reconciles.|$be/extraction/test_bank_multi_currency_balances.py::test_AC4_13_9_bank_multi_currency_statement_persists_balances_and_per_currency_governs|P0
+consistency-checks.11|Consistency check detection strictly partitions by transaction currency, preventing false duplicate and cross-currency transfer pair collisions.|$be/review/test_falsifiable_consistency.py::test_consistency_checks_strictly_partition_by_currency
+candidate-matching.1|_find_transfer_candidates, _find_normal_candidates.|$be/reconciliation/test_reconciliation_scoring_helpers.py::test_find_transfer_candidates_returns_pair|P2
+fe-stage2-review.2|The `/reconciliation` page renders the reconciliation workbench.|$fe/__tests__/reconciliationEntryPages.test.tsx::AC16.16.4 renders workbench in reconciliation page|P2
+fe-stage2-review.27|The ConflictResolutionDialog `Resolve` / `Link Pair` buttons call the resolve endpoint with the matching action and disable.|$fe/__tests__/ConflictResolutionDialog.test.tsx::AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action|P0
+fe-ia-reconciliation.1|The AI suggestions queue on `/audit` is reachable from AI Settings.|$fe/__tests__/aiSettingsPage.test.tsx::AC22.4.3 links to the AI suggestion review surface so it is not orphaned
+fe-ia-reconciliation.2|E2E: a user with Stage 1 and Stage 2 attention sees both in the upload page workflow notices and can open each detail surface.|apps/frontend/playwright/epic022-attention-journey.spec.ts::${label}: both Stage 1 and Stage 2 attention surface in the upload workflow notices with deep links
+fe-ia-reconciliation.5|Desktop and mobile smoke covers the Needs Confirmation queue on `/audit` and the Home trust meter.|apps/frontend/playwright/attention-surface.spec.ts::${label} renders the attention queue ranked by confidence without overflow
+fe-ia-reconciliation.9|The Stage 2 review queue is composed from extracted sub-components with unchanged review behavior.|$fe/__tests__/stage2ReviewQueueParts.test.tsx::AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks
+economic-disposition.8|The governance detail projects exact detector, proof-strength, target-SHA.|$be/reconciliation/test_economic_disposition_governance.py::test_AC_reconciliation_economic_disposition_8_governance_detail_is_exact|P0
+named-transfer-legs.6|The keyword fallback posts a Processing leg only for a transaction in the effective base currency.|$be/reconciliation/test_keyword_leg_base_currency.py::test_AC_reconciliation_named_transfer_legs_6_a_foreign_row_posts_no_leg_and_creates_no_account|P0:property
+2465.2|On the statement page transaction table, a transaction whose statement is approved defaults to matched status.|$fe/__tests__/TransactionTable.test.tsx::AC-reconciliation.2465.2 defaults transaction status to matched when the statement is approved
+2888.1|Release_transaction_dispositions supersedes the active matches of the released rows.|$be/reconciliation/test_statement_release.py::test_AC_reconciliation_2888_1_released_leg_breaks_the_pair_for_readers|P0:property
+""",
+    ),
+    concepts=concepts(
+        """
+reconciliation_state_machine|common/reconciliation/readme.md#state-machine|pending → auto_accepted / pending_review → accepted / rejected.|common/reconciliation/confirmation-workflow.md,common/reconciliation/reconciliation.md|-|reconciliation|model
+reconciliation_thresholds|common/reconciliation/readme.md#thresholds|Score ≥85 auto-accept; 60-84 review; <60 unmatched.|docs/agents/red-lines.md,common/reconciliation/reconciliation.md|-|reconciliation|baseline
+"""
+    ),
     governance=[
         GovernanceInitiative(
             id="economic-disposition-atomicity",
@@ -736,29 +457,4 @@ CONTRACT = PackageContract(
             ],
         )
     ],
-    concepts=[
-        ConceptRecord(
-            key="reconciliation_state_machine",
-            owner="common/reconciliation/readme.md#state-machine",
-            description="pending → auto_accepted | pending_review → accepted | rejected.",
-            cross_refs=[
-                "common/reconciliation/confirmation-workflow.md",
-                "common/reconciliation/reconciliation.md",
-            ],
-            family="reconciliation",
-            kind="model",
-        ),
-        ConceptRecord(
-            key="reconciliation_thresholds",
-            owner="common/reconciliation/readme.md#thresholds",
-            description="Score ≥85 auto-accept; 60-84 review; <60 unmatched.",
-            cross_refs=[
-                "docs/agents/red-lines.md",
-                "common/reconciliation/reconciliation.md",
-            ],
-            family="reconciliation",
-            kind="baseline",
-        ),
-    ],
 )
-# fmt: on

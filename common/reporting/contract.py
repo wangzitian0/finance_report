@@ -1,910 +1,497 @@
-"""The ``reporting`` package's machine-checkable :class:`PackageContract`.
-
-This contract records the reporting-domain cutover boundary for Stage 4 of the
-package migration umbrella (#1416, issue #1424): reporting is the
-calculation-over-ledger package, declares its building blocks with
-``units=[Unit(kind=...)]``, and — since the #1666 physical fold — implements
-at ``apps/backend/src/reporting/{base,extension,data}``.
-
-Scope correction (2026-07-06): ``manual_valuation.py`` belongs to the pricing
-cutover (#1610). Reporting keeps report assembly;
-pricing owns valuation-observation staleness facts. Reporting imports pricing's
-published FX conversion surface directly (#2774) and reaches manual valuation
-through the composition-root-injected port
-(``register_manual_valuation_lines_provider``), never by importing the
-``services/`` remainder.
-
-Status flip (migration closeout wave 2, #1663): the roadmap's first ACs
-(opening-balance gate + the full EPIC-020 framework-reporting set) carry only
-``proof_kind`` in ``{exact, property}``, both valid under ``CODE-ONLY`` — so
-the package ships ``active``/``CODE-ONLY`` here.
-
-#1674 contract-honesty audit (2026-07-09): declare a dependency only with its
-first real import. ``extraction`` supplies decision-backed statement
-contributions to package assembly; ``config``/``platform`` remain undeclared
-until a real import exists.
-"""
+"""Machine-checkable PackageContract for ``reporting``."""
 
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ac,
-    ConceptRecord,
-    ContextRelation,
     ContextScope,
     GovernanceGuarantee,
     GovernanceInitiative,
-    Invariant,
-    Kind,
     PackageContract,
-    Unit,
+    acs,
+    concepts,
+    invs,
+    rels,
+    units,
 )
 
-# fmt: off
 CONTRACT = PackageContract(
     name="reporting",
     status="active",
     tier="CODE-ONLY",
-    depends_on=[
-        "audit",
-        # extraction: package assembly reads its public statement-contribution
-        # DTO, while the appendix renders that DTO without reading extraction ORM.
-        "extraction",
-        "ledger",
-        "observability",
-        "platform",
-        # portfolio: the market-value adjustment lines read holdings via the
-        # published PortfolioService (was services.portfolio before #1643).
-        "portfolio",
-        "pricing",
-        "reconciliation",
-    ],
+    depends_on="""
+audit extraction ledger observability platform portfolio pricing reconciliation
+""".split(),
+    roles="base extension data".split(),
+    implementations={"be": "apps/backend/src/reporting", "fe": None},
     context=ContextScope(
-        purpose="Own deterministic financial report assembly, framework disclosure, and frozen report snapshots over trusted facts from other contexts.",
+        purpose="Own deterministic financial report assembly, framework disclosure.",
         in_scope=[
-            "financial statement and net-worth calculation views",
-            "ReportSnapshot, report-line, framework-policy, readiness, and disclosure language",
-            "report-package assembly and traceability of the exact facts a report freezes",
+            "Financial statement and net-worth calculation views.",
+            "ReportSnapshot, report-line, framework-policy, readiness.",
+            "Report-package assembly and traceability of the exact facts a report freezes.",
         ],
         out_of_scope=[
-            "source-document parsing, ledger posting, position accounting, matching, or valuation resolution",
-            "shared financial value/assurance ownership and generic telemetry or persistence substrate",
-            "cross-domain workflow execution and user-facing delivery routing",
+            "Source-document parsing, ledger posting, position accounting, matching, or valuation resolution.",
+            "Shared financial value/assurance ownership and generic telemetry or persistence substrate.",
+            "Cross-domain workflow execution and user-facing delivery routing.",
         ],
     ),
-    relationships=[
-        ContextRelation(
-            provider="audit",
-            consumer="reporting",
-            mode="published-language",
-            reason="Uses audit monetary, source-type, and assurance language for report calculations and disclosure.",
-        ),
-        ContextRelation(
-            provider="extraction",
-            consumer="reporting",
-            mode="projection",
-            reason="Reads statement contributions and source-fact projections without owning document lifecycle.",
-        ),
-        ContextRelation(
-            provider="ledger",
-            consumer="reporting",
-            mode="projection",
-            reason="Reads posted ledger and account projections without creating or changing journal facts.",
-        ),
-        ContextRelation(
-            provider="observability",
-            consumer="reporting",
-            mode="published-language",
-            reason="Uses published safe logging and error-identification language for report generation diagnostics.",
-        ),
-        ContextRelation(
-            provider="platform",
-            consumer="reporting",
-            mode="composition",
-            reason="Uses platform persistence mixins and request-error helpers without owning the substrate.",
-        ),
-        ContextRelation(
-            provider="portfolio",
-            consumer="reporting",
-            mode="projection",
-            reason="Reads portfolio performance and holdings projections for report schedules without owning positions.",
-        ),
-        ContextRelation(
-            provider="pricing",
-            consumer="reporting",
-            mode="projection",
-            reason="Reads decision-backed valuation and FX-resolution contributions without resolving prices itself.",
-        ),
-        ContextRelation(
-            provider="reconciliation",
-            consumer="reporting",
-            mode="projection",
-            reason="Reads reconciliation readiness and transfer-match state for report disclosure without making matches.",
-        ),
-    ],
-    roles=["base", "extension", "data"],
-    units=[
-        # ── base (package-owned vocabulary plus delivery-only response DTOs) ──
-        Unit(
-            name="PersonalReportingFrameworkId",
-            kind=Kind.VALUE_OBJECT,
-            module="base/types.py",
-        ),
-        Unit(
-            name="ReportLineId",
-            kind=Kind.VALUE_OBJECT,
-            module="base/types.py",
-        ),
-        Unit(
-            name="PolicyDimension",
-            kind=Kind.VALUE_OBJECT,
-            module="base/types.py",
-        ),
-        Unit(name="ReportLine", kind=Kind.VALUE_OBJECT),
-        Unit(name="BalanceSheetResponse", kind=Kind.VALUE_OBJECT),
-        Unit(name="IncomeStatementResponse", kind=Kind.VALUE_OBJECT),
-        Unit(
-            name="CashFlowItem",
-            kind=Kind.VALUE_OBJECT,
-            module="base/cash_flow_types.py",
-        ),
-        Unit(
-            name="CashFlowResponse",
-            kind=Kind.VALUE_OBJECT,
-            module="base/cash_flow_types.py",
-        ),
-        Unit(
-            name="CashFlowSummary",
-            kind=Kind.VALUE_OBJECT,
-            module="base/cash_flow_types.py",
-        ),
-        Unit(
-            name="PersonalDataQualityHealthResponse",
-            kind=Kind.VALUE_OBJECT,
-            module="base/data_quality_types.py",
-        ),
-        Unit(
-            name="QualityGrade",
-            kind=Kind.VALUE_OBJECT,
-            module="base/data_quality_types.py",
-        ),
-        Unit(
-            name="InvariantStatus",
-            kind=Kind.VALUE_OBJECT,
-            module="base/data_quality_types.py",
-        ),
-        Unit(
-            name="MonthContinuityBucket",
-            kind=Kind.VALUE_OBJECT,
-            module="base/data_quality_types.py",
-        ),
-        Unit(
-            name="QualityActionItem",
-            kind=Kind.VALUE_OBJECT,
-            module="base/data_quality_types.py",
-        ),
-        Unit(name="FrameworkPolicyDecision", kind=Kind.VALUE_OBJECT),
-        Unit(name="FrameworkPolicyGap", kind=Kind.VALUE_OBJECT),
-        Unit(name="FrameworkPolicyMatrix", kind=Kind.VALUE_OBJECT),
-        Unit(name="PeriodSpan", kind=Kind.VALUE_OBJECT),
-        Unit(name="AnnualizedIncomeTotals", kind=Kind.VALUE_OBJECT),
-        Unit(name="NetWorthTimeSeriesPoint", kind=Kind.VALUE_OBJECT),
-        Unit(name="AccountLineageLine", kind=Kind.VALUE_OBJECT),
-        Unit(
-            name="EquationDiagnosticCategory",
-            kind=Kind.VALUE_OBJECT,
-            module="base/diagnostics.py",
-        ),
-        Unit(
-            name="EquationDiagnosticResult",
-            kind=Kind.VALUE_OBJECT,
-            module="base/diagnostics.py",
-        ),
-        Unit(
-            name="diagnose_equation_imbalance",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/diagnostics.py",
-        ),
-        Unit(
-            name="run_balance_sheet_diagnostics",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/diagnostics.py",
-        ),
-        Unit(
-            name="compute_personal_data_quality",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/data_quality_service.py",
-        ),
-        Unit(name="ReportSnapshot", kind=Kind.AGGREGATE_ROOT),
-        # ── extension (report generation + lanes) ──
-        Unit(
-            name="generate_balance_sheet",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/balance_sheet.py",
-        ),
-        Unit(
-            name="generate_annualized_income_schedule",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/annualized_income.py",
-        ),
-        Unit(
-            name="generate_income_statement",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/income_statement.py",
-        ),
-        Unit(
-            name="generate_cash_flow",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/cash_flow.py",
-        ),
-        Unit(
-            name="_aggregate_balances_sql",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/_core.py",
-        ),
-        Unit(
-            name="_aggregate_net_income_sql",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/_core.py",
-        ),
-        Unit(
-            name="get_net_worth_timeseries",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/net_worth.py",
-        ),
-        Unit(
-            name="get_net_worth_allocation_schedule",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/net_worth.py",
-        ),
-        Unit(
-            name="get_category_breakdown",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/net_worth.py",
-        ),
-        Unit(
-            name="get_account_trend",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/net_worth.py",
-        ),
-        Unit(
-            name="get_account_lineage",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/lineage.py",
-        ),
-        Unit(
-            name="PackageSectionContribution",
-            kind=Kind.VALUE_OBJECT,
-            module="base/package_contribution.py",
-        ),
-        Unit(
-            name="PackageCashInputs",
-            kind=Kind.VALUE_OBJECT,
-            module="base/package_contribution.py",
-        ),
-        Unit(
-            name="personal_report_package_target",
-            kind=Kind.FACTORY,
-            module="base/package_decision.py",
-        ),
-        Unit(
-            name="personal_report_package_decision_ref",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/package_document.py",
-        ),
-        Unit(
-            name="ReportingReadRepository",
-            kind=Kind.REPOSITORY,
-        ),
-        # ── data (projection / sink declarations) ──
-        Unit(name="ReportSnapshotProjection", kind=Kind.PROJECTION),
-        Unit(name="ReportTraceabilityProjection", kind=Kind.PROJECTION),
-        Unit(name="AccountLineageTreeProjection", kind=Kind.PROJECTION),
-        Unit(name="FrameworkPolicyDecisionProjection", kind=Kind.PROJECTION),
-    ],
-    implementations={"be": "apps/backend/src/reporting", "fe": None},
-    interface=[
-        "MAX_NET_WORTH_DAILY_POINTS",
-        "PERSONAL_REPORT_PACKAGE_CONTRACT",
-        "PERSONAL_REPORT_PACKAGE_NOTES",
-        "PackageAssembler",
-        "PackageSectionContribution",
-        "personal_report_package_target",
-        "personal_report_package_decision_ref",
-        "PackageDocumentVersionError",
-        "EquationDiagnosticCategory",
-        "EquationDiagnosticResult",
-        "diagnose_equation_imbalance",
-        "run_balance_sheet_diagnostics",
-        "current_package_readiness",
-        "report_coverage",
-        "package_preview",
-        "AnnualizedIncomeTotals",
-        "CashFlowItem",
-        "CashFlowLineEventsPage",
-        "CashFlowPreview",
-        "CashFlowResponse",
-        "CashFlowSummary",
-        "PersonalDataQualityHealthResponse",
-        "QualityGrade",
-        "InvariantStatus",
-        "MonthContinuityBucket",
-        "QualityActionItem",
-        "compute_personal_data_quality",
-        "DEFAULT_INCLUDE_RESTRICTED",
-        "PACKAGE_INCLUDE_RESTRICTED",
-        "PersonalReportingFrameworkId",
-        "PolicyDimension",
-        "ReportError",
-        "ReportLineId",
-        "ReportSnapshot",
-        "ReportType",
-        "ReportingSnapshotService",
-        "_add_months",
-        "_aggregate_balances_sql",
-        "_aggregate_net_income_sql",
-        "_combine_provenance",
-        "_iter_periods",
-        "_month_end",
-        "_month_start",
-        "_normalize_currency",
-        "_provenance_from_source_type",
-        "_quantize_money",
-        "_quarter_start",
-        "_signed_amount",
-        "assemble_framework_balance_sheet",
-        "assemble_framework_income_statement",
-        "build_personal_report_package_traceability_payload",
-        "derive_user_framework_policy_result",
-        "generate_balance_sheet",
-        "generate_annualized_income_schedule",
-        "cash_flow_line_events",
-        "cash_flow_period",
-        "cash_flow_preview",
-        "generate_cash_flow",
-        "generate_income_statement",
-        "get_account_lineage",
-        "get_account_trend",
-        "get_category_breakdown",
-        "get_net_worth_allocation_schedule",
-        "get_net_worth_timeseries",
-        "income_bucket",
-        "is_valid_line_for_framework",
-        "jsonable",
-        "package_currency",
-        "package_dates",
-        "package_snapshot_csv",
-        "package_snapshot_document",
-        "package_snapshot_response",
-        "package_snapshot_summary",
-        # Composition-root injection port (#1666/#1610): main.py and the
-        # backend test conftest wire the manual-valuation lines builder through
-        # this. FX conversion imports src.pricing directly (#2774).
-        "register_manual_valuation_lines_provider",
-        "render_balance_sheet_csv",
-        "render_cash_flow_csv",
-        "render_income_statement_csv",
-        "resolve_line_currency",
-    ],
+    relationships=rels(
+        "reporting",
+        """
+audit|published-language|Uses audit monetary, source-type.
+extraction|projection|Reads statement contributions and source-fact projections.
+ledger|projection|Reads posted ledger and account projections.
+observability|published-language|Uses published safe logging and error-identification language for report generation diagnostics.
+platform|composition|Uses platform persistence mixins and request-error helpers.
+portfolio|projection|Reads portfolio performance and holdings projections for report schedules.
+pricing|projection|Reads decision-backed valuation and FX-resolution contributions.
+reconciliation|projection|Reads reconciliation readiness and transfer-match state for report disclosure.
+""",
+    ),
+    units=units(
+        """
+@vo|base/types.py|PersonalReportingFrameworkId ReportLineId PolicyDimension
+@vo|-|ReportLine BalanceSheetResponse IncomeStatementResponse FrameworkPolicyDecision FrameworkPolicyGap FrameworkPolicyMatrix PeriodSpan AnnualizedIncomeTotals NetWorthTimeSeriesPoint AccountLineageLine
+@vo|base/cash_flow_types.py|CashFlowItem CashFlowResponse CashFlowSummary
+@vo|base/data_quality_types.py|PersonalDataQualityHealthResponse QualityGrade InvariantStatus MonthContinuityBucket QualityActionItem
+@vo|base/diagnostics.py|EquationDiagnosticCategory EquationDiagnosticResult
+@svc|extension/diagnostics.py|diagnose_equation_imbalance run_balance_sheet_diagnostics
+compute_personal_data_quality|svc|extension/data_quality_service.py
+ReportSnapshot|agg
+generate_balance_sheet|svc|extension/balance_sheet.py
+generate_annualized_income_schedule|svc|extension/annualized_income.py
+generate_income_statement|svc|extension/income_statement.py
+generate_cash_flow|svc|extension/cash_flow.py
+@svc|extension/_core.py|_aggregate_balances_sql _aggregate_net_income_sql
+@svc|extension/net_worth.py|get_net_worth_timeseries get_net_worth_allocation_schedule get_category_breakdown get_account_trend
+get_account_lineage|svc|extension/lineage.py
+@vo|base/package_contribution.py|PackageSectionContribution PackageCashInputs
+personal_report_package_target|fac|base/package_decision.py
+personal_report_package_decision_ref|svc|extension/package_document.py
+ReportingReadRepository|repo
+@proj|-|ReportSnapshotProjection ReportTraceabilityProjection AccountLineageTreeProjection FrameworkPolicyDecisionProjection
+"""
+    ),
+    interface="""
+MAX_NET_WORTH_DAILY_POINTS PERSONAL_REPORT_PACKAGE_CONTRACT
+PERSONAL_REPORT_PACKAGE_NOTES PackageAssembler PackageSectionContribution
+personal_report_package_target personal_report_package_decision_ref
+PackageDocumentVersionError EquationDiagnosticCategory EquationDiagnosticResult
+diagnose_equation_imbalance run_balance_sheet_diagnostics current_package_readiness
+report_coverage package_preview AnnualizedIncomeTotals CashFlowItem
+CashFlowLineEventsPage CashFlowPreview CashFlowResponse CashFlowSummary
+PersonalDataQualityHealthResponse QualityGrade InvariantStatus MonthContinuityBucket
+QualityActionItem compute_personal_data_quality DEFAULT_INCLUDE_RESTRICTED
+PACKAGE_INCLUDE_RESTRICTED PersonalReportingFrameworkId PolicyDimension ReportError
+ReportLineId ReportSnapshot ReportType ReportingSnapshotService _add_months
+_aggregate_balances_sql _aggregate_net_income_sql _combine_provenance _iter_periods
+_month_end _month_start _normalize_currency _provenance_from_source_type
+_quantize_money _quarter_start _signed_amount assemble_framework_balance_sheet
+assemble_framework_income_statement
+build_personal_report_package_traceability_payload
+derive_user_framework_policy_result generate_balance_sheet
+generate_annualized_income_schedule cash_flow_line_events cash_flow_period
+cash_flow_preview generate_cash_flow generate_income_statement get_account_lineage
+get_account_trend get_category_breakdown get_net_worth_allocation_schedule
+get_net_worth_timeseries income_bucket is_valid_line_for_framework jsonable
+package_currency package_dates package_snapshot_csv package_snapshot_document
+package_snapshot_response package_snapshot_summary
+register_manual_valuation_lines_provider render_balance_sheet_csv
+render_cash_flow_csv render_income_statement_csv resolve_line_currency
+""".split(),
     events=[],
-    invariants=[
-        Invariant(
-            id="interface-equals-published-language",
-            statement=(
-                "The published language (contract.interface) equals __init__.__all__."
-            ),
-            test=(
-                "tests/tooling/test_reporting_package.py"
-                "::test_AC_reporting_1_1_only_all_is_the_published_language"
-            ),
-        ),
-        Invariant(
-            id="snapshot-orm-owner",
-            statement=(
-                "ReportSnapshot and ReportType are reporting-owned ORM vocabulary "
-                "and register exactly once on shared SQLAlchemy metadata."
-            ),
-            test=(
-                "tests/tooling/test_s3_pr_d_structure.py"
-                "::test_AC_reporting_snapshot_ownership_and_metadata_registration"
-            ),
-        ),
-        Invariant(
-            id="reporting-cutover-inventory-declared",
-            statement=(
-                "Reporting statement generators/core lanes are declared in units and mapped to the current implementation inventory."
-            ),
-            test=(
-                "tests/tooling/test_reporting_package.py"
-                "::test_AC_reporting_1_2_cutover_inventory_is_declared"
-            ),
-        ),
-        Invariant(
-            id="manual-valuation-excluded-from-reporting-language",
-            statement=(
-                "manual_valuation stays out of reporting's published language; pricing owns valuation observations/staleness."
-            ),
-            test=(
-                "tests/tooling/test_reporting_package.py"
-                "::test_AC_reporting_1_3_manual_valuation_is_not_published_reporting_surface"
-            ),
-        ),
-        Invariant(
-            id="passes-own-governance-gate",
-            statement="check_package_contract validates reporting with no violations.",
-            test=(
-                "tests/tooling/test_reporting_package.py"
-                "::test_AC_reporting_1_4_package_contract_gate_passes"
-            ),
-        ),
-    ],
-    # The bulk reporting AC transfer from EPIC-005's table lands in a follow-up
-    # commit once the full services/ -> package-home move is complete and
-    # old-path residue checks are green. Entity names are word-slugs (not
-    # numeric groups) since this roadmap started empty in this migration wave.
-    roadmap=[
-        ac('AC-reporting.snapshot-ownership.1', 'ReportSnapshot and ReportType are published and mapped by reporting; extraction defines and exports neither.', 'tests/tooling/test_s3_pr_d_structure.py::test_AC_reporting_snapshot_ownership_and_metadata_registration'),
-        ac('AC-reporting.vocabulary-ownership.1', 'PersonalReportingFrameworkId, ReportLineId, and PolicyDimension are reporting-owned base value objects; the delivery schema may only re-export those exact definitions.', 'tests/tooling/test_vocabulary_ownership.py::test_AC_reporting_vocabulary_ownership_1_reporting_owns_wire_enums', priority='P1'),
-        ac('AC-reporting.single-owner.1', 'Manual-valuation line naming is defined only by pricing, its fact owner; reporting contains no dead duplicate helper that can drift independently.', 'apps/backend/tests/reporting/test_reporting_calc_extraction.py::test_AC_reporting_single_owner_1_has_no_valuation_line_name_copy', priority='P1'),
-        # ── opening-balance confidence-tier gate (was EPIC-002 AC2.16.4 —
-        # EPIC-002 never owned this behavior; it's report assembly, not
-        # double-entry posting) ──
-        ac('AC-reporting.opening-balance.1', 'A balance sheet with posted activity but no recorded opening balance emits an opening_balance_warnings entry (type=missing_opening_balance), and the package assembler treats it as a deterministic blocker.', 'apps/backend/tests/reporting/test_balance_sheet_opening_balance_gate.py::test_AC2_16_4_balance_sheet_warns_when_opening_balance_missing', priority='P1'),
-        ac('AC-reporting.opening-balance.2', "Once an opening-balance entry is posted for the account that triggered the degrade, the balance sheet's opening_balance_warnings clears to empty on the next generation.", 'apps/backend/tests/reporting/test_balance_sheet_opening_balance_gate.py::test_AC2_16_4_balance_sheet_clears_warning_once_opening_balance_recorded', priority='P1'),
-        ac('AC-reporting.opening-balance.3', 'The net-worth allocation schedule surfaces the same opening_balance_warnings as the balance sheet when the user needs an opening balance.', 'apps/backend/tests/reporting/test_balance_sheet_opening_balance_gate.py::test_AC2_16_4_net_worth_allocation_surfaces_opening_balance_warning', priority='P1'),
-        # ── EPIC-020 framework-aware personal reporting (US-GAAP-like /
-        # HK-FRS-like), all proof_kind in {exact, property}: both valid under
-        # a CODE-ONLY tier, so this roadmap is tier-flip-ready once EPIC-005's
-        # larger AC set (still pending) is assessed the same way ──
-        ac('AC-reporting.framework.1', 'The framework registry SSOT and EPIC-020 define `personal_us_gaap_like` and `personal_hkfrs_like`, exclude a CN/CAS v1 framework, and state that outputs are personal management reports rather than statutory filings.', 'tests/tooling/test_framework_reporting_epic_contract.py::test_AC20_1_1_framework_registry_defines_us_hk_personal_targets', proof_kind='exact'),
-        ac('AC-reporting.lanes.1', 'The framework-reporting SSOT and EPIC-020 declare the six-lane fact-forward/target-backward architecture (source capture, evidence control, canonical ledger, portfolio subledger, framework policy, report assembly) as mutually exclusive and collectively covering, with distinct lane owners.', 'tests/tooling/test_framework_reporting_epic_contract.py::test_AC20_2_1_mece_direction_matrix_declares_distinct_owner_lanes', proof_kind='exact'),
-        ac('AC-reporting.target.1', 'The framework target package contract works backward from report outputs: it enumerates required statements and schedules, report line mappings, policy dimensions, evidence anchors, disclosure requirements, and blocker conditions before report assembly runs.', 'tests/tooling/test_framework_reporting_epic_contract.py::test_AC20_3_1_framework_target_contract_is_report_output_backward', proof_kind='exact'),
-        ac('AC-reporting.policy.1', 'The v1 policy matrix covers cash and bank accounts, listed equities/ETFs, funds and money-market products, dividends and interest, brokerage fees, FX, RSU/ESOP/options, and property/mortgage/private-manual assets, each across recognition, measurement, classification, presentation, and disclosure.', 'tests/tooling/test_framework_reporting_epic_contract.py::test_AC20_4_1_policy_matrix_covers_personal_finance_domains', proof_kind='exact'),
-        ac('AC-reporting.policy.2', 'The framework policy layer is read-only: it consumes canonical ledger, portfolio facts, and evidence readiness against the selected framework target without mutating source records, journal entries, portfolio lots, market data, or report snapshots, and it does not itself parse settlements.', 'tests/tooling/test_framework_reporting_epic_contract.py::test_AC20_5_1_policy_layer_is_read_only_between_facts_and_report', proof_kind='exact'),
-        ac('AC-reporting.ai.1', 'An AI measurement/disclosure suggestion affects trusted output only after becoming a structured field carrying a source anchor, confidence tier, review state, policy field name, and accepted value; unreviewed AI suggestions and incomplete policy fields surface as readiness blocker codes, and the report package UI requires an explicit framework selection before loading framework-scoped output.', 'tests/tooling/test_framework_reporting_epic_contract.py::test_AC20_6_1_ai_suggestions_require_structured_reviewed_policy_fields', proof_kind='exact'),
-        ac('AC-reporting.framework.2', 'The same settlement-and-portfolio fixture drives both US-like and HK-like personal report packages, producing framework-specific line mappings, notes bases, source anchors, export metadata, and readiness blockers from a single input set.', 'apps/backend/tests/reporting/test_framework_policy.py::test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs', proof_kind='exact'),
-        ac('AC-reporting.pipeline.1', 'Every L2 category — each `AssetType` and each `ManualValuationComponentType` — resolves to a concrete L1 report line via the framework policy matrix in both `personal_us_gaap_like` and `personal_hkfrs_like`; a known category landing in the UNSUPPORTED/gap path fails the gate (BOND/OTHER regression covered), so report assembly never improvises a line for a known category.', 'apps/backend/tests/reporting/test_framework_policy_coverage.py::test_AC20_8_1_every_asset_type_maps_to_an_l1_line', proof_kind='property'),
-        ac('AC-reporting.pipeline.2', 'EPIC-020 declares the three reporting-pipeline layers (event→L2, L2→L1, L1→report), each with a locked EPIC-026 tier and its valid proof obligation, confining LLM authority to the LLM-LED layer; L1 report assembly iterates the registered L1 lines, aggregates Decimal source lines exactly, keeps portfolio cost basis plus market adjustment on the framework securities L1 line, and fails closed rather than improvising an unmapped known source line.', 'apps/backend/tests/reporting/test_l1_registry_aggregation.py::test_AC20_9_1_framework_balance_sheet_exact_aggregation', proof_kind='property'),
-        # ── DRY/SSOT simplification (EPIC-025) ──
-        ac('AC-reporting.dry-ssot.1', 'Pure reporting math (money quantization, accounting sign rules, period boundaries, income-bucket classification) is provided by `services.reporting_calc` and re-used by `services.reporting`; the balance-sheet equation and report totals are unchanged.', 'apps/backend/tests/reporting/test_reporting_calc_extraction.py::test_reporting_calc_extraction', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.dry-ssot.2', 'Shared reporting fixtures (standard chart of accounts, golden dashboard scenario, standard FX rates) are provided by a single `tests/reporting/_report_fixtures` module and reused, with duplicate per-file `test_user_id` fixtures removed; existing AC traceability is preserved.', 'apps/backend/tests/reporting/test_report_fixtures_shared.py::test_report_fixtures_shared', priority='P1', proof_kind='exact'),
-        # ── export-envelope (EPIC-006 AC6.33.5/.6/.8/.9, closeout wave 3,
-        # #1416) — ExportStreamEnvelope (apps/backend/src/schemas/streaming.py)
-        # is the reporting/export surface of the typed streaming contract; the
-        # chat-side envelope already migrated to common/advisor/contract.py's
-        # roadmap (AC-advisor.envelope.*) ──
-        ac('AC-reporting.export-envelope.1', "ExportStreamEnvelope declares the wire media type and builds an attachment Content-Disposition header carrying the envelope's filename.", 'apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_5_export_envelope_builds_attachment_headers'),
-        ac('AC-reporting.export-envelope.2', 'ExportStreamEnvelope rejects a media type outside the declared wire set (e.g. application/pdf) at construction.', 'apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_6_export_envelope_rejects_unknown_media_type'),
-        ac('AC-reporting.export-envelope.3', "GET /reports/export's response media type and Content-Disposition header equal what ExportStreamEnvelope would produce for the same filename.", 'apps/backend/tests/reporting/test_reports_router.py::test_AC6_33_8_export_response_matches_typed_envelope'),
-        ac('AC-reporting.export-envelope.4', 'ExportStreamEnvelope rejects a filename carrying CR/LF, a double-quote, a semicolon, or a path separator, since the filename is interpolated into the Content-Disposition header and each of those characters would break out of it or inject a header.', 'apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_9_export_envelope_rejects_unsafe_filename'),
-        # ── group balance-sheet: balance-sheet generation (was EPIC-005
-        # AC5.1.1-4, migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.balance-sheet.1', 'The generated balance sheet satisfies the accounting equation: assets = liabilities + equity (net income included).', 'apps/backend/tests/reporting/test_reporting.py::test_balance_sheet_equation'),
-        ac('AC-reporting.balance-sheet.2', 'FX unrealized gain is calculated for foreign-currency balances on the balance sheet.', 'apps/backend/tests/reporting/test_reporting_fx.py::test_fx_unrealized_gain_calculation'),
-        ac('AC-reporting.balance-sheet.3', 'Multi-currency account balances aggregate into the base reporting currency on the balance sheet.', 'apps/backend/tests/reporting/test_reporting_fx.py::test_multi_currency_aggregation'),
-        ac('AC-reporting.balance-sheet.4', 'GET /reports/balance-sheet returns the generated balance sheet payload.', 'apps/backend/tests/reporting/test_reports_router.py::test_balance_sheet_endpoint'),
-        ac('AC-reporting.balance-sheet.5', "A historical as_of_date balance sheet excludes a portfolio position whose ManagedPosition.acquisition_date postdates that as_of_date (consistent with portfolio's documented point-in-time holdings rule: future snapshots are never used); the same position appears once as_of_date reaches its acquisition_date.", 'tests/e2e/test_personal_financial_report_package.py::test_personal_financial_report_package_post_merge_journey', priority='P1', proof_kind='property'),
-        ac('AC-reporting.balance-sheet.6', "A manual valuation component recorded only after the report's as_of_date stays out of the balance-sheet totals AND is disclosed in the response's portfolio_warnings, so a historical balance sheet never silently reads as complete (#1796).", 'apps/backend/tests/reporting/test_reporting_net_worth_components.py::test_AC_reporting_balance_sheet_6_valuation_gap_disclosed_in_portfolio_warnings', priority='P1'),
-        ac('AC-reporting.balance-sheet.7', 'Balance sheet equation evaluation does not use circular plugging for CTA, correctly reports is_balanced=False when assets are corrupted or dropped, and excludes FX_REVALUATION entries from SQL aggregate balances to prevent double-counting.', 'apps/backend/tests/reporting/test_falsifiable_balance_sheet.py::test_balance_sheet_cta_and_aggregation_falsifiability', priority='P1'),
-        ac('AC-reporting.balance-sheet.8', 'A rounding residual of a multi-currency translation moves into the CTA reserve only when it fits half a cent for each rounded figure, so the equation delta is 0.00 for books that balance unrounded. A residual above that bound stays in the equation delta (#2473).', 'apps/backend/tests/reporting/test_balance_sheet_translation_rounding.py::test_case_4_shape_balance_sheet_equation_delta_is_exactly_zero', priority='P1'),
-        # ── group income-statement (was EPIC-005 AC5.2.1-3, migration
-        # closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.income-statement.1', 'The income statement computes net income as income minus expenses.', 'apps/backend/tests/reporting/test_reporting.py::test_income_statement_calculation'),
-        ac('AC-reporting.income-statement.2', 'The income statement includes comprehensive income from FX effects.', 'apps/backend/tests/reporting/test_reporting_fx.py::test_income_statement_comprehensive_income', priority='P1'),
-        ac('AC-reporting.income-statement.3', 'The income statement rejects an invalid date range (start after end) with a domain error.', 'apps/backend/tests/reporting/test_reporting.py::test_income_statement_invalid_range', priority='P1'),
-        # ── group cash-flow: cash-flow statement + trend/breakdown endpoints
-        # (was EPIC-005 AC5.3.1-5, migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.cash-flow.1', 'The cash-flow statement is generated with operating, investing, and financing sections.', 'apps/backend/tests/reporting/test_reporting.py::test_cash_flow_statement'),
-        ac('AC-reporting.cash-flow.2', 'A period with no cash movement generates an empty (zeroed) cash-flow statement, not an error.', 'apps/backend/tests/reporting/test_reporting.py::test_cash_flow_empty_period', priority='P1'),
-        ac('AC-reporting.cash-flow.3', 'GET /reports/trend returns account trend data across different period granularities.', 'apps/backend/tests/api/test_reports_router.py::test_account_trend_with_period', priority='P1'),
-        ac('AC-reporting.cash-flow.4', 'GET /reports/breakdown returns the category breakdown.', 'apps/backend/tests/api/test_reports_router.py::test_category_breakdown_success', priority='P1'),
-        ac('AC-reporting.cash-flow.5', 'GET /reports/breakdown honors the requested period parameter.', 'apps/backend/tests/api/test_reports_router.py::test_category_breakdown_with_period', priority='P1'),
-        ac('AC-reporting.cash-flow.6', 'At one year of activity (1000 entries), GET /reports/cash-flow returns less than 100 KB with no more SQL statements than before #2583 S10. Each statement line has an event count. The response has no per-event lineage, and its totals equal the complete document.', 'apps/backend/tests/reporting/test_cash_flow_preview_payload.py::test_AC_reporting_cash_flow_6_year_scale_preview_is_bounded', priority='P1', proof_kind='property'),
-        ac('AC-reporting.cash-flow.7', 'Each GET /reports/cash-flow line is the sum and count of the document items of one activity, description and account. GET /reports/cash-flow/line-events returns, page by page, every lineage record of the document on exactly one line, in document order. The document equals the output before #2583 S10.', 'apps/backend/tests/reporting/test_cash_flow_preview_payload.py::test_AC_reporting_cash_flow_7_line_events_pages_equal_document', priority='P1', proof_kind='exact'),
-        # ── group fx: multi-currency conversion fallbacks (was EPIC-005
-        # AC5.4.1-4, migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.fx.1', 'Report FX conversion falls back through the documented rate-resolution chain.', 'apps/backend/tests/reporting/test_reporting_fx.py::test_reporting_fx_fallbacks', priority='P1'),
-        ac('AC-reporting.fx.2', 'Balance-sheet net income uses the FX fallback path when a direct rate is missing.', 'apps/backend/tests/reporting/test_reporting_fx.py::test_balance_sheet_net_income_fx_fallback', priority='P1'),
-        ac('AC-reporting.fx.3', 'Reports lazily resolve a missing cross rate (e.g. HKD/SGD) from stored bridge rates.', 'apps/backend/tests/reporting/test_reporting_fx.py::test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates'),
-        ac('AC-reporting.fx.4', 'Missing report FX rates produce explicit partial warnings for the unconvertible currency instead of aborting the whole aggregation.', 'apps/backend/tests/reporting/test_reporting_fx_fallbacks.py::test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning'),
-        # ── group errors: report error handling + auth boundary (was EPIC-005
-        # AC5.5.1-5, migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.errors.1', 'Report-generation failures surface as structured router errors.', 'apps/backend/tests/reporting/test_reports_errors.py::test_reports_router_errors_extended', priority='P1'),
-        ac('AC-reporting.errors.2', 'Each reports endpoint maps a ReportError to a structured HTTP error response (TestReportsRouterErrors suite; representative test cited).', 'apps/backend/tests/reporting/test_reports_router_errors.py::test_balance_sheet_report_error', priority='P1'),
-        ac('AC-reporting.errors.3', 'Unauthenticated clients cannot access the reports endpoints.', 'apps/backend/tests/api/test_reports_router.py::test_unauthenticated_access', priority='P1'),
-        ac('AC-reporting.errors.4', 'The reports router endpoints respond successfully for an authenticated user (representative endpoint test cited).', 'apps/backend/tests/reporting/test_reports_router.py::test_income_statement_endpoint', priority='P1'),
-        ac('AC-reporting.errors.5', "GET /reports/{report_type}/snapshots returns the user's persisted report snapshots.", 'apps/backend/tests/api/test_reports_router.py::test_list_report_snapshots_returns_created_snapshots', priority='P1'),
-        # ── group kpis: dashboard/report KPI surfaces + FX guardrails (was
-        # EPIC-005 AC5.6.4-5 and AC5.6.7-11 — AC5.6.4's frontend dashboard-card
-        # half stays in EPIC-005; migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.kpis.1', 'The annualized income KPI endpoint groups the last 12 months of income; calculation ownership stays with AC11.8.1.', 'apps/backend/tests/reporting/test_income_annualized_router.py::test_annualized_income_endpoint_groups_last_12_month_income'),
-        ac('AC-reporting.kpis.2', 'Unrealized P&L is reflected in balance-sheet equity (golden dashboard fixture asserts exact totals).', 'apps/backend/tests/reporting/test_reporting.py::test_reporting_dashboard_fixture_exact_totals'),
-        ac('AC-reporting.kpis.3', 'Report output lists the currencies that used the average-rate spot fallback.', 'apps/backend/tests/reporting/test_reporting_fx_revaluation_integration.py::test_income_statement_includes_average_rate_fallback_warning', priority='P1'),
-        ac('AC-reporting.kpis.4', 'Account trend raises when a prefetched non-base FX rate is missing.', 'apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py::test_account_trend_raises_when_prefetched_rate_missing', priority='P1'),
-        ac('AC-reporting.kpis.5', 'Category breakdown raises when a prefetched non-base FX rate is missing.', 'apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py::test_category_breakdown_raises_when_prefetched_rate_missing', priority='P1'),
-        ac('AC-reporting.kpis.6', 'Cash flow raises when the start-date non-base FX rate is missing.', 'apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py::test_cash_flow_raises_when_start_date_rate_missing', priority='P1'),
-        ac('AC-reporting.kpis.7', 'Cash flow raises when the end-date FX rate is missing, propagating FxRateError.', 'apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py::test_cash_flow_raises_when_end_date_rate_missing', priority='P1'),
-        # ── group package-investment: investment-performance section consumption
-        # (was EPIC-005 AC5.8.1's backend contract half — the frontend render
-        # and post-merge journey proofs stay in EPIC-005; migration closeout
-        # continuation, #1663 / #1716) ──
-        ac('AC-reporting.package-investment.1', 'The personal report package defines the investment_performance section as a consumer of the EPIC-017 schedule API, preserving source_links and notes.', 'tests/tooling/test_investment_performance_report_contract.py::test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract'),
-        # ── group package-contract: personal report package API contract (was
-        # EPIC-005 AC5.9.1-2 — the frontend rows AC5.9.3-4 stay in EPIC-005;
-        # migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.package-contract.1', 'The document-embedded package contract defines the required section IDs, labels, owners, and source semantics.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_9_1_package_contract_defines_required_sections'),
-        ac('AC-reporting.package-contract.2', 'The package contract exposes Decimal-safe total fields and explicit period/as-of semantics.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics'),
-        # ── group logic-audit: financial statement logic audit fixes (was
-        # EPIC-005 AC5.10.1-2, migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.logic-audit.1', 'Cash-flow beginning cash, ending cash, and net cash flow use cumulative cash balances.', 'apps/backend/tests/reporting/test_financial_logic_audit.py::test_AC5_10_1_cash_flow_uses_cumulative_cash_balances'),
-        ac('AC-reporting.logic-audit.2', 'Cash-flow operating, investing, and financing totals preserve inflow/outflow signs.', 'apps/backend/tests/reporting/test_financial_logic_audit.py::test_AC5_10_2_cash_flow_activity_totals_preserve_signs'),
-        # ── group package-annualized: annualized income schedule consumption
-        # (was EPIC-005 AC5.11.1 and AC5.11.3 — the frontend row AC5.11.2 stays
-        # in EPIC-005; migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.package-annualized.1', 'The package contract requires the typed annualized_income_long_term section inside PersonalReportPackageDocument.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_11_1_package_contract_marks_annualized_schedule_ready'),
-        ac('AC-reporting.package-annualized.2', 'The annualized income package schedule converts mixed-currency income and restricted totals into one reporting currency.', 'apps/backend/tests/reporting/test_annualized_income_schedule.py::test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals'),
-        # ── group package-notes: notes and disclosure basis (was EPIC-005
-        # AC5.12.1-2 and AC5.12.4 — the frontend row AC5.12.3 stays in
-        # EPIC-005; migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.package-notes.1', 'The package notes endpoint returns the required note IDs, owner EPICs, source states, and non-compliance wording.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_12_1_package_notes_endpoint_returns_required_note_taxonomy'),
-        ac('AC-reporting.package-notes.2', 'The package contract marks notes ready and points at the notes endpoint.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_12_2_package_contract_marks_notes_ready'),
-        ac('AC-reporting.package-notes.3', 'The post-merge package proof asserts the notes endpoint, required note IDs, and non-compliance wording.', 'tests/e2e/test_personal_financial_report_package.py::test_personal_financial_report_package_post_merge_journey'),
-        # ── group package-traceability: source-ledger-report appendix (was
-        # EPIC-005 AC5.13.1-2 and AC5.13.4-5 — the frontend row AC5.13.3 stays
-        # in EPIC-005; migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.package-traceability.1', 'The package traceability endpoint returns source-to-ledger anchors per report line.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors'),
-        ac('AC-reporting.package-traceability.2', 'The traceability appendix exposes explicit completeness states where anchors are unavailable.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_13_2_package_traceability_declares_completeness_warnings'),
-        ac('AC-reporting.package-traceability.3', 'The post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs.', 'tests/e2e/test_personal_financial_report_package.py::test_personal_financial_report_package_post_merge_journey'),
-        ac('AC-reporting.package-traceability.4', 'The package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers'),
-        ac('AC-reporting.package-traceability.5', 'The traceability appendix builder returns the pre-#2583 output for a fixed contribution set. Detail order, sorted identifiers, anchor counts, blocker codes, key order and value types do not change.', 'apps/backend/tests/reporting/test_report_traceability_linear.py::test_AC_reporting_package_traceability_5_output_equals_pre_change_golden', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.package-traceability.6', 'The traceability appendix builder is linear in the number of contributions: 5000 contributions on one report line build in less than 100 ms (#2583).', 'apps/backend/tests/reporting/test_report_traceability_linear.py::test_AC_reporting_package_traceability_6_builder_is_linear_in_contributions', priority='P1', proof_kind='property'),
-        ac('AC-reporting.package-traceability.7', 'At one year of anchored activity (1000 entries), GET /reports/package returns less than 300 KB with no more SQL statements than before #2583 S8. The preview has a detail count per anchor and no identifiers, details or input manifest entries. Its readiness equals the readiness of the full document.', 'apps/backend/tests/reporting/test_package_preview_payload.py::test_AC_reporting_package_traceability_7_year_scale_preview_is_bounded', priority='P1', proof_kind='property'),
-        ac('AC-reporting.package-traceability.8', 'GET /reports/package/line-details returns, page by page, the same details for each line anchor as a frozen snapshot of the same data, in the same order. GET /reports/package/manifest-entries returns the input manifest of that snapshot (#2583 S8).', 'apps/backend/tests/reporting/test_package_preview_payload.py::test_AC_reporting_package_traceability_8_evidence_pages_equal_snapshot', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.package-traceability.9', 'At one year of categorized statement activity (1000 entries on a statement cash account), GET /reports/package returns less than 300 KB with no more SQL statements than before #2583 S11. The framework policy has the decision count, the evidence reference count and a first page of decisions. The cash flow has one line for each activity, direction and counterpart, and the lineage counts. The readiness and every other field equal the complete document.', 'apps/backend/tests/reporting/test_package_preview_policy_and_cash_flow.py::test_AC_reporting_package_traceability_9_year_scale_preview_with_categories_is_bounded', priority='P1', proof_kind='property'),
-        ac('AC-reporting.package-traceability.10', 'GET /reports/package/policy-decisions returns, page by page, the framework policy decisions of a frozen snapshot of the same data, in the same order. The decision order does not depend on the order in which the database returns accounts and journal lines (#2583 S11).', 'apps/backend/tests/reporting/test_package_preview_policy_and_cash_flow.py::test_AC_reporting_package_traceability_10_policy_decision_pages_equal_snapshot', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.package-traceability.11', 'GET /reports/package/cash-flow-events returns, page by page, every lineage record of the frozen cash flow of the same data on exactly one line, for the cash accounts of the authoritative bank statements. An unknown line is not found (#2583 S11).', 'apps/backend/tests/reporting/test_package_preview_policy_and_cash_flow.py::test_AC_reporting_package_traceability_11_cash_flow_event_pages_equal_snapshot', priority='P1', proof_kind='exact'),
-        # ── group integration: backend reporting integration journey (was
-        # EPIC-005 AC5.15.1, migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.integration.1', 'Multi-currency posted entries generate balanced balance-sheet, income-statement, and cash-flow reports in the base currency.', 'apps/backend/tests/integration/test_reporting_e2e.py::test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf'),
-        # ── group trust-signals: report trust signals + restricted-asset
-        # defaults (was EPIC-005 AC5.16.1-2 backend halves and AC5.16.4 — the
-        # frontend halves and AC5.16.3 stay in EPIC-005; migration closeout
-        # continuation, #1663 / #1716) ──
-        # #2645: the default is the full net worth on each net worth route; the
-        # scope without restricted holdings is an explicit request.
-        ac('AC-reporting.trust-signals.1', 'The balance sheet includes restricted holdings by default and exposes an include toggle; include_restricted=false excludes them.', 'apps/backend/tests/reporting/test_reports_router.py::test_AC5_16_1_balance_sheet_defaults_to_the_full_scope'),
-        ac('AC-reporting.trust-signals.2', 'Report responses preserve backend fx_warnings so pages never silently render partial totals.', 'apps/backend/tests/reporting/test_reports_router.py::test_AC5_16_2_cash_flow_response_preserves_fx_warnings'),
-        ac('AC-reporting.trust-signals.3', 'Package traceability lines expose source classes, proof level, anchor count, and blocker codes for report-line confidence review.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors'),
-        # ── group csv-export: authenticated report CSV exports (was EPIC-005
-        # AC5.17.1's backend half — the frontend apiDownload half and AC5.17.2
-        # stay in EPIC-005; migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.csv-export.1', 'The backend CSV export supports cash-flow reports with date-range and currency filters.', 'apps/backend/tests/reporting/test_reports_router.py::test_AC5_17_1_cash_flow_export_returns_csv'),
-        # ── group package-snapshot: durable package snapshot artifact (was
-        # EPIC-005 AC5.19.1-3 — the frontend row AC5.19.4 stays in EPIC-005;
-        # migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.package-snapshot.1', 'POST /api/reports/package/generate creates an immutable package snapshot; blocked readiness may generate only a draft while ready readiness generates trusted output.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot'),
-        ac('AC-reporting.package-snapshot.2', 'Package snapshot list/reopen endpoints are user-scoped and reopening returns the original payload after live inputs change.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable'),
-        ac('AC-reporting.package-snapshot.3', 'Package JSON and CSV downloads are derived from a saved snapshot rather than recalculating live data.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC_reporting_package_document_4_exports_the_selected_frozen_document'),
-        # ── group package-document: one typed delivery artifact (#567) ──
-        ac('AC-reporting.package-document.1', 'The personal report package is a versioned, Decimal-safe document with required typed balance-sheet, income-statement, cash-flow, investment, annualized-income, notes, traceability, and immutable input-manifest sections.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_1_requires_typed_delivery_sections', proof_kind='exact'),
-        ac('AC-reporting.package-document.2', 'Preview, generation, persistence, reopen, and export use the one PackageAssembler document path; the reports router cannot retain a private section aggregator or live package export branch.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_2_has_one_assembler_and_no_live_package_export', proof_kind='exact'),
-        ac('AC-reporting.package-document.3', 'Trusted/final package state is the projection of one persisted CODE-ONLY TraceRecord MANIFEST decision over the exact current contributing decisions and deterministic section observation; missing, stale, legacy, or superseded inputs produce draft/blocked output and no trusted decision.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_3_trust_is_one_trace_decision_fold', proof_kind='exact'),
-        ac('AC-reporting.package-document.4', 'A selected frozen document is the only JSON/CSV export input; a live-data mutation after generation cannot change the exported identity, totals, traceability, or typed section payloads.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC_reporting_package_document_4_exports_the_selected_frozen_document', proof_kind='property'),
-        ac('AC-reporting.package-document.5', 'Package decision emission and frozen snapshot persistence share the caller-owned transaction, so a failure after trace flush leaves neither TraceRecord nor snapshot.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together', proof_kind='exact'),
-        ac('AC-reporting.package-document.6', 'A whole-production-tree certificate permits one PackageDocument producer, forbids consumer-owned readiness/trust calculations and live selected-snapshot reads, and requires reports, statements, workflow, advisor, and frontend package surfaces to consume the same document or its typed projection.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_6_producer_and_consumer_closure', proof_kind='exact'),
-        ac('AC-reporting.package-document.7', 'PackageAssembler adapts extraction, ledger, and pricing inputs into one typed PackageSectionContribution shape and folds only those exact decision/input refs into the manifest. The traceability appendix renders the same contribution set; raw foreign-package rows and display labels cannot authorize a package.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions', proof_kind='exact'),
-        ac('AC-reporting.package-document.8', 'The PackageDocument cash-flow section receives an exact typed set of cash-balance account identities from authoritative bank-statement contributions. Account names cannot classify package cash, and missing or ambiguous cash inputs block trusted output.', 'apps/backend/tests/reporting/test_financial_logic_audit.py::test_AC_reporting_package_document_8_uses_exact_cash_inputs_not_account_names', proof_kind='exact'),
-        ac('AC-reporting.package-document.9', 'Every authoritative PackageSectionContribution carries one typed audit decision reference containing its exact target and assertion. Package assembly accepts the contribution only when the current tenant projection matches all three coordinates; missing, cross-scope, stale, target-mismatched, or assertion-mismatched decisions remain unproven.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_9_requires_exact_decision_coordinates', proof_kind='exact'),
-        ac('AC-reporting.package-document.10', 'Reporting publishes one pure package-decision coordinate builder over the exact frozen document semantics, and PackageAssembler consumes that same builder. A consumer can reconstruct the persisted decision target and assertion from the selected frozen document; changing any bound document field changes the target version, so an opaque decision id alone cannot authorize the package.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinates', proof_kind='exact'),
-        ac('AC-reporting.package-document.11', "Package readiness validates cumulative balance-sheet and selected-period income against matching ledger periods. Prior-period activity does not block a valid monthly package; inconsistent section values remain blocked and saved exports retain the selected document's period-specific values.", 'apps/backend/tests/reporting/test_package_period_readiness.py::test_AC_reporting_package_document_11_prior_period_package_lifecycle', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.package-document.12', "The Full package tab takes its period from the dimension bar: a preset or an explicit start and end date. Preview and generation submit that exact period with as_of_date equal to the period end; an invalid period in the URL falls back to the current period and is never requested. Reopening and exporting a saved package retain the selected frozen artifact's period and identity.", 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.package-document.12 previews and generates the selected month through the page', proof_kind='exact'),
-        ac('AC-reporting.package-document.13', 'Package assembly builds the traceability appendix and notes once per assembly and reuses the balance-sheet ending unrealized FX gain/loss for the income statement without redundant balance-sheet executions.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_13_single_pass_traceability_and_unrealized_fx_reuse', proof_kind='exact'),
-        ac('AC-reporting.package-document.14', 'PackageAssembler.evaluate_readiness returns the readiness of assemble for the same arguments. It does not build the traceability appendix, notes, or package decision.', 'apps/backend/tests/reporting/test_package_readiness_path.py::test_AC_reporting_package_document_14_readiness_path_equals_full_assembly', proof_kind='exact'),
-        ac('AC-reporting.package-document.15', 'One package evaluation runs the current-authority projection at most 2 times: GET /reports/package, current_package_readiness, both evidence pages and the cash-flow events page. A run returns each current decision at most once. Before #2602 the preview ran it 8 times.', 'apps/backend/tests/reporting/test_package_authority_reads.py::test_AC_reporting_package_document_15_one_evaluation_reads_the_authority_projection_at_most_twice', priority='P1', proof_kind='property'),
-        # ── group year-scale: year-scale reporting validation (was EPIC-005
-        # AC5.20.1, migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.year-scale.1', "At a full year's transaction volume the three statements tie out and generate within a wall-clock backstop, guarding against a silent O(n^2) regression.", 'apps/backend/tests/reporting/test_year_scale_reporting.py::test_AC5_20_year_scale_reporting_ties_out_within_budget', priority='P1'),
-        # ── group income-typed: income module typed currency + typed
-        # intermediates (was EPIC-005 AC5.32.1-6, migration closeout
-        # continuation, #1663 / #1716) ──
-        ac('AC-reporting.income-typed.1', 'AnnualizedIncomeResponse.currency is the shared typed CurrencyCode (validated length + normalized), not a soft str.', 'apps/backend/tests/reporting/test_income_typed_currency.py::test_AC5_32_1_currency_code_type_validates_and_normalizes', priority='P2'),
-        ac('AC-reporting.income-typed.2', 'Income totals accumulate in a typed AnnualizedIncomeTotals Decimal intermediate, not a string-keyed dict.', 'apps/backend/tests/reporting/test_income_typed_currency.py::test_AC5_32_2_annualized_income_totals_is_typed_intermediate', priority='P2'),
-        ac('AC-reporting.income-typed.3', 'resolve_line_currency centralizes the line/account/base currency fallback + normalization.', 'apps/backend/tests/reporting/test_income_typed_currency.py::test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain', priority='P2'),
-        ac('AC-reporting.income-typed.4', 'An explicit FX-failure response model (FxConversionErrorResponse) is declared for the income endpoint.', 'apps/backend/tests/reporting/test_income_typed_currency.py::test_AC5_32_4_fx_conversion_error_response_model_declared', priority='P2'),
-        ac('AC-reporting.income-typed.5', 'Currency normalization is a single shared helper (normalize_currency_code), not duplicated strip/upper.', 'apps/backend/tests/reporting/test_income_typed_currency.py::test_AC5_32_5_normalize_currency_code_is_shared_helper', priority='P2'),
-        ac('AC-reporting.income-typed.6', 'The income endpoint normalizes a soft (lower-case) base-currency setting in its response.', 'apps/backend/tests/reporting/test_income_typed_currency.py::test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_config', priority='P2'),
-        # ── group snapshots-typed: report snapshots typed contract (was
-        # EPIC-005 AC5.36.1-2, migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.snapshots-typed.1', 'GET /reports/{report_type}/snapshots rejects an unknown report_type with 422.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC5_36_1_report_snapshots_unknown_type_returns_422', priority='P2'),
-        ac('AC-reporting.snapshots-typed.2', 'A valid report_type returns a typed list[ReportSnapshotSummary] response.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC5_36_2_report_snapshots_valid_type_returns_typed_list', priority='P2'),
-        # ── group journeys: reporting core-journey E2E (was EPIC-008
-        # AC8.6.1-4, migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.journeys.1', 'The core-journey E2E views the balance sheet end to end.', 'apps/backend/tests/reporting/test_reporting_shift_left.py::test_balance_sheet_accounting_equation_articulation'),
-        ac('AC-reporting.journeys.2', 'The core-journey E2E views the income statement end to end.', 'apps/backend/tests/reporting/test_reporting_shift_left.py::test_income_statement_revenues_expenses_net_income'),
-        ac('AC-reporting.journeys.3', 'The core-journey E2E views the cash-flow report end to end.', 'apps/backend/tests/reporting/test_reporting_shift_left.py::test_cash_flow_bridge_reconciliation'),
-        ac('AC-reporting.journeys.4', 'The core-journey E2E navigates every reports endpoint.', 'apps/backend/tests/reporting/test_reporting_shift_left.py::test_multi_period_reporting_and_cta_adjustment', priority='P1'),
-        # ── group full-year: full-year statement-to-report acceptance (was
-        # EPIC-008 AC8.15.1-2, migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.full-year.1', 'Multi-month CSV statements with reviewed semantic dispositions parse, approve under the balance-chain guard, auto-post without an Uncategorized fallback, and tie the assembled period reports out end to end.', 'apps/backend/tests/integration/test_full_year_statement_to_report_e2e.py::test_AC8_15_1_full_year_statement_to_report_ties_out'),
-        ac('AC-reporting.full-year.2', 'A high-confidence balance-validated bank statement with no pre-selected account auto-creates+links its asset account, reaches APPROVED, and auto-posts to the ledger only after a reviewed semantic disposition supplies its counter-account.', 'apps/backend/tests/integration/test_bank_statement_auto_account_post.py::test_AC8_15_2_bank_statement_auto_creates_account_and_posts_with_reviewed_disposition', priority='P1'),
-        # ── group augmentation: augmentation-layer report integrity (was
-        # EPIC-008 AC8.16.1-2, migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.augmentation.1', 'A source-labelled ledger input and a superseded manual valuation both reach the report correctly: the equation holds, source confidence is not presented as assurance, and the superseded valuation is excluded.', 'apps/backend/tests/integration/test_augmentation_seam_e2e.py::test_AC8_16_1_augmentation_seam_excludes_superseded_without_source_assurance', priority='P1'),
-        ac('AC-reporting.augmentation.2', "A report aggregates only the requesting user's facts: another user's accounts never appear and never inflate a total.", 'apps/backend/tests/integration/test_cross_user_report_isolation_e2e.py::test_AC8_16_2_reports_exclude_other_users_entries', priority='P1'),
-        # ── group net-worth-components: retirement/benefit assets in reports
-        # (was EPIC-011 AC11.20.1-2 — the frontend row AC11.20.3 stays in
-        # EPIC-011; migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.net-worth-components.1', 'Retirement accounts, social-security personal balances, legacy CPF, and insurance cash value default to restricted assets and contribute to full balance-sheet assets.', 'apps/backend/tests/reporting/test_reporting_net_worth_components.py::test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_balance_sheet', priority='P1'),
-        ac('AC-reporting.net-worth-components.2', 'Net-worth allocation groups retirement and benefit balances under the retirement-and-benefit asset class.', 'apps/backend/tests/reporting/test_reporting_net_worth_components.py::test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_assets', priority='P1'),
-        # ── group layer3: Layer 3/4 read integration (was EPIC-018 AC18.4.1-2
-        # and AC18.4.4 — AC18.4.3 is extraction-owned and stays; migration
-        # closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.layer3.1', "The income statement's classification coverage reads Layer 3 APPLIED TransactionClassification rows joined to their category accounts — the report-side read of Layer 3 classifications.", 'apps/backend/tests/reporting/test_reporting_net_worth_components.py::test_income_statement_includes_applied_classification_breakdown', priority='P1'),
-        ac('AC-reporting.layer3.2', 'ReportSnapshot (Layer 4) rows are generated and queryable via the reports snapshots API.', 'apps/backend/tests/api/test_reports_router.py::test_list_report_snapshots_returns_created_snapshots', priority='P1'),
-        ac('AC-reporting.layer3.3', 'Income statement payloads include the applied Layer 3 classification coverage breakdown.', 'apps/backend/tests/reporting/test_reporting_net_worth_components.py::test_income_statement_includes_applied_classification_breakdown', priority='P1'),
-        # ── group source-anchors: typed package source anchors (was EPIC-019
-        # AC19.10.1, migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.source-anchors.1', 'Package traceability resolves journal source IDs to typed source anchors and blocks unknown source IDs instead of presenting them as statement transactions.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions'),
-        # ── group lineage: account lineage drill-down (was EPIC-022 AC22.3.3
-        # and AC22.7.1's backend half — AC22.7.1's frontend drawer half stays
-        # in EPIC-022; migration closeout continuation, #1663 / #1716) ──
-        ac('AC-reporting.lineage.1', "GET /api/reports/account-lineage returns the user-scoped posted/reconciled journal lines contributing to an account's balance, each with a journal_line evidence anchor and Decimal-safe signed amounts.", 'apps/backend/tests/reporting/test_account_lineage.py::test_AC22_3_3_account_lineage_returns_posted_contributing_lines', priority='P1'),
-        ac('AC-reporting.lineage.2', "Each cash-flow line carries its account anchor (account_id) so a cash-flow amount can drill down to the account's contributing journal lines.", 'apps/backend/tests/reporting/test_reporting.py::test_reporting_dashboard_fixture_exact_totals', priority='P1'),
-        # ── group provenance: normalized report-line provenance (was EPIC-022
-        # AC22.13.1's reporting share — the pricing share is
-        # AC-pricing.provenance.1 and the portfolio share is
-        # AC-portfolio.provenance.2; migration closeout continuation,
-        # #1663 / #1716) ──
-        ac('AC-reporting.provenance.1', 'Report amount lines expose the normalized provenance enum (imported/manual/derived) when the source basis is known, and stay unlabeled instead of guessing.', 'apps/backend/tests/reporting/test_reporting.py::test_AC22_13_1_report_amount_lines_expose_normalized_provenance', priority='P1'),
-        # ── group net-worth-timeseries: dashboard net-worth history endpoint
-        # (was EPIC-005 AC5.7.1/AC5.7.3, #1821 Wave A pending-package move) ──
-        ac('AC-reporting.net-worth-timeseries.1', 'GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=monthly|daily (plus an optional 3-letter currency parameter selecting the reporting currency) returns [{date, total_assets, total_liabilities, net_worth}].', 'apps/backend/tests/reporting/test_net_worth_timeseries.py::test_net_worth_timeseries_router', priority='P1'),
-        ac('AC-reporting.net-worth-timeseries.2', 'Net worth time-series respects multi-currency: each point is converted to the base currency using the historical FX rate per the transaction-date rate rule.', 'apps/backend/tests/reporting/test_net_worth_timeseries.py::test_net_worth_timeseries_uses_historical_fx_per_point', priority='P1'),
-        # #2583 S0: the series is a running sum, not one balance sheet per point.
-        ac('AC-reporting.net-worth-timeseries.3', 'For the same stored FX rates and the same include_restricted scope, each point of the net worth time-series equals total_assets and total_liabilities of generate_balance_sheet on the point date: ledger balances at the spot FX rate of that date, portfolio market-value adjustments and the manual valuations in the scope, in the base and in a presentation currency. The series does not compute net income, unrealized FX or CTA, so an FX miss on an income or expense line does not fail it.', 'apps/backend/tests/reporting/test_net_worth_timeseries_equivalence.py::test_AC_reporting_net_worth_timeseries_3_daily_points_equal_balance_sheets', priority='P1'),
-        ac('AC-reporting.net-worth-timeseries.4', 'At a year of activity (1000 entries), GET /reports/net-worth/timeseries for 6 months of daily points makes fewer than 30 SQL statements and answers in less than 500 ms.', 'apps/backend/tests/reporting/test_year_scale_reporting.py::test_AC_reporting_net_worth_timeseries_4_six_month_daily_series_within_budget', priority='P1'),
-        ac('AC-reporting.net-worth-timeseries.5', 'A monthly net worth time-series holds at most 366 points and keeps the latest months; it starts at the first month with a non-zero total and always keeps its last point.', 'apps/backend/tests/reporting/test_net_worth_timeseries.py::test_AC_reporting_net_worth_timeseries_5_monthly_series_starts_at_first_month_with_value', priority='P1'),
-        # ── group net-worth-scope: one net worth for Home, the balance sheet,
-        # the net worth chart and Portfolio (#2645). The scope rule is
-        # pricing.split_net_worth_scope (AC-pricing.manualvaluation.12). ──
-        ac('AC-reporting.net-worth-scope.1', 'For one as-of date and one include_restricted scope (true, false or the route default), the balance sheet net worth (Home), the balance sheet equity side total, the last point of the net worth series and the allocation net worth (Portfolio) are equal; the route default is the full scope.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_1_every_surface_reads_one_net_worth', priority='P0'),
-        ac('AC-reporting.net-worth-scope.2', 'A manual valuation goes to net_worth_adjustment_gain_loss, never to unrealized FX or CTA; with restricted holdings excluded, an excluded property takes its mortgage out of the totals and out of the adjustment.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_2_manual_valuations_stay_out_of_fx_and_cta', priority='P0'),
-        ac('AC-reporting.net-worth-scope.3', 'With restricted holdings excluded, the balance sheet and the allocation return excluded_holdings: one row per excluded asset class with its excluded assets, excluded liabilities and net in the report currency; the full net worth minus the excluded nets equals the scoped net worth. The full scope returns no rows.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_3_balance_sheet_names_each_excluded_class_and_amount', priority='P0'),
-        ac('AC-reporting.net-worth-scope.4', 'The net worth chart requests its series with the include_restricted scope of the dimension bar and caches each scope apart.', 'apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::#2645 requests the series in the restricted-holdings scope of the dimension bar', priority='P1'),
-        ac('AC-reporting.net-worth-scope.5', 'Home labels a net worth without restricted holdings as Liquid net worth and lists each excluded asset class with its amount.', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC11.8.5 defaults to the full net worth and labels each excluded class when restricted holdings are excluded', priority='P1'),
-        ac('AC-reporting.net-worth-scope.6', 'The Balance sheet tab shows manual and market valuations on their own equity line; the FX and translation (CTA) line carries only unrealized FX and CTA, and the equity side total equals the net worth.', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::#2645 shows manual valuations on their own equity line, never in the FX and CTA line', priority='P1'),
-        ac('AC-reporting.net-worth-scope.7', 'The Balance sheet tab lists each asset class that the scope without restricted holdings excludes, with its net and its excluded liabilities.', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::#2645 names each class and amount that the scope without restricted holdings excludes', priority='P1'),
-        ac('AC-reporting.net-worth-scope.8', 'Each net worth allocation source line carries source_type, source_id, label and value, and no link: the app chooses the lineage drawer or the evidence drawer from the type and the id.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_8_allocation_sources_carry_no_link', priority='P1'),
-        ac('AC-reporting.net-worth-scope.9', 'With restricted holdings excluded, an excluded valuation with no FX rate to the report currency does not fail the report: its excluded_holdings row has null amounts and one warning for each such valuation, the other rows keep their amounts, and the liquid totals are unchanged.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_9_excluded_valuation_without_fx_rate_does_not_fail_the_report', priority='P0'),
-        ac('AC-reporting.net-worth-scope.10', 'An included valuation with no FX rate to the report currency still fails the balance sheet with the FX ReportError (HTTP 400).', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_10_included_valuation_without_fx_rate_still_fails_the_report', priority='P0'),
-        ac('AC-reporting.net-worth-scope.11', 'The personal report package carries excluded_holdings in its balance sheet, and its restricted-asset-treatment note names each excluded class with its net, assets and liabilities, a class without amounts with its conversion gap, and a scope with no current excluded valuation as such; with restricted holdings included, the note says so and no class is excluded.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_11_package_discloses_each_excluded_class', priority='P0'),
-        ac('AC-reporting.net-worth-scope.12', 'A package generate body without include_restricted reads PACKAGE_INCLUDE_RESTRICTED in the route, so the frozen balance sheet names the excluded classes; the body schema has no scope default of its own.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_12_generate_without_scope_reads_the_package_default', priority='P1'),
-        ac('AC-reporting.net-worth-scope.13', 'GET /reports/data-quality answers 200 when a restricted or illiquid valuation has no FX rate: the equation check runs without restricted holdings, the score is unchanged, and one RESOLVE_FX_RATE action item, titled by the cause and shown without a score boost, names the missing rate.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_13_data_quality_stays_available_without_a_valuation_fx_rate', priority='P1'),
-        ac('AC-reporting.net-worth-scope.14', 'A restricted holding without an FX rate does not fail the package: the annualized schedule lists it in its own currency, leaves it out of restricted_fair_value_total, names it in restricted_fair_value_total_excludes as a structured row (the conversion_warning shape plus amount) and in the notes, and the package readiness has the restricted_holding_fx_unavailable blocker.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_14_package_lists_a_restricted_holding_without_fx_rate', priority='P1'),
-        ac('AC-reporting.net-worth-scope.15', 'The Package tab balance sheet card takes its net worth label from the recorded scope (context.include_restricted): Liquid net worth with each excluded class for the liquid scope, Net worth for the full scope.', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::#2645 labels the package net worth from the recorded scope and names each excluded class', priority='P1'),
-        ac('AC-reporting.net-worth-scope.16', 'The app generate request names no include_restricted, so the backend package default is the one definition of the package scope.', 'apps/frontend/src/__tests__/reportPackage.test.ts::packageSnapshotRequest builds the generate-snapshot request body and omits an absent currency and the scope', priority='P1'),
-        ac('AC-reporting.net-worth-scope.17', 'A package snapshot frozen before #2645 (liquid figures, no recorded scope, no excluded_holdings) shows no bare Net worth: the card states that the scope is not recorded.', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::#2645 shows no bare net worth for a snapshot frozen before the scope record', priority='P0'),
-        ac('AC-reporting.net-worth-scope.18', 'After a full-scope FX error, data quality runs the equation check with include_restricted=False and reports that result, also when it is out of balance; the action item title is "A Restricted Holding Has No FX Rate" for a missing rate and "A Restricted Holding Did Not Convert to <currency>" for another pricing error.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_18_data_quality_reads_the_liquid_check_after_an_fx_error', priority='P1'),
-        ac('AC-reporting.net-worth-scope.19', 'Data quality falls back only for an FX error of the full scope: an error of the liquid run, and a ReportError whose cause is not a pricing error, propagate.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_19_data_quality_raises_other_errors', priority='P1'),
-        ac('AC-reporting.net-worth-scope.20', 'The package document context records include_restricted; a document frozen before #2645 has no value, and its context dump stays without the key, so its decision coordinates stay equal.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_20_package_records_its_scope', priority='P0'),
-        ac('AC-reporting.net-worth-scope.21', 'A data quality action item with score_boost 0 renders without a score boost badge.', 'apps/frontend/src/__tests__/dataQualityObservatory.test.tsx::#2645 renders an action without a score boost when the boost is zero', priority='P2'),
-        ac('AC-reporting.net-worth-scope.22', 'A package document frozen in the shape of main 685533f0f (no context.include_restricted, no restricted_fair_value_total_excludes) reloads to the same JSON, and personal_report_package_decision_ref rebuilds the pinned decision version that the freeze bound.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_22_main_shape_document_keeps_its_decision_version', priority='P0'),
-        ac('AC-reporting.net-worth-scope.23', 'The Package tab passes context.include_restricted of the shown document to the balance sheet card, so a liquid document shows Liquid net worth.', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::#2645 labels the package net worth from the scope that the document context records', priority='P1'),
-        # ── group portfolio-valuation-gate: brokerage portfolio value gate
-        # (was EPIC-008 AC8.13.18/AC8.13.19, reporting-owned per the EPIC's own
-        # migration note, #1821 Wave A pending-package move) ──
-        ac('AC-reporting.portfolio-valuation-gate.1', 'The brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets (also proven at the reporting-unit level by test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines in apps/backend/tests/reporting/test_reporting_net_worth_components.py).', 'tests/e2e/test_brokerage_upload_to_portfolio_value.py::test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines'),
-        ac('AC-reporting.portfolio-valuation-gate.2', 'Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics.', 'tests/e2e/test_brokerage_upload_to_portfolio_value.py::test_portfolio_valuation_gate_failure_diagnostics_are_actionable'),
-        # ── group annualized-dashboard: dashboard annualized-income/restricted
-        # cards (was EPIC-011 AC11.8.1/AC11.8.3/AC11.8.7, #1821 Wave A
-        # pending-package move) ──
-        ac('AC-reporting.annualized-dashboard.1', 'GET /api/income/annualized returns {annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of} derived from the last 12 months of Income-type journal entries.', 'apps/backend/tests/reporting/test_income_annualized_router.py::test_annualized_income_endpoint_groups_last_12_month_income', priority='P1'),
-        ac('AC-reporting.annualized-dashboard.2', 'GET /api/assets/restricted returns ESOP/RSU/locked holdings with {ticker, quantity, vesting_schedule, unlock_date, fair_value}.', 'apps/backend/tests/reporting/test_income_annualized_router.py::test_restricted_assets_endpoint_returns_latest_locked_holdings', priority='P1'),
-        ac('AC-reporting.annualized-dashboard.3', 'GET /api/income/annualized converts mixed-currency annualized income totals into the dashboard reporting currency before aggregation.', 'apps/backend/tests/reporting/test_income_annualized_router.py::test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_totals', priority='P1'),
-        # ── group package-annualized: extends the existing group with the
-        # report-package annualized-income schedule rows (was EPIC-011
-        # AC11.11.1-4, #1821 Wave A pending-package move) ──
-        ac('AC-reporting.package-annualized.3', 'The reporting-owned annualized section returns annualized salary, bonus, dividend, total income, currency, as-of date, and trailing-period boundaries for the personal report package.', 'apps/backend/tests/reporting/test_annualized_income_schedule.py::test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment'),
-        ac('AC-reporting.package-annualized.4', 'The schedule includes ESOP/RSU/stock-option restricted holdings with valuation basis, vesting/unlock metadata, fair value, and explicit liquid-versus-restricted net worth treatment.', 'apps/backend/tests/reporting/test_annualized_income_schedule.py::test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment'),
-        # NOTE: was AC11.11.3 ("Annualized income and restricted fair-value
-        # package totals are Decimal-safe and converted to the schedule
-        # reporting currency") — duplicate of the ALREADY-migrated
-        # AC-reporting.package-annualized.2 ("The annualized income package
-        # schedule converts mixed-currency income and restricted totals into
-        # one reporting currency", was AC5.11.3), which cites the exact same
-        # test (test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals)
-        # and whose docstring already names both AC5.11.3 and AC11.11.3. The
-        # EPIC-011 row is deleted with no new roadmap entry (#1821 Wave A).
-        ac('AC-reporting.package-annualized.5', "Each restricted holding's valuation_basis surfaces the snapshot's structured evidence basis enum value (or unspecified when none was captured) instead of a hardcoded source-kind literal (#706).", 'apps/backend/tests/reporting/test_annualized_income_schedule.py::test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis'),
-        # ── group net-worth-components: extends the existing group with the
-        # unified allocation schedule (was EPIC-017 AC17.14.2, #1821 Wave A
-        # pending-package move) ──
-        ac('AC-reporting.net-worth-components.3', 'Reports expose a net-worth allocation schedule grouped by asset class, liquidity class, and source currency, with signed rows that reconcile to net worth and retain source-line drill-through metadata (endpoint contract also proven by test_AC17_14_2_net_worth_allocation_endpoint_returns_contract in apps/backend/tests/reporting/test_reports_router.py).', 'apps/backend/tests/reporting/test_reporting_net_worth_components.py::test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources', priority='P1'),
-        # ── group api-vectors: backend-owned API response conformance
-        # vectors (#1827 G-contract-reddens, pattern from #1167). The wire
-        # shape of GET /api/reports/balance-sheet is committed as
-        # common/reporting/conformance/vectors.json; the backend drift test
-        # recomputes it and the frontend loads the same file as mock data. ──
-        ac('AC-reporting.api-vectors.1', 'The serialized GET /api/reports/balance-sheet response (BalanceSheetResponse wire shape, decimal-string amounts, real fx-warning keys) recomputed from fixed deterministic inputs equals the committed common/reporting/conformance/vectors.json, so a serializer change without vector regeneration reds CI (#1827).', 'apps/backend/tests/schemas/test_api_response_vectors.py::test_AC_reporting_api_vectors_1_balance_sheet_matches_committed_vector', priority='P1'),
-        ac('AC-reporting.api-vectors.2', 'The frontend balance-sheet page test consumes the committed reporting conformance vector verbatim as its mock data (via the shared fixture helper), so a regenerated breaking wire shape reds the frontend suite (#1827).', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date', priority='P1'),
-        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
-        # (two-stage-review-ui) ──
-        ac('AC-reporting.fe-report-surfaces.1', 'Home shows a loading line in each statement card until its own statement resolves', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.1 shows loading state before dashboard data resolves', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.2', 'Home shows a failed statement with a retry action that refetches it, and the other statement cards keep their data', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.2 renders error fallback and retry action on failure', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.3', 'Home renders the dimension bar and the three statement cards with the live metrics of the period', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.3 AC22.1.2 renders the dimension bar and the three statement cards of the period', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.4', 'Home shows zero metrics and no line list for a period without data', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.4 shows zero metrics and no line list for an empty period', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.5', 'Home asks a user without a source to upload the first statement in its one action banner', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.1 AC16.12.17 AC16.12.18 asks a new user to upload the first statement', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.6', 'The Home upload action links to the `/upload` page in one click', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.1 AC16.12.17 AC16.12.18 asks a new user to upload the first statement', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.7', 'Home shows no action banner when no workflow item and no confirmation item needs the user', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.19 hides the action banner when nothing needs attention', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.8', '`/reports` renders the tabs Overview, Balance sheet, Income statement, Cash flow and Full package; the `tab` parameter selects the tab', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC-reporting.fe-period-cockpit.3 renders the five report tabs, selects the tab of the URL, and keeps the dimensions in each tab link', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.9', 'The Balance sheet tab states the accounting equation Assets = Liabilities + Equity and its balance status', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC16.12.12 states the accounting equation on the Balance sheet tab', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.10', 'The Balance sheet tab renders loading and error retry states', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.1 renders loading and error retry states', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.11', 'The Balance sheet tab renders totals and account sections on successful fetch, and a dimension-bar period change requests the new period end', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.12', 'The Balance sheet tab toggles account tree expansion controls', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.3 toggles tree expansion controls', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.13', 'The Income statement tab renders loading and error retry states', 'apps/frontend/src/__tests__/incomeStatementPage.test.tsx::AC16.14.4 renders loading and error retry states', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.14', 'The Income statement tab renders KPI cards and category lists on success', 'apps/frontend/src/__tests__/incomeStatementPage.test.tsx::AC16.14.5 / test_AC8_13_48 renders string KPI cards and category lists', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.15', 'The Income statement tab tag filters can be selected, removed one by one and cleared', 'apps/frontend/src/__tests__/incomeStatementPage.test.tsx::AC16.14.6 supports selecting and clearing tags', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.16', 'The Cash flow tab renders loading and error retry states', 'apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC16.14.7 renders loading and error retry states', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.17', 'The Cash flow tab renders summary and section cards on success', 'apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC16.14.8 / test_AC8_13_48 renders string summary and activity sections', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.18', 'The Cash flow tab renders the sankey chart when a summary exists', 'apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC16.14.9 renders sankey chart when summary exists', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.19', 'Bar and pie chart components render semantic labels and filtered data', 'apps/frontend/src/__tests__/chartsComponents.test.tsx::AC16.19.10 bar chart and pie chart render labels and filtered segments', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.21', 'Sankey chart builds empty-state and data-state options for inflow and outflow links', 'apps/frontend/src/__tests__/sankeyChartComponent.test.tsx::AC16.21.7 renders empty-state option when no series data is provided', priority='P2'),
-        ac('AC-reporting.fe-report-surfaces.22', 'Sankey chart recomputes theme-aware colors when root theme attributes change', 'apps/frontend/src/__tests__/sankeyChartComponent.test.tsx::AC16.21.8 recomputes theme-driven colors on root attribute change', priority='P2'),
-        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
-        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
-        ac('AC-reporting.fe-viz-reports.1', 'The annualized income figures show in the Full package tab from the package document; the frontend reads no separate annualized-income endpoint (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership in `AC-reporting.annualized-dashboard.1`, #1821 Wave A)', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.11.2 renders annualized income schedule values and restricted treatment'),
-        ac('AC-reporting.fe-ia-reports.1', 'The authenticated Home renders the dimension bar, the three statement cards with key numbers, and at most one action banner', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.3 AC22.1.2 renders the dimension bar and the three statement cards of the period', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.2', 'Personal report package renders the `investment_performance` report section from the EPIC-017 schedule API (backend contract half migrated as `AC-reporting.package-investment.1`)', 'apps/frontend/src/__tests__/portfolioPage.test.tsx::AC5.8.1 renders investment performance report schedule from the schedule API'),
-        ac('AC-reporting.fe-ia-reports.2', 'The `/reports` Overview shows the three statement cards with the live figures of the period', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC22.3.1 leads with the three statement cards and their live figures for the period', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.3', 'Frontend personal package page renders the contract section IDs and labels from the API contract', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.9.3 renders personal package contract sections from API'),
-        ac('AC-reporting.fe-ia-reports.3', 'Cash Flow and the Personal Report Package are tabs of `/reports` next to the Balance sheet and Income statement tabs', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC-reporting.fe-period-cockpit.3 renders the five report tabs, selects the tab of the URL, and keeps the dimensions in each tab link', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.4', 'Frontend/export contract surfaces stable export format and CSV columns for package consumers', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.9.4 renders export contract metadata', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.4', 'A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines, and open the full evidence chain (journal line → bank statement transaction → atomic transaction → source document)', 'apps/frontend/src/__tests__/balanceSheetDrilldown.test.tsx::AC22.3.4 lists contributing journal lines and opens the lineage chain for one', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.5', 'Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.11.2 renders annualized income schedule values and restricted treatment'),
-        ac('AC-reporting.fe-ia-reports.5', 'Accounts/amounts with no contributing lines or no graph-compatible anchor degrade gracefully with an explicit empty/"no source linked" state and no crash', 'apps/frontend/src/__tests__/balanceSheetDrilldown.test.tsx::AC22.3.5 shows an empty state when no transactions contribute', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.6', 'Frontend personal package page renders notes and disclosure basis from the notes endpoint', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.12.3 renders package notes and disclosure basis'),
-        ac('AC-reporting.fe-ia-reports.6', 'Desktop and mobile smoke covers the `/reports` tabs, the statement cards and a Balance Sheet drill-down without layout overflow', 'apps/frontend/playwright/reports-cockpit.spec.ts::${label} shows the report tabs and the statement cards and drills a balance-sheet amount', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.7', 'Frontend personal package page renders source, ledger, review, and identifier metadata from the appendix', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, and identifiers'),
-        ac('AC-reporting.fe-ia-reports.7', 'Home is lean: one three-statement cockpit, no analytics panel and no second block that repeats its metrics', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.4.4 keeps Home lean: one cockpit and no analytics panel or duplicate metric block', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.8', 'Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-scope half migrated as `AC-reporting.trust-signals.1`; (AC16.14.2 removed, canonical: the same shared test also proves migrated to reporting package roadmap, #1821 Wave B))', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date'),
-        ac('AC-reporting.fe-ia-reports.8', 'E2E: an amount on the Balance Sheet drills down to its contributing journal lines and on to the source document', 'apps/frontend/playwright/epic022-drilldown-journey.spec.ts::${label}: a Balance Sheet amount drills to its contributing line and on to the source document', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.9', 'Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals (backend fx_warnings-preservation half migrated as `AC-reporting.trust-signals.2`)', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date'),
-        ac('AC-reporting.fe-ia-reports.9', 'Home surfaces at most one primary next action: the action banner links the confirmation count to the Needs Confirmation queue on `/audit`', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.2 AC22.5.6 routes the confirmation count to the one /audit queue', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.10', 'Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, and identifiers'),
-        ac('AC-reporting.fe-ia-reports.10', "Clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines (the backend account-anchor half migrated to the `reporting` package roadmap as `AC-reporting.lineage.2`, migration closeout continuation, #1663 / #1716; the frontend drawer half stays here)", 'apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC22.7.1 drills a cash-flow amount down to its account lineage', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.11', 'Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.17.2 downloads package CSV through authenticated apiDownload'),
-        ac('AC-reporting.fe-ia-reports.11', 'The reusable lineage panel renders evidence nodes as an ordered source-to-report path with per-hop source, confidence, and version badges when those fields are available', 'apps/frontend/src/__tests__/lineagePanel.test.tsx::AC22.7.2 renders an ordered lineage path with source, confidence, and version badges', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.12', 'The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.19.4 generates and downloads package snapshots'),
-        ac('AC-reporting.fe-ia-reports.12', 'The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile', 'apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC22.7.3 flags cash that does not tie (beginning + net != ending)', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.13', '`ReportPageShell` renders title, description, and toolbar slot, and shows the report body when not loading or errored', 'apps/frontend/src/__tests__/reportPageShell.test.tsx::AC5.33.1 renders title, description, toolbar, and body content', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.13', 'Desktop and mobile Playwright smoke covers Cash Flow amount drill-down opening the account-lineage drawer without document horizontal overflow', 'apps/frontend/playwright/cash-flow-drilldown.spec.ts::${scenario.name} opens account-lineage drawer from a cash-flow amount', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.14', '`ReportPageShell` renders the loading skeleton (and not the body) while `isLoading`', 'apps/frontend/src/__tests__/reportPageShell.test.tsx::AC5.33.2 shows loading skeleton while loading', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.14', 'The report package titles its sections with human-readable labels (Reporting Framework, Report Readiness, Source Trust, Framework Policy, schedules, Traceability Appendix) rather than developer-facing snake_case identifiers', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.8.1 titles package sections with human labels, not developer snake_case identifiers', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.15', '`ReportPageShell` renders the error message with a working Retry action on `isError`', 'apps/frontend/src/__tests__/reportPageShell.test.tsx::AC5.33.3 shows error message and retries on click', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.15', 'The loaded report package starts with a readable cover sheet and table of contents that expose the package id, selected framework, report date, and linked human section titles', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.8.2 AC22.13.3 renders a readable package cover and linked table of contents', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.16', '`ReportToolbar` composes the AI-prompt action and the CSV export action from its props, without a Home link', 'apps/frontend/src/__tests__/reportToolbar.test.tsx::AC5.33.4 renders the AI prompt and the caller-provided export control, without a Home link', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.16', 'The unselected-framework and framework-package loading states reserve the package layout with guidance or skeleton placeholders, never a blank text-only pre-selection or loading screen', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC20.6.1 AC22.8.3 AC22.13.3 requires explicit framework selection before loading framework-scoped package output', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.17', '`AiPromptAction` links to the chat route with a URL-encoded prompt', 'apps/frontend/src/__tests__/reportToolbar.test.tsx::AC5.33.5 links to chat with url-encoded prompt', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.17', 'Desktop and mobile Playwright smoke covers report-package framework selection, cover, table of contents, readiness, and no document horizontal overflow', 'apps/frontend/playwright/report-readiness.spec.ts::${scenario.name} renders cover, contents, and readiness before package output', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.18', 'The dimension bar sets the period preset and steps to the previous or next period through the URL', 'apps/frontend/src/__tests__/reportFilters.test.tsx::AC-reporting.fe-period-cockpit.2 sets the preset and steps the period through the URL', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.18', 'The `/reports` Overview has no reconciliation block and no link into the Advanced `/reconciliation` surface', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC22.9.1 keeps every Overview link inside the everyday surfaces, not the Advanced reconciliation surface', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.19', 'The dimension bar shows the base currency until the URL names one, and writes the selected currency and the restricted-holdings scope to the URL', 'apps/frontend/src/__tests__/reportFilters.test.tsx::AC5.34.2 shows the base currency until the URL names one and writes the selected currency to the URL', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.20', '`useReportFilters` reads the tab, period, end, currency and scope from the URL and falls back to the defaults on invalid values', 'apps/frontend/src/__tests__/useReportFilters.test.ts::AC-reporting.fe-period-cockpit.2 reads the dimensions from the URL and falls back to defaults on invalid values', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.20', 'The Home upload action targets `/upload`, and no Home link targets the accounting-jargon chart of accounts (`/settings?tab=accounts`, formerly `/accounts`)', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.1 AC16.12.17 AC16.12.18 asks a new user to upload the first statement', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.21', '`reportsHref` builds `/reports` tab links that keep the dimension query', 'apps/frontend/src/__tests__/useReportFilters.test.ts::AC-reporting.fe-period-cockpit.2 builds tab links that keep the dimension query', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.21', 'Home presents one confidence-ranked attention entry point: the action banner links the confirmation count to the Needs Confirmation queue on `/audit` instead of Advanced reconciliation internals', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.2 AC22.5.6 routes the confirmation count to the one /audit queue', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.22', '`useReportFilters` writes each dimension change to the URL and omits default values', 'apps/frontend/src/__tests__/useReportFilters.test.ts::AC-reporting.fe-period-cockpit.2 writes each dimension change to the URL and omits default values', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.23', 'The redirects of the old report routes keep their query, and `as_of_date` or `end_date` of an old link sets the period end', 'apps/frontend/src/__tests__/useReportFilters.test.ts::AC-reporting.fe-period-cockpit.2 reads the dimensions from the URL and falls back to defaults on invalid values', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.23', 'The loaded report package uses reader-facing labels for evidence coverage, reporting basis, and traceability summary, with proof-system labels such as `Deterministic PR`, `Post-merge LLM/OCR`, `Framework Policy`, raw gap codes, raw blocker codes, and policy result IDs kept out of the primary visible layer', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.19.1 renders the loaded package with reader-first labels before proof internals', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.24', '`useStatementCockpit` reads the balance sheet at the period end and at the opening date, and the income statement and the cash flow of the period', 'apps/frontend/src/__tests__/useStatementCockpit.test.ts::AC5.35.1 reads the four statement sources of the dimension-bar period', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.24', 'Explicit `Audit details` disclosures keep the same source-trust, framework-policy, traceability, blocker, matrix-version, line-id, confidence, review-state, and evidence-reference details keyboard reachable and screen-reader comprehensible', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.19.2 keeps proof and policy internals in keyboard-reachable audit details', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.25', '`useStatementCockpit` turns a missing statement list, total or currency into an empty list, a zero decimal string or the fallback currency, and warning rows into typed warnings', 'apps/frontend/src/__tests__/useStatementCockpit.test.ts::AC5.35.2 normalizes missing statement fields to empty lists, zero decimal strings and typed warnings', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.25', 'Print/save and export metadata default to the reader-first hierarchy; raw CSV columns, policy result IDs, matrix version, and evidence bundle references are available only in an explicit audit/export-details disclosure', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.19.3 keeps export proof metadata behind a print-hidden export audit disclosure', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.26', '`useStatementCockpit` surfaces the first error and a retry that refetches only the failed source', 'apps/frontend/src/__tests__/useStatementCockpit.test.ts::AC5.35.3 surfaces the first error and a retry that refetches only the failed source', priority='P1'),
-        ac('AC-reporting.fe-ia-reports.26', 'Each Home statement card links to its `/reports` tab and keeps the dimension query', 'apps/frontend/src/__tests__/homeStatements.test.tsx::deep-links each of the three statements to its report tab and keeps the period', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.27', 'Home keeps the statement cards when the advisor suggestions fail', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::renders the advisor brief after the statement cards and keeps the cockpit when suggestions fail', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.28', 'The net worth chart of the Balance sheet tab renders an ECharts line chart with a date X-axis and a net-worth Y-axis', 'apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart', priority='P2'),
-        ac('AC-reporting.fe-viz-reports.29', 'The net worth chart reads the period of the dimension bar, with one point per day up to 92 days and one point per month for a longer period', 'apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.4 reads the period of the dimension bar and draws months for a period longer than one quarter', priority='P2'),
-        ac('AC-reporting.fe-viz-reports.30', 'Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line)', 'apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.5 renders an empty state when fewer than two points exist', priority='P2'),
-        ac('AC-reporting.fe-viz-reports.31', 'A frontend unit test mounts the net worth chart and asserts that the chart container exists', 'apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart', priority='P2'),
-        ac('AC-reporting.fe-viz-reports.32', 'The Reports cockpit renders package readiness state, blocker count, next action, and source-gap summary before report cards', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC5.37.1 renders trust-first readiness before report cards', priority='P1'),
-        ac('AC-reporting.fe-viz-reports.33', 'If readiness loading fails, the Reports cockpit shows a contained unavailable state while preserving report navigation.', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC5.37.2 preserves report navigation when readiness is unavailable', priority='P1', vision_anchor='non-goals-not-budgeting-app'),
-        ac('AC-reporting.fe-viz-reports.34', 'The net worth chart caches each period under a query key of from, to, granularity and currency, so a revisit within the stale time sends no request (#2583).', 'apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::caches each period so a revisit within the stale time sends no request', priority='P1'),
-        # ── Wave B (#1821): frontend-proof rows migrated from the
-        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac('AC-reporting.fe-remainder-reports.1', 'The report package traceability surface exposes a lineage panel from at least one report traceability row', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability', priority='P2'),
-        ac('AC-reporting.fe-remainder-reports.2', 'The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability', priority='P2'),
-        ac('AC-reporting.fe-remainder-reports.3', 'Tests cover report line to source document navigation and source document to impacted ledger/report navigation', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability', priority='P2'),
-        ac('AC-reporting.fe-remainder-reports.4', 'Home shows the workflow next action only as one action banner, and only when the workflow is blocked, needs an action or has no source', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.3 shows one action banner that follows the workflow next action'),
-        ac('AC-reporting.fe-remainder-reports.5', 'The Home action banner renders before the dimension bar and the statement cards', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.2 AC16.16.1 renders the action banner before the dimension bar and the statement cards'),
-        ac('AC-reporting.fe-remainder-reports.6', 'The Home action banner follows the `href` and the label of `workflow.status.next_action`', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.3 shows one action banner that follows the workflow next action'),
-        ac('AC-reporting.fe-remainder-reports.9', 'A failed workflow status does not hide the Home statement cards and shows no error on Home', 'apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.6 keeps the statement cards visible when the workflow status fails'),
-        ac('AC-reporting.fe-remainder-reports.10', 'Desktop and mobile Playwright smoke covers the Home action banner above the statement cockpit without layout overflow', 'apps/frontend/playwright/upload-first-dashboard.spec.ts::${scenario.name} renders the action banner before the statement cockpit'),
-        ac('AC-reporting.fe-remainder-reports.11', 'Personal report package page renders readiness state and blocker links before package section output', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.5.4 renders package readiness before report package output', priority='P1'),
-        ac('AC-reporting.fe-remainder-reports.12', 'Personal report package page renders non-blocked readiness states without stale blocker cards', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.5.5 renders non-blocked readiness states without blocker cards', priority='P1'),
-        ac('AC-reporting.fe-remainder-reports.13', 'Report readiness has route-level Playwright smoke coverage before package output', 'apps/frontend/playwright/report-readiness.spec.ts::${scenario.name} renders cover, contents, and readiness before package output', priority='P1'),
-        ac('AC-reporting.fe-remainder-reports.14', 'Personal report package page renders decision authority coverage before detailed traceability output', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.9.2 renders decision authority coverage before traceability details'),
-        ac('AC-reporting.report-integrity.1', 'Processing identity retains visible in-transit assets through zero, outstanding and settled balances in both framework reports without changing cash-flow neutrality.', 'apps/backend/tests/reporting/test_report_integrity.py::test_processing_survives_framework_reporting', proof_kind='exact'),
-        ac('AC-reporting.report-integrity.2', 'Authoritative account opening stock effective at the report start enters beginning cash without being presented as period cash activity, including explicit zero and translated foreign-currency positions.', 'apps/backend/tests/reporting/test_report_integrity.py::test_opening_stock_is_beginning_cash', proof_kind='exact'),
-        ac('AC-reporting.report-integrity.3', 'First stock observed after the selected period start is separately disclosed as a stock adjustment with an explicit coverage blocker; spoofed or unproven opening labels never authorize starting stock.', 'apps/backend/tests/reporting/test_report_integrity.py::test_midperiod_opening_is_explicit_incomplete_coverage', proof_kind='exact'),
-        ac('AC-reporting.report-integrity.4', 'Framework income lines preserve authorized posted economic categories and exactly reconcile mixed-category account amounts in both personal frameworks.', 'apps/backend/tests/reporting/test_report_integrity.py::test_posted_categories_survive_framework_mapping', proof_kind='exact'),
-        ac('AC-reporting.report-integrity.5', 'Missing or unsupported posted categories stay explicitly other income or expense rather than acquiring investment meaning from an account name or broad type.', 'apps/backend/tests/reporting/test_report_integrity.py::test_uncategorized_history_is_not_investment_activity', proof_kind='exact'),
-        ac('AC-reporting.report-integrity.6', 'Archiving accounts never removes their posted historical amounts, cash identities, valuation basis or FX revaluation from period reports.', 'apps/backend/tests/reporting/test_report_integrity.py::test_archiving_preserves_historical_reports', proof_kind='exact'),
-        ac('AC-reporting.report-integrity.7', 'Persisted source-backed ledger facts remain correctly classified and usable through package generation, frozen reopening and export after reconciliation.', 'apps/backend/tests/reporting/test_report_integrity.py::test_persisted_package_integrity', proof_kind='exact'),
-        ac('AC-reporting.report-integrity.8', 'A midperiod package retains current decision-backed statement lineage for included movements without admitting future closing stock or transactions; empty source anchors are explicitly unavailable.', 'apps/backend/tests/reporting/test_midperiod_source_lineage.py::test_midperiod_source_lineage_preserves_cutoff', proof_kind='exact'),
-        ac('AC-reporting.cash-events.1', 'Only journal entries touching an exact cash identity can produce cash-flow activity; non-cash accruals and financed asset acquisitions produce none.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_1_only_cash_touch_events_are_classified', proof_kind='exact'),
-        ac('AC-reporting.cash-events.2', 'Cash events are classified only from unambiguous full-event evidence with authoritative producer provenance; broad balance-sheet types and caller-supplied semantics remain unclassified while settlement still enters the bridge.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_2_event_classification_is_authoritative', proof_kind='exact'),
-        ac('AC-reporting.cash-events.3', 'Direct and Processing-mediated internal transfers among cash and cash-equivalent identities emit no operating, investing, or financing activity.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_3_internal_transfers_are_neutral', proof_kind='exact'),
-        ac('AC-reporting.cash-events.4', 'The cash bridge separately discloses classified activity, unclassified cash, and FX effect and proves that they equal ending cash less beginning cash.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_4_cash_bridge_ties_exactly', proof_kind='exact'),
-        ac('AC-reporting.cash-events.5', 'Every cash-event query predicates both JournalEntry.user_id and Account.user_id and rejects an entry containing any foreign-tenant account line.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_5_dual_tenant_predicates_reject_hostile_entries', proof_kind='exact'),
-        ac('AC-reporting.cash-events.6', 'generate_cash_flow is the single reporting-owned cash projection used by standalone and package consumers.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_6_one_projection_serves_every_cash_flow_consumer', proof_kind='exact'),
-        ac('AC-reporting.cash-events.7', 'Exact cash identities plus anchored event decisions produce proven output; lexical discovery or an unanchored contributing event is explicitly unproven and cannot authorize a package.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_7_consumer_proof_state_is_explicit', proof_kind='exact'),
-        ac('AC-reporting.cash-events.8', 'Each classified or unclassified cash event exposes exact journal-entry, journal-line, source, decision-anchor, and event-semantic evidence used by the projection.', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_8_event_lineage_exposes_ledger_and_decision_anchors', proof_kind='exact'),
-        ac('AC-reporting.cash-events.9', 'Package governance detail projects the exact detector, proof strength, target SHA, issue, and existing enforcing gate for every cash-event guarantee.', 'apps/backend/tests/reporting/test_cash_event_governance.py::test_AC_reporting_cash_events_9_governance_detail_is_package_owned_and_enforced', proof_kind='exact'),
-        ac('AC-reporting.cash-events.10', 'The adversarial cash-event matrix locks non-cash, settlement, transfer, FX, void, and hostile-tenant counterfactuals against regression.', 'apps/backend/tests/reporting/test_cash_event_governance.py::test_AC_reporting_cash_events_10_counterfactual_matrix_is_locked', proof_kind='exact'),
-        ac('AC-reporting.cash-events.11', 'Cash flow bridge fx_effect is calculated independently from foreign-currency cash rate variances without circular plugging, exposing discrepancy and failing reconciliation when cash activities are omitted or corrupted.', 'apps/backend/tests/reporting/test_falsifiable_cash_flow.py::test_multicurrency_cash_bridge_exposes_discrepancy_on_missing_activity', priority='P1'),
-        ac('AC-reporting.cash-events.12', 'Anchored statement cash events map LOAN_PRINCIPAL on liabilities to Financing and INVESTMENT_TRADE on assets to Investing. INVESTMENT_SALE stays in unclassified_cash (#2427).', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_12_statement_balance_sheet_categories_classify', proof_kind='exact'),
-        # ── group 2466: distinct cash-flow proof reason text for each blocker cause (#2466) ──
-        ac('AC-reporting.2466.1', 'Every cash-flow proof reason code emitted by generate_cash_flow maps to its own distinct cause and action message in cash_flow_proof_reason_text and package blocker rendering (#2466).', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_2466_1_every_cash_flow_proof_reason_has_its_own_text', priority='P1', proof_kind='exact'),
-        # ── group 2548: unified period-first three-statement cockpit, lineage drill-down, and chart scales (#2548) ──
-        ac('AC-reporting.2548.3', 'BarChart and PieChart render formatted value labels, percentage shares, and axis scale bounds alongside accessible chart semantics (#2548).', 'apps/frontend/src/__tests__/chartsComponents.test.tsx::AC-reporting.2548.3 renders axis scale bounds, formatted values, and percentage shares across chart components', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.1', 'The period presets 1M, 1Q, 1Y, YTD, 3Y and All resolve to their first and last day, and previous or next moves the period by one period length and stops at today (#2548 P1).', 'apps/frontend/src/__tests__/useReportFilters.test.ts::AC-reporting.fe-period-cockpit.1 moves a period back and forward by one period length and stops at today', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.2', 'The period, the period end, the currency and the restricted-holdings scope live only in the URL, so a link reproduces the view of Home and of each `/reports` tab (#2548 P1).', 'apps/frontend/src/__tests__/useReportFilters.test.ts::AC-reporting.fe-period-cockpit.2 writes each dimension change to the URL and omits default values', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.3', '`/reports` shows the three statements and the report package as tabs of one page; the `tab` parameter selects the tab and each tab link keeps the dimension query (#2621).', 'apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC-reporting.fe-period-cockpit.3 renders the five report tabs, selects the tab of the URL, and keeps the dimensions in each tab link', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.4', 'Home and the `/reports` Overview show one three-statement cockpit: net worth and its change in the period, income, expenses, net income and savings rate, and operating, investing, financing and net cash change of the period (#2548 P1).', 'apps/frontend/src/__tests__/homeStatements.test.tsx::AC-reporting.fe-period-cockpit.4 shows the live metrics of the period on each statement card', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.5', 'A segmented control selects one statement when drill-down rows exist (hidden on empty state so no no-op tablist sits above empty summary cards): a phone shows only its card when rows exist, and a row of its largest lines opens the AccountLineageDrawer with the period dates (#2548 P1, #2730).', 'apps/frontend/src/__tests__/homeStatements.test.tsx::AC-reporting.fe-period-cockpit.5 switches the statement with the segmented control and drills a row into its source transactions', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.6', 'Home shows at most one action banner: the count and the first item of the confidence queue first, then a blocked or waiting workflow, then the first upload. It shows nothing when no item applies (#2548 P1, #2646).', 'apps/frontend/src/__tests__/homeActionBanner.test.tsx::AC-reporting.fe-period-cockpit.6 picks at most one action: the queue first, then the workflow, then the first upload', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.7', 'The default view (no `period` and no `start` in the URL) and the `All` preset start no earlier than `coverage_start` of `GET /reports/coverage` for their period end. Then the period has no previous period, its opening balance sheet is that day, and in the default view a note under the dimension bar states the start, names `limiting_accounts` and links to Add an opening balance. When `latest_statement_end` precedes the default `1Y` window, a one-click note under the dimension bar jumps to the latest statement period. A chosen preset, `1Y` too, writes `period` to the URL. An explicit preset other than `All` and a custom period keep their start, their previous period and the day before the start as the opening date, and do not request the coverage. No coverage start or an invalid date applies no bound. Previous and Custom are disabled while a bounded view waits for the coverage start (#2646, #2726).', 'apps/frontend/src/__tests__/useReportFilters.test.ts::AC-reporting.fe-period-cockpit.7 starts only the default view and All no earlier than the coverage start', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.8', 'In the default view, Home waits for the coverage start of the period end, then requests the income statement, the cash flow and the opening balance sheet of the bounded period only. Change in period is the net worth at the period end minus the net worth at the end of the coverage start, and a note states that day. The coverage note names the limiting account. The net worth series of the `/reports` Balance sheet tab also waits and starts on the bounded start. An opening balance before the first statement stays in the default period (#2646).', 'apps/frontend/src/__tests__/homeCoverageStart.test.tsx::AC-reporting.fe-period-cockpit.8 starts the Home period on the coverage start and measures the change from it', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.9', 'Home names the count of the confidence queue and its first item, with a link to that item, above the statement cards. A workflow blocker does not replace it, and the banner stays empty while the queue loads (#2646).', 'apps/frontend/src/__tests__/homeActionBanner.test.tsx::AC-reporting.fe-period-cockpit.9 names the count and the first item of the queue before a workflow blocker', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.10', 'Home with an explicit `period=1Y` in the URL requests the income statement and the cash flow of the full preset period, shows no coverage note, does not request `GET /reports/coverage`, and enables the previous period of `1Y`. `period=All` bounds its start to `coverage_start` when available and falls back to `2000-01-01` when none exists (#2646, #2726).', 'apps/frontend/src/__tests__/homeCoverageStart.test.tsx::AC-reporting.fe-period-cockpit.10 shows an explicit 1Y in full and bounds All to coverage start', priority='P1'),
-        ac('AC-reporting.fe-period-cockpit.11', 'After `OpeningBalanceModal` records opening balances, the cached coverage start (`["report", "coverage", <end>]`) and every key of `LEDGER_DERIVED_QUERY_KEYS` are stale (#2646).', 'apps/frontend/src/__tests__/openingBalanceModal.test.tsx::AC-reporting.fe-period-cockpit.11 marks the coverage start and the ledger reads stale after it records opening balances', priority='P1'),
-        # ── group 2646: the workflow readiness period starts on the first statement (#2646) ──
-        ac('AC-reporting.2646.1', 'The readiness of the current package covers the 365 days before its date, and starts no earlier than `report_coverage`. A new user whose ledger starts with the opening balances of a first bank statement has no `opening_coverage_starts_after_period` blocker, also with an earlier card statement (#2646).', 'apps/backend/tests/reporting/test_report_coverage.py::test_AC_reporting_2646_1_first_statement_opening_has_no_coverage_blocker', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2646.2', '`report_coverage` is the latest opening position of a cash account on or before its date: the quantity that the cash-flow coverage check reads, for the cash accounts of `GET /reports/cash-flow` and of the report package. Its `limiting_account_names` are the sorted names of the accounts, of the set that the bound reads, whose opening position is on that day. For the package the bound reads a deliberate superset of the package cash set: the custody accounts of every bank statement of the user that starts on or before the date, in any status, also one that closes after the date (one query, `coverage_bank_custody_account_ids`). The period start of a statement is the first start that is not empty in this order: the newest reviewed envelope (by `created_at`) on the current source result, the current source result, the summary. The package reads only the first two; the summary start is a fallback that can only make the set wider. An empty start in the source result payload is no start. So a re-parse that clears the summary period keeps the statement. The package cash account ids are a subset of that set, also for a statement that stays parsed with a confirmed envelope or after an auto-approval falls back to review. A brokerage current source result (also over an earlier bank result), a statement that starts after the date and a statement of another user do not count; an opening balance before the first statement sets it. A cash flow over the accounts of the bound that starts on that day has no `opening_coverage_starts_after_period`, and one that starts a day earlier has it. A cash flow over the package cash set, a subset, has no such reason from that day on. `GET /reports/coverage` serves both, as `coverage_start` and `limiting_accounts` (#2646).', 'apps/backend/tests/reporting/test_report_coverage.py::test_AC_reporting_2646_2_coverage_start_is_the_latest_cash_opening', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2646.3', 'With 36 approved bank statements, `GET /reports/coverage` runs at most 6 SQL statements, and the coverage bound adds at most 6 SQL statements to `current_package_readiness`. The count does not grow with the number of statements (#2646).', 'apps/backend/tests/reporting/test_report_coverage.py::test_AC_reporting_2646_3_coverage_reads_a_fixed_number_of_queries_at_year_scale', priority='P1', proof_kind='exact'),
-        # ── group 2726: historical statement period bounds and audit continuity (#2726) ──
-        ac('AC-reporting.2726.1', '`GET /reports/coverage` exposes `latest_statement_end` as the latest approved statement period end on or before `as_of_date` within the 6-query coverage budget (#2726).', 'apps/backend/tests/reporting/test_report_coverage.py::test_AC_reporting_2726_1_coverage_exposes_latest_approved_statement_end', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2726.2', 'When approved statements exist only outside the default `1Y` window, Home and `/reports` display a one-click banner in the dimension bar that jumps the period end to `latest_statement_end` (#2726).', 'apps/frontend/src/__tests__/homeCoverageStart.test.tsx::AC-reporting.2726.2 shows a one-click banner jumping to the latest statement period when statements precede the default 1Y window', priority='P1'),
-        ac('AC-reporting.2726.3', 'Audit Hub `Temporal Continuity Timeline` (`compute_personal_data_quality`) displays the 12 months ending at the latest statement period end when statements exist on or before `as_of_date` (#2726).', 'apps/backend/tests/reporting/test_data_quality_service.py::test_AC_reporting_2726_3_timeline_anchors_at_latest_statement_period_end', priority='P1', proof_kind='exact'),
-        # ── group 2617: report reads do not grow with the data of other users (#2617) ──
-        ac('AC-reporting.2617.1', 'With 100 more users in the database, each of GET /reports/balance-sheet, /reports/income-statement and /reports/cash-flow reads at most 1.25 times the rows (plus 100) that it reads for one user alone, counted from EXPLAIN (ANALYZE) of its SELECT statements with sequential scans off. Its response for the user does not change (#2617).', 'apps/backend/tests/reporting/test_multi_tenant_read_budget.py::test_AC_reporting_2617_1_report_reads_do_not_grow_with_other_tenants', priority='P1', proof_kind='property'),
-        # ── group fe-fetch-budget: frontend fetch shape of Home, Attention, Upload, Reports (#2583 S4) ──
-        ac('AC-reporting.fe-fetch-budget.1', 'Home issues each request at most once on a cold mount and reads only its cockpit sources, issues no request for cached data on a second visit, refetches only the two balance sheets for a scope change, and refetches only the statement requests whose dates changed for a period change.', 'apps/frontend/src/__tests__/homeFetchBudget.test.tsx::AC-reporting.fe-fetch-budget.1 cold mount issues each request at most once and reads only the cockpit sources', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.2', 'The Home advisor suggestions load off the critical path with a stale time of at least five minutes.', 'apps/frontend/src/__tests__/homeFetchBudget.test.tsx::AC-reporting.fe-fetch-budget.2 the advisor suggestions do not block the cockpit and stay cached for five minutes', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.3', 'Upload, the attention queue, the Home action banner and the Workbench share one cache entry per request. The upload page polls only while a statement parses.', 'apps/frontend/src/__tests__/sharedQueryCache.test.tsx::AC-reporting.fe-fetch-budget.3 the upload page polls every three seconds while a statement parses and stops when none parses', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.4', 'A successful mutation marks the ledger-derived cached reads stale, so a cached page never keeps data that the mutation changed.', 'apps/frontend/src/__tests__/queryClient.test.ts::AC-reporting.fe-fetch-budget.4 marks every ledger-derived read stale after a successful mutation', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.5', 'The Overview and Full package tabs of `/reports` share one cached package preview. A period change keeps the previous document visible, labelled with its own period, while the new one loads.', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.fe-fetch-budget.5 the Reports hub and the package page share one preview request', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.6', 'The shell polls the workflow status every 30 s while work is pending and every 120 s otherwise, and keeps the refetch on window focus.', 'apps/frontend/src/__tests__/workflowStatusPolling.test.tsx::AC-reporting.fe-fetch-budget.6 polls every 120 s while nothing is pending', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.7', 'The package page requests the details of a traceability line only after the user opens that line, and the authority manifest entries only after the user opens the manifest. A frozen snapshot shows its stored details without a request (#2583 S8).', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.fe-fetch-budget.7 loads the details of a traceability line only after the user opens the line', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.8', 'The Cash flow tab requests the events of a statement line only after the user opens that line. It loads more events page by page, and a reopened line shows its cached events without a request (#2583 S10).', 'apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC-reporting.fe-fetch-budget.8 loads the events of a cash-flow line only after the user expands the line', priority='P1'),
-        ac('AC-reporting.fe-fetch-budget.9', 'The package page requests the framework policy decisions only after the user opens the reporting basis audit details. It shows a first page of decisions and the decision count before that, loads more decisions page by page, and a frozen snapshot shows its stored decisions without a request (#2583 S11).', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.fe-fetch-budget.9 loads the policy decisions only after the user opens the audit details', priority='P1'),
-        # ── group 2728: balance-sheet in-transit label, foreign-currency native disclosure, and clickable line drill-down (#2728) ──
-        ac('AC-reporting.2728.1', 'Balance sheet lines expose each account source currency and native-currency balance alongside the report-currency amount, including when a missing FX rate skips conversion to the report currency (#2728).', 'apps/backend/tests/reporting/test_reporting_fx.py::test_AC_reporting_2728_1_balance_sheet_exposes_native_amount_when_fx_rate_missing', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2728.2', 'Balance sheet and StatementCockpit display the Processing clearing account as Transfers in transit with a glossary hint, and show a foreign-currency account native balance or missing-FX badge instead of a bare zero (#2728).', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC-reporting.2728.2 labels Processing as Transfers in transit and discloses foreign-currency native balances', priority='P1'),
-        ac('AC-reporting.2728.3', 'Clicking either the account name or the dotted-underlined amount on a Balance Sheet or Income Statement line opens AccountLineageDrawer (#2728).', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC-reporting.2728.3 opens the source drill-down from either the account name or the dotted-underlined amount', priority='P1'),
-        # ── group 2654: manual valuation lines link to portfolio evidence instead of account lineage (#2654) ──
-        ac('AC-reporting.2654.1', 'BalanceSheetResponse lines expose allocation_source_type while stripping internal allocation_asset_class and allocation_liquidity_class fields (#2654).', 'apps/backend/tests/reporting/test_balance_sheet_provenance.py::test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_it', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2654.2', 'On Home and on the Balance sheet tab, a manual valuation line links to /portfolio?panel=evidence and never requests GET /reports/account-lineage with a non-account id (#2654).', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC-reporting.2654.2 routes manual valuation lines to /portfolio?panel=evidence without calling account-lineage', priority='P1'),
-        # ── group 2664: balanced foreign-currency entry equation check with no stored FxRate (#2664) ──
-        ac('AC-reporting.2664.1', 'A balanced foreign-currency journal entry with an entry fx_rate and no stored FxRate row either balances in the equation check or reports a named missing-rate cause in run_balance_sheet_diagnostics and GET /reports/data-quality, never an Unclassified discrepancy (#2664).', 'apps/backend/tests/reporting/test_equation_diagnostics.py::test_AC_reporting_2664_1_balanced_usd_entry_without_fx_rate_row_never_reports_unclassified_discrepancy', priority='P0', proof_kind='exact'),
-        # ── group 2822: Stage-1 unapproved statement transactions excluded from Stage-2 reconciliation purity failure in data quality (#2822) ──
-        ac('AC-reporting.2822.1', 'compute_personal_data_quality excludes unapproved Stage-1 (UPLOADED, PARSING, PARSED) statement transactions from Stage-2 Reconciliation & Debt Clearance Purity failures and duplicate RECONCILE_TRANSACTIONS action items while surfacing REVIEW_STATEMENT (#2822).', 'apps/backend/tests/reporting/test_data_quality_service.py::test_AC_reporting_2822_1_pending_stage1_statement_does_not_fail_reconciliation_purity', priority='P1', proof_kind='exact'),
-        # ── group 2832: cash-flow gap-plug stock adjustment and materiality-ranked gap guidance (#2832) ──
-        ac('AC-reporting.2832.1', 'generate_cash_flow classifies system cross_period_gap_plug journal lines as opening_stock_adjustment (or beginning_cash on start_date) so multi-period cash flow bridges reconcile with proof_state == "proven" across statement gaps (#2832).', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stock_adjustment', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2832.2', 'compute_personal_data_quality evaluates per-account adjacent statement pairs by materiality: zero-change gaps (|delta| <= 0.10) incur zero gap penalty and no upload prompt; tiny gaps (< 0.1%) are absorbed without P1 nag; material gaps (>= 0.1%) emit UPLOAD_STATEMENT actions ranked by |delta| descending with account name, missing period, unexplained amount, and precision boost (#2832).', 'apps/backend/tests/reporting/test_data_quality_service.py::test_AC_reporting_2832_2_zero_change_gap_verified_and_material_gaps_ranked_by_delta', priority='P1', proof_kind='exact'),
-        # ── group 2564/2623/2667: reporting data quality, system account L1 policy mapping, and pre-2655 frozen package decision_ref stability (#2564, #2623, #2667) ──
-        ac('AC-reporting.2564.1', 'compute_personal_data_quality calculates the reconciliation ratio from matched_transactions without double-counting auto_accepted matches, capping reconciliation points at 20 (#2564).', 'apps/backend/tests/reporting/test_data_quality_service.py::test_AC_reporting_2564_1_recon_score_does_not_double_count_auto_accepted', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2623.1', 'framework_policy_facts_for_user includes all active user accounts including system accounts so posted lines on system accounts receive deterministic L1 mappings (#2623).', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_2623_1_system_accounts_receive_l1_policy_mappings', priority='P1', proof_kind='exact'),
-        ac('AC-reporting.2667.1', 'personal_report_package_decision_ref omits unset excluded_holdings on pre-2655 frozen package documents while preserving explicit excluded_holdings, and a schema-tree guard locks defaulted fields on bound package models (#2667).', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_2667_1_pre_2655_frozen_package_keeps_decision_ref_and_locks_bound_defaults', priority='P1', proof_kind='exact'),
-    ],
+    invariants=invs(
+        """
+@$t/test_reporting_package.py
+interface-equals-published-language|The published language (contract.interface) equals __init__.__all__.|test_AC_reporting_1_1_only_all_is_the_published_language
+reporting-cutover-inventory-declared|Reporting statement generators/core lanes are declared in units and mapped to the current implementation inventory.|test_AC_reporting_1_2_cutover_inventory_is_declared
+manual-valuation-excluded-from-reporting-language|Manual_valuation stays out of reporting's published language.|test_AC_reporting_1_3_manual_valuation_is_not_published_reporting_surface
+passes-own-governance-gate|Check_package_contract validates reporting with no violations.|test_AC_reporting_1_4_package_contract_gate_passes
+@-
+snapshot-orm-owner|ReportSnapshot and ReportType are reporting-owned ORM vocabulary and register exactly once on shared SQLAlchemy metadata.|$t/test_s3_pr_d_structure.py::test_AC_reporting_snapshot_ownership_and_metadata_registration
+"""
+    ),
+    roadmap=acs(
+        "reporting",
+        """
+@$be/reporting/test_reporting_calc_extraction.py|P1
+single-owner.1|Manual-valuation line naming is defined only by pricing, its fact owner.|test_AC_reporting_single_owner_1_has_no_valuation_line_name_copy
+dry-ssot.1|Pure reporting math is provided by `services.reporting_calc` and re-used by `services.reporting`.|test_reporting_calc_extraction|:exact
+@$be/reporting/test_balance_sheet_opening_balance_gate.py|P1
+opening-balance.1|A balance sheet with posted activity but no recorded opening balance emits an opening_balance_warnings entry.|test_AC2_16_4_balance_sheet_warns_when_opening_balance_missing
+opening-balance.2|Once an opening-balance entry is posted for the account that triggered the degrade, the balance sheet's opening_balance_warnings clears to empty on the next generation.|test_AC2_16_4_balance_sheet_clears_warning_once_opening_balance_recorded
+opening-balance.3|The net-worth allocation schedule surfaces the same opening_balance_warnings as the balance sheet.|test_AC2_16_4_net_worth_allocation_surfaces_opening_balance_warning
+@$t/test_framework_reporting_epic_contract.py|P0|done|exact
+framework.1|The framework registry SSOT and EPIC-020 define `personal_us_gaap_like` and `personal_hkfrs_like`, exclude a CN/CAS v1 framework.|test_AC20_1_1_framework_registry_defines_us_hk_personal_targets
+lanes.1|The framework-reporting SSOT and EPIC-020 declare the six-lane fact-forward/target-backward architecture as mutually exclusive and collectively covering, with distinct lane owners.|test_AC20_2_1_mece_direction_matrix_declares_distinct_owner_lanes
+target.1|The framework target package contract works backward from report outputs.|test_AC20_3_1_framework_target_contract_is_report_output_backward
+policy.1|The v1 policy matrix covers cash and bank accounts, listed equities/ETFs, funds and money-market products, dividends and interest, brokerage fees, FX, RSU/ESOP/options.|test_AC20_4_1_policy_matrix_covers_personal_finance_domains
+policy.2|The framework policy layer is read-only.|test_AC20_5_1_policy_layer_is_read_only_between_facts_and_report
+ai.1|An AI measurement/disclosure suggestion affects trusted output only.|test_AC20_6_1_ai_suggestions_require_structured_reviewed_policy_fields
+@$be/ai/test_streaming_contract.py|P0
+export-envelope.1|ExportStreamEnvelope declares the wire media type and builds an attachment Content-Disposition header carrying the envelope's filename.|test_AC6_33_5_export_envelope_builds_attachment_headers
+export-envelope.2|ExportStreamEnvelope rejects a media type outside the declared wire set at construction.|test_AC6_33_6_export_envelope_rejects_unknown_media_type
+export-envelope.4|ExportStreamEnvelope rejects a filename carrying CR/LF, a double-quote, a semicolon, or a path separator, since the filename is interpolated into the Content-Disposition header and each of those characters would break out of it or inject a header.|test_AC6_33_9_export_envelope_rejects_unsafe_filename
+@$be/reporting/test_reports_router.py|P0
+export-envelope.3|GET /reports/export's response media type and Content-Disposition header equal what ExportStreamEnvelope would produce for the same filename.|test_AC6_33_8_export_response_matches_typed_envelope
+balance-sheet.4|GET /reports/balance-sheet returns the generated balance sheet payload.|test_balance_sheet_endpoint
+errors.4|The reports router endpoints respond successfully for an authenticated user.|test_income_statement_endpoint|P1
+trust-signals.1|The balance sheet includes restricted holdings by default and exposes an include toggle.|test_AC5_16_1_balance_sheet_defaults_to_the_full_scope
+trust-signals.2|Report responses preserve backend fx_warnings.|test_AC5_16_2_cash_flow_response_preserves_fx_warnings
+csv-export.1|The backend CSV export supports cash-flow reports with date-range and currency filters.|test_AC5_17_1_cash_flow_export_returns_csv
+@$be/reporting/test_reporting.py|P0
+balance-sheet.1|The generated balance sheet satisfies the accounting equation.|test_balance_sheet_equation
+income-statement.1|The income statement computes net income as income minus expenses.|test_income_statement_calculation
+income-statement.3|The income statement rejects an invalid date range with a domain error.|test_income_statement_invalid_range|P1
+cash-flow.1|The cash-flow statement is generated with operating, investing.|test_cash_flow_statement
+cash-flow.2|A period with no cash movement generates an empty cash-flow statement, not an error.|test_cash_flow_empty_period|P1
+kpis.2|Unrealized P&L is reflected in balance-sheet equity.|test_reporting_dashboard_fixture_exact_totals
+lineage.2|Each cash-flow line carries its account anchor.|test_reporting_dashboard_fixture_exact_totals|P1
+provenance.1|Report amount lines expose the normalized provenance enum.|test_AC22_13_1_report_amount_lines_expose_normalized_provenance|P1
+@$be/reporting/test_reporting_fx.py|P0
+balance-sheet.2|FX unrealized gain is calculated for foreign-currency balances on the balance sheet.|test_fx_unrealized_gain_calculation
+balance-sheet.3|Multi-currency account balances aggregate into the base reporting currency on the balance sheet.|test_multi_currency_aggregation
+income-statement.2|The income statement includes comprehensive income from FX effects.|test_income_statement_comprehensive_income|P1
+fx.1|Report FX conversion falls back.|test_reporting_fx_fallbacks|P1
+fx.2|Balance-sheet net income uses the FX fallback path.|test_balance_sheet_net_income_fx_fallback|P1
+fx.3|Reports lazily resolve a missing cross rate from stored bridge rates.|test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates
+2728.1|Balance sheet lines expose each account source currency and native-currency balance alongside the report-currency amount.|test_AC_reporting_2728_1_balance_sheet_exposes_native_amount_when_fx_rate_missing|P1:exact
+@$e2e/test_personal_financial_report_package.py|P0
+balance-sheet.5|A historical as_of_date balance sheet excludes a portfolio position whose ManagedPosition.acquisition_date postdates that as_of_date.|test_personal_financial_report_package_post_merge_journey|P1:property
+package-notes.3|The post-merge package proof asserts the notes endpoint, required note IDs.|test_personal_financial_report_package_post_merge_journey
+package-traceability.3|The post-merge package proof fails trusted totals.|test_personal_financial_report_package_post_merge_journey
+@$be/reporting/test_reporting_net_worth_components.py|P1
+balance-sheet.6|A manual valuation component recorded only.|test_AC_reporting_balance_sheet_6_valuation_gap_disclosed_in_portfolio_warnings
+net-worth-components.1|Retirement accounts, social-security personal balances, legacy CPF.|test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_balance_sheet
+net-worth-components.2|Net-worth allocation groups retirement and benefit balances under the retirement-and-benefit asset class.|test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_assets
+layer3.1|The income statement's classification coverage reads Layer 3 APPLIED TransactionClassification rows joined to their category accounts.|test_income_statement_includes_applied_classification_breakdown
+layer3.3|Income statement payloads include the applied Layer 3 classification coverage breakdown.|test_income_statement_includes_applied_classification_breakdown
+net-worth-components.3|Reports expose a net-worth allocation schedule grouped by asset class, liquidity class.|test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources
+@$be/api/test_reports_router.py|P1
+cash-flow.3|GET /reports/trend returns account trend data.|test_account_trend_with_period
+cash-flow.4|GET /reports/breakdown returns the category breakdown.|test_category_breakdown_success
+cash-flow.5|GET /reports/breakdown honors the requested period parameter.|test_category_breakdown_with_period
+errors.3|Unauthenticated clients cannot access the reports endpoints.|test_unauthenticated_access
+errors.5|GET /reports/{report_type}/snapshots returns the user's persisted report snapshots.|test_list_report_snapshots_returns_created_snapshots
+layer3.2|ReportSnapshot rows are generated and queryable.|test_list_report_snapshots_returns_created_snapshots
+@$be/reporting/test_cash_flow_preview_payload.py|P1|done|property
+cash-flow.6|At one year of activity, GET /reports/cash-flow returns less than 100 KB with no more SQL statements than.|test_AC_reporting_cash_flow_6_year_scale_preview_is_bounded
+cash-flow.7|Each GET /reports/cash-flow line is the sum and count of the document items of one activity, description and account.|test_AC_reporting_cash_flow_7_line_events_pages_equal_document|:exact
+@$be/reporting/test_income_annualized_router.py|P1
+kpis.1|The annualized income KPI endpoint groups the last 12 months of income.|test_annualized_income_endpoint_groups_last_12_month_income|P0
+annualized-dashboard.1|GET /api/income/annualized returns {annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of} derived from the last 12 months of Income-type journal entries.|test_annualized_income_endpoint_groups_last_12_month_income
+annualized-dashboard.2|GET /api/assets/restricted returns ESOP/RSU/locked holdings with {ticker, quantity, vesting_schedule, unlock_date, fair_value}.|test_restricted_assets_endpoint_returns_latest_locked_holdings
+annualized-dashboard.3|GET /api/income/annualized converts mixed-currency annualized income totals into the dashboard reporting currency.|test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_totals
+@$be/reporting/test_reporting_extreme_fallbacks.py|P1
+kpis.4|Account trend raises when a prefetched non-base FX rate is missing.|test_account_trend_raises_when_prefetched_rate_missing
+kpis.5|Category breakdown raises.|test_category_breakdown_raises_when_prefetched_rate_missing
+kpis.6|Cash flow raises when the start-date non-base FX rate is missing.|test_cash_flow_raises_when_start_date_rate_missing
+kpis.7|Cash flow raises when the end-date FX rate is missing, propagating FxRateError.|test_cash_flow_raises_when_end_date_rate_missing
+@$be/api/test_personal_report_package_contract.py|P0
+package-contract.1|The document-embedded package contract defines the required section IDs, labels, owners.|test_AC5_9_1_package_contract_defines_required_sections
+package-contract.2|The package contract exposes Decimal-safe total fields and explicit period/as-of semantics.|test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics
+package-annualized.1|The package contract requires the typed annualized_income_long_term section inside PersonalReportPackageDocument.|test_AC5_11_1_package_contract_marks_annualized_schedule_ready
+package-notes.1|The package notes endpoint returns the required note IDs, owner EPICs, source states.|test_AC5_12_1_package_notes_endpoint_returns_required_note_taxonomy
+package-notes.2|The package contract marks notes ready and points at the notes endpoint.|test_AC5_12_2_package_contract_marks_notes_ready
+package-traceability.1|The package traceability endpoint returns source-to-ledger anchors per report line.|test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors
+package-traceability.2|The traceability appendix exposes explicit completeness states where anchors are unavailable.|test_AC5_13_2_package_traceability_declares_completeness_warnings
+package-traceability.4|The package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors.|test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers
+trust-signals.3|Package traceability lines expose source classes, proof level, anchor count.|test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors
+package-snapshot.1|POST /api/reports/package/generate creates an immutable package snapshot.|test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot
+package-snapshot.2|Package snapshot list/reopen endpoints are user-scoped and reopening returns the original payload.|test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable
+package-snapshot.3|Package JSON and CSV downloads are derived from a saved snapshot.|test_AC_reporting_package_document_4_exports_the_selected_frozen_document
+package-document.4|A selected frozen document is the only JSON/CSV export input.|test_AC_reporting_package_document_4_exports_the_selected_frozen_document|:property
+package-document.5|Package decision emission and frozen snapshot persistence share the caller-owned transaction.|test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together|:exact
+source-anchors.1|Package traceability resolves journal source IDs to typed source anchors and blocks unknown source IDs.|test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions
+@$be/reporting/test_financial_logic_audit.py|P0
+logic-audit.1|Cash-flow beginning cash, ending cash.|test_AC5_10_1_cash_flow_uses_cumulative_cash_balances
+logic-audit.2|Cash-flow operating, investing.|test_AC5_10_2_cash_flow_activity_totals_preserve_signs
+package-document.8|The PackageDocument cash-flow section receives an exact typed set of cash-balance account identities from authoritative bank-statement contributions.|test_AC_reporting_package_document_8_uses_exact_cash_inputs_not_account_names|:exact
+@$be/reporting/test_annualized_income_schedule.py|P0
+package-annualized.2|The annualized income package schedule converts mixed-currency income and restricted totals into one reporting currency.|test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals
+package-annualized.3|The reporting-owned annualized section returns annualized salary, bonus, dividend, total income, currency, as-of date.|test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment
+package-annualized.4|The schedule includes ESOP/RSU/stock-option restricted holdings with valuation basis, vesting/unlock metadata, fair value.|test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment
+package-annualized.5|Each restricted holding's valuation_basis surfaces the snapshot's structured evidence basis enum value.|test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis
+@$be/reporting/test_report_traceability_linear.py|P1|done|exact
+package-traceability.5|The traceability appendix builder returns the pre-#2583 output for a fixed contribution set.|test_AC_reporting_package_traceability_5_output_equals_pre_change_golden
+package-traceability.6|The traceability appendix builder is linear in the number of contributions.|test_AC_reporting_package_traceability_6_builder_is_linear_in_contributions|:property
+@$be/reporting/test_package_preview_payload.py|P1|done|property
+package-traceability.7|At one year of anchored activity, GET /reports/package returns less than 300 KB with no more SQL statements than.|test_AC_reporting_package_traceability_7_year_scale_preview_is_bounded
+package-traceability.8|GET /reports/package/line-details returns, page by page, the same details for each line anchor as a frozen snapshot of the same data, in the same order.|test_AC_reporting_package_traceability_8_evidence_pages_equal_snapshot|:exact
+@$be/reporting/test_package_preview_policy_and_cash_flow.py|P1|done|exact
+package-traceability.9|At one year of categorized statement activity, GET /reports/package returns less than 300 KB with no more SQL statements than.|test_AC_reporting_package_traceability_9_year_scale_preview_with_categories_is_bounded|:property
+package-traceability.10|GET /reports/package/policy-decisions returns, page by page, the framework policy decisions of a frozen snapshot of the same data, in the same order.|test_AC_reporting_package_traceability_10_policy_decision_pages_equal_snapshot
+package-traceability.11|GET /reports/package/cash-flow-events returns, page by page, every lineage record of the frozen cash flow of the same data on exactly one line, for the cash accounts of the authoritative bank statements.|test_AC_reporting_package_traceability_11_cash_flow_event_pages_equal_snapshot
+@$be/reporting/test_package_document.py|P0|done|exact
+package-document.1|The personal report package is a versioned, Decimal-safe document with required typed balance-sheet, income-statement, cash-flow, investment, annualized-income, notes, traceability.|test_AC_reporting_package_document_1_requires_typed_delivery_sections
+package-document.2|Preview, generation, persistence, reopen.|test_AC_reporting_package_document_2_has_one_assembler_and_no_live_package_export
+package-document.3|Trusted/final package state is the projection of one persisted CODE-ONLY TraceRecord MANIFEST decision over the exact current contributing decisions and deterministic section observation.|test_AC_reporting_package_document_3_trust_is_one_trace_decision_fold
+package-document.6|A whole-production-tree certificate permits one PackageDocument producer, forbids consumer-owned readiness/trust calculations and live selected-snapshot reads.|test_AC_reporting_package_document_6_producer_and_consumer_closure
+package-document.7|PackageAssembler adapts extraction, ledger.|test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions
+package-document.9|Every authoritative PackageSectionContribution carries one typed audit decision reference containing its exact target and assertion.|test_AC_reporting_package_document_9_requires_exact_decision_coordinates
+package-document.10|Reporting publishes one pure package-decision coordinate builder over the exact frozen document semantics.|test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinates
+package-document.13|Package assembly builds the traceability appendix and notes once per assembly and reuses the balance-sheet ending unrealized FX gain/loss for the income statement.|test_AC_reporting_package_document_13_single_pass_traceability_and_unrealized_fx_reuse
+2466.1|Every cash-flow proof reason code emitted by generate_cash_flow maps to its own distinct cause and action message in cash_flow_proof_reason_text and package blocker rendering.|test_AC_reporting_2466_1_every_cash_flow_proof_reason_has_its_own_text|P1
+2623.1|Framework_policy_facts_for_user includes all active user accounts including system accounts.|test_AC_reporting_2623_1_system_accounts_receive_l1_policy_mappings|P1
+2667.1|Personal_report_package_decision_ref omits unset excluded_holdings on pre-2655 frozen package documents.|test_AC_reporting_2667_1_pre_2655_frozen_package_keeps_decision_ref_and_locks_bound_defaults|P1
+@$fe/__tests__/personalReportPackagePage.test.tsx|P1
+package-document.12|The Full package tab takes its period from the dimension bar.|AC-reporting.package-document.12 previews and generates the selected month through the page|P0:exact
+net-worth-scope.15|The Package tab balance sheet card takes its net worth label from the recorded scope.|#2645 labels the package net worth from the recorded scope and names each excluded class
+net-worth-scope.17|A package snapshot frozen.|#2645 shows no bare net worth for a snapshot frozen before the scope record|P0
+net-worth-scope.23|The Package tab passes context.include_restricted of the shown document to the balance sheet card.|#2645 labels the package net worth from the scope that the document context records
+fe-viz-reports.1|The annualized income figures show in the Full package tab from the package document.|AC5.11.2 renders annualized income schedule values and restricted treatment|P0
+fe-viz-reports.3|Frontend personal package page renders the contract section IDs and labels from the API contract.|AC5.9.3 renders personal package contract sections from API|P0
+fe-viz-reports.4|Frontend/export contract surfaces stable export format and CSV columns for package consumers.|AC5.9.4 renders export contract metadata
+fe-viz-reports.5|Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint.|AC5.11.2 renders annualized income schedule values and restricted treatment|P0
+fe-viz-reports.6|Frontend personal package page renders notes and disclosure basis from the notes endpoint.|AC5.12.3 renders package notes and disclosure basis|P0
+fe-viz-reports.7|Frontend personal package page renders source, ledger, review.|AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, and identifiers|P0
+fe-viz-reports.10|Personal report package traceability renders concrete source and ledger identifiers.|AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, and identifiers|P0
+fe-viz-reports.11|Personal report package page exposes an authenticated CSV export action.|AC5.17.2 downloads package CSV through authenticated apiDownload|P0
+fe-viz-reports.12|The package page shows recent snapshots, can generate a new snapshot.|AC5.19.4 generates and downloads package snapshots|P0
+fe-ia-reports.14|The report package titles its sections with human-readable labels.|AC22.8.1 titles package sections with human labels, not developer snake_case identifiers
+fe-ia-reports.15|The loaded report package starts with a readable cover sheet and table of contents that expose the package id, selected framework, report date.|AC22.8.2 AC22.13.3 renders a readable package cover and linked table of contents
+fe-ia-reports.16|The unselected-framework and framework-package loading states reserve the package layout with guidance or skeleton placeholders, never a blank text-only pre-selection or loading screen.|AC20.6.1 AC22.8.3 AC22.13.3 requires explicit framework selection before loading framework-scoped package output
+fe-ia-reports.23|The loaded report package uses reader-facing labels for evidence coverage, reporting basis.|AC22.19.1 renders the loaded package with reader-first labels before proof internals
+fe-ia-reports.24|Explicit `Audit details` disclosures keep the same source-trust, framework-policy, traceability, blocker, matrix-version, line-id, confidence, review-state.|AC22.19.2 keeps proof and policy internals in keyboard-reachable audit details
+fe-ia-reports.25|Print/save and export metadata default to the reader-first hierarchy.|AC22.19.3 keeps export proof metadata behind a print-hidden export audit disclosure
+fe-remainder-reports.1|The report package traceability surface exposes a lineage panel from at least one report traceability row.|AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability|P2
+fe-remainder-reports.2|The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line.|AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability|P2
+fe-remainder-reports.3|Tests cover report line to source document navigation and source document to impacted ledger/report navigation.|AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability|P2
+fe-remainder-reports.11|Personal report package page renders readiness state and blocker links.|AC19.5.4 renders package readiness before report package output
+fe-remainder-reports.12|Personal report package page renders non-blocked readiness states.|AC19.5.5 renders non-blocked readiness states without blocker cards
+fe-remainder-reports.14|Personal report package page renders decision authority coverage.|AC19.9.2 renders decision authority coverage before traceability details|P0
+fe-fetch-budget.5|The Overview and Full package tabs of `/reports` share one cached package preview.|AC-reporting.fe-fetch-budget.5 the Reports hub and the package page share one preview request
+fe-fetch-budget.7|The package page requests the details of a traceability line only.|AC-reporting.fe-fetch-budget.7 loads the details of a traceability line only after the user opens the line
+fe-fetch-budget.9|The package page requests the framework policy decisions only.|AC-reporting.fe-fetch-budget.9 loads the policy decisions only after the user opens the audit details
+@$be/reporting/test_year_scale_reporting.py|P1
+year-scale.1|At a full year's transaction volume the three statements tie out and generate within a wall-clock backstop, guarding against a silent O regression.|test_AC5_20_year_scale_reporting_ties_out_within_budget
+net-worth-timeseries.4|At a year of activity, GET /reports/net-worth/timeseries for 6 months of daily points makes fewer than 30 SQL statements and answers in less than 500 ms.|test_AC_reporting_net_worth_timeseries_4_six_month_daily_series_within_budget
+@$be/reporting/test_income_typed_currency.py|P2
+income-typed.1|AnnualizedIncomeResponse.currency is the shared typed CurrencyCode, not a soft str.|test_AC5_32_1_currency_code_type_validates_and_normalizes
+income-typed.2|Income totals accumulate in a typed AnnualizedIncomeTotals Decimal intermediate, not a string-keyed dict.|test_AC5_32_2_annualized_income_totals_is_typed_intermediate
+income-typed.3|Resolve_line_currency centralizes the line/account/base currency fallback + normalization.|test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain
+income-typed.4|An explicit FX-failure response model is declared for the income endpoint.|test_AC5_32_4_fx_conversion_error_response_model_declared
+income-typed.5|Currency normalization is a single shared helper, not duplicated strip/upper.|test_AC5_32_5_normalize_currency_code_is_shared_helper
+income-typed.6|The income endpoint normalizes a soft base-currency setting in its response.|test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_config
+@$be/api/test_typed_contract_sweep.py|P2
+snapshots-typed.1|GET /reports/{report_type}/snapshots rejects an unknown report_type with 422.|test_AC5_36_1_report_snapshots_unknown_type_returns_422
+snapshots-typed.2|A valid report_type returns a typed list[ReportSnapshotSummary] response.|test_AC5_36_2_report_snapshots_valid_type_returns_typed_list
+@$be/reporting/test_reporting_shift_left.py|P0
+journeys.1|The core-journey E2E views the balance sheet end to end.|test_balance_sheet_accounting_equation_articulation
+journeys.2|The core-journey E2E views the income statement end to end.|test_income_statement_revenues_expenses_net_income
+journeys.3|The core-journey E2E views the cash-flow report end to end.|test_cash_flow_bridge_reconciliation
+journeys.4|The core-journey E2E navigates every reports endpoint.|test_multi_period_reporting_and_cta_adjustment|P1
+@$be/reporting/test_net_worth_timeseries.py|P1
+net-worth-timeseries.1|GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=monthly/daily returns [{date, total_assets, total_liabilities, net_worth}].|test_net_worth_timeseries_router
+net-worth-timeseries.2|Net worth time-series respects multi-currency.|test_net_worth_timeseries_uses_historical_fx_per_point
+net-worth-timeseries.5|A monthly net worth time-series holds at most 366 points and keeps the latest months.|test_AC_reporting_net_worth_timeseries_5_monthly_series_starts_at_first_month_with_value
+@$be/reporting/test_net_worth_one_definition.py|P0
+net-worth-scope.1|The balance sheet net worth, the balance sheet equity side total, the last point of the net worth series and the allocation net worth are equal.|test_AC_reporting_net_worth_scope_1_every_surface_reads_one_net_worth
+net-worth-scope.2|A manual valuation goes to net_worth_adjustment_gain_loss, never to unrealized FX or CTA.|test_AC_reporting_net_worth_scope_2_manual_valuations_stay_out_of_fx_and_cta
+net-worth-scope.3|With restricted holdings excluded, the balance sheet and the allocation return excluded_holdings.|test_AC_reporting_net_worth_scope_3_balance_sheet_names_each_excluded_class_and_amount
+net-worth-scope.8|Each net worth allocation source line carries source_type, source_id, label and value.|test_AC_reporting_net_worth_scope_8_allocation_sources_carry_no_link|P1
+net-worth-scope.9|With restricted holdings excluded, an excluded valuation with no FX rate to the report currency does not fail the report.|test_AC_reporting_net_worth_scope_9_excluded_valuation_without_fx_rate_does_not_fail_the_report
+net-worth-scope.10|An included valuation with no FX rate to the report currency still fails the balance sheet with the FX ReportError.|test_AC_reporting_net_worth_scope_10_included_valuation_without_fx_rate_still_fails_the_report
+net-worth-scope.11|The personal report package carries excluded_holdings in its balance sheet.|test_AC_reporting_net_worth_scope_11_package_discloses_each_excluded_class
+net-worth-scope.12|A package generate body without include_restricted reads PACKAGE_INCLUDE_RESTRICTED in the route.|test_AC_reporting_net_worth_scope_12_generate_without_scope_reads_the_package_default|P1
+net-worth-scope.13|GET /reports/data-quality answers 200.|test_AC_reporting_net_worth_scope_13_data_quality_stays_available_without_a_valuation_fx_rate|P1
+net-worth-scope.14|A restricted holding without an FX rate does not fail the package.|test_AC_reporting_net_worth_scope_14_package_lists_a_restricted_holding_without_fx_rate|P1
+net-worth-scope.18|Data quality runs the equation check with include_restricted=False and reports that result, also.|test_AC_reporting_net_worth_scope_18_data_quality_reads_the_liquid_check_after_an_fx_error|P1
+net-worth-scope.19|Data quality falls back only for an FX error of the full scope.|test_AC_reporting_net_worth_scope_19_data_quality_raises_other_errors|P1
+net-worth-scope.20|The package document context records include_restricted.|test_AC_reporting_net_worth_scope_20_package_records_its_scope
+net-worth-scope.22|A package document frozen in the shape of main 685533f0f reloads to the same JSON.|test_AC_reporting_net_worth_scope_22_main_shape_document_keeps_its_decision_version
+@$fe/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx|P2
+net-worth-scope.4|The net worth chart requests its series with the include_restricted scope of the dimension bar and caches each scope apart.|#2645 requests the series in the restricted-holdings scope of the dimension bar|P1
+fe-viz-reports.28|The net worth chart of the Balance sheet tab renders an ECharts line chart with a date X-axis and a net-worth Y-axis.|AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart
+fe-viz-reports.29|The net worth chart reads the period of the dimension bar, with one point per day up to 92 days and one point per month for a longer period.|AC5.7.4 reads the period of the dimension bar and draws months for a period longer than one quarter
+fe-viz-reports.30|Empty-state placeholder rendered when fewer than 2 data points exist.|AC5.7.5 renders an empty state when fewer than two points exist
+fe-viz-reports.31|A frontend unit test mounts the net worth chart and asserts that the chart container exists.|AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart
+fe-viz-reports.34|The net worth chart caches each period under a query key of from, to, granularity and currency.|caches each period so a revisit within the stale time sends no request|P1
+@$fe/__tests__/dashboardPage.test.tsx|P1
+net-worth-scope.5|Home labels a net worth without restricted holdings as Liquid net worth and lists each excluded asset class with its amount.|AC11.8.5 defaults to the full net worth and labels each excluded class when restricted holdings are excluded
+fe-report-surfaces.1|Home shows a loading line in each statement card until its own statement resolves.|AC16.12.1 shows loading state before dashboard data resolves|P2
+fe-report-surfaces.2|Home shows a failed statement with a retry action that refetches it.|AC16.12.2 renders error fallback and retry action on failure|P2
+fe-report-surfaces.3|Home renders the dimension bar and the three statement cards with the live metrics of the period.|AC16.12.3 AC22.1.2 renders the dimension bar and the three statement cards of the period|P2
+fe-report-surfaces.4|Home shows zero metrics and no line list for a period without data.|AC16.12.4 shows zero metrics and no line list for an empty period|P2
+fe-report-surfaces.5|Home asks a user without a source to upload the first statement in its one action banner.|AC22.16.1 AC16.12.17 AC16.12.18 asks a new user to upload the first statement|P2
+fe-report-surfaces.6|The Home upload action links to the `/upload` page in one click.|AC22.16.1 AC16.12.17 AC16.12.18 asks a new user to upload the first statement|P2
+fe-report-surfaces.7|Home shows no action banner.|AC16.12.19 hides the action banner when nothing needs attention|P2
+fe-ia-reports.1|The authenticated Home renders the dimension bar, the three statement cards with key numbers.|AC16.12.3 AC22.1.2 renders the dimension bar and the three statement cards of the period
+fe-ia-reports.7|Home is lean: one three-statement cockpit, no analytics panel and no second block that repeats its metrics.|AC22.4.4 keeps Home lean: one cockpit and no analytics panel or duplicate metric block
+fe-ia-reports.9|Home surfaces at most one primary next action.|AC22.16.2 AC22.5.6 routes the confirmation count to the one /audit queue
+fe-ia-reports.20|The Home upload action targets `/upload`.|AC22.16.1 AC16.12.17 AC16.12.18 asks a new user to upload the first statement
+fe-ia-reports.21|Home presents one confidence-ranked attention entry point.|AC22.16.2 AC22.5.6 routes the confirmation count to the one /audit queue
+fe-viz-reports.27|Home keeps the statement cards when the advisor suggestions fail.|renders the advisor brief after the statement cards and keeps the cockpit when suggestions fail
+fe-remainder-reports.4|Home shows the workflow next action only as one action banner.|AC19.4.3 shows one action banner that follows the workflow next action|P0
+fe-remainder-reports.5|The Home action banner renders.|AC19.4.2 AC16.16.1 renders the action banner before the dimension bar and the statement cards|P0
+fe-remainder-reports.6|The Home action banner follows the `href` and the label of `workflow.status.next_action`.|AC19.4.3 shows one action banner that follows the workflow next action|P0
+fe-remainder-reports.9|A failed workflow status does not hide the Home statement cards and shows no error on Home.|AC19.4.6 keeps the statement cards visible when the workflow status fails|P0
+@$fe/__tests__/balanceSheetPage.test.tsx|P1
+net-worth-scope.6|The Balance sheet tab shows manual and market valuations on their own equity line.|#2645 shows manual valuations on their own equity line, never in the FX and CTA line
+net-worth-scope.7|The Balance sheet tab lists each asset class that the scope.|#2645 names each class and amount that the scope without restricted holdings excludes
+api-vectors.2|The frontend balance-sheet page test consumes the committed reporting conformance vector verbatim as its mock data.|AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date
+fe-report-surfaces.10|The Balance sheet tab renders loading and error retry states.|AC16.14.1 renders loading and error retry states|P2
+fe-report-surfaces.11|The Balance sheet tab renders totals and account sections on successful fetch.|AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date|P2
+fe-report-surfaces.12|The Balance sheet tab toggles account tree expansion controls.|AC16.14.3 toggles tree expansion controls|P2
+fe-viz-reports.8|Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail.|AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date|P0
+fe-viz-reports.9|Balance sheet, income statement.|AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date|P0
+2728.2|Balance sheet and StatementCockpit display the Processing clearing account as Transfers in transit with a glossary hint.|AC-reporting.2728.2 labels Processing as Transfers in transit and discloses foreign-currency native balances
+2728.3|Clicking either the account name or the dotted-underlined amount on a Balance Sheet or Income Statement line opens AccountLineageDrawer.|AC-reporting.2728.3 opens the source drill-down from either the account name or the dotted-underlined amount
+2654.2|On Home and on the Balance sheet tab, a manual valuation line links to /portfolio?panel=evidence and never requests GET /reports/account-lineage with a non-account id.|AC-reporting.2654.2 routes manual valuation lines to /portfolio?panel=evidence without calling account-lineage
+@$e2e/test_brokerage_upload_to_portfolio_value.py|P0
+portfolio-valuation-gate.1|The brokerage portfolio gate validates market valuation adjustment lines even.|test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines
+portfolio-valuation-gate.2|Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset.|test_portfolio_valuation_gate_failure_diagnostics_are_actionable
+@$fe/__tests__/reportsCockpit.test.tsx|P1
+fe-report-surfaces.8|`/reports` renders the tabs Overview, Balance sheet, Income statement, Cash flow and Full package.|AC-reporting.fe-period-cockpit.3 renders the five report tabs, selects the tab of the URL, and keeps the dimensions in each tab link|P2
+fe-report-surfaces.9|The Balance sheet tab states the accounting equation Assets = Liabilities + Equity and its balance status.|AC16.12.12 states the accounting equation on the Balance sheet tab|P2
+fe-ia-reports.2|The `/reports` Overview shows the three statement cards with the live figures of the period.|AC22.3.1 leads with the three statement cards and their live figures for the period
+fe-ia-reports.3|Cash Flow and the Personal Report Package are tabs of `/reports` next to the Balance sheet and Income statement tabs.|AC-reporting.fe-period-cockpit.3 renders the five report tabs, selects the tab of the URL, and keeps the dimensions in each tab link
+fe-ia-reports.18|The `/reports` Overview has no reconciliation block and no link into the Advanced `/reconciliation` surface.|AC22.9.1 keeps every Overview link inside the everyday surfaces, not the Advanced reconciliation surface
+fe-viz-reports.32|The Reports cockpit renders package readiness state, blocker count, next action.|AC5.37.1 renders trust-first readiness before report cards
+fe-viz-reports.33|The Reports cockpit shows a contained unavailable state.|AC5.37.2 preserves report navigation when readiness is unavailable|-|non-goals-not-budgeting-app
+fe-period-cockpit.3|`/reports` shows the three statements and the report package as tabs of one page.|AC-reporting.fe-period-cockpit.3 renders the five report tabs, selects the tab of the URL, and keeps the dimensions in each tab link
+@$fe/__tests__/incomeStatementPage.test.tsx|P2
+fe-report-surfaces.13|The Income statement tab renders loading and error retry states.|AC16.14.4 renders loading and error retry states
+fe-report-surfaces.14|The Income statement tab renders KPI cards and category lists on success.|AC16.14.5 / test_AC8_13_48 renders string KPI cards and category lists
+fe-report-surfaces.15|The Income statement tab tag filters can be selected, removed one by one and cleared.|AC16.14.6 supports selecting and clearing tags
+@$fe/__tests__/cashFlowPage.test.tsx|P2
+fe-report-surfaces.16|The Cash flow tab renders loading and error retry states.|AC16.14.7 renders loading and error retry states
+fe-report-surfaces.17|The Cash flow tab renders summary and section cards on success.|AC16.14.8 / test_AC8_13_48 renders string summary and activity sections
+fe-report-surfaces.18|The Cash flow tab renders the sankey chart when a summary exists.|AC16.14.9 renders sankey chart when summary exists
+fe-ia-reports.10|Clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines.|AC22.7.1 drills a cash-flow amount down to its account lineage|P1
+fe-ia-reports.12|The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash.|AC22.7.3 flags cash that does not tie (beginning + net != ending)|P1
+fe-fetch-budget.8|The Cash flow tab requests the events of a statement line only.|AC-reporting.fe-fetch-budget.8 loads the events of a cash-flow line only after the user expands the line|P1
+@$fe/__tests__/chartsComponents.test.tsx|P2
+fe-report-surfaces.19|Bar and pie chart components render semantic labels and filtered data.|AC16.19.10 bar chart and pie chart render labels and filtered segments
+2548.3|BarChart and PieChart render formatted value labels, percentage shares.|AC-reporting.2548.3 renders axis scale bounds, formatted values, and percentage shares across chart components|P1
+@$fe/__tests__/sankeyChartComponent.test.tsx|P2
+fe-report-surfaces.21|Sankey chart builds empty-state and data-state options for inflow and outflow links.|AC16.21.7 renders empty-state option when no series data is provided
+fe-report-surfaces.22|Sankey chart recomputes theme-aware colors.|AC16.21.8 recomputes theme-driven colors on root attribute change
+@$fe/__tests__/balanceSheetDrilldown.test.tsx|P1
+fe-ia-reports.4|A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines.|AC22.3.4 lists contributing journal lines and opens the lineage chain for one
+fe-ia-reports.5|Accounts/amounts with no contributing lines or no graph-compatible anchor degrade gracefully with an explicit empty/"no source linked" state and no crash.|AC22.3.5 shows an empty state when no transactions contribute
+@$fe/__tests__/reportPageShell.test.tsx|P1
+fe-viz-reports.13|`ReportPageShell` renders title, description.|AC5.33.1 renders title, description, toolbar, and body content
+fe-viz-reports.14|`ReportPageShell` renders the loading skeleton while `isLoading`.|AC5.33.2 shows loading skeleton while loading
+fe-viz-reports.15|`ReportPageShell` renders the error message with a working Retry action on `isError`.|AC5.33.3 shows error message and retries on click
+@$fe/__tests__/reportToolbar.test.tsx|P1
+fe-viz-reports.16|`ReportToolbar` composes the AI-prompt action and the CSV export action from its props.|AC5.33.4 renders the AI prompt and the caller-provided export control, without a Home link
+fe-viz-reports.17|`AiPromptAction` links to the chat route with a URL-encoded prompt.|AC5.33.5 links to chat with url-encoded prompt
+@apps/frontend/playwright/report-readiness.spec.ts|P1
+fe-ia-reports.17|Desktop and mobile Playwright smoke covers report-package framework selection, cover, table of contents, readiness.|${scenario.name} renders cover, contents, and readiness before package output
+fe-remainder-reports.13|Report readiness has route-level Playwright smoke coverage.|${scenario.name} renders cover, contents, and readiness before package output
+@$fe/__tests__/reportFilters.test.tsx|P1
+fe-viz-reports.18|The dimension bar sets the period preset and steps to the previous or next period.|AC-reporting.fe-period-cockpit.2 sets the preset and steps the period through the URL
+fe-viz-reports.19|The dimension bar shows the base currency until the URL names one.|AC5.34.2 shows the base currency until the URL names one and writes the selected currency to the URL
+@$fe/__tests__/useReportFilters.test.ts|P1
+fe-viz-reports.20|`useReportFilters` reads the tab, period, end, currency and scope from the URL and falls back to the defaults on invalid values.|AC-reporting.fe-period-cockpit.2 reads the dimensions from the URL and falls back to defaults on invalid values
+fe-viz-reports.21|`reportsHref` builds `/reports` tab links that keep the dimension query.|AC-reporting.fe-period-cockpit.2 builds tab links that keep the dimension query
+fe-viz-reports.22|`useReportFilters` writes each dimension change to the URL and omits default values.|AC-reporting.fe-period-cockpit.2 writes each dimension change to the URL and omits default values
+fe-viz-reports.23|The redirects of the old report routes keep their query.|AC-reporting.fe-period-cockpit.2 reads the dimensions from the URL and falls back to defaults on invalid values
+fe-period-cockpit.1|The period presets 1M, 1Q, 1Y, YTD, 3Y and All resolve to their first and last day.|AC-reporting.fe-period-cockpit.1 moves a period back and forward by one period length and stops at today
+fe-period-cockpit.2|The period, the period end, the currency and the restricted-holdings scope live only in the URL.|AC-reporting.fe-period-cockpit.2 writes each dimension change to the URL and omits default values
+fe-period-cockpit.7|The default view and the `All` preset start no earlier than `coverage_start` of `GET /reports/coverage` for their period end.|AC-reporting.fe-period-cockpit.7 starts only the default view and All no earlier than the coverage start
+@$fe/__tests__/useStatementCockpit.test.ts|P1
+fe-viz-reports.24|`useStatementCockpit` reads the balance sheet at the period end and at the opening date.|AC5.35.1 reads the four statement sources of the dimension-bar period
+fe-viz-reports.25|`useStatementCockpit` turns a missing statement list, total or currency into an empty list, a zero decimal string or the fallback currency.|AC5.35.2 normalizes missing statement fields to empty lists, zero decimal strings and typed warnings
+fe-viz-reports.26|`useStatementCockpit` surfaces the first error and a retry that refetches only the failed source.|AC5.35.3 surfaces the first error and a retry that refetches only the failed source
+@$fe/__tests__/homeStatements.test.tsx|P1
+fe-ia-reports.26|Each Home statement card links to its `/reports` tab and keeps the dimension query.|deep-links each of the three statements to its report tab and keeps the period
+fe-period-cockpit.4|Home and the `/reports` Overview show one three-statement cockpit.|AC-reporting.fe-period-cockpit.4 shows the live metrics of the period on each statement card
+fe-period-cockpit.5|A segmented control selects one statement.|AC-reporting.fe-period-cockpit.5 switches the statement with the segmented control and drills a row into its source transactions
+@$be/reporting/test_report_integrity.py|P0|done|exact
+report-integrity.1|Processing identity retains visible in-transit assets.|test_processing_survives_framework_reporting
+report-integrity.2|Authoritative account opening stock effective at the report start enters beginning cash.|test_opening_stock_is_beginning_cash
+report-integrity.3|First stock observed after the selected period start is separately disclosed as a stock adjustment with an explicit coverage blocker.|test_midperiod_opening_is_explicit_incomplete_coverage
+report-integrity.4|Framework income lines preserve authorized posted economic categories and exactly reconcile mixed-category account amounts in both personal frameworks.|test_posted_categories_survive_framework_mapping
+report-integrity.5|Missing or unsupported posted categories stay explicitly other income or expense.|test_uncategorized_history_is_not_investment_activity
+report-integrity.6|Archiving accounts never removes their posted historical amounts, cash identities, valuation basis or FX revaluation from period reports.|test_archiving_preserves_historical_reports
+report-integrity.7|Persisted source-backed ledger facts remain correctly classified and usable.|test_persisted_package_integrity
+@$be/reporting/test_cash_event_projection.py|P0|done|exact
+cash-events.1|Only journal entries touching an exact cash identity can produce cash-flow activity.|test_AC_reporting_cash_events_1_only_cash_touch_events_are_classified
+cash-events.2|Cash events are classified only from unambiguous full-event evidence with authoritative producer provenance.|test_AC_reporting_cash_events_2_event_classification_is_authoritative
+cash-events.3|Direct and Processing-mediated internal transfers among cash and cash-equivalent identities emit no operating, investing, or financing activity.|test_AC_reporting_cash_events_3_internal_transfers_are_neutral
+cash-events.4|The cash bridge separately discloses classified activity, unclassified cash.|test_AC_reporting_cash_events_4_cash_bridge_ties_exactly
+cash-events.5|Every cash-event query predicates both JournalEntry.user_id and Account.user_id and rejects an entry containing any foreign-tenant account line.|test_AC_reporting_cash_events_5_dual_tenant_predicates_reject_hostile_entries
+cash-events.6|Generate_cash_flow is the single reporting-owned cash projection used by standalone and package consumers.|test_AC_reporting_cash_events_6_one_projection_serves_every_cash_flow_consumer
+cash-events.7|Exact cash identities plus anchored event decisions produce proven output.|test_AC_reporting_cash_events_7_consumer_proof_state_is_explicit
+cash-events.8|Each classified or unclassified cash event exposes exact journal-entry, journal-line, source, decision-anchor.|test_AC_reporting_cash_events_8_event_lineage_exposes_ledger_and_decision_anchors
+cash-events.12|Anchored statement cash events map LOAN_PRINCIPAL on liabilities to Financing and INVESTMENT_TRADE on assets to Investing.|test_AC_reporting_cash_events_12_statement_balance_sheet_categories_classify
+2832.1|Generate_cash_flow classifies system cross_period_gap_plug journal lines as opening_stock_adjustment.|test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stock_adjustment|P1
+@$be/reporting/test_cash_event_governance.py|P0|done|exact
+cash-events.9|Package governance detail projects the exact detector, proof strength, target SHA, issue.|test_AC_reporting_cash_events_9_governance_detail_is_package_owned_and_enforced
+cash-events.10|The adversarial cash-event matrix locks non-cash, settlement, transfer, FX, void.|test_AC_reporting_cash_events_10_counterfactual_matrix_is_locked
+@$fe/__tests__/homeActionBanner.test.tsx|P1
+fe-period-cockpit.6|Home shows at most one action banner.|AC-reporting.fe-period-cockpit.6 picks at most one action: the queue first, then the workflow, then the first upload
+fe-period-cockpit.9|Home names the count of the confidence queue and its first item, with a link to that item, above the statement cards.|AC-reporting.fe-period-cockpit.9 names the count and the first item of the queue before a workflow blocker
+@$fe/__tests__/homeCoverageStart.test.tsx|P1
+fe-period-cockpit.8|In the default view, Home waits for the coverage start of the period end, then requests the income statement, the cash flow and the opening balance sheet of the bounded period only.|AC-reporting.fe-period-cockpit.8 starts the Home period on the coverage start and measures the change from it
+fe-period-cockpit.10|Home with an explicit `period=1Y` in the URL requests the income statement and the cash flow of the full preset period, shows no coverage note, does not request `GET /reports/coverage`.|AC-reporting.fe-period-cockpit.10 shows an explicit 1Y in full and bounds All to coverage start
+2726.2|When approved statements exist only outside the default `1Y` window, Home and `/reports` display a one-click banner in the dimension bar that jumps the period end to `latest_statement_end`.|AC-reporting.2726.2 shows a one-click banner jumping to the latest statement period when statements precede the default 1Y window
+@$be/reporting/test_report_coverage.py|P1|done|exact
+2646.1|The readiness of the current package covers the 365 days.|test_AC_reporting_2646_1_first_statement_opening_has_no_coverage_blocker
+2646.2|`report_coverage` is the latest opening position of a cash account on or.|test_AC_reporting_2646_2_coverage_start_is_the_latest_cash_opening
+2646.3|With 36 approved bank statements, `GET /reports/coverage` runs at most 6 SQL statements.|test_AC_reporting_2646_3_coverage_reads_a_fixed_number_of_queries_at_year_scale
+2726.1|`GET /reports/coverage` exposes `latest_statement_end` as the latest approved statement period end on or.|test_AC_reporting_2726_1_coverage_exposes_latest_approved_statement_end
+@$be/reporting/test_data_quality_service.py|P1|done|exact
+2726.3|Audit Hub `Temporal Continuity Timeline` displays the 12 months ending at the latest statement period end.|test_AC_reporting_2726_3_timeline_anchors_at_latest_statement_period_end
+2822.1|Compute_personal_data_quality excludes unapproved Stage-1 statement transactions from Stage-2 Reconciliation & Debt Clearance Purity failures and duplicate RECONCILE_TRANSACTIONS action items.|test_AC_reporting_2822_1_pending_stage1_statement_does_not_fail_reconciliation_purity
+2832.2|Compute_personal_data_quality evaluates per-account adjacent statement pairs by materiality.|test_AC_reporting_2832_2_zero_change_gap_verified_and_material_gaps_ranked_by_delta
+2564.1|Compute_personal_data_quality calculates the reconciliation ratio from matched_transactions.|test_AC_reporting_2564_1_recon_score_does_not_double_count_auto_accepted
+@$fe/__tests__/homeFetchBudget.test.tsx|P1
+fe-fetch-budget.1|Home issues each request at most once on a cold mount and reads only its cockpit sources, issues no request for cached data on a second visit, refetches only the two balance sheets for a scope change.|AC-reporting.fe-fetch-budget.1 cold mount issues each request at most once and reads only the cockpit sources
+fe-fetch-budget.2|The Home advisor suggestions load off the critical path with a stale time of at least five minutes.|AC-reporting.fe-fetch-budget.2 the advisor suggestions do not block the cockpit and stay cached for five minutes
+@-|P1
+snapshot-ownership.1|ReportSnapshot and ReportType are published and mapped by reporting.|$t/test_s3_pr_d_structure.py::test_AC_reporting_snapshot_ownership_and_metadata_registration|P0
+vocabulary-ownership.1|PersonalReportingFrameworkId, ReportLineId.|$t/test_vocabulary_ownership.py::test_AC_reporting_vocabulary_ownership_1_reporting_owns_wire_enums
+framework.2|The same settlement-and-portfolio fixture drives both US-like and HK-like personal report packages, producing framework-specific line mappings, notes bases, source anchors, export metadata.|$be/reporting/test_framework_policy.py::test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs|P0:exact
+pipeline.1|Every L2 category — each `AssetType` and each `ManualValuationComponentType`.|$be/reporting/test_framework_policy_coverage.py::test_AC20_8_1_every_asset_type_maps_to_an_l1_line|P0:property
+pipeline.2|EPIC-020 declares the three reporting-pipeline layers, each with a locked EPIC-026 tier and its valid proof obligation, confining LLM authority to the LLM-LED layer.|$be/reporting/test_l1_registry_aggregation.py::test_AC20_9_1_framework_balance_sheet_exact_aggregation|P0:property
+dry-ssot.2|Shared reporting fixtures are provided by a single `tests/reporting/_report_fixtures` module and reused, with duplicate per-file `test_user_id` fixtures removed.|$be/reporting/test_report_fixtures_shared.py::test_report_fixtures_shared|:exact
+balance-sheet.7|Balance sheet equation evaluation does not use circular plugging for CTA, correctly reports is_balanced=False.|$be/reporting/test_falsifiable_balance_sheet.py::test_balance_sheet_cta_and_aggregation_falsifiability
+balance-sheet.8|A rounding residual of a multi-currency translation moves into the CTA reserve only.|$be/reporting/test_balance_sheet_translation_rounding.py::test_case_4_shape_balance_sheet_equation_delta_is_exactly_zero
+fx.4|Missing report FX rates produce explicit partial warnings for the unconvertible currency.|$be/reporting/test_reporting_fx_fallbacks.py::test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning|P0
+errors.1|Report-generation failures surface as structured router errors.|$be/reporting/test_reports_errors.py::test_reports_router_errors_extended
+errors.2|Each reports endpoint maps a ReportError to a structured HTTP error response.|$be/reporting/test_reports_router_errors.py::test_balance_sheet_report_error
+kpis.3|Report output lists the currencies that used the average-rate spot fallback.|$be/reporting/test_reporting_fx_revaluation_integration.py::test_income_statement_includes_average_rate_fallback_warning
+package-investment.1|The personal report package defines the investment_performance section as a consumer of the EPIC-017 schedule API.|$t/test_investment_performance_report_contract.py::test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract|P0
+integration.1|Multi-currency posted entries generate balanced balance-sheet, income-statement.|$be/integration/test_reporting_e2e.py::test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf|P0
+package-document.11|Package readiness validates cumulative balance-sheet and selected-period income against matching ledger periods.|$be/reporting/test_package_period_readiness.py::test_AC_reporting_package_document_11_prior_period_package_lifecycle|:exact
+package-document.14|PackageAssembler.evaluate_readiness returns the readiness of assemble for the same arguments.|$be/reporting/test_package_readiness_path.py::test_AC_reporting_package_document_14_readiness_path_equals_full_assembly|P0:exact
+package-document.15|One package evaluation runs the current-authority projection at most 2 times.|$be/reporting/test_package_authority_reads.py::test_AC_reporting_package_document_15_one_evaluation_reads_the_authority_projection_at_most_twice|:property
+full-year.1|Multi-month CSV statements with reviewed semantic dispositions parse, approve under the balance-chain guard, auto-post.|$be/integration/test_full_year_statement_to_report_e2e.py::test_AC8_15_1_full_year_statement_to_report_ties_out|P0
+full-year.2|A high-confidence balance-validated bank statement with no pre-selected account auto-creates+links its asset account, reaches APPROVED.|$be/integration/test_bank_statement_auto_account_post.py::test_AC8_15_2_bank_statement_auto_creates_account_and_posts_with_reviewed_disposition
+augmentation.1|A source-labelled ledger input and a superseded manual valuation both reach the report correctly.|$be/integration/test_augmentation_seam_e2e.py::test_AC8_16_1_augmentation_seam_excludes_superseded_without_source_assurance
+augmentation.2|A report aggregates only the requesting user's facts.|$be/integration/test_cross_user_report_isolation_e2e.py::test_AC8_16_2_reports_exclude_other_users_entries
+lineage.1|GET /api/reports/account-lineage returns the user-scoped posted/reconciled journal lines contributing to an account's balance, each with a journal_line evidence anchor and Decimal-safe signed amounts.|$be/reporting/test_account_lineage.py::test_AC22_3_3_account_lineage_returns_posted_contributing_lines
+net-worth-timeseries.3|For the same stored FX rates and the same include_restricted scope, each point of the net worth time-series equals total_assets and total_liabilities of generate_balance_sheet on the point date.|$be/reporting/test_net_worth_timeseries_equivalence.py::test_AC_reporting_net_worth_timeseries_3_daily_points_equal_balance_sheets
+net-worth-scope.16|The app generate request names no include_restricted.|$fe/__tests__/reportPackage.test.ts::packageSnapshotRequest builds the generate-snapshot request body and omits an absent currency and the scope
+net-worth-scope.21|A data quality action item with score_boost 0 renders.|$fe/__tests__/dataQualityObservatory.test.tsx::#2645 renders an action without a score boost when the boost is zero|P2
+api-vectors.1|The serialized GET /api/reports/balance-sheet response recomputed from fixed deterministic inputs equals the committed common/reporting/conformance/vectors.json.|$be/schemas/test_api_response_vectors.py::test_AC_reporting_api_vectors_1_balance_sheet_matches_committed_vector
+fe-viz-reports.2|Personal report package renders the `investment_performance` report section from the EPIC-017 schedule API.|$fe/__tests__/portfolioPage.test.tsx::AC5.8.1 renders investment performance report schedule from the schedule API|P0
+fe-ia-reports.6|Desktop and mobile smoke covers the `/reports` tabs, the statement cards and a Balance Sheet drill-down.|apps/frontend/playwright/reports-cockpit.spec.ts::${label} shows the report tabs and the statement cards and drills a balance-sheet amount
+fe-ia-reports.8|E2E: an amount on the Balance Sheet drills down to its contributing journal lines and on to the source document.|apps/frontend/playwright/epic022-drilldown-journey.spec.ts::${label}: a Balance Sheet amount drills to its contributing line and on to the source document
+fe-ia-reports.11|The reusable lineage panel renders evidence nodes as an ordered source-to-report path with per-hop source, confidence.|$fe/__tests__/lineagePanel.test.tsx::AC22.7.2 renders an ordered lineage path with source, confidence, and version badges
+fe-ia-reports.13|Desktop and mobile Playwright smoke covers Cash Flow amount drill-down opening the account-lineage drawer.|apps/frontend/playwright/cash-flow-drilldown.spec.ts::${scenario.name} opens account-lineage drawer from a cash-flow amount
+fe-remainder-reports.10|Desktop and mobile Playwright smoke covers the Home action banner above the statement cockpit.|apps/frontend/playwright/upload-first-dashboard.spec.ts::${scenario.name} renders the action banner before the statement cockpit|P0
+report-integrity.8|A midperiod package retains current decision-backed statement lineage for included movements.|$be/reporting/test_midperiod_source_lineage.py::test_midperiod_source_lineage_preserves_cutoff|P0:exact
+cash-events.11|Cash flow bridge fx_effect is calculated independently from foreign-currency cash rate variances.|$be/reporting/test_falsifiable_cash_flow.py::test_multicurrency_cash_bridge_exposes_discrepancy_on_missing_activity
+fe-period-cockpit.11|The cached coverage start and every key of `LEDGER_DERIVED_QUERY_KEYS` are stale.|$fe/__tests__/openingBalanceModal.test.tsx::AC-reporting.fe-period-cockpit.11 marks the coverage start and the ledger reads stale after it records opening balances
+2617.1|With 100 more users in the database, each of GET /reports/balance-sheet, /reports/income-statement and /reports/cash-flow reads at most 1.25 times the rows that it reads for one user alone, counted from EXPLAIN of its SELECT statements with sequential scans off.|$be/reporting/test_multi_tenant_read_budget.py::test_AC_reporting_2617_1_report_reads_do_not_grow_with_other_tenants|:property
+fe-fetch-budget.3|Upload, the attention queue, the Home action banner and the Workbench share one cache entry per request.|$fe/__tests__/sharedQueryCache.test.tsx::AC-reporting.fe-fetch-budget.3 the upload page polls every three seconds while a statement parses and stops when none parses
+fe-fetch-budget.4|A successful mutation marks the ledger-derived cached reads stale.|$fe/__tests__/queryClient.test.ts::AC-reporting.fe-fetch-budget.4 marks every ledger-derived read stale after a successful mutation
+fe-fetch-budget.6|The shell polls the workflow status every 30 s.|$fe/__tests__/workflowStatusPolling.test.tsx::AC-reporting.fe-fetch-budget.6 polls every 120 s while nothing is pending
+2654.1|BalanceSheetResponse lines expose allocation_source_type.|$be/reporting/test_balance_sheet_provenance.py::test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_it|:exact
+2664.1|A balanced foreign-currency journal entry with an entry fx_rate and no stored FxRate row either balances in the equation check or reports a named missing-rate cause in run_balance_sheet_diagnostics and GET /reports/data-quality, never an Unclassified discrepancy.|$be/reporting/test_equation_diagnostics.py::test_AC_reporting_2664_1_balanced_usd_entry_without_fx_rate_row_never_reports_unclassified_discrepancy|P0:exact
+""",
+    ),
+    concepts=concepts(
+        """
+framework_reporting|common/reporting/framework-reporting.md|US-like and HK-like target-backward policy layer for personal report packages.|common/reporting/reporting.md,common/ledger/readme.md,docs/project/EPIC-020.framework-aware-personal-reporting.md|-|reporting|concept
+reporting_calculations|common/reporting/readme.md|Financial reports, multi-currency consolidation, calculations.|common/reporting/reporting.md,common/ledger/readme.md,common/pricing/market_data.md|-|reporting|concept
+"""
+    ),
     governance=[
         GovernanceInitiative(
             id="authoritative-cash-event-projection",
@@ -1025,34 +612,4 @@ CONTRACT = PackageContract(
             ],
         )
     ],
-    concepts=[
-        ConceptRecord(
-            key="framework_reporting",
-            owner="common/reporting/framework-reporting.md",
-            description=(
-                "US-like and HK-like target-backward policy layer for personal report "
-                "packages."
-            ),
-            cross_refs=[
-                "common/reporting/reporting.md",
-                "common/ledger/readme.md",
-                "docs/project/EPIC-020.framework-aware-personal-reporting.md",
-            ],
-            family="reporting",
-            kind="concept",
-        ),
-        ConceptRecord(
-            key="reporting_calculations",
-            owner="common/reporting/readme.md",
-            description="Financial reports, multi-currency consolidation, calculations.",
-            cross_refs=[
-                "common/reporting/reporting.md",
-                "common/ledger/readme.md",
-                "common/pricing/market_data.md",
-            ],
-            family="reporting",
-            kind="concept",
-        ),
-    ],
 )
-# fmt: on

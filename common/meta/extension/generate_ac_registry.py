@@ -24,7 +24,7 @@ from common.meta.base.authority_matrix import (
 from common.meta.base.authority_matrix import (
     TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
 )
-from common.meta.base.gate_util import call_name
+from common.meta.base.gate_util import call_name, expand_test_path, parse_acs_table
 
 EPIC_DIR = "docs/project"
 
@@ -196,17 +196,28 @@ def _repo_root_for(source_dir: Path) -> Path:
     return source_dir.resolve()
 
 
+def _const_str(node: ast.AST | None) -> str | None:
+    return (
+        node.value
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        else None
+    )
+
+
+def _kw_str(call: ast.Call, field: str, default: str | None = None) -> str | None:
+    for kw in call.keywords:
+        if kw.arg == field:
+            return _const_str(kw.value)
+    return default
+
+
 def _ac_record_field(
     call: ast.Call, field: str, default: str | None = None
 ) -> str | None:
     """Return the literal string value of an ``ACRecord(...)`` or ``ac(...)`` field, or None."""
     for kw in call.keywords:
-        if kw.arg != field:
-            continue
-        node = kw.value
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return node.value
-        return None
+        if kw.arg == field:
+            return _const_str(kw.value)
     pos_map = {
         "id": 0,
         "statement": 1,
@@ -218,11 +229,95 @@ def _ac_record_field(
     }
     pos = pos_map.get(field)
     if pos is not None and len(call.args) > pos:
-        node = call.args[pos]
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return node.value
-        return None
+        return _const_str(call.args[pos])
     return default
+
+
+def _expand_ac_id(raw_id: str, prefix: str) -> str:
+    return raw_id if raw_id.startswith("AC") or not prefix else f"{prefix}{raw_id}"
+
+
+def _extract_suite_records(
+    call: ast.Call, prefix: str, package_tier: str | None
+) -> list[dict]:
+    file_prefix = expand_test_path(
+        (_const_str(call.args[0]) if call.args else _kw_str(call, "file")) or ""
+    )
+    row_nodes = call.args[1:] if call.args else ()
+    def_prio = _kw_str(call, "priority", default="P0") or "P0"
+    def_status = _kw_str(call, "status", default="done") or "done"
+    def_pk = _kw_str(call, "proof_kind")
+    out: list[dict] = []
+    for row in row_nodes:
+        if not isinstance(row, (ast.Tuple, ast.List)) or len(row.elts) < 3:
+            continue
+        raw_id = _const_str(row.elts[0])
+        if not raw_id:
+            continue
+        stmt = _const_str(row.elts[1]) or ""
+        test_ref = expand_test_path(_const_str(row.elts[2]) or "")
+        full_test = (
+            f"{file_prefix}::{test_ref}"
+            if file_prefix and "::" not in test_ref
+            else test_ref
+        )
+        prio = (_const_str(row.elts[3]) if len(row.elts) > 3 else None) or def_prio
+        status = (_const_str(row.elts[4]) if len(row.elts) > 4 else None) or def_status
+        pk = (_const_str(row.elts[5]) if len(row.elts) > 5 else None) or def_pk
+        va = _const_str(row.elts[6]) if len(row.elts) > 6 else None
+        out.append(
+            {
+                "id": _expand_ac_id(raw_id, prefix),
+                "statement": stmt,
+                "test": full_test,
+                "priority": prio,
+                "status": status,
+                "tier": package_tier,
+                "proof_kind": pk,
+                "vision_anchor": va,
+            }
+        )
+    return out
+
+
+def _extract_roadmap_expr(
+    expr: ast.AST, package_tier: str | None, prefix: str = ""
+) -> list[dict]:
+    records: list[dict] = []
+    if isinstance(expr, ast.Call):
+        fn = call_name(expr.func)
+        if fn in ("ACRecord", "ac"):
+            ac_id = _ac_record_field(expr, "id")
+            if ac_id:
+                records.append(
+                    {
+                        "id": _expand_ac_id(ac_id, prefix),
+                        "statement": _ac_record_field(expr, "statement") or "",
+                        "test": _ac_record_field(expr, "test") or "",
+                        "priority": _ac_record_field(expr, "priority", default="P0"),
+                        "status": _ac_record_field(expr, "status", default="done"),
+                        "tier": package_tier,
+                        "proof_kind": _ac_record_field(expr, "proof_kind"),
+                        "vision_anchor": _ac_record_field(expr, "vision_anchor"),
+                    }
+                )
+        elif fn == "suite":
+            records.extend(_extract_suite_records(expr, prefix, package_tier))
+        elif fn == "acs" and expr.args:
+            pkg = _const_str(expr.args[0]) or ""
+            sub_prefix = f"AC-{pkg}." if pkg else prefix
+            for item in expr.args[1:]:
+                table_str = _const_str(item)
+                if table_str is not None:
+                    records.extend(parse_acs_table(pkg, table_str, package_tier))
+                else:
+                    records.extend(
+                        _extract_roadmap_expr(item, package_tier, sub_prefix)
+                    )
+    elif isinstance(expr, (ast.List, ast.Tuple)):
+        for elt in expr.elts:
+            records.extend(_extract_roadmap_expr(elt, package_tier, prefix))
+    return records
 
 
 def package_contract_meta(contract_path: Path) -> dict | None:
@@ -233,37 +328,29 @@ def package_contract_meta(contract_path: Path) -> dict | None:
             isinstance(node, ast.Call) and call_name(node.func) == "PackageContract"
         ):
             continue
+        package_tier = _ac_record_field(node, "tier")
         roadmap: list[dict] = []
         for kw in node.keywords:
-            if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
-                continue
-            for elt in kw.value.elts:
-                if isinstance(elt, ast.Call) and call_name(elt.func) in (
-                    "ACRecord",
-                    "ac",
-                ):
-                    ac_id = _ac_record_field(elt, "id")
-                    if ac_id:
-                        roadmap.append(
-                            {
-                                "id": ac_id,
-                                "status": _ac_record_field(
-                                    elt, "status", default="done"
-                                ),
-                                "test": _ac_record_field(elt, "test"),
-                            }
-                        )
+            if kw.arg == "roadmap":
+                for rec in _extract_roadmap_expr(kw.value, package_tier):
+                    roadmap.append(
+                        {
+                            "id": rec["id"],
+                            "status": rec["status"],
+                            "test": rec["test"],
+                        }
+                    )
         return {
             "name": _ac_record_field(node, "name"),
             "status": _ac_record_field(node, "status"),
-            "tier": _ac_record_field(node, "tier"),
+            "tier": package_tier,
             "roadmap": roadmap,
         }
     return None
 
 
 def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
-    """Statically read a contract's ``roadmap`` ``ACRecord(...)`` or ``ac(...)`` entries."""
+    """Statically read a contract's ``roadmap`` entries."""
     tree = ast.parse(contract_path.read_text(encoding="utf-8"))
     records: list[dict] = []
     for node in ast.walk(tree):
@@ -273,29 +360,8 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
             continue
         package_tier = _ac_record_field(node, "tier")
         for kw in node.keywords:
-            if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
-                continue
-            for elt in kw.value.elts:
-                if not (
-                    isinstance(elt, ast.Call)
-                    and call_name(elt.func) in ("ACRecord", "ac")
-                ):
-                    continue
-                ac_id = _ac_record_field(elt, "id")
-                if not ac_id:
-                    continue
-                records.append(
-                    {
-                        "id": ac_id,
-                        "statement": _ac_record_field(elt, "statement") or "",
-                        "test": _ac_record_field(elt, "test") or "",
-                        "priority": _ac_record_field(elt, "priority", default="P0"),
-                        "status": _ac_record_field(elt, "status", default="done"),
-                        "tier": package_tier,
-                        "proof_kind": _ac_record_field(elt, "proof_kind"),
-                        "vision_anchor": _ac_record_field(elt, "vision_anchor"),
-                    }
-                )
+            if kw.arg == "roadmap":
+                records.extend(_extract_roadmap_expr(kw.value, package_tier))
     return records
 
 
