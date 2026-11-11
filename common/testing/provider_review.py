@@ -7,11 +7,19 @@ fixture owns before the helper can post reviewed dispositions.
 
 from __future__ import annotations
 
+from asyncio import sleep
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from time import monotonic
 from typing import Any, Protocol
+
+# The product waits at most 200 s for the classification pass
+# (CLASSIFICATION_LOCK_WAIT_SECONDS in transaction_classification.py of the backend).
+# The limit adds a margin. ``common/`` does not import ``apps/backend``.
+CLASSIFICATION_POLL_SECONDS = 1.0
+CLASSIFICATION_WAIT_SECONDS = 240.0
 
 
 class _Response(Protocol):
@@ -117,6 +125,26 @@ def _require_success(response: _Response, *, action: str) -> dict[str, Any]:
     return response.json()
 
 
+async def _wait_for_classification(
+    client: _Client, get: Getter | None, review_url: str
+) -> None:
+    """Poll the review lookup until the classification pass ends (#2950).
+
+    The server holds ``POST /review/approve`` for that pass, longer than the 120 s
+    client timeout of a journey. At the limit this returns and does not raise: the
+    approval then gets the honest answer of the server (its busy error).
+    """
+    deadline = monotonic() + CLASSIFICATION_WAIT_SECONDS
+    while True:
+        review = _require_success(
+            await _send_get(client, get, review_url),
+            action="classification state lookup",
+        )
+        if not review.get("preclassification_in_progress") or monotonic() >= deadline:
+            return
+        await sleep(CLASSIFICATION_POLL_SECONDS)
+
+
 async def approve_statement_with_fixture_review(
     client: _Client,
     *,
@@ -127,13 +155,17 @@ async def approve_statement_with_fixture_review(
     envelope: FixtureEnvelope | None = None,
     get: Getter | None = None,
 ) -> dict[str, Any]:
-    """Approve, resolve ``intent_missing`` from fixture facts, then retry.
+    """Wait for classification, approve, resolve ``intent_missing`` from fixture facts, retry.
 
-    The helper sends 2 GET requests: the source review lookup and the unmatched lookup.
-    Both use ``get`` when the caller passes it, and ``client.get`` otherwise.
-    A POST request never uses ``get``.
+    The helper first polls the review lookup until the classification pass ends
+    (at least 1 GET request). It sends 2 more GET requests when the approval needs
+    them: the source review lookup and the unmatched lookup. All of them use ``get``
+    when the caller passes it, and ``client.get`` otherwise. A POST never uses ``get``.
     """
 
+    await _wait_for_classification(
+        client, get, api_url(f"/statements/{statement_id}/review")
+    )
     approval_path = api_url(f"/statements/{statement_id}/review/approve")
     approval = await client.post(
         approval_path, json={"create_account_if_missing": True}
