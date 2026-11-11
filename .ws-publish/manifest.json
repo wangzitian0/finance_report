@@ -3,12 +3,12 @@
   "dirty_inputs": [],
   "inputs": {
     "repo": "059324820e6c95169c1dd60ddfcbd5fba20259057334b1436f399648d55d045f",
-    "root": "9d08d4cd97652b0c415665045b9581dfd7da2d40b8e24ded82c5bc565ede886b",
+    "root": "609c70a366279ff42d2045b92bb8476a64227ad50449a0bad331fd1ec6750d99",
     "skills": "6105e01a3092392e73d53aeb8b55c3bdaf00b1c1ac2f0199d567bcb20e50c334"
   },
   "language": "en",
   "outputs": {
-    "AGENTS.md": "2b299414e96c2919b58dd6288b9fb87544bd01f98e3c9520689021206c485eea"
+    "AGENTS.md": "c47842346219d2076a7442ebbf60408180c61272b76907058ad1045bd61749fb"
   },
   "profiles": [
     "code",
@@ -35,7 +35,7 @@
     "links": {},
     "root": ".agents/skills"
   },
-  "source_revision": "47aaa0115a3d2881fad60f02d083de7e8a5bfa2a",
+  "source_revision": "464b51da9ca3d4f98f47b070b630533197d7fe48",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
