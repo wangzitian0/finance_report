@@ -1,17 +1,17 @@
-"""
-Case 2: Multi-PII Household Operations and Category Reconciliation benchmark scenario.
-"""
+"""Case 2: Multi-PII Household Operations and Category Reconciliation benchmark scenario."""
 
 from __future__ import annotations
 
-import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-import httpx
-
 from common.testing.benchmarks.case_types import CaseResult
-from common.testing.benchmarks.oracles import assert_triple_accounting_articulation
+from common.testing.benchmarks.cases._helpers import (
+    articulate,
+    check_verdict,
+    run_case,
+    set_verdict,
+)
 from common.testing.benchmarks.statement_generators import (
     generate_household_wife_operations_csv,
     generate_standard_operations_csv,
@@ -23,302 +23,147 @@ if TYPE_CHECKING:
     )
 
 
-def _set_verdict(
-    details: dict[str, Any] | None,
-    key: str,
-    passed: bool,
-) -> bool:
-    if details is not None:
-        verdicts = details.setdefault("assertion_verdicts", {})
-        verdicts[key] = "passed" if passed else "failed"
-    return passed
+def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
+    def _body(details: dict[str, Any]) -> None:
+        client, _, _ = runner.create_ephemeral_client("case2_household")
 
-
-def _upload_household_statements(
-    runner: ScenarioBenchmarkRunner,
-    client: httpx.Client,
-    details: dict[str, Any] | None = None,
-) -> tuple[str, dict[str, Any], dict[str, Any]]:
-    # Husband DBS Statement
-    print("  [2/6] Uploading Husband's DBS Bank CSV statement...")
-    husband_bytes = generate_standard_operations_csv(Decimal("10000.00"))
-    h_id = runner.upload_statement(
-        client, husband_bytes, "husband_dbs_operations.csv", institution="DBS Bank"
-    )
-    h_data = runner.wait_for_statement_parsed(client, h_id)
-    print(
-        f"        Husband DBS Parsed: Opening={h_data.get('opening_balance')}, "
-        f"Closing={h_data.get('closing_balance')}, Txns={len(h_data.get('transactions', []))}"
-    )
-    if details is not None:
+        h_id = runner.upload_statement(
+            client,
+            generate_standard_operations_csv(Decimal("10000.00")),
+            "husband_dbs_operations.csv",
+            institution="DBS Bank",
+        )
+        h_data = runner.wait_for_statement_parsed(client, h_id)
         details["household_husband_cash"] = str(h_data["closing_balance"])
-    husband_ok = Decimal(h_data["opening_balance"]) == Decimal("10000.00") and Decimal(
-        h_data["closing_balance"]
-    ) == Decimal("12800.00")
-    _set_verdict(details, "household_husband_cash", husband_ok)
-    assert Decimal(h_data["opening_balance"]) == Decimal("10000.00")
-    assert Decimal(h_data["closing_balance"]) == Decimal("12800.00")
-    runner.adjudicate_unmatched_items(client, h_id)
-    runner.approve_statement(client, h_id)
-    print("        Husband DBS statement approved.")
+        check_verdict(
+            details,
+            "household_husband_cash",
+            Decimal(h_data["opening_balance"]) == Decimal("10000.00")
+            and Decimal(h_data["closing_balance"]) == Decimal("12800.00"),
+        )
+        runner.adjudicate_unmatched_items(client, h_id)
+        runner.approve_statement(client, h_id)
 
-    # Wife SCB Statement
-    print("  [3/6] Uploading Wife's Standard Chartered CSV statement...")
-    wife_bytes = generate_household_wife_operations_csv(Decimal("5000.00"))
-    w_id = runner.upload_statement(
-        client,
-        wife_bytes,
-        "wife_scb_operations.csv",
-        institution="Standard Chartered Bank",
-    )
-    w_data = runner.wait_for_statement_parsed(client, w_id)
-    print(
-        f"        Wife SCB Parsed: Opening={w_data.get('opening_balance')}, "
-        f"Closing={w_data.get('closing_balance')}, Txns={len(w_data.get('transactions', []))}"
-    )
-    if details is not None:
+        w_id = runner.upload_statement(
+            client,
+            generate_household_wife_operations_csv(Decimal("5000.00")),
+            "wife_scb_operations.csv",
+            institution="Standard Chartered Bank",
+        )
+        w_data = runner.wait_for_statement_parsed(client, w_id)
         details["household_wife_cash"] = str(w_data["closing_balance"])
-    wife_ok = Decimal(w_data["opening_balance"]) == Decimal("5000.00") and Decimal(
-        w_data["closing_balance"]
-    ) == Decimal("8100.00")
-    _set_verdict(details, "household_wife_cash", wife_ok)
-    assert Decimal(w_data["opening_balance"]) == Decimal("5000.00")
-    assert Decimal(w_data["closing_balance"]) == Decimal("8100.00")
-    runner.adjudicate_unmatched_items(client, w_id)
-    runner.approve_statement(client, w_id)
-    print("        Wife SCB statement approved.")
-    return h_id, h_data, w_data
+        check_verdict(
+            details,
+            "household_wife_cash",
+            Decimal(w_data["opening_balance"]) == Decimal("5000.00")
+            and Decimal(w_data["closing_balance"]) == Decimal("8100.00"),
+        )
+        runner.adjudicate_unmatched_items(client, w_id)
+        runner.approve_statement(client, w_id)
 
+        checks = runner.run_stage2_consistency_checks(client, h_id)
+        assert "total" in checks
+        batch_res = runner.batch_approve_matches(client)
+        assert "approved_count" in batch_res
 
-def _verify_household_statements(
-    runner: ScenarioBenchmarkRunner,
-    client: httpx.Client,
-    details: dict[str, Any] | None = None,
-) -> tuple[
-    Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-    Decimal,
-    bool,
-]:
-    # Balance Sheet
-    print("  [4/6] Verifying Consolidated Household Balance Sheet as of 2025-04-30...")
-    bs = runner.get_balance_sheet(client, as_of_date="2025-04-30")
-    total_assets = Decimal(bs["total_assets"])
-    total_liabilities = Decimal(bs["total_liabilities"])
-    total_equity = Decimal(bs["total_equity"])
-    equation_delta = Decimal(bs["equation_delta"])
-    is_balanced = bs["is_balanced"]
+        h_txns = h_data.get("transactions") or []
+        if h_txns and h_txns[0].get("id"):
+            assert isinstance(
+                runner.list_transaction_anomalies(client, str(h_txns[0]["id"])), list
+            )
 
-    print(
-        f"        Assets={total_assets}, Liab={total_liabilities}, Equity={total_equity}, "
-        f"Delta={equation_delta}, Balanced={is_balanced}"
-    )
+        bad_id = runner.upload_statement(
+            client,
+            generate_standard_operations_csv(Decimal("999.00")),
+            "corrupted_triage_scan.csv",
+            institution="Triage Bank",
+        )
+        runner.wait_for_statement_parsed(client, bad_id)
+        rejected = runner.reject_statement(
+            client, bad_id, notes="Corrupted scan discarded during Stage-1 triage"
+        )
+        assert rejected.get("status") == "rejected"
 
-    # Income Statement & Cash Flow
-    print(
-        "  [5/6] Verifying Consolidated Income Statement (2025-04-01 to 2025-04-30)..."
-    )
-    inc = runner.get_income_statement(
-        client, start_date="2025-04-01", end_date="2025-04-30"
-    )
-    net_income = Decimal(inc["net_income"])
-    total_income = Decimal(inc["total_income"])
-    total_expenses = Decimal(inc["total_expenses"])
-    print(
-        f"        Total Income={total_income}, Total Expenses={total_expenses}, Net Income={net_income}"
-    )
+        bs = runner.get_balance_sheet(client, as_of_date="2025-04-30")
+        inc = runner.get_income_statement(
+            client, start_date="2025-04-01", end_date="2025-04-30"
+        )
+        cfs = runner.get_cash_flow(
+            client, start_date="2025-04-01", end_date="2025-04-30"
+        ).get("summary", {})
+        total_assets = Decimal(bs["total_assets"])
+        total_equity = Decimal(bs["total_equity"])
+        delta = Decimal(bs["equation_delta"])
+        balanced = bs["is_balanced"]
+        total_inc = Decimal(inc["total_income"])
+        total_exp = Decimal(inc["total_expenses"])
+        net_inc = Decimal(inc["net_income"])
+        beg_cash = Decimal(cfs.get("beginning_cash", "0"))
+        net_cash = Decimal(cfs.get("net_cash_flow", "0"))
+        end_cash = Decimal(cfs.get("ending_cash", "0"))
 
-    print("  [6/6] Verifying Consolidated Cash Flow...")
-    cf = runner.get_cash_flow(client, start_date="2025-04-01", end_date="2025-04-30")
-    cfs = cf.get("summary", {})
-    beg_cash = Decimal(cfs.get("beginning_cash", "0"))
-    net_cash = Decimal(cfs.get("net_cash_flow", "0"))
-    end_cash = Decimal(cfs.get("ending_cash", "0"))
-    print(
-        f"        Beginning Cash={beg_cash}, Net Cash Flow={net_cash}, Ending Cash={end_cash}"
-    )
-
-    if details is not None:
         details.update(
             {
                 "opening_balance": str(beg_cash),
                 "closing_balance": str(end_cash),
                 "total_assets": str(total_assets),
                 "total_equity": str(total_equity),
-                "total_income": str(total_income),
-                "total_expenses": str(total_expenses),
-                "net_income": str(net_income),
+                "total_income": str(total_inc),
+                "total_expenses": str(total_exp),
+                "net_income": str(net_inc),
                 "beginning_cash": str(beg_cash),
                 "ending_cash": str(end_cash),
-                "equation_delta": str(equation_delta),
-                "is_balanced": is_balanced,
-            }
-        )
-
-    _set_verdict(details, "total_income", total_income == Decimal("8500.00"))
-    _set_verdict(details, "total_expenses", total_expenses == Decimal("2600.00"))
-    _set_verdict(details, "net_income", net_income == Decimal("5900.00"))
-    _set_verdict(
-        details,
-        "ending_cash",
-        end_cash == Decimal("20900.00")
-        and beg_cash == Decimal("15000.00")
-        and net_cash == Decimal("5900.00")
-        and beg_cash + net_cash == end_cash
-        and total_assets == Decimal("20900.00"),
-    )
-    _set_verdict(
-        details,
-        "equation_delta",
-        is_balanced is True
-        and equation_delta == Decimal("0.00")
-        and total_equity == Decimal("15000.00"),
-    )
-
-    assert is_balanced is True, f"Balance sheet not balanced: delta={equation_delta}"
-    assert equation_delta == Decimal("0.00"), (
-        f"Equation delta not zero: {equation_delta}"
-    )
-    assert total_assets == Decimal("20900.00"), (
-        f"Expected total assets 20900.00 (12800 DBS + 8100 SCB), got {total_assets}"
-    )
-    assert total_equity == Decimal("15000.00"), (
-        f"Expected total equity 15000.00, got {total_equity}"
-    )
-    assert total_income == Decimal("8500.00"), (
-        f"Expected total income 8500.00 (5000 + 3500), got {total_income}"
-    )
-    assert total_expenses == Decimal("2600.00"), (
-        f"Expected total expenses 2600.00 (2200 + 400), got {total_expenses}"
-    )
-    assert net_income == Decimal("5900.00"), (
-        f"Expected net income 5900.00, got {net_income}"
-    )
-    assert beg_cash == Decimal("15000.00"), (
-        f"Expected beginning cash 15000.00, got {beg_cash}"
-    )
-    assert net_cash == Decimal("5900.00"), (
-        f"Expected net cash flow 5900.00, got {net_cash}"
-    )
-    assert end_cash == Decimal("20900.00"), (
-        f"Expected ending cash 20900.00, got {end_cash}"
-    )
-    assert beg_cash + net_cash == end_cash, "Cash flow rollforward mismatch"
-    try:
-        assert_triple_accounting_articulation(bs, inc)
-    except AssertionError:
-        _set_verdict(details, "equation_delta", False)
-        raise
-
-    return (
-        total_assets,
-        total_equity,
-        total_income,
-        total_expenses,
-        net_income,
-        beg_cash,
-        end_cash,
-        equation_delta,
-        is_balanced,
-    )
-
-
-def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
-    """
-    Case 2: Multi-PII Household Operations & Category Reconciliation.
-    """
-    start_time = time.time()
-    case_name = "Case 2: Multi-PII Household Operations & Category Reconciliation"
-    print("\n=======================================================")
-    print(f"🚀 RUNNING: {case_name}")
-    print("=======================================================")
-
-    verdicts: dict[str, str] = {
-        "household_husband_cash": "not_run",
-        "household_wife_cash": "not_run",
-        "total_income": "not_run",
-        "total_expenses": "not_run",
-        "net_income": "not_run",
-        "ending_cash": "not_run",
-        "equation_delta": "not_run",
-    }
-    details: dict[str, Any] = {"assertion_verdicts": verdicts}
-
-    try:
-        client, user_email, _ = runner.create_ephemeral_client("case2_household")
-        print(f"  [1/6] Registered test user: {user_email}")
-
-        h_id, h_data, _ = _upload_household_statements(runner, client, details=details)
-
-        # Flow 8: Stage 2 Consistency & Deduplication Checks
-        checks = runner.run_stage2_consistency_checks(client, h_id)
-        assert "total" in checks, f"Invalid consistency check payload: {checks}"
-
-        # Flow 12: Batch Rule Commit & Clearing
-        batch_res = runner.batch_approve_matches(client)
-        assert "approved_count" in batch_res, (
-            f"Invalid batch approve payload: {batch_res}"
-        )
-
-        # Flow 29: Recurring Subscriptions & Anomaly Alerts
-        h_txns = h_data.get("transactions") or []
-        anomalies: list[dict[str, Any]] = []
-        if h_txns and h_txns[0].get("id"):
-            anomalies = runner.list_transaction_anomalies(client, str(h_txns[0]["id"]))
-            assert isinstance(anomalies, list), (
-                f"Expected anomalies list, got {anomalies}"
-            )
-
-        # Flow 9: Low Quality Document Triage and Rejection Recovery
-        triage_bytes = generate_standard_operations_csv(Decimal("999.00"))
-        bad_id = runner.upload_statement(
-            client,
-            triage_bytes,
-            "corrupted_triage_scan.csv",
-            institution="Triage Bank",
-        )
-        runner.wait_for_statement_parsed(client, bad_id)
-        rejected = runner.reject_statement(
-            client,
-            bad_id,
-            notes="Corrupted scan discarded during Stage-1 triage",
-        )
-        assert rejected.get("status") == "rejected", (
-            f"Expected rejected statement status, got {rejected}"
-        )
-
-        _verify_household_statements(runner, client, details=details)
-        details.update(
-            {
+                "equation_delta": str(delta),
+                "is_balanced": balanced,
                 "flow_8_checks_ran": True,
                 "flow_9_rejected_status": str(rejected["status"]),
                 "flow_12_batch_approved_count": int(batch_res["approved_count"]),
                 "flow_29_anomalies_checked": True,
             }
         )
+        set_verdict(details, "total_income", total_inc == Decimal("8500.00"))
+        set_verdict(details, "total_expenses", total_exp == Decimal("2600.00"))
+        set_verdict(details, "net_income", net_inc == Decimal("5900.00"))
+        set_verdict(
+            details,
+            "ending_cash",
+            end_cash == Decimal("20900.00")
+            and beg_cash == Decimal("15000.00")
+            and net_cash == Decimal("5900.00")
+            and total_assets == Decimal("20900.00"),
+        )
+        set_verdict(
+            details,
+            "equation_delta",
+            balanced is True
+            and delta == Decimal("0.00")
+            and total_equity == Decimal("15000.00"),
+        )
+        assert (
+            balanced is True
+            and delta == Decimal("0.00")
+            and total_assets == Decimal("20900.00")
+            and total_equity == Decimal("15000.00")
+            and total_inc == Decimal("8500.00")
+            and total_exp == Decimal("2600.00")
+            and net_inc == Decimal("5900.00")
+            and beg_cash == Decimal("15000.00")
+            and net_cash == Decimal("5900.00")
+            and end_cash == Decimal("20900.00")
+        )
+        articulate(bs, inc, details, "equation_delta")
 
-        duration = time.time() - start_time
-        print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
-        return CaseResult(
-            case_id="case_2",
-            case_name=case_name,
-            status="PASS",
-            duration_seconds=duration,
-            details=details,
-        )
-    except Exception as exc:
-        duration = time.time() - start_time
-        print(f"❌ {case_name} FAILED in {duration:.2f}s: {exc}\n")
-        return CaseResult(
-            case_id="case_2",
-            case_name=case_name,
-            status="FAIL",
-            duration_seconds=duration,
-            details=details,
-            error_message=str(exc),
-        )
+    return run_case(
+        "case_2",
+        "Case 2: Multi-PII Household Operations & Category Reconciliation",
+        (
+            "household_husband_cash",
+            "household_wife_cash",
+            "total_income",
+            "total_expenses",
+            "net_income",
+            "ending_cash",
+            "equation_delta",
+        ),
+        _body,
+    )

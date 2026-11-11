@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -35,9 +35,9 @@ def money_with_commas(value: Decimal) -> str:
 
 def ensure_output_dir() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    gitkeep_path = OUTPUT_DIR / ".gitkeep"
-    if not gitkeep_path.exists():
-        gitkeep_path.write_text("", encoding="utf-8")
+    gitkeep = OUTPUT_DIR / ".gitkeep"
+    if not gitkeep.exists():
+        gitkeep.write_text("", encoding="utf-8")
 
 
 def compute_balances(
@@ -52,101 +52,63 @@ def compute_balances(
     return balances
 
 
-def dbs_raw_text(txn: Transaction) -> str:
-    year, month, day = txn.date.split("-")
-    month_lookup = {
-        "01": "Jan",
-        "02": "Feb",
-        "03": "Mar",
-        "04": "Apr",
-        "05": "May",
-        "06": "Jun",
-        "07": "Jul",
-        "08": "Aug",
-        "09": "Sep",
-        "10": "Oct",
-        "11": "Nov",
-        "12": "Dec",
-    }
-    display = f"{int(day):02d} {month_lookup[month]} {year}"
-    amount = money_with_commas(txn.amount)
-    suffix = " CR" if txn.direction == "IN" else ""
-    return f"{display} {txn.description} {amount}{suffix}"
-
-
 def dd_mmm_yyyy(iso_date: str) -> str:
-    parsed = date.fromisoformat(iso_date)
-    return parsed.strftime("%d %b %Y")
+    return date.fromisoformat(iso_date).strftime("%d %b %Y")
 
 
 def mm_dd_yyyy(iso_date: str) -> str:
-    parsed = date.fromisoformat(iso_date)
-    return parsed.strftime("%m/%d/%Y")
+    return date.fromisoformat(iso_date).strftime("%m/%d/%Y")
 
 
 def de_date_str(iso_date: str) -> str:
-    parsed = date.fromisoformat(iso_date)
-    return parsed.strftime("%d.%m.%Y")
+    return date.fromisoformat(iso_date).strftime("%d.%m.%Y")
 
 
 def money_de_str(value: Decimal) -> str:
-    formatted = money_with_commas(value)
-    return formatted.replace(",", "_").replace(".", ",").replace("_", ".")
+    return (
+        money_with_commas(value).replace(",", "_").replace(".", ",").replace("_", ".")
+    )
+
+
+def dbs_raw_text(txn: Transaction) -> str:
+    suffix = " CR" if txn.direction == "IN" else ""
+    return f"{dd_mmm_yyyy(txn.date)} {txn.description} {money_with_commas(txn.amount)}{suffix}"
+
+
+def _raw_text(inst: str, txn: Transaction, bal: Decimal) -> str:
+    sign = "+" if txn.direction == "IN" else "-"
+    if inst == "DBS":
+        return dbs_raw_text(txn)
+    if inst in ("CMB", "ICBC"):
+        signed = txn.amount if txn.direction == "IN" else -txn.amount
+        return f"{txn.date} {txn.description} {money_str(signed)} {money_str(bal)}"
+    if inst == "Sparkasse":
+        marker = "H" if txn.direction == "IN" else "S"
+        return f"{de_date_str(txn.date)} {txn.description} {money_de_str(txn.amount)} {marker}"
+    if inst == "Barclays":
+        return f"{dd_mmm_yyyy(txn.date)} {txn.description} {'IN' if txn.direction == 'IN' else 'OUT'} {money_str(txn.amount)}"
+    if inst == "Chase":
+        return f"{mm_dd_yyyy(txn.date)} {txn.description} {sign}{money_str(txn.amount)}"
+    return f"{txn.date} {txn.description} {sign}{money_str(txn.amount)}"
 
 
 def build_expected_json(fixture: StatementFixture, balances: list[Decimal]) -> dict:
-    events = []
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        if fixture.institution == "DBS":
-            raw_text = dbs_raw_text(txn)
-        elif fixture.institution in ("CMB", "ICBC"):
-            signed = txn.amount if txn.direction == "IN" else -txn.amount
-            raw_text = (
-                f"{txn.date} {txn.description} {money_str(signed)} "
-                f"{money_str(balance_after)}"
-            )
-        elif fixture.institution == "Sparkasse":
-            marker = "H" if txn.direction == "IN" else "S"
-            raw_text = (
-                f"{de_date_str(txn.date)} {txn.description} "
-                f"{money_de_str(txn.amount)} {marker}"
-            )
-        elif fixture.institution == "Barclays":
-            col = "IN" if txn.direction == "IN" else "OUT"
-            raw_text = (
-                f"{dd_mmm_yyyy(txn.date)} {txn.description} "
-                f"{col} {money_str(txn.amount)}"
-            )
-        elif fixture.institution == "Chase":
-            sign = "+" if txn.direction == "IN" else "-"
-            raw_text = (
-                f"{mm_dd_yyyy(txn.date)} {txn.description} "
-                f"{sign}{money_str(txn.amount)}"
-            )
-        elif fixture.institution == "GXS":
-            sign = "+" if txn.direction == "IN" else "-"
-            raw_text = f"{txn.date} {txn.description} {sign}{money_str(txn.amount)}"
-        else:
-            sign = "+" if txn.direction == "IN" else "-"
-            raw_text = f"{txn.date} {txn.description} {sign}{money_str(txn.amount)}"
-
-        events.append(
-            {
-                "date": txn.date,
-                "description": txn.description,
-                "amount": money_str(txn.amount),
-                "direction": txn.direction,
-                "reference": txn.reference,
-                "currency": fixture.currency,
-                "balance_after": money_str(balance_after),
-                "confidence": 0.95,
-                "raw_text": raw_text,
-                "suggested_category": txn.suggested_category,
-                "category_confidence": float(txn.category_confidence),
-            }
-        )
-
-    closing_balance = balances[-1]
+    events = [
+        {
+            "date": txn.date,
+            "description": txn.description,
+            "amount": money_str(txn.amount),
+            "direction": txn.direction,
+            "reference": txn.reference,
+            "currency": fixture.currency,
+            "balance_after": money_str(bal),
+            "confidence": 0.95,
+            "raw_text": _raw_text(fixture.institution, txn, bal),
+            "suggested_category": txn.suggested_category,
+            "category_confidence": float(txn.category_confidence),
+        }
+        for txn, bal in zip(fixture.transactions, balances, strict=True)
+    ]
     return {
         "file": fixture.pdf_name,
         "institution": fixture.institution,
@@ -155,7 +117,7 @@ def build_expected_json(fixture: StatementFixture, balances: list[Decimal]) -> d
             "period_start": fixture.period_start,
             "period_end": fixture.period_end,
             "opening_balance": money_str(fixture.opening_balance),
-            "closing_balance": money_str(closing_balance),
+            "closing_balance": money_str(balances[-1]),
             "currency": fixture.currency,
             "confidence_score": fixture.confidence_score,
             "balance_validated": True,
@@ -171,247 +133,225 @@ def draw_common_header(
     closing_balance: Decimal,
     font_name: str,
 ) -> float:
-    width, height = A4
+    _, height = A4
     y = height - 56
     pdf.setFont(font_name, 16)
     pdf.drawString(48, y, fixture.header)
-
     y -= 24
     pdf.setFont(font_name, 10)
-    if fixture.institution == "CMB":
-        # Real Chinese bank statements (e.g. CMB transaction detail) omit explicit
-        # Opening/Closing Balance summary boxes and rely on per-row running balances.
-        pdf.drawString(
-            48, y, f"账号: {fixture.account_masked}   币种: {fixture.currency}"
-        )
-        y -= 16
-        pdf.drawString(
-            48, y, f"起止日期: {fixture.period_start} 至 {fixture.period_end}"
-        )
-        return y - 24
-
-    if fixture.institution == "ICBC":
-        pdf.drawString(
-            48, y, f"账号: {fixture.account_masked}   币种: {fixture.currency}"
-        )
-        y -= 16
-        pdf.drawString(
-            48, y, f"起止日期: {fixture.period_start} 至 {fixture.period_end}"
-        )
-        y -= 16
-        pdf.drawString(
-            48,
-            y,
-            f"期初余额: {fixture.currency} {money_str(fixture.opening_balance)}   期末余额: {fixture.currency} {money_str(closing_balance)}",
-        )
-        return y - 24
-
-    pdf.drawString(48, y, f"Account Number: {fixture.account_masked}")
-    y -= 16
-    pdf.drawString(
-        48, y, f"Statement Period: {fixture.period_start} to {fixture.period_end}"
-    )
-    y -= 16
-    pdf.drawString(
-        48,
-        y,
-        f"Opening Balance: {fixture.currency} {money_str(fixture.opening_balance)}",
-    )
-    y -= 16
-    pdf.drawString(
-        48, y, f"Closing Balance: {fixture.currency} {money_str(closing_balance)}"
-    )
+    if fixture.institution in ("CMB", "ICBC"):
+        lines = [
+            f"账号: {fixture.account_masked}   币种: {fixture.currency}",
+            f"起止日期: {fixture.period_start} 至 {fixture.period_end}",
+        ]
+        if fixture.institution == "ICBC":
+            lines.append(
+                f"期初余额: {fixture.currency} {money_str(fixture.opening_balance)}   期末余额: {fixture.currency} {money_str(closing_balance)}"
+            )
+    else:
+        lines = [
+            f"Account Number: {fixture.account_masked}",
+            f"Statement Period: {fixture.period_start} to {fixture.period_end}",
+            f"Opening Balance: {fixture.currency} {money_str(fixture.opening_balance)}",
+            f"Closing Balance: {fixture.currency} {money_str(closing_balance)}",
+        ]
+    for idx, text in enumerate(lines):
+        if idx:
+            y -= 16
+        pdf.drawString(48, y, text)
     return y - 24
 
 
-def draw_dbs_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
+def _draw_table(
+    pdf: canvas.Canvas,
+    fixture: StatementFixture,
+    balances: list[Decimal],
+    y: float,
+    headers: Sequence[tuple[int, str]],
+    row_fn: Callable[[Transaction, Decimal], Sequence[tuple[int, str, bool]]],
+    header_font: str = "Helvetica-Bold",
+    body_font: str | None = "Helvetica",
 ) -> None:
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(48, y, "Date")
-    pdf.drawString(128, y, "Description")
-    pdf.drawString(350, y, "Amount")
-    pdf.drawString(440, y, "Balance")
+    pdf.setFont(header_font, 10)
+    for x, label in headers:
+        pdf.drawString(x, y, label)
     pdf.line(48, y - 4, 545, y - 4)
-
     y -= 20
-    pdf.setFont("Helvetica", 9)
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        suffix = " CR" if txn.direction == "IN" else ""
-        pdf.drawString(48, y, dd_mmm_yyyy(txn.date))
-        pdf.drawString(128, y, txn.description)
-        pdf.drawRightString(420, y, f"{money_with_commas(txn.amount)}{suffix}")
-        pdf.drawRightString(540, y, money_with_commas(balance_after))
+    if body_font:
+        pdf.setFont(body_font, 9)
+    for txn, bal in zip(fixture.transactions, balances, strict=True):
+        for x, text, right in row_fn(txn, bal):
+            if right:
+                pdf.drawRightString(x, y, text)
+            else:
+                pdf.drawString(x, y, text)
         y -= 17
-
-
-def _draw_cmb_table_header(pdf: canvas.Canvas, y: float, page_num: int) -> float:
-    pdf.setFont("STSong-Light", 10)
-    pdf.drawString(48, y, "交易日期")
-    pdf.drawString(136, y, "摘要")
-    pdf.drawString(320, y, "交易金额")
-    pdf.drawString(430, y, "账户余额")
-    pdf.drawRightString(540, y, f"第 {page_num} 页")
-    pdf.line(48, y - 4, 545, y - 4)
-    return y - 20
 
 
 def draw_cmb_table(
     pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
 ) -> None:
     _, height = A4
-    rows_per_page = 14
+
+    def _hdr(cur_y: float, page_num: int) -> float:
+        pdf.setFont("STSong-Light", 10)
+        for x, label in (
+            (48, "交易日期"),
+            (136, "摘要"),
+            (320, "交易金额"),
+            (430, "账户余额"),
+        ):
+            pdf.drawString(x, cur_y, label)
+        pdf.drawRightString(540, cur_y, f"第 {page_num} 页")
+        pdf.line(48, cur_y - 4, 545, cur_y - 4)
+        return cur_y - 20
+
     page_num = 1
-    y = _draw_cmb_table_header(pdf, y, page_num)
-    for idx, (txn, balance_after) in enumerate(
-        zip(fixture.transactions, balances, strict=True)
-    ):
-        if idx > 0 and idx % rows_per_page == 0:
+    y = _hdr(y, page_num)
+    for idx, (txn, bal) in enumerate(zip(fixture.transactions, balances, strict=True)):
+        if idx > 0 and idx % 14 == 0:
             pdf.showPage()
             page_num += 1
-            y = _draw_cmb_table_header(pdf, height - 56, page_num)
+            y = _hdr(height - 56, page_num)
         signed = txn.amount if txn.direction == "IN" else -txn.amount
         pdf.drawString(48, y, txn.date)
         pdf.drawString(136, y, txn.description)
         pdf.drawRightString(410, y, money_with_commas(signed))
-        pdf.drawRightString(540, y, money_with_commas(balance_after))
+        pdf.drawRightString(540, y, money_with_commas(bal))
         y -= 17
 
 
-def draw_icbc_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
-) -> None:
-    pdf.setFont("STSong-Light", 10)
-    pdf.drawString(48, y, "交易日期")
-    pdf.drawString(136, y, "摘要")
-    pdf.drawString(320, y, "收支金额(+/-)")
-    pdf.drawString(430, y, "余额")
-    pdf.line(48, y - 4, 545, y - 4)
-
-    y -= 20
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        sign = "+" if txn.direction == "IN" else "-"
-        pdf.drawString(48, y, txn.date)
-        pdf.drawString(136, y, txn.description)
-        pdf.drawRightString(410, y, f"{sign}{money_with_commas(txn.amount)}")
-        pdf.drawRightString(540, y, money_with_commas(balance_after))
-        y -= 17
-
-
-def draw_sparkasse_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
-) -> None:
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(48, y, "Buchungstag")
-    pdf.drawString(126, y, "Verwendungszweck")
-    pdf.drawString(360, y, "Umsatz (S/H)")
-    pdf.drawString(468, y, "Saldo (EUR)")
-    pdf.line(48, y - 4, 545, y - 4)
-
-    y -= 20
-    pdf.setFont("Helvetica", 9)
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        marker = "H" if txn.direction == "IN" else "S"
-        pdf.drawString(48, y, de_date_str(txn.date))
-        pdf.drawString(126, y, txn.description)
-        pdf.drawRightString(440, y, f"{money_de_str(txn.amount)} {marker}")
-        pdf.drawRightString(540, y, f"{money_de_str(balance_after)} H")
-        y -= 17
-
-
-def draw_barclays_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
-) -> None:
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(48, y, "Date")
-    pdf.drawString(122, y, "Description")
-    pdf.drawString(350, y, "Money Out")
-    pdf.drawString(424, y, "Money In")
-    pdf.drawString(496, y, "Balance")
-    pdf.line(48, y - 4, 545, y - 4)
-
-    y -= 20
-    pdf.setFont("Helvetica", 9)
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        money_out = money_with_commas(txn.amount) if txn.direction == "OUT" else ""
-        money_in = money_with_commas(txn.amount) if txn.direction == "IN" else ""
-        pdf.drawString(48, y, dd_mmm_yyyy(txn.date))
-        pdf.drawString(122, y, txn.description)
-        pdf.drawRightString(406, y, money_out)
-        pdf.drawRightString(476, y, money_in)
-        pdf.drawRightString(540, y, money_with_commas(balance_after))
-        y -= 17
-
-
-def draw_chase_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
-) -> None:
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(48, y, "Date")
-    pdf.drawString(126, y, "Description")
-    pdf.drawString(386, y, "Amount")
-    pdf.drawString(468, y, "Balance")
-    pdf.line(48, y - 4, 545, y - 4)
-
-    y -= 20
-    pdf.setFont("Helvetica", 9)
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        sign = "+" if txn.direction == "IN" else "-"
-        pdf.drawString(48, y, mm_dd_yyyy(txn.date))
-        pdf.drawString(126, y, txn.description)
-        pdf.drawRightString(440, y, f"{sign}{money_with_commas(txn.amount)}")
-        pdf.drawRightString(540, y, money_with_commas(balance_after))
-        y -= 17
-
-
-def draw_gxs_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
-) -> None:
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(48, y, "Date")
-    pdf.drawString(122, y, "Description")
-    pdf.drawString(356, y, "Money In")
-    pdf.drawString(430, y, "Money Out")
-    pdf.drawString(500, y, "Balance")
-    pdf.line(48, y - 4, 545, y - 4)
-
-    y -= 20
-    pdf.setFont("Helvetica", 9)
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        money_in = money_with_commas(txn.amount) if txn.direction == "IN" else ""
-        money_out = money_with_commas(txn.amount) if txn.direction == "OUT" else ""
-        pdf.drawString(48, y, txn.date)
-        pdf.drawString(122, y, txn.description)
-        pdf.drawRightString(410, y, money_in)
-        pdf.drawRightString(486, y, money_out)
-        pdf.drawRightString(540, y, money_with_commas(balance_after))
-        y -= 17
-
-
-def draw_maribank_table(
-    pdf: canvas.Canvas, fixture: StatementFixture, balances: list[Decimal], y: float
-) -> None:
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(48, y, "Date")
-    pdf.drawString(126, y, "Activity")
-    pdf.drawString(390, y, "Amount")
-    pdf.drawString(470, y, "Running Bal")
-    pdf.line(48, y - 4, 545, y - 4)
-
-    y -= 20
-    pdf.setFont("Helvetica", 9)
-    for txn, balance_after in zip(fixture.transactions, balances, strict=True):
-        sign = "+" if txn.direction == "IN" else "-"
-        pdf.drawString(48, y, txn.date)
-        pdf.drawString(126, y, txn.description)
-        pdf.drawRightString(446, y, f"{sign}{money_with_commas(txn.amount)}")
-        pdf.drawRightString(540, y, money_with_commas(balance_after))
-        y -= 17
+_TABLE_SPECS: dict[
+    str,
+    tuple[
+        Sequence[tuple[int, str]],
+        Callable[[Transaction, Decimal], Sequence[tuple[int, str, bool]]],
+        str,
+        str | None,
+    ],
+] = {
+    "DBS": (
+        ((48, "Date"), (128, "Description"), (350, "Amount"), (440, "Balance")),
+        lambda t, b: (
+            (48, dd_mmm_yyyy(t.date), False),
+            (128, t.description, False),
+            (
+                420,
+                f"{money_with_commas(t.amount)}{' CR' if t.direction == 'IN' else ''}",
+                True,
+            ),
+            (540, money_with_commas(b), True),
+        ),
+        "Helvetica-Bold",
+        "Helvetica",
+    ),
+    "ICBC": (
+        ((48, "交易日期"), (136, "摘要"), (320, "收支金额(+/-)"), (430, "余额")),
+        lambda t, b: (
+            (48, t.date, False),
+            (136, t.description, False),
+            (
+                410,
+                f"{'+' if t.direction == 'IN' else '-'}{money_with_commas(t.amount)}",
+                True,
+            ),
+            (540, money_with_commas(b), True),
+        ),
+        "STSong-Light",
+        None,
+    ),
+    "Sparkasse": (
+        (
+            (48, "Buchungstag"),
+            (126, "Verwendungszweck"),
+            (360, "Umsatz (S/H)"),
+            (468, "Saldo (EUR)"),
+        ),
+        lambda t, b: (
+            (48, de_date_str(t.date), False),
+            (126, t.description, False),
+            (
+                440,
+                f"{money_de_str(t.amount)} {'H' if t.direction == 'IN' else 'S'}",
+                True,
+            ),
+            (540, f"{money_de_str(b)} H", True),
+        ),
+        "Helvetica-Bold",
+        "Helvetica",
+    ),
+    "Barclays": (
+        (
+            (48, "Date"),
+            (122, "Description"),
+            (350, "Money Out"),
+            (424, "Money In"),
+            (496, "Balance"),
+        ),
+        lambda t, b: (
+            (48, dd_mmm_yyyy(t.date), False),
+            (122, t.description, False),
+            (406, money_with_commas(t.amount) if t.direction == "OUT" else "", True),
+            (476, money_with_commas(t.amount) if t.direction == "IN" else "", True),
+            (540, money_with_commas(b), True),
+        ),
+        "Helvetica-Bold",
+        "Helvetica",
+    ),
+    "Chase": (
+        ((48, "Date"), (126, "Description"), (386, "Amount"), (468, "Balance")),
+        lambda t, b: (
+            (48, mm_dd_yyyy(t.date), False),
+            (126, t.description, False),
+            (
+                440,
+                f"{'+' if t.direction == 'IN' else '-'}{money_with_commas(t.amount)}",
+                True,
+            ),
+            (540, money_with_commas(b), True),
+        ),
+        "Helvetica-Bold",
+        "Helvetica",
+    ),
+    "GXS": (
+        (
+            (48, "Date"),
+            (122, "Description"),
+            (356, "Money In"),
+            (430, "Money Out"),
+            (500, "Balance"),
+        ),
+        lambda t, b: (
+            (48, t.date, False),
+            (122, t.description, False),
+            (410, money_with_commas(t.amount) if t.direction == "IN" else "", True),
+            (486, money_with_commas(t.amount) if t.direction == "OUT" else "", True),
+            (540, money_with_commas(b), True),
+        ),
+        "Helvetica-Bold",
+        "Helvetica",
+    ),
+    "DEFAULT": (
+        ((48, "Date"), (126, "Activity"), (390, "Amount"), (470, "Running Bal")),
+        lambda t, b: (
+            (48, t.date, False),
+            (126, t.description, False),
+            (
+                446,
+                f"{'+' if t.direction == 'IN' else '-'}{money_with_commas(t.amount)}",
+                True,
+            ),
+            (540, money_with_commas(b), True),
+        ),
+        "Helvetica-Bold",
+        "Helvetica",
+    ),
+}
+_TABLE_SPECS["HSBC HK"] = _TABLE_SPECS["GXS"]
 
 
 def write_fixture_pdf_and_json(fixture: StatementFixture) -> None:
     balances = compute_balances(fixture.opening_balance, fixture.transactions)
-    closing_balance = balances[-1]
     pdf_path = OUTPUT_DIR / fixture.pdf_name
     json_path = OUTPUT_DIR / fixture.json_name
 
@@ -421,27 +361,17 @@ def write_fixture_pdf_and_json(fixture: StatementFixture) -> None:
     pdf.setCreator("generate_test_pdfs.py")
     pdf.setSubject("Deterministic extraction test fixture")
 
-    font_name = "Helvetica"
-    if fixture.institution in ("CMB", "ICBC"):
-        font_name = "STSong-Light"
-
-    y = draw_common_header(pdf, fixture, closing_balance, font_name)
-    if fixture.institution == "DBS":
-        draw_dbs_table(pdf, fixture, balances, y)
-    elif fixture.institution == "CMB":
+    font_name = (
+        "STSong-Light" if fixture.institution in ("CMB", "ICBC") else "Helvetica"
+    )
+    y = draw_common_header(pdf, fixture, balances[-1], font_name)
+    if fixture.institution == "CMB":
         draw_cmb_table(pdf, fixture, balances, y)
-    elif fixture.institution == "ICBC":
-        draw_icbc_table(pdf, fixture, balances, y)
-    elif fixture.institution == "Sparkasse":
-        draw_sparkasse_table(pdf, fixture, balances, y)
-    elif fixture.institution == "Barclays":
-        draw_barclays_table(pdf, fixture, balances, y)
-    elif fixture.institution == "Chase":
-        draw_chase_table(pdf, fixture, balances, y)
-    elif fixture.institution in ("GXS", "HSBC HK"):
-        draw_gxs_table(pdf, fixture, balances, y)
     else:
-        draw_maribank_table(pdf, fixture, balances, y)
+        headers, row_fn, h_font, b_font = _TABLE_SPECS.get(
+            fixture.institution, _TABLE_SPECS["DEFAULT"]
+        )
+        _draw_table(pdf, fixture, balances, y, headers, row_fn, h_font, b_font)
 
     pdf.showPage()
     pdf.save()
@@ -451,9 +381,6 @@ def write_fixture_pdf_and_json(fixture: StatementFixture) -> None:
         json.dumps(payload, separators=(",", ":"), ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-
-    print(f"Generated {pdf_path.relative_to(ROOT_DIR)}")
-    print(f"Generated {json_path.relative_to(ROOT_DIR)}")
 
 
 def get_fixtures() -> tuple[StatementFixture, ...]:
@@ -466,15 +393,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as exc:
         print(f"Failed to register Chinese font: {exc}")
         return 1
-
     ensure_output_dir()
-    fixtures = get_fixtures()
-    for fixture in fixtures:
+    for fixture in get_fixtures():
         write_fixture_pdf_and_json(fixture)
-
-    print(
-        f"Done: generated {len(fixtures)} deterministic PDF fixtures with expected JSON."
-    )
     return 0
 
 

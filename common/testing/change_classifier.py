@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from common.testing import matrix
 
@@ -62,10 +63,7 @@ LIGHTWEIGHT_EXACT = {
     ".github/copilot-instructions.md",
     ".github/workflows/docs.yml",
 }
-LIGHTWEIGHT_PREFIXES = (
-    "docs/",
-    ".github/ISSUE_TEMPLATE/",
-)
+LIGHTWEIGHT_PREFIXES = ("docs/", ".github/ISSUE_TEMPLATE/")
 
 COMMON_DEPLOY_RUNTIME_EXACT = frozenset(
     {
@@ -96,13 +94,6 @@ COMMON_DEPLOY_RUNTIME_PREFIXES = (
     "tests/e2e/",
 )
 
-# Files whose change can alter a Docker IMAGE build result: Dockerfiles,
-# .dockerignore (changes what is sent in the build context), dependency
-# manifests/locks, build/runtime config copied into the image, and entrypoint/build
-# scripts. A pure app-source change is COPY'd into the image and is already proven
-# by frontend-build (tsc + next build) and the backend test jobs, so it does not
-# need a fresh image build. Used to right-move the container-images CI job so it
-# runs only when the build context actually changed (see ci-cd.md Key CI Property).
 IMAGE_BUILD_EXACT = frozenset(
     {
         "apps/backend/.dockerignore",
@@ -122,21 +113,6 @@ IMAGE_BUILD_EXACT = frozenset(
 )
 IMAGE_BUILD_PREFIXES = ("apps/backend/scripts/",)
 
-
-def is_image_build_relevant(path: str) -> bool:
-    normalized = normalize_path(path)
-    return normalized in IMAGE_BUILD_EXACT or normalized.startswith(
-        IMAGE_BUILD_PREFIXES
-    )
-
-
-# Per-component change signal (#1689, gate re-architecture Phase 3 "cost-right").
-# Component names match common.meta.extension.coverage.policy.COMPONENT_BY_NAME
-# (backend/frontend/tools/common) so a PR's coverage gate can narrow its floor
-# comparison to only the components it actually touched. Broader than that
-# policy's coverage-instrumented source dirs on purpose: this answers "did the
-# PR touch this component's job-relevant surface at all" (tests, config, fixtures
-# included), not "is this file coverage-instrumented".
 COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
     "backend": ("apps/backend/",),
     "frontend": ("apps/frontend/",),
@@ -144,14 +120,6 @@ COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
     "common": ("common/",),
 }
 
-# A change to the CI pipeline's own definition (or the classifier that scopes
-# it) must never let component_changed narrow a job away: none of these paths
-# fall under any COMPONENT_PREFIXES prefix, so without this guard a diff that
-# touched ONLY e.g. .github/workflows/ci.yml would report every component
-# unchanged — silently skipping the very component-scoped job(s) (e.g.
-# backend-integration, frontend-build/-playwright, AC-testing.ci-structure.11)
-# that PR just edited. Mirrors the "fail closed on unknown diff" convention
-# below for a diff that IS known but is about the gate itself.
 CI_DEFINITION_PATHS = frozenset(
     {
         ".github/workflows/ci.yml",
@@ -159,18 +127,6 @@ CI_DEFINITION_PATHS = frozenset(
         "tools/ci_change_classifier.py",
     }
 )
-
-
-def _classify_components(files: tuple[str, ...]) -> dict[str, bool]:
-    # Fail closed when the diff is unknown (no files detected), matching
-    # heavy_required/image_build_required's convention elsewhere in this module.
-    if not files or any(path in CI_DEFINITION_PATHS for path in files):
-        return dict.fromkeys(COMPONENT_PREFIXES, True)
-    return {
-        name: any(path.startswith(prefixes) for path in files)
-        for name, prefixes in COMPONENT_PREFIXES.items()
-    }
-
 
 STAGING_ONLY_EXACT = frozenset(
     {
@@ -202,10 +158,6 @@ STAGING_AI_OCR_EXACT = frozenset(
         "apps/backend/src/config.py",
         "apps/backend/src/extraction/extension/prompts/statement.py",
         "common/llm/ai.md",
-        # The critical-proof matrix is no longer committed; it is a derived view
-        # of the AC graph. Adding/removing an llm-marked post-merge @ac_proof
-        # edits its OWN e2e test file, and every such file is already a staging
-        # trigger below, so the staging gate still fires on the real change.
         "common/testing/data/critical-proof-outcomes.yaml",
         "common/extraction/readme.md",
         "runtime-hooks.manifest.json",
@@ -218,8 +170,6 @@ STAGING_AI_OCR_EXACT = frozenset(
     }
 )
 STAGING_AI_OCR_PREFIXES = (
-    # The advisor package carved out of services/ai_advisor (#1671 Wave B);
-    # its chat path is provider-backed, so it stays a staging AI-OCR trigger.
     "apps/backend/src/advisor",
     "apps/backend/src/extraction",
     "apps/backend/src/routers/ai",
@@ -259,66 +209,20 @@ LEGACY_ENV_OUTPUTS = (
 )
 
 
-def _json_output(value: object) -> str:
-    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+@dataclass(frozen=True)
+class ProviderGateClassification:
+    files: tuple[str, ...]
+    required: bool
+    reason: str
 
 
-def _env_stage_required(classification: ChangeClassification) -> dict[str, bool]:
-    return {
-        environment.value: env_result.required
-        for environment, env_result in classification.envs.items()
-    }
-
-
-def _env_stage_reasons(classification: ChangeClassification) -> dict[str, str]:
-    return {
-        environment.value: env_result.reason
-        for environment, env_result in classification.envs.items()
-    }
-
-
-def _env_stage_stages(
-    classification: ChangeClassification,
-) -> dict[str, list[str]]:
-    return {
-        environment.value: [stage.value for stage in env_result.stages]
-        for environment, env_result in classification.envs.items()
-    }
-
-
-def _env_stage_files(classification: ChangeClassification) -> dict[str, list[str]]:
-    return {
-        environment.value: list(env_result.files)
-        for environment, env_result in classification.envs.items()
-    }
-
-
-def _provider_gate_required(
-    classification: ChangeClassification,
-) -> dict[str, bool]:
-    return {
-        environment.value: env_result.provider_gate.required
-        for environment, env_result in classification.envs.items()
-        if PipelineStage.PROVIDER_GATE in env_result.stages
-    }
-
-
-def _provider_gate_reasons(classification: ChangeClassification) -> dict[str, str]:
-    return {
-        environment.value: env_result.provider_gate.reason
-        for environment, env_result in classification.envs.items()
-        if PipelineStage.PROVIDER_GATE in env_result.stages
-    }
-
-
-def _provider_gate_files(
-    classification: ChangeClassification,
-) -> dict[str, list[str]]:
-    return {
-        environment.value: list(env_result.provider_gate.files)
-        for environment, env_result in classification.envs.items()
-        if PipelineStage.PROVIDER_GATE in env_result.stages
-    }
+@dataclass(frozen=True)
+class EnvStageClassification:
+    files: tuple[str, ...]
+    required: bool
+    reason: str
+    stages: tuple[PipelineStage, ...]
+    provider_gate: ProviderGateClassification
 
 
 @dataclass(frozen=True)
@@ -358,46 +262,96 @@ class ChangeClassification:
         return self.envs[Environment.STAGING].provider_gate.reason
 
 
-@dataclass(frozen=True)
-class EnvStageClassification:
-    files: tuple[str, ...]
-    required: bool
-    reason: str
-    stages: tuple[PipelineStage, ...]
-    provider_gate: ProviderGateClassification
+def _json_output(value: object) -> str:
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
 
-@dataclass(frozen=True)
-class ProviderGateClassification:
-    files: tuple[str, ...]
-    required: bool
-    reason: str
+def _project_envs(
+    classification: ChangeClassification,
+    fn: Callable[[EnvStageClassification], Any],
+    *,
+    provider_only: bool = False,
+) -> dict[str, Any]:
+    return {
+        env.value: fn(res)
+        for env, res in classification.envs.items()
+        if not provider_only or PipelineStage.PROVIDER_GATE in res.stages
+    }
+
+
+def _env_stage_required(classification: ChangeClassification) -> dict[str, bool]:
+    return _project_envs(classification, lambda r: r.required)
+
+
+def _env_stage_reasons(classification: ChangeClassification) -> dict[str, str]:
+    return _project_envs(classification, lambda r: r.reason)
+
+
+def _env_stage_stages(classification: ChangeClassification) -> dict[str, list[str]]:
+    return _project_envs(classification, lambda r: [s.value for s in r.stages])
+
+
+def _env_stage_files(classification: ChangeClassification) -> dict[str, list[str]]:
+    return _project_envs(classification, lambda r: list(r.files))
+
+
+def _provider_gate_required(classification: ChangeClassification) -> dict[str, bool]:
+    return _project_envs(
+        classification, lambda r: r.provider_gate.required, provider_only=True
+    )
+
+
+def _provider_gate_reasons(classification: ChangeClassification) -> dict[str, str]:
+    return _project_envs(
+        classification, lambda r: r.provider_gate.reason, provider_only=True
+    )
+
+
+def _provider_gate_files(classification: ChangeClassification) -> dict[str, list[str]]:
+    return _project_envs(
+        classification, lambda r: list(r.provider_gate.files), provider_only=True
+    )
 
 
 def normalize_path(path: str) -> str:
     return path.strip().replace("\\", "/")
 
 
+def is_image_build_relevant(path: str) -> bool:
+    normalized = normalize_path(path)
+    return normalized in IMAGE_BUILD_EXACT or normalized.startswith(
+        IMAGE_BUILD_PREFIXES
+    )
+
+
+def _classify_components(files: tuple[str, ...]) -> dict[str, bool]:
+    if not files or any(path in CI_DEFINITION_PATHS for path in files):
+        return dict.fromkeys(COMPONENT_PREFIXES, True)
+    return {
+        name: any(path.startswith(prefixes) for path in files)
+        for name, prefixes in COMPONENT_PREFIXES.items()
+    }
+
+
 def is_lightweight(path: str) -> bool:
     normalized = normalize_path(path)
-    if normalized in LIGHTWEIGHT_EXACT:
-        return True
-    return normalized.startswith(LIGHTWEIGHT_PREFIXES)
+    return normalized in LIGHTWEIGHT_EXACT or normalized.startswith(
+        LIGHTWEIGHT_PREFIXES
+    )
 
 
 def _is_app_test_or_doc_path(path: str) -> bool:
     if not path.startswith(("apps/backend/", "apps/frontend/")):
         return False
-
     file_name = path.rsplit("/", maxsplit=1)[-1]
     suffix = file_name.rsplit(".", maxsplit=1)[-1].lower()
     stem_parts = file_name.split(".")
-
-    if suffix in {"md", "mdx"}:
-        return True
-    if "/tests/" in path or "/__tests__/" in path:
-        return True
-    return len(stem_parts) >= 3 and stem_parts[-2] in {"test", "spec"}
+    return (
+        suffix in {"md", "mdx"}
+        or "/tests/" in path
+        or "/__tests__/" in path
+        or (len(stem_parts) >= 3 and stem_parts[-2] in {"test", "spec"})
+    )
 
 
 def _is_pdf_fixture_runtime_path(path: str) -> bool:
@@ -424,49 +378,25 @@ def is_staging_ai_ocr_relevant(path: str) -> bool:
     )
 
 
+def _empty_provider_gate() -> ProviderGateClassification:
+    return ProviderGateClassification(
+        files=(), required=False, reason="not-a-staging-provider-gate"
+    )
+
+
 def _classify_staging_provider_gate(
     files: tuple[str, ...],
 ) -> ProviderGateClassification:
-    matched_files = tuple(path for path in files if is_staging_ai_ocr_relevant(path))
-    required = bool(matched_files or not files)
+    matched = tuple(path for path in files if is_staging_ai_ocr_relevant(path))
     reason = (
         "staging-ai-ocr-paths-changed"
-        if matched_files
+        if matched
         else "no-changed-files-detected"
         if not files
         else "no-staging-ai-ocr-paths-changed"
     )
     return ProviderGateClassification(
-        files=matched_files,
-        required=required,
-        reason=reason,
-    )
-
-
-def _empty_provider_gate() -> ProviderGateClassification:
-    return ProviderGateClassification(
-        files=(),
-        required=False,
-        reason="not-a-staging-provider-gate",
-    )
-
-
-def _classify_pr_stage(
-    files: tuple[str, ...], heavy_files: tuple[str, ...], heavy_required: bool
-) -> EnvStageClassification:
-    reason = (
-        "runtime-or-ci-paths-changed"
-        if heavy_files
-        else "no-changed-files-detected"
-        if not files
-        else "lightweight-docs-or-docs-workflow-only"
-    )
-    return EnvStageClassification(
-        files=heavy_files,
-        required=heavy_required,
-        reason=reason,
-        stages=ENV_STAGE_MATRIX[Environment.PR],
-        provider_gate=_empty_provider_gate(),
+        files=matched, required=bool(matched or not files), reason=reason
     )
 
 
@@ -496,17 +426,17 @@ def _classify_env_stage(
     files: tuple[str, ...], environment: Environment
 ) -> EnvStageClassification:
     rule = ENV_STAGE_RULES[environment]
-    matched_files = tuple(path for path in files if _matches_env_stage_rule(path, rule))
-    required = bool(matched_files or (not files and rule.fail_closed_on_empty))
+    matched = tuple(path for path in files if _matches_env_stage_rule(path, rule))
+    required = bool(matched or (not files and rule.fail_closed_on_empty))
     reason = (
         rule.changed_reason
-        if matched_files
+        if matched
         else "no-changed-files-detected"
         if not files and rule.fail_closed_on_empty
         else rule.unchanged_reason
     )
     return EnvStageClassification(
-        files=matched_files,
+        files=matched,
         required=required,
         reason=reason,
         stages=rule.stages,
@@ -523,8 +453,6 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
     heavy_files = tuple(path for path in files if not is_lightweight(path))
     heavy_required = bool(heavy_files or not files)
     image_build_files = tuple(path for path in files if is_image_build_relevant(path))
-    # Fail closed when the diff is unknown (no files detected).
-    image_build_required = bool(image_build_files or not files)
     reason = (
         "runtime-or-ci-paths-changed"
         if heavy_files
@@ -532,20 +460,28 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         if not files
         else "lightweight-docs-or-docs-workflow-only"
     )
-    envs: dict[Environment, EnvStageClassification] = {
-        Environment.LOCAL: _classify_static_stage(files, Environment.LOCAL),
-        Environment.PR: _classify_pr_stage(files, heavy_files, heavy_required),
-        Environment.STAGING: _classify_env_stage(files, Environment.STAGING),
-        Environment.PRODUCTION: _classify_static_stage(files, Environment.PRODUCTION),
-    }
+    pr_stage = EnvStageClassification(
+        files=heavy_files,
+        required=heavy_required,
+        reason=reason,
+        stages=ENV_STAGE_MATRIX[Environment.PR],
+        provider_gate=_empty_provider_gate(),
+    )
     return ChangeClassification(
         files=files,
         heavy_files=heavy_files,
         heavy_required=heavy_required,
         reason=reason,
-        envs=envs,
+        envs={
+            Environment.LOCAL: _classify_static_stage(files, Environment.LOCAL),
+            Environment.PR: pr_stage,
+            Environment.STAGING: _classify_env_stage(files, Environment.STAGING),
+            Environment.PRODUCTION: _classify_static_stage(
+                files, Environment.PRODUCTION
+            ),
+        },
         image_build_files=image_build_files,
-        image_build_required=image_build_required,
+        image_build_required=bool(image_build_files or not files),
         component_changed=_classify_components(files),
         touched_e2e_tests=tuple(matrix.select_touched_e2e(files)),
     )
@@ -554,124 +490,96 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
 def write_github_outputs(
     classification: ChangeClassification, output_path: Path
 ) -> None:
-    with output_path.open("a", encoding="utf-8") as fh:
-        fh.write(f"heavy_required={str(classification.heavy_required).lower()}\n")
-        fh.write(
-            f"image_build_required={str(classification.image_build_required).lower()}\n"
-        )
-        fh.write(f"reason={classification.reason}\n")
-        fh.write(
-            f"env_stage_required={_json_output(_env_stage_required(classification))}\n"
-        )
-        fh.write(
-            f"env_stage_reasons={_json_output(_env_stage_reasons(classification))}\n"
-        )
-        fh.write(
-            f"env_stage_stages={_json_output(_env_stage_stages(classification))}\n"
-        )
-        fh.write(f"env_stage_files={_json_output(_env_stage_files(classification))}\n")
-        fh.write(
-            f"provider_gate_required={_json_output(_provider_gate_required(classification))}\n"
-        )
-        fh.write(
-            f"provider_gate_reasons={_json_output(_provider_gate_reasons(classification))}\n"
-        )
-        fh.write(
-            f"provider_gate_files={_json_output(_provider_gate_files(classification))}\n"
-        )
-        # #1689: per-component change flags (plain scalars, matching
-        # image_build_required's convention — a single fact per component, not a
-        # per-environment matrix, so no JSON blob/fromJSON() needed by consumers).
-        for name in COMPONENT_PREFIXES:
-            changed = classification.component_changed[name]
-            fh.write(f"{name}_changed={str(changed).lower()}\n")
-        changed_components = ",".join(
-            name
+    pairs = [
+        ("heavy_required", str(classification.heavy_required).lower()),
+        ("image_build_required", str(classification.image_build_required).lower()),
+        ("reason", classification.reason),
+        ("env_stage_required", _json_output(_env_stage_required(classification))),
+        ("env_stage_reasons", _json_output(_env_stage_reasons(classification))),
+        ("env_stage_stages", _json_output(_env_stage_stages(classification))),
+        ("env_stage_files", _json_output(_env_stage_files(classification))),
+        (
+            "provider_gate_required",
+            _json_output(_provider_gate_required(classification)),
+        ),
+        ("provider_gate_reasons", _json_output(_provider_gate_reasons(classification))),
+        ("provider_gate_files", _json_output(_provider_gate_files(classification))),
+        *(
+            (f"{name}_changed", str(classification.component_changed[name]).lower())
             for name in COMPONENT_PREFIXES
-            if classification.component_changed[name]
-        )
-        fh.write(f"coverage_gate_components={changed_components}\n")
-        fh.write(
-            f"touched_e2e_tests={_json_output(list(classification.touched_e2e_tests))}\n"
-        )
-        # The structured Env x Stage / provider-gate JSON above is the sole
-        # machine-readable gate contract. Every workflow consumer (ci.yml)
-        # normalizes its own scalar from that matrix, so the legacy per-env
-        # scalar outputs (`staging_required`, `staging_ai_ocr_required`, ...)
-        # are no longer emitted (AC8.13.110).
-        # Human-readable per-env lines still appear in write_github_summary.
+        ),
+        (
+            "coverage_gate_components",
+            ",".join(
+                name
+                for name in COMPONENT_PREFIXES
+                if classification.component_changed[name]
+            ),
+        ),
+        ("touched_e2e_tests", _json_output(list(classification.touched_e2e_tests))),
+    ]
+    with output_path.open("a", encoding="utf-8") as fh:
+        fh.writelines(f"{k}={v}\n" for k, v in pairs)
+
+
+def _write_file_section(fh: Any, title: str, paths: Sequence[str]) -> None:
+    if paths:
+        fh.write(f"\n{title}:\n\n")
+        for path in paths[:50]:
+            fh.write(f"- `{path}`\n")
 
 
 def write_github_summary(
     classification: ChangeClassification, summary_path: Path
 ) -> None:
     with summary_path.open("a", encoding="utf-8") as fh:
-        fh.write("## Change Classification\n\n")
         fh.write(
+            "## Change Classification\n\n"
             f"- Heavy CI required: `{str(classification.heavy_required).lower()}`\n"
+            f"- Reason: `{classification.reason}`\n"
         )
-        fh.write(f"- Reason: `{classification.reason}`\n")
-        for (
-            environment,
-            _output_prefix,
-            required_label,
-            reason_label,
-            _files_label,
-        ) in LEGACY_ENV_OUTPUTS:
-            env_result = classification.envs[environment]
-            fh.write(
-                f"- {required_label} required: `{str(env_result.required).lower()}`\n"
-            )
+        for env, _pfx, req_label, reason_label, _files_label in LEGACY_ENV_OUTPUTS:
+            env_result = classification.envs[env]
+            fh.write(f"- {req_label} required: `{str(env_result.required).lower()}`\n")
             fh.write(f"- {reason_label} reason: `{env_result.reason}`\n")
         fh.write(
             f"- Staging AI/OCR required: `{str(classification.staging_ai_ocr_required).lower()}`\n"
+            f"- Staging AI/OCR reason: `{classification.staging_ai_ocr_reason}`\n"
+            f"- Changed files: `{len(classification.files)}`\n\n"
+            "### Env x Stage Matrix\n\n"
+            "| Environment | Required | Reason | Stages | Changed files |\n"
+            "|---|---|---|---|---|\n"
         )
-        fh.write(f"- Staging AI/OCR reason: `{classification.staging_ai_ocr_reason}`\n")
-        fh.write(f"- Changed files: `{len(classification.files)}`\n")
-        fh.write("\n### Env x Stage Matrix\n\n")
-        fh.write("| Environment | Required | Reason | Stages | Changed files |\n")
-        fh.write("|---|---|---|---|---|\n")
-        for environment, env_result in classification.envs.items():
-            stages = ", ".join(stage.value for stage in env_result.stages)
+        for env, env_result in classification.envs.items():
+            stages = ", ".join(s.value for s in env_result.stages)
             fh.write(
-                f"| `{environment.value}` | `{str(env_result.required).lower()}` | "
+                f"| `{env.value}` | `{str(env_result.required).lower()}` | "
                 f"`{env_result.reason}` | `{stages}` | `{len(env_result.files)}` |\n"
             )
-        provider_gate = classification.envs[Environment.STAGING].provider_gate
-        fh.write("\n### Provider Gate Matrix\n\n")
-        fh.write("| Environment | Required | Reason | Changed files |\n")
-        fh.write("|---|---|---|---|\n")
+        pg = classification.envs[Environment.STAGING].provider_gate
         fh.write(
-            f"| `{Environment.STAGING.value}` | "
-            f"`{str(provider_gate.required).lower()}` | "
-            f"`{provider_gate.reason}` | `{len(provider_gate.files)}` |\n"
+            "\n### Provider Gate Matrix\n\n"
+            "| Environment | Required | Reason | Changed files |\n"
+            "|---|---|---|---|\n"
+            f"| `{Environment.STAGING.value}` | `{str(pg.required).lower()}` | "
+            f"`{pg.reason}` | `{len(pg.files)}` |\n"
         )
-        if classification.heavy_files:
-            fh.write("\nHeavy-triggering files:\n\n")
-            for path in classification.heavy_files[:50]:
-                fh.write(f"- `{path}`\n")
-        for (
-            environment,
-            _output_prefix,
-            _required_label,
-            _reason_label,
-            files_label,
-        ) in LEGACY_ENV_OUTPUTS:
-            env_result = classification.envs[environment]
-            if env_result.files:
-                fh.write(f"\n{files_label}-triggering files:\n\n")
-                for path in env_result.files[:50]:
-                    fh.write(f"- `{path}`\n")
-        if classification.staging_ai_ocr_files:
-            fh.write("\nStaging AI/OCR-triggering files:\n\n")
-            for path in classification.staging_ai_ocr_files[:50]:
-                fh.write(f"- `{path}`\n")
-        fh.write("\n### Component Changed (#1689 coverage-gate scoping)\n\n")
-        fh.write("| Component | Changed |\n")
-        fh.write("|---|---|\n")
+        _write_file_section(fh, "Heavy-triggering files", classification.heavy_files)
+        for env, _pfx, _req_lbl, _rsn_lbl, files_label in LEGACY_ENV_OUTPUTS:
+            _write_file_section(
+                fh, f"{files_label}-triggering files", classification.envs[env].files
+            )
+        _write_file_section(
+            fh, "Staging AI/OCR-triggering files", classification.staging_ai_ocr_files
+        )
+        fh.write(
+            "\n### Component Changed (#1689 coverage-gate scoping)\n\n"
+            "| Component | Changed |\n|---|---|\n"
+        )
         for name in COMPONENT_PREFIXES:
-            changed = classification.component_changed[name]
-            fh.write(f"| `{name}` | `{str(changed).lower()}` |\n")
+            fh.write(
+                f"| `{name}` | `{str(classification.component_changed[name]).lower()}` |\n"
+            )
         if classification.touched_e2e_tests:
             fh.write("\n### Touched Non-LLM E2E Journeys (#2670)\n\n")
             for path in classification.touched_e2e_tests:
@@ -688,22 +596,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     classification = classify_changed_paths(
         args.changed_files.read_text(encoding="utf-8").splitlines()
     )
-
     if args.github_output:
         write_github_outputs(classification, args.github_output)
     if args.github_summary:
         write_github_summary(classification, args.github_summary)
 
-    print(f"heavy_required={str(classification.heavy_required).lower()}")
-    print(f"reason={classification.reason}")
-    print(f"env_stage_required={_json_output(_env_stage_required(classification))}")
-    print(f"env_stage_reasons={_json_output(_env_stage_reasons(classification))}")
-    print(f"env_stage_stages={_json_output(_env_stage_stages(classification))}")
-    print(
-        f"provider_gate_required={_json_output(_provider_gate_required(classification))}"
-    )
-    print(f"component_changed={_json_output(dict(classification.component_changed))}")
-    print(f"changed_files={len(classification.files)}")
+    for line in (
+        f"heavy_required={str(classification.heavy_required).lower()}",
+        f"reason={classification.reason}",
+        f"env_stage_required={_json_output(_env_stage_required(classification))}",
+        f"env_stage_reasons={_json_output(_env_stage_reasons(classification))}",
+        f"env_stage_stages={_json_output(_env_stage_stages(classification))}",
+        f"provider_gate_required={_json_output(_provider_gate_required(classification))}",
+        f"component_changed={_json_output(dict(classification.component_changed))}",
+        f"changed_files={len(classification.files)}",
+    ):
+        print(line)
     return 0
 
 

@@ -134,7 +134,9 @@ def violations(
     allowed_prefix: str = ALLOWED_REGISTRY_PREFIX,
 ) -> list[str]:
     """Return formatted violation strings across all discovered or specified lockfiles."""
-    targets = list(lockfiles) if lockfiles is not None else discover_lockfiles(repo_root)
+    targets = (
+        list(lockfiles) if lockfiles is not None else discover_lockfiles(repo_root)
+    )
     if not targets:
         return [f"no package-lock.json files found under {repo_root}"]
     all_findings: list[LockfileRegistryFinding] = []
@@ -167,10 +169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     repo_root = args.repo_root.resolve()
     explicit_lockfiles = (
-        [
-            path if path.is_absolute() else (repo_root / path)
-            for path in args.lockfiles
-        ]
+        [path if path.is_absolute() else (repo_root / path) for path in args.lockfiles]
         if args.lockfiles
         else None
     )

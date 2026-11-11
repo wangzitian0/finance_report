@@ -1,19 +1,5 @@
 #!/usr/bin/env python3
-"""
-Financial Reporting Temporal Scenario Benchmark Suite.
-
-Executes end-to-end multi-period accounting scenarios against the live application
-(e.g., Staging: https://report-staging.zitian.party) and validates fundamental
-3-statement financial reconciliation identities:
-  1. Balance Sheet: Assets == Liabilities + Equity + Net Income (delta == 0.00)
-  2. Multi-period Rollforward: Month 2 Opening Balance == Month 1 Closing Balance
-  3. Income Statement: Net Income accumulates into Retained Earnings
-  4. Cash Flow: Beginning Cash + Net Cash Flow == Ending Cash
-  5. Asset Reallocation / Transfer: Zero P&L contamination on internal swaps
-
-Usage:
-  python tools/run_financial_scenario_benchmark.py --app-url https://report-staging.zitian.party --case 1,3
-"""
+"""Financial Reporting Temporal Scenario Benchmark Suite."""
 
 from __future__ import annotations
 
@@ -21,13 +7,14 @@ import argparse
 import io
 import json
 import sys
+import time
 import uuid
 import zipfile
+from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-import time
-from typing import Any, Sequence
+from typing import Any
 
 import httpx
 
@@ -46,7 +33,6 @@ from common.testing.benchmarks.case_types import (  # noqa: E402
     FLOW_TO_CASES,
     CaseResult,
 )
-from common.testing.benchmarks.oracles import verify_browser_ui_hygiene  # noqa: E402
 from common.testing.benchmarks.cases import (  # noqa: E402
     execute_case_1,
     execute_case_2,
@@ -55,10 +41,50 @@ from common.testing.benchmarks.cases import (  # noqa: E402
     execute_case_5,
     execute_case_6,
 )
+from common.testing.benchmarks.oracles import verify_browser_ui_hygiene  # noqa: E402
+
+
+def _check_resp(resp: Any, label: str, expected: tuple[int, ...] = (200,)) -> Any:
+    if resp.status_code not in expected:
+        raise RuntimeError(f"{label}: {resp.status_code} {resp.text}")
+    return resp
+
+
+def _get_json(
+    client: httpx.Client,
+    url: str,
+    label: str,
+    expected: tuple[int, ...] = (200,),
+    **kwargs: Any,
+) -> Any:
+    return _check_resp(client.get(url, **kwargs), label, expected).json()
+
+
+def _post_json(
+    client: httpx.Client,
+    url: str,
+    label: str,
+    expected: tuple[int, ...] = (200,),
+    **kwargs: Any,
+) -> Any:
+    return _check_resp(client.post(url, **kwargs), label, expected).json()
+
+
+def _qs(*pairs: tuple[str, Any]) -> str:
+    parts = [f"{k}={v}" for k, v in pairs if v is not None and v != ""]
+    return f"?{'&'.join(parts)}" if parts else ""
 
 
 class ScenarioBenchmarkRunner:
     """Benchmark scenario runner connecting to the target API."""
+
+    ENVELOPE_FACTS = (
+        "currency",
+        "period_start",
+        "period_end",
+        "opening_balance",
+        "closing_balance",
+    )
 
     def __init__(
         self,
@@ -77,29 +103,24 @@ class ScenarioBenchmarkRunner:
     def create_ephemeral_client(
         self, prefix: str = "qa_bench"
     ) -> tuple[httpx.Client, str, dict[str, Any]]:
-        """Register an ephemeral test user and return an authenticated HTTP client."""
         client = httpx.Client(
             base_url=self.base_url, verify=self.verify, timeout=self.timeout
         )
         user_email = f"{prefix}_{uuid.uuid4().hex[:8]}@test.example.com"
-        reg_resp = client.post(
+        user_data = _post_json(
+            client,
             "/api/auth/register",
+            "User registration failed",
+            expected=(200, 201),
             json={
                 "email": user_email,
                 "password": "Password123!",
                 "display_name": f"Benchmark Runner {prefix}",
             },
         )
-        if reg_resp.status_code not in (200, 201):
-            raise RuntimeError(
-                f"User registration failed: {reg_resp.status_code} {reg_resp.text}"
-            )
-
-        user_data = reg_resp.json()
         token = user_data.get("access_token")
         if not token:
             raise RuntimeError(f"No access token returned: {user_data}")
-
         client.headers.update({"Authorization": f"Bearer {token}"})
         self.pin_explicit_review_path(client)
         self.last_auth_context = {
@@ -110,23 +131,16 @@ class ScenarioBenchmarkRunner:
         return client, user_email, user_data
 
     def pin_explicit_review_path(self, client: httpx.Client) -> None:
-        """Turn off AI classification and auto-accept for the benchmark user (#2473).
-
-        Since #2405 both settings default to on. A high-confidence PDF statement then
-        posts by itself and stays "approved". The benchmark cases adjudicate each
-        item to a chosen account, so they need the statement in "parsed" status.
-        """
-        resp = client.patch(
-            "/api/users/me/settings",
-            json={
-                "enable_ai_classification": False,
-                "auto_accept_ai_suggestions": False,
-            },
+        resp = _check_resp(
+            client.patch(
+                "/api/users/me/settings",
+                json={
+                    "enable_ai_classification": False,
+                    "auto_accept_ai_suggestions": False,
+                },
+            ),
+            "Pinning explicit review path failed",
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Pinning explicit review path failed: {resp.status_code} {resp.text}"
-            )
         settings = resp.json()
         if (
             settings.get("enable_ai_classification") is not False
@@ -143,46 +157,41 @@ class ScenarioBenchmarkRunner:
         institution: str | None = None,
         currency: str = "SGD",
     ) -> str:
-        """Upload a statement PDF or CSV and return statement ID."""
         if filename.endswith(".csv") and not institution:
-            # The upload API rejects a CSV without an institution (400).
             institution = "Operating"
         if filename.endswith(".csv") and not account_id:
             account_name = f"{institution} Cash Account"
-            cache: dict[tuple[int, str, str], str] | None = getattr(
-                self, "_client_account_cache", None
+            cache: dict[tuple[int, str, str], str] = getattr(
+                self, "_client_account_cache", {}
             )
-            if cache is None:
-                cache = {}
-                self._client_account_cache = cache
+            self._client_account_cache = cache
             cache_key = (id(client), account_name, currency)
-            cached_account_id = cache.get(cache_key)
-            if cached_account_id is not None:
-                account_id = cached_account_id
-            else:
-                acc = self.create_account(
-                    client, name=account_name, type="ASSET", currency=currency
+            account_id = cache.get(cache_key)
+            if account_id is None:
+                account_id = str(
+                    self.create_account(
+                        client, name=account_name, type="ASSET", currency=currency
+                    )["id"]
                 )
-                account_id = acc["id"]
-                cache[cache_key] = str(account_id)
+                cache[cache_key] = account_id
 
         content_type = "text/csv" if filename.endswith(".csv") else "application/pdf"
-        files = {"file": (filename, file_bytes, content_type)}
-        data: dict[str, str] = {}
-        if account_id:
-            data["account_id"] = str(account_id)
-        if institution:
-            data["institution"] = institution
-
-        resp = client.post("/api/statements/upload", files=files, data=data)
-        if resp.status_code not in (200, 201, 202):
-            raise RuntimeError(
-                f"Statement upload failed: {resp.status_code} {resp.text}"
-            )
-        statement_id = resp.json().get("id")
-        if not statement_id:
-            raise RuntimeError(f"Upload response missing statement ID: {resp.json()}")
-        return str(statement_id)
+        data = {
+            k: str(v)
+            for k, v in (("account_id", account_id), ("institution", institution))
+            if v
+        }
+        body = _post_json(
+            client,
+            "/api/statements/upload",
+            "Statement upload failed",
+            expected=(200, 201, 202),
+            files={"file": (filename, file_bytes, content_type)},
+            data=data,
+        )
+        if not body.get("id"):
+            raise RuntimeError(f"Upload response missing statement ID: {body}")
+        return str(body["id"])
 
     def wait_for_statement_parsed(
         self,
@@ -193,21 +202,14 @@ class ScenarioBenchmarkRunner:
         max_rate_limit_retries: int = 2,
         retry_backoff_seconds: float = 15.0,
     ) -> dict[str, Any]:
-        """Poll statement status until a settled state.
-
-        'parsed' and 'approved' both mean parsing is done. 'rejected' and 'failed'
-        raise unless caused by a transient LLM RateLimitError that can be retried.
-        A statement can be 'approved' when the user accepts AI suggestions (#2405).
-        """
         start = time.time()
         retries_used = 0
         while time.time() - start < max_wait_seconds:
-            resp = client.get(f"/api/statements/{statement_id}")
-            if resp.status_code != 200:
-                raise RuntimeError(
-                    f"Polling statement {statement_id} failed: {resp.status_code} {resp.text}"
-                )
-            data = resp.json()
+            data = _get_json(
+                client,
+                f"/api/statements/{statement_id}",
+                f"Polling statement {statement_id} failed",
+            )
             status = data.get("status")
             if status in ("parsed", "approved"):
                 return data
@@ -216,18 +218,17 @@ class ScenarioBenchmarkRunner:
                 if "RateLimitError" in err and retries_used < max_rate_limit_retries:
                     retries_used += 1
                     time.sleep(retry_backoff_seconds)
-                    retry_resp = client.post(f"/api/statements/{statement_id}/retry")
-                    if retry_resp.status_code not in (200, 202):
-                        raise RuntimeError(
-                            f"Retrying statement {statement_id} failed: {retry_resp.status_code} {retry_resp.text}"
-                        )
+                    _check_resp(
+                        client.post(f"/api/statements/{statement_id}/retry"),
+                        f"Retrying statement {statement_id} failed",
+                        expected=(200, 202),
+                    )
                     start = time.time()
                     continue
                 raise RuntimeError(
                     f"Statement {statement_id} entered terminal failure state '{status}': {err}"
                 )
             time.sleep(poll_interval)
-
         raise TimeoutError(
             f"Statement {statement_id} did not reach parsed or approved status within {max_wait_seconds}s"
         )
@@ -242,29 +243,24 @@ class ScenarioBenchmarkRunner:
         non_pnl_counter_account_id: str | None = None,
         currency: str | None = None,
     ) -> int:
-        """Resolve any Stage 1 unmatched transactions with explicit economic intent."""
-        unmatched_resp = client.get(
-            f"/api/reconciliation/unmatched?statement_id={statement_id}"
-        )
-        if unmatched_resp.status_code != 200:
-            raise RuntimeError(
-                f"Failed to fetch unmatched items: {unmatched_resp.status_code} {unmatched_resp.text}"
-            )
-
-        items = unmatched_resp.json().get("items", [])
+        items = _get_json(
+            client,
+            f"/api/reconciliation/unmatched?statement_id={statement_id}",
+            "Failed to fetch unmatched items",
+        ).get("items", [])
         if not items:
             return 0
-
         if not currency:
             stmt_resp = client.get(f"/api/statements/{statement_id}")
-            if stmt_resp.status_code == 200:
-                currency = stmt_resp.json().get("currency", "SGD")
-            else:
-                currency = "SGD"
+            currency = (
+                stmt_resp.json().get("currency", "SGD")
+                if stmt_resp.status_code == 200
+                else "SGD"
+            )
 
-        def get_or_create_counter_account(acc_type: str, curr: str) -> str:
-            client_scope = str(client.headers.get("Authorization") or id(client))
-            key = (client_scope, acc_type, curr)
+        def counter_account(acc_type: str, curr: str) -> str:
+            scope = str(client.headers.get("Authorization") or id(client))
+            key = (scope, acc_type, curr)
             if key not in self._counter_accounts_cache:
                 target_name = f"{acc_type.capitalize()} - Other {curr}"
                 list_resp = client.get("/api/accounts")
@@ -279,22 +275,18 @@ class ScenarioBenchmarkRunner:
                             self._counter_accounts_cache[key] = str(existing["id"])
                             break
             if key not in self._counter_accounts_cache:
-                acc = self.create_account(
+                self._counter_accounts_cache[key] = self.create_account(
                     client,
                     name=f"{acc_type.capitalize()} - Other {curr}",
                     type=acc_type,
                     currency=curr,
-                )
-                self._counter_accounts_cache[key] = acc["id"]
+                )["id"]
             return self._counter_accounts_cache[key]
 
-        count = 0
         for item in items:
             txn_id = item["id"]
-            direction = item.get("direction", "OUT")
             desc = item.get("description", "")
             txn_curr = item.get("currency") or currency
-
             if non_pnl_intent and non_pnl_counter_account_id:
                 payload = {
                     "intent": non_pnl_intent,
@@ -302,104 +294,70 @@ class ScenarioBenchmarkRunner:
                     "rationale": f"Benchmark non-P&L disposition for {desc}",
                 }
             else:
-                is_in = direction == "IN"
-                intent = "income" if is_in else "expense"
-                acc_type = "INCOME" if is_in else "EXPENSE"
-                category = (
-                    default_income_category if is_in else default_expense_category
-                )
-                acc_id = get_or_create_counter_account(acc_type, txn_curr)
+                is_in = item.get("direction", "OUT") == "IN"
                 payload = {
-                    "intent": intent,
-                    "counter_account_id": acc_id,
-                    "category": category,
+                    "intent": "income" if is_in else "expense",
+                    "counter_account_id": counter_account(
+                        "INCOME" if is_in else "EXPENSE", txn_curr
+                    ),
+                    "category": (
+                        default_income_category if is_in else default_expense_category
+                    ),
                     "rationale": f"Benchmark disposition for {desc}",
                 }
-
-            disp_resp = client.post(
+            _post_json(
+                client,
                 f"/api/reconciliation/unmatched/{txn_id}/reviewed-disposition",
+                f"Adjudication failed for txn {txn_id}",
                 json=payload,
             )
-            if disp_resp.status_code != 200:
-                raise RuntimeError(
-                    f"Adjudication failed for txn {txn_id}: {disp_resp.status_code} {disp_resp.text}"
-                )
-            count += 1
-
-        return count
-
-    # The review envelope states these facts of the parsed statement. The run reads each fact
-    # from the statement. It never invents one (#2484).
-    ENVELOPE_FACTS = (
-        "currency",
-        "period_start",
-        "period_end",
-        "opening_balance",
-        "closing_balance",
-    )
+        return len(items)
 
     def confirm_review_envelope(self, client: httpx.Client, statement_id: str) -> None:
-        """Confirm the source envelope of a statement that needs a human confirmation."""
-        review_resp = client.get(f"/api/statements/{statement_id}/review")
-        if review_resp.status_code != 200:
-            raise RuntimeError(
-                f"Review lookup failed for statement {statement_id}: "
-                f"{review_resp.status_code} {review_resp.text}"
-            )
-        review = review_resp.json()
-        stmt_resp = client.get(f"/api/statements/{statement_id}")
-        if stmt_resp.status_code != 200:
-            raise RuntimeError(
-                f"Failed to fetch statement {statement_id}: {stmt_resp.status_code} {stmt_resp.text}"
-            )
-        stmt = stmt_resp.json()
-        missing = [key for key in self.ENVELOPE_FACTS if stmt.get(key) in (None, "")]
+        review = _get_json(
+            client,
+            f"/api/statements/{statement_id}/review",
+            f"Review lookup failed for statement {statement_id}",
+        )
+        stmt = _get_json(
+            client,
+            f"/api/statements/{statement_id}",
+            f"Failed to fetch statement {statement_id}",
+        )
+        missing = [k for k in self.ENVELOPE_FACTS if stmt.get(k) in (None, "")]
         if missing:
             raise RuntimeError(
                 f"Cannot confirm the review envelope for statement {statement_id}: "
                 f"the parsed statement has no {', '.join(missing)}"
             )
-        payload = {
-            "source_result_digest": review.get("source_result_digest"),
-            "account_id": review.get("account_id") or stmt.get("account_id"),
-            **{key: str(stmt[key]) for key in self.ENVELOPE_FACTS},
-            "rationale": "Benchmark automated review envelope confirmation",
-        }
-        conf_resp = client.post(
-            f"/api/statements/{statement_id}/review/envelope", json=payload
+        _post_json(
+            client,
+            f"/api/statements/{statement_id}/review/envelope",
+            f"Review envelope confirmation failed for statement {statement_id}",
+            expected=(200, 201),
+            json={
+                "source_result_digest": review.get("source_result_digest"),
+                "account_id": review.get("account_id") or stmt.get("account_id"),
+                **{k: str(stmt[k]) for k in self.ENVELOPE_FACTS},
+                "rationale": "Benchmark automated review envelope confirmation",
+            },
         )
-        if conf_resp.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Review envelope confirmation failed for statement {statement_id}: "
-                f"{conf_resp.status_code} {conf_resp.text}"
-            )
 
     def approve_statement(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        """Approve statement to post ledger entries.
-
-        A statement that is already approved is returned as is, so a repeat call does
-        not fail on a settled statement. A statement that needs a human confirmation
-        gets its review envelope first.
-        """
         current = client.get(f"/api/statements/{statement_id}")
         if current.status_code == 200 and current.json().get("status") == "approved":
             return current.json()
-        approve_url = f"/api/statements/{statement_id}/review/approve"
-        resp = client.post(approve_url, json={"create_account_if_missing": True})
+        url = f"/api/statements/{statement_id}/review/approve"
+        resp = client.post(url, json={"create_account_if_missing": True})
         if (
             resp.status_code == 400
             and "requires explicit human confirmation before posting" in resp.text
         ):
             self.confirm_review_envelope(client, statement_id)
-            resp = client.post(approve_url, json={"create_account_if_missing": True})
-
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Approval failed for statement {statement_id}: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+            resp = client.post(url, json={"create_account_if_missing": True})
+        return _check_resp(resp, f"Approval failed for statement {statement_id}").json()
 
     def reject_statement(
         self,
@@ -407,16 +365,12 @@ class ScenarioBenchmarkRunner:
         statement_id: str,
         notes: str = "Low quality corrupted scan rejected in triage",
     ) -> dict[str, Any]:
-        """Reject a statement during Stage 1 triage (Flow 9)."""
-        resp = client.post(
+        data = _post_json(
+            client,
             f"/api/statements/{statement_id}/review/reject",
+            f"Rejection failed for statement {statement_id}",
             json={"notes": notes},
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Rejection failed for statement {statement_id}: {resp.status_code} {resp.text}"
-            )
-        data = resp.json()
         if data.get("status") != "rejected":
             raise RuntimeError(
                 f"Expected rejected status for statement {statement_id}, got: {data}"
@@ -426,27 +380,23 @@ class ScenarioBenchmarkRunner:
     def assert_approval_blocked_by_balance_mismatch(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        """Verify Stage 1 approval fails with 400 or 422 on a balance mismatch (Flow 7)."""
-        resp = client.post(
-            f"/api/statements/{statement_id}/review/approve",
-            json={},
-        )
+        resp = client.post(f"/api/statements/{statement_id}/review/approve", json={})
         if resp.status_code not in (400, 422):
             raise RuntimeError(
                 f"Expected balance mismatch approval block (400/422) for {statement_id}, got {resp.status_code}: {resp.text}"
             )
         body = resp.json()
-        detail = body.get("detail", resp.text) if isinstance(body, dict) else resp.text
-        return {"status_code": resp.status_code, "detail": detail}
+        return {
+            "status_code": resp.status_code,
+            "detail": body.get("detail", resp.text)
+            if isinstance(body, dict)
+            else resp.text,
+        }
 
     def assert_brokerage_import_requires_snapshot_date(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        """Verify brokerage import rejects an undated CSV statement with 422 (Flow 19)."""
-        resp = client.post(
-            f"/api/statements/{statement_id}/brokerage/import",
-            json={},
-        )
+        resp = client.post(f"/api/statements/{statement_id}/brokerage/import", json={})
         if resp.status_code != 422:
             raise RuntimeError(
                 f"Expected undated brokerage CSV import to fail with 422 for {statement_id}, got {resp.status_code}: {resp.text}"
@@ -470,87 +420,69 @@ class ScenarioBenchmarkRunner:
         as_of_date: str | None = None,
         currency: str | None = None,
     ) -> dict[str, Any]:
-        """Fetch personal data quality health and pending triage actions (Flow 24)."""
-        params: dict[str, str] = {}
-        if as_of_date:
-            params["as_of_date"] = as_of_date
-        if currency:
-            params["currency"] = currency
-        resp = client.get("/api/reports/data-quality", params=params)
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Get data quality health failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        params = {
+            k: v for k, v in (("as_of_date", as_of_date), ("currency", currency)) if v
+        }
+        return _get_json(
+            client,
+            "/api/reports/data-quality",
+            "Get data quality health failed",
+            params=params,
+        )
 
     def run_stage2_consistency_checks(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        """Run Stage 2 consistency and deduplication checks for a statement (Flow 8)."""
-        resp = client.post(f"/api/statements/{statement_id}/stage2/run-checks")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Stage 2 consistency checks failed for {statement_id}: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        return _post_json(
+            client,
+            f"/api/statements/{statement_id}/stage2/run-checks",
+            f"Stage 2 consistency checks failed for {statement_id}",
+        )
 
     def batch_approve_matches(
         self, client: httpx.Client, match_ids: list[str] | None = None
     ) -> dict[str, Any]:
-        """Batch approve pending Stage 2 matches when consistency checks are resolved (Flow 12)."""
-        resp = client.post(
+        return _post_json(
+            client,
             "/api/statements/batch-approve-matches",
+            "Batch approve matches failed",
             json={"match_ids": match_ids or []},
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Batch approve matches failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
 
     def run_reconciliation(
         self, client: httpx.Client, statement_id: str | None = None
     ) -> dict[str, Any]:
-        """Execute automated cross-source reconciliation matching (Flow 15)."""
-        payload: dict[str, Any] = {}
-        if statement_id:
-            payload["statement_id"] = statement_id
-        resp = client.post("/api/reconciliation/runs", json=payload)
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Reconciliation run failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        payload = {"statement_id": statement_id} if statement_id else {}
+        return _post_json(
+            client,
+            "/api/reconciliation/runs",
+            "Reconciliation run failed",
+            json=payload,
+        )
 
     def accept_reconciliation_matches(self, client: httpx.Client) -> int:
-        """Fetch pending reconciliation matches and accept them (Flow 16)."""
-        list_resp = client.get("/api/reconciliation/matches?status=pending_review")
-        if list_resp.status_code != 200:
-            raise RuntimeError(
-                f"Listing pending reconciliation matches failed: {list_resp.status_code} {list_resp.text}"
-            )
-        items = list_resp.json().get("items", [])
-        accepted = 0
+        items = _get_json(
+            client,
+            "/api/reconciliation/matches?status=pending_review",
+            "Listing pending reconciliation matches failed",
+        ).get("items", [])
         for match in items:
             match_id = match["id"]
-            acc_resp = client.post(f"/api/reconciliation/matches/{match_id}/accept")
-            if acc_resp.status_code != 200:
-                raise RuntimeError(
-                    f"Accepting reconciliation match {match_id} failed: {acc_resp.status_code} {acc_resp.text}"
-                )
-            accepted += 1
-        return accepted
+            _post_json(
+                client,
+                f"/api/reconciliation/matches/{match_id}/accept",
+                f"Accepting reconciliation match {match_id} failed",
+            )
+        return len(items)
 
     def list_transaction_anomalies(
         self, client: httpx.Client, txn_id: str
     ) -> list[dict[str, Any]]:
-        """List recurring cadence and amount anomalies for a transaction (Flow 29)."""
-        resp = client.get(f"/api/reconciliation/transactions/{txn_id}/anomalies")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Transaction anomalies request failed for {txn_id}: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        return _get_json(
+            client,
+            f"/api/reconciliation/transactions/{txn_id}/anomalies",
+            f"Transaction anomalies request failed for {txn_id}",
+        )
 
     def post_reconciliation_adjustment(
         self,
@@ -560,9 +492,10 @@ class ScenarioBenchmarkRunner:
         book_balance: str,
         threshold: str = "0.05",
     ) -> dict[str, Any]:
-        """Post an immaterial penny rounding adjustment (Flow 18)."""
-        resp = client.post(
+        return _post_json(
+            client,
             "/api/reconciliation/adjustment",
+            "Reconciliation adjustment failed",
             json={
                 "account_id": account_id,
                 "bank_balance": bank_balance,
@@ -570,23 +503,15 @@ class ScenarioBenchmarkRunner:
                 "threshold": threshold,
             },
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Reconciliation adjustment failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
 
     def get_report_coverage(
         self, client: httpx.Client, as_of_date: str | None = None
     ) -> dict[str, Any]:
-        """Fetch report continuous coverage start date and limiting accounts."""
-        params = f"?as_of_date={as_of_date}" if as_of_date else ""
-        resp = client.get(f"/api/reports/coverage{params}")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Report coverage request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        return _get_json(
+            client,
+            f"/api/reports/coverage{_qs(('as_of_date', as_of_date))}",
+            "Report coverage request failed",
+        )
 
     def get_balance_sheet_diagnostics(
         self,
@@ -594,19 +519,12 @@ class ScenarioBenchmarkRunner:
         as_of_date: str | None = None,
         currency: str | None = None,
     ) -> dict[str, Any]:
-        """Fetch balance sheet accounting equation diagnostic triage (Flow 24)."""
-        params: list[str] = []
-        if as_of_date:
-            params.append(f"as_of_date={as_of_date}")
-        if currency:
-            params.append(f"currency={currency}")
-        query = f"?{'&'.join(params)}" if params else ""
-        resp = client.get(f"/api/reports/balance-sheet/diagnostics{query}")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Balance sheet diagnostics request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        q = _qs(("as_of_date", as_of_date), ("currency", currency))
+        return _get_json(
+            client,
+            f"/api/reports/balance-sheet/diagnostics{q}",
+            "Balance sheet diagnostics request failed",
+        )
 
     def get_account_lineage(
         self,
@@ -615,18 +533,16 @@ class ScenarioBenchmarkRunner:
         as_of_date: str | None = None,
         currency: str | None = None,
     ) -> dict[str, Any]:
-        """Fetch report line provenance lineage for an account (Flow 27)."""
-        params = [f"account_id={account_id}"]
-        if as_of_date:
-            params.append(f"as_of_date={as_of_date}")
-        if currency:
-            params.append(f"currency={currency}")
-        resp = client.get(f"/api/reports/account-lineage?{'&'.join(params)}")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Account lineage request failed for {account_id}: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        q = _qs(
+            ("account_id", account_id),
+            ("as_of_date", as_of_date),
+            ("currency", currency),
+        )
+        return _get_json(
+            client,
+            f"/api/reports/account-lineage{q}",
+            f"Account lineage request failed for {account_id}",
+        )
 
     def export_annual_tax_archive(
         self,
@@ -634,15 +550,13 @@ class ScenarioBenchmarkRunner:
         year: int = 2025,
         currency: str = "SGD",
     ) -> dict[str, Any]:
-        """Export the annual tax and audit package ZIP and parse its manifest.json (Flow 28)."""
-        resp = client.post(
-            "/api/reports/package/annual-archive",
-            json={"year": year, "currency": currency},
+        resp = _check_resp(
+            client.post(
+                "/api/reports/package/annual-archive",
+                json={"year": year, "currency": currency},
+            ),
+            "Annual tax archive export failed",
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Annual tax archive export failed: {resp.status_code} {resp.text}"
-            )
         with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
             manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
         if not manifest.get("files"):
@@ -656,46 +570,37 @@ class ScenarioBenchmarkRunner:
         currency: str | None = None,
         include_restricted: bool | None = None,
     ) -> dict[str, Any]:
-        params: list[str] = []
-        if as_of_date:
-            params.append(f"as_of_date={as_of_date}")
-        if currency:
-            params.append(f"currency={currency}")
-        if include_restricted is not None:
-            params.append(
-                f"include_restricted={'true' if include_restricted else 'false'}"
-            )
-        query = f"?{'&'.join(params)}" if params else ""
-        resp = client.get(f"/api/reports/balance-sheet{query}")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Balance sheet request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        inc = (
+            None
+            if include_restricted is None
+            else ("true" if include_restricted else "false")
+        )
+        q = _qs(
+            ("as_of_date", as_of_date),
+            ("currency", currency),
+            ("include_restricted", inc),
+        )
+        return _get_json(
+            client, f"/api/reports/balance-sheet{q}", "Balance sheet request failed"
+        )
 
     def get_income_statement(
         self, client: httpx.Client, start_date: str, end_date: str
     ) -> dict[str, Any]:
-        resp = client.get(
-            f"/api/reports/income-statement?start_date={start_date}&end_date={end_date}"
+        return _get_json(
+            client,
+            f"/api/reports/income-statement?start_date={start_date}&end_date={end_date}",
+            "Income statement request failed",
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Income statement request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
 
     def get_cash_flow(
         self, client: httpx.Client, start_date: str, end_date: str
     ) -> dict[str, Any]:
-        resp = client.get(
-            f"/api/reports/cash-flow?start_date={start_date}&end_date={end_date}"
+        return _get_json(
+            client,
+            f"/api/reports/cash-flow?start_date={start_date}&end_date={end_date}",
+            "Cash flow request failed",
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Cash flow request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
 
     def import_brokerage_positions(
         self,
@@ -707,37 +612,31 @@ class ScenarioBenchmarkRunner:
         body: dict[str, Any] = {"filename": filename, "payload": payload}
         if source_document_id is not None:
             body["source_document_id"] = source_document_id
-        resp = client.post(
+        return _post_json(
+            client,
             "/api/portfolio/brokerage/import",
+            "Brokerage import request failed",
             json=body,
         )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Brokerage import request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
 
     def get_holdings(
         self, client: httpx.Client, as_of_date: str | None = None
     ) -> dict[str, Any]:
-        params = f"?as_of_date={as_of_date}" if as_of_date else ""
-        resp = client.get(f"/api/portfolio/holdings{params}")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Holdings request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        return _get_json(
+            client,
+            f"/api/portfolio/holdings{_qs(('as_of_date', as_of_date))}",
+            "Holdings request failed",
+        )
 
     def update_market_prices(
-        self,
-        client: httpx.Client,
-        updates: list[dict[str, Any]],
+        self, client: httpx.Client, updates: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        """Update market prices manually for portfolio securities."""
-        resp = client.post("/api/portfolio/prices/update", json={"updates": updates})
-        if resp.status_code != 200:
-            raise RuntimeError(f"Price update failed: {resp.status_code} {resp.text}")
-        return resp.json()
+        return _post_json(
+            client,
+            "/api/portfolio/prices/update",
+            "Price update failed",
+            json={"updates": updates},
+        )
 
     def create_account(
         self,
@@ -746,16 +645,13 @@ class ScenarioBenchmarkRunner:
         type: str,
         currency: str = "SGD",
     ) -> dict[str, Any]:
-        """Create a ledger account (e.g., ASSET, LIABILITY, EXPENSE, INCOME)."""
-        resp = client.post(
+        return _post_json(
+            client,
             "/api/accounts",
+            f"Failed to create account '{name}'",
+            expected=(200, 201),
             json={"name": name, "type": type, "currency": currency},
         )
-        if resp.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Failed to create account '{name}': {resp.status_code} {resp.text}"
-            )
-        return resp.json()
 
     def post_manual_journal_entry(
         self,
@@ -765,9 +661,11 @@ class ScenarioBenchmarkRunner:
         entry_date: str = "2025-04-10",
         rationale: str = "Benchmark manual journal entry",
     ) -> dict[str, Any]:
-        """Create and post a balanced double-entry manual journal entry."""
-        create_resp = client.post(
+        draft = _post_json(
+            client,
             "/api/journal-entries",
+            "Failed to create draft journal entry",
+            expected=(200, 201),
             json={
                 "entry_date": entry_date,
                 "memo": memo,
@@ -775,17 +673,13 @@ class ScenarioBenchmarkRunner:
                 "rationale": rationale,
             },
         )
-        if create_resp.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Failed to create draft journal entry: {create_resp.status_code} {create_resp.text}"
-            )
-        entry_id = create_resp.json()["id"]
-        post_resp = client.post(f"/api/journal-entries/{entry_id}/postings")
-        if post_resp.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Failed to post journal entry {entry_id}: {post_resp.status_code} {post_resp.text}"
-            )
-        return post_resp.json()
+        entry_id = draft["id"]
+        return _post_json(
+            client,
+            f"/api/journal-entries/{entry_id}/postings",
+            f"Failed to post journal entry {entry_id}",
+            expected=(200, 201),
+        )
 
     def create_valuation_snapshot(
         self,
@@ -799,7 +693,6 @@ class ScenarioBenchmarkRunner:
         liquidity_class: str = "illiquid",
         notes: str | None = None,
     ) -> dict[str, Any]:
-        """Register a manual asset valuation snapshot (e.g. real estate appraisal)."""
         payload: dict[str, Any] = {
             "component_type": component_type,
             "as_of_date": as_of_date,
@@ -811,39 +704,28 @@ class ScenarioBenchmarkRunner:
         }
         if notes:
             payload["notes"] = notes
-        resp = client.post("/api/assets/valuation-snapshots", json=payload)
-        if resp.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Valuation snapshot failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        return _post_json(
+            client,
+            "/api/assets/valuation-snapshots",
+            "Valuation snapshot failed",
+            expected=(200, 201),
+            json=payload,
+        )
 
     def get_valuation_components(
-        self,
-        client: httpx.Client,
-        as_of_date: str | None = None,
+        self, client: httpx.Client, as_of_date: str | None = None
     ) -> dict[str, Any]:
-        """Fetch manual valuation components summary."""
-        params = f"?as_of_date={as_of_date}" if as_of_date else ""
-        resp = client.get(f"/api/assets/valuation-components{params}")
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Valuation components request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.json()
+        return _get_json(
+            client,
+            f"/api/assets/valuation-components{_qs(('as_of_date', as_of_date))}",
+            "Valuation components request failed",
+        )
 
     def query_ai_advisor(self, client: httpx.Client, question: str) -> str:
-        """Query AI Advisor for conversational insights and grounding (Pillar 1)."""
-        resp = client.post(
-            "/api/chat",
-            json={"message": question},
-            timeout=self.timeout,
-        )
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"AI Advisor request failed: {resp.status_code} {resp.text}"
-            )
-        return resp.text
+        return _check_resp(
+            client.post("/api/chat", json={"message": question}, timeout=self.timeout),
+            "AI Advisor request failed",
+        ).text
 
     def verify_browser_ui_hygiene(
         self,
@@ -851,7 +733,6 @@ class ScenarioBenchmarkRunner:
         routes: list[str] | None = None,
         allow_skip_if_no_browser: bool = True,
     ) -> dict[str, Any]:
-        """Verify Pillar 2 (Zero Console Error) & Pillar 3 (DOM Hygiene Scanner)."""
         return verify_browser_ui_hygiene(
             self,
             auth_context=auth_context,
@@ -861,152 +742,54 @@ class ScenarioBenchmarkRunner:
 
 
 def execute_case_ui(runner: ScenarioBenchmarkRunner) -> CaseResult:
-    """Execute Browser UI Hygiene and Zero Console Error Physical Invariant (Pillars 2 & 3)."""
     start_time = time.time()
     case_name = "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle"
-    print("\n=======================================================")
-    print(f"🚀 RUNNING: {case_name}")
-    print("=======================================================")
-
     try:
         if not runner.last_auth_context:
-            client, email, _ = runner.create_ephemeral_client("case_ui")
-            print(f"  Registered test user for UI hygiene: {email}")
-
+            runner.create_ephemeral_client("case_ui")
         hygiene_res = runner.verify_browser_ui_hygiene(allow_skip_if_no_browser=True)
-        duration = time.time() - start_time
-        if hygiene_res.get("status") == "SKIPPED":
-            print(
-                f"⚠️ {case_name} SKIPPED in {duration:.2f}s: {hygiene_res.get('reason')}\n"
-            )
-            return CaseResult(
-                case_id="case_ui",
-                case_name=case_name,
-                status="SKIPPED",
-                duration_seconds=duration,
-                details=hygiene_res,
-            )
-        print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
+        status = "SKIPPED" if hygiene_res.get("status") == "SKIPPED" else "PASS"
         return CaseResult(
             case_id="case_ui",
             case_name=case_name,
-            status="PASS",
-            duration_seconds=duration,
+            status=status,
+            duration_seconds=time.time() - start_time,
             details=hygiene_res,
         )
     except Exception as exc:
-        duration = time.time() - start_time
-        print(f"❌ {case_name} FAILED in {duration:.2f}s: {exc}\n")
         return CaseResult(
             case_id="case_ui",
             case_name=case_name,
             status="FAIL",
-            duration_seconds=duration,
+            duration_seconds=time.time() - start_time,
             error_message=str(exc),
         )
-
-
-# =====================================================================
-# Main Orchestrator & CLI Entrypoint
-# =====================================================================
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Financial Reporting Multi-Scenario Benchmark Suite."
     )
+    parser.add_argument("--app-url", default="https://report-staging.zitian.party")
+    parser.add_argument("--case", default=None)
+    parser.add_argument("--version-ref", default="v2.0")
     parser.add_argument(
-        "--app-url",
-        default="https://report-staging.zitian.party",
-        help="Target base URL (default: https://report-staging.zitian.party)",
+        "--json-report", type=Path, default=REPO_ROOT / "tmp/benchmark_run_report.json"
     )
-    parser.add_argument(
-        "--case",
-        default=None,
-        help=(
-            "Comma-separated case IDs to run (1 to 6, ui, or all). "
-            "Default: all, unless --domain or --flow is set."
-        ),
-    )
-    parser.add_argument(
-        "--version-ref",
-        default="v2.0",
-        help="Release tag or version identifier (default: v2.0)",
-    )
-    parser.add_argument(
-        "--json-report",
-        type=Path,
-        default=REPO_ROOT / "tmp/benchmark_run_report.json",
-        help="Path to output JSON benchmark report",
-    )
-    parser.add_argument(
-        "--output-html",
-        type=Path,
-        default=None,
-        help="Path to output standalone single-file HTML report",
-    )
-    parser.add_argument(
-        "--output-summary",
-        type=Path,
-        default=None,
-        help="Path to output summary JSON for dashboard aggregation",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=None,
-        help="Path to previous benchmark report/summary JSON for baseline diff",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=float,
-        default=180.0,
-        help="HTTP timeout per request in seconds",
-    )
-    parser.add_argument(
-        "--insecure",
-        action="store_true",
-        default=False,
-        help="Disable TLS certificate verification for local development/testing",
-    )
-    parser.add_argument(
-        "--cassette",
-        choices=["replay", "off"],
-        default="off",
-        help="Enable cassette replay mode for fast execution without live OCR latency",
-    )
-    parser.add_argument(
-        "--domain",
-        type=str,
-        default=None,
-        help="Comma-separated canonical domains to execute (1-7 or 'all')",
-    )
-    parser.add_argument(
-        "--flow",
-        type=str,
-        default=None,
-        help="Comma-separated canonical flow IDs to execute (1-30 or 'all')",
-    )
-    parser.add_argument(
-        "--verify-ui",
-        action="store_true",
-        default=False,
-        help="Execute Playwright browser UI hygiene and zero console error invariant verification",
-    )
-    parser.add_argument(
-        "--allow-skip",
-        action="store_true",
-        default=False,
-        help=(
-            "Do not fail the run when a case is SKIPPED (for example, no browser). "
-            "A run with no PASS case still fails."
-        ),
-    )
+    parser.add_argument("--output-html", type=Path, default=None)
+    parser.add_argument("--output-summary", type=Path, default=None)
+    parser.add_argument("--baseline", type=Path, default=None)
+    parser.add_argument("--timeout", type=float, default=180.0)
+    parser.add_argument("--insecure", action="store_true", default=False)
+    parser.add_argument("--cassette", choices=["replay", "off"], default="off")
+    parser.add_argument("--domain", type=str, default=None)
+    parser.add_argument("--flow", type=str, default=None)
+    parser.add_argument("--verify-ui", action="store_true", default=False)
+    parser.add_argument("--allow-skip", action="store_true", default=False)
     return parser.parse_args(argv)
 
 
 def _normalize_case_id(token: str) -> str:
-    """Map `case_1`, `case1` and `1` to `1`."""
     token = token.strip().lower()
     for prefix in ("case_", "case"):
         if token.startswith(prefix):
@@ -1020,8 +803,6 @@ def _dispatch_cases(
     domain_arg: str | None = None,
     flow_arg: str | None = None,
 ) -> list[CaseResult]:
-    """Run the selected cases. Raise ValueError for an unknown case, domain or flow id."""
-    # Looked up at call time, so a test can replace one executor.
     executors = {
         "1": execute_case_1,
         "2": execute_case_2,
@@ -1060,9 +841,9 @@ def _dispatch_cases(
 
     run_all = "all" in requested
     results = [
-        executors[case_id](runner)
-        for case_id in sorted(executors)
-        if run_all or case_id in requested
+        executors[cid](runner)
+        for cid in sorted(executors)
+        if run_all or cid in requested
     ]
     if run_all or "ui" in requested or getattr(runner, "verify_ui", False):
         results.append(execute_case_ui(runner))
@@ -1088,31 +869,24 @@ def _build_report_data(
     }
 
 
-def _save_reports(
-    args: argparse.Namespace,
-    report_data: dict[str, Any],
-) -> None:
+def _save_reports(args: argparse.Namespace, report_data: dict[str, Any]) -> None:
     safe_report = sanitize_for_json(report_data)
     if args.json_report:
         write_utf8_atomic(args.json_report, json.dumps(safe_report, indent=2))
-
     baseline_data = None
     if args.baseline and args.baseline.exists():
         try:
-            with open(args.baseline, "r", encoding="utf-8") as f:
-                baseline_data = json.load(f)
+            baseline_data = json.loads(args.baseline.read_text(encoding="utf-8"))
         except Exception as exc:
-            print(f"⚠️ Failed to read baseline {args.baseline}: {exc}", file=sys.stderr)
-
+            print(f"Failed to read baseline {args.baseline}: {exc}", file=sys.stderr)
     if args.output_html:
-        html_report = generate_html_report(safe_report, baseline_data=baseline_data)
-        write_utf8_atomic(args.output_html, html_report)
-        print(f"HTML report saved to: {args.output_html} ({len(html_report)} bytes)")
-
+        write_utf8_atomic(
+            args.output_html,
+            generate_html_report(safe_report, baseline_data=baseline_data),
+        )
     if args.output_summary:
         summary_data = sanitize_for_json(extract_summary_data(safe_report))
         write_utf8_atomic(args.output_summary, json.dumps(summary_data, indent=2))
-        print(f"Summary JSON saved to: {args.output_summary}")
 
 
 def _print_summary(
@@ -1120,34 +894,21 @@ def _print_summary(
     report_data: dict[str, Any],
     json_report_path: Path | None,
 ) -> None:
-    print("======================================================================")
-    print("BENCHMARK EXECUTION SUMMARY")
-    print("======================================================================")
     for r in results:
-        status_icon = {"PASS": "✅ PASS", "SKIPPED": "⚠️ SKIPPED"}.get(
-            r.status, "❌ FAIL"
-        )
         print(
-            f"{status_icon} | {r.case_id.upper()}: {r.case_name} ({r.duration_seconds:.2f}s)"
+            f"{r.status} | {r.case_id.upper()}: {r.case_name} ({r.duration_seconds:.2f}s)"
         )
         if r.error_message:
-            print(f"       Error: {r.error_message}")
-    print("----------------------------------------------------------------------")
+            print(f"  Error: {r.error_message}")
+    s = report_data["summary"]
     print(
-        f"Total: {len(results)} | Passed: {report_data['summary']['passed']} | "
-        f"Skipped: {report_data['summary']['skipped']} | Failed: {report_data['summary']['failed']}"
+        f"Total: {len(results)} | Passed: {s['passed']} | Skipped: {s['skipped']} | Failed: {s['failed']}"
     )
     if json_report_path:
         print(f"Report saved to: {json_report_path}")
-    print("======================================================================")
 
 
 def _run_succeeded(results: list[CaseResult], allow_skip: bool) -> bool:
-    """A run succeeds when no case failed and at least one case passed.
-
-    A SKIPPED case fails the run unless `allow_skip` is set. A run with only
-    SKIPPED cases never succeeds.
-    """
     if any(r.status not in ("PASS", "SKIPPED") for r in results):
         return False
     if not allow_skip and any(r.status == "SKIPPED" for r in results):
@@ -1157,25 +918,11 @@ def _run_succeeded(results: list[CaseResult], allow_skip: bool) -> bool:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
-    # --domain and --flow narrow the run. Without them, an unset --case means all.
     case_arg = (
         args.case
         if args.case is not None
         else ("" if (args.domain or args.flow) else "all")
     )
-
-    print("======================================================================")
-    print("FINANCIAL REPORTING TEMPORAL BENCHMARK SUITE")
-    print(f"Target Environment: {args.app_url}")
-    print(f"Version Ref:        {args.version_ref}")
-    print(f"Cases Selected:     {case_arg or '(none)'}")
-    if args.domain:
-        print(f"Domains Selected:   {args.domain}")
-    if args.flow:
-        print(f"Flows Selected:     {args.flow}")
-    print(f"Started At:         {datetime.now(UTC).isoformat()}")
-    print("======================================================================")
-
     runner = ScenarioBenchmarkRunner(
         base_url=args.app_url,
         timeout=args.timeout,
@@ -1183,23 +930,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         replay_mode=args.cassette,
     )
     runner.verify_ui = args.verify_ui
-
     try:
         results = _dispatch_cases(
             runner, case_arg, domain_arg=args.domain, flow_arg=args.flow
         )
     except ValueError as exc:
-        print(f"❌ Error: {exc}", file=sys.stderr)
+        print(f"Error: {exc}", file=sys.stderr)
         return 2
     if not results:
-        print("❌ Error: No valid benchmark cases selected.", file=sys.stderr)
+        print("Error: No valid benchmark cases selected.", file=sys.stderr)
         return 2
-
     all_passed = _run_succeeded(results, args.allow_skip)
     report_data = _build_report_data(args, results, all_passed)
     _save_reports(args, report_data)
     _print_summary(results, report_data, args.json_report)
-
     return 0 if all_passed else 1
 
 

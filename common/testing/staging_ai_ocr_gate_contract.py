@@ -9,6 +9,8 @@ import json
 import re
 import shlex
 import sys
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -32,33 +34,14 @@ from common.audit.base.trace import (  # noqa: E402
 from common.audit.extension.trace_codec import TraceRecordCodec  # noqa: E402
 from common.testing.coverage.junit import iter_testcases  # noqa: E402
 
-
 REPO_ROOT = ROOT_DIR
 
-SUPPLEMENTAL_LLM_FILES = [
-    "tests/e2e/test_statement_upload_e2e.py",
-]
-
-# The minimal production-promotion AI/OCR canary corpus (issue #1232, #2817, AC8.13.156).
-# This is a hand-curated SUBSET of the derived llm post-merge corpus (gate_files):
-# the smallest set that proves the real-provider upload -> parse -> import/approve -> value
-# liveness path users need in production across both brokerage and multi-page Chinese bank
-# statement layouts, with NO broad audit assertions (report_verifications == 0).
-# Everything else in the derived corpus is audit-replay (audit_replay_files = gate_files - canary),
-# so a newly-added heavy `@ac_proof` journey defaults to audit-replay and can
-# never silently creep into the blocking path (AC8.13.159).
+SUPPLEMENTAL_LLM_FILES = ["tests/e2e/test_statement_upload_e2e.py"]
 CANARY_FILES = [
     "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
     "tests/e2e/test_institution_statement_journeys.py",
 ]
-
-# The journey-board checkpoint map (#2370). Its proof files are the
-# core_journey corpus, so a new core-journey proof needs no second list.
 CORE_JOURNEY_MAP_PATH = ROOT_DIR / "common/testing/data/core-journey-checkpoints.json"
-
-# Journeys that fire many provider calls in a short time run last. The provider answers the next
-# journey with a rate limit or a time-out otherwise, and the statement stays at `intent_missing` (#2534).
-# The replay counters count only provider uploads, so they cannot rank these journeys.
 CORE_JOURNEY_LAST = ("tests/e2e/test_twelve_month_journey.py",)
 
 REPLAY_COUNTERS_PATH = (
@@ -71,49 +54,41 @@ REPLAY_COUNTERS: dict[str, dict[str, int]] = json.loads(
 
 @functools.lru_cache(maxsize=1)
 def _load_matrix() -> dict[str, Any]:
-    """Build the critical proof matrix payload in-memory from the AC graph.
-
-    The matrix is a derived (not committed) view of the one AC-keyed graph, so
-    the llm-marked post-merge proofs that drive the staging gate come straight
-    from the co-located ``@ac_proof`` decorators (a pure static AST scan, no test
-    imports), not from a checked-in YAML file.
-
-    The gate only reads ``matrix["proofs"]``, so it uses the lightweight
-    ``build_proofs_only`` path (proofs + outcomes), skipping the AC-reference
-    scan and the vision build the full graph performs. The observable
-    proofs/outcomes payload is identical, only the startup cost is lower.
-    """
     from common.testing.ac_graph import build_proofs_only
     from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
     return build_matrix_from_graph(build_proofs_only(REPO_ROOT))
 
 
+def _require_counters(
+    items: Sequence[str], *, allow_file_fallback: bool = False
+) -> None:
+    missing = [
+        item
+        for item in items
+        if item not in REPLAY_COUNTERS
+        and (not allow_file_fallback or item.split("::", 1)[0] not in REPLAY_COUNTERS)
+    ]
+    if missing:
+        raise SystemExit(
+            "Missing staging AI/OCR replay counters for: " + ", ".join(sorted(missing))
+        )
+
+
 def gate_files() -> list[str]:
-    matrix = _load_matrix()
     proof_files = {
         proof["file"]
-        for proof in matrix.get("proofs", [])
+        for proof in _load_matrix().get("proofs", [])
         if proof.get("ci_tier") == "post_merge_environment"
         and "llm" in proof.get("required_markers", [])
     }
     files = sorted(proof_files | set(SUPPLEMENTAL_LLM_FILES))
-    missing_counters = [path for path in files if path not in REPLAY_COUNTERS]
-    if missing_counters:
-        raise SystemExit(
-            "Missing staging AI/OCR replay counters for: "
-            + ", ".join(sorted(missing_counters))
-        )
+    _require_counters(files)
     return files
 
 
 def canary_files() -> list[str]:
-    """The minimal blocking-path AI/OCR canary corpus (AC8.13.156).
-
-    A hand-curated subset of ``gate_files()``; fail-closed against both the
-    derived corpus (every canary file must be a real llm post-merge proof or a
-    supplemental) and the replay-counter source.
-    """
+    """Return the minimal blocking-path AI/OCR canary corpus (AC8.13.156)."""
     derived = set(gate_files())
     canary = sorted(CANARY_FILES)
     missing_from_corpus = [path for path in canary if path not in derived]
@@ -122,47 +97,22 @@ def canary_files() -> list[str]:
             "Canary files are not in the derived AI/OCR corpus: "
             + ", ".join(sorted(missing_from_corpus))
         )
-    missing_counters = [path for path in canary if path not in REPLAY_COUNTERS]
-    if missing_counters:
-        raise SystemExit(
-            "Missing staging AI/OCR replay counters for: "
-            + ", ".join(sorted(missing_counters))
-        )
+    _require_counters(canary)
     return canary
 
 
 def audit_replay_files() -> list[str]:
-    """The comprehensive nightly/manual audit-replay corpus (AC8.13.157).
-
-    Derived by subtraction (``gate_files() - canary_files()``) so a newly-added
-    heavy llm post-merge proof lands here automatically and never in the blocking
-    canary (AC8.13.159).
-    """
+    """Return the nightly/manual audit-replay corpus (AC8.13.157)."""
     canary = set(canary_files())
     return [path for path in gate_files() if path not in canary]
 
 
 def _counter(test: str) -> dict[str, int]:
-    """Replay counters of a test file or of one ``file::test`` node.
-
-    A node entry wins; a node without its own entry uses its file entry.
-    """
-    if test in REPLAY_COUNTERS:
-        return REPLAY_COUNTERS[test]
-    return REPLAY_COUNTERS[test.split("::", 1)[0]]
+    return REPLAY_COUNTERS.get(test) or REPLAY_COUNTERS[test.split("::", 1)[0]]
 
 
 def core_journey_tests() -> list[str]:
-    """The non-blocking post-deploy core-journey corpus (#2370).
-
-    The ``file::test`` node of each proof in the journey-board checkpoint
-    map, so only the proofs run (not the other tests of a proof's file) and
-    a new proof joins with no second list. It may overlap audit_replay and
-    may hold tests without the llm marker. It blocks nothing.
-
-    The tests run in alphabetical order, except that the files of
-    ``CORE_JOURNEY_LAST`` run last.
-    """
+    """Return the non-blocking post-deploy core-journey corpus (#2370)."""
     data = json.loads(CORE_JOURNEY_MAP_PATH.read_text(encoding="utf-8"))
     tests = sorted(
         (
@@ -171,16 +121,7 @@ def core_journey_tests() -> list[str]:
         ),
         key=lambda node: (node.split("::", 1)[0] in CORE_JOURNEY_LAST, node),
     )
-    missing_counters = [
-        test
-        for test in tests
-        if test not in REPLAY_COUNTERS and test.split("::", 1)[0] not in REPLAY_COUNTERS
-    ]
-    if missing_counters:
-        raise SystemExit(
-            "Missing staging AI/OCR replay counters for: "
-            + ", ".join(sorted(missing_counters))
-        )
+    _require_counters(tests, allow_file_fallback=True)
     return tests
 
 
@@ -208,38 +149,35 @@ def emit_shell(files: list[str] | None = None) -> str:
         files = gate_files()
     counts = totals(files)
     quoted_files = " ".join(shlex.quote(path) for path in files)
-    lines = [
-        f"STAGING_AI_OCR_TESTS=({quoted_files})",
-        f"STAGING_AI_OCR_EXPECTED_UPLOADS={counts['uploads']}",
-        f"STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS={counts['parse_completions']}",
-        f"STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS={counts['brokerage_imports']}",
-        f"STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS={counts['report_verifications']}",
-    ]
-    return "\n".join(lines)
+    return "\n".join(
+        [
+            f"STAGING_AI_OCR_TESTS=({quoted_files})",
+            f"STAGING_AI_OCR_EXPECTED_UPLOADS={counts['uploads']}",
+            f"STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS={counts['parse_completions']}",
+            f"STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS={counts['brokerage_imports']}",
+            f"STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS={counts['report_verifications']}",
+        ]
+    )
+
+
+def _case_node(case: ET.Element) -> str:
+    name = case.get("classname", "")
+    case_name = case.get("name", "<unknown>")
+    return f"{name}::{case_name}" if name else case_name
 
 
 def summarize_junit(xml_paths: list[Path]) -> dict[str, Any]:
-    """Summarize JUnit XML results into pass/fail counts + the failed test names.
-
-    The gate previously reported a binary "Failures observed: 1+" with all verified
-    counts "unknown" on any failure (#1089), so a red gate gave no signal about
-    *which* of the corpus docs failed. This parses the JUnit output the gate already
-    writes so the summary is actionable.
-    """
+    """Summarize JUnit XML results into pass/fail counts and failed test names."""
     total = passed = failed = skipped = 0
     failed_tests: list[str] = []
     for path in xml_paths:
         for case in iter_testcases(path):
             total += 1
-            failure = case.find("failure")
-            error = case.find("error")
             if case.find("skipped") is not None:
                 skipped += 1
-            elif failure is not None or error is not None:
+            elif case.find("failure") is not None or case.find("error") is not None:
                 failed += 1
-                name = case.get("classname", "")
-                case_name = case.get("name", "<unknown>")
-                failed_tests.append(f"{name}::{case_name}" if name else case_name)
+                failed_tests.append(_case_node(case))
             else:
                 passed += 1
     return {
@@ -267,21 +205,9 @@ def render_junit_summary(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-# ── Failure attribution (#1806, AC-testing.deploy-gates.37–39) ──────────────
-#
-# The gate used to collapse every pytest failure into one label
-# (`regression-failed`) with a hardcoded "parse quality dropped" alert body,
-# although triaged reds (#1781) were FX-data gaps, provider latency, and test
-# bugs — zero extraction regressions. Classify each failed case from its JUnit
-# failure text so the alert carries the class, transients get one bounded
-# retry, and environment-data gaps are never reported as regressions.
-#
-# Patterns are matched against the lowercased failure/error message + text.
-# Vocabulary sources: tests/e2e conftest/journeys (parse-wait + provider
-# wording) and apps/backend fx_revaluation ("Missing FX rate for ...").
 TRANSIENT_FAILURE_PATTERNS = (
-    "did not reach parsed within",  # provider/queue parse latency at the ceiling
-    "ai service may be unavailable",  # app-side provider connectivity
+    "did not reach parsed within",
+    "ai service may be unavailable",
     "readtimeout",
     "connecttimeout",
     "connection reset",
@@ -290,15 +216,18 @@ TRANSIENT_FAILURE_PATTERNS = (
     "service unavailable",
     "gateway timeout",
 )
-PRECONDITION_FAILURE_PATTERNS = (
-    "missing fx rate",  # FX coverage gap (the #1779 class): retry cannot fix
-    "fx rate missing",
-)
+PRECONDITION_FAILURE_PATTERNS = ("missing fx rate", "fx rate missing")
 
 FAILURE_CLASS_STATUS = {
     "regression": "regression-failed",
     "precondition": "precondition-failed",
     "transient": "provider-transient",
+}
+
+_CLASS_EXPLANATIONS = {
+    "regression": "app/extraction regression — needs human judgment",
+    "precondition": "environment-data precondition (e.g. FX coverage) — fix the environment, not the extractor",
+    "transient": "provider/queue transient (timeout / 5xx) — bounded single retry applies",
 }
 
 
@@ -314,7 +243,6 @@ def _classify_failure_text(text: str) -> tuple[str, str]:
 
 
 def _case_file(case: ET.Element) -> str | None:
-    """Best-effort repo-relative test file for a JUnit case (for targeted retry)."""
     file_attr = case.get("file")
     if file_attr and (REPO_ROOT / file_attr).exists():
         return file_attr
@@ -327,13 +255,7 @@ def _case_file(case: ET.Element) -> str | None:
 
 
 def classify_junit(xml_paths: list[Path]) -> dict[str, Any]:
-    """Attribute every failed JUnit case to regression | precondition | transient.
-
-    Returns the per-class case lists, the retry file targets (transient cases
-    only — the only class where one bounded retry is legitimate), and the
-    overall status. Precedence when classes mix: regression > precondition >
-    transient — a real regression must never be masked by co-occurring noise.
-    """
+    """Attribute failed JUnit cases to regression, precondition, or transient."""
     cases: list[dict[str, str]] = []
     for path in xml_paths:
         for case in iter_testcases(path):
@@ -342,13 +264,12 @@ def classify_junit(xml_paths: list[Path]) -> dict[str, Any]:
                 report = case.find("error")
             if report is None:
                 continue
-            text = f"{report.get('message', '')}\n{report.text or ''}"
-            name = case.get("classname", "")
-            case_name = case.get("name", "<unknown>")
-            failure_class, subtype = _classify_failure_text(text)
+            failure_class, subtype = _classify_failure_text(
+                f"{report.get('message', '')}\n{report.text or ''}"
+            )
             cases.append(
                 {
-                    "test": f"{name}::{case_name}" if name else case_name,
+                    "test": _case_node(case),
                     "class": failure_class,
                     "subtype": subtype,
                     "file": _case_file(case) or "",
@@ -358,31 +279,19 @@ def classify_junit(xml_paths: list[Path]) -> dict[str, Any]:
         key: [case for case in cases if case["class"] == key]
         for key in ("regression", "precondition", "transient")
     }
-    if by_class["regression"]:
-        overall = "regression"
-    elif by_class["precondition"]:
-        overall = "precondition"
-    elif by_class["transient"]:
-        overall = "transient"
-    else:
-        overall = "passed"
-    retry_targets = sorted(
-        {case["file"] for case in by_class["transient"] if case["file"]}
+    overall = next(
+        (k for k in ("regression", "precondition", "transient") if by_class[k]),
+        "passed",
     )
     return {
         "cases": cases,
         "by_class": by_class,
         "overall": overall,
         "status": FAILURE_CLASS_STATUS.get(overall, "passed"),
-        "retry_targets": retry_targets,
+        "retry_targets": sorted(
+            {case["file"] for case in by_class["transient"] if case["file"]}
+        ),
     }
-
-
-_CLASS_EXPLANATIONS = {
-    "regression": "app/extraction regression — needs human judgment",
-    "precondition": "environment-data precondition (e.g. FX coverage) — fix the environment, not the extractor",
-    "transient": "provider/queue transient (timeout / 5xx) — bounded single retry applies",
-}
 
 
 def render_alert_body(
@@ -393,11 +302,7 @@ def render_alert_body(
     app_url: str = "?",
     corpus: str = "canary",
 ) -> str:
-    """Alert-issue body generated from the JUnit attribution (#1806).
-
-    Replaces the previous hardcoded "parse quality dropped" claim, which the
-    #1781 triage proved wrong for every failure it labeled.
-    """
+    """Render alert-issue body generated from JUnit attribution (#1806)."""
     lines = [
         f"Post-merge staging AI/OCR gate failed (`{classification['status']}`) "
         f"on {app_url} at run {run_id} ({expected_sha}) [corpus={corpus}].",
@@ -422,7 +327,6 @@ def render_alert_body(
 
 
 def to_trace_result(status: str) -> TraceResult:
-    """Map gate status string to canonical TraceResult."""
     if status == "passed":
         return TraceResult.PASS
     if status in (
@@ -448,7 +352,6 @@ def build_evidence_manifest(
     classification: dict[str, Any] | None = None,
     preflight_details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Construct structured evidence manifest for staging AI/OCR gate run."""
     manifest: dict[str, Any] = {
         "version": 1,
         "environment": environment,
@@ -460,9 +363,8 @@ def build_evidence_manifest(
         "exit_code": exit_code,
     }
     if classification:
-        manifest["cases"] = classification.get("cases", [])
-        manifest["by_class"] = classification.get("by_class", {})
-        manifest["retry_targets"] = classification.get("retry_targets", [])
+        for key in ("cases", "by_class", "retry_targets"):
+            manifest[key] = classification.get(key, [] if key != "by_class" else {})
     if preflight_details:
         manifest["preflight"] = preflight_details
     return manifest
@@ -476,21 +378,16 @@ def build_trace_observation(
     """Build canonical TraceRecord observation for staging AI/OCR gate run (#1906)."""
     path = contract_path or (ROOT_DIR / "common" / "testing" / "contract.py")
     owner_digest = sha256(path.read_bytes()).hexdigest() if path.exists() else "0" * 64
-    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(
-        "utf-8"
-    )
-    manifest_digest = sha256(manifest_bytes).hexdigest()
-
+    manifest_digest = sha256(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
     status = manifest.get("status", "passed")
-    result = to_trace_result(status)
-    corpus = manifest.get("corpus", "canary")
-    expected_sha = manifest.get("expected_sha", "?")
-    run_id = str(manifest.get("run_id", "?"))
-
     return TraceRecord.observation(
         scope=TraceScope(kind=TraceScopeKind.ENVIRONMENT, id="staging"),
         target=VersionedTraceRef(
-            kind="staging_corpus", id=corpus, version=expected_sha
+            kind="staging_corpus",
+            id=manifest.get("corpus", "canary"),
+            version=manifest.get("expected_sha", "?"),
         ),
         target_class=TraceTargetClass.GENERAL,
         assertion=VersionedTraceRef(
@@ -505,8 +402,8 @@ def build_trace_observation(
             assertion_owner_digest=owner_digest,
             producer_version="staging_ai_ocr_gate_contract@1.0",
         ),
-        result=result,
-        execution_id=run_id,
+        result=to_trace_result(status),
+        execution_id=str(manifest.get("run_id", "?")),
         evidence_manifest_digest=manifest_digest,
         occurred_at=datetime.now(UTC),
         score=None,
@@ -519,65 +416,41 @@ def can_close_alert(
     current_corpus: str,
     current_version: str | None = None,
 ) -> bool:
-    """Decide whether a green gate run with current_corpus may auto-close an alert.
-
-    Guarantees (#1806):
-    - 'all' runs both canary and audit_replay, so it can close any alert.
-    - 'canary' only proves minimal liveness (1 test), so it CANNOT close
-      alerts filed for 'audit_replay' or 'all'.
-    - 'audit_replay' only runs comprehensive audit journeys, so it CANNOT close
-      alerts filed for 'canary' (brokerage import journey).
-    - If alert body does not declare a corpus, infer from referenced tests:
-      if any failing test is an audit-replay journey, canary cannot close it.
-    """
+    """Decide whether a green gate run with ``current_corpus`` may auto-close an alert."""
+    del current_version
     if current_corpus == "all":
         return True
-
     match = re.search(r"corpus=([a-z_]+)", alert_body)
     if match:
         alert_corpus = match.group(1)
-        if alert_corpus == "all":
-            return False
-        if current_corpus == alert_corpus:
-            return True
-        return False
+        return alert_corpus != "all" and current_corpus == alert_corpus
 
     body_lowered = alert_body.lower()
-    canary_indicator = "test_brokerage_upload_to_portfolio_value"
-    audit_indicators = (
-        "test_statement_full_journey",
-        "test_institution_statement_journeys",
-        "test_personal_financial_report_package",
-        "test_four_asset_net_worth_golden_path",
-        "test_statement_upload_e2e",
+    has_canary = "test_brokerage_upload_to_portfolio_value" in body_lowered
+    has_audit = any(
+        ind in body_lowered
+        for ind in (
+            "test_statement_full_journey",
+            "test_institution_statement_journeys",
+            "test_personal_financial_report_package",
+            "test_four_asset_net_worth_golden_path",
+            "test_statement_upload_e2e",
+        )
     )
-    has_audit_tests = any(ind in body_lowered for ind in audit_indicators)
-    has_canary_test = canary_indicator in body_lowered
-
     if current_corpus == "canary":
-        if has_canary_test and not has_audit_tests:
-            return True
-        return False
-    elif current_corpus == "audit_replay":
-        if has_audit_tests and not has_canary_test:
-            return True
-        return False
-
+        return has_canary and not has_audit
+    if current_corpus == "audit_replay":
+        return has_audit and not has_canary
     return False
 
 
 def emit_classification_shell(classification: dict[str, Any]) -> str:
-    """Bash assignments the gate step evals after a red corpus run.
-
-    This adapter is only ever consumed on a RED run (pytest exited nonzero), so
-    a classification with no attributable failed cases (missing/unparseable
-    JUnit, or a crash before any case was written) must map to the safe
-    regression-failed default — never to "passed", which would let a red run
-    publish a false-green ai_ocr_status downstream.
-    """
-    status = classification["status"]
-    if status == "passed":
-        status = "regression-failed"
+    """Emit bash assignments for a red corpus run."""
+    status = (
+        "regression-failed"
+        if classification["status"] == "passed"
+        else classification["status"]
+    )
     quoted_targets = " ".join(
         shlex.quote(path) for path in classification["retry_targets"]
     )
@@ -590,22 +463,11 @@ def emit_classification_shell(classification: dict[str, Any]) -> str:
 
 
 def preflight(base_url: str, *, timeout_seconds: float = 30.0) -> tuple[bool, str]:
-    """Deployed-surface preflight (#1806): read /api/health?full=1, never recompute.
-
-    Queries the app's own health surface so the gate adds no parallel
-    environment checks — the #1435 lesson. ``?full=1`` is load-bearing: the
-    default health form only checks database+S3 (light Docker healthcheck),
-    while ``full`` asserts the FULL manifest-declared dependency set for the
-    tier (smoke ↔ declaration parity, invariant 6). Returns (ok, reason).
-    """
-    import json as json_module
-    import urllib.error
-    import urllib.request
-
+    """Query deployed /api/health?full=1 without recomputing checks (#1806)."""
     url = f"{base_url.rstrip('/')}/api/health?full=1"
     try:
         with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
-            payload = json_module.loads(response.read().decode("utf-8"))
+            payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError) as exc:
         return False, f"health endpoint unreachable or unparseable: {exc}"
     status = payload.get("status")
@@ -619,93 +481,77 @@ def preflight(base_url: str, *, timeout_seconds: float = 30.0) -> tuple[bool, st
     return True, "healthy"
 
 
+def _write_text_parent(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def _write_gate_outputs(
+    args: argparse.Namespace,
+    *,
+    status: str,
+    exit_code: int,
+    classification: dict[str, Any] | None,
+) -> None:
+    manifest = build_evidence_manifest(
+        app_url=args.app_url,
+        run_id=args.run_id,
+        expected_sha=args.expected_sha,
+        corpus=args.corpus,
+        status=status,
+        exit_code=exit_code,
+        classification=classification,
+    )
+    if args.manifest_out is not None:
+        _write_text_parent(
+            args.manifest_out, json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        )
+    if args.observation_out is not None:
+        _write_text_parent(
+            args.observation_out,
+            TraceRecordCodec.encode(build_trace_observation(manifest)) + "\n",
+        )
+    if args.alert_body_out is not None:
+        alert_text = (
+            render_alert_body(
+                classification,
+                run_id=args.run_id,
+                expected_sha=args.expected_sha,
+                app_url=args.app_url,
+                corpus=args.corpus,
+            )
+            if classification
+            else (
+                f"Post-merge staging AI/OCR gate failed (`{status}`) "
+                f"on {args.app_url} at run {args.run_id} ({args.expected_sha}) [corpus={args.corpus}].\n\n"
+                f"Status reason: {status}. See the run's step summary for full counts. "
+                "A green gate run auto-closes this issue."
+            )
+        )
+        _write_text_parent(args.alert_body_out, alert_text)
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
+    parser.add_argument("--shell", action="store_true")
     parser.add_argument(
         "--corpus",
         choices=("all", "canary", "audit_replay", "core_journey"),
         default="all",
-        help=(
-            "Which corpus to emit: 'all' (default, full derived corpus), "
-            "'canary' (minimal blocking liveness), 'audit_replay' "
-            "(comprehensive weekly journeys), or 'core_journey' (post-deploy "
-            "journey-board proofs)."
-        ),
     )
-    parser.add_argument(
-        "--summarize-junit",
-        nargs="+",
-        type=Path,
-        metavar="XML",
-        help="Summarize JUnit result XML into pass/fail counts + failed test names.",
-    )
-    parser.add_argument(
-        "--classify-junit",
-        nargs="+",
-        type=Path,
-        metavar="XML",
-        help=(
-            "Attribute JUnit failures to regression | precondition | transient "
-            "(#1806); emits bash assignments (AI_OCR_FAILURE_CLASS, "
-            "AI_OCR_RETRY_TESTS) and writes the attributed alert body."
-        ),
-    )
-    parser.add_argument(
-        "--alert-body-out",
-        type=Path,
-        default=None,
-        metavar="PATH",
-        help="Where --classify-junit writes the attributed alert-issue body.",
-    )
-    parser.add_argument(
-        "--run-id", default="?", help="GitHub run id for the alert body."
-    )
-    parser.add_argument(
-        "--expected-sha", default="?", help="Deployed version_ref for the alert body."
-    )
-    parser.add_argument(
-        "--app-url", default="?", help="Gate target URL for the alert body."
-    )
-    parser.add_argument(
-        "--manifest-out",
-        type=Path,
-        default=None,
-        metavar="PATH",
-        help="Where to write the structured evidence manifest JSON.",
-    )
-    parser.add_argument(
-        "--observation-out",
-        type=Path,
-        default=None,
-        metavar="PATH",
-        help="Where to write the canonical TraceRecord observation JSON.",
-    )
-    parser.add_argument(
-        "--can-close-alert",
-        default=None,
-        metavar="ALERT_BODY_OR_PATH",
-        help="Evaluate whether current --corpus can auto-close this alert body (exit 0=yes, 1=no).",
-    )
-    parser.add_argument(
-        "--status",
-        default=None,
-        help="Explicit gate status to record in manifest/observation.",
-    )
-    parser.add_argument(
-        "--exit-code",
-        type=int,
-        default=0,
-        help="Exit code to record in manifest.",
-    )
-    parser.add_argument(
-        "--preflight",
-        action="store_true",
-        help="Query the deployed /api/health surface; nonzero exit on any miss.",
-    )
-    parser.add_argument(
-        "--base-url", default="", help="Deployed app base URL for --preflight."
-    )
+    parser.add_argument("--summarize-junit", nargs="+", type=Path, metavar="XML")
+    parser.add_argument("--classify-junit", nargs="+", type=Path, metavar="XML")
+    parser.add_argument("--alert-body-out", type=Path, default=None, metavar="PATH")
+    parser.add_argument("--run-id", default="?")
+    parser.add_argument("--expected-sha", default="?")
+    parser.add_argument("--app-url", default="?")
+    parser.add_argument("--manifest-out", type=Path, default=None, metavar="PATH")
+    parser.add_argument("--observation-out", type=Path, default=None, metavar="PATH")
+    parser.add_argument("--can-close-alert", default=None, metavar="ALERT_BODY_OR_PATH")
+    parser.add_argument("--status", default=None)
+    parser.add_argument("--exit-code", type=int, default=0)
+    parser.add_argument("--preflight", action="store_true")
+    parser.add_argument("--base-url", default="")
     return parser.parse_args(argv)
 
 
@@ -717,19 +563,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.shell:
         print(emit_shell(corpus_files(args.corpus)))
         return 0
-
     if args.can_close_alert is not None:
-        body = args.can_close_alert
-        body_path = Path(body)
-        if body_path.is_file():
-            body = body_path.read_text(encoding="utf-8")
-        allowed = can_close_alert(
-            body,
-            current_corpus=args.corpus,
-            current_version=args.expected_sha,
+        body_path = Path(args.can_close_alert)
+        body = (
+            body_path.read_text(encoding="utf-8")
+            if body_path.is_file()
+            else args.can_close_alert
         )
-        return 0 if allowed else 1
-
+        return (
+            0
+            if can_close_alert(
+                body, current_corpus=args.corpus, current_version=args.expected_sha
+            )
+            else 1
+        )
     if args.preflight:
         if not args.base_url:
             print("--preflight requires --base-url", file=sys.stderr)
@@ -737,108 +584,43 @@ def main(argv: Sequence[str] | None = None) -> int:
         ok, reason = preflight(args.base_url)
         print(f"preflight: {reason}", file=sys.stderr)
         return 0 if ok else 1
-
     if args.status is not None:
-        status = args.status
-        classification = None
-        if args.classify_junit:
-            classification = classify_junit(args.classify_junit)
-            status = classification["status"]
-
-        manifest = build_evidence_manifest(
-            app_url=args.app_url,
-            run_id=args.run_id,
-            expected_sha=args.expected_sha,
-            corpus=args.corpus,
+        classification = (
+            classify_junit(args.classify_junit) if args.classify_junit else None
+        )
+        status = classification["status"] if classification else args.status
+        _write_gate_outputs(
+            args,
             status=status,
             exit_code=args.exit_code,
             classification=classification,
         )
-        if args.manifest_out is not None:
-            args.manifest_out.parent.mkdir(parents=True, exist_ok=True)
-            args.manifest_out.write_text(
-                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-        if args.observation_out is not None:
-            observation = build_trace_observation(manifest)
-            args.observation_out.parent.mkdir(parents=True, exist_ok=True)
-            args.observation_out.write_text(
-                TraceRecordCodec.encode(observation) + "\n",
-                encoding="utf-8",
-            )
-        if args.alert_body_out is not None:
-            args.alert_body_out.parent.mkdir(parents=True, exist_ok=True)
-            if classification:
-                alert_text = render_alert_body(
-                    classification,
-                    run_id=args.run_id,
-                    expected_sha=args.expected_sha,
-                    app_url=args.app_url,
-                    corpus=args.corpus,
-                )
-            else:
-                alert_text = (
-                    f"Post-merge staging AI/OCR gate failed (`{status}`) "
-                    f"on {args.app_url} at run {args.run_id} ({args.expected_sha}) [corpus={args.corpus}].\n\n"
-                    f"Status reason: {status}. See the run's step summary for full counts. "
-                    "A green gate run auto-closes this issue."
-                )
-            args.alert_body_out.write_text(alert_text, encoding="utf-8")
         return 0
-
     if args.classify_junit:
         classification = classify_junit(args.classify_junit)
-        manifest = build_evidence_manifest(
-            app_url=args.app_url,
-            run_id=args.run_id,
-            expected_sha=args.expected_sha,
-            corpus=args.corpus,
-            status=classification["status"],
-            exit_code=args.exit_code
+        exit_code = (
+            args.exit_code
             if args.exit_code != 0
-            else (1 if classification["status"] != "passed" else 0),
+            else (1 if classification["status"] != "passed" else 0)
+        )
+        _write_gate_outputs(
+            args,
+            status=classification["status"],
+            exit_code=exit_code,
             classification=classification,
         )
-        if args.manifest_out is not None:
-            args.manifest_out.parent.mkdir(parents=True, exist_ok=True)
-            args.manifest_out.write_text(
-                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-        if args.observation_out is not None:
-            observation = build_trace_observation(manifest)
-            args.observation_out.parent.mkdir(parents=True, exist_ok=True)
-            args.observation_out.write_text(
-                TraceRecordCodec.encode(observation) + "\n",
-                encoding="utf-8",
-            )
-        if args.alert_body_out is not None:
-            args.alert_body_out.parent.mkdir(parents=True, exist_ok=True)
-            args.alert_body_out.write_text(
-                render_alert_body(
-                    classification,
-                    run_id=args.run_id,
-                    expected_sha=args.expected_sha,
-                    app_url=args.app_url,
-                    corpus=args.corpus,
-                ),
-                encoding="utf-8",
-            )
         print(emit_classification_shell(classification))
         return 0
-
     if args.summarize_junit:
         print(render_junit_summary(summarize_junit(args.summarize_junit)))
         return 0
 
     files = corpus_files(args.corpus)
-    counts = totals(files)
     print("Staging AI/OCR gate files:")
     for path in files:
         print(f"- {path}")
     print("Expected replay counters:")
-    for key, value in counts.items():
+    for key, value in totals(files).items():
         print(f"- {key}: {value}")
     return 0
 

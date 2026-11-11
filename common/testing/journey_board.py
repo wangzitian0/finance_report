@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Core-journey board: one record per staging lane run (#2370).
-
-Heavy board, light gates. This module turns the artifact of one staging
-AI/OCR gate run into one record. It also regenerates the board index and the
-board HTML fragment from all records. It blocks nothing.
-
-The module uses only the standard library. The publisher job runs it with the
-runner's ``python3`` and installs no project dependencies.
-
-Records hold test identities, outcomes, statuses and run links only. They
-never hold amounts, fixture values or failure text (vision Axiom C).
-"""
+"""Core-journey board: one stdlib-only record per staging lane run (#2370)."""
 
 from __future__ import annotations
 
@@ -37,16 +26,9 @@ GATE_XML = "staging-ai-ocr-gate.xml"
 RETRY_XML = "staging-ai-ocr-retry.xml"
 CONTEXT_FILE = "staging-ai-ocr-context.txt"
 MANIFEST_FILE = "staging-ai-ocr-manifest.json"
-# The reusable gate job shows as "<caller job> / Staging AI/OCR Gate" in a
-# run: "Staging AI/OCR Gate / ..." in Deploy, "AI/OCR Audit Replay / ..." in
-# the replay. The skipped manual Deploy job has no " / " and never matches.
 GATE_JOB_NAME = "Staging AI/OCR Gate"
 GATE_JOB_SUFFIX = f" / {GATE_JOB_NAME}"
-# A skipped reusable call shows only as "Staging AI/OCR Gate" (no suffix), the
-# same as the skipped manual job. "Deploy Staging" marks a staging deploy run.
 DEPLOY_STAGING_JOB = "Deploy Staging"
-# A run's "name" is its run-name (for example "Deploy Staging v0.1.75"), not
-# the workflow name, so the workflow file path identifies the workflow.
 DEPLOY_WORKFLOW = ".github/workflows/deploy.yml"
 REPLAY_WORKFLOW = ".github/workflows/audit-replay.yml"
 BOARD_WORKFLOWS = (DEPLOY_WORKFLOW, REPLAY_WORKFLOW)
@@ -55,12 +37,8 @@ SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 INDEX_CAP = 200
 MATRIX_COLUMNS = 10
-# An audit replay runs weekly. A record older than this is stale.
 AUDIT_REPLAY_STALE_DAYS = 8
 
-# Checkpoint statuses, worst first. A cell shows the worst status of the
-# proofs that ran. "passed" is better than "not-run", so one proof that ran
-# and passed is not hidden by a proof that did not run.
 CHECKPOINT_STATUS_ORDER = (
     "failed",
     "unproven",
@@ -104,9 +82,18 @@ class Case:
     failure_class: str | None = None
 
 
+def _load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def load_checkpoint_map(path: Path = CHECKPOINT_MAP_PATH) -> CheckpointMap:
-    """Load the checkpoint map and reject a proof that names an unknown checkpoint."""
-    data = json.loads(path.read_text(encoding="utf-8"))
+    """Load the checkpoint map and reject unknown or duplicate checkpoint ids."""
+    data = _load_json(path)
     checkpoints = tuple(
         Checkpoint(id=item["id"], title=item["title"], gap=item.get("gap"))
         for item in data["checkpoints"]
@@ -126,20 +113,25 @@ def load_checkpoint_map(path: Path = CHECKPOINT_MAP_PATH) -> CheckpointMap:
 
 
 def _case_outcome(case: ET.Element) -> str:
-    if case.find("failure") is not None:
-        return "failed"
-    if case.find("error") is not None:
-        return "error"
-    if case.find("skipped") is not None:
-        return "skipped"
+    for tag, outcome in (
+        ("failure", "failed"),
+        ("error", "error"),
+        ("skipped", "skipped"),
+    ):
+        if case.find(tag) is not None:
+            return outcome
     return "passed"
+
+
+def normalize_test_id(test_id: str) -> str:
+    """Drop a trailing parametrize suffix such as '[chromium]'."""
+    return re.sub(r"\[[^\]]*\]$", "", test_id)
 
 
 def parse_junit(path: Path) -> list[Case]:
     """Read one JUnit XML file into cases with their reached checkpoints."""
-    root = ET.parse(path).getroot()
     cases: list[Case] = []
-    for element in root.iter("testcase"):
+    for element in ET.parse(path).getroot().iter("testcase"):
         classname = element.get("classname", "")
         name = element.get("name", "<unknown>")
         reached = [
@@ -161,71 +153,47 @@ def parse_junit(path: Path) -> list[Case]:
     return cases
 
 
-def normalize_test_id(test_id: str) -> str:
-    """Drop a trailing parametrize suffix: "m::test_x[chromium]" -> "m::test_x".
-
-    pytest-playwright 0.10 adds the browser name to a browser test (seen in
-    the #2383 run). A proof is one test. The JUnit names and the gate
-    manifest keys both pass through here, so they always agree.
-    """
-    return re.sub(r"\[[^\]]*\]$", "", test_id)
-
-
 def merge_retry(first: list[Case], retry: list[Case]) -> list[Case]:
-    """Apply the gate's single transient retry to the first-pass cases.
-
-    The retry re-runs whole files. A case that failed and then passed on retry
-    becomes ``passed-on-retry``. A retried case that failed keeps the retry
-    failure, also when its first pass passed.
-    """
+    """Apply the gate's single transient retry to the first-pass cases."""
     retried = {case.test_id: case for case in retry}
     merged: list[Case] = []
     for case in first:
         again = retried.get(case.test_id)
-        if again is None:
+        if again is None or (
+            again.outcome not in FAILED_OUTCOMES and case.outcome not in FAILED_OUTCOMES
+        ):
             merged.append(case)
-        elif again.outcome in FAILED_OUTCOMES:
+        elif again.outcome in FAILED_OUTCOMES or again.outcome != "passed":
             merged.append(again)
-        elif case.outcome not in FAILED_OUTCOMES:
-            merged.append(case)
-        elif again.outcome == "passed":
+        else:
             merged.append(
                 Case(
                     case.test_id, "passed-on-retry", again.seconds, list(again.reached)
                 )
             )
-        else:
-            merged.append(again)
     return merged
 
 
 def proof_checkpoint_statuses(case: Case | None, proof: Proof) -> dict[str, str]:
-    """Status of each checkpoint that one proof covers.
-
-    A failed test proved the checkpoints it reached. The first checkpoint it
-    did not reach failed. The checkpoints after that one are blocked. A passed
-    test that did not reach a mapped checkpoint is ``unproven``: the map and
-    the test disagree, and the board shows that as red.
-    """
+    """Compute the status of each checkpoint covered by one proof."""
     if case is None:
-        return {checkpoint: "not-run" for checkpoint in proof.reaches}
+        return dict.fromkeys(proof.reaches, "not-run")
     if case.outcome == "skipped":
-        return {checkpoint: "skipped" for checkpoint in proof.reaches}
+        return dict.fromkeys(proof.reaches, "skipped")
     if case.outcome in PASSED_OUTCOMES:
         return {
-            checkpoint: "passed" if checkpoint in case.reached else "unproven"
-            for checkpoint in proof.reaches
+            cp: "passed" if cp in case.reached else "unproven" for cp in proof.reaches
         }
     statuses: dict[str, str] = {}
     failure_seen = False
-    for checkpoint in proof.reaches:
-        if checkpoint in case.reached:
-            statuses[checkpoint] = "passed"
+    for cp in proof.reaches:
+        if cp in case.reached:
+            statuses[cp] = "passed"
         elif not failure_seen:
-            statuses[checkpoint] = "failed"
+            statuses[cp] = "failed"
             failure_seen = True
         else:
-            statuses[checkpoint] = "blocked"
+            statuses[cp] = "blocked"
     return statuses
 
 
@@ -242,19 +210,17 @@ def rollup_checkpoints(
         for proof in checkpoint_map.proofs
     }
     rollup: dict[str, dict[str, Any]] = {}
-    for checkpoint in checkpoint_map.checkpoints:
+    for cp in checkpoint_map.checkpoints:
         proofs = [
-            {"test": proof.test, "status": per_proof[proof.test][checkpoint.id]}
+            {"test": proof.test, "status": per_proof[proof.test][cp.id]}
             for proof in checkpoint_map.proofs
-            if checkpoint.id in proof.reaches
+            if cp.id in proof.reaches
         ]
-        if not proofs:
-            rollup[checkpoint.id] = {"status": "not-covered", "gap": checkpoint.gap}
-            continue
-        rollup[checkpoint.id] = {
-            "status": worst([proof["status"] for proof in proofs]),
-            "proofs": proofs,
-        }
+        rollup[cp.id] = (
+            {"status": worst([p["status"] for p in proofs]), "proofs": proofs}
+            if proofs
+            else {"status": "not-covered", "gap": cp.gap}
+        )
     return rollup
 
 
@@ -320,21 +286,17 @@ def build_record(
     recorded_at: str | None = None,
     map_note: str | None = None,
 ) -> dict[str, Any] | None:
-    """Build the record for one gate run, or ``None`` when there is nothing to record.
-
-    A Deploy run with no staging deploy and no gate run (a tag-push image
-    promotion) has nothing to record. A staging deploy whose gate did not run,
-    or a gate run with no artifact, gives a ``not-run`` or ``no-evidence``
-    record: the board must show a missing proof, not hide it.
-    """
+    """Build the record for one gate run, or None when nothing applies."""
     if run.get("path") not in BOARD_WORKFLOWS:
         raise ValueError(
             f"run {run.get('id')} is not a {' or '.join(BOARD_WORKFLOWS)} run"
         )
-    gate_jobs = [job for job in jobs if _is_gate_job(job.get("name", ""))]
-    ran = [job for job in gate_jobs if job.get("conclusion") not in (None, "skipped")]
-    # A tag-push image promotion also lists "Deploy Staging", as skipped; only a
-    # staging deploy that ran makes a record (run 38341095111).
+    ran = [
+        job
+        for job in jobs
+        if _is_gate_job(job.get("name", ""))
+        and job.get("conclusion") not in (None, "skipped")
+    ]
     deploy_jobs = [
         job
         for job in jobs
@@ -383,19 +345,15 @@ def build_record(
     if manifest_path:
         classes = {
             normalize_test_id(item["test"]): item.get("subtype") or item.get("class")
-            for item in json.loads(manifest_path.read_text(encoding="utf-8")).get(
-                "cases", []
-            )
+            for item in _load_json(manifest_path).get("cases", [])
         }
         for case in cases:
             if case.outcome in FAILED_OUTCOMES:
                 case.failure_class = classes.get(case.test_id)
-    status = context.get("ai_ocr_outcome", "not-run")
-    reason = None if gate_xml else "the gate wrote no JUnit file"
     record = _record(
         lane=lane,
-        status=status,
-        reason=reason,
+        status=context.get("ai_ocr_outcome", "not-run"),
+        reason=None if gate_xml else "the gate wrote no JUnit file",
         tested_sha=_valid_sha(context.get("tested_sha")) or _valid_sha(resolved_sha),
         expected_version=context.get("expected_version"),
         meta=meta,
@@ -412,12 +370,7 @@ def build_record(
 
 
 def invalidate(record: dict[str, Any], reason: str) -> None:
-    """A staging deploy landed during the run: the evidence proves no revision.
-
-    The lane and every covered checkpoint show ``invalidated``; the original
-    outcomes stay in the record. An invalidated cell never hides another
-    lane's result for the same SHA (it ranks after ``passed``).
-    """
+    """Mark a record invalidated when staging changed mid-run."""
     record["original_status"] = record["status"]
     record["status"], record["reason"] = "invalidated", reason
     for cell in record["checkpoints"].values():
@@ -427,14 +380,13 @@ def invalidate(record: dict[str, Any], reason: str) -> None:
 
 
 def staging_drift(expected: str | None, end: str | None) -> str | None:
-    """Name a staging version change during the run, or return ``None``.
-
-    Staging health reports a release tag. Only two tags are compared: a tag
-    against a commit SHA is a different notation, not a change.
-    """
-    if not expected or not end:
-        return None
-    if not (expected.startswith("v") and end.startswith("v")) or expected == end:
+    """Name a staging release-tag change during the run, or return None."""
+    if (
+        not expected
+        or not end
+        or not (expected.startswith("v") and end.startswith("v"))
+        or expected == end
+    ):
         return None
     return f"staging changed from {expected} to {end} during the run"
 
@@ -479,13 +431,11 @@ def _record(
 
 
 def record_path(board_dir: Path, record: dict[str, Any]) -> Path:
-    """One file per run attempt, grouped by tested SHA for the release lookup."""
     run = record["run"]
-    sha_dir = record["tested_sha"] or "unknown"
     return (
         board_dir
         / "records"
-        / sha_dir
+        / (record["tested_sha"] or "unknown")
         / f"{record['lane']}-{run['id']}-{run['attempt']}.json"
     )
 
@@ -495,23 +445,17 @@ def _preference(record: dict[str, Any]) -> tuple[bool, str]:
 
 
 def load_records(board_dir: Path) -> list[dict[str, Any]]:
-    """Read every record. One run attempt keeps one record.
-
-    A record with a tested SHA wins over one without; then the later
-    ``recorded_at`` wins. The file path never decides.
-    """
+    """Read every record, keeping the preferred record per run attempt."""
     by_run: dict[tuple[str, int], dict[str, Any]] = {}
     for path in sorted((board_dir / "records").rglob("*.json")):
-        record = json.loads(path.read_text(encoding="utf-8"))
+        record = _load_json(path)
         if record.get("schema") != SCHEMA_VERSION:
             continue
         key = (record["run"]["id"], record["run"]["attempt"])
         current = by_run.get(key)
         if current is None or _preference(record) > _preference(current):
             by_run[key] = record
-    return sorted(
-        by_run.values(), key=lambda record: record["run"]["completed_at"], reverse=True
-    )
+    return sorted(by_run.values(), key=lambda r: r["run"]["completed_at"], reverse=True)
 
 
 def build_index(
@@ -521,8 +465,8 @@ def build_index(
         "schema": SCHEMA_VERSION,
         "generated_at": generated_at,
         "checkpoints": [
-            {"id": checkpoint.id, "title": checkpoint.title, "gap": checkpoint.gap}
-            for checkpoint in checkpoint_map.checkpoints
+            {"id": cp.id, "title": cp.title, "gap": cp.gap}
+            for cp in checkpoint_map.checkpoints
         ],
         "records": records[:INDEX_CAP],
     }
@@ -539,17 +483,15 @@ def combine_for_sha(
     records: list[dict[str, Any]], sha: str
 ) -> dict[str, dict[str, Any]]:
     """Combine the newest record of each lane for one tested SHA, worst status first."""
-    lanes = latest_by_lane(
-        [record for record in records if record["tested_sha"] == sha]
-    )
+    lanes = latest_by_lane([r for r in records if r["tested_sha"] == sha])
     combined: dict[str, dict[str, Any]] = {}
     for lane_record in lanes.values():
-        for checkpoint_id, cell in lane_record["checkpoints"].items():
-            current = combined.get(checkpoint_id)
+        for cp_id, cell in lane_record["checkpoints"].items():
+            current = combined.get(cp_id)
             if current is None or CHECKPOINT_STATUS_ORDER.index(
                 cell["status"]
             ) < CHECKPOINT_STATUS_ORDER.index(current["status"]):
-                combined[checkpoint_id] = {
+                combined[cp_id] = {
                     "status": cell["status"],
                     "lane": lane_record["lane"],
                     "url": lane_record["run"]["url"],
@@ -561,7 +503,6 @@ def combine_for_sha(
 def stale_reason(
     record: dict[str, Any], latest: dict[str, dict[str, Any]]
 ) -> str | None:
-    """A core-journey record is stale when it did not test the newest canary SHA."""
     canary = latest.get("canary")
     if (
         record["lane"] == "core_journey"
@@ -574,7 +515,7 @@ def stale_reason(
 
 
 def _status_class(status: str) -> str:
-    if status in ("passed", "passed-on-retry"):
+    if status in PASSED_OUTCOMES:
         return "ok"
     if status in ("not-run", "not-covered", "skipped", "invalidated"):
         return "none"
@@ -582,7 +523,6 @@ def _status_class(status: str) -> str:
 
 
 def _lane_class(record: dict[str, Any]) -> str:
-    """Green only with test evidence: a JUnit file, a pass and no failure."""
     if record["status"] == "passed" and not (
         record.get("junit")
         and record["counts"]["passed"] > 0
@@ -608,7 +548,6 @@ def _short(sha: str | None) -> str:
 
 
 def _sha_versions(records: list[dict[str, Any]]) -> dict[str, str]:
-    """Map each tested SHA to its newest known release version tag, if any."""
     versions: dict[str, str] = {}
     for record in records:
         sha = record.get("tested_sha")
@@ -618,6 +557,20 @@ def _sha_versions(records: list[dict[str, Any]]) -> dict[str, str]:
     return versions
 
 
+def _counts_summary(counts: dict[str, int]) -> str:
+    return (
+        f"{counts['passed']} passed, {counts['failed']} failed, "
+        f"{counts['skipped']} skipped"
+    )
+
+
+def _kpi_card(cls: str, label: str, value: str, sub: str) -> str:
+    return (
+        f'<div class="kpi-card {cls}"><div class="kpi-label">{label}</div>'
+        f'<div class="kpi-value">{value}</div><div class="kpi-sub">{sub}</div></div>'
+    )
+
+
 def _render_kpi_strip(
     index: dict[str, Any],
     latest: dict[str, dict[str, Any]],
@@ -625,20 +578,16 @@ def _render_kpi_strip(
     shas: list[str],
     versions: dict[str, str],
 ) -> str:
-    """Render top summary KPI cards for the Core Journey Board."""
-    canary = latest.get("canary")
-    journey = latest.get("core_journey")
-    replay = latest.get("audit_replay")
-
-    primary = canary or journey or next(iter(latest.values()))
-    cand_sha = _short(primary.get("tested_sha"))
+    primary = (
+        latest.get("canary")
+        or latest.get("core_journey")
+        or next(iter(latest.values()))
+    )
     cand_ver = escape(
         primary.get("expected_version")
         or versions.get(primary.get("tested_sha") or "", "")
         or "untagged"
     )
-    cand_class = _lane_class(primary)
-
     head_sha = shas[0] if shas else None
     head_cells = combined.get(head_sha, {}) if head_sha else {}
     total_cp = len(index["checkpoints"])
@@ -658,35 +607,46 @@ def _render_kpi_strip(
         if failed_cp > 0
         else ("ok" if passed_cp == total_cp and total_cp > 0 else "none")
     )
-
-    if replay is not None:
-        replay_status = escape(_lane_label(replay))
-        replay_sha = _short(replay.get("tested_sha"))
-        replay_class = _lane_class(replay)
-    else:
-        replay_status, replay_sha, replay_class = "no record", "—", "none"
-
+    replay = latest.get("audit_replay")
+    replay_status, replay_sha, replay_class = (
+        (
+            escape(_lane_label(replay)),
+            _short(replay.get("tested_sha")),
+            _lane_class(replay),
+        )
+        if replay is not None
+        else ("no record", "—", "none")
+    )
     return (
         '<div class="kpi-grid">'
-        f'<div class="kpi-card {cand_class}"><div class="kpi-label">Staging Candidate</div>'
-        f'<div class="kpi-value">{cand_ver}</div>'
-        f'<div class="kpi-sub">SHA <code>{cand_sha}</code></div></div>'
-        f'<div class="kpi-card {cp_class}"><div class="kpi-label">Head Checkpoint Coverage</div>'
-        f'<div class="kpi-value">{passed_cp} / {total_cp}</div>'
-        f'<div class="kpi-sub">{failed_cp} failed or blocked on <code>{_short(head_sha)}</code></div></div>'
-        f'<div class="kpi-card {replay_class}"><div class="kpi-label">Newest Audit Replay</div>'
-        f'<div class="kpi-value">{replay_status}</div>'
-        f'<div class="kpi-sub">SHA <code>{replay_sha}</code></div></div>'
-        "</div>"
+        + _kpi_card(
+            _lane_class(primary),
+            "Staging Candidate",
+            cand_ver,
+            f"SHA <code>{_short(primary.get('tested_sha'))}</code>",
+        )
+        + _kpi_card(
+            cp_class,
+            "Head Checkpoint Coverage",
+            f"{passed_cp} / {total_cp}",
+            f"{failed_cp} failed or blocked on <code>{_short(head_sha)}</code>",
+        )
+        + _kpi_card(
+            replay_class,
+            "Newest Audit Replay",
+            replay_status,
+            f"SHA <code>{replay_sha}</code>",
+        )
+        + "</div>"
     )
 
 
 def render_fragment(index: dict[str, Any]) -> str:
-    """Render the board as an HTML fragment. The page script adds data age."""
+    """Render the board as an HTML fragment."""
     records = index["records"]
+    gen_ts = escape(index["generated_at"])
     parts = [
-        '<p class="generated">Board generated '
-        f'<time data-ts="{escape(index["generated_at"])}">{escape(index["generated_at"])}</time>. '
+        f'<p class="generated">Board generated <time data-ts="{gen_ts}">{gen_ts}</time>. '
         "Records hold outcomes only. The board blocks nothing.</p>"
     ]
     if not records:
@@ -695,11 +655,9 @@ def render_fragment(index: dict[str, Any]) -> str:
 
     latest = latest_by_lane(records)
     versions = _sha_versions(records)
-    shas: list[str] = []
-    for record in records:
-        if record["tested_sha"] and record["tested_sha"] not in shas:
-            shas.append(record["tested_sha"])
-    shas = shas[:MATRIX_COLUMNS]
+    shas = list(dict.fromkeys(r["tested_sha"] for r in records if r["tested_sha"]))[
+        :MATRIX_COLUMNS
+    ]
     combined = {sha: combine_for_sha(records, sha) for sha in shas}
 
     parts.append(_render_kpi_strip(index, latest, combined, shas, versions))
@@ -709,54 +667,53 @@ def render_fragment(index: dict[str, Any]) -> str:
         "<th>Version</th><th>Completed</th><th>Tests</th></tr></thead><tbody>"
     )
     for lane, record in sorted(latest.items()):
-        counts = record["counts"]
         stale_days = AUDIT_REPLAY_STALE_DAYS if lane == "audit_replay" else ""
         stale = stale_reason(record, latest)
-        status = escape(_lane_label(record))
         version = record["expected_version"] or versions.get(
             record["tested_sha"] or "", ""
         )
+        comp = escape(record["run"]["completed_at"])
         parts.append(
             "<tr>"
             f"<td><code>{escape(lane)}</code></td>"
-            f'<td class="{_lane_class(record)}"><a href="{escape(record["run"]["url"])}">{status}</a></td>'
+            f'<td class="{_lane_class(record)}"><a href="{escape(record["run"]["url"])}">{escape(_lane_label(record))}</a></td>'
             f"<td><code>{_short(record['tested_sha'])}</code></td>"
             f"<td>{escape(version)}</td>"
-            f'<td><time data-ts="{escape(record["run"]["completed_at"])}" data-stale-days="{stale_days}">'
-            f"{escape(record['run']['completed_at'])}</time>"
+            f'<td><time data-ts="{comp}" data-stale-days="{stale_days}">{comp}</time>'
             + (f' <span class="bad">STALE: {escape(stale)}</span>' if stale else "")
-            + "</td>"
-            f"<td>{counts['passed']} passed, {counts['failed']} failed, {counts['skipped']} skipped</td>"
-            "</tr>"
+            + f"</td><td>{_counts_summary(record['counts'])}</td></tr>"
         )
     parts.append("</tbody></table>")
 
     parts.append("<h2>Core journey checkpoints by tested SHA</h2>")
-    header_cells = []
-    for sha in shas:
-        ver = versions.get(sha)
-        ver_html = f' <span class="ver-badge">{escape(ver)}</span>' if ver else ""
-        header_cells.append(f"<th><code>{_short(sha)}</code>{ver_html}</th>")
-    header = "".join(header_cells)
+    header = "".join(
+        f"<th><code>{_short(sha)}</code>"
+        + (
+            f' <span class="ver-badge">{escape(versions[sha])}</span>'
+            if sha in versions
+            else ""
+        )
+        + "</th>"
+        for sha in shas
+    )
     parts.append(f"<table><thead><tr><th>Checkpoint</th>{header}</tr></thead><tbody>")
-    for checkpoint in index["checkpoints"]:
+    for cp in index["checkpoints"]:
         cells = []
         for sha in shas:
-            cell = combined[sha].get(checkpoint["id"])
+            cell = combined[sha].get(cp["id"])
             if cell is None:
                 cells.append('<td class="none">not-run</td>')
-                continue
-            label = escape(cell["status"])
-            if cell["status"] == "not-covered":
-                label += f" {escape(cell.get('gap') or '')}"
-                cells.append(f'<td class="none">{label}</td>')
+            elif cell["status"] == "not-covered":
+                cells.append(
+                    f'<td class="none">{escape(cell["status"])} {escape(cell.get("gap") or "")}</td>'
+                )
             else:
                 cells.append(
                     f'<td class="{_status_class(cell["status"])}">'
-                    f'<a href="{escape(cell["url"])}">{label}</a> ({escape(cell["lane"])})</td>'
+                    f'<a href="{escape(cell["url"])}">{escape(cell["status"])}</a> ({escape(cell["lane"])})</td>'
                 )
         parts.append(
-            f"<tr><th>{escape(checkpoint['id'])} {escape(checkpoint['title'])}</th>{''.join(cells)}</tr>"
+            f"<tr><th>{escape(cp['id'])} {escape(cp['title'])}</th>{''.join(cells)}</tr>"
         )
     parts.append("</tbody></table>")
 
@@ -793,10 +750,15 @@ def render_fragment(index: dict[str, Any]) -> str:
 
 def _age_days(completed_at: str, now: datetime) -> float | None:
     try:
-        at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        return (
+            now - datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        ).total_seconds() / 86400
     except ValueError:
         return None
-    return (now - at).total_seconds() / 86400
+
+
+def checkpoint_map_has_proof(checkpoint_map: CheckpointMap, checkpoint_id: str) -> bool:
+    return any(checkpoint_id in proof.reaches for proof in checkpoint_map.proofs)
 
 
 def render_release_row(
@@ -808,13 +770,7 @@ def render_release_row(
     now: datetime,
     board_available: bool = True,
 ) -> str:
-    """Markdown board row for one release, for the approving owner (#2370).
-
-    It shows every lane for the exact release SHA and the age of the newest
-    audit replay. It blocks nothing. A missing record shows as missing; a
-    board that could not be read shows as unavailable, never as missing
-    evidence.
-    """
+    """Markdown board row for one release (#2370)."""
     lines = [
         f"### Core journey board: {version_ref} ({sha[:8] if sha else 'unresolved'})",
         "",
@@ -835,33 +791,29 @@ def render_release_row(
         )
         if record is None:
             lines.append(f"| {lane} | NO RECORD for this revision | | | |")
-            continue
-        status = _lane_label(record)
-        counts = record["counts"]
-        lines.append(
-            f"| {lane} | {status} | {record['run']['completed_at']} | "
-            f"{counts['passed']} passed, {counts['failed']} failed, {counts['skipped']} skipped | "
-            f"{record['run']['url']} |"
-        )
+        else:
+            lines.append(
+                f"| {lane} | {_lane_label(record)} | {record['run']['completed_at']} | "
+                f"{_counts_summary(record['counts'])} | {record['run']['url']} |"
+            )
     combined = combine_for_sha(records, sha)
     lines += ["", "| Checkpoint | Status |", "|---|---|"]
-    # A checkpoint that a record holds but the current map dropped still shows.
-    known = {checkpoint.id for checkpoint in checkpoint_map.checkpoints}
+    known = {cp.id for cp in checkpoint_map.checkpoints}
     extra = [
-        Checkpoint(checkpoint_id, "(not in the current checkpoint map)")
-        for checkpoint_id in sorted(set(combined) - known)
+        Checkpoint(cp_id, "(not in the current checkpoint map)")
+        for cp_id in sorted(set(combined) - known)
     ]
-    for checkpoint in [*checkpoint_map.checkpoints, *extra]:
-        cell = combined.get(checkpoint.id)
+    for cp in [*checkpoint_map.checkpoints, *extra]:
+        cell = combined.get(cp.id)
         if cell is None:
             label = (
                 "not-run"
-                if checkpoint_map_has_proof(checkpoint_map, checkpoint.id)
-                else f"not-covered {checkpoint.gap or ''}".strip()
+                if checkpoint_map_has_proof(checkpoint_map, cp.id)
+                else f"not-covered {cp.gap or ''}".strip()
             )
         else:
             label = cell["status"] + (f" {cell['gap']}" if cell.get("gap") else "")
-        lines.append(f"| {checkpoint.id} {checkpoint.title} | {label} |")
+        lines.append(f"| {cp.id} {cp.title} | {label} |")
     replay = next((r for r in records if r["lane"] == "audit_replay"), None)
     lines.append("")
     if replay is None:
@@ -878,20 +830,10 @@ def render_release_row(
     return "\n".join(lines)
 
 
-def checkpoint_map_has_proof(checkpoint_map: CheckpointMap, checkpoint_id: str) -> bool:
-    return any(checkpoint_id in proof.reaches for proof in checkpoint_map.proofs)
-
-
 def pick_artifact(
     artifacts: list[dict[str, Any]], run: dict[str, Any]
 ) -> dict[str, Any] | None:
-    """The gate artifact of the run's current attempt, or ``None``.
-
-    A rerun keeps the earlier attempt's artifact under the same name (run
-    38341155894 holds two). Only an artifact created at or after the current
-    attempt started belongs to it; the newest of those wins. An older one
-    would report the previous attempt as this one (stale reported as fresh).
-    """
+    """Return the gate artifact created at or after the current attempt started."""
     started = run.get("run_started_at") or ""
     candidates = [
         artifact
@@ -903,17 +845,8 @@ def pick_artifact(
     return max(candidates, key=lambda artifact: artifact["created_at"], default=None)
 
 
-def _load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def map_for_tested_revision(path: Path | None) -> tuple[CheckpointMap, str | None]:
-    """Use the checkpoint map of the tested revision.
-
-    The tests run from the deployed revision, so their marks belong to that
-    revision's map. A revision without a map proves no checkpoint: keep the
-    current checkpoint list and drop every proof, so nothing shows as proven.
-    """
+    """Use the checkpoint map of the tested revision, or drop proofs when absent."""
     current = load_checkpoint_map()
     if path is None:
         return current, None
@@ -956,10 +889,7 @@ def _cmd_build_record(args: argparse.Namespace) -> int:
         print("no-record: the run has no staging deploy and no staging AI/OCR gate job")
         return 0
     target = record_path(args.board_dir, record)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    _write_json(target, record)
     print(f"record: {target}")
     return 0
 
@@ -978,9 +908,7 @@ def _cmd_build_index(args: argparse.Namespace) -> int:
     records = load_records(args.board_dir)
     generated_at = datetime.now(UTC).isoformat(timespec="seconds")
     index = build_index(records, load_checkpoint_map(), generated_at=generated_at)
-    (args.board_dir / "index.json").write_text(
-        json.dumps(index, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    _write_json(args.board_dir / "index.json", index)
     (args.board_dir / "fragment.html").write_text(
         render_fragment(index) + "\n", encoding="utf-8"
     )
@@ -1000,7 +928,6 @@ def _cmd_release_row(args: argparse.Namespace) -> int:
             board_available=available,
         )
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
-        # The release row never fails a release; it reports what it could not read.
         text = (
             f"### Core journey board: {args.version_ref}\n\nBoard unavailable: {error}"
         )
@@ -1017,30 +944,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     record.add_argument("--jobs-json", type=Path, required=True)
     record.add_argument("--board-dir", type=Path, required=True)
     record.add_argument("--resolved-sha", default="")
-    record.add_argument(
-        "--repository", required=True, help="owner/name; the run must belong to it"
-    )
-    record.add_argument(
-        "--checkpoint-map",
-        type=Path,
-        default=None,
-        help="checkpoint map of the tested revision; a missing file means the revision has none",
-    )
+    record.add_argument("--repository", required=True)
+    record.add_argument("--checkpoint-map", type=Path, default=None)
     record.set_defaults(func=_cmd_build_record)
-    pick = sub.add_parser(
-        "pick-artifact", help="print the gate artifact id of the current run attempt"
-    )
+    pick = sub.add_parser("pick-artifact")
     pick.add_argument("--artifacts-json", type=Path, required=True)
     pick.add_argument("--run-json", type=Path, required=True)
     pick.set_defaults(func=_cmd_pick_artifact)
-    index = sub.add_parser(
-        "build-index", help="regenerate index.json and fragment.html"
-    )
+    index = sub.add_parser("build-index")
     index.add_argument("--board-dir", type=Path, required=True)
     index.set_defaults(func=_cmd_build_index)
-    row = sub.add_parser(
-        "release-row", help="print the board row of one release as markdown"
-    )
+    row = sub.add_parser("release-row")
     row.add_argument("--board-dir", type=Path, required=True)
     row.add_argument("--sha", default="")
     row.add_argument("--version-ref", required=True)

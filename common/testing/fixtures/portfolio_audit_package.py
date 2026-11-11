@@ -56,9 +56,9 @@ class PortfolioAuditFixture:
     @property
     def report_package_positions(self) -> tuple[PortfolioExpectedPosition, ...]:
         return tuple(
-            position
-            for position in self.expected_positions
-            if position.source_document_id == "synthetic-moomoo-statement-2026-01"
+            p
+            for p in self.expected_positions
+            if p.source_document_id == "synthetic-moomoo-statement-2026-01"
         )
 
     @property
@@ -66,9 +66,9 @@ class PortfolioAuditFixture:
         return money_amount(
             sum(
                 (
-                    position.market_value
-                    for position in self.report_package_positions
-                    if position.currency == "SGD"
+                    p.market_value
+                    for p in self.report_package_positions
+                    if p.currency == "SGD"
                 ),
                 Decimal("0.00"),
             ),
@@ -76,122 +76,24 @@ class PortfolioAuditFixture:
         )
 
 
-_MARGIN_HISTORY_ROWS = (
-    {
+def _margin_row(
+    qty: str, amt: str, total: str, fee: str, fill_time: str
+) -> dict[str, str]:
+    return {
         "Side": "BUY",
         "Symbol": "PONY",
         "Name": "Pony AI Inc ADR",
-        "Fill Qty": "12",
-        "Fill Amount": "123.45",
+        "Fill Qty": qty,
+        "Fill Amount": amt,
         "Currency": "USD",
-        "Total": "123.56",
+        "Total": total,
         "Commission": "0.00",
-        "Platform Fees": "0.11",
-        "Fill Time": "2026-01-02 09:35:21",
+        "Platform Fees": fee,
+        "Fill Time": fill_time,
         "Sector": "Technology",
         "Geography": "US",
-    },
-    {
-        "Side": "BUY",
-        "Symbol": "PONY",
-        "Name": "Pony AI Inc ADR",
-        "Fill Qty": "24",
-        "Fill Amount": "234.56",
-        "Currency": "USD",
-        "Total": "234.78",
-        "Commission": "0.00",
-        "Platform Fees": "0.22",
-        "Fill Time": "2026-01-02 09:36:44",
-        "Sector": "Technology",
-        "Geography": "US",
-    },
-)
+    }
 
-_EXPECTED_POSITIONS = (
-    PortfolioExpectedPosition(
-        broker="Moomoo",
-        asset_identifier="FULLERTON_SGD_CASH_FUND",
-        quantity=Decimal("1250.50"),
-        market_value=Decimal("1250.50"),
-        currency="SGD",
-        asset_type="money_market",
-        source_document_id="synthetic-moomoo-statement-2026-01",
-        sector="Cash",
-        geography="SG",
-    ),
-    PortfolioExpectedPosition(
-        broker="Moomoo",
-        asset_identifier="PONY",
-        quantity=Decimal("36"),
-        market_value=Decimal("358.01"),
-        currency="USD",
-        asset_type="stock",
-        source_document_id="synthetic-moomoo-margin-history-2026-01",
-        sector="Technology",
-        geography="US",
-    ),
-    PortfolioExpectedPosition(
-        broker="Futu",
-        asset_identifier="FUTU_STOCK_AND_OPTIONS",
-        quantity=Decimal("1"),
-        market_value=Decimal("43210.00"),
-        currency="HKD",
-        asset_type="other",
-        source_document_id="synthetic-futu-statement-2026-01",
-        sector="Mixed",
-        geography="HK",
-    ),
-)
-
-_ACTIVITY_ROWS = (
-    PortfolioActivityRow(
-        source_basis="moomoo_statement",
-        source_document_id="synthetic-moomoo-statement-2026-01",
-        activity_type="VALUATION",
-        activity_date=date(2026, 1, 31),
-        asset_identifier="FULLERTON_SGD_CASH_FUND",
-        amount=Decimal("1250.50"),
-        currency="SGD",
-    ),
-    PortfolioActivityRow(
-        source_basis="moomoo_margin_history",
-        source_document_id="synthetic-moomoo-margin-history-2026-01",
-        activity_type="BUY",
-        activity_date=date(2026, 1, 2),
-        asset_identifier="PONY",
-        amount=Decimal("358.01"),
-        currency="USD",
-        fee_amount=Decimal("0.33"),
-    ),
-    PortfolioActivityRow(
-        source_basis="moomoo_statement",
-        source_document_id="synthetic-moomoo-statement-2026-01",
-        activity_type="DIVIDEND",
-        activity_date=date(2026, 1, 20),
-        asset_identifier="TSM",
-        amount=Decimal("88.25"),
-        currency="SGD",
-    ),
-    PortfolioActivityRow(
-        source_basis="moomoo_margin_history",
-        source_document_id="synthetic-moomoo-margin-history-2026-01",
-        activity_type="FEE",
-        activity_date=date(2026, 1, 2),
-        asset_identifier="PONY",
-        amount=Decimal("-0.33"),
-        currency="USD",
-        fee_amount=Decimal("0.33"),
-    ),
-    PortfolioActivityRow(
-        source_basis="futu_statement",
-        source_document_id="synthetic-futu-statement-2026-01",
-        activity_type="VALUATION",
-        activity_date=date(2026, 1, 31),
-        asset_identifier="FUTU_STOCK_AND_OPTIONS",
-        amount=Decimal("43210.00"),
-        currency="HKD",
-    ),
-)
 
 _MARKET_VALUE_BY_CURRENCY = {
     "SGD": Decimal("1250.50"),
@@ -208,10 +110,95 @@ PORTFOLIO_AUDIT_FIXTURE = PortfolioAuditFixture(
     margin_history_payload={
         "institution": "Moomoo",
         "statement": {"period_end": "2026-01-02", "currency": "USD"},
-        "margin_history_rows": list(_MARGIN_HISTORY_ROWS),
+        "margin_history_rows": [
+            _margin_row("12", "123.45", "123.56", "0.11", "2026-01-02 09:35:21"),
+            _margin_row("24", "234.56", "234.78", "0.22", "2026-01-02 09:36:44"),
+        ],
     },
-    expected_positions=_EXPECTED_POSITIONS,
-    activity_rows=_ACTIVITY_ROWS,
+    expected_positions=(
+        PortfolioExpectedPosition(
+            "Moomoo",
+            "FULLERTON_SGD_CASH_FUND",
+            Decimal("1250.50"),
+            Decimal("1250.50"),
+            "SGD",
+            "money_market",
+            "synthetic-moomoo-statement-2026-01",
+            "Cash",
+            "SG",
+        ),
+        PortfolioExpectedPosition(
+            "Moomoo",
+            "PONY",
+            Decimal("36"),
+            Decimal("358.01"),
+            "USD",
+            "stock",
+            "synthetic-moomoo-margin-history-2026-01",
+            "Technology",
+            "US",
+        ),
+        PortfolioExpectedPosition(
+            "Futu",
+            "FUTU_STOCK_AND_OPTIONS",
+            Decimal("1"),
+            Decimal("43210.00"),
+            "HKD",
+            "other",
+            "synthetic-futu-statement-2026-01",
+            "Mixed",
+            "HK",
+        ),
+    ),
+    activity_rows=(
+        PortfolioActivityRow(
+            "moomoo_statement",
+            "synthetic-moomoo-statement-2026-01",
+            "VALUATION",
+            date(2026, 1, 31),
+            "FULLERTON_SGD_CASH_FUND",
+            Decimal("1250.50"),
+            "SGD",
+        ),
+        PortfolioActivityRow(
+            "moomoo_margin_history",
+            "synthetic-moomoo-margin-history-2026-01",
+            "BUY",
+            date(2026, 1, 2),
+            "PONY",
+            Decimal("358.01"),
+            "USD",
+            Decimal("0.33"),
+        ),
+        PortfolioActivityRow(
+            "moomoo_statement",
+            "synthetic-moomoo-statement-2026-01",
+            "DIVIDEND",
+            date(2026, 1, 20),
+            "TSM",
+            Decimal("88.25"),
+            "SGD",
+        ),
+        PortfolioActivityRow(
+            "moomoo_margin_history",
+            "synthetic-moomoo-margin-history-2026-01",
+            "FEE",
+            date(2026, 1, 2),
+            "PONY",
+            Decimal("-0.33"),
+            "USD",
+            Decimal("0.33"),
+        ),
+        PortfolioActivityRow(
+            "futu_statement",
+            "synthetic-futu-statement-2026-01",
+            "VALUATION",
+            date(2026, 1, 31),
+            "FUTU_STOCK_AND_OPTIONS",
+            Decimal("43210.00"),
+            "HKD",
+        ),
+    ),
     expected_activity_totals=PortfolioExpectedActivityTotals(
         buy_notional_usd=Decimal("358.01"),
         dividend_income_sgd=Decimal("88.25"),

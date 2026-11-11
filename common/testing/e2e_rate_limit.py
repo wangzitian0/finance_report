@@ -69,8 +69,7 @@ def fail_report_for_rate_limits(
         return False
 
     evidence = "\n".join(
-        f"  - HTTP 429 {hit.method} {hit.path}"
-        for hit in hits[:_MAX_EVIDENCE_LINES]
+        f"  - HTTP 429 {hit.method} {hit.path}" for hit in hits[:_MAX_EVIDENCE_LINES]
     )
     remaining = len(hits) - _MAX_EVIDENCE_LINES
     if remaining > 0:

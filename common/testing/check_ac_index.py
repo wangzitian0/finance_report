@@ -1,73 +1,5 @@
 #!/usr/bin/env python3
-"""Exactly TWO gates over the one AC-keyed graph.
-
-This replaces the N per-view byte-compare gates (the generated critical-proof
-matrix ``--check``, the vision-to-proof matrix ``--check``, and the EPIC-status
-``--check``) with TWO gates over the one AC-keyed graph
-(:mod:`common.testing.ac_graph`):
-
-**Gate A — INTEGRITY (hard, binary).** One predicate — "does this reference
-obligation resolve?" — applied to every edge type. It collects, from the graph,
-every ``(source, expected_target, kind, reason)`` obligation and asserts each
-target exists. It catches:
-
-* every AC is *managed*: enumerated with a protection record (an all-zero/empty
-  record is VALID — managed means present in the structure, not that it has a
-  test);
-* every ``@ac_proof`` points at a real test (file + function) and at AC ids that
-  exist in the registry;
-* every macro outcome's ``proof_ids`` resolve to a declared proof;
-* every vision item that owns at least one EPIC backs at least one AC (no
-  dangling vision promise).
-
-The mandatory-AC traceability obligation is enforced by the folded CI-stage
-traceability check below (``check_ac_traceability.run_traceability``), not by a
-separate graph-level mirror: the imported check is strictly stronger, so a mirror
-would be pure redundancy.
-
-INTEGRITY additionally folds in the two checks that used to run as SEPARATE CI
-gate steps, by CALLING those modules as libraries (not reimplementing them), so
-the SAME code runs and no protection is weakened:
-
-* **CI-stage traceability** (``check_ac_traceability.run_traceability`` +
-  ``traceability_failure_messages``): a mandatory AC's test reference must land
-  in a CI-REQUIRED execution stage (per ``common/testing/data/test-execution-matrix.yaml``),
-  with the placeholder-only / stub-only / unexecuted-only / missing
-  classifications and their verbatim ``TRACEABILITY GATE FAILED`` wording. It
-  catches every mandatory active AC with no real CI-stage test reference (the
-  job the former graph-level mirror did) and strictly more: it also fails an AC
-  whose only real reference sits in a non-CI stage, and distinguishes
-  placeholder/stub references.
-* **Critical-proof contract** (``check_critical_proof_matrix.validate_matrix_contract``):
-  the per-proof contract — valid ``trust_mode``, ``mirror_proof_id`` required for
-  ``llm_ocr_post_merge`` proofs (mirror must exist + be deterministic_pr in
-  pr_ci), ``required_markers`` present on the anchored test, valid ``scope`` /
-  ``ci_tier``, ``manual_gate`` requires evidence, and the macro-outcome /
-  README-sync shape — with that module's verbatim error wording.
-
-The per-edge-type ERROR WORDING is preserved verbatim from the legacy functions;
-only the engine is unified, so fixability is unchanged. The two folded modules
-remain importable LIBRARIES (their own unit tests still run them directly); they
-are simply no longer SEPARATE CI gate steps.
-
-**Gate B — PROTECTION RATCHET (soft, monotonic).** The per-type COUNT floor over
-``protection-floor.json`` (delegated to :mod:`common.testing.protection`): for
-each protection type, current count of mandatory active ACs at that type must be
-``>=`` the committed floor. Adding protection only raises the current count and
-passes WITHOUT editing the floor file; the floor is bumped only by the explicit
-``--update-floor`` action.
-
-``main()`` always runs Gate A (graph obligations + the two folded repo contracts)
-and Gate B's per-type count floor, then exits 1 if either fails. On pass it
-prints the per-type protection dashboard so the gate REPORTS the protection
-levels even though only a floor regression fails it.
-
-This is the SINGLE AC-index gate entry point. The former standalone CI gate
-steps for ``common.testing.check_ac_traceability`` and
-``common.testing.check_critical_proof_matrix`` are retired; their logic is folded
-into Gate A here (by importing them as libraries), so every failure they caught
-still fails this gate with the same wording.
-"""
+"""Integrity (Gate A) and protection-ratchet (Gate B) gates over the AC-keyed graph."""
 
 from __future__ import annotations
 
@@ -92,14 +24,6 @@ RepoIntegrityCheck = Callable[[Path, AcGraph], list[str]]
 
 
 def _escape_workflow_command(message: str) -> str:
-    """Escape a message for a GitHub Actions ``::error::`` workflow command.
-
-    Workflow-command data truncates at the first newline and misparses bare
-    ``%``/``\\r``/``\\n``; the folded traceability messages are multi-line, so
-    escape them per the Actions spec (``%`` first, then CR/LF) so the full,
-    actionable message survives in the annotation. Order matters: escape ``%``
-    before introducing ``%``-prefixed escapes.
-    """
     return message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
@@ -108,7 +32,6 @@ def _ac_exists(graph: AcGraph, ac_id: str) -> bool:
 
 
 def _real_test(repo_root: Path, file_rel: str, test_name: str) -> bool:
-    """Return True if ``test_name`` is defined as a function in ``file_rel``."""
     path = repo_root / file_rel
     if not path.exists():
         return False
@@ -116,35 +39,20 @@ def _real_test(repo_root: Path, file_rel: str, test_name: str) -> bool:
         module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError):
         return False
-    for node in ast.walk(module):
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and (
-            node.name == test_name
-        ):
-            return True
-    return False
-
-
-# ---------------------------------------------------------------------------
-# Gate A — INTEGRITY
-# ---------------------------------------------------------------------------
-#
-# One predicate — "does this reference obligation resolve?" — over every edge
-# type. Each obligation carries a per-edge-type ``message`` so the SPECIFIC
-# legacy wording is preserved verbatim (generic messages hurt fixability). The
-# four legacy functions below are kept as thin views onto the same obligation
-# engine so existing imports/tests keep working.
+    return any(
+        isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.name == test_name
+        for node in ast.walk(module)
+    )
 
 
 @dataclass(frozen=True)
 class Obligation:
-    """One 'this reference must resolve' assertion produced from the graph."""
-
     ok: bool
     message: str
 
 
 def _proof_obligations(graph: AcGraph) -> list[Obligation]:
-    """Every @ac_proof must point at a real test and real AC ids."""
     out: list[Obligation] = []
     for proof in graph.proofs:
         if not proof.ac_ids:
@@ -169,62 +77,40 @@ def _proof_obligations(graph: AcGraph) -> list[Obligation]:
 
 
 def _macro_outcome_obligations(graph: AcGraph) -> list[Obligation]:
-    """Every macro outcome's proof_ids must resolve to a declared proof."""
     declared = {proof.proof_id for proof in graph.proofs}
-    out: list[Obligation] = []
-    for outcome in graph.outcomes:
-        for proof_id in outcome.proof_ids:
-            out.append(
-                Obligation(
-                    proof_id in declared,
-                    f"macro outcome {outcome.id!r}: proof id {proof_id!r} "
-                    "does not resolve to any @ac_proof declaration",
-                )
-            )
-    return out
+    return [
+        Obligation(
+            proof_id in declared,
+            f"macro outcome {outcome.id!r}: proof id {proof_id!r} "
+            "does not resolve to any @ac_proof declaration",
+        )
+        for outcome in graph.outcomes
+        for proof_id in outcome.proof_ids
+    ]
 
 
 def _vision_obligations(graph: AcGraph) -> list[Obligation]:
-    """Every vision item with an owning EPIC must back at least one AC.
-
-    A vision item that declares an owner EPIC but resolves to no AC is a
-    dangling vision promise (the anchor claims coverage that no AC delivers).
-    Vision anchors with no owner EPIC are intentionally allowed: they are
-    parked nodes, not promises, and are surfaced as informational only.
-    """
-    out: list[Obligation] = []
-    for item in graph.vision_items:
-        if item.owner_epics:
-            out.append(
-                Obligation(
-                    bool(item.ac_ids),
-                    f"vision item {item.anchor!r} (owned by "
-                    f"{', '.join(item.owner_epics)}) backs no AC — dangling vision "
-                    "promise",
-                )
-            )
-    return out
+    return [
+        Obligation(
+            bool(item.ac_ids),
+            f"vision item {item.anchor!r} (owned by "
+            f"{', '.join(item.owner_epics)}) backs no AC — dangling vision promise",
+        )
+        for item in graph.vision_items
+        if item.owner_epics
+    ]
 
 
 def _managed_obligations(graph: AcGraph) -> list[Obligation]:
-    """Every AC in the registry must be enumerated with a protection record.
-
-    "Managed" means the AC is present in the structure (the graph enumerates it
-    and the protection projection can score it), NOT that it has any test. An
-    all-zero/empty protection record is therefore VALID. An empty graph (zero
-    AC nodes discovered) fails closed so a broken parser cannot pass vacuously.
-    """
     if not graph.nodes:
         return [Obligation(False, "AC graph is empty: zero AC nodes discovered")]
-    out: list[Obligation] = []
-    for ac_id, node in graph.nodes.items():
-        out.append(
-            Obligation(
-                bool(node.id) and node.id == ac_id,
-                f"AC {ac_id!r}: not managed — missing from the protection structure",
-            )
+    return [
+        Obligation(
+            bool(node.id) and node.id == ac_id,
+            f"AC {ac_id!r}: not managed — missing from the protection structure",
         )
-    return out
+        for ac_id, node in graph.nodes.items()
+    ]
 
 
 def _integrity_obligations(graph: AcGraph) -> list[Obligation]:
@@ -237,80 +123,41 @@ def _integrity_obligations(graph: AcGraph) -> list[Obligation]:
 
 
 def check_integrity(graph: AcGraph) -> list[str]:
-    """Gate A: one engine, every reference obligation must resolve.
-
-    Collects all ``(source, expected_target, kind, reason)`` obligations from the
-    graph and asserts each target exists, returning the per-edge-type message for
-    each unresolved one (verbatim from the legacy checks).
-    """
     return [ob.message for ob in _integrity_obligations(graph) if not ob.ok]
 
 
 def check_repo_contracts(repo_root: Path) -> list[str]:
-    """Gate A, repo half: the two folded former-standalone gate contracts.
-
-    These are the rules the graph-only obligations do NOT cover, run by CALLING
-    the original modules as libraries (no reimplementation, so no drift):
-
-    1. **CI-stage traceability** — every mandatory active AC must resolve to a
-       real reference in a CI-REQUIRED execution stage; emits the verbatim
-       ``TRACEABILITY GATE FAILED`` message (unexecuted-only / placeholder-only /
-       stub-only / missing) from ``check_ac_traceability``.
-    2. **Critical-proof contract** — the per-proof + macro-outcome contract from
-       ``check_critical_proof_matrix.validate_matrix_contract`` (trust_mode,
-       mirror, required_markers, scope/ci_tier, manual_gate evidence, README
-       sync), with that module's verbatim error wording.
-
-    Returns the combined list of failure messages (empty when both pass).
-    """
     from common.testing.check_ac_traceability import (
         run_traceability,
         traceability_failure_messages,
     )
     from common.testing.check_critical_proof_matrix import validate_matrix_contract
 
-    errors: list[str] = []
-    errors.extend(traceability_failure_messages(run_traceability(repo_root)))
-    errors.extend(validate_matrix_contract(repo_root).errors)
-    return errors
-
-
-# ---------------------------------------------------------------------------
-# Gate B — PROTECTION RATCHET
-# ---------------------------------------------------------------------------
+    return [
+        *traceability_failure_messages(run_traceability(repo_root)),
+        *validate_matrix_contract(repo_root).errors,
+    ]
 
 
 def _render_protection_dashboard(counts: dict[str, int], floor: dict[str, int]) -> str:
-    lines = ["PROTECTION dashboard (mandatory, active ACs per type):"]
-    for ptype in PROTECTION_TYPES:
-        lines.append(f"  {ptype}: current {counts[ptype]} (floor {floor[ptype]})")
-    return "\n".join(lines)
+    return "\n".join(
+        [
+            "PROTECTION dashboard (mandatory, active ACs per type):",
+            *(
+                f"  {ptype}: current {counts[ptype]} (floor {floor[ptype]})"
+                for ptype in PROTECTION_TYPES
+            ),
+        ]
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Exactly two gates over the AC-keyed graph: A) INTEGRITY (hard: every "
-            "AC managed + no dangling reference), B) PROTECTION RATCHET (per-type "
-            "count floor, monotonic and conflict-safe)."
-        )
+        description="Run INTEGRITY and PROTECTION RATCHET gates over the AC-keyed graph."
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument(
-        "--floor-file",
-        type=Path,
-        default=None,
-        help="Per-type protection count floor (default: common/testing/data/protection-floor.json).",
-    )
-    parser.add_argument(
-        "--update-floor",
-        action="store_true",
-        help=(
-            "Raise the per-type count floor to the current counts (never lowers), "
-            "then exit. The separate 'lock in gains' action so protection-adding "
-            "PRs never edit the floor file."
-        ),
-    )
+    parser.add_argument("--floor-file", type=Path, default=None)
+    parser.add_argument("--update-floor", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -324,10 +171,8 @@ def _run_command(
     floor_file = args.floor_file or (
         repo_root / "common" / "testing" / "data" / "protection-floor.json"
     )
-
     graph = build_ac_graph(repo_root)
 
-    # The explicit "lock in gains" action: raise floors, write, exit.
     if args.update_floor:
         raised = update_floor(graph, floor_file)
         print("Updated per-type protection floor:")
@@ -335,9 +180,6 @@ def _run_command(
             print(f"  {ptype}: {raised[ptype]}")
         return 0
 
-    # ---- Gate A: INTEGRITY (hard) ----
-    # Graph obligations (managed + dangling links) plus the two folded repo
-    # contracts (CI-stage traceability + critical-proof matrix), run as one gate.
     integrity_errors = check_integrity(graph) + check_repo_contracts(repo_root)
     for check in repo_integrity_checks:
         integrity_errors.extend(check(repo_root, graph))
@@ -362,8 +204,6 @@ def _run_command(
         "critical-proof contract intact."
     )
 
-    # ---- Gate B: PROTECTION RATCHET (soft, monotonic, per type) ----
-    # Part 2: per-type COUNT floor.
     floor_result = check_count_floor(graph, floor_file)
     print(_render_protection_dashboard(floor_result.counts, floor_result.floor))
     if floor_result.errors:
@@ -392,13 +232,11 @@ def run_ac_index(
     repo_integrity_checks: Sequence[RepoIntegrityCheck] = (),
 ) -> int:
     try:
-        if repo_integrity_checks:
-            status = _run_command(
-                argv,
-                repo_integrity_checks=repo_integrity_checks,
-            )
-        else:
-            status = _run_command(argv)
+        status = (
+            _run_command(argv, repo_integrity_checks=repo_integrity_checks)
+            if repo_integrity_checks
+            else _run_command(argv)
+        )
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 1
     if status == 2:
@@ -408,14 +246,7 @@ def run_ac_index(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        status = _run_command(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    if status == 2:
-        return 2
-    findings = [] if status == 0 else [f"command returned status {status}"]
-    return run_gate("AC-INDEX", lambda _repo_root: findings, [], failure_status=status)
+    return run_ac_index(argv)
 
 
 if __name__ == "__main__":

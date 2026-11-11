@@ -94,9 +94,7 @@ class MoomooGenerator(BasePDFGenerator):
                 "SGD",
             ],
         ]
-        holdings_table = Table(
-            holdings_data, colWidths=[80, 170, 70, 60, 80, 50]
-        )
+        holdings_table = Table(holdings_data, colWidths=[80, 170, 70, 60, 80, 50])
         holdings_table.setStyle(self._create_table_style(holdings_config))
         elements.append(holdings_table)
         elements.append(Spacer(1, 20))

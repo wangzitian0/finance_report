@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import PurePath
 
 
@@ -33,6 +34,21 @@ def call_name(func: ast.expr) -> str | None:
     return None
 
 
+def markdown_table_cells(line: str) -> list[str]:
+    """Split a pipe-delimited Markdown table row into stripped cell strings."""
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def pytest_decorator_markers(node: ast.AST) -> set[str]:
+    """Return bare ``@pytest.mark.<name>`` marker names attached to an AST node."""
+    markers: set[str] = set()
+    for decorator in getattr(node, "decorator_list", []):
+        text = ast.unparse(decorator)
+        if text.startswith("pytest.mark."):
+            markers.add(text[12:].split("(", 1)[0].split(".", 1)[0])
+    return markers
+
+
 def required_arg(value: str, name: str) -> str:
     """Return ``value`` stripped; raise ``ValueError`` when it is blank."""
     value = value.strip()
@@ -47,6 +63,27 @@ _TEST_PATH_ALIASES: tuple[tuple[str, str], ...] = (
     ("$t/", "tests/tooling/"),
     ("$e2e/", "tests/e2e/"),
 )
+
+
+_TEST_PREFIX_RE = re.compile(
+    r"^(?:test_)?(?:AC[-_][A-Za-z0-9_.-]+?\s+|AC\d+(?:[._]\d+)+(?:/AC\d+(?:[._]\d+)+)*\s+|"
+    r"AC_[a-z0-9]+_[a-z0-9_]+_\d+_|AC\d+_\d+_\d+_)+",
+    re.IGNORECASE,
+)
+
+
+def _humanize_test_ref(full_test: str) -> str:
+    label = full_test.split("::", 1)[-1]
+    label = _TEST_PREFIX_RE.sub("", label)
+    if label.startswith("test_"):
+        label = label[5:]
+    words = label.replace("_", " ").strip()
+    if not words:
+        words = (
+            full_test.rsplit("/", 1)[-1].replace("_", " ").removesuffix(".py")
+            or "Verified by contract test"
+        )
+    return words[0].upper() + words[1:].rstrip(".") + "."
 
 
 def expand_test_path(path: str) -> str:
@@ -66,6 +103,7 @@ def parse_acs_table(
     cur_prio = "P0"
     cur_status = "done"
     cur_pk: str | None = None
+    prev_test = ""
     records: list[dict[str, str | None]] = []
     for raw_line in table.splitlines():
         line = raw_line.strip()
@@ -80,11 +118,13 @@ def parse_acs_table(
             cur_pk = (
                 parts[3] if len(parts) > 3 and parts[3] and parts[3] != "-" else None
             )
+            prev_test = ""
             continue
         cols = [c.strip() for c in line.split("|")]
         if len(cols) < 3:
             raise ValueError(f"malformed AC table row in {pkg!r}: {raw_line!r}")
-        raw_id, stmt, test_ref = cols[0], cols[1], expand_test_path(cols[2])
+        raw_id, stmt, raw_tref = cols[0], cols[1], cols[2]
+        test_ref = expand_test_path(raw_tref)
         prio, status, pk = cur_prio, cur_status, cur_pk
         if len(cols) > 3 and cols[3] and cols[3] != "-":
             meta = cols[3].split(":")
@@ -99,12 +139,19 @@ def parse_acs_table(
             raw_id if raw_id.startswith("AC") or not prefix else f"{prefix}{raw_id}"
         )
         full_test = (
-            f"{cur_file}::{test_ref}" if cur_file and "::" not in test_ref else test_ref
+            prev_test
+            if raw_tref == "^" and prev_test
+            else (
+                f"{cur_file}::{test_ref}"
+                if cur_file and "::" not in test_ref
+                else test_ref
+            )
         )
+        prev_test = full_test
         records.append(
             {
                 "id": full_id,
-                "statement": stmt,
+                "statement": stmt or _humanize_test_ref(full_test),
                 "test": full_test,
                 "priority": prio,
                 "status": status,
