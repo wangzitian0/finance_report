@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -261,6 +261,23 @@ def _policy_decisions_by_source_id(policy: Any) -> dict[str, Any]:
     return {str(anchor.source_id): d for d in policy.decisions for anchor in d.evidence_anchors}
 
 
+def _section_contribution(
+    contribution_type: Literal["statement_source", "ledger_command", "valuation", "opening_position"],
+    section_ids: tuple[PackageSectionId, ...],
+    payload: Any,
+    input_refs: tuple[str, ...],
+) -> PackageSectionContribution[Any]:
+    return PackageSectionContribution(
+        contribution_type=contribution_type,
+        section_ids=section_ids,
+        payload=payload,
+        state=payload.state,
+        decision=payload.decision,
+        input_refs=input_refs,
+        reason_code=payload.reason_code,
+    )
+
+
 def _statement_section_contribution(
     c: Any, *, start_date: date, end_date: date, as_of_date: date | None = None
 ) -> PackageSectionContribution[Any]:
@@ -281,14 +298,8 @@ def _statement_section_contribution(
         )
         if overlaps and any(start_date <= f.transaction_date <= min(end_date, bound) for f in result.transactions):
             sections.extend(("cash_flow", "income_statement", "annualized_income_long_term"))
-    return PackageSectionContribution(
-        contribution_type="statement_source",
-        section_ids=tuple(dict.fromkeys(sections)),
-        payload=c,
-        state=c.state,
-        decision=c.decision,
-        input_refs=c.input_refs or (f"statement:{c.statement_id}",),
-        reason_code=c.reason_code,
+    return _section_contribution(
+        "statement_source", tuple(dict.fromkeys(sections)), c, c.input_refs or (f"statement:{c.statement_id}",)
     )
 
 
@@ -298,26 +309,12 @@ def _journal_section_contribution(c: Any, *, start_date: date, end_date: date) -
         sections.append("cash_flow")
         if any(line.account_type.value.lower() in {"income", "expense"} for line in c.lines):
             sections.extend(("income_statement", "annualized_income_long_term"))
-    return PackageSectionContribution(
-        contribution_type="ledger_command",
-        section_ids=tuple(dict.fromkeys(sections)),
-        payload=c,
-        state=c.state,
-        decision=c.decision,
-        input_refs=c.input_refs,
-        reason_code=c.reason_code,
-    )
+    return _section_contribution("ledger_command", tuple(dict.fromkeys(sections)), c, c.input_refs)
 
 
 def _opening_section_contribution(p: Any) -> PackageSectionContribution[Any]:
-    return PackageSectionContribution(
-        contribution_type="opening_position",
-        section_ids=("balance_sheet", "cash_flow", "traceability_appendix"),
-        payload=p,
-        state=p.state,
-        decision=p.decision,
-        input_refs=(f"opening_position:{p.account_id}",),
-        reason_code=p.reason_code,
+    return _section_contribution(
+        "opening_position", ("balance_sheet", "cash_flow", "traceability_appendix"), p, (f"opening_position:{p.account_id}",)
     )
 
 
@@ -329,15 +326,7 @@ def _valuation_section_contribution(c: Any) -> PackageSectionContribution[Any]:
         if c.subject.kind.value == "security"
         else ("balance_sheet", "annualized_income_long_term", "traceability_appendix"),
     )
-    return PackageSectionContribution(
-        contribution_type="valuation",
-        section_ids=sections,
-        payload=c,
-        state=c.state,
-        decision=c.decision,
-        input_refs=input_refs,
-        reason_code=c.reason_code,
-    )
+    return _section_contribution("valuation", sections, c, input_refs)
 
 
 def _is_bank_statement_contribution(c: Any) -> bool:
@@ -1110,16 +1099,9 @@ def traceability_summary(
         status=appendix.status,
         lines=[
             PersonalReportPackageTraceabilityLineSummary(
-                line_id=line.line_id,
-                section_id=line.section_id,
-                label=line.label,
-                amount_field=line.amount_field,
-                currency_field=line.currency_field,
-                source_state=line.source_state,
+                **line.model_dump(exclude={"source_anchor", "ledger_anchor"}),
                 source_anchor=_anchor_summary(line.source_anchor),
                 ledger_anchor=_anchor_summary(line.ledger_anchor),
-                anchor_count=line.anchor_count,
-                blocker_codes=line.blocker_codes,
             )
             for line in appendix.lines
         ],

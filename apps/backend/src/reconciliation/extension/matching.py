@@ -43,12 +43,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class MatchingContext:
-    """Stable dependencies shared by the matching phases.
-
-    Only the two run-scoped closures live here; package-level matching helpers
-    are imported by the phases directly instead of being passed as untyped
-    function parameters.
-    """
+    """Stable dependencies and run-scoped closures shared by the matching phases."""
 
     config: ReconciliationConfig
     base_currency: str
@@ -151,26 +146,14 @@ async def score_group(
     )
 
 
-async def accepted_transfer_txn_ids(
-    db: AsyncSession,
-    txn_ids: Sequence[UUID],
-) -> set[UUID]:
-    """Atomic-transaction ids covered by a live accepted match with journal entries.
-
-    The read behind extraction's transfer-exclusions provider port (#1675 D5):
-    statement posting skips txns an accepted/auto-accepted, non-superseded
-    match already anchors to journal entries. Published on the package root;
-    the app composition root (``src/main.py``) registers it into
-    the extraction-owned statement ingestion use case at composition time
-    (reconciliation depends on extraction, never the reverse).
-    """
+async def accepted_transfer_txn_ids(db: AsyncSession, txn_ids: Sequence[UUID]) -> set[UUID]:
+    """Return atomic-transaction IDs covered by a live accepted match with journal entries."""
     ids = list(txn_ids)
     if not ids:
         return set()
     result = await db.execute(
-        select(ReconciliationMatch)
-        .where(ReconciliationMatch.atomic_txn_id.in_(ids))
-        .where(
+        select(ReconciliationMatch).where(
+            ReconciliationMatch.atomic_txn_id.in_(ids),
             ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]),
             ReconciliationMatch.superseded_by_id.is_(None),
         )
@@ -351,6 +334,39 @@ async def execute_matching(
     return matches
 
 
+def _parse_unique_uuids(raw_values: Iterable[object]) -> list[UUID]:
+    parsed: list[UUID] = []
+    seen: set[UUID] = set()
+    for raw in raw_values:
+        try:
+            uid = UUID(str(raw))
+        except (TypeError, ValueError):
+            continue
+        if uid not in seen:
+            seen.add(uid)
+            parsed.append(uid)
+    return parsed
+
+
+def _collect_known_candidates_by_user(
+    known_candidates: Mapping[UUID, JournalEntry] | Iterable[JournalEntry | UUID | str] | None,
+    user_id: UUID | None,
+) -> dict[UUID, set[UUID]]:
+    known_by_user: dict[UUID, set[UUID]] = {}
+    if known_candidates is None:
+        return known_by_user
+    items = known_candidates.values() if isinstance(known_candidates, Mapping) else known_candidates
+    for item in items:
+        if isinstance(item, JournalEntry) and item.user_id is not None:
+            known_by_user.setdefault(item.user_id, set()).add(item.id)
+        elif user_id is not None and isinstance(item, UUID | str):
+            try:
+                known_by_user.setdefault(user_id, set()).add(item if isinstance(item, UUID) else UUID(item))
+            except (TypeError, ValueError):
+                pass
+    return known_by_user
+
+
 async def sync_reconciliation_matches_journal_entry_links_batch(
     db: AsyncSession,
     matches: Sequence[ReconciliationMatch],
@@ -358,139 +374,84 @@ async def sync_reconciliation_matches_journal_entry_links_batch(
     user_id: UUID | None = None,
     known_candidates: Mapping[UUID, JournalEntry] | Iterable[JournalEntry | UUID | str] | None = None,
 ) -> None:
-    """Batch synchronize trusted reconciliation anchor links from compatibility JSONB lists.
-
-    Eliminates per-match SELECT queries and per-item flush roundtrips.
-    """
+    """Batch synchronize trusted reconciliation anchor links from compatibility JSONB lists."""
     if not matches:
         return
-
-    # Ensure matches have IDs
-    unflushed_matches = [m for m in matches if m.id is None]
-    if unflushed_matches:
+    if any(m.id is None for m in matches):
         await db.flush()
 
-    target_ids_by_match: dict[ReconciliationMatch, list[UUID]] = {}
-    all_target_ids: set[UUID] = set()
-    for match in matches:
-        match_target_ids: list[UUID] = []
-        seen: set[UUID] = set()
-        for raw_entry_id in match.journal_entry_ids or []:
-            try:
-                entry_id = UUID(str(raw_entry_id))
-            except (TypeError, ValueError):
-                continue
-            if entry_id not in seen:
-                seen.add(entry_id)
-                match_target_ids.append(entry_id)
-        target_ids_by_match[match] = match_target_ids
-        all_target_ids.update(match_target_ids)
+    target_ids_by_match = {match: _parse_unique_uuids(match.journal_entry_ids or []) for match in matches}
+    all_target_ids = {eid for ids in target_ids_by_match.values() for eid in ids}
 
     if all_target_ids:
-        # Resolve user_id for matches if not provided explicitly
-        match_user_ids: dict[ReconciliationMatch, UUID | None] = {}
         if user_id is not None:
-            match_user_ids = {match: user_id for match in matches}
+            match_user_ids: dict[ReconciliationMatch, UUID | None] = {match: user_id for match in matches}
         else:
             txn_ids = [match.atomic_txn_id for match in matches if match.atomic_txn_id is not None]
-            if txn_ids:
-                txn_rows = (
-                    await db.execute(
-                        select(AtomicTransaction.id, AtomicTransaction.user_id).where(AtomicTransaction.id.in_(txn_ids))
-                    )
-                ).all()
-                txn_user_map = {row[0]: row[1] for row in txn_rows}
-                match_user_ids = {match: txn_user_map.get(match.atomic_txn_id) for match in matches}
-            else:
-                match_user_ids = {match: None for match in matches}
+            txn_user_map: dict[UUID, UUID] = (
+                {
+                    tid: uid
+                    for tid, uid in (
+                        await db.execute(
+                            select(AtomicTransaction.id, AtomicTransaction.user_id).where(
+                                AtomicTransaction.id.in_(txn_ids)
+                            )
+                        )
+                    ).all()
+                }
+                if txn_ids
+                else {}
+            )
+            match_user_ids = {match: txn_user_map.get(match.atomic_txn_id) for match in matches}
 
-        # Build known valid entry IDs from known_candidates
-        known_valid_by_user: dict[UUID, set[UUID]] = {}
-        if known_candidates is not None:
-            if isinstance(known_candidates, Mapping):
-                for candidate in known_candidates.values():
-                    if isinstance(candidate, JournalEntry) and candidate.user_id is not None:
-                        known_valid_by_user.setdefault(candidate.user_id, set()).add(candidate.id)
-            elif isinstance(known_candidates, Iterable):
-                for item in known_candidates:
-                    if isinstance(item, JournalEntry) and item.user_id is not None:
-                        known_valid_by_user.setdefault(item.user_id, set()).add(item.id)
-                    elif isinstance(item, UUID) and user_id is not None:
-                        known_valid_by_user.setdefault(user_id, set()).add(item)
-                    elif isinstance(item, str) and user_id is not None:
-                        try:
-                            known_valid_by_user.setdefault(user_id, set()).add(UUID(item))
-                        except (TypeError, ValueError):
-                            pass
-
-        # Check which target IDs need database resolution
-        unresolved_target_ids: set[UUID] = set()
-        for match, t_ids in target_ids_by_match.items():
-            m_uid = match_user_ids.get(match)
-            if m_uid is not None:
-                known_for_user = known_valid_by_user.get(m_uid, set())
-                for eid in t_ids:
-                    if eid not in known_for_user:
-                        unresolved_target_ids.add(eid)
-
+        known_valid_by_user = _collect_known_candidates_by_user(known_candidates, user_id)
+        unresolved_target_ids = {
+            eid
+            for match, t_ids in target_ids_by_match.items()
+            if (m_uid := match_user_ids.get(match)) is not None
+            for eid in t_ids
+            if eid not in known_valid_by_user.get(m_uid, set())
+        }
         if unresolved_target_ids:
-            query_result = (
+            for eid, e_uid in (
                 await db.execute(
                     select(JournalEntry.id, JournalEntry.user_id).where(JournalEntry.id.in_(unresolved_target_ids))
                 )
-            ).all()
-            for eid, e_uid in query_result:
+            ).all():
                 known_valid_by_user.setdefault(e_uid, set()).add(eid)
 
-        # Filter target_ids per match to only include valid entries for that user
         for match in matches:
             m_uid = match_user_ids.get(match)
-            if m_uid is None:
-                target_ids_by_match[match] = []
-            else:
-                valid_entries = known_valid_by_user.get(m_uid, set())
-                target_ids_by_match[match] = [eid for eid in target_ids_by_match[match] if eid in valid_entries]
+            valid_entries = known_valid_by_user.get(m_uid, set()) if m_uid is not None else set()
+            target_ids_by_match[match] = [eid for eid in target_ids_by_match[match] if eid in valid_entries]
 
-    # Resolve existing links in batch
     match_ids = [match.id for match in matches if match.id is not None]
     existing_by_match: dict[UUID, set[UUID]] = {}
     if match_ids:
-        existing_rows = (
+        for m_id, j_id in (
             await db.execute(
                 select(
                     ReconciliationMatchJournalEntry.match_id, ReconciliationMatchJournalEntry.journal_entry_id
                 ).where(ReconciliationMatchJournalEntry.match_id.in_(match_ids))
             )
-        ).all()
-        for m_id, j_id in existing_rows:
+        ).all():
             existing_by_match.setdefault(m_id, set()).add(j_id)
 
-    # Reconcile links
     for match in matches:
         if match.id is None:
             continue
         existing_ids = existing_by_match.get(match.id, set())
         target_ids = target_ids_by_match.get(match, [])
-        target_set = set(target_ids)
-
-        stale_ids = existing_ids - target_set
-        if stale_ids:
+        if stale_ids := existing_ids - set(target_ids):
             await db.execute(
                 delete(ReconciliationMatchJournalEntry).where(
                     ReconciliationMatchJournalEntry.match_id == match.id,
                     ReconciliationMatchJournalEntry.journal_entry_id.in_(stale_ids),
                 )
             )
-
         for ordinal_entry_id in target_ids:
-            if ordinal_entry_id in existing_ids:
-                continue
-            db.add(
-                ReconciliationMatchJournalEntry(
-                    match_id=match.id,
-                    journal_entry_id=ordinal_entry_id,
-                )
-            )
+            if ordinal_entry_id not in existing_ids:
+                db.add(ReconciliationMatchJournalEntry(match_id=match.id, journal_entry_id=ordinal_entry_id))
 
     await db.flush()
 

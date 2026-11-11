@@ -1,9 +1,4 @@
-"""Stage 1 statement posting guards and auto-approval helpers (DWD conform).
-
-Posting guards now operate on the ``StatementSummary`` envelope and its Layer-2
-``AtomicTransaction`` rows (resolved via the linked ODS ``UploadedDocument``),
-instead of the legacy statement/transaction pair.
-"""
+"""Stage 1 statement posting guards and auto-approval helpers."""
 
 from __future__ import annotations
 
@@ -61,7 +56,11 @@ from src.extraction.extension.disposition_policy import (
     statement_disposition_policy_for_user,
 )
 from src.extraction.extension.disposition_trace import DispositionTraceInput, emit_disposition_trace_records_many
-from src.extraction.extension.review_queue import StatementEntryRequest, create_entries_from_txns
+from src.extraction.extension.review_queue import (
+    StatementEntryRequest,
+    create_entries_from_txns,
+    resolve_secondary_currency_custody_account,
+)
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
 from src.extraction.extension.statement_validation import (
     BalanceChainValidationError,
@@ -101,25 +100,12 @@ from src.pricing import ExchangeRateLookup
 
 logger = get_logger(__name__)
 
-
-# "Which of these atomic txns are already covered by an accepted transfer
-# match" is reconciliation-owned knowledge. extraction must not import
-# reconciliation (reconciliation already declares depends_on extraction — the
-# reverse edge would be a dependency cycle), so the read arrives through a
-# provider port carried by immutable ``StatementPostingDependencies``. The app
-# composition root binds reconciliation's published
-# ``accepted_transfer_txn_ids`` for each statement-ingestion use case; extraction
-# never consults worker-process startup state.
 TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
-#: Posts the rows that the AI named a transfer or a card repayment as Processing legs, for a user who lets the
-#: system accept the suggestions (#2405). It returns the number of legs. Reconciliation owns the leg, so
-#: composition supplies this port.
 NamedTransferPoster = Callable[[AsyncSession, UUID, Sequence[AtomicTransaction]], Awaitable[int]]
-#: Supersedes the active reconciliation matches of the rows that a rejected or retired statement released, and
-#: returns the number of matches that changed (#2888). Reconciliation owns the matches, so composition supplies
-#: this port. Arguments: session, user id, row ids, reason.
 ReconciliationRelease = Callable[[AsyncSession, UUID, Sequence[UUID], str], Awaitable[int]]
+
+ECONOMIC_REVIEW_NOTICE = "Economic review required:"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -149,7 +135,6 @@ class StatementPostingDependencies:
 
 
 def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bool:
-    """Return whether parsing confidence is high enough for automatic Stage 1 approval."""
     return (
         statement.status == BankStatementStatus.APPROVED
         and statement.balance_validated is True
@@ -158,21 +143,12 @@ def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bo
     )
 
 
-#: Prefix of the validation note that posting writes when a row has no authoritative decision.
-ECONOMIC_REVIEW_NOTICE = "Economic review required:"
-
-
 def _clear_economic_review_notice(statement: StatementSummary) -> None:
-    """Remove the review note once every row has an entry. Other validation notes stay (#2415)."""
     if statement.validation_error and statement.validation_error.startswith(ECONOMIC_REVIEW_NOTICE):
         statement.validation_error = None
 
 
 async def posted_entry_txn_ids(db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID]) -> set[UUID]:
-    """The ids of the statement transactions that a live anchored journal entry already covers.
-
-    The posting skips these rows, and so does the classification pass after parse (#2637).
-    """
     result = await db.execute(
         current_anchored_journal_entries(
             user_id=user_id,
@@ -203,17 +179,15 @@ async def auto_create_posted_entries_for_statement(
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
     existing_entry_txn_ids = await posted_entry_txn_ids(db, user_id, txn_ids)
-
-    # Pre-anchor historical rows are not evidence that this source command is
-    # accepted. Do not silently skip them or generate a duplicate; route the
-    # operator to the correction/void lifecycle instead.
     legacy_result = await db.execute(
         select(JournalEntry.id)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id.in_(txn_ids))
-        .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.LEGACY_UNPROVEN)
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
+        .where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
+            JournalEntry.source_id.in_(txn_ids),
+            JournalEntry.decision_authority_state == JournalEntryAuthorityState.LEGACY_UNPROVEN,
+            JournalEntry.status != JournalEntryStatus.VOID,
+        )
         .limit(1)
     )
     if legacy_result.scalar_one_or_none() is not None:
@@ -236,15 +210,10 @@ async def auto_create_posted_entries_for_statement(
     preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
 
-    # Classification proposes P&L meaning. Disposition is the sole authority that
-    # can turn that proposal plus reconciliation/account context into a command.
     await classify_statement_by_effective_policy(db, user_id, statement.id, txns_to_post)
     legs_posted = 0
     if dependencies.post_named_transfers is not None and dependencies.disposition_mode is DispositionMode.ENFORCE:
         if await auto_accept_enabled(db, user_id):
-            # A transfer or a card repayment posts as a Processing leg. The rows are then covered, as if
-            # reconciliation had matched them, so the plan below does not post them a second time. A leg is a
-            # command: only the mode that applies commands posts it.
             legs_posted = await dependencies.post_named_transfers(db, user_id, txns_to_post)
             transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
         else:
@@ -257,27 +226,20 @@ async def auto_create_posted_entries_for_statement(
             if user_transfer_txns:
                 legs_posted = await dependencies.post_named_transfers(db, user_id, user_transfer_txns)
                 transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
+
     base_currency = await get_effective_base_currency(db, user_id=user_id)
     policy = await statement_disposition_policy_for_user(db, user_id)
-    policy_snapshot = current_statement_disposition_policy_snapshot(
-        mode=dependencies.disposition_mode,
-        policy=policy,
-    )
+    policy_snapshot = current_statement_disposition_policy_snapshot(mode=dependencies.disposition_mode, policy=policy)
     planned: list[
         tuple[AtomicTransaction, IntentProposal | None, DispositionDecision, Account | None, StatementTransaction]
     ] = []
 
     classification_by_txn_id, accounts_by_id = await _applied_classifications(db, [txn.id for txn in txns_to_post])
-
     for txn in txns_to_post:
-        classification_and_rule = classification_by_txn_id.get(txn.id)
+        pair = classification_by_txn_id.get(txn.id)
+        classification, classification_rule = pair if pair is not None else (None, None)
         counter_account = None
         proposal = None
-        if classification_and_rule is not None:
-            classification, classification_rule = classification_and_rule
-        else:
-            classification = None
-            classification_rule = None
         if classification is not None and classification.account_id is not None and classification_rule is not None:
             counter_account = accounts_by_id.get(classification.account_id)
             if counter_account is None:
@@ -318,7 +280,6 @@ async def auto_create_posted_entries_for_statement(
 
     result_payload = (statement.extraction_metadata or {}).get("statement_extraction_result")
     result_id = result_payload.get("result_id") if isinstance(result_payload, dict) else None
-    execution_id = f"statement:{statement.id}:result:{result_id or statement.file_hash}"
     occurred_at = statement.created_at or datetime.now(UTC)
     if occurred_at.tzinfo is None:
         occurred_at = occurred_at.replace(tzinfo=UTC)
@@ -327,7 +288,7 @@ async def auto_create_posted_entries_for_statement(
     disposition_records = await emit_disposition_trace_records_many(
         emitter=emitter,
         user_id=user_id,
-        execution_id=execution_id,
+        execution_id=f"statement:{statement.id}:result:{result_id or statement.file_hash}",
         occurred_at=occurred_at,
         inputs=[
             DispositionTraceInput(transaction=transaction, proposal=proposal, decision=decision)
@@ -361,21 +322,18 @@ async def auto_create_posted_entries_for_statement(
         normalized_reasons = tuple(sorted(set(review_reasons)))
         statement.validation_error = f"{ECONOMIC_REVIEW_NOTICE} {', '.join(normalized_reasons)}"[:500]
         await db.flush()
-        # The legs are committed entries. The count tells the truth about them, also when the statement waits.
         return StatementPostingOutcome(
             status=StatementPostingStatus.REVIEW_REQUIRED,
             created_count=legs_posted,
             review_reasons=normalized_reasons,
         )
 
-    created = legs_posted
     requests: list[StatementEntryRequest] = []
     for txn, proposal, decision, counter_account, _transaction in planned:
         if decision.status is DispositionStatus.ALREADY_COVERED:
             continue
         if not decision.should_apply:
             raise RuntimeError("Disposition command reached application without enforce authority")
-        # ``create_entries_from_txns`` consumes the Layer-2 ``AtomicTransaction``.
         source_decision = source_decisions.get(txn.id)
         if source_decision is None:
             raise RuntimeError("authoritative disposition is missing its source decision")
@@ -385,7 +343,6 @@ async def auto_create_posted_entries_for_statement(
                 disposition=decision,
                 counter_account=counter_account,
                 source_decision=source_decision,
-                # The decision of a person gets the confidence tier of a person.
                 source_type=(
                     JournalEntrySourceType.USER_CONFIRMED
                     if proposal is not None and proposal.origin is IntentProposalOrigin.MANUAL_ADJUDICATION
@@ -405,20 +362,14 @@ async def auto_create_posted_entries_for_statement(
         fx_rate_error=dependencies.fx_rate_error,
         trace_emitter=emitter,
     )
-    postings: list[tuple[JournalEntry, AtomicTransaction]] = [
-        (entry, request.txn) for entry, request in zip(entries, requests, strict=True)
-    ]
-    created += len(postings)
-
+    postings = [(entry, request.txn) for entry, request in zip(entries, requests, strict=True)]
     if postings:
         try:
             from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
             async with db.begin_nested():
                 await EvidenceGraphIntegrationService().record_journal_postings_batch(
-                    db,
-                    user_id=user_id,
-                    postings=postings,
+                    db, user_id=user_id, postings=postings
                 )
         except Exception as evidence_exc:
             logger.warning(
@@ -432,16 +383,12 @@ async def auto_create_posted_entries_for_statement(
             )
 
     _clear_economic_review_notice(statement)
-    return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=created)
+    return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=legs_posted + len(postings))
 
 
 async def _applied_classifications(
     db: AsyncSession, txn_ids: Sequence[UUID]
 ) -> tuple[dict[UUID, tuple[TransactionClassification, ClassificationRule]], dict[UUID, Account]]:
-    """The applied classification row of each transaction, with the counter accounts that the rows name.
-
-    A reviewed rule (keyword or regex) wins over a model row. Within a producer class the newest row wins.
-    """
     classification_by_txn_id: dict[UUID, tuple[TransactionClassification, ClassificationRule]] = {}
     accounts_by_id: dict[UUID, Account] = {}
     if not txn_ids:
@@ -450,14 +397,13 @@ async def _applied_classifications(
         await db.execute(
             select(TransactionClassification, ClassificationRule)
             .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
-            .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
-            .where(TransactionClassification.status == ClassificationStatus.APPLIED)
+            .where(
+                TransactionClassification.atomic_txn_id.in_(list(txn_ids)),
+                TransactionClassification.status == ClassificationStatus.APPLIED,
+            )
             .order_by(
                 case(
-                    (
-                        ClassificationRule.rule_type.in_((RuleType.KEYWORD_MATCH, RuleType.REGEX_MATCH)),
-                        0,
-                    ),
+                    (ClassificationRule.rule_type.in_((RuleType.KEYWORD_MATCH, RuleType.REGEX_MATCH)), 0),
                     else_=1,
                 ),
                 TransactionClassification.created_at.desc(),
@@ -465,8 +411,7 @@ async def _applied_classifications(
         )
     ).all()
     for cl, rule in rows:
-        if cl.atomic_txn_id not in classification_by_txn_id:
-            classification_by_txn_id[cl.atomic_txn_id] = (cl, rule)
+        classification_by_txn_id.setdefault(cl.atomic_txn_id, (cl, rule))
 
     needed_account_ids = {cl.account_id for cl, _ in classification_by_txn_id.values() if cl.account_id is not None}
     if needed_account_ids:
@@ -482,13 +427,6 @@ def _applied_proposal(
     *,
     covered_by_match: bool = False,
 ) -> IntentProposal:
-    """The intent proposal that an applied classification row stands for.
-
-    A row that a person corrected is the decision of that person, not of the model (#2405). An accepted match
-    already covers its money. A manual adjudication would bypass that fact and post the movement twice, so a
-    covered row keeps the machine origin and the disposition policy keeps the row covered. The correction then
-    does not change the ledger. The product has no path to void an accepted match yet (#2423).
-    """
     corrected_by_user = (classification.tags or {}).get("corrected_by_user") is True
     if corrected_by_user and covered_by_match:
         logger.warning(
@@ -506,7 +444,6 @@ def _applied_proposal(
         ),
         intent=_classification_intent(classification, counter_account),
         category=str((classification.tags or {}).get("category") or "") or None,
-        # A manual adjudication claims no machine confidence.
         confidence=None if corrected_by_user else Decimal(classification.confidence_score or 0) / Decimal("100"),
         evidence=(str(classification.id),),
     )
@@ -519,12 +456,6 @@ async def applied_rows_the_policy_accepts(
     mode: DispositionMode,
     policy: DispositionPolicy | None = None,
 ) -> set[UUID]:
-    """Ids of the transactions that the posting will post from their applied classification (#2419).
-
-    This asks the disposition policy with the same proposal that the posting builds. A caller that must
-    leave such a row to the posting (the one-click approval) therefore never disagrees with the posting.
-    A transaction without an applied row, or whose row the policy refuses, is not in the result.
-    """
     classification_by_txn_id, accounts_by_id = await _applied_classifications(db, [txn.id for txn in transactions])
     policy = policy or DispositionPolicy()
     accepted: set[UUID] = set()
@@ -556,18 +487,7 @@ async def applied_rows_the_policy_accepts(
     return accepted
 
 
-def _classification_intent(
-    classification: TransactionClassification,
-    counter_account: Account,
-) -> EconomicIntent:
-    """Resolve an explicit, account-compatible intent from a trusted classification.
-
-    A category account only implies income or expense. Assets and liabilities are
-    economically ambiguous: an asset counterparty may be an investment purchase,
-    sale, or transfer; a liability may be principal, interest, or a card payment.
-    Those cases therefore require an explicit intent tag supplied by the reviewed
-    classification rather than being inferred from debit/credit direction.
-    """
+def _classification_intent(classification: TransactionClassification, counter_account: Account) -> EconomicIntent:
     tags = classification.tags if isinstance(classification.tags, dict) else {}
     tagged_intent = tags.get("intent")
     if tagged_intent is not None:
@@ -575,9 +495,7 @@ def _classification_intent(
             intent = EconomicIntent(str(tagged_intent))
         except ValueError:
             return EconomicIntent.UNKNOWN
-        if intent_matches_counter_account(intent, counter_account.type.value):
-            return intent
-        return EconomicIntent.UNKNOWN
+        return intent if intent_matches_counter_account(intent, counter_account.type.value) else EconomicIntent.UNKNOWN
     if counter_account.type is AccountType.INCOME:
         return EconomicIntent.INCOME
     if counter_account.type is AccountType.EXPENSE:
@@ -586,7 +504,6 @@ def _classification_intent(
 
 
 def _classification_proposal_origin(rule_type: RuleType) -> IntentProposalOrigin:
-    """Preserve the producer class instead of inferring it from economic intent."""
     if rule_type in {RuleType.KEYWORD_MATCH, RuleType.REGEX_MATCH}:
         return IntentProposalOrigin.REVIEWED_RULE
     if rule_type is RuleType.ML_MODEL:
@@ -595,11 +512,8 @@ def _classification_proposal_origin(rule_type: RuleType) -> IntentProposalOrigin
 
 
 async def resolve_statement_posting_account(
-    db: AsyncSession,
-    statement: StatementSummary,
-    user_id: UUID,
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> Account:
-    """Resolve the asset account for automatic posting without generic fallback."""
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
@@ -608,8 +522,7 @@ async def resolve_statement_posting_account(
     document = (
         await db.get(UploadedDocument, statement.uploaded_document_id) if statement.uploaded_document_id else None
     )
-    bank_source = is_bank_custody_source(source, document)
-    if bank_source and statement.institution and statement.account_last4:
+    if is_bank_custody_source(source, document) and statement.institution and statement.account_last4:
         resolved_account = await resolve_bank_custody_account(
             db,
             user_id=user_id,
@@ -624,10 +537,9 @@ async def resolve_statement_posting_account(
         return resolved_account
 
     if statement.account_id:
-        account_result = await db.execute(
-            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
-        )
-        account = account_result.scalar_one_or_none()
+        account = (
+            await db.execute(select(Account).where(Account.id == statement.account_id, Account.user_id == user_id))
+        ).scalar_one_or_none()
         if account is None:
             raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
         if account.type != AccountType.ASSET or not account.is_active:
@@ -642,24 +554,17 @@ async def resolve_statement_posting_account(
             )
         return account
 
-    institution = (statement.institution or "").strip()
-    account_last4 = (statement.account_last4 or "").strip()
-    if not institution or not account_last4 or not currency:
+    if not (statement.institution or "").strip() or not (statement.account_last4 or "").strip():
         raise ValueError(
             "Account mapping required before posting. Confirm the statement account because institution, "
             "account_last4, or currency metadata is missing."
         )
-
     raise ValueError("Account mapping required before posting. Confirm the statement custody identity.")
 
 
 async def validate_statement_period_unique(
-    db: AsyncSession,
-    statement: StatementSummary,
-    user_id: UUID,
-    account_id: UUID,
+    db: AsyncSession, statement: StatementSummary, user_id: UUID, account_id: UUID
 ) -> None:
-    """Block posted entries when the statement source period is missing, duplicated, or overlapping."""
     if statement.period_start is None or statement.period_end is None:
         raise ValueError("Statement period required before posting. Confirm the source date range before posting.")
     if statement.period_start > statement.period_end:
@@ -669,21 +574,24 @@ async def validate_statement_period_unique(
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
 
-    overlap_result = await db.execute(
-        select(StatementSummary)
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.id != statement.id)
-        .where(StatementSummary.account_id == account_id)
-        .where(StatementSummary.status == BankStatementStatus.APPROVED)
-        .where(func.upper(StatementSummary.currency) == currency)
-        .where(StatementSummary.period_start.is_not(None))
-        .where(StatementSummary.period_end.is_not(None))
-        .where(StatementSummary.period_start <= statement.period_end)
-        .where(StatementSummary.period_end >= statement.period_start)
-        .limit(1)
-    )
-    overlapping_statement = overlap_result.scalar_one_or_none()
-    if overlapping_statement:
+    overlapping = (
+        await db.execute(
+            select(StatementSummary)
+            .where(
+                StatementSummary.user_id == user_id,
+                StatementSummary.id != statement.id,
+                StatementSummary.account_id == account_id,
+                StatementSummary.status == BankStatementStatus.APPROVED,
+                func.upper(StatementSummary.currency) == currency,
+                StatementSummary.period_start.is_not(None),
+                StatementSummary.period_end.is_not(None),
+                StatementSummary.period_start <= statement.period_end,
+                StatementSummary.period_end >= statement.period_start,
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if overlapping:
         raise ValueError(
             "Statement period overlaps an approved statement for this account and currency. "
             "Resolve the duplicate source date range before posting."
@@ -702,12 +610,6 @@ async def _rows_kept_by_other_statements(
     *,
     was_approved: bool,
 ) -> set[UUID]:
-    """Ids of the rows that another statement of the same or a higher review state still contains (#2888).
-
-    Another statement counts only when a row lists its document. When ``was_approved`` is True, only an
-    APPROVED statement keeps the row. When it is False, every statement that is not RETIRED and not REJECTED
-    keeps the row. The membership filter applies that rule through ``include_pending_stage1``.
-    """
     document_ids = {doc_id for txn in transactions for doc_id in extract_source_document_ids(txn.source_documents)}
     if not document_ids:
         return set()
@@ -743,13 +645,6 @@ async def statement_owned_transaction_ids(
     was_approved: bool,
     tolerate_unresolved_rows: bool = False,
 ) -> list[UUID]:
-    """Ids of the rows that only this statement owns, so a reject or a retire releases them (#2888).
-
-    ``was_approved`` is True when the statement was APPROVED before the action. A duplicate upload shares its
-    rows with the original, and a row stays with the other statement that holds the same or a higher state.
-    When the rows cannot be resolved, ``ValueError`` propagates. With ``tolerate_unresolved_rows`` set, the
-    function logs one warning and returns no id instead.
-    """
     try:
         transactions = await resolve_statement_transactions(db, statement)
     except ValueError as exc:
@@ -767,14 +662,17 @@ async def statement_owned_transaction_ids(
     return [txn.id for txn in transactions if txn.id not in kept]
 
 
+async def _void_reconciled_entry(
+    db: AsyncSession, entry_id: UUID, *, user_id: UUID, base_currency: str, reason: str
+) -> None:
+    await void_journal_entry(
+        db, entry_id, reason=reason, user_id=user_id, allow_reconciled=True, base_currency=base_currency
+    )
+
+
 async def _void_entries_of_transactions(
-    db: AsyncSession,
-    user_id: UUID,
-    txn_ids: Sequence[UUID],
-    *,
-    reason: str,
+    db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID], *, reason: str
 ) -> int:
-    """Void every live entry whose source is one of the rows. Return the number of voided entries."""
     if not txn_ids:
         return 0
     base_currency = await get_effective_base_currency(db, user_id=user_id)
@@ -795,18 +693,9 @@ async def _void_entries_of_transactions(
         .scalars()
         .all()
     )
-    voided = 0
     for entry in active_entries:
-        await void_journal_entry(
-            db,
-            entry.id,
-            reason=reason,
-            user_id=user_id,
-            allow_reconciled=True,
-            base_currency=base_currency,
-        )
-        voided += 1
-    return voided
+        await _void_reconciled_entry(db, entry.id, user_id=user_id, base_currency=base_currency, reason=reason)
+    return len(active_entries)
 
 
 async def release_statement_ledger_effects(
@@ -819,23 +708,11 @@ async def release_statement_ledger_effects(
     dependencies: StatementPostingDependencies | None,
     tolerate_unresolved_rows: bool = False,
 ) -> int:
-    """Release the rows that only this statement owns after a reject or a retire (#2888).
-
-    The active matches of a row become SUPERSEDED first, then the live entries of the row become VOID.
-    Return the number of voided entries. When the rows cannot be resolved, ``ValueError`` propagates.
-    With ``tolerate_unresolved_rows`` set, the release logs one warning and returns 0 instead.
-    """
-    # The status of the other statement decides who owns a shared row. Two releases of one user must not decide at
-    # the same time, or each keeps the row for the other and no statement owns it (#2888).
     await db.execute(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": f"statement-release:{user_id}"}
     )
     owned = await statement_owned_transaction_ids(
-        db,
-        statement,
-        user_id,
-        was_approved=was_approved,
-        tolerate_unresolved_rows=tolerate_unresolved_rows,
+        db, statement, user_id, was_approved=was_approved, tolerate_unresolved_rows=tolerate_unresolved_rows
     )
     if not owned:
         return 0
@@ -845,9 +722,7 @@ async def release_statement_ledger_effects(
 
 
 async def _active_gap_plug_entries_for_account(
-    db: AsyncSession,
-    user_id: UUID,
-    account_id: UUID,
+    db: AsyncSession, user_id: UUID, account_id: UUID
 ) -> list[tuple[JournalEntry, JournalLine]]:
     rows = (
         await db.execute(
@@ -902,6 +777,31 @@ async def _non_plug_account_movement_between(
     )
 
 
+async def _lookup_fx_rate(
+    db: AsyncSession,
+    *,
+    currency: str,
+    base_currency: str,
+    as_of: date,
+    dependencies: StatementPostingDependencies | None,
+    error_message: str,
+    require_provider: bool = False,
+) -> Decimal:
+    if dependencies is not None:
+        try:
+            return await dependencies.fx_rate_provider(db, currency, base_currency, as_of, lazy_load=True)
+        except dependencies.fx_rate_error as exc:
+            raise ValueError(error_message) from exc
+    if require_provider:
+        raise ValueError("FX rate provider required for statement opening balance")
+    from src.pricing import PricingError, get_exchange_rate
+
+    try:
+        return await get_exchange_rate(db, currency, base_currency, as_of, lazy_load=True)
+    except PricingError as exc:
+        raise ValueError(error_message) from exc
+
+
 async def reconcile_account_statement_chain(
     db: AsyncSession,
     user_id: UUID,
@@ -910,11 +810,7 @@ async def reconcile_account_statement_chain(
     dependencies: StatementPostingDependencies | None = None,
     candidate_statement: StatementSummary | None = None,
 ) -> bool:
-    """Idempotently anchor S_0 to 3199 and calibrate inter-statement gaps to 3198 (#2832).
-
-    Returns True when an opening position or gap plug journal entry was created or updated,
-    and False when the chain was already up to date with no new entry posted.
-    """
+    """Idempotently anchor S_0 to 3199 and calibrate inter-statement gaps to 3198."""
     from src.audit.money import to_money
     from src.extraction.extension.statement_contribution import resolve_statement_contribution
 
@@ -940,15 +836,16 @@ async def reconcile_account_statement_chain(
         .scalars()
         .all()
     )
-    if candidate_statement is not None and candidate_statement.account_id == account_id:
-        if (
-            candidate_statement.period_start is not None
-            and candidate_statement.effective_opening_balance() is not None
-            and all(row.id != candidate_statement.id for row in approved_rows)
-            and candidate_statement.status != BankStatementStatus.RETIRED
-        ):
-            approved_rows.append(candidate_statement)
-            approved_rows.sort(key=StatementSummary.chain_sort_key)
+    if (
+        candidate_statement is not None
+        and candidate_statement.account_id == account_id
+        and candidate_statement.period_start is not None
+        and candidate_statement.effective_opening_balance() is not None
+        and all(row.id != candidate_statement.id for row in approved_rows)
+        and candidate_statement.status != BankStatementStatus.RETIRED
+    ):
+        approved_rows.append(candidate_statement)
+        approved_rows.sort(key=StatementSummary.chain_sort_key)
 
     base_currency = await get_effective_base_currency(db, user_id=user_id)
     existing_plugs = await _active_gap_plug_entries_for_account(db, user_id, account_id)
@@ -958,28 +855,25 @@ async def reconcile_account_statement_chain(
     if not approved_rows:
         changed = False
         for entry, _line in existing_plugs:
-            await void_journal_entry(
+            await _void_reconciled_entry(
                 db,
                 entry.id,
-                reason="All statements for account retired or rejected",
                 user_id=user_id,
-                allow_reconciled=True,
                 base_currency=base_currency,
+                reason="All statements for account retired or rejected",
             )
             changed = True
         if existing_opening is not None and existing_opening.journal_entry_id is not None:
             entry_obj = await db.get(JournalEntry, existing_opening.journal_entry_id)
-            is_statement_import_opening = existing_opening.source_decision is not None or (
+            if existing_opening.source_decision is not None or (
                 entry_obj is not None and entry_obj.memo == "Opening balance (statement import)"
-            )
-            if is_statement_import_opening:
-                await void_journal_entry(
+            ):
+                await _void_reconciled_entry(
                     db,
                     existing_opening.journal_entry_id,
-                    reason="All statements for account retired or rejected",
                     user_id=user_id,
-                    allow_reconciled=True,
                     base_currency=base_currency,
+                    reason="All statements for account retired or rejected",
                 )
                 changed = True
         return changed
@@ -998,7 +892,6 @@ async def reconcile_account_statement_chain(
         if existing_opening.state != "authoritative":
             raise ValueError("Opening balance authority needs review")
         if existing_opening.effective_date < earliest.period_start:
-            # Determine whether existing_opening came from a retired/rejected statement or a manual opening balance
             existing_entry_obj = (
                 await db.get(JournalEntry, existing_opening.journal_entry_id)
                 if existing_opening.journal_entry_id is not None
@@ -1033,13 +926,12 @@ async def reconcile_account_statement_chain(
         remaining_plugs: list[tuple[JournalEntry, JournalLine]] = []
         for entry, line in existing_plugs:
             if entry.entry_date < earliest.period_start:
-                await void_journal_entry(
+                await _void_reconciled_entry(
                     db,
                     entry.id,
-                    reason="Superseded by statement chain reconciliation",
                     user_id=user_id,
-                    allow_reconciled=True,
                     base_currency=base_currency,
+                    reason="Superseded by statement chain reconciliation",
                 )
                 changed = True
             else:
@@ -1053,24 +945,15 @@ async def reconcile_account_statement_chain(
             source_decision_id = contribution.decision.decision_id
         fx_rates: dict[str, Decimal] = {}
         if currency != base_currency and earliest_opening != 0:
-            if dependencies is not None:
-                try:
-                    fx_rates[currency] = await dependencies.fx_rate_provider(
-                        db, currency, base_currency, earliest.period_start, lazy_load=True
-                    )
-                except dependencies.fx_rate_error as exc:
-                    raise ValueError("FX rate required for statement opening balance") from exc
-            elif candidate_statement is not None:
-                raise ValueError("FX rate provider required for statement opening balance")
-            else:
-                from src.pricing import PricingError, get_exchange_rate
-
-                try:
-                    fx_rates[currency] = await get_exchange_rate(
-                        db, currency, base_currency, earliest.period_start, lazy_load=True
-                    )
-                except PricingError as exc:
-                    raise ValueError("FX rate required for statement opening balance") from exc
+            fx_rates[currency] = await _lookup_fx_rate(
+                db,
+                currency=currency,
+                base_currency=base_currency,
+                as_of=earliest.period_start,
+                dependencies=dependencies,
+                error_message="FX rate required for statement opening balance",
+                require_provider=candidate_statement is not None,
+            )
         trace_emitter = dependencies.trace_emitter_factory(db) if dependencies is not None else None
         if trace_emitter is None and source_decision_id is not None:
             from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry
@@ -1081,10 +964,7 @@ async def reconcile_account_statement_chain(
                 SqlTraceRecordRepository(
                     db,
                     TraceDecisionPolicyRegistry(
-                        (
-                            *extraction_trace_policy_registry().policies,
-                            *ledger_trace_policy_registry().policies,
-                        )
+                        (*extraction_trace_policy_registry().policies, *ledger_trace_policy_registry().policies)
                     ),
                 )
             )
@@ -1107,14 +987,12 @@ async def reconcile_account_statement_chain(
         except ValidationError as exc:
             raise ValueError(str(exc)) from exc
 
-    # Re-fetch current opening entry IDs so gap movement calculation excludes opening entries
     updated_positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
     opening_entry_ids = {p.journal_entry_id for p in updated_positions if p.journal_entry_id is not None}
 
     desired_plugs: dict[tuple[str, str], tuple[StatementSummary, StatementSummary, date, Decimal]] = {}
     for idx in range(len(approved_rows) - 1):
-        s_prev = approved_rows[idx]
-        s_next = approved_rows[idx + 1]
+        s_prev, s_next = approved_rows[idx], approved_rows[idx + 1]
         if s_prev.closing_balance is None or s_prev.period_end is None or s_next.period_start is None:
             continue
         next_open = s_next.effective_opening_balance()
@@ -1130,14 +1008,11 @@ async def reconcile_account_statement_chain(
         )
         delta = to_money(next_open - s_prev.closing_balance - non_plug_movement)
         if abs(delta) > account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE:
-            plug_date = max(
-                s_prev.period_end + timedelta(days=1),
-                s_next.period_start - timedelta(days=1),
+            plug_date = min(
+                max(s_prev.period_end + timedelta(days=1), s_next.period_start - timedelta(days=1)),
+                s_next.period_start,
             )
-            if plug_date > s_next.period_start:
-                plug_date = s_next.period_start
-            pair_key = (str(s_prev.id), str(s_next.id))
-            desired_plugs[pair_key] = (s_prev, s_next, plug_date, delta)
+            desired_plugs[(str(s_prev.id), str(s_next.id))] = (s_prev, s_next, plug_date, delta)
 
     debit_normal = account.type in (AccountType.ASSET, AccountType.EXPENSE)
     kept_pairs: set[tuple[str, str]] = set()
@@ -1154,13 +1029,12 @@ async def reconcile_account_statement_chain(
         ):
             kept_pairs.add(pair_key)
             continue
-        await void_journal_entry(
+        await _void_reconciled_entry(
             db,
             entry.id,
-            reason="Superseded by statement chain reconciliation",
             user_id=user_id,
-            allow_reconciled=True,
             base_currency=base_currency,
+            reason="Superseded by statement chain reconciliation",
         )
         changed = True
 
@@ -1168,22 +1042,18 @@ async def reconcile_account_statement_chain(
         if pair_key in kept_pairs:
             continue
         acct_currency = normalize_currency_code(account.currency or currency)
-        fx_rate: Decimal | None = None
-        if acct_currency != base_currency:
-            if dependencies is not None:
-                try:
-                    fx_rate = await dependencies.fx_rate_provider(
-                        db, acct_currency, base_currency, plug_date, lazy_load=True
-                    )
-                except dependencies.fx_rate_error as exc:
-                    raise ValueError(f"FX rate required for cross-period gap plug in {acct_currency}") from exc
-            else:
-                from src.pricing import PricingError, get_exchange_rate
-
-                try:
-                    fx_rate = await get_exchange_rate(db, acct_currency, base_currency, plug_date, lazy_load=True)
-                except PricingError as exc:
-                    raise ValueError(f"FX rate required for cross-period gap plug in {acct_currency}") from exc
+        fx_rate = (
+            await _lookup_fx_rate(
+                db,
+                currency=acct_currency,
+                base_currency=base_currency,
+                as_of=plug_date,
+                dependencies=dependencies,
+                error_message=f"FX rate required for cross-period gap plug in {acct_currency}",
+            )
+            if acct_currency != base_currency
+            else None
+        )
         gap_equity = await account_service.get_or_create_unexplained_gap_equity_account(db, user_id, acct_currency)
         debit_custody = debit_normal if delta > 0 else not debit_normal
         custody_direction = Direction.DEBIT if debit_custody else Direction.CREDIT
@@ -1194,31 +1064,23 @@ async def reconcile_account_statement_chain(
             "gap_start": s_prev.period_end.isoformat() if s_prev.period_end else "",
             "gap_end": s_next.period_start.isoformat() if s_next.period_start else "",
         }
-        memo = fit_journal_memo(f"Unexplained statement gap adjustment ({s_prev.period_end} to {s_next.period_start})")
+        line_common = {
+            "amount": abs(delta),
+            "currency": acct_currency,
+            "fx_rate": fx_rate,
+            "event_type": account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
+            "tags": plug_tags,
+        }
         await submit_system_journal_entry(
             db,
             user_id=user_id,
             entry_date=plug_date,
-            memo=memo,
+            memo=fit_journal_memo(
+                f"Unexplained statement gap adjustment ({s_prev.period_end} to {s_next.period_start})"
+            ),
             lines_data=[
-                {
-                    "account_id": account.id,
-                    "direction": custody_direction,
-                    "amount": abs(delta),
-                    "currency": acct_currency,
-                    "fx_rate": fx_rate,
-                    "event_type": account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
-                    "tags": plug_tags,
-                },
-                {
-                    "account_id": gap_equity.id,
-                    "direction": equity_direction,
-                    "amount": abs(delta),
-                    "currency": acct_currency,
-                    "fx_rate": fx_rate,
-                    "event_type": account_service.CROSS_PERIOD_GAP_PLUG_EVENT_TYPE,
-                    "tags": plug_tags,
-                },
+                {"account_id": account.id, "direction": custody_direction, **line_common},
+                {"account_id": gap_equity.id, "direction": equity_direction, **line_common},
             ],
             base_currency=base_currency,
             operation="cross-period-gap",
@@ -1237,27 +1099,9 @@ async def _reconcile_secondary_currency_opening_balance(
     opening_amount: Decimal,
     dependencies: StatementPostingDependencies | None = None,
 ) -> bool:
-    """Post the opening position for a secondary currency bucket on a multi-currency statement."""
-    from src.extraction.extension.review_queue import get_or_create_account
-
-    if statement.institution and statement.account_last4:
-        secondary_account = await resolve_bank_custody_account(
-            db,
-            user_id=user_id,
-            institution=statement.institution,
-            account_last4=statement.account_last4,
-            currency=currency,
-            create_if_missing=True,
-        )
-    else:
-        secondary_account = await get_or_create_account(
-            db,
-            name=f"{statement.institution or 'Statement Account'} ({currency})",
-            account_type=AccountType.ASSET,
-            currency=currency,
-            user_id=user_id,
-        )
-
+    secondary_account = await resolve_secondary_currency_custody_account(
+        db, statement=statement, user_id=user_id, currency=currency
+    )
     secondary_candidate = StatementSummary(
         id=statement.id,
         user_id=user_id,
@@ -1289,7 +1133,6 @@ async def try_auto_post_statement_opening_balance(
     *,
     dependencies: StatementPostingDependencies | None = None,
 ) -> bool:
-    """Establish source starting stock and reconcile the account's statement chain (#2832)."""
     if statement.effective_opening_balance() is None or statement.period_start is None or statement.account_id is None:
         raise ValueError("Statement opening balance, date, and account are required before posting")
     changed = await reconcile_account_statement_chain(
@@ -1328,21 +1171,14 @@ async def try_auto_approve_high_confidence_statement(
     *,
     dependencies: StatementPostingDependencies,
 ) -> int:
-    """Auto-approve and post a high-confidence parsed statement when all posting guards pass.
-
-    If a high-confidence statement cannot be safely posted automatically, leave it in
-    Stage 1 pending review instead of failing parsing.
-    """
-    result = await db.execute(
-        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
-    )
-    statement = result.scalar_one_or_none()
+    statement = (
+        await db.execute(
+            select(StatementSummary).where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
+        )
+    ).scalar_one_or_none()
     if statement is None or not is_high_confidence_auto_approve_candidate(statement):
         return 0
 
-    # The parse session holds the statement row already. A wait for the classification lock here could meet an approve
-    # request that holds the lock and waits for the row, and a poll hides that cycle. So the auto-approve does not
-    # wait: it leaves the statement to the review (#2637).
     if not await try_lock_statement_classification(db, statement_id):
         statement.status = BankStatementStatus.PARSED
         statement.stage1_status = Stage1Status.PENDING_REVIEW
@@ -1369,9 +1205,4 @@ async def try_auto_approve_high_confidence_statement(
             await db.flush()
         return 0
 
-    # Not gated on created_count: a statement can be high-confidence and
-    # balance-validated with zero transactions in its period (e.g. a dormant
-    # account), and its opening balance still needs posting (#1833, PR #1842
-    # review). Idempotency lives in try_auto_post_statement_opening_balance
-    # in the per-account initialization evidence and its database lock.
     return outcome.created_count

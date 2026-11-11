@@ -1,13 +1,4 @@
-"""Portfolio management service - Holdings and P&L calculations.
-
-Moved from ``services/portfolio.py`` (#1643, standard-preserving move): the
-error classes now live in ``base/errors.py`` and every FX conversion goes
-through ``pricing``'s published surface (``convert_amount``/``convert_money``
-with ``lazy_load=True`` — same crawler-fallback behavior the old
-``services/fx.py`` path had). A conversion miss therefore surfaces as
-``pricing.PricingError`` (``NoObservationError``), not the retired
-``FxRateError``.
-"""
+"""Portfolio management service - Holdings and P&L calculations."""
 
 from collections.abc import Sequence
 from datetime import date
@@ -54,34 +45,16 @@ async def _account_names_by_id(
     user_id: UUID,
     account_ids: set[UUID],
 ) -> dict[UUID, str]:
-    """Resolve account display names for a set of ``ManagedPosition.account_id``s.
-
-    ``ManagedPosition`` carries only the bare FK id column — no cross-domain
-    ``relationship()`` navigation into ledger's ``Account`` (#1675 D4) — so the
-    name is resolved with one explicit user-scoped query.
-    """
+    """Resolve account display names for a set of ManagedPosition.account_ids (#1675 D4)."""
     if not account_ids:
         return {}
-    result = await db.execute(
-        select(Account.id, Account.name).where(Account.user_id == user_id).where(Account.id.in_(account_ids))
-    )
-    return {account_id: name for account_id, name in result.all()}
+    rows = (await db.execute(select(Account.id, Account.name).where(Account.user_id == user_id, Account.id.in_(account_ids)))).all()
+    return {aid: name for aid, name in rows}
 
 
 def _derive_provenance(source_documents: object) -> DataProvenance | None:
-    """Conservatively derive a holding's provenance from its snapshot's source
-    documents (EPIC-022 #868/#888).
-
-    Returns "imported" only when there is concrete document evidence (a
-    ``source_documents`` entry carrying a ``doc_id``). Returns None otherwise:
-    we never infer "manual", so manual data can never be mislabelled as imported
-    and import-without-evidence is never overclaimed.
-    """
-    # source_documents is stored either as {"documents": [...]} (brokerage
-    # import) or as a bare [...] list; tolerate both.
-    docs = source_documents
-    if isinstance(docs, dict):
-        docs = docs.get("documents", [])
+    """Return 'imported' only when concrete doc_id evidence exists (#868/#888)."""
+    docs = source_documents.get("documents", []) if isinstance(source_documents, dict) else source_documents
     if isinstance(docs, list) and any(isinstance(doc, dict) and doc.get("doc_id") for doc in docs):
         return "imported"
     return None
@@ -97,25 +70,42 @@ async def _convert_pnl(
     target_currency: str,
     quantize: bool,
 ) -> tuple[Money, Money, Money, Ratio]:
-    """Convert a holding's value + cost to ``target_currency`` and derive P&L.
-
-    The shared valuation tail used across holdings / unrealized / realized /
-    snapshot paths: convert each leg at its own FX rate-date (no-op when already
-    in target), optionally quantize per-value, then ``pnl = value - cost`` and the
-    ``pnl / cost`` ratio. Returns ``(converted_value, converted_cost, pnl, ratio)``.
-    """
+    """Convert a holding's value and cost to target_currency and derive P&L + ratio."""
     converted_value = await convert_money(db, value, target_currency, rate_date=value_rate_date, lazy_load=True)
     converted_cost = await convert_money(db, cost, target_currency, rate_date=cost_rate_date, lazy_load=True)
     if quantize:
         converted_value = converted_value.quantize()
         converted_cost = converted_cost.quantize()
     pnl = converted_value - converted_cost
-    ratio = Ratio.fraction_or_zero(pnl.amount, converted_cost.amount)
-    return converted_value, converted_cost, pnl, ratio
+    return converted_value, converted_cost, pnl, Ratio.fraction_or_zero(pnl.amount, converted_cost.amount)
 
 
 class PortfolioService:
     """Service for managing portfolio holdings and P&L calculations."""
+
+    async def _value_managed_position(
+        self,
+        db: AsyncSession,
+        position: ManagedPosition,
+        eval_date: date,
+        user_id: UUID,
+        target_currency: str,
+        *,
+        quantize: bool,
+    ) -> tuple[Decimal, Money, Money, Money, Ratio]:
+        latest_price = await self._get_latest_price(db, position, eval_date, user_id)
+        position_quantity = position.quantity_qty.quantize()
+        market_value = UnitPrice(latest_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
+        converted_value, converted_cost, pnl, pnl_ratio = await _convert_pnl(
+            db,
+            value=market_value,
+            value_rate_date=eval_date,
+            cost=position.cost_basis_money,
+            cost_rate_date=position.acquisition_date,
+            target_currency=target_currency,
+            quantize=quantize,
+        )
+        return latest_price, converted_value, converted_cost, pnl, pnl_ratio
 
     async def get_holdings(
         self,
@@ -125,119 +115,59 @@ class PortfolioService:
         include_disposed: bool = False,
         warnings: list[dict[str, str]] | None = None,
     ) -> Sequence[HoldingResponse]:
-        """
-        Get portfolio holdings summary.
-
-        Returns holdings for active positions. Includes denormalized fields from
-        AtomicPosition (asset_type, sector, geography) when available.
-
-        Args:
-            db: Database session
-            user_id: User UUID
-            as_of_date: Date to evaluate positions as of (default: today)
-            include_disposed: Include disposed positions in results
-            warnings: Optional accumulator; a snapshot skipped for lack of a
-                reconciled position is disclosed here instead of only logged
-                (#1796), so the caller's response never silently omits it
-
-        Returns:
-            List of holdings with market values and P&L calculations
-
-        Raises:
-            PortfolioNotFoundError: If user has no positions
-        """
+        """Return portfolio holdings summary with market values and unrealized P&L."""
         if as_of_date is not None:
             return await self._get_snapshot_holdings(
-                db,
-                user_id=user_id,
-                as_of_date=as_of_date,
-                include_disposed=include_disposed,
-                warnings=warnings,
+                db, user_id=user_id, as_of_date=as_of_date, include_disposed=include_disposed, warnings=warnings
             )
 
         eval_date = await self._default_holdings_eval_date(db, user_id)
-
-        # Get all managed positions for user.
-        # Order deterministically (asset_identifier, then id tiebreaker) so that
-        # downstream limit/offset pagination returns stable, consistent pages
-        # across requests.
         positions_query = (
             select(ManagedPosition)
             .where(ManagedPosition.user_id == user_id)
             .order_by(ManagedPosition.asset_identifier, ManagedPosition.id)
         )
-
         if not include_disposed:
             positions_query = positions_query.where(ManagedPosition.status == PositionStatus.ACTIVE)
 
-        result = await db.execute(positions_query)
-        positions = result.scalars().all()
-
+        positions = (await db.scalars(positions_query)).all()
         if not positions:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
 
         account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
         base_currency = await get_effective_base_currency(db, user_id=user_id)
-
         holdings: list[HoldingResponse] = []
 
         for position in positions:
-            latest_price = await self._get_latest_price(db, position, eval_date, user_id)
-
-            position_quantity = position.quantity_qty.quantize()
-            market_value = (
-                UnitPrice(latest_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            _, converted_value, converted_cost, unrealized_pnl, unrealized_pnl_ratio = await self._value_managed_position(
+                db, position, eval_date, user_id, base_currency, quantize=True
             )
-            converted_value, converted_cost, unrealized_pnl, unrealized_pnl_ratio = await _convert_pnl(
-                db,
-                value=market_value,
-                value_rate_date=eval_date,
-                cost=position.cost_basis_money,
-                cost_rate_date=position.acquisition_date,
-                target_currency=base_currency,
-                quantize=True,
-            )
-            currency = converted_value.currency.code
-
-            # Get asset classification from latest AtomicPosition (scoped by user_id)
-            asset_type = None
-            sector = None
-            geography = None
-
-            provenance = None
             latest_atomic = await self._get_latest_atomic(db, position.asset_identifier, user_id)
-            if latest_atomic:
-                asset_type = latest_atomic.asset_type
-                sector = latest_atomic.sector
-                geography = latest_atomic.geography
-                provenance = _derive_provenance(latest_atomic.source_documents)
-
-            holding = HoldingResponse(
-                id=position.id,
-                user_id=position.user_id,
-                account_id=position.account_id,
-                asset_identifier=position.asset_identifier,
-                quantity=position.quantity,
-                cost_basis=converted_cost.amount,
-                market_value=converted_value.amount,
-                unrealized_pnl=unrealized_pnl.amount,
-                unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
-                currency=currency,
-                # #1098: native (pre-conversion) cost basis so callers can
-                # reconcile against /assets/positions' native values.
-                native_cost_basis=position.cost_basis_money.amount,
-                native_currency=position.cost_basis_money.currency.code,
-                acquisition_date=position.acquisition_date,
-                disposal_date=position.disposal_date,
-                status=position.status,
-                cost_basis_method=position.cost_basis_method,
-                account_name=account_names.get(position.account_id),
-                asset_type=asset_type,
-                sector=sector,
-                geography=geography,
-                provenance=provenance,
+            holdings.append(
+                HoldingResponse(
+                    id=position.id,
+                    user_id=position.user_id,
+                    account_id=position.account_id,
+                    asset_identifier=position.asset_identifier,
+                    quantity=position.quantity,
+                    cost_basis=converted_cost.amount,
+                    market_value=converted_value.amount,
+                    unrealized_pnl=unrealized_pnl.amount,
+                    unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
+                    currency=converted_value.currency.code,
+                    native_cost_basis=position.cost_basis_money.amount,
+                    native_currency=position.cost_basis_money.currency.code,
+                    acquisition_date=position.acquisition_date,
+                    disposal_date=position.disposal_date,
+                    status=position.status,
+                    cost_basis_method=position.cost_basis_method,
+                    account_name=account_names.get(position.account_id),
+                    asset_type=latest_atomic.asset_type if latest_atomic else None,
+                    sector=latest_atomic.sector if latest_atomic else None,
+                    geography=latest_atomic.geography if latest_atomic else None,
+                    provenance=_derive_provenance(latest_atomic.source_documents) if latest_atomic else None,
+                )
             )
-            holdings.append(holding)
 
         await db.flush()
         return holdings
@@ -262,18 +192,19 @@ class PortfolioService:
                 )
                 .label("rn"),
             )
-            .where(AtomicPosition.user_id == user_id)
-            .where(AtomicPosition.snapshot_date <= as_of_date)
+            .where(AtomicPosition.user_id == user_id, AtomicPosition.snapshot_date <= as_of_date)
             .subquery()
         )
-
-        result = await db.execute(
-            select(AtomicPosition)
-            .join(latest_snapshot_subquery, AtomicPosition.id == latest_snapshot_subquery.c.id)
-            .where(latest_snapshot_subquery.c.rn == 1)
-            .order_by(AtomicPosition.asset_identifier)
+        snapshots = list(
+            (
+                await db.scalars(
+                    select(AtomicPosition)
+                    .join(latest_snapshot_subquery, AtomicPosition.id == latest_snapshot_subquery.c.id)
+                    .where(latest_snapshot_subquery.c.rn == 1)
+                    .order_by(AtomicPosition.asset_identifier)
+                )
+            ).all()
         )
-        snapshots = list(result.scalars().all())
         if not snapshots:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id} as of {as_of_date}")
 
@@ -318,11 +249,9 @@ class PortfolioService:
                     UnitPrice(synced_price.price, Currency(synced_price.currency), PORTFOLIO_QUANTITY_UNIT)
                     * snapshot_quantity
                 )
-                cost_money = position.cost_basis_money
-                cost_rate_date = position.acquisition_date
+                cost_money, cost_rate_date = position.cost_basis_money, position.acquisition_date
             else:
-                market_money = Money(snapshot.market_value, Currency(snapshot.currency))
-                cost_money = Money(snapshot.market_value, Currency(snapshot.currency))
+                market_money = cost_money = Money(snapshot.market_value, Currency(snapshot.currency))
                 cost_rate_date = as_of_date
 
             converted_market_value, converted_cost_basis, unrealized_pnl, unrealized_pnl_ratio = await _convert_pnl(
@@ -334,8 +263,6 @@ class PortfolioService:
                 target_currency=base_currency,
                 quantize=True,
             )
-            currency = converted_market_value.currency.code
-
             holdings.append(
                 HoldingResponse(
                     id=position.id,
@@ -347,8 +274,7 @@ class PortfolioService:
                     market_value=converted_market_value.amount,
                     unrealized_pnl=unrealized_pnl.amount,
                     unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
-                    currency=currency,
-                    # #1098: native (pre-conversion) cost basis + currency.
+                    currency=converted_market_value.currency.code,
                     native_cost_basis=cost_money.amount,
                     native_currency=cost_money.currency.code,
                     acquisition_date=position.acquisition_date,
@@ -376,13 +302,17 @@ class PortfolioService:
         user_id: UUID,
         snapshot: AtomicPosition,
     ) -> ManagedPosition | None:
-        """Find the reconciled managed position that corresponds to an atomic snapshot."""
-        result = await db.execute(
-            select(ManagedPosition)
-            .where(ManagedPosition.user_id == user_id)
-            .where(ManagedPosition.asset_identifier == snapshot.asset_identifier)
+        """Find the reconciled managed position corresponding to an atomic snapshot."""
+        positions = list(
+            (
+                await db.scalars(
+                    select(ManagedPosition).where(
+                        ManagedPosition.user_id == user_id,
+                        ManagedPosition.asset_identifier == snapshot.asset_identifier,
+                    )
+                )
+            ).all()
         )
-        positions = list(result.scalars().all())
         if not positions:
             return None
 
@@ -395,8 +325,7 @@ class PortfolioService:
                 if metadata_broker == broker or account_name == broker:
                     return position
 
-        active_position = next((position for position in positions if position.status == PositionStatus.ACTIVE), None)
-        return active_position or positions[0]
+        return next((p for p in positions if p.status == PositionStatus.ACTIVE), positions[0])
 
     async def calculate_realized_pnl(
         self,
@@ -405,39 +334,20 @@ class PortfolioService:
         period_start: date,
         period_end: date,
     ) -> RealizedPnLResponse:
-        """
-        Calculate realized P&L for a user within a date range.
-
-        Uses cost basis method (FIFO/LIFO/AvgCost) stored in position.
-
-        Args:
-            db: Database session
-            user_id: User UUID
-            period_start: Start date of the period (inclusive)
-            period_end: End date of the period (inclusive)
-
-        Returns:
-            Realized P&L with position breakdown
-
-        Raises:
-            InvalidDateRangeError: If period_start > period_end
-            PortfolioNotFoundError: If user has no disposed positions
-        """
+        """Calculate realized P&L for disposed positions within [period_start, period_end]."""
         if period_start > period_end:
             raise InvalidDateRangeError(f"period_start ({period_start}) cannot be after period_end ({period_end})")
 
-        # Get disposed positions
-        disposed_positions_query = (
-            select(ManagedPosition)
-            .where(ManagedPosition.user_id == user_id)
-            .where(ManagedPosition.status == PositionStatus.DISPOSED)
-            .where(ManagedPosition.disposal_date.isnot(None))
-            .where(ManagedPosition.disposal_date.between(period_start, period_end))
-        )
-
-        result = await db.execute(disposed_positions_query)
-        disposed_positions = result.scalars().all()
-
+        disposed_positions = (
+            await db.scalars(
+                select(ManagedPosition).where(
+                    ManagedPosition.user_id == user_id,
+                    ManagedPosition.status == PositionStatus.DISPOSED,
+                    ManagedPosition.disposal_date.isnot(None),
+                    ManagedPosition.disposal_date.between(period_start, period_end),
+                )
+            )
+        ).all()
         if not disposed_positions:
             return RealizedPnLResponse(
                 period_start=period_start,
@@ -455,25 +365,13 @@ class PortfolioService:
 
         for position in disposed_positions:
             assert position.disposal_date is not None
-            disposal_price = await self._get_latest_price(db, position, position.disposal_date, user_id)
-            position_quantity = position.quantity_qty.quantize()
-            disposal_value = (
-                UnitPrice(disposal_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            disposal_price, converted_disposal, converted_cost, realized_pnl, realized_pnl_ratio = (
+                await self._value_managed_position(
+                    db, position, position.disposal_date, user_id, base_currency, quantize=False
+                )
             )
-
-            converted_disposal, converted_cost, realized_pnl, realized_pnl_ratio = await _convert_pnl(
-                db,
-                value=disposal_value,
-                value_rate_date=position.disposal_date,
-                cost=position.cost_basis_money,
-                cost_rate_date=position.acquisition_date,
-                target_currency=base_currency,
-                quantize=False,
-            )
-
             total_realized_pnl += realized_pnl.amount
             total_converted_cost += converted_cost.amount
-
             details.append(
                 {
                     "asset_identifier": position.asset_identifier,
@@ -484,22 +382,17 @@ class PortfolioService:
                     "disposal_value": converted_disposal.amount,
                     "realized_pnl": realized_pnl.amount,
                     "realized_pnl_percent": realized_pnl_ratio.to_percent(),
-                    # amounts above are converted to base, so label them with base
-                    # (was position.currency — mislabelled converted amounts).
                     "currency": converted_cost.currency.code,
                     "cost_basis_method": position.cost_basis_method,
                 }
             )
-
-        # Calculate overall percent using converted costs (not raw costs)
-        total_realized_pnl_ratio = Ratio.fraction_or_zero(total_realized_pnl, total_converted_cost)
 
         await db.flush()
         return RealizedPnLResponse(
             period_start=period_start,
             period_end=period_end,
             total_realized_pnl=to_money(total_realized_pnl),
-            total_realized_pnl_percent=total_realized_pnl_ratio.to_percent(),
+            total_realized_pnl_percent=Ratio.fraction_or_zero(total_realized_pnl, total_converted_cost).to_percent(),
             positions_count=len(disposed_positions),
             details=details,
         )
@@ -510,34 +403,16 @@ class PortfolioService:
         user_id: UUID,
         as_of_date: date | None = None,
     ) -> UnrealizedPnLResponse:
-        """
-        Calculate unrealized P&L for user's portfolio as of a specific date.
-
-        Unrealized P&L = market_value - cost_basis (at as_of_date)
-
-        Args:
-            db: Database session
-            user_id: User UUID
-            as_of_date: Date to evaluate positions (default: today)
-
-        Returns:
-            Unrealized P&L summary with position breakdown
-
-        Raises:
-            PortfolioNotFoundError: If user has no positions
-        """
+        """Calculate unrealized P&L for active positions as of as_of_date."""
         eval_date = as_of_date or date.today()
-
-        # Get all active positions for user
-        positions_query = (
-            select(ManagedPosition)
-            .where(ManagedPosition.user_id == user_id)
-            .where(ManagedPosition.status == PositionStatus.ACTIVE)
-        )
-
-        result = await db.execute(positions_query)
-        positions = result.scalars().all()
-
+        positions = (
+            await db.scalars(
+                select(ManagedPosition).where(
+                    ManagedPosition.user_id == user_id,
+                    ManagedPosition.status == PositionStatus.ACTIVE,
+                )
+            )
+        ).all()
         if not positions:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
 
@@ -548,24 +423,9 @@ class PortfolioService:
         base_currency = await get_effective_base_currency(db, user_id=user_id)
 
         for position in positions:
-            latest_price = await self._get_latest_price(db, position, eval_date, user_id)
-
-            position_quantity = position.quantity_qty.quantize()
-            market_value = (
-                UnitPrice(latest_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            latest_price, converted_market, converted_cost, unrealized_pnl, unrealized_pnl_ratio = (
+                await self._value_managed_position(db, position, eval_date, user_id, base_currency, quantize=False)
             )
-
-            converted_market, converted_cost, unrealized_pnl, unrealized_pnl_ratio = await _convert_pnl(
-                db,
-                value=market_value,
-                value_rate_date=eval_date,
-                cost=position.cost_basis_money,
-                cost_rate_date=position.acquisition_date,
-                target_currency=base_currency,
-                quantize=False,
-            )
-            currency = converted_market.currency.code
-
             total_market_value += converted_market.amount
             total_cost_basis += converted_cost.amount
             total_unrealized_pnl += unrealized_pnl.amount
@@ -578,18 +438,15 @@ class PortfolioService:
                     "cost_basis": converted_cost.amount,
                     "unrealized_pnl": unrealized_pnl.amount,
                     "unrealized_pnl_percent": unrealized_pnl_ratio.to_percent(),
-                    "currency": currency,
+                    "currency": converted_market.currency.code,
                 }
             )
-
-        # Calculate overall percent
-        total_unrealized_pnl_ratio = Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis)
 
         await db.flush()
         return UnrealizedPnLResponse(
             as_of_date=eval_date,
             total_unrealized_pnl=to_money(total_unrealized_pnl),
-            total_unrealized_pnl_percent=total_unrealized_pnl_ratio.to_percent(),
+            total_unrealized_pnl_percent=Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis).to_percent(),
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
             holdings_count=len(positions),
@@ -602,32 +459,15 @@ class PortfolioService:
         user_id: UUID,
         updates: list[PriceUpdateRequest],
     ) -> list[PriceUpdateResponse]:
-        """
-        Update market prices for holdings (manual overrides).
-
-        Inserts new records into market_data_override table, which takes
-        precedence over API-sourced prices.
-
-        Args:
-            db: Database session
-            user_id: User UUID
-            updates: List of price update requests
-
-        Returns:
-            List of price update responses with success status
-        """
+        """Insert manual MarketDataOverride records for user holdings."""
         responses: list[PriceUpdateResponse] = []
-
         for update in updates:
-            # Validate asset exists and belongs to user
-            asset_query = (
-                select(ManagedPosition)
-                .where(ManagedPosition.user_id == user_id)
-                .where(ManagedPosition.asset_identifier == update.asset_identifier)
+            position = await db.scalar(
+                select(ManagedPosition).where(
+                    ManagedPosition.user_id == user_id,
+                    ManagedPosition.asset_identifier == update.asset_identifier,
+                )
             )
-            result = await db.execute(asset_query)
-            position = result.scalar_one_or_none()
-
             if not position:
                 responses.append(
                     PriceUpdateResponse(
@@ -643,7 +483,6 @@ class PortfolioService:
                 )
                 continue
 
-            # Create market data override (scoped to user)
             override = MarketDataOverride(
                 user_id=user_id,
                 asset_identifier=update.asset_identifier,
@@ -653,8 +492,7 @@ class PortfolioService:
                 source=PriceSource.MANUAL,
             )
             db.add(override)
-            await db.flush()  # Flush to populate created_at
-
+            await db.flush()
             responses.append(
                 PriceUpdateResponse(
                     success=True,
@@ -677,52 +515,26 @@ class PortfolioService:
         user_id: UUID,
         as_of_date: date | None = None,
     ) -> PortfolioSummaryResponse:
-        """
-        Get overall portfolio summary including total market value, P&L, etc.
-
-        Args:
-            db: Database session
-            user_id: User UUID
-            as_of_date: Date to evaluate positions (default: today)
-
-        Returns:
-            Comprehensive portfolio summary
-        """
+        """Return overall portfolio summary including market value, cost basis, and P&L."""
         holdings = await self.get_holdings(db, user_id, as_of_date, include_disposed=True)
-
-        total_market_value = Decimal("0")
-        total_cost_basis = Decimal("0")
-        total_unrealized_pnl = Decimal("0")
-        active_positions_count = 0
-        disposed_positions_count = 0
-
-        for holding in holdings:
-            total_market_value += holding.market_value
-            total_cost_basis += holding.cost_basis
-            total_unrealized_pnl += holding.unrealized_pnl
-
-            if holding.status == PositionStatus.ACTIVE:
-                active_positions_count += 1
-            else:
-                disposed_positions_count += 1
-
-        # Calculate net P&L and percentages
-        net_pnl = total_unrealized_pnl
-        net_pnl_ratio = Ratio.fraction_or_zero(net_pnl, total_cost_basis)
-
+        total_market_value = sum((h.market_value for h in holdings), Decimal("0"))
+        total_cost_basis = sum((h.cost_basis for h in holdings), Decimal("0"))
+        total_unrealized_pnl = sum((h.unrealized_pnl for h in holdings), Decimal("0"))
+        active_count = sum(1 for h in holdings if h.status == PositionStatus.ACTIVE)
+        net_pnl_ratio = Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis)
         currency = holdings[0].currency if holdings else await get_effective_base_currency(db, user_id=user_id)
         return PortfolioSummaryResponse(
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
             total_unrealized_pnl=to_money(total_unrealized_pnl),
             total_unrealized_pnl_percent=net_pnl_ratio.to_percent(),
-            total_realized_pnl=Decimal("0"),  # Phase 1 only
+            total_realized_pnl=Decimal("0"),
             total_realized_pnl_percent=Ratio.zero().to_percent(),
-            net_pnl=to_money(net_pnl),
+            net_pnl=to_money(total_unrealized_pnl),
             net_pnl_percent=net_pnl_ratio.to_percent(),
             holdings_count=len(holdings),
-            active_positions_count=active_positions_count,
-            disposed_positions_count=disposed_positions_count,
+            active_positions_count=active_count,
+            disposed_positions_count=len(holdings) - active_count,
             currency=currency,
         )
 
@@ -733,34 +545,15 @@ class PortfolioService:
         eval_date: date,
         user_id: UUID,
     ) -> Decimal:
-        """
-        Get latest per-unit market price for a position from override or AtomicPosition.
-
-        Priority: MarketDataOverride > AtomicPosition snapshot on eval_date > earliest available.
-
-        Args:
-            db: Database session
-            position: Managed position
-            eval_date: Date to evaluate price
-            user_id: User UUID for security scoping
-
-        Returns:
-            Latest per-unit price in position's currency
-
-        Raises:
-            AssetNotFoundError: If no price data available
-        """
-        # Check for manual override first (scoped by user_id)
-        override_query = (
-            select(MarketDataOverride)
-            .where(MarketDataOverride.user_id == user_id)
-            .where(MarketDataOverride.asset_identifier == position.asset_identifier)
-            .where(MarketDataOverride.price_date == eval_date)
-            .where(MarketDataOverride.source == PriceSource.MANUAL)
+        """Resolve per-unit price in position currency (override > synced price > snapshot)."""
+        override = await db.scalar(
+            select(MarketDataOverride).where(
+                MarketDataOverride.user_id == user_id,
+                MarketDataOverride.asset_identifier == position.asset_identifier,
+                MarketDataOverride.price_date == eval_date,
+                MarketDataOverride.source == PriceSource.MANUAL,
+            )
         )
-        override_result = await db.execute(override_query)
-        override = override_result.scalar_one_or_none()
-
         if override:
             return override.price
 
@@ -777,26 +570,20 @@ class PortfolioService:
                 lazy_load=True,
             )
 
-        # Get latest snapshot from AtomicPosition (scoped by user_id)
-        snapshot_query = (
+        snapshot = await db.scalar(
             select(AtomicPosition)
-            .where(AtomicPosition.user_id == user_id)
-            .where(AtomicPosition.asset_identifier == position.asset_identifier)
-            .where(AtomicPosition.snapshot_date <= eval_date)
+            .where(
+                AtomicPosition.user_id == user_id,
+                AtomicPosition.asset_identifier == position.asset_identifier,
+                AtomicPosition.snapshot_date <= eval_date,
+            )
             .order_by(AtomicPosition.snapshot_date.desc())
             .limit(1)
         )
-        snapshot_result = await db.execute(snapshot_query)
-        snapshot = snapshot_result.scalar_one_or_none()
-
         if snapshot:
-            # Return per-unit price (market_value is total position value)
             snapshot_quantity = Quantity(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
-            if not snapshot_quantity.is_zero():
-                return snapshot.market_value / snapshot_quantity.value
-            return snapshot.market_value
+            return snapshot.market_value / snapshot_quantity.value if not snapshot_quantity.is_zero() else snapshot.market_value
 
-        # No price data available
         raise AssetNotFoundError(f"No price data available for {position.asset_identifier} on {eval_date}")
 
     async def _get_latest_synced_stock_price(
@@ -808,8 +595,7 @@ class PortfolioService:
         """Return the latest synced daily stock price on or before eval_date."""
         return await db.scalar(
             select(StockPrice)
-            .where(StockPrice.symbol == asset_identifier.strip().upper())
-            .where(StockPrice.price_date <= eval_date)
+            .where(StockPrice.symbol == asset_identifier.strip().upper(), StockPrice.price_date <= eval_date)
             .order_by(
                 StockPrice.price_date.desc(),
                 StockPrice.created_at.desc(),
@@ -826,9 +612,7 @@ class PortfolioService:
             select(func.max(AtomicPosition.snapshot_date)).where(AtomicPosition.user_id == user_id)
         )
         today = date.today()
-        if latest_snapshot_date and latest_snapshot_date > today:
-            return latest_snapshot_date
-        return today
+        return latest_snapshot_date if latest_snapshot_date and latest_snapshot_date > today else today
 
     async def _get_latest_atomic(
         self,
@@ -836,28 +620,13 @@ class PortfolioService:
         asset_identifier: str,
         user_id: UUID,
     ) -> AtomicPosition | None:
-        """
-        Get the latest AtomicPosition for an asset identifier.
-
-        Used to fetch asset classification fields (asset_type, sector, geography).
-
-        Args:
-            db: Database session
-            asset_identifier: Asset ticker or identifier
-            user_id: User UUID for security scoping
-
-        Returns:
-            Latest AtomicPosition or None if not found
-        """
-        query = (
+        """Return latest AtomicPosition for classification fields."""
+        return await db.scalar(
             select(AtomicPosition)
-            .where(AtomicPosition.user_id == user_id)
-            .where(AtomicPosition.asset_identifier == asset_identifier)
+            .where(AtomicPosition.user_id == user_id, AtomicPosition.asset_identifier == asset_identifier)
             .order_by(AtomicPosition.snapshot_date.desc())
             .limit(1)
         )
-        result = await db.execute(query)
-        return result.scalar_one_or_none()
 
     async def get_realized_pnl_by_asset(
         self,
@@ -868,30 +637,22 @@ class PortfolioService:
         end_date: date,
         target_currency: str,
     ) -> tuple[dict[str, Decimal], set[str]]:
-        """Per-asset realized P&L from SELL transactions in ``[start_date, end_date]``.
-
-        Each transaction's realized P&L is converted to ``target_currency`` at the
-        transaction date. Returns ``(by_asset, source_refs)`` where ``source_refs``
-        carries journal-entry / transaction-source links for traceability. Raises
-        ``pricing.PricingError`` when a required rate is unavailable.
-        """
-        result = await db.execute(
-            select(InvestmentTransaction)
-            .where(InvestmentTransaction.user_id == user_id)
-            .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL)
-            .where(InvestmentTransaction.transaction_date >= start_date)
-            .where(InvestmentTransaction.transaction_date <= end_date)
-        )
+        """Return per-asset realized P&L and source refs from SELL transactions in [start_date, end_date]."""
+        txns = (
+            await db.scalars(
+                select(InvestmentTransaction).where(
+                    InvestmentTransaction.user_id == user_id,
+                    InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL,
+                    InvestmentTransaction.transaction_date >= start_date,
+                    InvestmentTransaction.transaction_date <= end_date,
+                )
+            )
+        ).all()
         by_asset: dict[str, Decimal] = {}
         source_refs: set[str] = set()
-        for txn in result.scalars().all():
+        for txn in txns:
             amount = await convert_amount(
-                db,
-                txn.realized_pnl or Decimal("0.00"),
-                txn.currency,
-                target_currency,
-                txn.transaction_date,
-                lazy_load=True,
+                db, txn.realized_pnl or Decimal("0.00"), txn.currency, target_currency, txn.transaction_date, lazy_load=True
             )
             by_asset[txn.asset_identifier] = by_asset.get(txn.asset_identifier, Decimal("0.00")) + amount
             if txn.journal_entry_id:
@@ -909,29 +670,23 @@ class PortfolioService:
         end_date: date,
         target_currency: str,
     ) -> dict[str, Decimal]:
-        """Per-asset dividend income in ``[start_date, end_date]``.
-
-        Each dividend is converted to ``target_currency`` at the payment date and
-        grouped by the owning position's asset identifier. Raises
-        ``pricing.PricingError`` when a required rate is unavailable.
-        """
-        result = await db.execute(
-            select(DividendIncome, ManagedPosition)
-            .join(ManagedPosition, DividendIncome.position_id == ManagedPosition.id)
-            .where(DividendIncome.user_id == user_id)
-            .where(ManagedPosition.user_id == user_id)
-            .where(DividendIncome.payment_date >= start_date)
-            .where(DividendIncome.payment_date <= end_date)
-        )
+        """Return per-asset dividend income in [start_date, end_date] converted at payment date."""
+        rows = (
+            await db.execute(
+                select(DividendIncome, ManagedPosition)
+                .join(ManagedPosition, DividendIncome.position_id == ManagedPosition.id)
+                .where(
+                    DividendIncome.user_id == user_id,
+                    ManagedPosition.user_id == user_id,
+                    DividendIncome.payment_date >= start_date,
+                    DividendIncome.payment_date <= end_date,
+                )
+            )
+        ).all()
         by_asset: dict[str, Decimal] = {}
-        for dividend, position in result.all():
+        for dividend, position in rows:
             amount = await convert_amount(
-                db,
-                dividend.amount,
-                dividend.currency,
-                target_currency,
-                dividend.payment_date,
-                lazy_load=True,
+                db, dividend.amount, dividend.currency, target_currency, dividend.payment_date, lazy_load=True
             )
             by_asset[position.asset_identifier] = by_asset.get(position.asset_identifier, Decimal("0.00")) + amount
         return by_asset
@@ -979,10 +734,15 @@ class PortfolioService:
                 select(JournalLine, Account, JournalEntry.entry_date)
                 .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
                 .join(Account, JournalLine.account_id == Account.id)
-                .where(JournalEntry.user_id == user_id, Account.user_id == user_id)
-                .where(active_journal_entry_filter(JournalEntry), Account.type == AccountType.INCOME)
-                .where(func.lower(Account.name).like("%dividend%"))
-                .where(JournalEntry.entry_date >= year_start, JournalEntry.entry_date <= report_date)
+                .where(
+                    JournalEntry.user_id == user_id,
+                    Account.user_id == user_id,
+                    active_journal_entry_filter(JournalEntry),
+                    Account.type == AccountType.INCOME,
+                    func.lower(Account.name).like("%dividend%"),
+                    JournalEntry.entry_date >= year_start,
+                    JournalEntry.entry_date <= report_date,
+                )
             )
             for line, account, entry_date in rows.all():
                 ccy = (line.currency or account.currency or summary_currency).upper()
@@ -990,12 +750,11 @@ class PortfolioService:
                 dividend_total += await convert_amount(db, amt, ccy, summary_currency, entry_date, lazy_load=True)
             dividend_total = max(dividend_total, Decimal("0.00"))
 
-        data = summary.model_dump()
-        data["realized_pnl_ytd"] = to_money(sum(realized_by_asset.values(), Decimal("0.00")))
-        data["dividend_income_ytd"] = to_money(dividend_total)
-        return PortfolioSummaryDashboardResponse(**data)
+        return PortfolioSummaryDashboardResponse(
+            **summary.model_dump(),
+            realized_pnl_ytd=to_money(sum(realized_by_asset.values(), Decimal("0.00"))),
+            dividend_income_ytd=to_money(dividend_total),
+        )
 
 
-# Shared singleton instance reused by the portfolio router and the
-# performance-report service so monkeypatching one reference affects both.
 portfolio_service = PortfolioService()

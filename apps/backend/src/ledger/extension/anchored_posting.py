@@ -62,6 +62,8 @@ __all__ = [
     "void_journal_entry",
 ]
 
+_TARGET_READ_CHUNK_SIZE = 1000
+
 
 @dataclass(frozen=True, slots=True)
 class JournalCommandLine:
@@ -141,7 +143,6 @@ class AnchoredJournalCommand:
         decision_anchor: DecisionAnchor,
         post_immediately: bool,
     ) -> AnchoredJournalCommand:
-        """Validate legacy mappings once when they enter the typed command port."""
         return cls(
             entry_date=entry_date,
             memo=memo,
@@ -165,18 +166,17 @@ def current_anchored_journal_entries(
     target_id=None,
     target_ids: Collection[str] | None = None,
 ):
-    """Compose a trusted-ledger query from audit-owned current authority.
-
-    Provenance fields never establish authority, and a decision whose own or
-    causal parent record was superseded is excluded.
-    """
-    scope = TraceScope.tenant(user_id)
-    projection = current_authoritative_trace_decision_projection(scope).subquery("journal_authority_decisions")
+    """Compose a trusted-ledger query from audit-owned current authority."""
+    projection = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery(
+        "journal_authority_decisions"
+    )
     query = (
         select(JournalEntry)
         .join(projection, projection.c.decision_id == JournalEntry.decision_anchor_id)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED)
+        .where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED,
+        )
     )
     if target_kind is not None:
         query = query.where(projection.c.target_kind == target_kind)
@@ -237,22 +237,11 @@ def ledger_trace_policy_registry() -> TraceDecisionPolicyRegistry:
 
 
 def _normalized_lines_data(lines_data: list[dict], *, base_currency: str) -> list[dict]:
-    """Materialize defaults before both target hashing and persistence."""
-    return [
-        {
-            **line,
-            "currency": str(line.get("currency") or base_currency).upper(),
-        }
-        for line in lines_data
-    ]
+    return [{**line, "currency": str(line.get("currency") or base_currency).upper()} for line in lines_data]
 
 
 def _at_column_scale(value: Decimal, column: object) -> Decimal:
-    """Return ``value`` with the decimal places that ``column`` stores, or raise.
-
-    The target hashes the decimal text. Posting recomputes it from the stored row, so ``1000``
-    and ``1000.00`` must give the same text (#2539). A value is never rounded.
-    """
+    """Return ``value`` quantized to column scale without rounding, or raise (#2539)."""
     scale = column.type.scale  # type: ignore[attr-defined]
     stored = value.quantize(Decimal(1).scaleb(-scale))
     if stored != value:
@@ -261,7 +250,6 @@ def _at_column_scale(value: Decimal, column: object) -> Decimal:
 
 
 def _at_stored_scale(lines_data: list[dict]) -> list[dict]:
-    """Express each amount and FX rate as ``journal_lines`` stores it."""
     scaled = []
     for line in lines_data:
         stored = {**line, "amount": _at_column_scale(line["amount"], JournalLine.amount)}
@@ -271,6 +259,70 @@ def _at_stored_scale(lines_data: list[dict]) -> list[dict]:
     return scaled
 
 
+def _versioned_command_target(
+    *,
+    entry_date: date,
+    memo: str,
+    normalized_lines: list[dict],
+    base_currency: str,
+    prefix: str,
+    explicit_suffix: UUID | None = None,
+) -> tuple[str, VersionedTraceRef]:
+    provisional = journal_command_target(
+        entry_date=entry_date,
+        memo=memo,
+        lines_data=normalized_lines,
+        base_currency=base_currency,
+        source_identity=prefix,
+    )
+    source_identity = f"{prefix}:{explicit_suffix or provisional.version}"
+    target = journal_command_target(
+        entry_date=entry_date,
+        memo=memo,
+        lines_data=normalized_lines,
+        base_currency=base_currency,
+        source_identity=source_identity,
+    )
+    return source_identity, target
+
+
+async def _emit_financial_decision_anchor(
+    repository: SqlTraceRecordRepository,
+    *,
+    scope: TraceScope,
+    target: VersionedTraceRef,
+    policy: DeclarativeTracePolicy,
+    input_assertion: VersionedTraceRef,
+    execution_id: str,
+    evidence_manifest_digest: str,
+    reason_code: str,
+) -> DecisionAnchor:
+    occurred_at = datetime.now(UTC)
+    observation = TraceRecord.observation(
+        scope=scope,
+        target=target,
+        target_class=TraceTargetClass.FINANCIAL,
+        assertion=input_assertion,
+        authority=policy.authority,
+        result=TraceResult.PASS,
+        execution_id=execution_id,
+        evidence_manifest_digest=evidence_manifest_digest,
+        occurred_at=occurred_at,
+        score=None,
+        reason_code=reason_code,
+    )
+    decision = TraceRecord.decision(
+        scope=scope,
+        target=target,
+        policy=policy,
+        execution_id=execution_id,
+        occurred_at=occurred_at,
+        parents=(observation,),
+    )
+    emitted = await TraceEmitter(repository).emit_many((observation, decision))
+    return DecisionAnchor.from_record(emitted[-1])
+
+
 def manual_journal_target(
     *,
     entry_date: date,
@@ -278,22 +330,16 @@ def manual_journal_target(
     lines_data: list[dict],
     base_currency: str,
 ) -> VersionedTraceRef:
-    """Hash the precise manual payload so edits need a new attestation decision."""
+    """Hash the precise manual payload so edits require a new attestation decision."""
     normalized_lines = _normalized_lines_data(lines_data, base_currency=base_currency)
-    provisional = journal_command_target(
+    _, target = _versioned_command_target(
         entry_date=entry_date,
         memo=memo,
-        lines_data=normalized_lines,
+        normalized_lines=normalized_lines,
         base_currency=base_currency,
-        source_identity="manual-journal",
+        prefix="manual-journal",
     )
-    return journal_command_target(
-        entry_date=entry_date,
-        memo=memo,
-        lines_data=normalized_lines,
-        base_currency=base_currency,
-        source_identity=f"manual-journal:{provisional.version}",
-    )
+    return target
 
 
 async def manual_journal_decision_anchor(
@@ -316,41 +362,24 @@ async def manual_journal_decision_anchor(
     policy = ManualJournalAttestationPolicy()
     repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((policy,)))
     scope = TraceScope.tenant(user_id)
+    rationale_digest = text_digest(rationale)
     current = await repository.current_decision(scope, TraceLineage.from_refs(target, policy.assertion))
     if current is not None:
         parent_records = [await repository.get(scope, parent_id) for parent_id in current.parent_ids]
-        if any(
-            parent is not None and parent.evidence_manifest_digest == text_digest(rationale)
-            for parent in parent_records
-        ):
+        if any(parent is not None and parent.evidence_manifest_digest == rationale_digest for parent in parent_records):
             return DecisionAnchor.from_record(current)
         raise DecisionAnchorError("a different manual attestation already owns this immutable journal payload")
 
-    occurred_at = datetime.now(UTC)
-    rationale_digest = text_digest(rationale)
-    observation = TraceRecord.observation(
-        scope=scope,
-        target=target,
-        target_class=TraceTargetClass.FINANCIAL,
-        assertion=VersionedTraceRef("manual_journal_input", "operator-attestation", "1"),
-        authority=policy.authority,
-        result=TraceResult.PASS,
-        execution_id=f"manual-journal:{target.id}",
-        evidence_manifest_digest=rationale_digest,
-        occurred_at=occurred_at,
-        score=None,
-        reason_code="manual_journal_input_attested",
-    )
-    decision = TraceRecord.decision(
+    return await _emit_financial_decision_anchor(
+        repository,
         scope=scope,
         target=target,
         policy=policy,
+        input_assertion=VersionedTraceRef("manual_journal_input", "operator-attestation", "1"),
         execution_id=f"manual-journal:{target.id}",
-        occurred_at=occurred_at,
-        parents=(observation,),
+        evidence_manifest_digest=rationale_digest,
+        reason_code="manual_journal_input_attested",
     )
-    emitted = await TraceEmitter(repository).emit_many((observation, decision))
-    return DecisionAnchor.from_record(emitted[-1])
 
 
 async def submit_manual_journal_entry(
@@ -363,11 +392,7 @@ async def submit_manual_journal_entry(
     lines_data: list[dict],
     base_currency: str,
 ) -> JournalEntry:
-    """Create a manual draft through the same decision-anchored command port.
-
-    The lines keep the command order and use the stored decimal scale. Posting the draft then
-    recomputes the same target from the stored rows (#2539).
-    """
+    """Create a manual draft through the decision-anchored command port (#2539)."""
     normalized_lines = _at_stored_scale(_normalized_lines_data(lines_data, base_currency=base_currency))
     anchor = await manual_journal_decision_anchor(
         db,
@@ -378,26 +403,22 @@ async def submit_manual_journal_entry(
         lines_data=normalized_lines,
         base_currency=base_currency,
     )
-    command = AnchoredJournalCommand.from_mappings(
-        entry_date=entry_date,
-        memo=memo,
-        lines_data=normalized_lines,
-        base_currency=base_currency,
-        source_type=JournalEntrySourceType.MANUAL,
-        source_id=None,
-        source_identity=anchor.target.id,
-        decision_anchor=anchor,
-        post_immediately=False,
-    )
     return await submit_anchored_journal_entry(
         db,
         user_id=user_id,
-        command=command,
-        base_currency=base_currency,
-        trace_repository=SqlTraceRecordRepository(
-            db,
-            TraceDecisionPolicyRegistry((ManualJournalAttestationPolicy(),)),
+        command=AnchoredJournalCommand.from_mappings(
+            entry_date=entry_date,
+            memo=memo,
+            lines_data=normalized_lines,
+            base_currency=base_currency,
+            source_type=JournalEntrySourceType.MANUAL,
+            source_id=None,
+            source_identity=anchor.target.id,
+            decision_anchor=anchor,
+            post_immediately=False,
         ),
+        base_currency=base_currency,
+        trace_repository=SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((ManualJournalAttestationPolicy(),))),
     )
 
 
@@ -414,26 +435,15 @@ async def submit_system_journal_entry(
     source_type: JournalEntrySourceType = JournalEntrySourceType.SYSTEM,
     post_immediately: bool = True,
 ) -> JournalEntry:
-    """Post a deterministic system command through the same anchored port.
-
-    This policy asserts only that ledger received this exact validated command;
-    its callers retain ownership of account selection and economic semantics.
-    """
+    """Post a deterministic system command through the anchored command port."""
     normalized_lines = _normalized_lines_data(lines_data, base_currency=base_currency)
-    provisional = journal_command_target(
+    source_identity, target = _versioned_command_target(
         entry_date=entry_date,
         memo=memo,
-        lines_data=normalized_lines,
+        normalized_lines=normalized_lines,
         base_currency=base_currency,
-        source_identity=f"ledger-system:{operation}",
-    )
-    source_identity = f"ledger-system:{operation}:{source_id or provisional.version}"
-    target = journal_command_target(
-        entry_date=entry_date,
-        memo=memo,
-        lines_data=normalized_lines,
-        base_currency=base_currency,
-        source_identity=source_identity,
+        prefix=f"ledger-system:{operation}",
+        explicit_suffix=source_id,
     )
     policy = SystemJournalCommandPolicy()
     repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((policy,)))
@@ -444,29 +454,16 @@ async def submit_system_journal_entry(
             raise DecisionAnchorError("a different system command already owns this immutable source")
         anchor = DecisionAnchor.from_record(current)
     else:
-        occurred_at = datetime.now(UTC)
-        observation = TraceRecord.observation(
-            scope=scope,
-            target=target,
-            target_class=TraceTargetClass.FINANCIAL,
-            assertion=VersionedTraceRef("ledger_system_input", operation, "1"),
-            authority=policy.authority,
-            result=TraceResult.PASS,
-            execution_id=f"ledger-system:{target.id}:{target.version}",
-            evidence_manifest_digest=target.version,
-            occurred_at=occurred_at,
-            score=None,
-            reason_code="ledger_system_command_materialized",
-        )
-        decision = TraceRecord.decision(
+        anchor = await _emit_financial_decision_anchor(
+            repository,
             scope=scope,
             target=target,
             policy=policy,
-            execution_id=observation.execution_id,
-            occurred_at=occurred_at,
-            parents=(observation,),
+            input_assertion=VersionedTraceRef("ledger_system_input", operation, "1"),
+            execution_id=f"ledger-system:{target.id}:{target.version}",
+            evidence_manifest_digest=target.version,
+            reason_code="ledger_system_command_materialized",
         )
-        anchor = DecisionAnchor.from_record((await TraceEmitter(repository).emit_many((observation, decision)))[-1])
 
     return await submit_anchored_journal_entry(
         db,
@@ -494,12 +491,7 @@ async def validate_manual_journal_entry_for_post(
     entry: JournalEntry,
     base_currency: str,
 ) -> None:
-    """Re-check an editable draft against its manual decision before posting it.
-
-    The target is recomputed under the base currency stored at creation of the draft. ``base_currency``
-    applies only to a draft written before revision 0067. A later change of the effective base currency
-    therefore does not invalidate the anchor (#2539).
-    """
+    """Re-verify an editable manual draft against its decision anchor before posting (#2539)."""
     if entry.source_type is not JournalEntrySourceType.MANUAL:
         return
     if entry.decision_authority_state is JournalEntryAuthorityState.LEGACY_UNPROVEN:
@@ -508,21 +500,11 @@ async def validate_manual_journal_entry_for_post(
         raise DecisionAnchorError("manual journal entry is missing its decision anchor")
     if not entry.lines:
         raise DecisionAnchorError("manual journal entry has no lines to verify")
+    line_fields = ("account_id", "direction", "amount", "currency", "fx_rate", "event_type", "tags")
     target = manual_journal_target(
         entry_date=entry.entry_date,
         memo=entry.memo,
-        lines_data=[
-            {
-                "account_id": line.account_id,
-                "direction": line.direction,
-                "amount": line.amount,
-                "currency": line.currency,
-                "fx_rate": line.fx_rate,
-                "event_type": line.event_type,
-                "tags": line.tags,
-            }
-            for line in entry.lines
-        ],
+        lines_data=[{f: getattr(line, f) for f in line_fields} for line in entry.lines],
         base_currency=entry.stored_base_currency(base_currency),
     )
     repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((ManualJournalAttestationPolicy(),)))
@@ -564,30 +546,40 @@ async def validate_decision_anchor(
         raise DecisionAnchorError("decision anchor is no longer the current authority decision")
 
 
+def _target_lock_key(user_id: UUID, target: VersionedTraceRef) -> str:
+    return f"ledger-target\x1f{user_id}\x1f{target.kind}\x1f{target.id}"
+
+
+def _active_anchored_entries_query(user_id: UUID):
+    decisions = trace_decision_projection(TraceScope.tenant(user_id)).subquery("ledger_target_decisions")
+    query = (
+        select(JournalEntry, decisions.c.target_kind, decisions.c.target_id)
+        .join(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
+        .where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED,
+            JournalEntry.status != JournalEntryStatus.VOID,
+        )
+    )
+    return query, decisions
+
+
 async def _existing_for_target(
     db: AsyncSession,
     *,
     user_id: UUID,
     target: VersionedTraceRef,
 ) -> JournalEntry | None:
-    lock_key = f"ledger-target\x1f{user_id}\x1f{target.kind}\x1f{target.id}"
-    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
-    decisions = trace_decision_projection(TraceScope.tenant(user_id)).subquery("ledger_target_decisions")
-    result = await db.execute(
-        select(JournalEntry)
-        .join(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED)
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
-        .where(decisions.c.target_kind == target.kind)
-        .where(decisions.c.target_id == target.id)
-        .with_for_update()
+    await db.execute(
+        select(func.pg_advisory_xact_lock(func.hashtextextended(_target_lock_key(user_id, target), 0)))
     )
-    return result.scalar_one_or_none()
-
-
-#: A read names at most this many targets, so that its bind parameters stay below the driver limit.
-_TARGET_READ_CHUNK_SIZE = 1000
+    query, decisions = _active_anchored_entries_query(user_id)
+    row = (
+        await db.execute(
+            query.where(decisions.c.target_kind == target.kind, decisions.c.target_id == target.id).with_for_update()
+        )
+    ).one_or_none()
+    return row[0] if row is not None else None
 
 
 async def _existing_for_targets(
@@ -596,12 +588,8 @@ async def _existing_for_targets(
     user_id: UUID,
     targets: Sequence[VersionedTraceRef],
 ) -> dict[tuple[str, str], JournalEntry]:
-    """The entry that owns each target, read with two statements: one lock set and one read.
-
-    The result equals ``_existing_for_target`` for each target. The locks are taken in key order, so
-    two writers of overlapping sets cannot wait on each other.
-    """
-    keys = sorted({f"ledger-target\x1f{user_id}\x1f{target.kind}\x1f{target.id}" for target in targets})
+    """Acquire advisory locks in key order and return active entries owning ``targets``."""
+    keys = sorted({_target_lock_key(user_id, target) for target in targets})
     await db.execute(
         text(
             "SELECT pg_advisory_xact_lock(hashtextextended(lock_key, 0)) "
@@ -609,23 +597,17 @@ async def _existing_for_targets(
             "ORDER BY lock_key OFFSET 0) AS ordered_keys"
         ).bindparams(bindparam("keys", keys, type_=ARRAY(String)))
     )
-    decisions = trace_decision_projection(TraceScope.tenant(user_id)).subquery("ledger_target_decisions")
+    query, decisions = _active_anchored_entries_query(user_id)
     owners: dict[tuple[str, str], JournalEntry] = {}
     pairs = sorted({(target.kind, target.id) for target in targets})
     for start in range(0, len(pairs), _TARGET_READ_CHUNK_SIZE):
         rows = (
             await db.execute(
-                select(JournalEntry, decisions.c.target_kind, decisions.c.target_id)
-                .join(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
-                .where(JournalEntry.user_id == user_id)
-                .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED)
-                .where(JournalEntry.status != JournalEntryStatus.VOID)
-                .where(
+                query.where(
                     tuple_(decisions.c.target_kind, decisions.c.target_id).in_(
                         pairs[start : start + _TARGET_READ_CHUNK_SIZE]
                     )
-                )
-                .with_for_update()
+                ).with_for_update()
             )
         ).all()
         for entry, target_kind, target_id in rows:
@@ -643,12 +625,7 @@ async def submit_anchored_journal_entry(
     base_currency: str,
     trace_repository: TraceRecordRepository | None = None,
 ) -> JournalEntry:
-    """Verify one decision and persist its journal fact exactly once.
-
-    The target identity, rather than caller-selected source metadata, is the
-    idempotency boundary. A changed decision for the same source must produce a
-    correction/void workflow, never a second competing journal fact.
-    """
+    """Verify one decision and persist its journal fact idempotently by target identity."""
     repository = trace_repository or SqlTraceRecordRepository(db)
     expected_target = journal_command_target(
         entry_date=command.entry_date,
@@ -693,47 +670,36 @@ async def submit_anchored_journal_entries(
     base_currency: str,
     trace_repository: TraceRecordRepository | None = None,
 ) -> list[JournalEntry]:
-    """Verify many decisions and persist their journal facts exactly once each.
-
-    Each entry equals the one that ``submit_anchored_journal_entry`` returns for the same command. The
-    set costs one existence read, one insert pair and one update, whatever its size. The anchors, the
-    owners of the targets and the ledger rules of every command are checked before the first entry is
-    added to the session. One failed check therefore persists none of the commands. A failure at the
-    flush or at the posting leaves the unit of work to the caller, which rolls it back, as for the
-    single command. Commands that share a target keep the single path: the second command must see
-    the entry of the first.
-    """
+    """Verify many decisions and persist their journal facts in bulk unless targets overlap."""
     repository = trace_repository or SqlTraceRecordRepository(db)
     targets = [
         journal_command_target(
-            entry_date=command.entry_date,
-            memo=command.memo,
-            lines_data=command.lines_data,
+            entry_date=cmd.entry_date,
+            memo=cmd.memo,
+            lines_data=cmd.lines_data,
             base_currency=base_currency,
-            source_identity=command.source_identity,
+            source_identity=cmd.source_identity,
         )
-        for command in commands
+        for cmd in commands
     ]
     if len({target.id for target in targets}) != len(targets):
         return [
             await submit_anchored_journal_entry(
-                db, user_id=user_id, command=command, base_currency=base_currency, trace_repository=repository
+                db, user_id=user_id, command=cmd, base_currency=base_currency, trace_repository=repository
             )
-            for command in commands
+            for cmd in commands
         ]
-    for command, target in zip(commands, targets, strict=True):
-        await validate_decision_anchor(
-            repository, user_id=user_id, anchor=command.decision_anchor, expected_target=target
-        )
+    for cmd, target in zip(commands, targets, strict=True):
+        await validate_decision_anchor(repository, user_id=user_id, anchor=cmd.decision_anchor, expected_target=target)
     existing = await _existing_for_targets(db, user_id=user_id, targets=targets) if commands else {}
 
     results: dict[int, JournalEntry] = {}
     fresh: list[int] = []
-    for index, (command, target) in enumerate(zip(commands, targets, strict=True)):
+    for index, (cmd, target) in enumerate(zip(commands, targets, strict=True)):
         owner = existing.get((target.kind, target.id))
         if owner is None:
             fresh.append(index)
-        elif owner.decision_anchor_id == command.decision_anchor.decision_id:
+        elif owner.decision_anchor_id == cmd.decision_anchor.decision_id:
             results[index] = owner
         else:
             raise DecisionAnchorError("a different decision already owns this immutable source target")
@@ -743,23 +709,23 @@ async def submit_anchored_journal_entries(
         user_id,
         [
             AnchoredEntryDraft(
-                entry_date=commands[index].entry_date,
-                memo=commands[index].memo,
-                lines_data=commands[index].lines_data,
-                source_type=commands[index].source_type,
-                source_id=commands[index].source_id,
-                decision_anchor=commands[index].decision_anchor,
+                entry_date=commands[i].entry_date,
+                memo=commands[i].memo,
+                lines_data=commands[i].lines_data,
+                source_type=commands[i].source_type,
+                source_id=commands[i].source_id,
+                decision_anchor=commands[i].decision_anchor,
             )
-            for index in fresh
+            for i in fresh
         ],
         base_currency=base_currency,
     )
     await post_journal_entries(
         db,
-        [entry for entry, index in zip(created, fresh, strict=True) if commands[index].post_immediately],
+        [entry for entry, i in zip(created, fresh, strict=True) if commands[i].post_immediately],
         user_id,
         base_currency=base_currency,
     )
-    for entry, index in zip(created, fresh, strict=True):
-        results[index] = entry
-    return [results[index] for index in range(len(commands))]
+    for entry, i in zip(created, fresh, strict=True):
+        results[i] = entry
+    return [results[i] for i in range(len(commands))]

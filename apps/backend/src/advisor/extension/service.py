@@ -119,6 +119,10 @@ def _line_confidence_tier(line: dict[str, Any]) -> str | None:
     return "DETERMINISTIC" if prov in ("imported", "derived") else None
 
 
+def _worst_lines_tier(lines: list[dict[str, Any]]) -> str:
+    return worst_confidence_tier([_line_confidence_tier(line) for line in lines], default="DETERMINISTIC") or "DETERMINISTIC"
+
+
 class AIAdvisorService:
     """AI advisor service to answer financial questions."""
 
@@ -206,32 +210,29 @@ class AIAdvisorService:
             net_worth = total_assets - total_liabilities
             currency = str(balance.get("currency") or base_currency)
             bs_lines = [*cast(list[dict[str, Any]], balance.get("assets") or []), *cast(list[dict[str, Any]], balance.get("liabilities") or [])]
-            bs_tier = str(balance["confidence_tier"]) if balance.get("confidence_tier") else (
-                worst_confidence_tier([_line_confidence_tier(line) for line in bs_lines], default="DETERMINISTIC")
-                or "DETERMINISTIC"
-            )
+            bs_tier = str(balance["confidence_tier"]) if balance.get("confidence_tier") else _worst_lines_tier(bs_lines)
             ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
             total_assets = total_liabilities = opening_equity = net_income_bs = net_worth = Decimal("0")
             currency = base_currency
             bs_tier = "UNAVAILABLE"
 
-        try:
+        async def _load_inc(s_date: date, e_date: date, fx: Decimal | None = None) -> tuple[Decimal, Decimal, list[dict[str, Any]], list[dict[str, Any]]]:
             inc = cast(
                 dict[str, Any],
                 await generate_income_statement(
-                    db,
-                    user_id,
-                    start_date=start_date,
-                    end_date=today,
-                    currency=currency,
-                    ending_unrealized_fx_gain_loss=ending_unrealized_fx,
+                    db, user_id, start_date=s_date, end_date=e_date, currency=currency, ending_unrealized_fx_gain_loss=fx
                 ),
             )
-            monthly_income = Decimal(str(inc["total_income"]))
-            monthly_expenses = Decimal(str(inc["total_expenses"]))
-            inc_lines = cast(list[dict[str, Any]], inc.get("income") or [])
-            exp_lines = cast(list[dict[str, Any]], inc.get("expenses") or [])
+            return (
+                Decimal(str(inc["total_income"])),
+                Decimal(str(inc["total_expenses"])),
+                cast(list[dict[str, Any]], inc.get("income") or []),
+                cast(list[dict[str, Any]], inc.get("expenses") or []),
+            )
+
+        try:
+            monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(start_date, today, ending_unrealized_fx)
             if monthly_income == Decimal("0") and monthly_expenses == Decimal("0"):
                 latest_pnl_date = await db.scalar(
                     select(func.max(JournalEntry.entry_date))
@@ -246,25 +247,9 @@ class AIAdvisorService:
                     )
                 )
                 if latest_pnl_date is not None:
-                    hist_end = latest_pnl_date.replace(
-                        day=calendar.monthrange(latest_pnl_date.year, latest_pnl_date.month)[1]
-                    )
-                    inc = cast(
-                        dict[str, Any],
-                        await generate_income_statement(
-                            db, user_id, start_date=latest_pnl_date.replace(day=1), end_date=hist_end, currency=currency
-                        ),
-                    )
-                    monthly_income = Decimal(str(inc["total_income"]))
-                    monthly_expenses = Decimal(str(inc["total_expenses"]))
-                    inc_lines = cast(list[dict[str, Any]], inc.get("income") or [])
-                    exp_lines = cast(list[dict[str, Any]], inc.get("expenses") or [])
-            inc_tier = (
-                worst_confidence_tier(
-                    [_line_confidence_tier(line) for line in [*inc_lines, *exp_lines]], default="DETERMINISTIC"
-                )
-                or "DETERMINISTIC"
-            )
+                    hist_end = latest_pnl_date.replace(day=calendar.monthrange(latest_pnl_date.year, latest_pnl_date.month)[1])
+                    monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(latest_pnl_date.replace(day=1), hist_end)
+            inc_tier = _worst_lines_tier([*inc_lines, *exp_lines])
         except ReportError:
             monthly_income = monthly_expenses = Decimal("0")
             exp_lines = []
@@ -273,15 +258,11 @@ class AIAdvisorService:
         try:
             breakdown = cast(
                 dict[str, Any],
-                await get_category_breakdown(
-                    db, user_id, breakdown_type=AccountType.EXPENSE, period="monthly", currency=currency
-                ),
+                await get_category_breakdown(db, user_id, breakdown_type=AccountType.EXPENSE, period="monthly", currency=currency),
             )
             top_items = cast(list[dict[str, Any]], breakdown.get("items") or [])[:3]
             if not top_items and exp_lines:
-                sorted_exp = sorted(
-                    exp_lines, key=lambda line: Decimal(str(line.get("amount") or "0")), reverse=True
-                )[:3]
+                sorted_exp = sorted(exp_lines, key=lambda line: Decimal(str(line.get("amount") or "0")), reverse=True)[:3]
                 top_items = [
                     {"category_name": line["name"], "total": line["amount"]}
                     for line in sorted_exp
@@ -461,74 +442,73 @@ class AIAdvisorService:
 
     def _build_advisor_suggestions(self, context: dict[str, Any]) -> list[AdvisorSuggestion]:
         suggestions: list[AdvisorSuggestion] = []
-        readiness = context["report_readiness"]
-        workflow = context["workflow"]
-        market_data = context["market_data"]
-        portfolio = context["portfolio"]
-        cash_flow = context["cash_flow"]
+        readiness, workflow, market_data, portfolio, cash_flow = (
+            context["report_readiness"],
+            context["workflow"],
+            context["market_data"],
+            context["portfolio"],
+            context["cash_flow"],
+        )
+
+        def add(basis: str, tier: str, refs: list[str], limitation: str, href: str) -> None:
+            suggestions.append(
+                AdvisorSuggestion(
+                    basis=basis,
+                    confidence_tier=tier,
+                    source_refs=refs,
+                    limitation=limitation,
+                    next_action_href=href,
+                )
+            )
 
         if readiness["blocking_count"]:
-            suggestions.append(
-                AdvisorSuggestion(
-                    basis=f"Report readiness is {readiness['state']} with {readiness['blocking_count']} blocker(s).",
-                    confidence_tier="blocked",
-                    source_refs=["report_readiness", "authority_coverage"],
-                    limitation="Do not describe the report package as trusted until blockers are resolved.",
-                    next_action_href=str(readiness["action_href"]),
-                )
+            add(
+                f"Report readiness is {readiness['state']} with {readiness['blocking_count']} blocker(s).",
+                "blocked",
+                ["report_readiness", "authority_coverage"],
+                "Do not describe the report package as trusted until blockers are resolved.",
+                str(readiness["action_href"]),
             )
         if action_required := int(workflow.get("event_counts", {}).get("action_required") or 0):
-            suggestions.append(
-                AdvisorSuggestion(
-                    basis=f"Workflow has {action_required} action-required event(s).",
-                    confidence_tier="review_required",
-                    source_refs=["workflow"],
-                    limitation="Pending review items may affect report readiness and advisory conclusions.",
-                    next_action_href=str(workflow.get("next_action", {}).get("href") or "/audit"),
-                )
+            add(
+                f"Workflow has {action_required} action-required event(s).",
+                "review_required",
+                ["workflow"],
+                "Pending review items may affect report readiness and advisory conclusions.",
+                str(workflow.get("next_action", {}).get("href") or "/audit"),
             )
         if market_data["stale_count"]:
-            suggestions.append(
-                AdvisorSuggestion(
-                    basis=f"Market data is stale for {market_data['stale_count']} observed scope(s).",
-                    confidence_tier="stale",
-                    source_refs=["market_data"],
-                    limitation="Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
-                    next_action_href="/portfolio?panel=prices",
-                )
+            add(
+                f"Market data is stale for {market_data['stale_count']} observed scope(s).",
+                "stale",
+                ["market_data"],
+                "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
+                "/portfolio?panel=prices",
             )
         if portfolio.get("available") and int(portfolio.get("active_positions_count") or 0):
-            suggestions.append(
-                AdvisorSuggestion(
-                    basis=(
-                        f"Portfolio has {portfolio.get('active_positions_count')} active position(s) "
-                        f"and market value {portfolio.get('total_market_value')} {portfolio.get('currency')}."
-                    ),
-                    confidence_tier="deterministic",
-                    source_refs=["portfolio"],
-                    limitation="This is a factual portfolio summary, not trading, tax, legal, or regulated investment advice.",
-                    next_action_href="/portfolio",
-                )
+            add(
+                f"Portfolio has {portfolio.get('active_positions_count')} active position(s) "
+                f"and market value {portfolio.get('total_market_value')} {portfolio.get('currency')}.",
+                "deterministic",
+                ["portfolio"],
+                "This is a factual portfolio summary, not trading, tax, legal, or regulated investment advice.",
+                "/portfolio",
             )
         if cash_flow.get("pending_review") not in {None, "0", "N/A"}:
-            suggestions.append(
-                AdvisorSuggestion(
-                    basis=f"Cash-flow context has {cash_flow['pending_review']} pending reconciliation review item(s).",
-                    confidence_tier="review_required",
-                    source_refs=["cash_flow", "reconciliation"],
-                    limitation="Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
-                    next_action_href="/reconciliation?tab=review-queue",
-                )
+            add(
+                f"Cash-flow context has {cash_flow['pending_review']} pending reconciliation review item(s).",
+                "review_required",
+                ["cash_flow", "reconciliation"],
+                "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
+                "/reconciliation?tab=review-queue",
             )
         if not suggestions:
-            suggestions.append(
-                AdvisorSuggestion(
-                    basis="No blocking advisor facts were found in the current application state.",
-                    confidence_tier="deterministic",
-                    source_refs=["financial_summary"],
-                    limitation="The advisor remains read-only and should cite source limitations when the user asks for detail.",
-                    next_action_href="/reports",
-                )
+            add(
+                "No blocking advisor facts were found in the current application state.",
+                "deterministic",
+                ["financial_summary"],
+                "The advisor remains read-only and should cite source limitations when the user asks for detail.",
+                "/reports",
             )
         return suggestions
 
@@ -654,29 +634,24 @@ class AIAdvisorService:
         self, db: AsyncSession, user_id: UUID, session_id: UUID | None, message: str
     ) -> ChatSession:
         if session_id:
-            session = (
-                await db.execute(
-                    select(ChatSession).where(
-                        ChatSession.id == session_id,
-                        ChatSession.user_id == user_id,
-                        ChatSession.status == ChatSessionStatus.ACTIVE,
-                    )
+            session = await db.scalar(
+                select(ChatSession).where(
+                    ChatSession.id == session_id,
+                    ChatSession.user_id == user_id,
+                    ChatSession.status == ChatSessionStatus.ACTIVE,
                 )
-            ).scalar_one_or_none()
+            )
             if not session:
                 raise AIAdvisorError("Chat session not found")
             session.last_active_at = datetime.now(UTC)
-            await db.flush()
-            await db.refresh(session)
-            return session
-
-        session = ChatSession(
-            user_id=user_id,
-            title=message[:60].strip() or None,
-            status=ChatSessionStatus.ACTIVE,
-            last_active_at=datetime.now(UTC),
-        )
-        db.add(session)
+        else:
+            session = ChatSession(
+                user_id=user_id,
+                title=message[:60].strip() or None,
+                status=ChatSessionStatus.ACTIVE,
+                last_active_at=datetime.now(UTC),
+            )
+            db.add(session)
         await db.flush()
         await db.refresh(session)
         return session
@@ -711,15 +686,13 @@ class AIAdvisorService:
     async def _load_history(self, db: AsyncSession, session_id: UUID) -> list[dict[str, str]]:
         rows = list(
             (
-                await db.execute(
+                await db.scalars(
                     select(ChatMessage)
                     .where(ChatMessage.session_id == session_id)
                     .order_by(ChatMessage.created_at.desc())
                     .limit(MAX_CONTEXT_MESSAGES)
                 )
-            )
-            .scalars()
-            .all()
+            ).all()
         )
         return [{"role": m.role.value, "content": m.content} for m in reversed(rows) if m.role != ChatMessageRole.SYSTEM]
 

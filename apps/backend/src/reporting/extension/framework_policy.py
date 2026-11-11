@@ -444,7 +444,7 @@ async def framework_policy_facts_for_user(
     as_of_date: date,
 ) -> list[FrameworkPolicyFact]:
     facts: list[FrameworkPolicyFact] = []
-    for account in (await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all():
+    for account in (await db.scalars(select(Account).where(Account.user_id == user_id))).all():
         if (mapping := _account_domain_and_instrument(account)) is not None:
             facts.append(
                 FrameworkPolicyFact(
@@ -461,8 +461,10 @@ async def framework_policy_facts_for_user(
         select(JournalLine, Account)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .join(Account, JournalLine.account_id == Account.id)
-        .where(JournalEntry.user_id == user_id, Account.user_id == user_id, active_journal_entry_filter(JournalEntry))
         .where(
+            JournalEntry.user_id == user_id,
+            Account.user_id == user_id,
+            active_journal_entry_filter(JournalEntry),
             JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED,
             JournalEntry.decision_anchor_id.is_not(None),
             JournalEntry.entry_date >= report_period_start,
@@ -485,73 +487,56 @@ async def framework_policy_facts_for_user(
             )
 
     pos_rows = (
-        (
-            await db.execute(
-                select(AtomicPosition)
-                .where(AtomicPosition.user_id == user_id, AtomicPosition.snapshot_date <= as_of_date)
-                .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
-            )
+        await db.scalars(
+            select(AtomicPosition)
+            .where(AtomicPosition.user_id == user_id, AtomicPosition.snapshot_date <= as_of_date)
+            .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
         )
-        .scalars()
-        .all()
-    )
-    seen_positions: set[str] = set()
-    latest_positions: list[AtomicPosition] = []
+    ).all()
+    latest_by_ident: dict[str, AtomicPosition] = {}
     for position in pos_rows:
-        norm = position.asset_identifier.strip().upper()
-        if norm not in seen_positions:
-            seen_positions.add(norm)
-            latest_positions.append(position)
+        latest_by_ident.setdefault(position.asset_identifier.strip().upper(), position)
+    seen_positions = set(latest_by_ident)
 
     overrides: dict[str, MarketDataOverride] = {}
     stock_prices: dict[str, StockPrice] = {}
     if seen_positions:
         for ov in (
-            (
-                await db.execute(
-                    select(MarketDataOverride)
-                    .where(
-                        MarketDataOverride.user_id == user_id,
-                        func.upper(MarketDataOverride.asset_identifier).in_(seen_positions),
-                        MarketDataOverride.price_date <= as_of_date,
-                    )
-                    .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+            await db.scalars(
+                select(MarketDataOverride)
+                .where(
+                    MarketDataOverride.user_id == user_id,
+                    func.upper(MarketDataOverride.asset_identifier).in_(seen_positions),
+                    MarketDataOverride.price_date <= as_of_date,
                 )
+                .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
             )
-            .scalars()
-            .all()
-        ):
+        ).all():
             overrides.setdefault(ov.asset_identifier.strip().upper(), ov)
         for sp in (
-            (
-                await db.execute(
-                    select(StockPrice)
-                    .where(StockPrice.symbol.in_(sorted(seen_positions)), StockPrice.price_date <= as_of_date)
-                    .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
-                )
+            await db.scalars(
+                select(StockPrice)
+                .where(StockPrice.symbol.in_(sorted(seen_positions)), StockPrice.price_date <= as_of_date)
+                .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
             )
-            .scalars()
-            .all()
-        ):
+        ).all():
             stock_prices.setdefault(sp.symbol.strip().upper(), sp)
 
-    for position in latest_positions:
+    for norm, position in latest_by_ident.items():
         domain, instrument_type = _position_domain_and_instrument(position)
         anchors = [_anchor("atomic_position", "portfolio_subledger", position.id, position.asset_identifier)]
-        norm = position.asset_identifier.strip().upper()
         candidates: list[tuple[date, int, MarketDataOverride | StockPrice]] = []
-        sp_cand = stock_prices.get(norm)
-        if sp_cand is not None:
+        if (sp_cand := stock_prices.get(norm)) is not None:
             candidates.append((sp_cand.price_date, 0, sp_cand))
-        ov_cand = overrides.get(norm)
-        if ov_cand is not None:
+        if (ov_cand := overrides.get(norm)) is not None:
             candidates.append((ov_cand.price_date, 1, ov_cand))
         if candidates:
             price = max(candidates, key=lambda c: (c[0], c[1]))[2]
-            if isinstance(price, MarketDataOverride):
-                source_kind, ident = "market_data_override", price.asset_identifier
-            else:
-                source_kind, ident = "stock_price", price.symbol
+            source_kind, ident = (
+                ("market_data_override", price.asset_identifier)
+                if isinstance(price, MarketDataOverride)
+                else ("stock_price", price.symbol)
+            )
             anchors.append(
                 _anchor("market_price", source_kind, price.id, f"{ident} price dated {price.price_date.isoformat()}")
             )
@@ -585,18 +570,14 @@ async def framework_policy_facts_for_user(
         )
 
     for div in (
-        (
-            await db.execute(
-                select(DividendIncome).where(
-                    DividendIncome.user_id == user_id,
-                    DividendIncome.payment_date >= report_period_start,
-                    DividendIncome.payment_date <= report_period_end,
-                )
+        await db.scalars(
+            select(DividendIncome).where(
+                DividendIncome.user_id == user_id,
+                DividendIncome.payment_date >= report_period_start,
+                DividendIncome.payment_date <= report_period_end,
             )
         )
-        .scalars()
-        .all()
-    ):
+    ).all():
         facts.append(
             FrameworkPolicyFact(
                 fact_id=f"dividend_income:{div.id}",
