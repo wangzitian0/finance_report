@@ -24,6 +24,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from src.extraction.base.normalization_engine import sanitize_account_last4
+
 _LIST_FIELDS = ("transactions", "positions")
 _LAST_WINS_FIELDS = ("closing_balance",)
 
@@ -136,7 +138,8 @@ def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
     if len(dict_parts) == 1:
         return dict_parts[0]
 
-    accounts = {str(part["account_last4"]).strip() for part in dict_parts if part.get("account_last4")}
+    accounts = {sanitize_account_last4(str(part["account_last4"])) for part in dict_parts if part.get("account_last4")}
+    accounts.discard(None)
     if len(accounts) > 1:
         raise ValueError("Multiple accounts in one extraction require separate source review")
     merged: dict[str, Any] = dict(dict_parts[0])

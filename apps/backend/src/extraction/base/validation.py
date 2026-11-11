@@ -282,6 +282,17 @@ def bank_currency_balances(extracted: dict[str, Any]) -> list[dict[str, str]] | 
     ]
 
 
+def balance_is_evaluable(opening: Any, closing: Any, per_currency: list[dict[str, str]] | None) -> bool:
+    """Return True when the statement prints the balances that a reconcile check needs.
+
+    A statement is evaluable with a per-currency balance list, or with both a scalar opening
+    and a scalar closing balance. A missing balance cannot reconcile in any later pass.
+    """
+    if per_currency:
+        return True
+    return opening not in (None, "") and closing not in (None, "")
+
+
 def validate_balance_explicit(
     opening: Decimal,
     closing: Decimal,
