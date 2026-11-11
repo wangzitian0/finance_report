@@ -55,6 +55,7 @@ from common.meta.base.authority_matrix import (
     TIER_VALID_PROOF_KINDS,
 )
 from common.meta.base.layering import LAYER_RANK, PACKAGE_LAYER, PackageClass
+from common.meta.base.gate_util import expand_test_path, parse_acs_table
 from common.meta.base.governance_control import (
     GovernanceGuarantee,
     GovernanceInitiative,
@@ -63,20 +64,26 @@ from common.meta.base.governance_control import (
 __all__ = [
     "ACRecord",
     "ac",
+    "acs",
     "ConceptRecord",
+    "concepts",
     "ContextRelation",
     "ContextScope",
     "GovernanceInitiative",
     "GovernanceGuarantee",
     "Invariant",
+    "invs",
     "Kind",
     "KIND_LAYER",
     "LAYER_RANK",
     "PACKAGE_LAYER",
     "PackageClass",
     "PackageContract",
+    "rels",
     "SPLIT",
+    "suite",
     "Unit",
+    "units",
 ]
 
 #: AC priority, mirroring the EPIC AC tables (P0 highest).
@@ -286,6 +293,257 @@ def ac(
         proof_kind=proof_kind,
         vision_anchor=vision_anchor,
     )
+
+
+def suite(
+    file: str,
+    *rows: tuple[object, ...],
+    priority: Priority = "P0",
+    status: ACStatus = "done",
+    proof_kind: ACProofKind | None = None,
+) -> list[ACRecord]:
+    """Build ACRecords sharing ``file`` and default metadata from row tuples."""
+    expanded_file = expand_test_path(file)
+    records: list[ACRecord] = []
+    for row in rows:
+        rid, stmt, test_ref = str(row[0]), str(row[1]), expand_test_path(str(row[2]))
+        full_test = (
+            f"{expanded_file}::{test_ref}"
+            if expanded_file and "::" not in test_ref
+            else test_ref
+        )
+        prio = row[3] if len(row) > 3 and row[3] is not None else priority
+        st = row[4] if len(row) > 4 and row[4] is not None else status
+        pk = row[5] if len(row) > 5 and row[5] is not None else proof_kind
+        va = row[6] if len(row) > 6 else None
+        records.append(
+            ACRecord(
+                id=rid,
+                statement=stmt,
+                test=full_test,
+                priority=prio,  # type: ignore[arg-type]
+                status=st,  # type: ignore[arg-type]
+                proof_kind=pk,  # type: ignore[arg-type]
+                vision_anchor=va,  # type: ignore[arg-type]
+            )
+        )
+    return records
+
+
+def acs(pkg: str, *items: str | ACRecord | list[ACRecord]) -> list[ACRecord]:
+    """Flatten ACRecord items/suites or pipe-delimited tables for ``pkg``."""
+    prefix = f"AC-{pkg}."
+    out: list[ACRecord] = []
+    for item in items:
+        if isinstance(item, str):
+            for rec_dict in parse_acs_table(pkg, item):
+                out.append(
+                    ACRecord(
+                        id=str(rec_dict["id"]),
+                        statement=str(rec_dict["statement"] or ""),
+                        test=str(rec_dict["test"] or ""),
+                        priority=rec_dict["priority"] or "P0",  # type: ignore[arg-type]
+                        status=rec_dict["status"] or "done",  # type: ignore[arg-type]
+                        proof_kind=rec_dict["proof_kind"],  # type: ignore[arg-type]
+                        vision_anchor=rec_dict["vision_anchor"],
+                    )
+                )
+            continue
+        batch = item if isinstance(item, list) else [item]
+        for rec in batch:
+            if not rec.id.startswith("AC"):
+                rec = rec.model_copy(update={"id": prefix + rec.id})
+            out.append(rec)
+    return out
+
+
+_KIND_ALIASES: dict[str, Kind] = {
+    "vo": Kind.VALUE_OBJECT,
+    "ent": Kind.ENTITY,
+    "agg": Kind.AGGREGATE_ROOT,
+    "fac": Kind.FACTORY,
+    "ev": Kind.DOMAIN_EVENT,
+    "repo": Kind.REPOSITORY,
+    "svc": Kind.DOMAIN_SERVICE,
+    "bus": Kind.EVENT_BUS,
+    "proj": Kind.PROJECTION,
+    **{k.value: k for k in Kind},
+}
+
+
+def _resolve_kind(value: Kind | str) -> Kind:
+    return value if isinstance(value, Kind) else _KIND_ALIASES[value]
+
+
+def _opt_col(cols: list[str], idx: int) -> str | None:
+    return cols[idx] if len(cols) > idx and cols[idx] and cols[idx] != "-" else None
+
+
+def units(*specs: str | Unit | tuple[object, ...]) -> list[Unit]:
+    """Build Unit declarations from pipe tables, tuples, or ``(kind, module, names)`` groups."""
+    out: list[Unit] = []
+    for spec in specs:
+        if isinstance(spec, str):
+            for raw in spec.splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("@"):
+                    cols = [c.strip() for c in line[1:].split("|")]
+                    kind = _resolve_kind(cols[0])
+                    mod = None if cols[1] == "-" or not cols[1] else cols[1]
+                    for name in cols[2].split():
+                        out.append(Unit(name=name, kind=kind, module=mod))
+                    continue
+                cols = [c.strip() for c in line.split("|")]
+                out.append(
+                    Unit(
+                        name=cols[0],
+                        kind=_resolve_kind(cols[1]),
+                        module=_opt_col(cols, 2),
+                        impl=_opt_col(cols, 3),
+                        semantic_key=_opt_col(cols, 4),
+                    )
+                )
+            continue
+        if isinstance(spec, Unit):
+            out.append(spec)
+            continue
+        if len(spec) == 3 and isinstance(spec[2], (tuple, list)):
+            kind = _resolve_kind(spec[0])  # type: ignore[arg-type]
+            mod = spec[1]
+            for name in spec[2]:
+                out.append(Unit(name=str(name), kind=kind, module=mod))  # type: ignore[arg-type]
+            continue
+        name = str(spec[0])
+        kind = _resolve_kind(spec[1])  # type: ignore[arg-type]
+        mod = spec[2] if len(spec) > 2 else None
+        impl = spec[3] if len(spec) > 3 else None
+        sem = spec[4] if len(spec) > 4 else None
+        out.append(
+            Unit(
+                name=name,
+                kind=kind,
+                module=mod,  # type: ignore[arg-type]
+                impl=impl,  # type: ignore[arg-type]
+                semantic_key=sem,  # type: ignore[arg-type]
+            )
+        )
+    return out
+
+
+def invs(*specs: str | Invariant | tuple[object, ...]) -> list[Invariant]:
+    """Build Invariant declarations from pipe tables, ``(id, statement, test)``, or file groups."""
+    out: list[Invariant] = []
+    for spec in specs:
+        if isinstance(spec, str):
+            cur_file = ""
+            for raw in spec.splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("@"):
+                    f = line[1:].strip()
+                    cur_file = "" if f == "-" else expand_test_path(f)
+                    continue
+                cols = [c.strip() for c in line.split("|")]
+                tref = expand_test_path(cols[2])
+                test = f"{cur_file}::{tref}" if cur_file and "::" not in tref else tref
+                out.append(Invariant(id=cols[0], statement=cols[1], test=test))
+            continue
+        if isinstance(spec, Invariant):
+            out.append(spec)
+            continue
+        if len(spec) == 2 and isinstance(spec[1], (tuple, list)):
+            file = str(spec[0])
+            for row in spec[1]:
+                iid, stmt, fn = str(row[0]), str(row[1]), str(row[2])
+                test = f"{file}::{fn}" if file and "::" not in fn else fn
+                out.append(Invariant(id=iid, statement=stmt, test=test))
+            continue
+        out.append(
+            Invariant(id=str(spec[0]), statement=str(spec[1]), test=str(spec[2]))
+        )
+    return out
+
+
+def rels(
+    consumer: str, *rows: str | ContextRelation | tuple[str, str, str]
+) -> list[ContextRelation]:
+    """Build outgoing ContextRelation records for ``consumer``."""
+    out: list[ContextRelation] = []
+    for row in rows:
+        if isinstance(row, str):
+            for raw in row.splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                cols = [c.strip() for c in line.split("|")]
+                out.append(
+                    ContextRelation(
+                        provider=cols[0],
+                        consumer=consumer,
+                        mode=cols[1],  # type: ignore[arg-type]
+                        reason=cols[2],
+                    )
+                )
+        elif isinstance(row, ContextRelation):
+            out.append(row)
+        else:
+            out.append(
+                ContextRelation(
+                    provider=row[0],
+                    consumer=consumer,
+                    mode=row[1],  # type: ignore[arg-type]
+                    reason=row[2],
+                )
+            )
+    return out
+
+
+def concepts(*rows: str | ConceptRecord | tuple[object, ...]) -> list[ConceptRecord]:
+    """Build ConceptRecord declarations from pipe tables or positional tuples."""
+    out: list[ConceptRecord] = []
+    for row in rows:
+        if isinstance(row, str):
+            for raw in row.splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                cols = [c.strip() for c in line.split("|")]
+                refs = [x for x in (_opt_col(cols, 3) or "").split(",") if x]
+                proofs = [x for x in (_opt_col(cols, 4) or "").split(",") if x]
+                out.append(
+                    ConceptRecord(
+                        key=cols[0],
+                        owner=cols[1],
+                        description=cols[2],
+                        cross_refs=refs,
+                        proofs=proofs,
+                        family=_opt_col(cols, 5),
+                        kind=_opt_col(cols, 6),
+                        authority=_opt_col(cols, 7),
+                        parent=_opt_col(cols, 8),
+                    )
+                )
+            continue
+        if isinstance(row, ConceptRecord):
+            out.append(row)
+            continue
+        out.append(
+            ConceptRecord(
+                key=str(row[0]),
+                owner=str(row[1]),
+                description=str(row[2]),
+                cross_refs=list(row[3]) if len(row) > 3 and row[3] else [],  # type: ignore[call-overload]
+                proofs=list(row[4]) if len(row) > 4 and row[4] else [],  # type: ignore[call-overload]
+                family=row[5] if len(row) > 5 else None,  # type: ignore[arg-type]
+                kind=row[6] if len(row) > 6 else None,  # type: ignore[arg-type]
+                authority=row[7] if len(row) > 7 else None,  # type: ignore[arg-type]
+                parent=row[8] if len(row) > 8 else None,  # type: ignore[arg-type]
+            )
+        )
+    return out
 
 
 class ConceptRecord(BaseModel):

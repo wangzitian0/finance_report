@@ -1,648 +1,176 @@
-"""The ``pricing`` package's machine-checkable :class:`PackageContract`.
-
-This is the authoritative spec the governance gate
-(``tools/check_package_contract.py``) validates the BE implementation against:
-``interface`` must equal the implementation's ``__init__.__all__``
-(``implementations["be"]`` = ``apps/backend/src/pricing``); every
-``invariants[].test`` must resolve to a real test function; ``depends_on``
-must not introduce a forbidden upward/sideways-cyclic edge.
-
-## What this package is (design review 2026-07-06, #1610)
-
-The price/valuation **observation + resolution** SSOT — not a lookup cache.
-Pre-migration, "what is X worth at time T" was scattered across 5 tables with
-3 incompatible key vocabularies (``FxRate``, ``StockPrice``,
-``MarketDataOverride``, ``ManualValuationSnapshot``, plus statement-extracted
-unit prices), and the resolution logic (which observation wins when several
-disagree) was implicit and re-derived at each consumption site.
-
-The essence: *an observation that a subject was worth X at time T, from a
-source, with an authority rank — plus the resolution policy for conflicting
-observations*. NOT named ``market_data`` — the crawler is one source, not the
-concept (the package exists even with no crawler: manual valuations and
-overrides remain).
-
-## Boundary rulings (record, don't relitigate — see #1610)
-
-1. **Resolution is the core domain service, not an afterthought.**
-   ``resolve(subject, as_of, policy)`` — consumers pass policy (reporting
-   wants conservative, portfolio wants latest). Moving the 5 tables without
-   the resolver would just relocate a junk drawer.
-2. **Overrides are append-only high-authority observations, not mutations.**
-   Deleting an override re-exposes the prior observation (Axiom A).
-   ``MarketDataOverride`` dissolves into the unified observation model
-   (``source=manual-override``).
-3. **Bitemporal:** ``as_of`` (which day the price belongs to) ≠
-   ``observed_at`` (when we learned it). A late backfill must never silently
-   rewrite a frozen ``ReportSnapshot``.
-4. **Statement-extracted unit prices stay in ``extraction``** (document-fact,
-   provenance chain, re-parse lifecycle). ``extraction`` publishes a domain
-   event; pricing ingests an id-referenced observation copy
-   (``source=statement``). No shared transaction, no FK.
-5. **FX splits in two:** conversion *arithmetic* (``convert(money, rate)``,
-   rate passed in, pure) stays in ``audit`` — audit never looks up a rate;
-   rate *lookup* + FX-specific services (inverse, triangulation, gap
-   interpolation) live here.
-6. **Subject identity first.** ``PriceableSubject`` unifies the 3 key
-   vocabularies (currency pair / listed security / valued component). The
-   dual-listing question (same equity, two symbols) is deliberately NOT
-   collapsed in the first cut — each listing is its own subject; an alias
-   mapping is future package-internal work, not a re-cutover.
-7. **Staleness is a fact pricing owns; the tier mapping is policy the
-   consumer owns.** ``resolve`` reports an observation's age; reporting
-   decides what "too stale" means for its own tier.
-
-``pricing`` is an L3 domain leaf: it imports no other L3 (domain) package —
-portfolio/reporting/reconciliation declare the (acyclic, sideways) edge TO
-pricing, never the reverse.
-"""
+"""Machine-checkable PackageContract for ``pricing``."""
 
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ac,
-    ConceptRecord,
-    ContextRelation,
     ContextScope,
-    Invariant,
-    Kind,
     PackageContract,
-    Unit,
+    acs,
+    concepts,
+    invs,
+    rels,
+    units,
 )
 
-# fmt: off
 CONTRACT = PackageContract(
     name="pricing",
-    # klass is not declared here — it resolves from PACKAGE_LAYER (L0 owns
-    # placement in the five-layer topology, #1595); see
-    # common/meta/base/layering.py, which lists pricing as "domain" (L3).
     status="active",
     tier="CODE-ONLY",
-    # "config" was dropped from this list (migration closeout continuation,
-    # #1663 / #1710): src.config is a bare top-level module, not a registered
-    # package, so it's never governed by depends_on — no other package
-    # declares it either despite importing it directly.
-    depends_on=["audit", "platform", "observability"],
+    depends_on="audit platform observability".split(),
+    roles="base extension data".split(),
+    implementations={"be": "apps/backend/src/pricing", "fe": None},
     context=ContextScope(
-        purpose="Own price and valuation observations, their bitemporal authority, and the policy-driven resolution of a subject's value at a time.",
+        purpose="Own price and valuation observations, their bitemporal authority.",
         in_scope=[
-            "PriceObservation, PriceableSubject, authority, staleness, and resolution policy",
-            "FX rate lookup, valuation observation ingestion, and manual/override observations",
-            "pricing-owned PriceObserved events and decision-backed valuation contributions",
+            "PriceObservation, PriceableSubject, authority, staleness.",
+            "FX rate lookup, valuation observation ingestion.",
+            "Pricing-owned PriceObserved events and decision-backed valuation contributions.",
         ],
         out_of_scope=[
-            "document extraction facts and re-parse lifecycle",
-            "shared money arithmetic and assurance-language ownership",
-            "portfolio position ownership, report presentation, and cross-domain workflow",
+            "Document extraction facts and re-parse lifecycle.",
+            "Shared money arithmetic and assurance-language ownership.",
+            "Portfolio position ownership, report presentation.",
         ],
     ),
-    relationships=[
-        ContextRelation(
-            provider="audit",
-            consumer="pricing",
-            mode="published-language",
-            reason="Uses audit Money, exchange-rate arithmetic, and assurance value language while pricing owns rate lookup and valuation selection.",
-        ),
-        ContextRelation(
-            provider="audit",
-            consumer="pricing",
-            mode="consumer-port",
-            reason="Consumes audit decision-evidence repository/emitter ports rather than owning assurance authority or its persistence.",
-        ),
-        ContextRelation(
-            provider="platform",
-            consumer="pricing",
-            mode="consumer-port",
-            reason="Uses platform EventBus/outbox ports to publish pricing events atomically with pricing-owned observations.",
-        ),
-        ContextRelation(
-            provider="platform",
-            consumer="pricing",
-            mode="composition",
-            reason="Uses platform persistence mixins without owning the shared persistence substrate.",
-        ),
-        ContextRelation(
-            provider="observability",
-            consumer="pricing",
-            mode="published-language",
-            reason="Uses published safe logging language for provider and resolution diagnostics.",
-        ),
-    ],
-    roles=["base", "extension", "data"],
-    units=[
-        # ── base: the pure observation + subject-identity + policy language ──
-        Unit(
-            name="PriceObservation",
-            kind=Kind.AGGREGATE_ROOT,
-            module="base/observation.py",
-        ),
-        Unit(name="PriceableSubject", kind=Kind.VALUE_OBJECT, module="base/subject.py"),
-        Unit(
-            name="ObservationSource",
-            kind=Kind.VALUE_OBJECT,
-            module="base/observation.py",
-        ),
-        Unit(name="Authority", kind=Kind.VALUE_OBJECT, module="base/observation.py"),
-        Unit(name="ResolutionPolicy", kind=Kind.VALUE_OBJECT, module="base/policy.py"),
-        Unit(name="PriceObserved", kind=Kind.DOMAIN_EVENT, module="base/events.py"),
-        Unit(name="PricingError", kind=Kind.VALUE_OBJECT, module="base/errors.py"),
-        # resolve() is implementation-pure (no I/O — the repository port
-        # supplies the candidate observations as a plain argument), but
-        # KIND_LAYER places every DOMAIN_SERVICE in extension/ with no
-        # exception, so it's placed there physically despite being pure.
-        Unit(name="resolve", kind=Kind.DOMAIN_SERVICE, module="extension/resolve.py"),
-        # The split block (mechanism B): port in base/, adapter in extension/.
-        # The adapter is schema-preserving on purpose — it queries the 4
-        # legacy tables (FxRate/StockPrice/MarketDataOverride/
-        # ManualValuationSnapshot) directly rather than waiting on a unified
-        # physical store, so it can land ahead of that migration.
-        Unit(
-            name="ObservationRepository",
-            kind=Kind.REPOSITORY,
-            module="base/repository.py",
-            impl="extension/repository.py",
-        ),
-        # record_manual_valuation/record_override are the write-side
-        # counterpart to the read adapter above: they persist into the same
-        # 2 user-scoped legacy tables the adapter reads back uniformly, and
-        # each publishes PriceObserved through the platform outbox in the
-        # SAME db session as the write (the counter.record_increment
-        # pattern) — the event is atomic with the state change by
-        # construction, not a separate best-effort notification.
-        Unit(
-            name="record_manual_valuation",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/manual.py",
-        ),
-        Unit(
-            name="record_override",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/manual.py",
-        ),
-        # get_exchange_rate is a thin FX-specific wrapper: the identity rate
-        # (a currency against itself) is a business rule that doesn't belong
-        # in subject-agnostic resolve(); everything else routes through the
-        # same PriceableSubject + resolve() path every other subject kind
-        # uses. #1610 P2 retired services/fx.py, making this the ONE FX
-        # lookup implementation: the lazy crawler-fallback, the fx_warnings
-        # side-channel, and average-rate windows are carried over
-        # (AC-pricing.fx.1/.3); the in-process TTL cache deliberately is NOT
-        # (PrefetchedFxRates covers the hot batch paths) — see
-        # extension/fx.py's docstring.
-        Unit(
-            name="get_exchange_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
-        ),
-        # get_exchange_rate_series: get_exchange_rate for many dates from one
-        # candidate read; resolve_series (extension/resolve.py) picks per date
-        # (AC-pricing.fx.4, #2583).
-        Unit(
-            name="get_exchange_rate_series",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/fx.py",
-        ),
-        # convert_amount/convert_money: thin lookup+math
-        # bridges over get_exchange_rate/get_average_rate (lookup) +
-        # audit.money.convert (math, rate passed in — ruling 5, audit never
-        # looks up a rate).
-        Unit(name="convert_amount", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
-        Unit(name="convert_money", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
-        # get_average_rate: the mean of the repository's own candidates in a
-        # date range (not a separate SQL AVG query) — the repository stays
-        # "what observations exist"; averaging is pricing's own logic.
-        Unit(
-            name="get_average_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
-        ),
-        # PrefetchedFxRates (a scope-local batch cache DTO-ish helper) and
-        # FxWarning (a type alias) are published in ``interface`` below but,
-        # like the market-data DTOs, don't get their own taxonomy Unit() —
-        # units is a curated tactical-pattern annotation, not a 1:1 mirror
-        # of interface.
-        # build_manual_valuation_lines: the manual-valuation slice of the
-        # balance sheet, absorbed from services/reporting/manual_valuation.py
-        # (#1610 P2) — pricing owns the facts and the FX conversion; the
-        # reporting caller owns the ReportError mapping
-        # (AC-pricing.manualvaluation.3).
-        Unit(
-            name="build_manual_valuation_lines",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation.py",
-        ),
-        # build_manual_valuation_lines_series: the same lines for many dates;
-        # components are read once per snapshot date (AC-pricing.manualvaluation.11,
-        # #2583).
-        Unit(
-            name="build_manual_valuation_lines_series",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation.py",
-        ),
-        # ── extension: crawler sync (given scopes, sync/report on them — the
-        # discovery of *which* scopes lives in each domain's published reads
-        # (ledger.used_currencies / portfolio.active_stock_symbols +
-        # position_currencies / extraction.snapshot_currencies), composed at
-        # the delivery layer, never inside pricing; dependency inversion,
-        # meta Decision B — #1641) ──
-        Unit(
-            name="sync_fx_rates",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/market_data/service.py",
-        ),
-        Unit(
-            name="sync_stock_prices",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/market_data/service.py",
-        ),
-        Unit(
-            name="ensure_market_data_fresh",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/market_data/service.py",
-        ),
-        Unit(
-            name="get_market_data_status",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/market_data/service.py",
-        ),
-        Unit(
-            name="resolve_missing_fx_rate",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/market_data/service.py",
-        ),
-        # run_market_data_scheduler/run_daily_market_data_sync: the daily
-        # crawl orchestrator absorbed from services/market_data_scheduler.py
-        # (#1610 P2). Scope discovery stays inverted: the composition root
-        # injects a MarketDataScopeProvider (src/composition.py composes the
-        # per-domain published reads) — pricing never reads another domain
-        # (AC-pricing.marketdata.12). One commit per run, pricing aggregates
-        # only (guarded by tests/infra/test_transaction_boundaries.py).
-        Unit(
-            name="run_market_data_scheduler",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/scheduler.py",
-        ),
-        Unit(
-            name="run_daily_market_data_sync",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/scheduler.py",
-        ),
-        # MarketDataScopeStatus/MarketDataSyncResult/MarketDataScopes (DTOs),
-        # MarketDataScopeProvider (a port type alias),
-        # next_market_data_sync_at (a pure schedule helper), and
-        # MARKET_DATA_QUANTITY_UNIT/MARKET_DATA_SYNC_TZ (plain constants) are
-        # published in ``interface`` below but, like several of audit's own
-        # published helpers (e.g. RECONCILIATION_AUTO_ACCEPT_SCORE), don't
-        # get their own taxonomy Unit() — units is a curated tactical-pattern
-        # annotation, not a 1:1 mirror of interface.
-        # ── extension: the extraction event-ingest subscriber (#1642) — the
-        # first cross-domain event consumer in the codebase. extraction
-        # publishes PriceObserved (source=statement) through the outbox;
-        # ingest_statement_price copies it into pricing's own
-        # statement_price_observations store, idempotent on the upstream fact
-        # id (at-least-once delivery), no FK, provenance id on the row. The
-        # subscribe_price_ingest wiring helper (published, no separate Unit —
-        # curated annotation, same as the DTOs above) is called by the app
-        # composition root: platform (L1) never imports pricing (L3). ──
-        Unit(
-            name="ingest_statement_price",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/ingest.py",
-        ),
-        # #1915: the package boundary that carries a selected valuation and
-        # its exact current TraceRecord decision to reporting. The DTO keeps
-        # storage models and authority inference out of package assembly.
-        Unit(
-            name="ResolvedValuationContribution",
-            kind=Kind.VALUE_OBJECT,
-            module="base/contribution.py",
-        ),
-        Unit(
-            name="MarketValuationSelection",
-            kind=Kind.VALUE_OBJECT,
-            module="base/contribution.py",
-        ),
-        Unit(
-            name="resolve_valuation_contribution",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation_contribution.py",
-        ),
-        Unit(
-            name="resolve_selected_market_valuation_contribution",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation_contribution.py",
-        ),
-        Unit(
-            name="resolve_manual_valuation_contributions",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation_contribution.py",
-        ),
-        Unit(
-            name="ManualValuationAttestationPolicy",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation_contribution.py",
-        ),
-        Unit(
-            name="ResolvedMarketValuationPolicy",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation_contribution.py",
-        ),
-        Unit(
-            name="ManualValuationComponentType",
-            kind=Kind.VALUE_OBJECT,
-            module="base/manual_valuation.py",
-        ),
-        Unit(
-            name="ManualValuationLiquidityClass",
-            kind=Kind.VALUE_OBJECT,
-            module="base/manual_valuation.py",
-        ),
-        Unit(
-            name="ManualValuationBasis",
-            kind=Kind.VALUE_OBJECT,
-            module="base/manual_valuation.py",
-        ),
-        Unit(
-            name="ManualValuationFact",
-            kind=Kind.VALUE_OBJECT,
-            module="base/manual_valuation.py",
-        ),
-        Unit(name="ManualValuationSnapshot", kind=Kind.ENTITY),
-        Unit(
-            name="list_current_manual_valuation_facts",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/valuation.py",
-        ),
-        # ── ORM entities: taxonomy-only (module unset — the gate skips
-        # placement, the #1675 idiom). MarketDataOverride (orm/
-        # market_data_override.py, moved from models/portfolio.py in D5) is a
-        # pricing observation store — one of the legacy tables
-        # SqlObservationRepository resolves over — so pricing owns it, not
-        # portfolio (which would also have created a portfolio<->pricing
-        # depends_on cycle). ──
-        Unit(name="MarketDataOverride", kind=Kind.ENTITY),
-        Unit(name="PriceSource", kind=Kind.VALUE_OBJECT),
-        # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
-        Unit(name="LatestPriceView", kind=Kind.PROJECTION),
-        Unit(name="StalenessView", kind=Kind.PROJECTION),
-    ],
-    implementations={"be": "apps/backend/src/pricing", "fe": None},
-    # The real, working surface: the pure base/ model, resolve()
-    # (implementation-pure, physically in extension/ per KIND_LAYER), the
-    # repository port + its SQL adapter (querying the 4 legacy tables plus
-    # the ingest store), the two user-scoped write-side recorders (which also
-    # publish PriceObserved through the platform outbox, atomically with the
-    # write — pricing is a real producer on the bus, not just a declared
-    # event type), the extraction-event ingest subscriber + its wiring helper
-    # (#1642 — pricing is also the bus's first consumer), the full FX lookup
-    # surface absorbed from the retired services/fx.py (#1610 P2: the
-    # convert_* pair + average-rate wrappers with fx_warnings, plus
-    # PrefetchedFxRates), the manual-valuation balance-sheet line builder
-    # (absorbed from services/reporting/manual_valuation.py), the crawler
-    # sync (moved in from apps/backend/src/services/market_data/), and the
-    # daily crawl orchestrator (absorbed from
-    # services/market_data_scheduler.py — scopes injected via
-    # MarketDataScopeProvider). The 2 data projections are reserved units
-    # above — they join the interface once a later commit implements them
-    # for real.
-    interface=[
-        "Authority",
-        "ExchangeRateLookup",
-        "FxConversion",
-        "FxRate",
-        "FxWarning",
-        "MARKET_DATA_QUANTITY_UNIT",
-        "MARKET_DATA_SYNC_TZ",
-        "MarketDataOverride",
-        "MarketDataScopeProvider",
-        "MarketDataScopeStatus",
-        "MarketDataScopes",
-        "MarketDataSyncResult",
-        "MarketDataSyncState",
-        "MarketValuationSelection",
-        "ManualValuationBasis",
-        "ManualValuationAttestationPolicy",
-        "ManualValuationComponentType",
-        "ManualValuationFact",
-        "ManualValuationLiquidityClass",
-        "NoObservationError",
-        "ObservationRepository",
-        "ObservationSource",
-        "PrefetchedFxRates",
-        "PriceObservation",
-        "PriceObserved",
-        "PriceSource",
-        "PriceableSubject",
-        "PricingError",
-        "ResolutionPolicy",
-        "ResolvedMarketValuationPolicy",
-        "ResolvedValuationContribution",
-        "SqlObservationRepository",
-        "StatementPriceObservation",
-        "StockPrice",
-        "ValuationComponentItem",
-        "ValuationComponentsResult",
-        "ValuationService",
-        "ValuationServiceError",
-        "build_manual_valuation_lines",
-        "build_manual_valuation_lines_series",
-        "convert_amount",
-        "convert_money",
-        "ensure_market_data_fresh",
-        "get_average_rate",
-        "get_exchange_rate",
-        "get_exchange_rate_series",
-        "get_market_data_status",
-        "ingest_statement_price",
-        "list_current_manual_valuation_facts",
-        "next_market_data_sync_at",
-        "record_manual_valuation",
-        "record_override",
-        "pricing_trace_policy_registry",
-        "resolve",
-        "resolve_manual_valuation_contributions",
-        "resolve_selected_market_valuation_contribution",
-        "resolve_valuation_contribution",
-        "resolve_missing_fx_rate",
-        "run_daily_market_data_sync",
-        "run_market_data_scheduler",
-        "subscribe_price_ingest",
-        "sync_fx_rates",
-        "sync_stock_prices",
-    ],
-    events=["PriceObserved"],
-    invariants=[
-        Invariant(
-            id="interface-equals-published-language",
-            statement=(
-                "The published language (contract.interface) equals __init__.__all__."
-            ),
-            test=(
-                "tests/tooling/test_pricing_package.py"
-                "::test_AC_pricing_1_1_only_all_is_the_published_language"
-            ),
-        ),
-        Invariant(
-            id="converges-by-layer",
-            statement="The package converges into base/ (pure) + extension/ (edges) + data/ (projections).",
-            test=(
-                "tests/tooling/test_pricing_package.py"
-                "::test_AC_pricing_1_2_converges_by_layer"
-            ),
-        ),
-        Invariant(
-            id="base-layer-pure",
-            statement="base/ never imports the package's own extension/ or data/, the ORM, or any network client.",
-            test=(
-                "tests/tooling/test_pricing_package.py"
-                "::test_AC_pricing_1_3_base_layer_is_pure"
-            ),
-        ),
-        Invariant(
-            id="observations-are-append-only",
-            statement=(
-                "PriceObservation rows are never updated or deleted in place; an "
-                "override is a new higher-authority observation, and removing one "
-                "re-exposes the prior observation it superseded (Axiom A)."
-            ),
-            test=(
-                "tests/tooling/test_pricing_package.py"
-                "::test_AC_pricing_1_4_observations_are_append_only_by_construction"
-            ),
-        ),
-        Invariant(
-            id="audit-never-looks-up-a-rate",
-            statement=(
-                "audit.money.convert takes a rate as an argument and performs no "
-                "database lookup; rate lookup lives only in pricing."
-            ),
-            test=(
-                "tests/tooling/test_pricing_package.py"
-                "::test_AC_pricing_1_5_audit_convert_takes_rate_as_argument"
-            ),
-        ),
-        Invariant(
-            id="passes-own-governance-gate",
-            statement="check_package_contract validates pricing with no violations.",
-            test=(
-                "tests/tooling/test_pricing_package.py"
-                "::test_AC_pricing_1_6_package_contract_gate_passes"
-            ),
-        ),
-    ],
-    roadmap=[
-        # ── group marketdata: daily FX/stock market data sync (was EPIC-011
-        # AC11.10, migration closeout continuation, #1663 / #1710) ──
-        ac('AC-pricing.marketdata.1', 'Stock price sync fetches daily prices for active holdings and stores idempotent rows. Was EPIC-011 AC11.10.1.', 'apps/backend/tests/pricing/market_data/test_sync.py::test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent'),
-        ac('AC-pricing.marketdata.2', 'FX sync fetches explicit or observed pairs incrementally, with USD/base as the default non-empty pair. Was EPIC-011 AC11.10.2.', 'apps/backend/tests/pricing/market_data/test_sync.py::test_sync_fx_rates_starts_after_last_stored_date'),
-        ac('AC-pricing.marketdata.3', 'Missing trading days are recorded as misses without failing the whole sync. Was EPIC-011 AC11.10.3.', 'apps/backend/tests/pricing/market_data/test_sync.py::test_sync_stock_prices_records_missing_trading_days'),
-        ac('AC-pricing.marketdata.4', 'Primary and secondary providers are cross-validated and disagreements are not silently persisted. Was EPIC-011 AC11.10.4.', 'apps/backend/tests/pricing/market_data/test_sync.py::test_stock_provider_disagreement_is_reported_without_persisting'),
-        ac('AC-pricing.marketdata.5', 'Market data sync endpoints expose FX and stock sync status for scheduler/E2E callers. Was EPIC-011 AC11.10.5.', 'apps/backend/tests/market_data/test_sync_router.py::test_market_data_sync_endpoints_return_counts'),
-        ac('AC-pricing.marketdata.6', 'Portfolio valuation prefers synced stock prices over stale brokerage snapshots. Was EPIC-011 AC11.10.6.', 'apps/backend/tests/pricing/market_data/test_sync.py::test_portfolio_uses_synced_stock_price_before_atomic_snapshot'),
-        ac('AC-pricing.marketdata.7', 'E2E gates cover provider-backed FX sync and stock-price portfolio valuation paths. Was EPIC-011 AC11.10.7.', 'tests/e2e/test_market_data_price_paths.py::test_market_data_provider_sync_feeds_fx_and_stock_price_paths'),
-        ac('AC-pricing.marketdata.8', 'Long historical market data sync uses bounded range provider requests instead of per-day provider calls. Was EPIC-011 AC11.10.8.', 'apps/backend/tests/pricing/market_data/test_sync.py::test_sync_stock_prices_fetches_decade_range_once'),
-        ac('AC-pricing.marketdata.9', 'Report reads check market data freshness and trigger at most one immediate refresh when the last successful sync is older than 24 hours. Was EPIC-011 AC11.10.9.', 'apps/backend/tests/pricing/market_data/test_sync.py::test_market_data_freshness_sync_runs_once_after_24h'),
-        ac('AC-pricing.marketdata.10', 'Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window. Was EPIC-011 AC11.10.10.', 'apps/backend/tests/pricing/test_scheduler.py::test_next_market_data_sync_at_uses_nightly_sgt_schedule'),
-        ac('AC-pricing.marketdata.11', 'Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync. Was EPIC-011 AC11.10.11.', 'tests/e2e/test_market_data_price_paths.py::test_market_data_provider_sync_feeds_fx_and_stock_price_paths'),
-        ac('AC-pricing.marketdata.12', "The daily crawl orchestrator syncs exactly the scopes an injected composition-root provider returns and commits once per run; pricing's scheduler module imports no other domain package and nothing from the app remainder (dependency inversion, #1641/#1610 P2).", 'apps/backend/tests/pricing/test_scheduler.py::test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider'),
-        ac('AC-pricing.marketdata.13', 'The real FX/market-data path proves an exact converted VALUE in the blocking lane (#1826 G-fx-real-path): with lazy fetch explicitly enabled and genuinely recorded provider payloads replayed at the provider-response seam (no live network), a stale USD position is repriced through report-time freshness sync -> provider parse -> persistence -> FX conversion, and the SGD balance sheet carries the exact hand-derived converted amount (2 x 165.279999 USD x 1.345000 -> 444.60).', 'apps/backend/tests/pricing/market_data/test_recorded_provider_price_path.py::test_recorded_provider_fx_and_stock_path_converts_exactly', proof_kind='exact'),
-        # ── group manualvaluation: append-only manual valuation facts,
-        # Axiom A (was EPIC-011 AC11.19, migration closeout continuation,
-        # #1663 / #1710) ──
-        ac('AC-pricing.manualvaluation.1', 'Correcting a manual valuation appends a new version and preserves the prior fact unedited as a retrievable superseded version. Was EPIC-011 AC11.19.1.', 'apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history', priority='P1'),
-        ac('AC-pricing.manualvaluation.2', 'Heads-only reads use the current version so a corrected valuation is never double-counted in net worth or listings. Was EPIC-011 AC11.19.2.', 'apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth', priority='P1'),
-        ac('AC-pricing.manualvaluation.3', 'Manual-valuation balance-sheet lines (asset/liability split, allocation classes, trusted provenance, FX conversion into the target currency) are built by pricing; an FX miss surfaces as the pricing error family and the reporting caller owns the ReportError mapping. Absorbed from services/reporting/manual_valuation.py (#1610 P2).', 'apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify', priority='P1'),
-        ac('AC-pricing.manualvaluation.4', "A (component_type, source) combination whose only snapshot postdates the requested as_of_date is absent from the valuation components and lines, and is disclosed through the result/accumulator warnings instead of vanishing silently (#1796) — 'not owned yet' vs 'not recorded yet' is inherently ambiguous for a manual component, so the gap is warned about, never guessed at.", 'apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_warned', priority='P1'),
-        ac('AC-pricing.manualvaluation.11', 'build_manual_valuation_lines_series returns, for each requested date, the lines of build_manual_valuation_lines on that date; it reads the components once per snapshot date and raises the pricing error family on an FX miss (#2583).', 'apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_11_series_equals_one_build_per_date', priority='P1'),
-        ac('AC-pricing.manualvaluation.12', 'split_net_worth_scope is the one definition of the restricted-holdings scope: the full scope holds each manual valuation; the scope without restricted holdings excludes each restricted or illiquid asset valuation and each liability linked to an excluded asset (current or not-yet-recorded on as_of_date), while keeping a liability whose asset is liquid; build_manual_valuation_lines and build_manual_valuation_lines_series apply the same asset-link exclusion to ledger liability accounts (#2645, #2659).', 'apps/backend/tests/pricing/test_valuation_liquidity_contract.py::test_AC_pricing_manualvaluation_12_scope_excludes_a_liability_with_its_asset', priority='P0'),
-        ac('AC-pricing.manualvaluation.13', 'build_manual_valuation_lines keeps a pricing-family FX error on an excluded component as a line without amount and a typed conversion_warning: missing_fx_rate_excluded_holding for a missing rate, fx_conversion_failed_excluded_holding for another pricing error; any other error still raises (#2645).', 'apps/backend/tests/pricing/test_valuation_liquidity_contract.py::test_AC_pricing_manualvaluation_13_excluded_line_errors_by_type', priority='P1'),
-        # ── group fx: the FX lookup + conversion surface absorbed from
-        # services/fx.py (#1610 P2 — ONE implementation, pricing's; the
-        # in-process TTL cache was deliberately NOT carried over, see
-        # extension/fx.py) ──
-        ac('AC-pricing.fx.1', 'get_average_rate falls back to the period-end spot rate when the window has no observations and surfaces the fallback through the fx_warnings side-channel (deduplicated), matching the retired services/fx.py behavior reporting depends on.', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_1_average_rate_fallback_appends_fx_warning', priority='P1'),
-        ac('AC-pricing.fx.2', 'PrefetchedFxRates batch-prefetches spot and average-window rates under distinct keys, serves the identity rate without a fetch, and propagates the pricing error family on a miss (never a silent partial cache).', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys', priority='P1'),
-        ac('AC-pricing.fx.3', 'convert_amount/convert_money honor an average-rate window (average_start/average_end) with the same period-end fallback + fx_warnings semantics as the spot path — the income-statement reporting convention.', 'apps/backend/tests/pricing/test_convert.py::test_AC_pricing_fx_3_convert_amount_uses_average_rate_window', priority='P1'),
-        ac('AC-pricing.fx.4', 'get_exchange_rate_series returns, for each requested date, the get_exchange_rate result on that date and omits a date without a rate; it reads the stored candidates once when every date has one, and resolve_series equals one resolve call per date (#2583).', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_4_rate_series_equals_one_lookup_per_date', priority='P1'),
-        ac('AC-pricing.fx.5', 'ExchangeRateLookup in apps/backend/src/pricing/extension/fx.py is the one FX rate-lookup Protocol in apps/backend/src; extraction, ledger and reporting import src.pricing directly and define no duplicate FX spot-rate, series or prefetch Protocol (#2774).', 'tests/tooling/test_single_fx_rate_port.py::test_AC_pricing_fx_5_exchange_rate_lookup_is_the_one_fx_rate_port', priority='P1'),
-        ac('AC-pricing.fx.6', 'get_exchange_rate and get_exchange_rate_series do not let an earlier lazily derived inverse FX row hide a newer stored inverse rate on a later date (#2593).', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_6_derived_inverse_rate_does_not_shadow_newer_inverse_rate', priority='P1'),
-        # ── group providers: manual price update + provider symbol/ticker
-        # handling (was EPIC-017 AC17.1.6/AC17.15/AC17.33, migration
-        # closeout continuation, #1663 / #1710) ──
-        ac('AC-pricing.providers.1', 'A manual price update creates a MarketDataOverride record for the given asset/date, independent of provider sync. Was EPIC-017 AC17.1.6.', 'apps/backend/tests/portfolio/test_portfolio_service.py::test_update_prices_happy', priority='P1'),
-        ac('AC-pricing.providers.2', '_looks_like_ticker accepts real tickers/FX pairs and rejects fund-name free text. Was EPIC-017 AC17.15.1.', 'apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_looks_like_ticker_accepts_real_tickers_rejects_free_text', priority='P1'),
-        ac('AC-pricing.providers.3', 'A non-ticker identifier short-circuits the Yahoo stock fetch with no HTTP call. Was EPIC-017 AC17.15.2.', 'apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_yahoo_stock_fetch_short_circuits_for_non_ticker', priority='P1'),
-        ac('AC-pricing.providers.4', 'HK numeric exchange codes map to the Yahoo <4-digit>.HK symbol while US tickers and already-suffixed symbols pass through unchanged. Was EPIC-017 AC17.33.1.', 'apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes', priority='P1'),
-        ac('AC-pricing.providers.5', 'HK numeric codes resolve to the Stooq <4-digit>.hk symbol while US tickers stay .us. Was EPIC-017 AC17.33.2.', 'apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes', priority='P1'),
-        # ── group provenance: normalized data-provenance vocabulary, pricing
-        # share of a dual-package row (was EPIC-022 AC22.13.1, migration
-        # closeout continuation, #1663 / #1710) ──
-        ac('AC-pricing.provenance.1', 'Manual valuation component items expose a provenance field constrained to the shared Imported/Manual/Derived vocabulary. Was EPIC-022 AC22.13.1; ManualValuationSnapshot is pricing-owned, while portfolio and reporting consume its published facts without owning the persistence model.', 'apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type', priority='P1'),
-        # ── group ingest: the extraction PriceObserved ingest subscriber
-        # (#1642 — the codebase's first cross-domain event consumer; boundary
-        # ruling 4: id-referenced copy, no shared transaction, no FK) ──
-        ac('AC-pricing.ingest.1', 'An extraction-published PriceObserved (source=statement) dispatched by the outbox relay results in exactly one pricing observation with correct fields and the extraction fact id carried as provenance.', 'apps/backend/tests/pricing/test_ingest.py::test_AC_pricing_ingest_1_extraction_event_lands_as_one_provenanced_observation'),
-        ac('AC-pricing.ingest.2', "Ingest is idempotent under at-least-once delivery: redelivering the same event (relay-level or direct) does not duplicate the observation — dedup keyed by the event's natural key (the upstream fact id), backed by a UNIQUE constraint.", 'apps/backend/tests/pricing/test_ingest.py::test_AC_pricing_ingest_2_redelivery_through_the_relay_does_not_duplicate'),
-        ac('AC-pricing.ingest.3', 'An ingested statement observation is a first-class, user-scoped resolve() candidate (source=statement, authority=STATEMENT).', 'apps/backend/tests/pricing/test_ingest.py::test_AC_pricing_ingest_3_ingested_observation_is_resolvable'),
-        # ── group manualvaluation (continued): valuation snapshot CRUD,
-        # net-worth aggregation, liquidity separation, structured basis, and
-        # traceability (was EPIC-011 AC11.9.1/.9.2/.9.3/.9.5/.9.10, #1821
-        # Wave A pending-package move) ──
-        ac('AC-pricing.manualvaluation.5', 'POST/GET/PATCH /api/assets/valuation-snapshots records property value, mortgage/loan balance, CPF/long-term savings, tax payable/refund, insurance cash value, ESOP/RSU/options, source, notes, reminder cadence, and audit timestamps; PATCH appends a correction and DELETE is rejected for a decision-backed snapshot.', 'apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_create_manual_valuation_snapshot_crud_api', priority='P1'),
-        ac('AC-pricing.manualvaluation.6', 'Latest manual valuation snapshots aggregate into asset/liability net-worth deltas with Decimal arithmetic.', 'apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_manual_valuation_snapshot_latest_net_worth_components', priority='P1'),
-        ac('AC-pricing.manualvaluation.7', 'Restricted and illiquid manual-valuation components are tagged separately and can be excluded from liquid net-worth views.', 'apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_manual_valuation_snapshot_restricted_toggle', priority='P1'),
-        ac('AC-pricing.manualvaluation.8', 'A manual valuation correction with a structured valuation_basis appends a new immutable head and supersedes the unsubstantiated version; reporting carries the basis as provenance but never infers authority from it (#706).', 'apps/backend/tests/assets/test_manual_valuation_basis.py::test_AC11_9_5_structured_basis_supersedes_the_unsubstantiated_head', priority='P1'),
-        ac('AC-pricing.manualvaluation.9', "The package traceability appendix surfaces each manual valuation snapshot's structured valuation_basis (the enum value, or unspecified when no basis was captured) in its source-anchor detail.", 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis', priority='P1'),
-        ac('AC-pricing.manualvaluation.10', "ManualValuationSnapshot and its valuation vocabulary are pricing-owned: the unchanged manual_valuation_snapshots table and append-only version chain are mapped only by pricing, while production consumers use pricing's public domain services rather than extraction ORM paths.", 'apps/backend/tests/pricing/test_manual_valuation_ownership.py::test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping'),
-        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
-        # (two-stage-review-ui) ──
-        ac('AC-pricing.fe-currencies.1', '`useCurrencies` returns default currencies while loading', 'apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.1 returns default currencies while loading', priority='P2'),
-        ac('AC-pricing.fe-currencies.2', '`useCurrencies` updates currencies from API response', 'apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.2 updates currencies from API response', priority='P2'),
-        ac('AC-pricing.fe-currencies.3', '`useCurrencies` falls back to defaults on API error', 'apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.3 falls back to defaults when API returns empty array', priority='P2'),
-        # ── Wave B (#1821): frontend-proof rows migrated from the
-        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac('AC-pricing.fe-settings.1', 'The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`)', 'apps/frontend/src/__tests__/generalSettingsPage.test.tsx::AC12.39.3 renders the effective base currency and keeps Save disabled until edited', priority='P1'),
-        # ── group valuation-contribution: decision-backed values consumed by
-        # the reporting package (#1915, child of #950) ──
-        ac('AC-pricing.valuation-contribution.1', 'Recording or correcting a manual valuation appends its immutable observation and a current, target-matching TraceRecord decision in the same caller-owned transaction; the correction supersedes the prior valuation decision.', 'apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supersedes_decision'),
-        ac('AC-pricing.valuation-contribution.2', 'resolve_valuation_contribution returns the exact selected observation identity/version, resolution policy, and current TraceRecord decision required by a package manifest.', 'apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_2_resolve_pins_exact_observation_and_decision'),
-        ac('AC-pricing.valuation-contribution.3', 'An absent, stale, rejected, superseded, cross-tenant, or target-mismatched valuation decision returns an explicit unproven contribution; a stale physical authority head is not mistaken for a never-authorized lineage or appended as a fork, and source, basis, rank, or freshness never grants trust.', 'apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_3_missing_or_stale_decision_is_unproven'),
-        ac('AC-pricing.valuation-contribution.4', 'Rolling back a manual valuation write leaves neither the valuation row nor its TraceRecord observation/decision durable.', 'apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_4_rollback_is_atomic'),
-        ac('AC-pricing.valuation-contribution.5', 'Pricing resolves every current manual valuation lineage into the same ResolvedValuationContribution shape, preserving multiple sources for one component type independently and carrying component, liquidity, and valuation-basis metadata for display; package-facing line builders expose no source-derived confidence or trusted field.', 'apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust'),
-        ac('AC-pricing.valuation-contribution.6', "A report schedule can name one selected market observation only through pricing's typed selection boundary; pricing returns an authoritative contribution only when its current resolved observation is that exact identity, otherwise the package input is explicitly unproven.", 'apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_6_selected_market_input_requires_exact_schedule_observation'),
-    ],
-    concepts=[
-        ConceptRecord(
-            key="market_data",
-            owner="common/pricing/readme.md#market-data-pre-1610-cutover-shipped-model",
-            description=(
-                "FX rates, stock prices, data sources, and sync schedule. Legacy model; "
-                "internalized into the pricing package readme (migration closeout wave 3, "
-                "#1664); consolidates into the unified observation model at the #1610 "
-                "consumer-wiring cutover."
-            ),
-            cross_refs=[
-                "common/pricing/market_data.md",
-                "common/reporting/reporting.md",
-                "common/pricing/contract.py",
-            ],
-            family="market",
-            kind="concept",
-        ),
-        ConceptRecord(
-            key="net_worth_valuation_snapshots",
-            owner="common/pricing/readme.md#manual-valuation-snapshots",
-            description=(
-                "Point-in-time manual valuation snapshots for non-ledger net worth "
-                "components. Legacy model; retires into the pricing package's unified "
-                "observation model (#1610) at the consumer-wiring cutover (internalized into "
-                "the package readme itself, migration closeout wave 3, #1664)."
-            ),
-            cross_refs=[
-                "common/portfolio/assets.md",
-                "common/reporting/reporting.md",
-                "common/pricing/contract.py",
-                "common/meta/schema.md",
-            ],
-            family="assets",
-            kind="concept",
-        ),
-    ],
+    relationships=rels(
+        "pricing",
+        """
+audit|published-language|Uses audit Money, exchange-rate arithmetic.
+audit|consumer-port|Consumes audit decision-evidence repository/emitter ports.
+platform|consumer-port|Uses platform EventBus/outbox ports to publish pricing events atomically with pricing-owned observations.
+platform|composition|Uses platform persistence mixins.
+observability|published-language|Uses published safe logging language for provider and resolution diagnostics.
+""",
+    ),
+    units=units(
+        """
+PriceObservation|agg|base/observation.py
+PriceableSubject|vo|base/subject.py
+@vo|base/observation.py|ObservationSource Authority
+ResolutionPolicy|vo|base/policy.py
+PriceObserved|ev|base/events.py
+PricingError|vo|base/errors.py
+resolve|svc|extension/resolve.py
+@svc|extension/manual.py|record_manual_valuation record_override
+@svc|extension/fx.py|get_exchange_rate get_exchange_rate_series convert_amount convert_money get_average_rate
+@svc|extension/valuation.py|build_manual_valuation_lines build_manual_valuation_lines_series list_current_manual_valuation_facts
+@svc|extension/market_data/service.py|sync_fx_rates sync_stock_prices ensure_market_data_fresh get_market_data_status resolve_missing_fx_rate
+@svc|extension/scheduler.py|run_market_data_scheduler run_daily_market_data_sync
+ingest_statement_price|svc|extension/ingest.py
+@vo|base/contribution.py|ResolvedValuationContribution MarketValuationSelection
+@svc|extension/valuation_contribution.py|resolve_valuation_contribution resolve_selected_market_valuation_contribution resolve_manual_valuation_contributions ManualValuationAttestationPolicy ResolvedMarketValuationPolicy
+@vo|base/manual_valuation.py|ManualValuationComponentType ManualValuationLiquidityClass ManualValuationBasis ManualValuationFact
+@ent|-|ManualValuationSnapshot MarketDataOverride
+PriceSource|vo
+@proj|-|LatestPriceView StalenessView
+ObservationRepository|repo|base/repository.py|extension/repository.py
+"""
+    ),
+    interface="""
+Authority ExchangeRateLookup FxConversion FxRate FxWarning MARKET_DATA_QUANTITY_UNIT
+MARKET_DATA_SYNC_TZ MarketDataOverride MarketDataScopeProvider MarketDataScopeStatus
+MarketDataScopes MarketDataSyncResult MarketDataSyncState MarketValuationSelection
+ManualValuationBasis ManualValuationAttestationPolicy ManualValuationComponentType
+ManualValuationFact ManualValuationLiquidityClass NoObservationError
+ObservationRepository ObservationSource PrefetchedFxRates PriceObservation
+PriceObserved PriceSource PriceableSubject PricingError ResolutionPolicy
+ResolvedMarketValuationPolicy ResolvedValuationContribution SqlObservationRepository
+StatementPriceObservation StockPrice ValuationComponentItem
+ValuationComponentsResult ValuationService ValuationServiceError
+build_manual_valuation_lines build_manual_valuation_lines_series convert_amount
+convert_money ensure_market_data_fresh get_average_rate get_exchange_rate
+get_exchange_rate_series get_market_data_status ingest_statement_price
+list_current_manual_valuation_facts next_market_data_sync_at record_manual_valuation
+record_override pricing_trace_policy_registry resolve
+resolve_manual_valuation_contributions
+resolve_selected_market_valuation_contribution resolve_valuation_contribution
+resolve_missing_fx_rate run_daily_market_data_sync run_market_data_scheduler
+subscribe_price_ingest sync_fx_rates sync_stock_prices
+""".split(),
+    events="PriceObserved".split(),
+    invariants=invs(
+        """
+@$t/test_pricing_package.py
+interface-equals-published-language|The published language (contract.interface) equals __init__.__all__.|test_AC_pricing_1_1_only_all_is_the_published_language
+converges-by-layer|The package converges into base/ + extension/ + data/.|test_AC_pricing_1_2_converges_by_layer
+base-layer-pure|Base/ never imports the package's own extension/ or data/, the ORM, or any network client.|test_AC_pricing_1_3_base_layer_is_pure
+observations-are-append-only|PriceObservation rows are never updated or deleted in place.|test_AC_pricing_1_4_observations_are_append_only_by_construction
+audit-never-looks-up-a-rate|Audit.money.convert takes a rate as an argument and performs no database lookup.|test_AC_pricing_1_5_audit_convert_takes_rate_as_argument
+passes-own-governance-gate|Check_package_contract validates pricing with no violations.|test_AC_pricing_1_6_package_contract_gate_passes
+"""
+    ),
+    roadmap=acs(
+        "pricing",
+        """
+@$be/pricing/market_data/test_sync.py|P0
+marketdata.1|Stock price sync fetches daily prices for active holdings and stores idempotent rows.|test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent
+marketdata.2|FX sync fetches explicit or observed pairs incrementally, with USD/base as the default non-empty pair.|test_sync_fx_rates_starts_after_last_stored_date
+marketdata.3|Missing trading days are recorded as misses.|test_sync_stock_prices_records_missing_trading_days
+marketdata.4|Primary and secondary providers are cross-validated and disagreements are not silently persisted.|test_stock_provider_disagreement_is_reported_without_persisting
+marketdata.6|Portfolio valuation prefers synced stock prices over stale brokerage snapshots.|test_portfolio_uses_synced_stock_price_before_atomic_snapshot
+marketdata.8|Long historical market data sync uses bounded range provider requests.|test_sync_stock_prices_fetches_decade_range_once
+marketdata.9|Report reads check market data freshness and trigger at most one immediate refresh.|test_market_data_freshness_sync_runs_once_after_24h
+@$e2e/test_market_data_price_paths.py|P0
+marketdata.7|E2E gates cover provider-backed FX sync and stock-price portfolio valuation paths.|test_market_data_provider_sync_feeds_fx_and_stock_price_paths
+marketdata.11|Staging E2E covers report-time market data refresh from an authenticated ordinary-user path.|test_market_data_provider_sync_feeds_fx_and_stock_price_paths
+@$be/pricing/test_scheduler.py|P0
+marketdata.10|Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window.|test_next_market_data_sync_at_uses_nightly_sgt_schedule
+marketdata.12|The daily crawl orchestrator syncs exactly the scopes an injected composition-root provider returns and commits once per run.|test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider
+@$be/assets/test_manual_valuation_snapshots.py|P1
+manualvaluation.1|Correcting a manual valuation appends a new version and preserves the prior fact unedited as a retrievable superseded version.|test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history
+manualvaluation.2|Heads-only reads use the current version.|test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth
+provenance.1|Manual valuation component items expose a provenance field constrained to the shared Imported/Manual/Derived vocabulary.|test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type
+manualvaluation.5|POST/GET/PATCH /api/assets/valuation-snapshots records property value, mortgage/loan balance, CPF/long-term savings, tax payable/refund, insurance cash value, ESOP/RSU/options, source, notes, reminder cadence.|test_create_manual_valuation_snapshot_crud_api
+manualvaluation.6|Latest manual valuation snapshots aggregate into asset/liability net-worth deltas with Decimal arithmetic.|test_manual_valuation_snapshot_latest_net_worth_components
+manualvaluation.7|Restricted and illiquid manual-valuation components are tagged separately and can be excluded from liquid net-worth views.|test_manual_valuation_snapshot_restricted_toggle
+@$be/pricing/test_valuation_lines.py|P1
+manualvaluation.3|Manual-valuation balance-sheet lines are built by pricing.|test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify
+manualvaluation.4|A combination whose only snapshot postdates the requested as_of_date is absent from the valuation components and lines.|test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_warned
+manualvaluation.11|Build_manual_valuation_lines_series returns, for each requested date, the lines of build_manual_valuation_lines on that date.|test_AC_pricing_manualvaluation_11_series_equals_one_build_per_date
+@$be/pricing/test_valuation_liquidity_contract.py|P0
+manualvaluation.12|Split_net_worth_scope is the one definition of the restricted-holdings scope.|test_AC_pricing_manualvaluation_12_scope_excludes_a_liability_with_its_asset
+manualvaluation.13|Build_manual_valuation_lines keeps a pricing-family FX error on an excluded component as a line.|test_AC_pricing_manualvaluation_13_excluded_line_errors_by_type|P1
+@$be/pricing/test_fx.py|P1
+fx.1|Get_average_rate falls back to the period-end spot rate.|test_AC_pricing_fx_1_average_rate_fallback_appends_fx_warning
+fx.2|PrefetchedFxRates batch-prefetches spot and average-window rates under distinct keys, serves the identity rate.|test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys
+fx.4|Get_exchange_rate_series returns, for each requested date, the get_exchange_rate result on that date and omits a date.|test_AC_pricing_fx_4_rate_series_equals_one_lookup_per_date
+fx.6|Get_exchange_rate and get_exchange_rate_series do not let an earlier lazily derived inverse FX row hide a newer stored inverse rate on a later date.|test_AC_pricing_fx_6_derived_inverse_rate_does_not_shadow_newer_inverse_rate
+@$be/pricing/market_data/test_provider_parsers.py|P1
+providers.2|_looks_like_ticker accepts real tickers/FX pairs and rejects fund-name free text.|test_looks_like_ticker_accepts_real_tickers_rejects_free_text
+providers.3|A non-ticker identifier short-circuits the Yahoo stock fetch with no HTTP call.|test_yahoo_stock_fetch_short_circuits_for_non_ticker
+providers.4|HK numeric exchange codes map to the Yahoo <4-digit>.HK symbol.|test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes
+providers.5|HK numeric codes resolve to the Stooq <4-digit>.hk symbol.|test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes
+@$be/pricing/test_ingest.py|P0
+ingest.1|An extraction-published PriceObserved dispatched by the outbox relay results in exactly one pricing observation with correct fields and the extraction fact id carried as provenance.|test_AC_pricing_ingest_1_extraction_event_lands_as_one_provenanced_observation
+ingest.2|Ingest is idempotent under at-least-once delivery.|test_AC_pricing_ingest_2_redelivery_through_the_relay_does_not_duplicate
+ingest.3|An ingested statement observation is a first-class, user-scoped resolve candidate.|test_AC_pricing_ingest_3_ingested_observation_is_resolvable
+@$fe/__tests__/useCurrencies.test.tsx|P2
+fe-currencies.1|`useCurrencies` returns default currencies while loading.|AC16.9.1 returns default currencies while loading
+fe-currencies.2|`useCurrencies` updates currencies from API response.|AC16.9.2 updates currencies from API response
+fe-currencies.3|`useCurrencies` falls back to defaults on API error.|AC16.9.3 falls back to defaults when API returns empty array
+@$be/pricing/test_resolved_valuation_contribution.py|P0
+valuation-contribution.1|Recording or correcting a manual valuation appends its immutable observation and a current, target-matching TraceRecord decision in the same caller-owned transaction.|test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supersedes_decision
+valuation-contribution.2|Resolve_valuation_contribution returns the exact selected observation identity/version, resolution policy.|test_AC_pricing_valuation_contribution_2_resolve_pins_exact_observation_and_decision
+valuation-contribution.3|An absent, stale, rejected, superseded, cross-tenant, or target-mismatched valuation decision returns an explicit unproven contribution.|test_AC_pricing_valuation_contribution_3_missing_or_stale_decision_is_unproven
+valuation-contribution.4|Rolling back a manual valuation write leaves neither the valuation row nor its TraceRecord observation/decision durable.|test_AC_pricing_valuation_contribution_4_rollback_is_atomic
+valuation-contribution.5|Pricing resolves every current manual valuation lineage into the same ResolvedValuationContribution shape.|test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust
+valuation-contribution.6|A report schedule can name one selected market observation only.|test_AC_pricing_valuation_contribution_6_selected_market_input_requires_exact_schedule_observation
+@-|P1
+marketdata.5|Market data sync endpoints expose FX and stock sync status for scheduler/E2E callers.|$be/market_data/test_sync_router.py::test_market_data_sync_endpoints_return_counts|P0
+marketdata.13|The real FX/market-data path proves an exact converted VALUE in the blocking lane.|$be/pricing/market_data/test_recorded_provider_price_path.py::test_recorded_provider_fx_and_stock_path_converts_exactly|P0:exact
+fx.3|Convert_amount/convert_money honor an average-rate window with the same period-end fallback + fx_warnings semantics as the spot path.|$be/pricing/test_convert.py::test_AC_pricing_fx_3_convert_amount_uses_average_rate_window
+fx.5|ExchangeRateLookup in apps/backend/src/pricing/extension/fx.py is the one FX rate-lookup Protocol in apps/backend/src.|$t/test_single_fx_rate_port.py::test_AC_pricing_fx_5_exchange_rate_lookup_is_the_one_fx_rate_port
+providers.1|A manual price update creates a MarketDataOverride record for the given asset/date, independent of provider sync.|$be/portfolio/test_portfolio_service.py::test_update_prices_happy
+manualvaluation.8|A manual valuation correction with a structured valuation_basis appends a new immutable head and supersedes the unsubstantiated version.|$be/assets/test_manual_valuation_basis.py::test_AC11_9_5_structured_basis_supersedes_the_unsubstantiated_head
+manualvaluation.9|The package traceability appendix surfaces each manual valuation snapshot's structured valuation_basis in its source-anchor detail.|$be/api/test_personal_report_package_contract.py::test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis
+manualvaluation.10|ManualValuationSnapshot and its valuation vocabulary are pricing-owned.|$be/pricing/test_manual_valuation_ownership.py::test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping|P0
+fe-settings.1|The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value.|$fe/__tests__/generalSettingsPage.test.tsx::AC12.39.3 renders the effective base currency and keeps Save disabled until edited
+""",
+    ),
+    concepts=concepts(
+        """
+market_data|common/pricing/readme.md#market-data-pre-1610-cutover-shipped-model|FX rates, stock prices, data sources, and sync schedule. Legacy model; internalized into the pricing package readme (migration closeout wave 3, #1664); consolidates into the unified observation model at the #1610 consumer-wiring cutover.|common/pricing/market_data.md,common/reporting/reporting.md,common/pricing/contract.py|-|market|concept
+net_worth_valuation_snapshots|common/pricing/readme.md#manual-valuation-snapshots|Point-in-time manual valuation snapshots for non-ledger net worth components. Legacy model; retires into the pricing package's unified observation model (#1610) at the consumer-wiring cutover (internalized into the package readme itself, migration closeout wave 3, #1664).|common/portfolio/assets.md,common/reporting/reporting.md,common/pricing/contract.py,common/meta/schema.md|-|assets|concept
+"""
+    ),
 )
-# fmt: on

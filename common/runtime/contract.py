@@ -1,374 +1,185 @@
-"""The ``runtime`` package's machine-checkable :class:`PackageContract`.
-
-``runtime`` is the app↔external-world dependency boundary: it owns the *contract*
-for the external backends the application depends on (object storage, the LLM
-provider, cache, telemetry, …), how each environment substitutes
-them, and the invariant that a *declared* dependency must be *asserted present*
-(no silent ``skipped``/``warning``/fallback).
-
-An ``infra`` leaf (L1, ``depends_on=[]``), now ``active``. The *construct* phase
-shipped the ``base`` value language + dependency manifest + the
-``DependencyCheck`` port; the *switch* phase added the ``extension`` probe
-adapters (``DatabaseCheck`` / ``ObjectStorageCheck`` / ``LlmCheck``, published
-below) that ``boot.Bootloader`` delegates to; the *cleanup* phase dropped the
-silent ``skipped`` status. The *migrate* phase homes the smoke-test / health
-ACs here: EPIC-008 AC8.1.1–.4 → ``AC-runtime.1.*`` (smoke / service reachability /
-DB connectivity) and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health``
-dependency-presence), each ``test=`` resolving to its existing proof; the package
-tier (CODE-ONLY) gives ``proof_kind=exact``; the model-dominant substitute
-proofs live with their owning packages (AC-llm.6.2, EPIC-008 AC8.26.*). (Step 3 / cleanup absorbs the
-env-smoke-test SSOT prose into ``readme.md`` and retires the doc.) The later
-manifest-driven validation and smoke/declaration parity work is complete and
-owned by the roadmap below.
-"""
+"""Machine-checkable PackageContract for ``runtime``."""
 
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ac,
-    ConceptRecord,
-    ContextRelation,
     ContextScope,
-    Invariant,
     PackageContract,
+    acs,
+    concepts,
+    invs,
+    rels,
 )
 
-# fmt: off
 CONTRACT = PackageContract(
-    context=ContextScope(
-        purpose="Own the app-to-external-world dependency contract: environment tiers, declared backends, substitutes, and fail-closed presence evidence.",
-        in_scope=[
-            "dependency manifest and environment-tier vocabulary",
-            "dependency probes, smoke checks, and release evidence transport",
-            "external service substitution and presence assertions",
-        ],
-        out_of_scope=[
-            "telemetry emission, logging policy, or observability query ownership",
-            "business-domain state, financial policy, and domain events",
-            "in-process workflow or cross-domain application orchestration",
-        ],
-    ),
-    relationships=[
-        ContextRelation(
-            provider="observability",
-            consumer="runtime",
-            mode="published-language",
-            reason="Uses observability's published logger and health-status language when reporting dependency probe and storage outcomes.",
-        ),
-    ],
     name="runtime",
     status="active",
     tier="CODE-ONLY",
-    # #1674: "config" was declared but its only import was src.config (the app
-    # Settings singleton) — not the registered config package (common/config,
-    # env_keys/schema_validation), which runtime never actually imports.
-    depends_on=["observability"],
-    roles=[],
+    depends_on="observability".split(),
     implementations={"be": "apps/backend/src/runtime", "fe": None},
-    interface=[
-        "APP_OWNED_TIERS",
-        "AnalyticsCheck",
-        "DEPENDENCY_MANIFEST",
-        "DatabaseCheck",
-        "Dependency",
-        "DependencyKind",
-        "DependencyManifest",
-        "EnvTier",
-        "LlmCheck",
-        "MarketDataCheck",
-        "NON_DEPENDENCY_ENV_FIELDS",
-        "ObjectStorageCheck",
-        "RedisCheck",
-        "StorageError",
-        "StorageService",
-        "TelemetryCheck",
-        "VPS_TIERS",
-        "WorkflowEngineCheck",
-        "check_env_classification",
-        "redact_presigned_url",
-        "register_known_storage_paths_provider",
-        "resolve_env_tier",
-        "run_storage_sweep",
-        "runtime_system_router",
-    ],
+    context=ContextScope(
+        purpose="Own the app-to-external-world dependency contract.",
+        in_scope=[
+            "Dependency manifest and environment-tier vocabulary.",
+            "Dependency probes, smoke checks, and release evidence transport.",
+            "External service substitution and presence assertions.",
+        ],
+        out_of_scope=[
+            "Telemetry emission, logging policy, or observability query ownership.",
+            "Business-domain state, financial policy, and domain events.",
+            "In-process workflow or cross-domain application orchestration.",
+        ],
+    ),
+    relationships=rels(
+        "runtime",
+        """
+observability|published-language|Uses observability's published logger and health-status language.
+""",
+    ),
+    interface="""
+APP_OWNED_TIERS AnalyticsCheck DEPENDENCY_MANIFEST DatabaseCheck Dependency
+DependencyKind DependencyManifest EnvTier LlmCheck MarketDataCheck
+NON_DEPENDENCY_ENV_FIELDS ObjectStorageCheck RedisCheck StorageError StorageService
+TelemetryCheck VPS_TIERS WorkflowEngineCheck check_env_classification
+redact_presigned_url register_known_storage_paths_provider resolve_env_tier
+run_storage_sweep runtime_system_router
+""".split(),
     events=[],
-    invariants=[
-        # ── folded in from the retired config package (#1669) ──
-        Invariant(
-            id="env-key-extraction-robust",
-            statement="Parsing env keys from a missing .env.example yields an empty set with a warning, not an exception, so the consistency check reports every Settings key as undocumented and exits 1 instead of crashing.",
-            test="tests/tooling/test_check_env_keys.py::test_main_exits_1_when_the_example_is_missing",
-        ),
-    ],
-    roadmap=[
-        # ── Smoke tests / service reachability (was EPIC-008 AC8.1.1–.4) ──
-        ac('AC-runtime.1.1', 'The API health endpoint is reachable and returns 200. Was EPIC-008 AC8.1.1.', 'apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract'),
-        ac('AC-runtime.1.2', 'The backend service is reachable and returns a structured health JSON. Was EPIC-008 AC8.1.2.', 'apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract'),
-        ac('AC-runtime.1.3', 'The frontend API proxy is reachable, validating API availability through the proxy. Was EPIC-008 AC8.1.3.', 'apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_frontend_api_proxy_routing_contract'),
-        ac('AC-runtime.1.4', 'Database connectivity is proven through a create+read cycle. Was EPIC-008 AC8.1.4.', 'apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_database_environment_isolation_contract'),
-        # ── config↔manifest env-var guardrail (#1579) ──
-        ac('AC-runtime.2.1', 'Every config.py env var is classified: a declared dependency env var in the DependencyManifest, or a reasoned NON_DEPENDENCY_ENV_FIELDS entry — an unclassified new env var fails CI (fail-closed guardrail, #1579).', 'apps/backend/tests/runtime/test_env_guardrail.py::test_every_config_env_var_is_classified', priority='P1'),
-        # ── manifest-driven validate (#1577) ──
-        ac('AC-runtime.3.1', 'boot.validate FULL derives its dependency set from DEPENDENCY_MANIFEST.required_for(resolve_env_tier(...)) — a declared-required probed dependency that is absent fails validate; a declared-required dependency without a probe adapter is a visible warning (#1580), never a silent skip (#1577).', 'apps/backend/tests/infra/test_boot.py::test_AC_runtime_3_1_required_checks_cover_the_tier_declaration', priority='P1'),
-        # ── probes for every declared dependency (#1580) ──
-        ac('AC-runtime.4.1', 'Every declared dependency has a DependencyCheck probe adapter — Bootloader._required_checks finds a probe for every dependency of every tier, so invariant 2 (absent ⇒ fail) is enforceable across the whole manifest (#1580).', 'apps/backend/tests/runtime/test_probe_adapters.py::test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter', priority='P1'),
-        # ── smoke ↔ declaration parity (invariant 6, #1578) ──
-        ac('AC-runtime.6.1', "The smoke's dependency-presence assertion covers exactly the manifest-declared set: GET /health?full=1 (called by tools/smoke_test.sh) probes every dependency in DEPENDENCY_MANIFEST.required_for(tier) and returns 503 on any absence (invariant 6, #1578; the tag→production gate already requires the staging smoke).", 'apps/backend/tests/runtime/test_health_parity.py::test_AC_runtime_6_1_full_health_asserts_the_declared_set', priority='P1'),
-        # ── /health dependency-presence (was EPIC-007 AC7.7.1–.2) ──
-        ac('AC-runtime.7.1', '/health returns 200 when all declared dependencies are present. Was EPIC-007 AC7.7.1.', 'apps/backend/tests/infra/test_main.py::test_health_when_all_services_healthy'),
-        ac('AC-runtime.7.2', '/health returns 503 when a declared dependency is absent (invariant 2). Was EPIC-007 AC7.7.2.', 'apps/backend/tests/infra/test_main.py::test_health_returns_503_on_database_failure'),
-        ac('AC-runtime.7.3', 'Fast liveness path: plain GET /health returns 200 with process liveness in <50ms without executing external network or database IO, keeping dependency probe execution strictly in ?full=1.', 'apps/backend/tests/runtime/test_health_parity.py::test_AC_runtime_7_3_plain_health_is_fast_liveness_without_external_io', priority='P1'),
-        # ── folded in from the retired config package (#1669) — group numbers
-        # preserved from the original EPIC-012 lineage (AC12.18.* / AC12.20.*
-        # -> AC-config.18.*/.20.* -> AC-runtime.18.*/.20.*) so the history stays
-        # traceable; they don't collide with runtime's own groups 1-7. ──
-        ac('AC-runtime.18.1', 'SMALL_MODEL follows the expected provider pattern (the zai GLM model-id form). Was EPIC-012 AC12.18.1.', 'apps/backend/tests/infra/test_config_contract.py::test_small_model_format'),
-        ac('AC-runtime.18.2', 'The config.py default for SMALL_MODEL matches the .env.example documentation (config↔docs sync). Was EPIC-012 AC12.18.2.', 'apps/backend/tests/infra/test_config_contract.py::test_config_sync_with_env_example'),
-        ac('AC-runtime.18.3', 'BASE_CURRENCY is a valid ISO 4217 currency code (3 uppercase alphabetic chars). Was EPIC-012 AC12.18.3.', 'apps/backend/tests/infra/test_config_contract.py::test_base_currency_format'),
-        ac('AC-runtime.18.4', 'S3_BUCKET follows S3 naming conventions (lowercase, 3-63 chars, hyphen-safe). Was EPIC-012 AC12.18.4.', 'apps/backend/tests/infra/test_config_contract.py::test_s3_bucket_format'),
-        ac('AC-runtime.18.5', 'JWT_ALGORITHM is one of the allowed secure algorithms (HS256/RS256). Was EPIC-012 AC12.18.5.', 'apps/backend/tests/infra/test_config_contract.py::test_jwt_algorithm_allowed'),
-        ac('AC-runtime.18.6', 'DATABASE_URL follows the expected async driver format (postgresql+asyncpg, or sqlite for tests). Was EPIC-012 AC12.18.6.', 'apps/backend/tests/infra/test_config_contract.py::test_database_url_format'),
-        ac('AC-runtime.20.1', 'DB_POOL_SIZE config field exists with the expected default. Was EPIC-012 AC12.20.1.', 'apps/backend/tests/infra/test_config_contract.py::test_db_pool_size_config_default', priority='P1'),
-        ac('AC-runtime.20.2', 'DB_POOL_MAX_OVERFLOW config field exists with the expected default. Was EPIC-012 AC12.20.2.', 'apps/backend/tests/infra/test_config_contract.py::test_db_pool_max_overflow_config_default', priority='P1'),
-        ac('AC-runtime.20.3', 'Pool config values are within a valid range (pool_size >= 1, max_overflow >= 0). Was EPIC-012 AC12.20.3.', 'apps/backend/tests/infra/test_config_contract.py::test_db_pool_config_valid_range', priority='P1'),
-        ac('AC-runtime.20.4', 'The DB_POOL_SIZE env var overrides the pool-size setting. Was EPIC-012 AC12.20.4.', 'apps/backend/tests/infra/test_config_contract.py::test_db_pool_size_env_override', priority='P1'),
-        ac('AC-runtime.20.5', 'The DB_POOL_MAX_OVERFLOW env var overrides the max-overflow setting. Was EPIC-012 AC12.20.5.', 'apps/backend/tests/infra/test_config_contract.py::test_db_pool_size_env_override', priority='P1'),
-        # ── group 21: Bootloader static-config boot gate (was EPIC-001
-        # AC1.10.1, migration closeout wave 3, #1663) — each branch of
-        # Bootloader._check_static_config is a distinct rejection reason ──
-        ac('AC-runtime.21.1', 'Bootloader._check_static_config rejects the default development JWT secret in production.', 'apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_rejects_default_secret_key_in_production'),
-        ac('AC-runtime.21.2', 'Bootloader._check_static_config rejects a short (low-entropy) JWT secret in staging.', 'apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_rejects_short_secret_key_in_staging'),
-        ac('AC-runtime.21.3', 'Bootloader._check_static_config rejects the local-development DB default in a protected environment.', 'apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_rejects_default_db_in_protected_env'),
-        ac('AC-runtime.21.4', "Bootloader._check_static_config treats a public app URL as protected even when ENVIRONMENT is misnamed (e.g. 'preview'), rejecting a default S3 secret under it.", 'apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_rejects_default_s3_secret_in_production_like_url'),
-        ac('AC-runtime.21.5', 'Bootloader._check_static_config rejects a blank/whitespace-only JWT secret in production.', 'apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_rejects_blank_secret_key_in_production'),
-        ac('AC-runtime.21.6', 'Bootloader._check_static_config allows the convenient development-default JWT secret in the development environment.', 'apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_allows_development_default_secret_key', priority='P1'),
-        # ── group 23: real StorageService pipeline substitute (was EPIC-008
-        # AC8.26, migration closeout continuation, #1663 / #1714) ──
-        ac('AC-runtime.23.1', "A CSV fixture uploads through /statements/upload with the real StorageService into in-memory S3 (env-level config only, never stubbed or patched); the pipeline parses it, the stored object read back via the real get_object is byte-identical to the fixture, and the resolved transactions carry the fixture's known business values.", 'apps/backend/tests/api/test_real_storage_pipeline.py::test_AC8_26_1_upload_parses_through_real_storage_round_trip'),
-        ac('AC-runtime.23.2', 'The retry path re-fetches the source document through the real get_object (the load-back leg the in-process first parse skips), and deleting the stored object makes retry fail instead of parsing a cached copy — proving the pipeline truly reads storage.', 'apps/backend/tests/api/test_real_storage_pipeline.py::test_AC8_26_2_retry_loads_source_back_through_real_storage'),
-        # ── group 24: dev-tooling / infra CLI commands (was EPIC-016
-        # AC16.11.1-31, migration closeout continuation, #1663 / #1714) ──
-        ac('AC-runtime.24.1', 'debug.detect_environment returns CI when GITHUB_ACTIONS is true.', 'tests/tooling/test_debug.py::test_AC16_11_1_detect_environment_ci', priority='P1'),
-        ac('AC-runtime.24.2', 'debug.detect_environment returns LOCAL when docker ps succeeds.', 'tests/tooling/test_debug.py::test_AC16_11_2_detect_environment_local_when_docker_ok', priority='P1'),
-        ac('AC-runtime.24.3', 'debug.detect_environment falls back to PRODUCTION on docker failure.', 'tests/tooling/test_debug.py::test_AC16_11_3_detect_environment_fallback_production', priority='P1'),
-        ac('AC-runtime.24.4', 'debug.validate_hostname rejects empty and leading-hyphen hostnames.', 'tests/tooling/test_debug.py::test_AC16_11_4_validate_hostname_cases', priority='P1'),
-        ac('AC-runtime.24.5', 'debug.validate_username enforces a unix-safe pattern.', 'tests/tooling/test_debug.py::test_AC16_11_5_validate_username_cases', priority='P1'),
-        ac('AC-runtime.24.6', 'debug.get_container_name maps known service names by environment.', 'tests/tooling/test_debug.py::test_AC16_11_6_get_container_name_mapping', priority='P1'),
-        ac('AC-runtime.24.7', 'debug.list_containers prints all mapped containers for an environment.', 'tests/tooling/test_debug.py::test_AC16_11_7_list_containers_prints_all', priority='P1'),
-        ac('AC-runtime.24.8', 'cleanup_orphaned_dbs.extract_namespace handles worker suffixes and invalid names.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_8_extract_namespace_variants', priority='P1'),
-        ac('AC-runtime.24.9', 'cleanup_orphaned_dbs.load_active_namespaces returns [] when the file is missing or corrupt.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_9_load_active_namespaces_missing', priority='P1'),
-        ac('AC-runtime.24.10', 'cleanup_orphaned_dbs.get_container_runtime returns the first available runtime.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_10_get_container_runtime_prefers_podman', priority='P1'),
-        ac('AC-runtime.24.11', 'cleanup_orphaned_dbs.list_test_databases parses psql output and handles subprocess errors.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_11_list_test_databases_parses_rows', priority='P1'),
-        ac('AC-runtime.24.12', 'cleanup_orphaned_dbs.cleanup_orphaned returns an error when the container runtime is missing.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_12_cleanup_orphaned_runtime_missing', priority='P1'),
-        ac('AC-runtime.24.13', 'cleanup_orphaned_dbs.cleanup_orphaned returns success when no test databases are found.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_13_cleanup_orphaned_no_databases', priority='P1'),
-        ac('AC-runtime.24.14', 'cleanup_orphaned_dbs.cleanup_orphaned skips active-namespace databases.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_14_cleanup_orphaned_skips_active', priority='P1'),
-        ac('AC-runtime.24.15', 'cleanup_orphaned_dbs.cleanup_orphaned cleans all databases in --all mode.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_15_cleanup_orphaned_clean_all', priority='P1'),
-        ac('AC-runtime.24.16', 'cli.get_compose_cmd honors CONTAINER_RUNTIME, otherwise prefers podman then docker, and exits when neither is available.', 'tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_16_get_compose_cmd_prefers_podman', priority='P1'),
-        ac('AC-runtime.24.17', 'cli.cmd_test routes frontend/e2e/perf/tests and lifecycle modes correctly.', 'tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_17_cmd_test_frontend_route', priority='P1'),
-        ac('AC-runtime.24.18', 'cli.cmd_clean routes db/containers/default cleanup targets correctly.', 'tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_18_cmd_clean_routes', priority='P1'),
-        ac('AC-runtime.24.19', 'dev_backend.check_database_ready returns false on migration subprocess errors.', 'tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_19_check_database_ready_failure', priority='P1'),
-        ac('AC-runtime.24.20', 'dev_frontend.cleanup terminates the tracked process without exiting its caller, and main returns interrupt status 130 after teardown.', 'tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_20_dev_frontend_cleanup_is_process_pure', priority='P1'),
-        ac('AC-runtime.24.21', 'debug.view_remote_logs_docker exits when VPS_HOST is missing.', 'tests/tooling/test_debug.py::test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing', priority='P1'),
-        ac('AC-runtime.24.22', 'debug.view_remote_logs_docker exits on invalid VPS hostnames.', 'tests/tooling/test_debug.py::test_AC16_11_22_view_remote_logs_docker_exits_on_invalid_host', priority='P1'),
-        ac('AC-runtime.24.23', 'debug.view_remote_logs_docker exits on invalid VPS usernames.', 'tests/tooling/test_debug.py::test_AC16_11_23_view_remote_logs_docker_exits_on_invalid_user', priority='P1'),
-        ac('AC-runtime.24.24', 'debug.view_local_logs builds the docker logs command with tail and follow.', 'tests/tooling/test_debug.py::test_AC16_11_24_view_local_logs_builds_docker_command', priority='P1'),
-        ac('AC-runtime.24.25', 'debug.main routes the logs command to the observability handler when method=observability.', 'tests/tooling/test_debug.py::test_AC16_11_25_main_logs_observability_path', priority='P1'),
-        ac('AC-runtime.24.26', 'debug.main routes the status command to the local log view with a status tail.', 'tests/tooling/test_debug.py::test_AC16_11_26_main_status_local_path', priority='P1'),
-        ac('AC-runtime.24.27', 'debug.main routes the containers command to list_containers.', 'tests/tooling/test_debug.py::test_AC16_11_27_main_containers_path', priority='P1'),
-        ac('AC-runtime.24.28', 'dev_backend.check_database_ready returns true when the migration subprocess succeeds.', 'tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_28_check_database_ready_success', priority='P1'),
-        ac('AC-runtime.24.29', 'dev_backend.cleanup terminates the tracked process without exiting its caller, and main returns interrupt status 130 after teardown.', 'tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_29_dev_backend_cleanup_is_process_pure', priority='P1'),
-        ac('AC-runtime.24.30', 'cleanup_orphaned_dbs.drop_database returns true in dry-run mode.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_30_drop_database_dry_run_returns_true', priority='P1'),
-        ac('AC-runtime.24.31', 'cleanup_orphaned_dbs.main forwards parsed flags to cleanup_orphaned.', 'tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_31_main_calls_cleanup_orphaned', priority='P1'),
-        # ── versioned App -> Infra boundary (#876 / #2831) ──
-        ac('AC-runtime.sdk-pin.1', 'SDK acquisition reads the exact wheel URL and SHA256 from the backend lock, rejects disagreement with the dependency declaration before downloading, and workflow consumers share that source (#2004).', 'tests/tooling/test_sdk_pin.py::test_AC_runtime_sdk_pin_1_lock_and_declaration_must_agree', priority='P1'),
-        ac('AC-runtime.runner-pin.1', 'Every job of every GitHub Actions workflow runs on one pinned Ubuntu image (ubuntu-NN.NN). No workflow uses a floating -latest label, and all workflows use the same label. The floating label ubuntu-latest moved to Ubuntu 26.04 on 2026-10-21 and broke Python setup in all CI and deploy jobs (#2578).', 'tests/tooling/test_workflow_runner_pin.py::test_AC_runtime_runner_pin_1_no_workflow_uses_a_floating_runner_label', priority='P1'),
-        # ── group snapshot-anonymizer (#893, RL-DATA-2) — the data boundary of
-        # deploy(env, code, data): a prod snapshot is rewritten on a scratch
-        # copy (money scaled by one secret integer, identities pseudonymized,
-        # free-form JSON redacted) and residual-scanned before it may reach
-        # staging/rehearsal. Blob storage is never synced (RL-DATA-3). ──
-        ac('AC-runtime.snapshot-anonymizer.1', 'Every column of the live model metadata is explicitly classified (keep / scale / pseudonym / redact); an unclassified column aborts the run before any data is read, so a migration cannot silently leak a new column into a snapshot (fail closed, RL-DATA-2).', 'apps/backend/tests/infra/test_snapshot_anonymizer.py::test_AC_runtime_snapshot_anonymizer_1_every_live_column_is_classified'),
-        ac('AC-runtime.snapshot-anonymizer.2', 'All monetary values scale by one secret integer factor — exactly, with no rounding — so double-entry balance, statement open+movement=close arithmetic, and price-times-quantity derivations hold in the anonymized copy; quantities, FX rates, and ratios are untouched.', 'apps/backend/tests/infra/test_snapshot_anonymizer.py::test_AC_runtime_snapshot_anonymizer_2_money_scales_and_books_still_balance'),
-        ac('AC-runtime.snapshot-anonymizer.3', 'Identity/content-bearing strings are replaced with deterministic HMAC pseudonyms (same original, same pseudonym — cross-table join keys stay aligned); four-digit custody suffixes use a collision-free keyed permutation and unsupported suffix formats fail closed. Free-form JSON is redacted, and the residual scan proves no original sensitive value survives; a planted residual fails the scan, which rolls the snapshot back.', 'apps/backend/tests/infra/test_snapshot_anonymizer.py::test_AC_runtime_snapshot_anonymizer_3_pseudonyms_consistent_and_no_residuals'),
-        # ── group release-images (#1759 CR follow-up): retry a transient
-        # registry-visibility miss instead of failing the gate outright ──
-        ac('AC-runtime.release-images.1', 'verify_release_images finds a digest on the first inspect attempt with no retry/sleep — the retry path never runs on the (expected-common) success case.', 'tests/tooling/test_verify_release_images.py::test_AC_runtime_release_images_1_first_attempt_success_no_retry', priority='P1'),
-        ac('AC-runtime.release-images.2', 'verify_release_images retries a not-yet-visible digest (e.g. registry propagation lag right after container-images pushes a :<sha> tag) instead of treating the first miss as a hard failure, as long as it succeeds within max_attempts.', 'tests/tooling/test_verify_release_images.py::test_AC_runtime_release_images_2_transient_miss_then_success_retries', priority='P1'),
-        ac('AC-runtime.release-images.3', 'verify_release_images still fails closed when an image never becomes visible — retrying bounds flake tolerance, it does not remove the guarantee that a truly missing image fails the gate.', 'tests/tooling/test_verify_release_images.py::test_AC_runtime_release_images_3_exhausted_retries_fails_closed', priority='P1'),
-        ac('AC-runtime.release-images.4', "verify_release_images' max_attempts/retry_delay_seconds are caller-configurable, not hardcoded, so a caller with a tighter time budget can tune the retry envelope -- and the configured delay value itself, not just attempt count, actually reaches sleep().", 'tests/tooling/test_verify_release_images.py::test_AC_runtime_release_images_4_max_attempts_and_delay_are_configurable', priority='P2'),
-        ac('AC-runtime.release-images.5', "verify_release_images rejects max_attempts < 1 with a clear ValueError instead of silently performing zero inspect attempts and raising a confusing 'not found after 0 attempts'.", 'tests/tooling/test_verify_release_images.py::test_AC_runtime_release_images_5_max_attempts_below_1_is_rejected', priority='P2'),
-        ac('AC-runtime.release-images.6', 'verify_release_images rejects a negative retry_delay_seconds with a clear ValueError instead of reaching sleep() and raising there.', 'tests/tooling/test_verify_release_images.py::test_AC_runtime_release_images_6_negative_delay_is_rejected', priority='P2'),
-        # ── guard-layer proofs (#1828): the code between CI-green and users
-        # being served — boot fail-closed, honest health, telemetry identity,
-        # config injection — gets executed proof instead of production-first
-        # execution. G-entrypoint-preprod-contact lands via #1809, not here. ──
-        ac('AC-runtime.guard-proofs.1', 'G-reject-path-proven: every development default (dev SECRET_KEY, default DATABASE_URL, default S3 secret) is rejected by _check_static_config under every protected-runtime trigger (staging env, production env, unknown env fails closed, public https URL) — the full reject matrix, not sampled cells.', 'apps/backend/tests/infra/test_boot.py::test_AC_runtime_guard_proofs_1_every_default_is_rejected_under_every_protected_trigger'),
-        ac('AC-runtime.guard-proofs.2', 'G-reject-path-proven accept branch: all development defaults together remain bootable in every local environment (development/test/ci) with a localhost app URL — the gate rejects protected-runtime defaults, not local development.', 'apps/backend/tests/infra/test_boot.py::test_AC_runtime_guard_proofs_2_development_defaults_accepted_in_local_environments'),
-        ac('AC-runtime.guard-proofs.3', 'G-reject-path-proven: the protected-runtime classifier itself is proven cell-by-cell — protected envs, unknown envs (fail closed) and public https app URLs classify as protected; local envs and localhost URLs do not.', 'apps/backend/tests/infra/test_boot.py::test_AC_runtime_guard_proofs_3_protected_runtime_classification'),
-        ac('AC-runtime.guard-proofs.4', "G-health-honest-somewhere: the blocking backend-integration lane runs the REAL _check_database (re-patched over the suite-wide autouse mock) against the lane's live Postgres and it reports ok — structure-locked: the returned message must not be the autouse stub's 'Mocked for tests', so a leaked mock reds the lane.", 'apps/backend/tests/integration/test_bootloader_real_checks.py::test_AC_runtime_guard_proofs_4_real_database_check_passes_against_live_service'),
-        ac('AC-runtime.guard-proofs.5', "G-health-honest-somewhere: the same lane runs the REAL _check_s3 (HEAD bucket) against the lane's live MinIO and it reports ok, with the same anti-mock structure lock.", 'apps/backend/tests/integration/test_bootloader_real_checks.py::test_AC_runtime_guard_proofs_5_real_s3_check_passes_against_live_service'),
-        ac('AC-runtime.guard-proofs.6', 'G-health-honest-somewhere red-team canary: pointed at a dead port, the REAL _check_database reports error — the autouse stub would report ok here, so this test failing-closed proves the real code path is exercised (permanent mock-leak detector).', 'apps/backend/tests/integration/test_bootloader_real_checks.py::test_AC_runtime_guard_proofs_6_real_database_check_reds_on_dead_port'),
-        ac('AC-runtime.guard-proofs.7', "G-telemetry-tag-consistent: when OTEL export is enabled in a protected env, a deployment.environment resource attribute whose value differs from settings.environment fails config load (ValueError at boot) — presence alone no longer passes, closing the 'prod telemetry tagged as staging' case.", 'apps/backend/tests/infra/test_observability_contract.py::test_AC_runtime_guard_proofs_7_telemetry_tag_value_mismatch_fails_boot'),
-        ac('AC-runtime.guard-proofs.8', 'G-telemetry-tag-consistent accept branch: a matching deployment.environment value loads cleanly in protected envs (normalized comparison), and non-protected envs stay exempt from the value check.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC_runtime_guard_proofs_8_telemetry_tag_value_match_boots'),
-        ac('AC-runtime.guard-proofs.11', 'G-injection-drift-gate: the committed required-env manifest (common/runtime/required-env.generated.json, emitted by tools/generate_env_reference.py from config.py) equals the manifest rendered from live Settings metadata — exact equality reds both drift directions (unregenerated new field, stale entry for a removed field).', 'tests/tooling/test_required_env_manifest.py::test_AC_runtime_guard_proofs_11_manifest_matches_live_config_bidirectionally', priority='P1'),
-        ac('AC-runtime.guard-proofs.12', "G-injection-drift-gate: every vault-tagged config field appears in the committed manifest (vault=true) AND as a key in .env.example, and every manifest entry maps back to a live config field — the app-side half of the #876 artifact boundary that infra2's secrets.ctmpl check consumes.", 'tests/tooling/test_required_env_manifest.py::test_AC_runtime_guard_proofs_12_every_vault_field_reaches_manifest_and_env_example', priority='P1'),
-        ac('AC-runtime.guard-proofs.13', 'The required-env manifest is the infra2-sdk v2 contract: every field names its producer in source metadata, a vault field is never an un-injected plain code default, and the offline gate is green.', 'tests/tooling/test_required_env_manifest.py::test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offline_gate_is_green', priority='P1'),
-        ac('AC-runtime.guard-proofs.14', 'Credential-bearing fields DATABASE_URL and REDIS_URL emit sensitive=true through their source-class metadata, and manifest_gate_errors validates the exact filtered consumer artifact, failing on dropped required producers (issue #2016).', 'tests/tooling/test_required_env_manifest.py::test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation', priority='P1'),
-        # ── Wave B (#1821): frontend-proof rows migrated from the
-        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac('AC-runtime.fe-deploy.1', 'Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for deploy readiness checks', 'apps/frontend/src/__tests__/frontendVersionRoute.test.ts::AC8.13.90 returns deployed frontend version metadata for deploy readiness'),
-        # ── group sla-manifest: prod-required = SLA-bearing, machine-readably
-        # exposed for infra2's periodic report (2026-07-07 decision, #1654,
-        # finance_report#1851 G2) ──
-        ac('AC-runtime.sla-manifest.1', '`tools/generate_sla_manifest.py` derives `common/runtime/sla-manifest.generated.json` from `DEPENDENCY_MANIFEST.required_for(tier)` for every tier; the committed artifact is byte-identical to the live manifest rendering — no second hand-maintained service list for infra2 to drift against.', 'tests/tooling/test_sla_manifest.py::test_AC_runtime_sla_manifest_1_committed_manifest_matches_live_dependency_manifest', priority='P1'),
-        ac('AC-runtime.sla-manifest.2', 'Every dependency `required_in(production)` has exactly one production SLA entry (name, testing kind, human-readable summary) in the generated manifest — prod-required means SLA-bearing regardless of whether the app feature consuming it has shipped (resolves the manifest ↔ EPIC-019 AC19.13 contradiction: platform availability != feature adoption).', 'tests/tooling/test_sla_manifest.py::test_AC_runtime_sla_manifest_2_production_entries_are_sla_bearing_and_complete', priority='P1'),
-        # ── Shared GitHub Actions transport (#1867 S4 PR-A) ──
-        ac('AC-runtime.github-api.1', 'Runtime release checks and testing CI waits use one GitHub Actions client, UTC timestamp parser, and GITHUB_OUTPUT writer, preserving the API request and output-file behavior at every existing entry point.', 'tests/tooling/test_s4_runtime_github_api.py::test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers', priority='P1'),
-        # ── Workflow jobs install the infra2 SDK before they run a tool that imports it (#2507) ──
-        ac('AC-runtime.sdk-install.1', 'A workflow job installs the infra2 SDK before it runs a tool that reaches the SDK by a module-level import. The check reads the import graph of common/ and tools/ and every job of every workflow. A job that runs such a tool before the install fails the test.', 'tests/tooling/test_workflow_sdk_install.py::test_AC_runtime_sdk_install_1_every_job_installs_the_sdk_before_it_runs_a_tool_that_needs_it', priority='P1'),
-        ac('AC-runtime.reusable-permissions.1', 'A job that calls a reusable workflow of this repository grants every permission that a called job requests. GitHub rejects the whole workflow at startup otherwise, and no run starts. The check compares the calling job with each job of the called workflow, for every workflow file.', 'tests/tooling/test_reusable_workflow_permissions.py::test_AC_runtime_reusable_permissions_1_every_call_grants_what_the_called_jobs_request', priority='P1'),
-        # ── Runtime tool homing (#1867 S4 PR-C) ──
-        ac('AC-runtime.http-probes.1', 'Tier-2 deployed HTTP E2E and production infrastructure smoke checks share one HTTP response, fetch, report, and hardened SHA matching implementation; the tier-2 tools entry point is a thin shim over common/runtime.', 'tests/tooling/test_s4_tool_homing.py::test_AC_runtime_http_probes_1_runtime_checks_share_hardened_http_primitives', priority='P1'),
-        ac('AC-runtime.extension-tools.1', 'Backend runtime extension gates resolve the repository root through one helper, preserving their existing five-level path contract without duplicate implementations.', 'tests/tooling/test_s4_tool_homing.py::test_AC_runtime_extension_tools_1_backend_gates_share_project_root', priority='P2'),
-        # ── Empty environment values (an empty value is a value, not "unset") ──
-        ac('AC-runtime.env-empty-values.1', 'No shipped environment artifact (`.env.example`, the root `docker-compose*.yml` files) materializes an empty value for an env name that participates in a `Settings` alias chain: an empty value is a value today, so shipping one shadows every later alias in its chain. The alias names are derived from the generated required-env manifest, so a chain added later is covered without editing the guard.', 'tests/tooling/test_env_empty_value_producers.py::test_AC_runtime_env_empty_values_1_no_artifact_ships_an_empty_alias_chain_value', priority='P1'),
-        ac('AC-runtime.env-empty-values.2', "Settings resolves empty environment strings safely without stale multi-alias shadowing: an empty AI_API_KEY='' resolves to an empty key disabling AI features, empty CORS_ORIGINS yields default origins, empty API_RATE_LIMIT_REQUESTS does not raise at import time.", 'apps/backend/tests/infra/test_config.py::test_AC_runtime_env_empty_values_2_settings_empty_env_resolution', priority='P1'),
-        ac('AC-runtime.env-ai-key-alias.1', 'Settings reads the AI key from AI_API_KEY first and from ZAI_API_KEY second. Within one source (the process environment or one dotenv file), a non-empty AI_API_KEY wins and an empty one falls through. ZAI_API_KEY alone makes the llm health check present. This keeps a production release of the App healthy while infra2 still supplies the old name (#2487).', 'apps/backend/tests/infra/test_ai_key_alias.py::test_AC_runtime_env_ai_key_alias_1_the_old_name_sets_the_key', priority='P1'),
-    ],
-    concepts=[
-        ConceptRecord(
-            key="runtime_http_probe",
-            owner="common/runtime/http_probe.py",
-            description=(
-                "Shared deployed-runtime HTTP response, fetch, report, and "
-                "empty-safe abbreviated-SHA matching primitives."
-            ),
-            cross_refs=[
-                "common/runtime/tier2_http_e2e.py",
-                "common/runtime/readme.md",
-            ],
-            proofs=["tests/tooling/test_s4_tool_homing.py"],
-            family="runtime",
-            kind="concept",
-        ),
-        ConceptRecord(
-            key="runtime_extension_project_root",
-            owner="apps/backend/src/runtime/extension/project_root.py",
-            description=(
-                "Repository-root lookup shared by backend-owned runtime extension gates."
-            ),
-            cross_refs=[
-                "apps/backend/src/runtime/extension/env_keys.py",
-                "apps/backend/src/runtime/extension/schema_validation.py",
-            ],
-            proofs=["tests/tooling/test_s4_tool_homing.py"],
-            family="development",
-            kind="concept",
-        ),
-        ConceptRecord(
-            key="container_naming",
-            owner="common/runtime/environments.md#container-naming-patterns",
-            description="Container name patterns per environment (hyphens vs underscores).",
-            cross_refs=["common/runtime/deployment.md", "AGENTS.md"],
-            proofs=["tests/tooling/test_issue_489_deployment_contracts.py"],
-            family="platform",
-            kind="concept",
-        ),
-        ConceptRecord(
-            key="deployment_architecture",
-            owner="common/runtime/deployment.md",
-            description="Dual-repo model, Vault secret injection, staging/production flow.",
-            cross_refs=["common/meta/development.md", "common/runtime/environments.md"],
-            proofs=[
-                "tests/tooling/test_issue_489_deployment_contracts.py",
-                "tests/tooling/test_post_merge_e2e_gates.py",
-            ],
-            family="runtime",
-            kind="concept",
-        ),
-        ConceptRecord(
-            key="env_reference_generated",
-            owner="common/runtime/env-reference.generated.md",
-            description=(
-                "Generated backend env reference (rendered from config.py Settings metadata; "
-                "do not edit by hand)."
-            ),
-            cross_refs=[
-                "apps/backend/src/config.py",
-                "tools/generate_env_reference.py",
-                ".env.example",
-            ],
-            proofs=["tests/tooling/test_env_reference.py"],
-            family="development",
-            kind="registry",
-        ),
-        ConceptRecord(
-            key="env_smoke_test",
-            owner="common/runtime/readme.md#environment-verification-the-three-gates",
-            description=(
-                "Environment smoke testing via real boot operations — runtime's deployed-env "
-                "dependency-presence verification (the Three Gates). Owned by the runtime "
-                "package (common/runtime/readme.md)."
-            ),
-            cross_refs=["common/meta/development.md"],
-            proofs=[
-                "tests/tooling/test_runtime_incident_response_ssot.py",
-                "tests/tooling/test_runtime_ssot_internalized.py",
-            ],
-            family="runtime",
-            kind="playbook",
-        ),
-        ConceptRecord(
-            key="required_env_manifest_generated",
-            owner="common/runtime/required-env.generated.json",
-            description=(
-                "Generated machine-readable required-env manifest (same config.py source of "
-                "truth as .env.example; infra2 CI consumes it against secrets.ctmpl — #1828 "
-                "G-injection-drift-gate over the #876 artifact boundary; do not edit by "
-                "hand)."
-            ),
-            cross_refs=[
-                "apps/backend/src/config.py",
-                "tools/generate_env_reference.py",
-                ".env.example",
-            ],
-            proofs=["tests/tooling/test_required_env_manifest.py"],
-            family="development",
-            kind="registry",
-        ),
-        ConceptRecord(
-            key="runtime_incident_response",
-            owner="common/runtime/runtime-incident-response.md",
-            description="App-side runtime incident triage and stability-proof routing.",
-            cross_refs=[
-                "common/runtime/deployment.md",
-                "common/observability/observability.md",
-                "common/testing/ci-cd.md",
-                "common/runtime/ci-cd.md",
-                "common/runtime/readme.md",
-                "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
-            ],
-            proofs=["tests/tooling/test_runtime_incident_response_ssot.py"],
-            family="runtime",
-            kind="playbook",
-        ),
-        ConceptRecord(
-            key="environments",
-            owner="common/runtime/environments.md#environment-overview",
-            description="Local Dev / Local CI / GitHub CI / Staging / Production.",
-            cross_refs=[
-                "common/meta/development.md",
-                "common/testing/ci-cd.md",
-                "common/runtime/deployment.md",
-            ],
-            proofs=["tests/tooling/test_issue_489_deployment_contracts.py"],
-            family="environments",
-            kind="concept",
-        ),
-    ],
+    invariants=invs(
+        """
+env-key-extraction-robust|Parsing env keys from a missing .env.example yields an empty set with a warning, not an exception.|$t/test_check_env_keys.py::test_main_exits_1_when_the_example_is_missing
+"""
+    ),
+    roadmap=acs(
+        "runtime",
+        """
+@$be/runtime/test_runtime_and_ci_contracts.py|P0
+1.1|The API health endpoint is reachable and returns 200.|test_api_health_endpoint_contract
+1.2|The backend service is reachable and returns a structured health JSON.|test_api_health_endpoint_contract
+1.3|The frontend API proxy is reachable, validating API availability.|test_frontend_api_proxy_routing_contract
+1.4|Database connectivity is proven through a create+read cycle.|test_database_environment_isolation_contract
+@$be/infra/test_boot.py|P0
+3.1|Boot.validate FULL derives its dependency set from DEPENDENCY_MANIFEST.required_for(resolve_env_tier).|test_AC_runtime_3_1_required_checks_cover_the_tier_declaration|P1
+21.1|Bootloader._check_static_config rejects the default development JWT secret in production.|test_AC1_10_1_static_config_rejects_default_secret_key_in_production
+21.2|Bootloader._check_static_config rejects a short JWT secret in staging.|test_AC1_10_1_static_config_rejects_short_secret_key_in_staging
+21.3|Bootloader._check_static_config rejects the local-development DB default in a protected environment.|test_AC1_10_1_static_config_rejects_default_db_in_protected_env
+21.4|Bootloader._check_static_config treats a public app URL as protected even.|test_AC1_10_1_static_config_rejects_default_s3_secret_in_production_like_url
+21.5|Bootloader._check_static_config rejects a blank/whitespace-only JWT secret in production.|test_AC1_10_1_static_config_rejects_blank_secret_key_in_production
+21.6|Bootloader._check_static_config allows the convenient development-default JWT secret in the development environment.|test_AC1_10_1_static_config_allows_development_default_secret_key|P1
+guard-proofs.1|G-reject-path-proven: every development default is rejected by _check_static_config under every protected-runtime trigger.|test_AC_runtime_guard_proofs_1_every_default_is_rejected_under_every_protected_trigger
+guard-proofs.2|G-reject-path-proven accept branch.|test_AC_runtime_guard_proofs_2_development_defaults_accepted_in_local_environments
+guard-proofs.3|G-reject-path-proven: the protected-runtime classifier itself is proven cell-by-cell.|test_AC_runtime_guard_proofs_3_protected_runtime_classification
+@$be/runtime/test_health_parity.py|P1
+6.1|The smoke's dependency-presence assertion covers exactly the manifest-declared set.|test_AC_runtime_6_1_full_health_asserts_the_declared_set
+7.3|Fast liveness path: plain GET /health returns 200 with process liveness in <50ms.|test_AC_runtime_7_3_plain_health_is_fast_liveness_without_external_io
+@$be/infra/test_main.py|P0
+7.1|/health returns 200 when all declared dependencies are present.|test_health_when_all_services_healthy
+7.2|/health returns 503 when a declared dependency is absent.|test_health_returns_503_on_database_failure
+@$be/infra/test_config_contract.py|P0
+18.1|SMALL_MODEL follows the expected provider pattern.|test_small_model_format
+18.2|The config.py default for SMALL_MODEL matches the .env.example documentation.|test_config_sync_with_env_example
+18.3|BASE_CURRENCY is a valid ISO 4217 currency code.|test_base_currency_format
+18.4|S3_BUCKET follows S3 naming conventions.|test_s3_bucket_format
+18.5|JWT_ALGORITHM is one of the allowed secure algorithms.|test_jwt_algorithm_allowed
+18.6|DATABASE_URL follows the expected async driver format.|test_database_url_format
+20.1|DB_POOL_SIZE config field exists with the expected default.|test_db_pool_size_config_default|P1
+20.2|DB_POOL_MAX_OVERFLOW config field exists with the expected default.|test_db_pool_max_overflow_config_default|P1
+20.3|Pool config values are within a valid range.|test_db_pool_config_valid_range|P1
+20.4|The DB_POOL_SIZE env var overrides the pool-size setting.|test_db_pool_size_env_override|P1
+20.5|The DB_POOL_MAX_OVERFLOW env var overrides the max-overflow setting.|test_db_pool_size_env_override|P1
+@$be/api/test_real_storage_pipeline.py|P0
+23.1|A CSV fixture uploads through /statements/upload with the real StorageService into in-memory S3.|test_AC8_26_1_upload_parses_through_real_storage_round_trip
+23.2|The retry path re-fetches the source document.|test_AC8_26_2_retry_loads_source_back_through_real_storage
+@$t/test_debug.py|P1
+24.1|Debug.detect_environment returns CI when GITHUB_ACTIONS is true.|test_AC16_11_1_detect_environment_ci
+24.2|Debug.detect_environment returns LOCAL when docker ps succeeds.|test_AC16_11_2_detect_environment_local_when_docker_ok
+24.3|Debug.detect_environment falls back to PRODUCTION on docker failure.|test_AC16_11_3_detect_environment_fallback_production
+24.4|Debug.validate_hostname rejects empty and leading-hyphen hostnames.|test_AC16_11_4_validate_hostname_cases
+24.5|Debug.validate_username enforces a unix-safe pattern.|test_AC16_11_5_validate_username_cases
+24.6|Debug.get_container_name maps known service names by environment.|test_AC16_11_6_get_container_name_mapping
+24.7|Debug.list_containers prints all mapped containers for an environment.|test_AC16_11_7_list_containers_prints_all
+24.21|Debug.view_remote_logs_docker exits when VPS_HOST is missing.|test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing
+24.22|Debug.view_remote_logs_docker exits on invalid VPS hostnames.|test_AC16_11_22_view_remote_logs_docker_exits_on_invalid_host
+24.23|Debug.view_remote_logs_docker exits on invalid VPS usernames.|test_AC16_11_23_view_remote_logs_docker_exits_on_invalid_user
+24.24|Debug.view_local_logs builds the docker logs command with tail and follow.|test_AC16_11_24_view_local_logs_builds_docker_command
+24.25|Debug.main routes the logs command to the observability handler.|test_AC16_11_25_main_logs_observability_path
+24.26|Debug.main routes the status command to the local log view with a status tail.|test_AC16_11_26_main_status_local_path
+24.27|Debug.main routes the containers command to list_containers.|test_AC16_11_27_main_containers_path
+@$t/test_cleanup_orphaned_dbs.py|P1
+24.8|Cleanup_orphaned_dbs.extract_namespace handles worker suffixes and invalid names.|test_AC16_11_8_extract_namespace_variants
+24.9|Cleanup_orphaned_dbs.load_active_namespaces returns [].|test_AC16_11_9_load_active_namespaces_missing
+24.10|Cleanup_orphaned_dbs.get_container_runtime returns the first available runtime.|test_AC16_11_10_get_container_runtime_prefers_podman
+24.11|Cleanup_orphaned_dbs.list_test_databases parses psql output and handles subprocess errors.|test_AC16_11_11_list_test_databases_parses_rows
+24.12|Cleanup_orphaned_dbs.cleanup_orphaned returns an error.|test_AC16_11_12_cleanup_orphaned_runtime_missing
+24.13|Cleanup_orphaned_dbs.cleanup_orphaned returns success.|test_AC16_11_13_cleanup_orphaned_no_databases
+24.14|Cleanup_orphaned_dbs.cleanup_orphaned skips active-namespace databases.|test_AC16_11_14_cleanup_orphaned_skips_active
+24.15|Cleanup_orphaned_dbs.cleanup_orphaned cleans all databases in --all mode.|test_AC16_11_15_cleanup_orphaned_clean_all
+24.30|Cleanup_orphaned_dbs.drop_database returns true in dry-run mode.|test_AC16_11_30_drop_database_dry_run_returns_true
+24.31|Cleanup_orphaned_dbs.main forwards parsed flags to cleanup_orphaned.|test_AC16_11_31_main_calls_cleanup_orphaned
+@$t/test_cli_and_dev_servers.py|P1
+24.16|Cli.get_compose_cmd honors CONTAINER_RUNTIME, otherwise prefers podman then docker.|test_AC16_11_16_get_compose_cmd_prefers_podman
+24.17|Cli.cmd_test routes frontend/e2e/perf/tests and lifecycle modes correctly.|test_AC16_11_17_cmd_test_frontend_route
+24.18|Cli.cmd_clean routes db/containers/default cleanup targets correctly.|test_AC16_11_18_cmd_clean_routes
+24.19|Dev_backend.check_database_ready returns false on migration subprocess errors.|test_AC16_11_19_check_database_ready_failure
+24.20|Dev_frontend.cleanup terminates the tracked process.|test_AC16_11_20_dev_frontend_cleanup_is_process_pure
+24.28|Dev_backend.check_database_ready returns true.|test_AC16_11_28_check_database_ready_success
+24.29|Dev_backend.cleanup terminates the tracked process.|test_AC16_11_29_dev_backend_cleanup_is_process_pure
+@$be/infra/test_snapshot_anonymizer.py|P0
+snapshot-anonymizer.1|Every column of the live model metadata is explicitly classified.|test_AC_runtime_snapshot_anonymizer_1_every_live_column_is_classified
+snapshot-anonymizer.2|All monetary values scale by one secret integer factor.|test_AC_runtime_snapshot_anonymizer_2_money_scales_and_books_still_balance
+snapshot-anonymizer.3|Identity/content-bearing strings are replaced with deterministic HMAC pseudonyms.|test_AC_runtime_snapshot_anonymizer_3_pseudonyms_consistent_and_no_residuals
+@$t/test_verify_release_images.py|P1
+release-images.1|Verify_release_images finds a digest on the first inspect attempt with no retry/sleep.|test_AC_runtime_release_images_1_first_attempt_success_no_retry
+release-images.2|Verify_release_images retries a not-yet-visible digest.|test_AC_runtime_release_images_2_transient_miss_then_success_retries
+release-images.3|Verify_release_images still fails closed.|test_AC_runtime_release_images_3_exhausted_retries_fails_closed
+release-images.4|Verify_release_images' max_attempts/retry_delay_seconds are caller-configurable, not hardcoded.|test_AC_runtime_release_images_4_max_attempts_and_delay_are_configurable|P2
+release-images.5|Verify_release_images rejects max_attempts < 1 with a clear ValueError.|test_AC_runtime_release_images_5_max_attempts_below_1_is_rejected|P2
+release-images.6|Verify_release_images rejects a negative retry_delay_seconds with a clear ValueError.|test_AC_runtime_release_images_6_negative_delay_is_rejected|P2
+@$be/integration/test_bootloader_real_checks.py|P0
+guard-proofs.4|G-health-honest-somewhere.|test_AC_runtime_guard_proofs_4_real_database_check_passes_against_live_service
+guard-proofs.5|G-health-honest-somewhere.|test_AC_runtime_guard_proofs_5_real_s3_check_passes_against_live_service
+guard-proofs.6|G-health-honest-somewhere red-team canary.|test_AC_runtime_guard_proofs_6_real_database_check_reds_on_dead_port
+@$be/infra/test_observability_contract.py|P0
+guard-proofs.7|G-telemetry-tag-consistent.|test_AC_runtime_guard_proofs_7_telemetry_tag_value_mismatch_fails_boot
+guard-proofs.8|G-telemetry-tag-consistent accept branch.|test_AC_runtime_guard_proofs_8_telemetry_tag_value_match_boots
+@$t/test_required_env_manifest.py|P1
+guard-proofs.11|G-injection-drift-gate: the committed required-env manifest equals the manifest rendered from live Settings metadata.|test_AC_runtime_guard_proofs_11_manifest_matches_live_config_bidirectionally
+guard-proofs.12|G-injection-drift-gate: every vault-tagged config field appears in the committed manifest AND as a key in .env.example.|test_AC_runtime_guard_proofs_12_every_vault_field_reaches_manifest_and_env_example
+guard-proofs.13|The required-env manifest is the infra2-sdk v2 contract.|test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offline_gate_is_green
+guard-proofs.14|Credential-bearing fields DATABASE_URL and REDIS_URL emit sensitive=true.|test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation
+@$t/test_sla_manifest.py|P1
+sla-manifest.1|`tools/generate_sla_manifest.py` derives `common/runtime/sla-manifest.generated.json` from `DEPENDENCY_MANIFEST.required_for` for every tier.|test_AC_runtime_sla_manifest_1_committed_manifest_matches_live_dependency_manifest
+sla-manifest.2|Every dependency `required_in` has exactly one production SLA entry in the generated manifest.|test_AC_runtime_sla_manifest_2_production_entries_are_sla_bearing_and_complete
+@$t/test_s4_tool_homing.py|P1
+http-probes.1|Tier-2 deployed HTTP E2E and production infrastructure smoke checks share one HTTP response, fetch, report.|test_AC_runtime_http_probes_1_runtime_checks_share_hardened_http_primitives
+extension-tools.1|Backend runtime extension gates resolve the repository root.|test_AC_runtime_extension_tools_1_backend_gates_share_project_root|P2
+@-|P1
+2.1|Every config.py env var is classified.|$be/runtime/test_env_guardrail.py::test_every_config_env_var_is_classified
+4.1|Every declared dependency has a DependencyCheck probe adapter.|$be/runtime/test_probe_adapters.py::test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter
+sdk-pin.1|SDK acquisition reads the exact wheel URL and SHA256 from the backend lock, rejects disagreement with the dependency declaration.|$t/test_sdk_pin.py::test_AC_runtime_sdk_pin_1_lock_and_declaration_must_agree
+runner-pin.1|Every job of every GitHub Actions workflow runs on one pinned Ubuntu image.|$t/test_workflow_runner_pin.py::test_AC_runtime_runner_pin_1_no_workflow_uses_a_floating_runner_label
+fe-deploy.1|Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for deploy readiness checks.|$fe/__tests__/frontendVersionRoute.test.ts::AC8.13.90 returns deployed frontend version metadata for deploy readiness|P0
+github-api.1|Runtime release checks and testing CI waits use one GitHub Actions client, UTC timestamp parser.|$t/test_s4_runtime_github_api.py::test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers
+sdk-install.1|A workflow job installs the infra2 SDK.|$t/test_workflow_sdk_install.py::test_AC_runtime_sdk_install_1_every_job_installs_the_sdk_before_it_runs_a_tool_that_needs_it
+reusable-permissions.1|A job that calls a reusable workflow of this repository grants every permission that a called job requests.|$t/test_reusable_workflow_permissions.py::test_AC_runtime_reusable_permissions_1_every_call_grants_what_the_called_jobs_request
+env-empty-values.1|No shipped environment artifact materializes an empty value for an env name that participates in a `Settings` alias chain.|$t/test_env_empty_value_producers.py::test_AC_runtime_env_empty_values_1_no_artifact_ships_an_empty_alias_chain_value
+env-empty-values.2|Settings resolves empty environment strings safely.|$be/infra/test_config.py::test_AC_runtime_env_empty_values_2_settings_empty_env_resolution
+env-ai-key-alias.1|Settings reads the AI key from AI_API_KEY first and from ZAI_API_KEY second.|$be/infra/test_ai_key_alias.py::test_AC_runtime_env_ai_key_alias_1_the_old_name_sets_the_key
+""",
+    ),
+    concepts=concepts(
+        """
+runtime_http_probe|common/runtime/http_probe.py|Shared deployed-runtime HTTP response, fetch, report, and empty-safe abbreviated-SHA matching primitives.|common/runtime/tier2_http_e2e.py,common/runtime/readme.md|tests/tooling/test_s4_tool_homing.py|runtime|concept
+runtime_extension_project_root|apps/backend/src/runtime/extension/project_root.py|Repository-root lookup shared by backend-owned runtime extension gates.|apps/backend/src/runtime/extension/env_keys.py,apps/backend/src/runtime/extension/schema_validation.py|tests/tooling/test_s4_tool_homing.py|development|concept
+container_naming|common/runtime/environments.md#container-naming-patterns|Container name patterns per environment (hyphens vs underscores).|common/runtime/deployment.md,AGENTS.md|tests/tooling/test_issue_489_deployment_contracts.py|platform|concept
+deployment_architecture|common/runtime/deployment.md|Dual-repo model, Vault secret injection, staging/production flow.|common/meta/development.md,common/runtime/environments.md|tests/tooling/test_issue_489_deployment_contracts.py,tests/tooling/test_post_merge_e2e_gates.py|runtime|concept
+env_reference_generated|common/runtime/env-reference.generated.md|Generated backend env reference (rendered from config.py Settings metadata; do not edit by hand).|apps/backend/src/config.py,tools/generate_env_reference.py,.env.example|tests/tooling/test_env_reference.py|development|registry
+env_smoke_test|common/runtime/readme.md#environment-verification-the-three-gates|Environment smoke testing via real boot operations — runtime's deployed-env dependency-presence verification (the Three Gates). Owned by the runtime package (common/runtime/readme.md).|common/meta/development.md|tests/tooling/test_runtime_incident_response_ssot.py,tests/tooling/test_runtime_ssot_internalized.py|runtime|playbook
+required_env_manifest_generated|common/runtime/required-env.generated.json|Generated machine-readable required-env manifest (same config.py source of truth as .env.example; infra2 CI consumes it against secrets.ctmpl — #1828 G-injection-drift-gate over the #876 artifact boundary; do not edit by hand).|apps/backend/src/config.py,tools/generate_env_reference.py,.env.example|tests/tooling/test_required_env_manifest.py|development|registry
+runtime_incident_response|common/runtime/runtime-incident-response.md|App-side runtime incident triage and stability-proof routing.|common/runtime/deployment.md,common/observability/observability.md,common/testing/ci-cd.md,common/runtime/ci-cd.md,common/runtime/readme.md,docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md|tests/tooling/test_runtime_incident_response_ssot.py|runtime|playbook
+environments|common/runtime/environments.md#environment-overview|Local Dev / Local CI / GitHub CI / Staging / Production.|common/meta/development.md,common/testing/ci-cd.md,common/runtime/deployment.md|tests/tooling/test_issue_489_deployment_contracts.py|environments|concept
+"""
+    ),
 )
 
-# Test roots this package owns (aggregated into the execution matrix's
-# generated ownership view; see common/testing/matrix.py, issue #1558).
 TEST_ROOTS: tuple[str, ...] = ("apps/backend/tests/infra/test_main.py",)
-# fmt: on

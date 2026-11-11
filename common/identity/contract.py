@@ -1,371 +1,143 @@
-"""The ``identity`` package's machine-checkable :class:`PackageContract`.
-
-``identity`` is the vertical **users + authentication + AI-feedback** domain slice
-(layer ``domain``, L3 — resolved from the central map in
-``common/meta/base/layering.py``). The governance gate (``tools/check_package_contract.py``)
-validates the BE implementation (``apps/backend/src/identity``) against this
-contract: ``interface`` must equal the implementation's ``__all__``; every
-``invariants[].test`` / ``roadmap[].test`` must resolve to a real test;
-``depends_on`` must introduce no forbidden import edge (a ``domain`` package may
-import the ``infra`` substrate it builds on — ``platform`` for the rate limiter,
-``observability`` for the security-warning log — both strictly downward); and each
-declared ``unit`` sits in the layer its ``kind`` dictates.
-
-### The building-block layering (``units``)
-
-The package converges into ``base`` (pure core) + ``extension`` (impure edges),
-mirroring ``counter``/``platform``:
-
-- **base** — the auth/AI-feedback value objects (``RegisterRequest``/``LoginRequest``/
-  ``AuthResponse`` and the AI-feedback request/response shapes), the canonical-key
-  helpers (``normalize_email``/``AUTH_COOKIE_NAME``), and the ``UserRepository``
-  *port*. The ``User`` aggregate root and its ``AiFeedback`` child entity are
-  declared here taxonomy-only (no placed module): their ORM models live with the
-  SQL adapter in ``extension`` (exactly as ``counter`` keeps ``CounterTally`` and
-  ``platform`` keeps ``Outbox`` in ``extension``), so ``base`` stays free of the ORM.
-- **extension** — the impure edges: the SQL ``UserRepository`` adapter (the
-  port/adapter split, mechanism B), the JWT + bcrypt security domain services, the
-  ``get_current_user_id`` auth dependency, the ``register``/``login`` domain
-  operations, the auth rate limiters, the observability binding, and the ``/auth``
-  + ``/users`` transport (``extension/api/``).
-
-### Why layer ``domain``
-
-``User``/``AiFeedback`` are a vertical domain (a bounded context), not a reusable
-horizontal capability — so identity is a ``domain`` package. The gate ranks
-``meta(L0) < infra(L1) < middleware(L2) < domain(L3) < app(L4)`` and forbids
-importing an equal/higher rank; identity (``domain``) importing
-``platform``/``observability`` (``infra``) is a strictly downward edge.
-
-The package's ACs live here in ``roadmap`` (the package-model AC registry),
-sourced directly into the AC registry — no longer mirrored into the EPIC-001
-table (the rows are removed there with a disclaimer pointing here).
-"""
+"""Machine-checkable PackageContract for ``identity``."""
 
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ac,
-    ConceptRecord,
-    ContextRelation,
     ContextScope,
-    Invariant,
-    Kind,
     PackageContract,
-    Unit,
+    acs,
+    concepts,
+    invs,
+    rels,
+    units,
 )
 
-# fmt: off
 CONTRACT = PackageContract(
     name="identity",
     status="active",
-    # Deterministic auth/user domain, no LLM: a pure-code (CODE-ONLY) package.
-    # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
-    # Downward edges only: the infra substrate identity builds on — the platform
-    # rate limiter, the observability security-warning log, and config (settings,
-    # imported by its bare published root like observability does). All three are
-    # infra-class, so a domain package importing them is strictly downward.
-    # (src.database / src.deps are unregistered backend infra, out of scope for
-    # the edge rule; the former flat src.logger / src.utils now live inside the
-    # observability / platform packages, so those imports are governed edges.)
-    depends_on=["platform", "observability"],
+    depends_on="platform observability".split(),
+    roles="base extension".split(),
+    implementations={"be": "apps/backend/src/identity", "fe": None},
     context=ContextScope(
-        purpose="Own user identity, authentication, user-scoped credentials, and AI feedback without owning the financial domains a user may access.",
+        purpose="Own user identity, authentication, user-scoped credentials.",
         in_scope=[
-            "User aggregate, normalized email identity, and AI-feedback records",
-            "JWT/OAuth authentication, password security, and current-user resolution",
-            "identity-owned registration, login, and user-profile compatibility operations",
+            "User aggregate, normalized email identity, and AI-feedback records.",
+            "JWT/OAuth authentication, password security, and current-user resolution.",
+            "Identity-owned registration, login.",
         ],
         out_of_scope=[
-            "ledger, statement, portfolio, reporting, or reconciliation state and policy",
-            "generic request limiting, HTTP error vocabulary, or persistence substrate ownership",
-            "cross-domain workflow or application-level authorization decisions",
+            "Ledger, statement, portfolio, reporting, or reconciliation state and policy.",
+            "Generic request limiting, HTTP error vocabulary, or persistence substrate ownership.",
+            "Cross-domain workflow or application-level authorization decisions.",
         ],
     ),
-    relationships=[
-        ContextRelation(
-            provider="platform",
-            consumer="identity",
-            mode="consumer-port",
-            reason="Consumes platform rate-limiting and request-error ports while identity retains authentication and account policy.",
-        ),
-        ContextRelation(
-            provider="observability",
-            consumer="identity",
-            mode="published-language",
-            reason="Uses published safe logging and security-warning language without owning telemetry policy.",
-        ),
-    ],
-    roles=["base", "extension"],
-    units=[
-        # base — the auth value objects (the published wire language).
-        Unit(
-            name="RegisterRequest", kind=Kind.VALUE_OBJECT, module="base/types/auth.py"
-        ),
-        Unit(name="LoginRequest", kind=Kind.VALUE_OBJECT, module="base/types/auth.py"),
-        Unit(name="AuthResponse", kind=Kind.VALUE_OBJECT, module="base/types/auth.py"),
-        Unit(name="UserBase", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
-        Unit(name="UserUpdate", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
-        Unit(name="UserResponse", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
-        Unit(
-            name="UserAiSettingsUpdate",
-            kind=Kind.VALUE_OBJECT,
-            module="base/types/user.py",
-        ),
-        Unit(
-            name="UserAiSettingsResponse",
-            kind=Kind.VALUE_OBJECT,
-            module="base/types/user.py",
-        ),
-        # base — the AI-feedback value objects (the AiFeedback entity's wire language).
-        Unit(
-            name="AiFeedbackRequest",
-            kind=Kind.VALUE_OBJECT,
-            module="base/types/ai_feedback.py",
-        ),
-        Unit(
-            name="AiFeedbackResponse",
-            kind=Kind.VALUE_OBJECT,
-            module="base/types/ai_feedback.py",
-        ),
-        # base — the User aggregate root + the AiFeedback child entity. Their ORM
-        # models live with the SQL adapter in extension/ (like counter's
-        # CounterTally / platform's Outbox), so they are declared taxonomy-only
-        # (no placed module) to keep base/ free of the ORM. The aggregate's
-        # invariant (email unique case-insensitively) is enforced by the
-        # uq_users_email_normalized index in extension/sql.py.
-        Unit(name="User", kind=Kind.AGGREGATE_ROOT),
-        Unit(name="AiFeedback", kind=Kind.ENTITY),
-        # repository — the one split block (mechanism B): the abstract port lives
-        # in base/, the SQL adapter in extension/ (dependency inversion).
-        Unit(
-            name="UserRepository",
-            kind=Kind.REPOSITORY,
-            module="base/repository.py",
-            impl="extension/sql.py",
-        ),
-        # extension — the security domain services (JWT + bcrypt).
-        Unit(
-            name="create_access_token",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/security.py",
-        ),
-        Unit(
-            name="decode_access_token",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/security.py",
-        ),
-        Unit(
-            name="hash_password",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/security.py",
-        ),
-        Unit(
-            name="verify_password",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/security.py",
-        ),
-        # extension — the auth dependency + the register/login domain operations.
-        Unit(
-            name="get_current_user_id",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/auth.py",
-        ),
-        Unit(name="register", kind=Kind.DOMAIN_SERVICE, module="extension/api/auth.py"),
-        Unit(name="login", kind=Kind.DOMAIN_SERVICE, module="extension/api/auth.py"),
-        # extension — the observability request-context binding.
-        Unit(
-            name="bind_authenticated_user_context",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/observability.py",
-        ),
-        # extension — the test/QA account-purge maintenance service (folded in
-        # from src/services per #1677: purging user accounts + their owned rows
-        # is user-lifecycle administration, and its one domain import is User).
-        Unit(
-            name="purge_test_accounts",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/account_purge.py",
-        ),
-        # PurgeReport is declared taxonomy-only (no placed module) like
-        # User/AiFeedback: it is defined next to the purge service in
-        # extension/account_purge.py rather than base/, keeping the dataclass
-        # beside the only code that constructs it.
-        Unit(name="PurgeReport", kind=Kind.VALUE_OBJECT),
-    ],
-    implementations={"be": "apps/backend/src/identity", "fe": None},
-    interface=[
-        "AUTH_COOKIE_NAME",
-        "AiFeedback",
-        "AiFeedbackRequest",
-        "AiFeedbackResponse",
-        "AiSuggestionListResponse",
-        "AiSuggestionResponse",
-        "AuthResponse",
-        "DEFAULT_TEST_EMAIL_PATTERN",
-        "LoginRequest",
-        "PurgeReport",
-        "RegisterRequest",
-        "User",
-        "UserAiSettingsResponse",
-        "UserAiSettingsUpdate",
-        "UserBase",
-        "UserRepository",
-        "UserResponse",
-        "UserUpdate",
-        "auth_rate_limiter",
-        "auth_router",
-        "bind_authenticated_user_context",
-        "create_access_token",
-        "decode_access_token",
-        "get_current_user_id",
-        "get_me",
-        "hash_password",
-        "is_safe_purge_environment",
-        "login",
-        "normalize_email",
-        "oauth2_scheme",
-        "purge_test_accounts",
-        "register",
-        "register_in_flight_parse_checker",
-        "register_rate_limiter",
-        "users_router",
-        "verify_password",
-    ],
+    relationships=rels(
+        "identity",
+        """
+platform|consumer-port|Consumes platform rate-limiting and request-error ports.
+observability|published-language|Uses published safe logging and security-warning language.
+""",
+    ),
+    units=units(
+        """
+@vo|base/types/auth.py|RegisterRequest LoginRequest AuthResponse
+@vo|base/types/user.py|UserBase UserUpdate UserResponse UserAiSettingsUpdate UserAiSettingsResponse
+@vo|base/types/ai_feedback.py|AiFeedbackRequest AiFeedbackResponse
+User|agg
+AiFeedback|ent
+@svc|extension/security.py|create_access_token decode_access_token hash_password verify_password
+get_current_user_id|svc|extension/auth.py
+@svc|extension/api/auth.py|register login
+bind_authenticated_user_context|svc|extension/observability.py
+purge_test_accounts|svc|extension/account_purge.py
+PurgeReport|vo
+UserRepository|repo|base/repository.py|extension/sql.py
+"""
+    ),
+    interface="""
+AUTH_COOKIE_NAME AiFeedback AiFeedbackRequest AiFeedbackResponse
+AiSuggestionListResponse AiSuggestionResponse AuthResponse
+DEFAULT_TEST_EMAIL_PATTERN LoginRequest PurgeReport RegisterRequest User
+UserAiSettingsResponse UserAiSettingsUpdate UserBase UserRepository UserResponse
+UserUpdate auth_rate_limiter auth_router bind_authenticated_user_context
+create_access_token decode_access_token get_current_user_id get_me hash_password
+is_safe_purge_environment login normalize_email oauth2_scheme purge_test_accounts
+register register_in_flight_parse_checker register_rate_limiter users_router
+verify_password
+""".split(),
     events=[],
-    invariants=[
-        # Structural guarantees (no authority tier, not matrix-constrained) — the
-        # building-block layering this cutover establishes. See counter/platform.
-        Invariant(
-            id="converges-by-layer",
-            statement="The package converges into base/ (pure core) + extension/ (edges).",
-            test=(
-                "tests/tooling/test_identity_package.py"
-                "::test_identity_converges_by_layer"
-            ),
-        ),
-        Invariant(
-            id="single-home-no-residue",
-            statement=(
-                "The pre-migration god-files (src/auth.py, src/security.py, "
-                "src/rate_limit.py, src/observability_events.py, src/routers/auth.py, "
-                "src/routers/users.py, src/schemas/auth.py, src/schemas/ai_feedback.py, "
-                "src/models/user.py) are deleted — identity is the single home."
-            ),
-            test=(
-                "tests/tooling/test_identity_package.py"
-                "::test_identity_god_files_are_gone"
-            ),
-        ),
-        Invariant(
-            id="repository-split",
-            statement=(
-                "The UserRepository port splits into a base port + an extension SQL "
-                "adapter (dependency inversion, mechanism B)."
-            ),
-            test=(
-                "tests/tooling/test_identity_package.py::test_identity_repository_split"
-            ),
-        ),
-        Invariant(
-            id="base-layer-pure",
-            statement=(
-                "The base/ layer never imports the package's own extension/ layer."
-            ),
-            test=(
-                "tests/tooling/test_identity_package.py"
-                "::test_identity_base_layer_is_pure"
-            ),
-        ),
-        Invariant(
-            id="interface-equals-published-language",
-            statement=(
-                "The published language (contract.interface) equals __init__.__all__."
-            ),
-            test=(
-                "tests/tooling/test_identity_package.py"
-                "::test_identity_interface_equals_published_language"
-            ),
-        ),
-        Invariant(
-            id="passes-own-governance-gate",
-            statement="check_package_contract validates identity with no violations.",
-            test=(
-                "tests/tooling/test_identity_package.py"
-                "::test_identity_package_contract_gate_passes"
-            ),
-        ),
-    ],
-    roadmap=[
-        ac('AC-identity.vocabulary-ownership.1', 'User CRUD and AI-settings request/response DTOs are identity-owned base value objects; src.schemas.user retains only compatibility re-exports and its generic list envelope.', 'tests/tooling/test_vocabulary_ownership.py::test_AC_identity_vocabulary_ownership_1_identity_owns_user_dtos', priority='P1'),
-        ac('AC-identity.1.1', 'Email identity is unique case-insensitively: a duplicate registration in any case variant is rejected (the normalized-email index makes a duplicate unrepresentable). Was EPIC-001 AC1.7.2 / AC1.10.2.', 'apps/backend/tests/identity/test_auth_router.py::test_register_duplicate_email'),
-        ac('AC-identity.1.2', 'Case-variant email is normalized on registration and login so case variants cannot create or split a duplicate account. Was EPIC-001 AC1.10.2.', 'apps/backend/tests/identity/test_auth_router.py::test_AC1_10_2_register_rejects_case_variant_duplicate_email'),
-        ac('AC-identity.2.1', 'Registration accepts a valid payload, bcrypt-hashes the password (plaintext is never stored), and returns a JWT + HttpOnly cookie. Was EPIC-001 AC1.5.5 / AC1.7.1.', 'apps/backend/tests/identity/test_auth_router.py::test_register_success'),
-        ac('AC-identity.2.2', 'Login accepts valid credentials and returns a JWT + HttpOnly cookie; invalid credentials are rejected. Was EPIC-001 AC1.5.5 / AC1.7.3.', 'apps/backend/tests/identity/test_auth_router.py::test_login_success'),
-        ac('AC-identity.2.3', 'Registration handles the duplicate-email IntegrityError race (concurrent registrations of the same email) with a clean 400. Was EPIC-001 AC1.7.4.', 'apps/backend/tests/identity/test_auth_router.py::test_register_integrity_error_race_condition', priority='P1'),
-        ac('AC-identity.2.4', 'A valid JWT bearer token grants 200 on a protected endpoint (GET /accounts). Was EPIC-001 AC1.2.2 (migration closeout wave 3, #1663).', 'apps/backend/tests/identity/test_auth.py::test_auth_valid_user', priority='P1'),
-        ac('AC-identity.2.5', "The auth dependency accepts the HttpOnly session cookie directly (no bearer header required) for GET /auth/me. Was EPIC-001 AC1.10.3 (migration closeout wave 3, #1663); the row's frontend-storage half stays in the EPIC (no backend package home).", 'apps/backend/tests/identity/test_auth_router.py::test_AC1_10_3_get_me_accepts_httponly_cookie', priority='P1'),
-        ac('AC-identity.2.6', 'Browser logout expires the HttpOnly authentication cookie at its original scope, is idempotent, and leaves subsequent cookie-only requests unauthorized until login. Independently issued bearer tokens are not globally revoked.', 'apps/backend/tests/identity/test_auth_router.py::test_browser_logout_expires_cookie'),
-        ac('AC-identity.fe-auth.15', 'Desktop and mobile logout wait for server cookie expiration before clearing local identity, clearing the React Query cache, and navigating to login; failures preserve identity and allow retry (#2553).', 'apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::waits for cookie logout before clearing desktop identity'),
-        ac('AC-identity.1.3', 'The /users management endpoints expose authenticated current-user operations without cross-user leakage (a non-self user_id returns not-found). Was EPIC-001 AC1.8.1.', 'apps/backend/tests/identity/test_users_router.py::test_AC1_8_1_get_user_by_id_hides_other_users', priority='P1'),
-        # ── group journeys: E2E auth/session proof (migrated from EPIC-008
-        # AC8.2.1/.7.1-3/.19.2, migration closeout continuation, #1663) ──
-        ac('AC-identity.journeys.1', 'A new user can register and log in end to end through the deployed API.', 'apps/backend/tests/identity/test_auth_shift_left.py::test_password_hashing_and_verification'),
-        ac('AC-identity.journeys.2', 'API authentication failures (missing/invalid credentials) return a clean 401/422, not a 500.', 'apps/backend/tests/identity/test_auth_shift_left.py::test_invalid_token_rejected_with_401'),
-        ac('AC-identity.journeys.3', 'Unauthenticated requests to protected endpoints are blocked with 401.', 'apps/backend/tests/identity/test_auth_shift_left.py::test_unauthenticated_request_blocked'),
-        ac('AC-identity.journeys.4', "A user's session (JWT/cookie) is created, reused, and honored consistently across requests.", 'apps/backend/tests/identity/test_auth_shift_left.py::test_jwt_session_token_lifecycle', priority='P1'),
-        ac('AC-identity.journeys.5', 'The frontend registration E2E targets the mode-toggle register control by test id and switches into register mode without a strict-mode locator failure.', 'tests/e2e/test_auth_flows.py::test_full_registration_flow', priority='P1'),
-        ac('AC-identity.journeys.6', 'On an explicitly pinned deployment a new browser user registers, survives reload, logs out through desktop or mobile controls, receives 401 on cookie-only protected requests after reload, and can log in again.', 'tests/e2e/test_auth_flows.py::test_browser_cookie_logout_lifecycle'),
-        # ── purge: test/QA account-purge maintenance (was EPIC-008 AC8.17,
-        # folded in with extension/account_purge.py per #1677 / #1663 wave 3) ──
-        ac('AC-identity.purge.1', 'Only disposable test accounts (qa/e2e/load-test prefixes on example.com / test.example.com) are selected for purging; real accounts and plain local fixtures are excluded, and the users table itself is never in the owned-tables delete list. Was EPIC-008 AC8.17.1.', 'apps/backend/tests/identity/test_account_purge.py::test_selection_matches_test_accounts_and_excludes_real_ones', priority='P1'),
-        ac('AC-identity.purge.2', 'Applying the purge removes a clean test account and every row it owns, while leaving non-test accounts untouched. Was EPIC-008 AC8.17.2.', 'apps/backend/tests/identity/test_account_purge.py::test_apply_purges_clean_account_and_leaves_others', priority='P1'),
-        ac('AC-identity.purge.3', 'An account owning a posted (immutable) ledger entry is reported blocked and fully preserved, never force-deleted — mirroring the 409 the API returns. Was EPIC-008 AC8.17.3.', 'apps/backend/tests/identity/test_account_purge.py::test_account_with_posted_ledger_entry_is_blocked_not_deleted', priority='P1'),
-        ac('AC-identity.purge.4', 'A dry run names the accounts it would purge but persists no deletions. Was EPIC-008 AC8.17.4.', 'apps/backend/tests/identity/test_account_purge.py::test_dry_run_reports_but_persists_nothing', priority='P1'),
-        ac('AC-identity.purge.5', 'The CLI --apply environment guard allows dev/staging/CI and refuses production (or an unset environment) without an explicit override. Was EPIC-008 AC8.17.5.', 'apps/backend/tests/identity/test_account_purge.py::test_environment_guard_allows_dev_staging_and_refuses_production', priority='P1'),
-        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
-        # (two-stage-review-ui) ──
-        ac('AC-identity.fe-auth.1', '`getUserId` returns `null` when not set', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.1/AC16.5.2 returns null when key is not set', priority='P2'),
-        ac('AC-identity.fe-auth.2', '`getUserId` returns stored `userId` from `localStorage`', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.2 returns stored userId from localStorage', priority='P2'),
-        ac('AC-identity.fe-auth.3', '`setUser(userId, email)` stores `userId` and `email` in `localStorage` and nothing else; the frontend has no code that reads, writes or sends a bearer token', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.3 stores userId and email', priority='P2'),
-        ac('AC-identity.fe-auth.4', '`clearUser` removes all auth keys from `localStorage`', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.4 removes all auth keys from localStorage', priority='P2'),
-        ac('AC-identity.fe-auth.5', '`isAuthenticated` returns `true` when a local session marker (userId) is stored, `false` when none exists', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.5 returns true when non-secret user session metadata exists', priority='P2'),
-        ac('AC-identity.fe-auth.6', 'Login page submits login payload and redirects on success', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.5 AC22.1.3 submits login payload and redirects to Home', priority='P2'),
-        ac('AC-identity.fe-auth.7', 'Login page toggles register mode and switches endpoint for submit', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.6 switches to register mode and uses register endpoint', priority='P2'),
-        ac('AC-identity.fe-auth.8', 'Login page shows API error messages and resets loading state on failure', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.7 shows API error and exits loading state', priority='P2'),
-        ac('AC-identity.fe-auth.9', 'Toggles password visibility', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.13 toggles password visibility', priority='P1'),
-        ac('AC-identity.fe-auth.10', 'Shows error with alert role and aria-live', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.14 shows error with alert role and aria-live', priority='P1'),
-        ac('AC-identity.fe-auth.11', 'Shows mode toggle links', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.15 shows mode toggle links', priority='P1'),
-        ac('AC-identity.fe-auth.12', 'Shows loading spinner during submission', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.16 shows loading spinner during submission', priority='P1'),
-        ac('AC-identity.fe-auth.13', 'App shell renders workspace providers and main content with collapse-aware layout', 'apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.1 renders providers and collapse-aware shell layout', priority='P2'),
-        ac('AC-identity.fe-auth.14', 'Auth guard redirects unauthenticated protected routes and allows public routes', 'apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.2 redirects unauthenticated protected routes', priority='P2'),
-        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
-        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
-        ac('AC-identity.fe-ia-identity.1', 'A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid', 'apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC22.15.3 does not call /auth/me when there is no local session', priority='P1'),
-        # ── Wave B (#1821): frontend-proof rows migrated from the
-        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac('AC-identity.fe-auth2.1', 'Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie rather than localStorage for the bearer token', 'apps/frontend/src/__tests__/apiFunctions.test.ts::AC1.10.3 sends HttpOnly auth cookies by default', priority='P2'),
-        ac('AC-identity.fe-auth2.2', 'Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register"', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC8.19.1 login register controls expose distinct test ids and accessible names', priority='P1'),
-        # ── group ai-suggestions: the AiFeedback review surface (#1864 S1) ──
-        ac('AC-identity.ai-suggestions.1', '``GET /ai/suggestions`` enforces a bounded page size: ``limit`` is declared with ``ge=1, le=200`` and an over-limit request is rejected with 422 instead of being accepted unbounded (#1864 S1).', 'apps/backend/tests/api/test_ai_feedback_router.py::test_AC_ai_suggestions_1_list_rejects_unbounded_limit', priority='P1'),
-        # ── group 2478: preserve local session on aborted or transient /auth/me failure (#2478) ──
-        ac('AC-identity.2478.1', 'useSessionBootstrap clears local session storage only when GET /api/auth/me returns an explicit identity-rejection status (401/403/404); aborted navigations and transient network errors preserve local session state (#2478).', 'apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC-identity.2478.1 keeps the local identity when /auth/me is aborted or the network fails', priority='P1'),
-        # ── group 2674: soft-deleted email re-registration & unified client IP extraction (#2674) ──
-        ac('AC-identity.2674.1', 'uq_users_email_normalized is a partial unique index scoped to is_deleted = false without an unconditional users_email_key constraint, so a soft-deleted user email can be re-registered while active duplicate emails are still rejected (#2674).', 'apps/backend/tests/identity/test_auth_router.py::test_AC_identity_2674_1_soft_deleted_user_email_can_reregister', priority='P1'),
-        ac('AC-identity.2674.2', 'Global and auth rate limiters extract the client IP through one shared get_client_ip helper that reads the rightmost X-Forwarded-For entry only when trust_proxy is enabled, preventing left-hand X-Forwarded-For spoofing (#2674).', 'apps/backend/tests/identity/test_auth_router.py::test_AC_identity_2674_2_get_client_ip_uses_rightmost_forwarded_ip_and_shares_helper', priority='P1'),
-    ],
-    concepts=[
-        ConceptRecord(
-            key="identity_wire_vocabulary",
-            owner="common/identity/readme.md#wire-vocabulary-ownership",
-            description=(
-                "Identity-owned auth, user CRUD, AI settings, and feedback "
-                "request/response value objects."
-            ),
-            family="identity",
-            kind="concept",
-        ),
-    ],
+    invariants=invs(
+        """
+@$t/test_identity_package.py
+converges-by-layer|The package converges into base/ (pure core) + extension/ (edges).|test_identity_converges_by_layer
+single-home-no-residue|The pre-migration god-files are deleted — identity is the single home.|test_identity_god_files_are_gone
+repository-split|The UserRepository port splits into a base port + an extension SQL adapter.|test_identity_repository_split
+base-layer-pure|The base/ layer never imports the package's own extension/ layer.|test_identity_base_layer_is_pure
+interface-equals-published-language|The published language (contract.interface) equals __init__.__all__.|test_identity_interface_equals_published_language
+passes-own-governance-gate|Check_package_contract validates identity with no violations.|test_identity_package_contract_gate_passes
+"""
+    ),
+    roadmap=acs(
+        "identity",
+        """
+@$be/identity/test_auth_router.py|P0
+1.1|Email identity is unique case-insensitively.|test_register_duplicate_email
+1.2|Case-variant email is normalized on registration and login.|test_AC1_10_2_register_rejects_case_variant_duplicate_email
+2.1|Registration accepts a valid payload, bcrypt-hashes the password.|test_register_success
+2.2|Login accepts valid credentials and returns a JWT + HttpOnly cookie.|test_login_success
+2.3|Registration handles the duplicate-email IntegrityError race with a clean 400.|test_register_integrity_error_race_condition|P1
+2.5|The auth dependency accepts the HttpOnly session cookie directly for GET /auth/me.|test_AC1_10_3_get_me_accepts_httponly_cookie|P1
+2.6|Browser logout expires the HttpOnly authentication cookie at its original scope, is idempotent.|test_browser_logout_expires_cookie
+2674.1|Uq_users_email_normalized is a partial unique index scoped to is_deleted = false.|test_AC_identity_2674_1_soft_deleted_user_email_can_reregister|P1
+2674.2|Global and auth rate limiters extract the client IP.|test_AC_identity_2674_2_get_client_ip_uses_rightmost_forwarded_ip_and_shares_helper|P1
+@$be/identity/test_auth_shift_left.py|P0
+journeys.1|A new user can register and log in end to end.|test_password_hashing_and_verification
+journeys.2|API authentication failures return a clean 401/422, not a 500.|test_invalid_token_rejected_with_401
+journeys.3|Unauthenticated requests to protected endpoints are blocked with 401.|test_unauthenticated_request_blocked
+journeys.4|A user's session is created, reused.|test_jwt_session_token_lifecycle|P1
+@$e2e/test_auth_flows.py|P1
+journeys.5|The frontend registration E2E targets the mode-toggle register control by test id and switches into register mode.|test_full_registration_flow
+journeys.6|On an explicitly pinned deployment a new browser user registers, survives reload, logs out.|test_browser_cookie_logout_lifecycle|P0
+@$be/identity/test_account_purge.py|P1
+purge.1|Only disposable test accounts are selected for purging.|test_selection_matches_test_accounts_and_excludes_real_ones
+purge.2|Applying the purge removes a clean test account and every row it owns.|test_apply_purges_clean_account_and_leaves_others
+purge.3|An account owning a posted ledger entry is reported blocked and fully preserved, never force-deleted.|test_account_with_posted_ledger_entry_is_blocked_not_deleted
+purge.4|A dry run names the accounts it would purge but persists no deletions.|test_dry_run_reports_but_persists_nothing
+purge.5|The CLI --apply environment guard allows dev/staging/CI and refuses production.|test_environment_guard_allows_dev_staging_and_refuses_production
+@$fe/__tests__/auth.test.ts|P2
+fe-auth.1|`getUserId` returns `null` when not set.|AC16.5.1/AC16.5.2 returns null when key is not set
+fe-auth.2|`getUserId` returns stored `userId` from `localStorage`.|AC16.5.2 returns stored userId from localStorage
+fe-auth.3|`setUser` stores `userId` and `email` in `localStorage` and nothing else.|AC16.5.3 stores userId and email
+fe-auth.4|`clearUser` removes all auth keys from `localStorage`.|AC16.5.4 removes all auth keys from localStorage
+fe-auth.5|`isAuthenticated` returns `true`.|AC16.5.5 returns true when non-secret user session metadata exists
+@$fe/__tests__/loginPage.test.tsx|P1
+fe-auth.6|Login page submits login payload and redirects on success.|AC16.12.5 AC22.1.3 submits login payload and redirects to Home|P2
+fe-auth.7|Login page toggles register mode and switches endpoint for submit.|AC16.12.6 switches to register mode and uses register endpoint|P2
+fe-auth.8|Login page shows API error messages and resets loading state on failure.|AC16.12.7 shows API error and exits loading state|P2
+fe-auth.9|Toggles password visibility.|AC16.12.13 toggles password visibility
+fe-auth.10|Shows error with alert role and aria-live.|AC16.12.14 shows error with alert role and aria-live
+fe-auth.11|Shows mode toggle links.|AC16.12.15 shows mode toggle links
+fe-auth.12|Shows loading spinner during submission.|AC16.12.16 shows loading spinner during submission
+fe-auth2.2|Login auth controls expose distinct `data-testid` hooks and accessible names.|AC8.19.1 login register controls expose distinct test ids and accessible names
+@$fe/__tests__/shellAndAuth.test.tsx|P2
+fe-auth.13|App shell renders workspace providers and main content with collapse-aware layout.|AC16.19.1 renders providers and collapse-aware shell layout
+fe-auth.14|Auth guard redirects unauthenticated protected routes and allows public routes.|AC16.19.2 redirects unauthenticated protected routes
+@$fe/__tests__/appShellSessionBootstrap.test.tsx|P1
+fe-ia-identity.1|A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`.|AC22.15.3 does not call /auth/me when there is no local session
+2478.1|UseSessionBootstrap clears local session storage only.|AC-identity.2478.1 keeps the local identity when /auth/me is aborted or the network fails
+@-|P1
+vocabulary-ownership.1|User CRUD and AI-settings request/response DTOs are identity-owned base value objects.|$t/test_vocabulary_ownership.py::test_AC_identity_vocabulary_ownership_1_identity_owns_user_dtos
+2.4|A valid JWT bearer token grants 200 on a protected endpoint.|$be/identity/test_auth.py::test_auth_valid_user
+fe-auth.15|Desktop and mobile logout wait for server cookie expiration.|$fe/__tests__/sidebarAndTabs.test.tsx::waits for cookie logout before clearing desktop identity|P0
+1.3|The /users management endpoints expose authenticated current-user operations.|$be/identity/test_users_router.py::test_AC1_8_1_get_user_by_id_hides_other_users
+fe-auth2.1|Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie.|$fe/__tests__/apiFunctions.test.ts::AC1.10.3 sends HttpOnly auth cookies by default|P2
+ai-suggestions.1|`GET /ai/suggestions` enforces a bounded page size.|$be/api/test_ai_feedback_router.py::test_AC_ai_suggestions_1_list_rejects_unbounded_limit
+""",
+    ),
+    concepts=concepts(
+        """
+identity_wire_vocabulary|common/identity/readme.md#wire-vocabulary-ownership|Identity-owned auth, user CRUD, AI settings, and feedback request/response value objects.|-|-|identity|concept
+"""
+    ),
 )
-# fmt: on
