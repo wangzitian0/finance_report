@@ -602,13 +602,13 @@ class InvestmentAccountingService:
         for lot, lot_quantity in lot_quantities:
             if remaining_to_sell.is_zero():
                 break
-            consumed = min(lot_quantity, remaining_to_sell)
-            cost_basis += UnitPrice(lot.unit_cost, currency_obj, unit_obj) * consumed
-            lot_remaining = (lot_quantity - consumed).quantize()
+            consumed_quantity = min(lot_quantity, remaining_to_sell)
+            cost_basis += UnitPrice(lot.unit_cost, currency_obj, unit_obj) * consumed_quantity
+            lot_remaining = (lot_quantity - consumed_quantity).quantize()
             lot.remaining_quantity = lot_remaining.value
             if lot_remaining.is_zero():
                 lot.disposed_date = disposal_date
-            remaining_to_sell = (remaining_to_sell - consumed).quantize()
+            remaining_to_sell = (remaining_to_sell - consumed_quantity).quantize()
 
         await db.flush()
         return cost_basis.quantize().amount

@@ -93,8 +93,9 @@ class PortfolioService:
         *,
         quantize: bool,
     ) -> tuple[Decimal, Money, Money, Money, Ratio]:
-        unit_price = await self._get_latest_price(db, position, eval_date, user_id)
-        market_value = UnitPrice(unit_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position.quantity_qty.quantize()
+        latest_price = await self._get_latest_price(db, position, eval_date, user_id)
+        position_quantity = position.quantity_qty.quantize()
+        market_value = UnitPrice(latest_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
         converted_value, converted_cost, pnl, pnl_ratio = await _convert_pnl(
             db,
             value=market_value,
@@ -104,7 +105,7 @@ class PortfolioService:
             target_currency=target_currency,
             quantize=quantize,
         )
-        return unit_price, converted_value, converted_cost, pnl, pnl_ratio
+        return latest_price, converted_value, converted_cost, pnl, pnl_ratio
 
     async def get_holdings(
         self,

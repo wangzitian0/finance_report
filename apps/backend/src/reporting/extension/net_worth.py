@@ -173,7 +173,10 @@ def _add_liability_allocation_line(
 
 
 def _allocation_percentage(value: Decimal, net_worth: Decimal) -> Decimal | None:
-    return None if net_worth == Decimal("0.00") else Ratio.fraction(value, net_worth).to_percent()
+    if net_worth == Decimal("0.00"):
+        return None
+    share = Ratio.fraction(value, net_worth)
+    return share.to_percent()
 
 
 async def get_net_worth_allocation_schedule(

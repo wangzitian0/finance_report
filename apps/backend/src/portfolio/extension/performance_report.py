@@ -42,7 +42,10 @@ def _percent(value: None) -> None: ...
 
 
 def _percent(value: Decimal | None) -> Decimal | None:
-    return None if value is None else Ratio.from_percent(value).to_percent()
+    if value is None:
+        return None
+    ratio = Ratio.from_percent(value)
+    return ratio.to_percent()
 
 
 def _stock_symbol(asset_identifier: str) -> str:
