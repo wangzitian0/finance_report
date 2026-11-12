@@ -100,16 +100,29 @@ Required environment variables:
 ```bash AI_PROVIDER=zai  ZAI_API_KEY=<YOUR_ZAI_API_KEY>  AI_BASE_URL=https://api.z.ai/api/coding/paas/v4  AI_CHAT_COMPLETIONS_PATH=/chat/completions  # Model variables stay unset outside production: the infra2 SDK  # (infra2_sdk.runtime.llm.LlmSettings) owns the defaults (#2566). Set them only  # to customize production.  # LARGE_MODEL= SMALL_MODEL= MULTIMODAL_MODEL=  AI_JSON_TIMEOUT_SECONDS=360  AI_JSON_MAX_TOKENS=8192  AI_JSON_DISABLE_THINKING=true  STATEMENT_DISPOSITION_MODE=enforce  # Optional; off by default. Only set for models that accept a seed;  # an older vision model rejected `seed` with HTTP 400.  AI_JSON_SEED=  S3_ENDPOINT=http://localhost:9000  S3_ACCESS_KEY=minio  S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>  S3_BUCKET=statements  S3_REGION=us-east-1  S3_PUBLIC_ENDPOINT=https://s3.zitian.party  S3_PUBLIC_BUCKET=statements  S3_PRESIGN_EXPIRY_SECONDS=300 ```
 ## Statement run
 
-A statement run is one attempt to extract or classify one statement (#2994). The table `statement_runs` holds one row per run (`StatementRun`). The inputs never change after creation: kind, actor kind, trigger, hints, model, prompt template version and prompt digest.
+A statement run is one attempt to extract or classify one statement (#2994). The table `statement_runs` holds one row per run (`StatementRun`). The inputs never change after creation: kind, actor kind, trigger, hints, model, prompt template version and prompt digest. The state columns are `state`, `requested_at`, `started_at`, `heartbeat_at`, `finished_at`, `extraction_result_id`, `result_summary`, `error_code`, `error_message` and `retryable`.
 
-A run moves forward only: `requested`, `running`, then one of `succeeded`, `failed` or `cancelled`.
+```text
+requested --claim--> running --finish--> succeeded
+    |                   |
+    +-- fail / reaper --+--> failed          (retryable: true | false)
+                                             cancelled (reserved)
+```
 
-- **One active run:** the partial unique index `uq_statement_runs_one_active` allows one `requested` or `running` run for each statement. `create_run` raises `ActiveRunExists` with the id of the active run. No pre-check read and no lock guard it.
-- **One state module:** `extension/statement_runs.py` is the only code that changes the state columns. Each change is one conditional `UPDATE ... WHERE state IN (...)`. An update that matches no row raises `StaleRun`, so a finish after the reaper failed the run changes nothing (#2960).
-- **Reaper:** `reap_stale_runs` fails a `running` run that sent no heartbeat for 5 minutes. Its `error_code` is `heartbeat_lost`.
+Three rules hold:
+
+- **One active run per statement:** the partial unique index `uq_statement_runs_one_active` allows one `requested` or `running` run for each statement. `create_run` raises `ActiveRunExists` with the id of the active run. The API returns 409 with `active_run_id`. No pre-check read and no lock guard it.
+- **One conditional UPDATE per transition:** `extension/statement_runs.py` is the only code that changes the state columns. Each change is one `UPDATE ... WHERE state IN (...)`. An update that matches no row raises `StaleRun`.
+- **A late finish changes nothing:** a finish or a failure after the reaper failed the run raises `StaleRun`. The worker rolls back its transaction and the statement keeps the status that the reaper left (#2960).
+
+Flow of a statement parse:
+
+- **Upload and reparse:** the router creates the run in the same transaction as the statement change, commits, then dispatches the job. The job carries `run_id`. A job without `run_id` is invalid. A reparse sets the status to `PARSING` and clears `validation_error`. The retry route and the reject route use this path.
+- **Worker:** `StatementIngestionUseCase.execute` claims the run first. A claim that finds no `requested` run ends the job without a model call. The heartbeat writes `statement_runs.heartbeat_at` every 30 seconds. On success `finish_run` runs in the transaction of the final commit. On a source rejection `handle_parse_failure` fails the run with the snake case name of the error class.
+- **Retry:** a retryable error fails the run with `retryable = true`. The use case then creates a `system` run with trigger `auto_retry` and `parent_run_id`, waits 30 seconds, and runs again. It makes at most 3 attempts. The Prefect flow has no retries.
+- **Reaper:** `reap_stale_runs` fails a `running` run with no heartbeat for 5 minutes (`heartbeat_lost`). It also fails a `requested` run that no worker claimed for 5 minutes (`claim_timeout`), because its dispatch was lost. `run_parsing_supervisor` calls it every 60 seconds and rejects each `PARSING` statement that has no active run with "Parsing timed out. Please retry."
 - **Audit:** each transition writes one TraceRecord observation with `execution_id = statement:{statement_id}:run:{run_id}` and the time of the transition. A TraceRecord has no field for free text. The requested record therefore pins the hints, actor kind and inputs with a SHA-256 digest, and the run row keeps the hints verbatim. Logs hold the run id, kind, state, hints digest and keyword count, never hint text.
-- **Hints:** `RunHints` holds at most 20 keywords of 1 to 64 characters and one note of at most 500 characters. It rejects control characters.
-- **Status:** the table, the state module and the migration exist. Upload, retry, reject-reparse, dispatch and the watchdog do not use them yet (#2994, slice S1). The migration adds one running `extract` run for each statement that is `parsing` now.
+- **Hints:** `RunHints` holds at most 20 keywords of 1 to 64 characters and one note of at most 500 characters. It rejects control characters. Hints do not reach a prompt yet (#2994, slice S2).
 
 ## Source conservation and retry identity
 Every transaction-ledger row must become a structured fact or an explicit source failure. An unparseable date or amount is never silently skipped: offsetting omissions can preserve net balances while corrupting gross income and expenses. The source artifact and its storage key remain reachable for review/retry. Paged vision extraction merges balance facts by normalized currency, preserving later-page currency domains. Repeated identical facts are idempotent; conflicting balance facts or different account identifiers require source review rather than being overwritten. Consolidated same-currency multiple-account source splitting remains unsupported in this single-custody envelope. Persisted source type and evidence type govern bank/brokerage routing. An empty `positions` array in a typed bank result is not brokerage evidence; explicitly identified zero-position brokerage snapshots remain reviewable. Retry never promotes the provisional `Pending Detection` label into an institution override. Persistence checkpoints use the actual canonical statement/source identities.

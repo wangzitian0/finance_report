@@ -95,7 +95,9 @@ _CHECKS = {
     ),
     "failure-convergence": all_of(
         requires(
-            _ROUTER_STATEMENTS, "reset_for_retry=True", "except StorageError as exc:"
+            _ROUTER_STATEMENTS,
+            "await _queue_statement_reparse(db, statement, user_id, model=model_override)",
+            "except StorageError as exc:",
         ),
         requires(
             _SOURCE_LIFECYCLE,

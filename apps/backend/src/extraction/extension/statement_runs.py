@@ -22,7 +22,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import ColumnElement, func, select, update
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,6 +54,7 @@ logger = get_logger(__name__)
 
 DEFAULT_STALE_AFTER = timedelta(minutes=5)
 HEARTBEAT_LOST = "heartbeat_lost"
+CLAIM_TIMEOUT = "claim_timeout"
 _SEQ_ATTEMPTS = 3
 _ERROR_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
@@ -166,7 +167,7 @@ def _manifest(run: StatementRun) -> dict[str, object]:
         )
     if run.state is RunState.FAILED:
         manifest["error_code"] = run.error_code
-        manifest["retryable"] = (run.result_summary or {}).get("retryable")
+        manifest["retryable"] = run.retryable
     return manifest
 
 
@@ -212,6 +213,17 @@ async def get_active_run(db: AsyncSession, statement_id: UUID) -> StatementRun |
     return await db.scalar(
         select(StatementRun)
         .where(StatementRun.statement_id == statement_id, StatementRun.state.in_(ACTIVE_RUN_STATES))
+        .execution_options(populate_existing=True)
+    )
+
+
+async def get_latest_run(db: AsyncSession, statement_id: UUID) -> StatementRun | None:
+    """Return the run with the highest attempt number of the statement, whatever its state."""
+    return await db.scalar(
+        select(StatementRun)
+        .where(StatementRun.statement_id == statement_id)
+        .order_by(StatementRun.seq.desc())
+        .limit(1)
         .execution_options(populate_existing=True)
     )
 
@@ -325,8 +337,8 @@ async def fail_run(
 ) -> StatementRun:
     """Move a requested or running run to failed.
 
-    `error_code` is a short machine code. The caller redacts `error_message`. The flag `retryable` goes
-    into `result_summary`, so a later step can find the failed runs that it may retry.
+    `error_code` is a short machine code. The caller redacts `error_message`. The column `retryable`
+    tells a later step that it may retry this failure.
     """
     if _ERROR_CODE.fullmatch(error_code) is None:
         raise ValueError("error_code is 1 to 64 characters: a lowercase letter, then lowercase letters, digits or _")
@@ -340,7 +352,7 @@ async def fail_run(
         finished_at=_now(),
         error_code=error_code,
         error_message=error_message,
-        result_summary={"retryable": retryable},
+        retryable=retryable,
     )
     return _only(runs, run_id, RunState.FAILED)
 
@@ -351,17 +363,29 @@ async def reap_stale_runs(
     stale_after: timedelta = DEFAULT_STALE_AFTER,
     now: datetime | None = None,
 ) -> list[UUID]:
-    """Fail every running run whose heartbeat is older than `stale_after`. Return the failed run ids."""
+    """Fail every run that shows no sign of a worker for longer than `stale_after`. Return the failed run ids.
+
+    A running run with an old `heartbeat_at` fails with `heartbeat_lost`. A requested run with an old
+    `requested_at` fails with `claim_timeout`: its dispatch was lost. Both failures are retryable.
+    """
     moment = now or _now()
+    cutoff = moment - stale_after
+    never_claimed = StatementRun.state == RunState.REQUESTED
+    seconds = int(stale_after.total_seconds())
     runs = await _transition(
         db,
-        StatementRun.state == RunState.RUNNING,
-        StatementRun.heartbeat_at < moment - stale_after,
+        or_(
+            and_(StatementRun.state == RunState.RUNNING, StatementRun.heartbeat_at < cutoff),
+            and_(never_claimed, StatementRun.requested_at < cutoff),
+        ),
         to_state=RunState.FAILED,
         finished_at=moment,
-        error_code=HEARTBEAT_LOST,
-        error_message=f"The worker sent no heartbeat for more than {int(stale_after.total_seconds())} seconds.",
-        result_summary={"retryable": True},
+        error_code=case((never_claimed, CLAIM_TIMEOUT), else_=HEARTBEAT_LOST),
+        error_message=case(
+            (never_claimed, f"No worker claimed the run within {seconds} seconds."),
+            else_=f"The worker sent no heartbeat for more than {seconds} seconds.",
+        ),
+        retryable=True,
     )
     return [run.id for run in runs]
 
@@ -374,6 +398,7 @@ __all__ = [
     "fail_run",
     "finish_run",
     "get_active_run",
+    "get_latest_run",
     "heartbeat_run",
     "reap_stale_runs",
 ]

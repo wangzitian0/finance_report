@@ -4,7 +4,9 @@ def _statement_rows(offset: int, names: list[str]) -> list[dict]:
     for (index, name) in enumerate(names): incoming = name.startswith('Salary') or name.startswith('Refund'); rows.append({'description': name, 'amount': Decimal('2500.00') + index if incoming else Decimal('12.50') + Decimal(index) * 3, 'direction': TransactionDirection.IN if incoming else TransactionDirection.OUT, 'date': start + timedelta(days=index)})
     return rows
 async def _approve(client, db: AsyncSession, user_id: UUID, *, filename: str, last4: str, offset: int, names: list[str]) -> str: rows = _statement_rows(offset, names); seeded = await seed_parsed_statement(db, user_id, institution='DBS', original_filename=filename, opening_balance=Decimal('1000.00'), transactions=rows); seeded.document.file_path = f'statements/{filename}'; seeded.statement.account_last4 = last4; seeded.statement.period_start = rows[0]['date']; seeded.statement.period_end = rows[-1]['date']; await attach_reviewed_corpus_semantics(db, user_id, seeded.transactions); await db.commit(); statement_id = str(seeded.id); review = await client.get(f'/statements/{statement_id}/review'); assert review.status_code == 200, review.text; response = await client.post(f'/statements/{statement_id}/review/approve', json={'create_account_if_missing': True}); assert response.status_code == 200, response.text; assert response.json()['journal_entries_created'] == len(names); return statement_id
-async def _rows_of(db: AsyncSession, table: str) -> list[dict[str, Any]]: result = await db.execute(text(f'SELECT * FROM "{table}"')); return [dict(row) for row in result.mappings().all()]
+async def _rows_of(db: AsyncSession, table: str) -> list[dict[str, Any]]:
+    if table == 'statement_runs': return []  # run bookkeeping is not business state (#2994)
+    where = " WHERE target_kind <> 'statement_run'" if table == 'trace_records' else ''; result = await db.execute(text(f'SELECT * FROM "{table}"{where}')); return [dict(row) for row in result.mappings().all()]
 def _tokens(rows_by_table: dict[str, list[dict[str, Any]]]) -> dict[str, str]:
     tokens: dict[str, str] = {}
     def add(value: Any, label: str) -> None:

@@ -20,7 +20,8 @@ from src.extraction import BankStatementStatus, DocumentSource, DocumentType, Tr
 from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.service import ExtractionService
-from src.extraction.extension.statement_parsing_supervisor import PARSING_STALE_THRESHOLD, reset_stale_parsing_jobs
+from src.extraction.extension.statement_parsing_supervisor import reap_stale_parsing_runs
+from src.extraction.extension.statement_runs import DEFAULT_STALE_AFTER
 from tests.factories import StatementSummaryFactory
 
 
@@ -110,27 +111,20 @@ async def test_AC_extraction_2985_4_the_quarantine_log_holds_row_count_gap_direc
 
 
 async def test_AC_extraction_2985_5_the_watchdog_log_holds_the_age_of_the_row(db, test_user):
-    """AC-extraction.2985.5: The watchdog timeout log holds the age of the row in seconds."""
+    """AC-extraction.2985.5: The watchdog timeout log holds the age of the run heartbeat in seconds."""
     from src.database import create_session_maker_from_db
+    from tests.extraction.test_statement_parsing_supervisor import _running_statement
 
-    statement = StatementSummaryFactory.build(
-        user_id=test_user.id,
-        account_id=None,
-        file_hash=f"age-{uuid4()}",
-        institution="DBS",
-        status=BankStatementStatus.PARSING,
-        confidence_score=None,
-        balance_validated=None,
+    statement = await _running_statement(
+        db, test_user, file_hash=f"age-{uuid4()}", heartbeat_age=DEFAULT_STALE_AFTER + timedelta(minutes=2)
     )
-    statement.updated_at = datetime.now(UTC) - PARSING_STALE_THRESHOLD - timedelta(minutes=2)
-    db.add(statement)
-    await db.commit()
     with capture_logs() as logs:
-        await reset_stale_parsing_jobs(sessionmaker=create_session_maker_from_db(db))
+        await reap_stale_parsing_runs(create_session_maker_from_db(db))
     (entry,) = [
         e for e in _events(logs, "statement.parsing.watchdog_timeout") if e["statement_id"] == str(statement.id)
     ]
-    assert entry["age_seconds"] >= int(PARSING_STALE_THRESHOLD.total_seconds()) + 120
+    assert entry["age_seconds"] >= int(DEFAULT_STALE_AFTER.total_seconds()) + 120
+    assert entry["error_code"] == "heartbeat_lost"
 
 
 async def test_AC_extraction_2985_6_every_log_line_of_a_pass_carries_the_attempt_number():

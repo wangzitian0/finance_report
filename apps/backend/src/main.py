@@ -24,6 +24,7 @@ from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
 from src.database import async_session_maker, engine, init_db
 from src.extraction import (
+    ActiveRunExists,
     StatementClassificationBusy,
     find_in_flight_parse_id,
     get_known_storage_paths,
@@ -311,6 +312,17 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
 async def statement_classification_busy_handler(request: Request, exc: StatementClassificationBusy) -> JSONResponse:
     _ = request
     return _error_json(409, error_code_for_status(409).value, str(exc))
+
+
+@app.exception_handler(ActiveRunExists)
+async def active_run_exists_handler(request: Request, exc: ActiveRunExists) -> JSONResponse:
+    _ = request
+    return _error_json(
+        409,
+        error_code_for_status(409).value,
+        "The statement has an active run. Wait for it to end.",
+        extra={"active_run_id": str(exc.active_run_id)},
+    )
 
 
 @app.exception_handler(StarletteHTTPException)

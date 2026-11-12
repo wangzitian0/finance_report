@@ -60,7 +60,7 @@ effective_statement_transaction_filter|svc|extension/transaction_membership.py
 ExtractionService|svc|extension/service.py
 StatementIngestionUseCase|svc|extension/statement_parsing.py
 @fac|-|build_statement_ingestion_use_case extraction_trace_policy_registry
-@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run
+@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run get_latest_run
 DeduplicationService|svc|extension/deduplication.py
 BrokeragePositionImportService|svc|extension/brokerage_positions.py
 EvidenceGraphIntegrationService|svc|extension/evidence_graph_integration.py
@@ -136,7 +136,7 @@ resolve_transaction_currency run_parsing_supervisor set_opening_balance
 snapshot_currencies submit_parse_pipeline supports_reviewed_statement_envelope
 validate_balance validate_balance_chain validation
 ActiveRunExists RunActorKind RunHints RunKind RunState RunTrigger StaleRun
-claim_run create_run fail_run finish_run get_active_run heartbeat_run reap_stale_runs
+claim_run create_run fail_run finish_run get_active_run get_latest_run heartbeat_run reap_stale_runs
 """.split(),
     events=[],
     command_boundaries=[
@@ -708,7 +708,7 @@ source-vocabulary.2||test_source_enum_persistence_compatibility
 @$be/extraction/test_extraction_invariants.py|P0|done|invariant
 1.1||test_balance_chain_invariant_holds_for_consistent_statements
 @$be/extraction/test_statement_parsing_supervisor.py|P1
-5.5||test_reset_stale_parsing_jobs_marks_rejected
+5.5||test_reap_stale_parsing_runs_marks_rejected
 @$t/test_extraction_failed_case_registry.py
 9.1||test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_parser_expansion
 @$t/test_framework_reporting_epic_contract.py
@@ -842,7 +842,30 @@ source-lifecycle.9||test_AC_extraction_source_lifecycle_9_governance_detail_is_e
 2994.9|RunHints accept 20 keywords, a 64-character keyword and a 500-character note, and strip keyword padding.|test_AC_extraction_2994_9_run_hints_accept_values_inside_the_bounds
 2994.10|The migration backfills one running extract run for each parsing statement, and its downgrade removes the table.|test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsing_statement
 2994.11|Each transition function accepts only its source states and raises StaleRun for any other state.|test_AC_extraction_2994_11_each_transition_accepts_only_its_source_states
+2994.13|The reaper fails a requested run that stays unclaimed longer than the threshold, with claim_timeout, measured from requested_at.|test_AC_extraction_2994_13_the_reaper_fails_a_requested_run_that_no_worker_claims
+2994.14|fail_run and the reaper record retryable in its own boolean column, which only a failed run holds.|test_AC_extraction_2994_14_fail_run_and_the_reaper_record_retryable_in_its_own_column
 2994.12|A transition logs the run id, kind, state, hints digest and keyword count, and never the hint text. A failed insert hides its parameters.|test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_the_hint_text
+@$be/extraction/test_statement_run_wiring.py|P1
+2994.15|A parse job has a required run id, the Prefect parameters carry it, and a job without it fails.|test_AC_extraction_2994_15_the_parse_job_requires_a_run_id
+2994.22|A claim that finds no requested run ends the job before any model call.|test_AC_extraction_2994_22_a_worker_does_not_parse_a_run_that_it_cannot_claim
+2994.23|A successful parse ends the run succeeded with the id of the stored extraction result.|test_AC_extraction_2994_23_a_successful_parse_finishes_its_run_with_the_result_id
+2994.24|The run finishes in the transaction of the final commit: an earlier failure leaves no succeeded run and no result.|test_AC_extraction_2994_24_the_run_finishes_in_the_transaction_of_the_final_commit
+2994.25|A parse that ends after the reaper failed its run changes nothing (#2960).|test_AC_extraction_2994_25_a_finish_after_the_reaper_failed_the_run_discards_the_parse
+2994.26|A source rejection fails the run with a code and a redacted message of at most 500 characters, with no retry.|test_AC_extraction_2994_26_an_extraction_error_fails_the_run_and_rejects_the_statement
+2994.27|A failure report of a reaped run leaves the status of a statement that a new run owns.|test_AC_extraction_2994_27_a_late_failure_does_not_touch_a_statement_that_a_new_run_owns
+2994.28|Two retryable errors give three linked system runs, and the third run succeeds.|test_AC_extraction_2994_28_a_retryable_error_chains_system_runs_up_to_three_attempts
+2994.29|After the third failed attempt the error reaches the caller and the supervisor rejects the parsing statement.|test_AC_extraction_2994_29_three_failed_attempts_leave_the_statement_to_the_supervisor
+2994.30|The Prefect flow definition holds no retries.|test_AC_extraction_2994_30_the_prefect_flow_has_no_retries
+2994.31|The supervisor rejects a parsing statement that has no active run and keeps every other status.|test_AC_extraction_2994_31_the_supervisor_rejects_a_parsing_statement_that_has_no_active_run
+2994.33|The retry loop starts no new run when the failed run is stored as not retryable.|test_AC_extraction_2994_33_the_retry_loop_reads_the_retryable_column_of_the_failed_run
+2994.32|Each tick of the supervisor loop reaps stale runs and keeps going after an error.|test_AC_extraction_2994_32_the_supervisor_loop_calls_the_run_reaper
+@$be/api/test_statement_run_routes.py|P1
+2994.16|Upload commits the statement and its extract run, then dispatches the job.|test_AC_extraction_2994_16_upload_creates_the_extract_run_before_dispatch
+2994.17|The run insert and the statement insert commit together or not at all.|test_AC_extraction_2994_17_a_failed_run_insert_leaves_no_statement
+2994.18|A reparse writes a user rerun run with a parent, sets PARSING and clears the error.|test_AC_extraction_2994_18_a_reparse_creates_a_rerun_with_the_previous_run_as_parent
+2994.19|The retry route and the reject route return 409 with active_run_id and start no second run.|test_AC_extraction_2994_19_a_reparse_while_a_run_is_active_returns_409_with_the_active_run_id
+2994.20|A reject followed by its reparse leaves PARSING with a new run, not REJECTED.|test_AC_extraction_2994_20_reject_then_reparse_shows_parsing_while_the_job_runs
+2994.21|The reparse has no reset_for_retry parameter and the watchdog no longer exists.|test_AC_extraction_2994_21_the_retry_flag_and_the_watchdog_are_gone
 """,
     ),
     concepts=concepts(

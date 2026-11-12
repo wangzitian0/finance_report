@@ -21,6 +21,7 @@ class PrefectParseParams(TypedDict):
     """JSON-safe wire representation of :class:`ParseJob`."""
 
     statement_id: str
+    run_id: str
     filename: str
     institution: str | None
     user_id: str
@@ -37,6 +38,7 @@ class StatementIngestionStatus(StrEnum):
     COMPLETED = "completed"
     SOURCE_REJECTED = "source_rejected"
     STATEMENT_NOT_FOUND = "statement_not_found"
+    RUN_STALE = "run_stale"
 
 
 class StatementIngestionError(RuntimeError):
@@ -115,9 +117,13 @@ class StatementPostingOutcome:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ParseJob:
-    """Immutable identity and routing context for one statement parse."""
+    """Immutable identity and routing context for one statement parse.
+
+    `run_id` names the statement run that this job executes. A job without a run is invalid.
+    """
 
     statement_id: UUID
+    run_id: UUID
     filename: str
     institution: str | None
     user_id: UUID
@@ -131,6 +137,7 @@ class ParseJob:
         """Return the explicit JSON-safe contract accepted by the Prefect flow."""
         return {
             "statement_id": str(self.statement_id),
+            "run_id": str(self.run_id),
             "filename": self.filename,
             "institution": self.institution,
             "user_id": str(self.user_id),
@@ -154,6 +161,7 @@ class ParseJob:
         account_id = params.get("account_id")
         return cls(
             statement_id=UUID(required("statement_id")),
+            run_id=UUID(required("run_id")),
             filename=required("filename"),
             institution=params.get("institution"),
             user_id=UUID(required("user_id")),
