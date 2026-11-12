@@ -327,3 +327,32 @@ async def test_AC_extraction_2994_40_the_reject_notes_become_the_hint_note_of_th
     assert exact_run.hints == {"keywords": [], "note": "n" * 500}
     assert plain_run.hints == {"keywords": [], "note": None}
     assert len(jobs) == 2
+
+
+async def test_AC_extraction_2994_42_a_retryable_failure_through_the_router_waits_for_the_retry_delay(
+    db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
+    """AC-extraction.2994.42: With the default delay the retry is still pending after 1.5 s, and a cancel leaks no task."""
+    from src.extraction.extension import statement_parsing
+
+    async def provider_down(self, *_args, **_kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", provider_down)
+    assert statement_parsing.PARSE_RETRY_DELAY_SECONDS == 30
+    upload = make_upload_file("slow-retry.pdf", b"retry-delay-content")
+
+    created = await statements_router.upload_statement(
+        file=upload, institution="DBS", account_id=None, model=None, db=db, user_id=test_user.id
+    )
+    await upload.close()
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(statements_router.wait_for_parse_tasks(), timeout=1.5)
+    await asyncio.sleep(0.1)
+
+    runs = await _runs(db, created.id)
+    assert [(run.seq, run.state, run.trigger) for run in runs] == [
+        (1, RunState.FAILED, RunTrigger.UPLOAD),
+        (2, RunState.REQUESTED, RunTrigger.AUTO_RETRY),
+    ]
+    assert statements_router._PENDING_PARSE_TASKS == set(), "the cancelled wait must leave no task behind"
