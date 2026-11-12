@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=e0aff23a261ba1ac51fdb55b63a7030f1006e62c0fde7687b4143045118f3d42 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=bfe4d011d8c3a56197f6c3a53dabc1205f49f9bd8515436fa6e48b2a75b76973 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -19,7 +19,7 @@
 ## Delivery and merge
 
 - **ASD-STE100 specification for all artifacts:** Write committed artifacts, rules, code, comments, commits, and docs in ASD-STE100 English. Keep instructions `<= 20` words and descriptions `<= 25` words in active voice without vague qualifiers. Operational skills (`skills/**/SKILL.md`) follow the target repository's language policy.
-- **Deliverable format:** Deliver a mergeable PR or a traceable issue, rather than a process-only report. Use issues and PRs as the collaboration bus. Search for an existing similar issue before creating one; update it if it exists.
+- **Deliverable format:** Deliver a mergeable PR or a traceable issue, rather than a process-only report. Use issues and PRs as the collaboration bus. Search for an existing similar issue before creating one; update it if it exists. Write a new issue to the issue form of its type.
 - **Fail fast left to right:** Put the cheapest and likeliest failure checks first.
 - **Review standing authorization:** Resolve a review thread after verifying in source code (not redacted diffs) that it is fixed or obsolete. Never resolve actionable or unverified feedback. Turn false reports into falsifiable invariant tests.
 - **Weighted review gates:** Each repository defines its own severity weights and blocking thresholds. Read literal `severity: <level>` tags; do not infer severity from prose.
@@ -52,7 +52,7 @@ The single definition of the production reservation. Other tiers, skills and gat
 
 > **Rule source**: This file is generated. Change its dev_env source and pass the rule-text checklist; do not hand-edit it.
 > **Merge authority**: AI deliverable = CI-passing PR. An agent merges it when every condition in [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds. That covers gate code, workflows and release code once the review that the Root section `Production reservation` requires is on the PR.
-> **Production here**: a dispatch of `release.yml` is the production release.
+> **Production here**: the infra2 workflow `reconcile-iac-inputs.yml` with `promote_prod=true` and the infra2 workflow `deploy.yml` with `type=prod`.
 > **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 > **Language**: Write all code, PRs, commits, issues, and repository docs in **English**. Reply to the user in the language of their question.
 
