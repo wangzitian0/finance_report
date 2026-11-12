@@ -7,10 +7,13 @@ from typing import Any
 from urllib.parse import urlparse
 
 import src.config
+from src.extraction.base.paged_extraction import text_page_batches
+from src.extraction.base.source_balance_check import text_prints_money
 from src.extraction.extension._base import (
     ExtractionError,
     logger,
 )
+from src.extraction.extension.pdf_text_layer import read_pdf_text_pages
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
@@ -309,6 +312,16 @@ class _MediaMixin:
             page_count=page_count,
             batch_size=self.PDF_VISION_MAX_PAGES,
         )
+
+    def _build_text_page_batches(self, file_content: bytes | None) -> list[list[dict[str, Any]]] | None:
+        """Return the PDF text layer as batches of page text, or None when the PDF has no usable text.
+
+        A usable text layer prints at least one amount with a fraction.
+        """
+        pages = read_pdf_text_pages(file_content, max_pages=self.PDF_VISION_MAX_TOTAL_PAGES)
+        if not pages or not text_prints_money("\n".join(pages)):
+            return None
+        return text_page_batches(pages, self.PDF_VISION_MAX_PAGES)
 
     def _build_vision_media_payload_batches(
         self,

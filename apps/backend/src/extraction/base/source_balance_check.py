@@ -65,6 +65,18 @@ def text_money_values(text: str) -> frozenset[Decimal]:
     return frozenset(values)
 
 
+def text_prints_money(text: str) -> bool:
+    """Return True when the text prints at least one amount with a fraction, as a statement row does.
+
+    A scanned page with a page number as its only text prints none.
+    """
+    for value in text_money_values(text):
+        exponent = value.as_tuple().exponent
+        if isinstance(exponent, int) and exponent < 0:
+            return True
+    return False
+
+
 def check_closing_balance_against_text(
     text: str | None,
     *,

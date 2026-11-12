@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "modality": "text",
+  "institution_class": "bank",
+  "edge_condition": "balance_unreconciled",
+  "source": "unhappy_balance_unreconciled",
+  "note": "#1744 unhappy-path fixture. The PDF prints opening 1000.00, closing 9999.00 and two rows, so its balance chain does not reconcile by construction. It regression-tests the LLM-LED quarantine gate (#1452). Field accuracy is graded; only the balance-chain invariant is exempted. Recorded from the PDF text layer (#2987).",
+  "balance_reconciles": false,
+  "expected": {
+    "opening_balance": "1000.00",
+    "closing_balance": "9999.00",
+    "transactions": [
+      {
+        "date": "2026-04-02",
+        "description": "Salary credit",
+        "amount": "2000.00"
+      },
+      {
+        "date": "2026-04-10",
+        "description": "Rent payment",
+        "amount": "1200.00"
+      }
+    ]
+  }
+}

@@ -27,6 +27,7 @@ from src.extraction.base.source_balance_check import SourceBalanceVerdict, check
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
+    DuplicateCurrencyError,
     balance_gap_suspect_rows,
     balance_is_evaluable,
     bank_currency_balances,
@@ -695,9 +696,15 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         seed_override=seed_override,
                         filename=filename,
                         user_id=user_id,
+                        read_text_layer=attempt == 0,
                     )
                 )
                 per_currency = bank_currency_balances(extracted)
+            except DuplicateCurrencyError as exc:
+                raise ExtractionError(
+                    f"This statement lists several balances in {exc.currency}, usually several accounts in one PDF. "
+                    "Upload one account per file."
+                ) from exc
             except (ExtractionError, ValueError) as exc:
                 logger.warning(
                     "Extraction pass failed",
@@ -886,8 +893,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         seed_override: int | None = None,
         filename: str | None = None,
         user_id: UUID | None = None,
+        read_text_layer: bool = True,
     ) -> dict[str, Any]:
-        """Extract structured statement data with the vision model."""
+        """Extract structured statement data from the PDF text layer, or from page images when it is unusable.
+
+        ``read_text_layer=False`` skips the text layer, so a second pass reads the pages another way.
+        """
         if file_content is None and not file_url:
             raise ExtractionError("File content is required")
         if not self.api_key:
@@ -928,6 +939,18 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         if not model:
             raise ExtractionError("Multimodal model is not configured")
 
+        text_batches = (
+            await asyncio.to_thread(self._build_text_page_batches, file_content)
+            if read_text_layer and file_type == "pdf"
+            else None
+        )
+        if text_batches is not None:
+            from_text = await self._extract_json_from_media_batches(
+                media_batches=text_batches, model=model, prompt=prompt, seed_override=seed_override, user_id=user_id
+            )
+            if from_text.get("transactions"):
+                return from_text
+            logger.warning("PDF text layer gave no transactions; reading the page images", page_batches=len(text_batches))
         media_batches = await asyncio.to_thread(
             self._build_vision_media_payload_batches, file_content, file_url, file_type, mime_type
         )

@@ -50,7 +50,7 @@ def build_paged_meta_prompt(
     return (
         f"{base_prompt}\n\n"
         f"IMPORTANT — STAGE 1 — DOCUMENT METADATA (pages {pages_label} of a {total_pages}-page statement):\n"
-        "- The images below are the head (opening) and tail (closing) pages of the document.\n"
+        "- The pages below are the head (opening) and tail (closing) pages of the document.\n"
         "- Extract ONLY document-level metadata in this stage: institution, account_last4, "
         "currency, period_start, period_end, opening_balance, closing_balance, balances, "
         "and snapshot_date (when present).\n"
@@ -86,7 +86,7 @@ def build_paged_prompt(
     reported as the statement closing balance).
 
     ``has_context_page``: non-first parts carry the document's FIRST page as a
-    leading context image — scanned statements and some brokers do not repeat
+    leading context page — scanned statements and some brokers do not repeat
     table headers on continuation pages, so without it a part cannot tell which
     column is withdrawal vs deposit or which currency applies. The context page
     is for reading headers/metadata only; its transactions belong to part 1 and
@@ -98,15 +98,15 @@ def build_paged_prompt(
         return base_prompt
     if has_context_page:
         header = (
-            f"IMPORTANT — PARTIAL DOCUMENT ({part_index}/{part_count}): the FIRST image below is "
-            f"page 1 of the document, included only as context; the remaining images are pages "
+            f"IMPORTANT — PARTIAL DOCUMENT ({part_index}/{part_count}): the FIRST page below is "
+            f"page 1 of the document, included only as context; the pages that follow it are pages "
             f"{page_start}-{page_end} of a {total_pages}-page statement.\n"
         )
         context_rule = (
-            "- The FIRST image is page 1 of the document, included ONLY as context for "
+            "- The FIRST page is page 1 of the document, included ONLY as context for "
             "table headers, column meanings, account metadata, and currency. Do NOT "
             "extract transactions from this context page — extract transactions "
-            f"exclusively from the pages {page_start}-{page_end} images that follow it.\n"
+            f"exclusively from pages {page_start}-{page_end}, which follow it.\n"
         )
     else:
         header = (
@@ -136,6 +136,12 @@ class MultipleAccountsError(ValueError):
     def __init__(self, parts_by_account: dict[str, list[int]]) -> None:
         super().__init__("Multiple accounts in one extraction require separate source review")
         self.parts_by_account = parts_by_account
+
+
+def text_page_batches(pages: list[str], pages_per_call: int) -> list[list[dict[str, Any]]]:
+    """Return PDF page texts as batches of text parts, one part per page, labelled with its page number."""
+    parts = [{"type": "text", "text": f"[Page {number}]\n{text}"} for number, text in enumerate(pages, start=1)]
+    return [parts[start : start + pages_per_call] for start in range(0, len(parts), pages_per_call)]
 
 
 def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
