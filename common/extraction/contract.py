@@ -871,6 +871,7 @@ source-lifecycle.9||test_AC_extraction_source_lifecycle_9_governance_detail_is_e
 2994.20|A reject followed by its reparse leaves PARSING with a new run, not REJECTED.|test_AC_extraction_2994_20_reject_then_reparse_shows_parsing_while_the_job_runs
 2994.39|Two concurrent rejects give one 200 and one 409, and the statement is never REJECTED while a run is active.|test_AC_extraction_2994_39_two_concurrent_rejects_give_one_200_and_one_409
 2994.40|The notes of a reject become the hint note of the rerun, and notes of more than 500 characters give 422.|test_AC_extraction_2994_40_the_reject_notes_become_the_hint_note_of_the_rerun
+2994.42|A retryable failure through the router waits for the retry delay, and cancelling the wait leaves no pending task.|test_AC_extraction_2994_42_a_retryable_failure_through_the_router_waits_for_the_retry_delay
 2994.21|The reparse has no reset_for_retry parameter and the watchdog no longer exists.|test_AC_extraction_2994_21_the_retry_flag_and_the_watchdog_are_gone
 """,
     ),
