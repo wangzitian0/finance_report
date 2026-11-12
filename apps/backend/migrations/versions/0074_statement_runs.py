@@ -65,6 +65,12 @@ def upgrade() -> None:
         sa.Column("result_summary", postgresql.JSONB(astext_type=sa.Text(), none_as_null=True), nullable=True),
         sa.Column("error_code", sa.String(length=64), nullable=True),
         sa.Column("error_message", sa.String(length=500), nullable=True, comment="Redacted by the caller"),
+        sa.Column(
+            "retryable",
+            sa.Boolean(),
+            nullable=True,
+            comment="Set when the run fails: may a later run retry this failure",
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(

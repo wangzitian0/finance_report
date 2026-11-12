@@ -16,7 +16,6 @@ from uuid import UUID, uuid4
 
 import pytest
 from pydantic import ValidationError
-from structlog.testing import capture_logs
 from sqlalchemy import create_engine, func, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
@@ -237,7 +236,8 @@ async def test_AC_extraction_2994_3_a_finish_after_the_reaper_failed_the_run_cha
     assert stored.error_code == "heartbeat_lost"
     assert stored.finished_at == reaped_at
     assert stored.extraction_result_id is None
-    assert stored.result_summary == {"retryable": True}
+    assert stored.retryable is True
+    assert stored.result_summary is None
     records = await _traces(db, statement.id, run.id)
     assert [row.assertion_id for row in records] == ["extract.requested", "extract.running", "extract.failed"]
     assert records[-1].result is TraceResult.FAIL
@@ -260,6 +260,9 @@ async def test_AC_extraction_2994_4_the_reaper_fails_only_runs_with_an_old_heart
     fresh = await running_with_heartbeat_age(timedelta(minutes=2))
     at_threshold = await running_with_heartbeat_age(stale_after)
     never_claimed = await _create(db, await _statement(db, test_user))
+    await db.execute(
+        update(StatementRun).where(StatementRun.id == never_claimed.id).values(requested_at=now - timedelta(minutes=2))
+    )
     finished = await _running(db, await _statement(db, test_user))
     await finish_run(db, finished.id)
     await db.execute(update(StatementRun).where(StatementRun.id == finished.id).values(heartbeat_at=now - timedelta(hours=1)))
@@ -283,6 +286,86 @@ async def test_AC_extraction_2994_4_the_reaper_fails_only_runs_with_an_old_heart
     assert (await stored(never_claimed)).state is RunState.REQUESTED
     assert (await stored(finished)).state is RunState.SUCCEEDED
     assert await reap_stale_runs(db, stale_after=stale_after, now=now) == []
+
+
+async def test_AC_extraction_2994_13_the_reaper_fails_a_requested_run_that_no_worker_claims(db, test_user):
+    """AC-extraction.2994.13: A requested run older than the threshold fails with claim_timeout (a lost dispatch)."""
+    now = datetime(2026, 11, 12, 8, 0, tzinfo=UTC)
+    stale_after = timedelta(minutes=5)
+
+    async def requested_with_age(age: timedelta) -> StatementRun:
+        run = await _create(db, await _statement(db, test_user))
+        await db.execute(update(StatementRun).where(StatementRun.id == run.id).values(requested_at=now - age))
+        await db.commit()
+        return run
+
+    unclaimed = await requested_with_age(timedelta(minutes=6))
+    fresh = await requested_with_age(timedelta(minutes=2))
+    at_threshold = await requested_with_age(stale_after)
+    long_running = await _running(db, await _statement(db, test_user))
+    await db.execute(
+        update(StatementRun)
+        .where(StatementRun.id == long_running.id)
+        .values(requested_at=now - timedelta(hours=1), heartbeat_at=now - timedelta(minutes=1))
+    )
+    await db.commit()
+
+    failed_ids = await reap_stale_runs(db, stale_after=stale_after, now=now)
+    await db.commit()
+
+    assert failed_ids == [unclaimed.id]
+
+    async def stored(run: StatementRun) -> StatementRun:
+        return await db.scalar(
+            select(StatementRun).where(StatementRun.id == run.id).execution_options(populate_existing=True)
+        )
+
+    reaped = await stored(unclaimed)
+    assert reaped.state is RunState.FAILED
+    assert reaped.error_code == "claim_timeout"
+    assert reaped.retryable is True
+    assert reaped.started_at is None
+    assert reaped.finished_at == now
+    assert (await stored(fresh)).state is RunState.REQUESTED
+    assert (await stored(at_threshold)).state is RunState.REQUESTED
+    assert (await stored(long_running)).state is RunState.RUNNING
+    records = {row.assertion_id: row for row in await _traces(db, unclaimed.statement_id, unclaimed.id)}
+    assert set(records) == {"extract.requested", "extract.failed"}
+    assert records["extract.failed"].reason_code == "run_failed.claim_timeout"
+    assert records["extract.failed"].occurred_at == now
+
+
+async def test_AC_extraction_2994_14_fail_run_and_the_reaper_record_retryable_in_its_own_column(db, test_user):
+    """AC-extraction.2994.14: The retryable flag is a boolean column that only a failed run holds."""
+    now = datetime(2026, 11, 12, 8, 0, tzinfo=UTC)
+    retryable = await _create(db, await _statement(db, test_user))
+    await fail_run(db, retryable.id, error_code="provider_timeout", error_message="Timed out.", retryable=True)
+    plain = await _create(db, await _statement(db, test_user))
+    await fail_run(db, plain.id, error_code="provider_timeout", error_message="Timed out.")
+    reaped = await _running(db, await _statement(db, test_user))
+    await db.execute(update(StatementRun).where(StatementRun.id == reaped.id).values(heartbeat_at=now - timedelta(hours=1)))
+    done = await _running(db, await _statement(db, test_user))
+    await finish_run(db, done.id)
+    await db.commit()
+    assert await reap_stale_runs(db, now=now) == [reaped.id]
+    await db.commit()
+
+    rows = {
+        name: await db.scalar(
+            select(StatementRun).where(StatementRun.id == run.id).execution_options(populate_existing=True)
+        )
+        for name, run in {"retryable": retryable, "plain": plain, "reaped": reaped, "done": done}.items()
+    }
+
+    assert [rows[name].retryable for name in ("retryable", "plain", "reaped", "done")] == [True, False, True, None]
+    assert all(row.result_summary is None for row in rows.values())
+    for run, flag in ((retryable, True), (plain, False)):
+        failed_record = next(
+            record for record in await _traces(db, run.statement_id, run.id) if record.assertion_id == "extract.failed"
+        )
+        assert failed_record.evidence_manifest_digest == canonical_json_digest(
+            {"state": "failed", "run_id": str(run.id), "error_code": "provider_timeout", "retryable": flag}
+        )
 
 
 @pytest.mark.parametrize("actor", list(RunActorKind), ids=lambda actor: actor.value)
@@ -534,7 +617,7 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
         select_runs = text(
             "SELECT statement_id, user_id, seq, kind::text, state::text, actor_kind::text, trigger::text, "
             "hints, heartbeat_at, started_at, requested_at, finished_at, parent_run_id, extraction_result_id, "
-            "result_summary, error_code, error_message FROM statement_runs"
+            "result_summary, error_code, error_message, retryable FROM statement_runs"
         )
         with engine.connect() as connection:
             rows = connection.execute(select_runs).all()
@@ -559,6 +642,7 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
                 assert row.result_summary is None
                 assert row.error_code is None
                 assert row.error_message is None
+                assert row.retryable is None
             types = {
                 row[0]
                 for row in connection.execute(text("SELECT typname FROM pg_type WHERE typtype = 'e' AND typname LIKE 'statement\\_run\\_%'"))
@@ -641,7 +725,8 @@ async def test_AC_extraction_2994_11_each_transition_accepts_only_its_source_sta
     )
     await db.commit()
     assert failed.state is RunState.FAILED
-    assert failed.result_summary == {"retryable": True}
+    assert failed.retryable is True
+    assert failed.result_summary is None
     assert failed.finished_at is not None
 
     for late in (
@@ -659,25 +744,40 @@ async def test_AC_extraction_2994_11_each_transition_accepts_only_its_source_sta
     await db.commit()
     assert skipped.state is RunState.FAILED
     assert skipped.started_at is None
-    assert skipped.result_summary == {"retryable": False}
+    assert skipped.retryable is False
     assert skipped.seq == 2
 
 
-async def test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_the_hint_text(db, test_user):
+class _RecordingLogger:
+    """Stands in for the module logger, so a logger that structlog cached earlier cannot hide an event."""
+
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+
+    def info(self, event: str, **fields) -> None:
+        self.events.append({"event": event, **fields})
+
+    warning = error = debug = info
+
+
+async def test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_the_hint_text(db, test_user, monkeypatch):
     """AC-extraction.2994.12: A transition logs the run id, kind, state, hints digest and keyword count only."""
+    from src.extraction.extension import statement_runs as runs_module
+
+    logs = _RecordingLogger()
+    monkeypatch.setattr(runs_module, "logger", logs)
     hints = RunHints(keywords=["zebra-keyword", "quartz-keyword"], note="needle-note-text for the model")
     statement = await _statement(db, test_user)
 
-    with capture_logs() as logs:
-        run = await _create(db, statement, hints=hints, actor_kind=RunActorKind.USER, trigger=RunTrigger.RERUN)
-        await claim_run(db, run.id)
-        await finish_run(db, run.id)
-        await db.commit()
-        other = await _running(db, await _statement(db, test_user))
-        await fail_run(db, other.id, error_code="provider_timeout", error_message="The model call timed out.")
-        await db.commit()
+    run = await _create(db, statement, hints=hints, actor_kind=RunActorKind.USER, trigger=RunTrigger.RERUN)
+    await claim_run(db, run.id)
+    await finish_run(db, run.id)
+    await db.commit()
+    other = await _running(db, await _statement(db, test_user))
+    await fail_run(db, other.id, error_code="provider_timeout", error_message="The model call timed out.")
+    await db.commit()
 
-    transitions = [entry for entry in logs if entry["event"] == "statement.run.transition"]
+    transitions = [entry for entry in logs.events if entry["event"] == "statement.run.transition"]
     assert [(entry["run_id"], entry["state"]) for entry in transitions[:3]] == [
         (str(run.id), "requested"),
         (str(run.id), "running"),
@@ -685,14 +785,14 @@ async def test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_t
     ]
     digest = canonical_json_digest(hints.model_dump(mode="json"))
     for entry in transitions[:3]:
-        assert set(entry) == {"event", "log_level", "run_id", "kind", "state", "hints_digest", "hint_keyword_count"}
+        assert set(entry) == {"event", "run_id", "kind", "state", "hints_digest", "hint_keyword_count"}
         assert entry["kind"] == "extract"
         assert entry["hints_digest"] == digest
         assert entry["hint_keyword_count"] == 2
     assert transitions[-1]["state"] == "failed"
     assert transitions[-1]["error_code"] == "provider_timeout"
     for hint_text in ("zebra-keyword", "quartz-keyword", "needle-note-text"):
-        assert hint_text not in str(logs)
+        assert hint_text not in str(logs.events)
 
     with pytest.raises(IntegrityError) as missing_statement:
         await create_run(

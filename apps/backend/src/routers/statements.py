@@ -29,6 +29,10 @@ from src.extraction import (
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
+    RunActorKind,
+    RunHints,
+    RunKind,
+    RunTrigger,
     StatementPostingOutcome,
     StatementPostingStatus,
     StatementSummary,
@@ -41,9 +45,11 @@ from src.extraction import (
     classification_suggestions,
     clear_brokerage_import_failure,
     confirm_reviewed_statement_envelope,
+    create_run,
     current_reviewed_statement_envelope,
     edit_and_approve,
     get_current_statement_extraction_result,
+    get_latest_run,
     is_bank_custody_source,
     is_statement_classification_running,
     lock_statement_classification,
@@ -264,25 +270,38 @@ async def _queue_statement_reparse(
     user_id: UUID,
     *,
     model: str | None = None,
-    reset_for_retry: bool = False,
 ) -> None:
+    """Start a user rerun of the statement. A second rerun while a run is active raises `ActiveRunExists` (409)."""
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
         raise StorageError("Source document is no longer available for reparse")
     storage_key = uploaded_document.file_path
     filename = uploaded_document.original_filename
     content = await run_in_threadpool(StorageService().get_object, storage_key)
-    if reset_for_retry:
-        statement.status = BankStatementStatus.PARSING
-        statement.validation_error = None
-        await db.commit()
-        await db.refresh(statement)
     request_id = ensure_request_id()
     model_to_use = None if model == settings.multimodal_model else model
+    previous_run = await get_latest_run(db, statement.id)
+    run = await create_run(
+        db,
+        statement_id=statement.id,
+        user_id=user_id,
+        kind=RunKind.EXTRACT,
+        actor_kind=RunActorKind.USER,
+        trigger=RunTrigger.RERUN,
+        hints=RunHints(),
+        model=model_to_use,
+        parent_run_id=previous_run.id if previous_run is not None else None,
+    )
+    run_id = run.id
+    statement.status = BankStatementStatus.PARSING
+    statement.validation_error = None
+    await db.commit()
+    await db.refresh(statement)
     await _enqueue_parse_job(
         db,
         job=ParseJob(
             statement_id=statement.id,
+            run_id=run_id,
             filename=filename,
             institution=None if statement.institution == "Pending Detection" else statement.institution,
             user_id=user_id,
@@ -484,6 +503,17 @@ async def upload_statement(
     try:
         await db.flush()
         await register_statement_source(db, statement=statement, storage_key=storage_key, original_filename=filename)
+        run = await create_run(
+            db,
+            statement_id=statement_id,
+            user_id=user_id,
+            kind=RunKind.EXTRACT,
+            actor_kind=RunActorKind.USER,
+            trigger=RunTrigger.UPLOAD,
+            hints=RunHints(),
+            model=model_to_use,
+        )
+        run_id = run.id
         await db.commit()
         await db.refresh(statement)
     except Exception as exc:
@@ -502,6 +532,7 @@ async def upload_statement(
         db,
         job=ParseJob(
             statement_id=statement_id,
+            run_id=run_id,
             filename=filename,
             institution=institution,
             user_id=user_id,
@@ -532,7 +563,7 @@ async def retry_statement_parsing(
         raise_bad_request("Can only retry parsing for parsed, rejected, or stuck parsing statements")
     await _validate_vision_model(model_override)
     try:
-        await _queue_statement_reparse(db, statement, user_id, model=model_override, reset_for_retry=True)
+        await _queue_statement_reparse(db, statement, user_id, model=model_override)
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)

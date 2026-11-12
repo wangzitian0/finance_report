@@ -176,6 +176,7 @@ from src.extraction.extension.statement_runs import (
     fail_run,
     finish_run,
     get_active_run,
+    get_latest_run,
     heartbeat_run,
     reap_stale_runs,
 )
@@ -375,6 +376,7 @@ __all__ = [
     "get_correction_stats",
     "get_active_run",
     "get_known_storage_paths",
+    "get_latest_run",
     "get_parsing_prompt",
     "get_current_statement_extraction_result",
     "get_statement_coverage_rows",

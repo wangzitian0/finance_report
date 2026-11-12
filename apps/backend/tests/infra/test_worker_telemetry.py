@@ -12,7 +12,7 @@ class CapturingMetricExporter(MetricExporter):
 def _fresh_process(monkeypatch) -> None: monkeypatch.setattr(worker_telemetry, '_configured', False); monkeypatch.setattr(otel_metrics._internal, '_METER_PROVIDER', None); monkeypatch.setattr(otel_metrics._internal._METER_PROVIDER_SET_ONCE, '_done', False); telemetry_metrics._clear_metrics_state()
 @pytest.fixture
 def worker_env(monkeypatch): import opentelemetry.exporter.otlp.proto.http.metric_exporter as metric_exporter_module; CapturingMetricExporter.instances.clear(); monkeypatch.setattr(metric_exporter_module, 'OTLPMetricExporter', CapturingMetricExporter); monkeypatch.setattr(worker_telemetry.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); monkeypatch.setattr(worker_telemetry.settings, 'otel_service_name', 'finance-report-backend'); monkeypatch.setattr(worker_telemetry.settings, 'otel_resource_attributes', 'deployment.environment=development'); _fresh_process(monkeypatch); monkeypatch.setattr(worker_telemetry, 'configure_logging', lambda **_k: None); telemetry_metrics._clear_metrics_state(); yield; telemetry_metrics._clear_metrics_state()
-_job = lambda: {'statement_id': str(uuid4()), 'filename': 'x.pdf', 'institution': None, 'user_id': str(uuid4()), 'account_id': None, 'file_hash': 'h', 'storage_key': 'k', 'model': None, 'request_id': 'req-1'}
+_job = lambda: {'statement_id': str(uuid4()), 'run_id': str(uuid4()), 'filename': 'x.pdf', 'institution': None, 'user_id': str(uuid4()), 'account_id': None, 'file_hash': 'h', 'storage_key': 'k', 'model': None, 'request_id': 'req-1'}
 def _install_fake_use_case(monkeypatch, *, fail: bool=False) -> None:
     class FakeUseCase:
         async def execute(self, _job):

@@ -1,5 +1,7 @@
 """Background task functions for statement parsing."""
 
+import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
@@ -16,11 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import TraceEmitter
 from src.extraction.base.result import StatementExtractionResult
+from src.extraction.base.run_vocabulary import ERROR_MESSAGE_MAX_LENGTH, RunActorKind, RunKind, RunTrigger
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentStatus, DocumentType, Stage1Status
 from src.extraction.base.types import (
     DocumentSource,
     ParseJob,
     RetryableStatementIngestionError,
+    RunHints,
     StatementIngestionConfigurationError,
     StatementIngestionOutcome,
     StatementIngestionStatus,
@@ -41,6 +45,7 @@ from src.extraction.extension.statement_preclassification import (
     StatementClassificationPhase,
     classify_parsed_statement,
 )
+from src.extraction.extension.statement_runs import StaleRun, claim_run, create_run, fail_run, finish_run
 from src.extraction.extension.statement_workflow import approve_statement_workflow
 from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
 from src.extraction.orm.layer1 import UploadedDocument
@@ -56,6 +61,10 @@ ExtractionServiceFactory = Callable[[], ExtractionService]
 BrokerageRouter = Callable[..., Awaitable[None]]
 Clock = Callable[[], float]
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
+Sleep = Callable[[float], Awaitable[None]]
+
+MAX_PARSE_ATTEMPTS = 3
+PARSE_RETRY_DELAY_SECONDS = 30
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -69,6 +78,7 @@ class StatementIngestionUseCase:
     brokerage_router: BrokerageRouter
     trace_emitter_factory: TraceEmitterFactory
     clock: Clock
+    sleep: Sleep = asyncio.sleep
 
     def __post_init__(self) -> None:
         for name in (
@@ -79,26 +89,24 @@ class StatementIngestionUseCase:
             "brokerage_router",
             "trace_emitter_factory",
             "clock",
+            "sleep",
         ):
             if getattr(self, name) is None:
                 raise StatementIngestionConfigurationError(f"Missing statement ingestion dependency: {name}")
 
     async def execute(self, job: ParseJob, *, content: bytes | None = None) -> StatementIngestionOutcome:
-        if content is None:
+        """Run the job. A retryable error starts a new system run, at most `MAX_PARSE_ATTEMPTS` runs in all."""
+        attempt = 1
+        while True:
             try:
-                content = await self.content_loader(job.storage_key)
-            except Exception as exc:
-                raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
-        outcome = await _execute_statement_ingestion(
-            job=job,
-            content=content,
-            session_maker=self.session_maker,
-            extraction_service_factory=self.extraction_service_factory,
-            posting_dependencies=self.posting_dependencies,
-            brokerage_router=self.brokerage_router,
-            trace_emitter_factory=self.trace_emitter_factory,
-            clock=self.clock,
-        )
+                outcome = await self._attempt(job, content)
+                break
+            except RetryableStatementIngestionError as error:
+                next_job = await self._end_failed_attempt(job, error, attempt=attempt)
+                if next_job is None:
+                    raise
+                await self.sleep(PARSE_RETRY_DELAY_SECONDS)
+                job, attempt = next_job, attempt + 1
         if outcome.status is StatementIngestionStatus.COMPLETED:
             del content
             phase = await classify_parsed_statement(
@@ -114,6 +122,68 @@ class StatementIngestionUseCase:
                 if recovered > 0:
                     outcome = replace(outcome, auto_posted_count=outcome.auto_posted_count + recovered)
         return outcome
+
+    async def _attempt(self, job: ParseJob, content: bytes | None) -> StatementIngestionOutcome:
+        if content is None:
+            try:
+                content = await self.content_loader(job.storage_key)
+            except Exception as exc:
+                raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
+        return await _execute_statement_ingestion(
+            job=job,
+            content=content,
+            session_maker=self.session_maker,
+            extraction_service_factory=self.extraction_service_factory,
+            posting_dependencies=self.posting_dependencies,
+            brokerage_router=self.brokerage_router,
+            trace_emitter_factory=self.trace_emitter_factory,
+            clock=self.clock,
+        )
+
+    async def _end_failed_attempt(
+        self, job: ParseJob, error: RetryableStatementIngestionError, *, attempt: int
+    ) -> ParseJob | None:
+        """Fail the run of the attempt. Return the job of the next attempt, or None when the loop stops.
+
+        The loop stops after `MAX_PARSE_ATTEMPTS` attempts, or when the reaper already failed the run.
+        The statement stays parsing: the supervisor rejects a parsing statement that has no active run.
+        """
+        async with self.session_maker() as session:
+            try:
+                failed = await fail_run(
+                    session,
+                    job.run_id,
+                    error_code=_run_error_code(type(error).__name__),
+                    error_message=_run_error_message(str(error)),
+                    retryable=True,
+                )
+            except StaleRun:
+                await session.rollback()
+                logger.warning("statement.run.retry_stale", run_id=str(job.run_id), statement_id=str(job.statement_id))
+                return None
+            if not failed.retryable or attempt >= MAX_PARSE_ATTEMPTS:
+                await session.commit()
+                return None
+            successor = await create_run(
+                session,
+                statement_id=job.statement_id,
+                user_id=job.user_id,
+                kind=RunKind.EXTRACT,
+                actor_kind=RunActorKind.SYSTEM,
+                trigger=RunTrigger.AUTO_RETRY,
+                hints=RunHints(),
+                model=job.model,
+                parent_run_id=failed.id,
+            )
+            await session.commit()
+            logger.info(
+                "statement.run.retry_scheduled",
+                run_id=str(failed.id),
+                next_run_id=str(successor.id),
+                attempt=attempt,
+                delay_seconds=PARSE_RETRY_DELAY_SECONDS,
+            )
+            return replace(job, run_id=successor.id)
 
 
 async def _try_recover_auto_approve_after_classification(
@@ -168,6 +238,16 @@ def build_statement_ingestion_use_case(
 
 def _redacted(message: str | None, *, limit: int = 500) -> str | None:
     return safe_error_message(message, limit=limit) if message else None
+
+
+def _run_error_message(message: str | None) -> str:
+    return (_redacted(message) or "")[:ERROR_MESSAGE_MAX_LENGTH]
+
+
+def _run_error_code(error_type: str | None) -> str:
+    """Turn an error class name such as `ExtractionError` into the run code `extraction_error`."""
+    code = re.sub(r"[^a-z0-9_]", "", re.sub(r"(?<!^)(?=[A-Z])", "_", error_type or "").lower()).lstrip("0123456789_")
+    return code[:64] or "parse_failed"
 
 
 def _count_brokerage_positions(payload: dict[str, Any] | None) -> int | None:
@@ -365,7 +445,10 @@ async def handle_parse_failure(
     model_to_use: str | None = None,
     error_type: str | None = None,
 ) -> None:
-    """Roll back failed parse session and persist REJECTED or PENDING_REVIEW state."""
+    """Roll back failed parse session, fail the run of the job, and persist REJECTED or PENDING_REVIEW state.
+
+    A run that is no longer active, for example one that the reaper failed, changes nothing.
+    """
     request_id = job.request_id if job is not None and job.request_id else str(uuid4())
     statement_id = job.statement_id if job is not None else None
     if statement_id is None:
@@ -400,6 +483,19 @@ async def handle_parse_failure(
         if refreshed is None:
             logger.error("Statement not found after rollback", statement_id=str(statement_id), reason=_redacted(message))
             return
+        if job is not None:
+            try:
+                await fail_run(
+                    db,
+                    job.run_id,
+                    error_code=_run_error_code(error_type),
+                    error_message=_run_error_message(message),
+                    retryable=False,
+                )
+            except StaleRun:
+                await db.rollback()
+                logger.warning("statement.run.fail_stale", run_id=str(job.run_id), statement_id=str(statement_id))
+                return
         review_required = error_type == TransactionIdentityReviewRequired.__name__
         refreshed.status = BankStatementStatus.PARSED if review_required else BankStatementStatus.REJECTED
         refreshed.stage1_status = Stage1Status.PENDING_REVIEW if review_required else Stage1Status.REJECTED
@@ -466,6 +562,16 @@ async def _execute_statement_ingestion(
             logger.error("Statement not found in DB for background parsing", statement_id=str(statement_id), request_id=request_id)
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.STATEMENT_NOT_FOUND)
 
+        try:
+            await claim_run(session, job.run_id)
+            await session.commit()
+        except StaleRun:
+            await session.rollback()
+            logger.warning(
+                "statement.run.claim_stale", run_id=str(job.run_id), statement_id=str(statement_id), request_id=request_id
+            )
+            return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
+
         current_phase = "parse_started"
 
         def checkpoint(phase: str) -> None:
@@ -494,7 +600,7 @@ async def _execute_statement_ingestion(
 
         try:
             checkpoint("extraction_started")
-            async with parsing_heartbeat(statement_id, session_maker):
+            async with parsing_heartbeat(job.run_id, session_maker):
                 extraction_result = await extraction_service_factory().parse_document(
                     DocumentSource.resolve(
                         path=Path(job.storage_key),
@@ -569,6 +675,7 @@ async def _execute_statement_ingestion(
                 session, statement=statement, result=persisted_result, source_trace_record_id=trace_records[0].record_id
             )
 
+            await finish_run(session, job.run_id, extraction_result_id=statement.current_extraction_result_id)
             checkpoint("statement_persisted")
             auto_posted_count = await try_auto_approve_high_confidence_statement(
                 session, statement.id, job.user_id, dependencies=posting_dependencies
@@ -603,6 +710,12 @@ async def _execute_statement_ingestion(
                 transactions_count=len(extraction_result.transactions),
                 auto_posted_count=auto_posted_count,
             )
+        except StaleRun:
+            await session.rollback()
+            logger.warning(
+                "statement.run.finish_stale", run_id=str(job.run_id), statement_id=str(statement_id), request_id=request_id
+            )
+            return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
         except Exception as exc:
             logger.exception(
                 "Failed to finalize statement parsing",

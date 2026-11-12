@@ -25,16 +25,15 @@ def compose_statement_ingestion_use_case(*, session_maker):
     return compose(session_maker=session_maker)
 
 
-@flow(name="parse-statement", retries=2, retry_delay_seconds=30)
+@flow(name="parse-statement")
 async def parse_statement_flow(
     *,
     job: dict[str, str | None],
 ) -> None:
-    """Durable, retriable statement parse.
+    """Durable statement parse of one run.
 
-    Re-fetches content from storage and uses the worker's own session maker,
-    then runs the existing parse logic. Idempotency is keyed on ``statement_id``
-    (the underlying parse persists by statement id), so retries/re-runs are safe.
+    Re-fetches content from storage and uses the worker's own session maker, then runs the use case.
+    The flow has no retries: the use case retries a retryable error as a new system run (#2994).
     """
     with flow_run_telemetry():
         parse_job = ParseJob.from_prefect_params(job)
