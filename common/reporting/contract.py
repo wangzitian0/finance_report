@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ContextScope,
-    GovernanceGuarantee,
-    GovernanceInitiative,
     PackageContract,
     acs,
     concepts,
@@ -417,8 +415,6 @@ cash-events.8||test_AC_reporting_cash_events_8_event_lineage_exposes_ledger_and_
 cash-events.12||test_AC_reporting_cash_events_12_statement_balance_sheet_categories_classify
 2832.1||test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stock_adjustment|P1
 @$be/reporting/test_cash_event_governance.py
-cash-events.9||test_AC_reporting_cash_events_9_governance_detail_is_package_owned_and_enforced
-cash-events.10||test_AC_reporting_cash_events_10_counterfactual_matrix_is_locked
 @$fe/__tests__/homeActionBanner.test.tsx|P1
 fe-period-cockpit.6||AC-reporting.fe-period-cockpit.6 picks at most one action: the queue first, then the workflow, then the first upload
 fe-period-cockpit.9||AC-reporting.fe-period-cockpit.9 names the count and the first item of the queue before a workflow blocker
@@ -529,124 +525,4 @@ framework_reporting|common/reporting/framework-reporting.md|US-like and HK-like 
 reporting_calculations|common/reporting/readme.md|Financial reports, multi-currency consolidation, calculations.|common/reporting/reporting.md,common/ledger/readme.md,common/pricing/market_data.md|-|reporting|concept
 """
     ),
-    governance=[
-        GovernanceInitiative(
-            id="authoritative-cash-event-projection",
-            title="Tenant-safe authoritative cash-event projection",
-            issue="https://github.com/wangzitian0/finance_report/issues/1996",
-            depends_on=["meta/governance-control-plane"],
-            guarantees=[
-                GovernanceGuarantee(
-                    id="cash-touch-only",
-                    statement="Only cash-touch journal events emit cash-flow activity.",
-                    affected_acs=["AC-reporting.cash-events.1"],
-                    detector="non-cash-events-in-cash-flow",
-                    target="0 non-cash events",
-                    lock="ci.backend",
-                    proof="cash-event-adversarial-oracle",
-                    required_proof_strength="value-oracle",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="event-classification",
-                    statement="Cash events classify only from exact semantics bound to authoritative producer provenance.",
-                    affected_acs=["AC-reporting.cash-events.2"],
-                    detector="broad-account-type-classification-paths",
-                    target="0 broad account-type classification paths",
-                    lock="ci.backend",
-                    proof="cash-event-classification-oracle",
-                    required_proof_strength="value-oracle",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="transfer-neutrality",
-                    statement="Internal cash transfers emit zero activity.",
-                    affected_acs=["AC-reporting.cash-events.3"],
-                    detector="internal-transfer-activity-lines",
-                    target="0 internal-transfer activity lines",
-                    lock="ci.backend",
-                    proof="cash-event-transfer-neutrality",
-                    required_proof_strength="value-oracle",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="cash-bridge",
-                    statement="The disclosed cash bridge ties exactly.",
-                    affected_acs=["AC-reporting.cash-events.4"],
-                    detector="cash-bridge-deltas",
-                    target="0 unreconciled bridges",
-                    lock="ci.backend",
-                    proof="cash-event-bridge-oracle",
-                    required_proof_strength="value-oracle",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="dual-tenant-isolation",
-                    statement="Cash events require both entry and account tenant ownership.",
-                    affected_acs=["AC-reporting.cash-events.5"],
-                    detector="single-sided-cash-tenant-predicates",
-                    target="0 single-sided predicates",
-                    lock="ci.backend",
-                    proof="cash-event-tenant-query-contract",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="one-projection-owner",
-                    statement="One reporting projection serves every cash-flow consumer.",
-                    affected_acs=["AC-reporting.cash-events.6"],
-                    detector="parallel-cash-projection-owners",
-                    target="1 projection owner",
-                    lock="ci.backend",
-                    proof="cash-event-consumer-contract",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="consumer-proof-state",
-                    statement="Consumers receive proven cash identities and anchored events or an explicit unproven state.",
-                    affected_acs=["AC-reporting.cash-events.7"],
-                    detector="implicit-cash-authority-consumers",
-                    target="0 implicit-authority consumers",
-                    lock="ci.backend",
-                    proof="cash-event-proof-state-contract",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="event-lineage",
-                    statement="Every cash event exposes exact ledger anchors and the provenance used by classification.",
-                    affected_acs=["AC-reporting.cash-events.8"],
-                    detector="cash-events-without-provenance-lineage",
-                    target="0 cash events without provenance lineage",
-                    lock="ci.backend",
-                    proof="cash-event-lineage-oracle",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="exact-governance-detail",
-                    statement="Control-plane detail exposes current proof and enforcement facts.",
-                    affected_acs=["AC-reporting.cash-events.9"],
-                    detector="cash-event-governance-join-gaps",
-                    target="0 missing detail facts",
-                    lock="ci.backend",
-                    proof="governance-detail-lossless-projection",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="counterfactual-lock",
-                    statement="The adversarial cash-event matrix remains executable and blocking.",
-                    affected_acs=["AC-reporting.cash-events.10"],
-                    detector="missing-cash-event-counterfactuals",
-                    target="0 missing counterfactuals",
-                    lock="ci.backend",
-                    proof="cash-event-counterfactual-matrix",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-            ],
-        ),
-    ],
 )

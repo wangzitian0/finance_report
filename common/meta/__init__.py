@@ -17,7 +17,7 @@ The meta package now follows the very layout it governs (the Layout-3 exemplar):
 * ``data``      — :mod:`common.meta.data.projection`: ``contract_index``,
   ``dependency_index``, and ``ac_vision_index`` computed read-model projections.
 
-Governance is *computed from contracts*, not hand-maintained: every package
+Contracts are *machine-checked*, not hand-maintained: every package
 declares a :class:`PackageContract` in ``common/<pkg>/contract.py`` and
 ``tools/check_package_contract.py`` validates the implementation against it. The
 model self-hosts — this package ships its own ``contract.py`` and is checked by
@@ -34,8 +34,6 @@ __all__ = [
     "ACRecord",
     "ConceptRecord",
     "CommandBoundary",
-    "GovernanceGuarantee",
-    "GovernanceInitiative",
     "DependencyEdge",
     "DependencyKind",
     "Invariant",
@@ -67,8 +65,6 @@ _BASE_NAMES = {
     "ACRecord",
     "ConceptRecord",
     "CommandBoundary",
-    "GovernanceGuarantee",
-    "GovernanceInitiative",
     "DependencyEdge",
     "DependencyKind",
     "Invariant",

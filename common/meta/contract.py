@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ContextScope,
-    GovernanceGuarantee,
-    GovernanceInitiative,
     PackageContract,
     acs,
     concepts,
@@ -37,7 +35,6 @@ CONTRACT = PackageContract(
         """
 PackageContract|agg|base/package_contract.py
 @vo|base/package_contract.py|ACRecord Invariant Kind
-@vo|base/governance_control.py|GovernanceGuarantee GovernanceInitiative
 @vo|base/dependency_graph.py|DependencyKind DependencyEdge
 check_package_contract|svc|extension/check_package_contract.py
 @proj|data/projection.py|contract_index ac_vision_index dependency_index
@@ -45,8 +42,7 @@ Unit|vo|base/package_contract.py|-|package-unit
 """
     ),
     interface="""
-ACRecord CommandBoundary ConceptRecord DependencyEdge DependencyKind GovernanceGuarantee
-GovernanceInitiative Invariant Kind PackageContract Unit ac_vision_index concept_index
+ACRecord CommandBoundary ConceptRecord DependencyEdge DependencyKind Invariant Kind PackageContract Unit ac_vision_index concept_index
 contract_index dependency_index
 """.split(),
     events=[],
@@ -277,24 +273,6 @@ fe-audit-queue.4||AC-meta.fe-audit-queue.4 shows no audit-ready grade while an u
 @$fe/__tests__/contractTypes.test.ts|P1
 fe-contract-types.1||AC25.3.1: every list response derives from the single ListResponse<T> envelope
 fe-contract-types.2||AC25.3.2: lib/api.ts is the single raw-fetch boundary in the frontend
-@$t/test_governance_control_plane.py
-governance-control.1||test_AC_meta_governance_control_1_contract_and_roadmap_projection_are_lossless
-governance-control.2||test_AC_meta_governance_control_2_completion_is_derived_from_joined_facts
-governance-control.3||test_AC_meta_governance_control_3_report_exposes_summary_and_exact_detail
-governance-control.4||test_AC_meta_governance_control_4_weak_stale_and_non_required_proof_stays_red
-governance-control.5||test_AC_meta_governance_control_5_enforcement_reconciliation_fails_closed
-governance-control.6||test_AC_meta_governance_control_6_cli_fails_closed_on_unproven_guarantees
-@$t/test_governance_ratchet.py
-governance-ratchet.1||test_AC_meta_governance_ratchet_1_app_ownership
-governance-ratchet.2||test_AC_meta_governance_ratchet_2_domain_locality
-governance-ratchet.3||test_AC_meta_governance_ratchet_3_python_boundary_denominator
-governance-ratchet.4||test_AC_meta_governance_ratchet_4_frontend_export_denominator
-governance-ratchet.5||test_AC_meta_governance_ratchet_5_operation_consumer_truth
-governance-ratchet.6||test_AC_meta_governance_ratchet_6_unused_operation_honesty
-governance-ratchet.7||test_AC_meta_governance_ratchet_7_delivery_surface_truth
-governance-ratchet.8||test_AC_meta_governance_ratchet_8_unit_accountability
-governance-ratchet.9||test_AC_meta_governance_ratchet_9_non_vacuity
-governance-ratchet.10||test_AC_meta_governance_ratchet_10_governance_integration
 @$t/test_dependency_graph.py
 dependency-governance.1||test_AC_meta_dependency_governance_1_projection_has_typed_edges_and_transitive_consumers
 @$t/test_app_boundary.py
@@ -379,7 +357,6 @@ fe-contract-types.6||test_AC_fe_layer_boundaries_1_lib_never_imports_components_
     ),
     concepts=concepts(
         """
-governance_ratchet_baseline|common/meta/data/governance-ratchet-baseline.json|Exhaustive shrink-only baseline locking 21 flat routers, 23 schemas, 9 backend root composition modules, and 104 unbound DDD units in the package governance census.|common/meta/data/governance-ratchet-baseline.json,common/meta/extension/governance_census.py,common/meta/extension/governance_detector.py,tools/report_package_governance.py,tests/tooling/test_governance_ratchet.py|tests/tooling/test_governance_ratchet.py|platform|baseline|machine_generated|package_model
 ac_tier_baseline|common/meta/data/ac-tier-baseline.json|Shrink-only untagged-AC debt baseline for the authority-tier ratchet (tools/check_ac_tier_baseline.py).|common/meta/readme.md,common/meta/extension/check_ac_tier_baseline.py,tools/check_ac_tier_baseline.py,tests/tooling/test_ac_authority_tiers.py|-|tdd|baseline|machine_generated|authority_tiers
 app_boundary_baseline|common/meta/extension/check_app_boundary.py|In-code absolute zero-debt assertion of cross-boundary edges between the apps/backend/src remainder and carved packages.|common/meta/migration-standard.md,common/meta/extension/app_boundary.py,tools/check_app_boundary.py,tests/tooling/test_app_boundary.py|-|platform|concept|-|package_model
 l4_root_import_baseline|common/meta/extension/app_boundary.py|In-code absolute zero-debt assertion of statement-level deep imports from the L4 delivery/composition shell into package internals.|common/meta/extension/check_app_boundary.py,tools/check_app_boundary.py,tests/tooling/test_app_boundary.py|-|platform|concept|-|package_model
@@ -404,197 +381,4 @@ error_taxonomy|common/meta/data/error-taxonomy.yaml|Authoritative SSOT taxonomy 
 thirty_wealth_flows|common/meta/flows/thirty_flows_ssot.json|Authoritative registry for the 30 core wealth and accounting flows.|docs/reference/thirty-wealth-flows.md,docs/reference/api-overview.md|apps/backend/tests/flows/test_thirty_flows_consistency.py,apps/frontend/src/__tests__/thirtyFlowsConsistency.test.tsx|accounting|registry|machine_generated
 """
     ),
-    governance=[
-        GovernanceInitiative(
-            id="governance-control-plane",
-            title="Package governance control plane",
-            issue="https://github.com/wangzitian0/finance_report/issues/1983",
-            guarantees=[
-                GovernanceGuarantee(
-                    id="lossless-roadmap-projection",
-                    statement="Roadmap and governance declarations project without loss or overwrite.",
-                    affected_acs=["AC-meta.governance-control.1"],
-                    detector="package-governance-control-integrity",
-                    target="source records equal unique projected records",
-                    lock="ci.tooling_coverage",
-                    proof="governance-control-lossless",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="derived-joined-state",
-                    statement="Completion is derived from joined target, proof, and enforcement facts.",
-                    affected_acs=["AC-meta.governance-control.2"],
-                    detector="package-governance-control-integrity",
-                    target="zero missing joins",
-                    lock="ci.tooling_coverage",
-                    proof="governance-control-derived-state",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="summary-and-detail",
-                    statement="Stable package summaries drill into exact guarantee evidence.",
-                    affected_acs=["AC-meta.governance-control.3"],
-                    detector="package-governance-control-integrity",
-                    target="zero missing detail coordinates",
-                    lock="ci.tooling_coverage",
-                    proof="governance-control-report",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="proof-strength",
-                    statement="Weak, stale, or non-required evidence cannot satisfy a guarantee.",
-                    affected_acs=["AC-meta.governance-control.4"],
-                    detector="package-governance-control-integrity",
-                    target="zero invalid proof promotions",
-                    lock="ci.tooling_coverage",
-                    proof="governance-control-proof-strength",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="enforcement-and-work-truth",
-                    statement="Workflow, live ruleset, and issue observations reconcile fail closed.",
-                    affected_acs=["AC-meta.governance-control.5"],
-                    detector="package-governance-control-integrity",
-                    target="zero missing or contradictory observations",
-                    lock="ci.tooling_coverage",
-                    proof="governance-control-enforcement",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="live-observation-pipeline",
-                    statement="Only complete current-SHA independent observations can make package governance green and merge-enforced.",
-                    affected_acs=["AC-meta.governance-control.6"],
-                    detector="package-governance-control-integrity",
-                    target="zero missing, stale, self-certified, or unenforced observations",
-                    lock="ci.tooling_coverage",
-                    proof="package-governance-live-observation-policy",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-            ],
-        ),
-        GovernanceInitiative(
-            id="app-and-frontend-governance",
-            title="Make app and frontend governance discovery exhaustive",
-            issue="https://github.com/wangzitian0/finance_report/issues/1984",
-            depends_on=["meta/governance-control-plane"],
-            guarantees=[
-                GovernanceGuarantee(
-                    id="app-ownership",
-                    statement="Every backend router, schema, and root module is accounted for under package governance or an explicit shrink-only ratchet.",
-                    affected_acs=["AC-meta.governance-ratchet.1"],
-                    detector="governance-ratchet-status",
-                    target="zero unratcheted delivery surfaces",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-app-ownership",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="domain-locality",
-                    statement="Backend root modules remain bounded to authorized platform orchestration.",
-                    affected_acs=["AC-meta.governance-ratchet.2"],
-                    detector="governance-ratchet-status",
-                    target="zero unauthorized backend root modules",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-domain-locality",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="python-boundary-denominator",
-                    statement="All backend public symbols and schemas are classified in the governance denominator.",
-                    affected_acs=["AC-meta.governance-ratchet.3"],
-                    detector="governance-ratchet-status",
-                    target="zero unclassified python boundary schemas",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-python-boundary-denominator",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="frontend-export-denominator",
-                    statement="Frontend production scan discovers all production modules.",
-                    affected_acs=["AC-meta.governance-ratchet.4"],
-                    detector="governance-ratchet-status",
-                    target="zero vacuous or dropped frontend modules",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-frontend-export-denominator",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="operation-consumer-truth",
-                    statement="Frontend API client wrapper calls are discovered as valid operation consumers.",
-                    affected_acs=["AC-meta.governance-ratchet.5"],
-                    detector="governance-ratchet-status",
-                    target="zero falsely unconsumed wrapper operations",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-operation-consumer-truth",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="unused-operation-honesty",
-                    statement="Unused OpenAPI operations are fully partitioned with zero unaccounted endpoints.",
-                    affected_acs=["AC-meta.governance-ratchet.6"],
-                    detector="governance-ratchet-status",
-                    target="zero unaccounted OpenAPI operations",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-unused-operation-honesty",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="delivery-surface-truth",
-                    statement="All flat routers and schema modules are subject to shrink-only baselines.",
-                    affected_acs=["AC-meta.governance-ratchet.7"],
-                    detector="governance-ratchet-status",
-                    target="zero expanded flat routers or schemas",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-delivery-surface-truth",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="unit-accountability",
-                    statement="DDD bounded context units are strictly accounted for and unbound units shrink only.",
-                    affected_acs=["AC-meta.governance-ratchet.8"],
-                    detector="governance-ratchet-status",
-                    target="zero increased unbound units and zero incomplete splits",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-unit-accountability",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="non-vacuity",
-                    statement="Governance census fails closed if discovered counts are zero or suspiciously drop below baseline.",
-                    affected_acs=["AC-meta.governance-ratchet.9"],
-                    detector="governance-ratchet-status",
-                    target="zero vacuous census runs",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-non-vacuity",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="governance-integration",
-                    statement="CLI reports and CI gates verify package governance ratchet and census integrity.",
-                    affected_acs=["AC-meta.governance-ratchet.10"],
-                    detector="governance-ratchet-status",
-                    target="zero unverified package governance runs",
-                    lock="ci.tooling_coverage",
-                    proof="governance-ratchet-governance-integration",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-            ],
-        ),
-    ],
 )

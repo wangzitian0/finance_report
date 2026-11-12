@@ -15,10 +15,6 @@ from common.meta.base.authority_matrix import (
     TIER_VALID_PROOF_KINDS,
 )
 from common.meta.base.gate_util import expand_test_path, parse_acs_table
-from common.meta.base.governance_control import (
-    GovernanceGuarantee,
-    GovernanceInitiative,
-)
 from common.meta.base.layering import LAYER_RANK, PACKAGE_LAYER, PackageClass
 
 __all__ = [
@@ -29,8 +25,6 @@ __all__ = [
     "concepts",
     "ContextRelation",
     "ContextScope",
-    "GovernanceInitiative",
-    "GovernanceGuarantee",
     "Invariant",
     "invs",
     "Kind",
@@ -503,34 +497,12 @@ class PackageContract(BaseModel):
     context: ContextScope | None = None
     relationships: list[ContextRelation] = []
     command_boundaries: list[CommandBoundary] = []
-    governance: list[GovernanceInitiative] = []
 
     @model_validator(mode="after")
     def _governance_is_unique_and_package_owned(self) -> PackageContract:
         ac_ids = [ac.id for ac in self.roadmap]
         if len(ac_ids) != len(set(ac_ids)):
             raise ValueError(f"package {self.name!r}: duplicate roadmap AC id")
-        initiative_ids = [initiative.id for initiative in self.governance]
-        if len(initiative_ids) != len(set(initiative_ids)):
-            raise ValueError(
-                f"package {self.name!r}: duplicate governance initiative id"
-            )
-        guarantee_ids: set[str] = set()
-        owned_acs = set(ac_ids)
-        for initiative in self.governance:
-            for guarantee in initiative.guarantees:
-                if guarantee.id in guarantee_ids:
-                    raise ValueError(
-                        f"package {self.name!r}: duplicate governance guarantee id "
-                        f"{guarantee.id!r}"
-                    )
-                guarantee_ids.add(guarantee.id)
-                unknown = sorted(set(guarantee.affected_acs) - owned_acs)
-                if unknown:
-                    raise ValueError(
-                        f"package {self.name!r}: governance guarantee "
-                        f"{guarantee.id!r} references unowned ACs {unknown}"
-                    )
         return self
 
     @model_validator(mode="after")
