@@ -254,7 +254,6 @@ CHECKS: tuple[Check, ...] = (
         "workflow-contract",
         (
             ".github/workflows/*.yml",
-            ".github/ISSUE_TEMPLATE/*.yml",
             "common/testing/ci-cd.md",
             "common/runtime/deployment.md",
             "common/runtime/environments.md",

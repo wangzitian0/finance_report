@@ -63,7 +63,7 @@ LIGHTWEIGHT_EXACT = {
     ".github/copilot-instructions.md",
     ".github/workflows/docs.yml",
 }
-LIGHTWEIGHT_PREFIXES = ("docs/", ".github/ISSUE_TEMPLATE/")
+LIGHTWEIGHT_PREFIXES = ("docs/",)
 
 COMMON_DEPLOY_RUNTIME_EXACT = frozenset(
     {

@@ -136,55 +136,6 @@ SSOT_REQUIRED_PROSE: dict[str, tuple[str, ...]] = {
     "common/runtime/environments.md": ("same gate family", "workflow_dispatch"),
 }
 
-ISSUE_TEMPLATE_DIR = ".github/ISSUE_TEMPLATE"
-NON_TEMPLATE_FILES = {"config.yml"}
-
-KNOWN_LABELS = frozenset(
-    {
-        "bug",
-        "documentation",
-        "duplicate",
-        "enhancement",
-        "good first issue",
-        "help wanted",
-        "idea",
-        "incident",
-        "infrastructure",
-        "invalid",
-        "investment-performance",
-        "meta",
-        "ongoing",
-        "preview",
-        "priority: critical",
-        "priority: high",
-        "priority: low",
-        "priority: medium",
-        "question",
-        *(
-            f"surface: {s}"
-            for s in (
-                "accounting",
-                "ai-ocr",
-                "backend",
-                "ci",
-                "docs",
-                "extraction",
-                "frontend",
-                "infra",
-                "portfolio",
-                "reconciliation",
-                "reporting",
-                "testing",
-                "tooling",
-            )
-        ),
-        "wontfix",
-    }
-)
-
-STALE_LABELS = frozenset({"infra", "feature"})
-
-
 def read_text(repo_root: Path, relative_path: str) -> str:
     return (repo_root / relative_path).read_text(encoding="utf-8")
 
@@ -410,44 +361,6 @@ def check_ssot_docs(repo_root: Path, errors: list[str]) -> None:
             )
 
 
-def check_issue_templates(repo_root: Path, errors: list[str]) -> None:
-    template_dir = repo_root / ISSUE_TEMPLATE_DIR
-    template_paths = sorted(
-        p for p in template_dir.glob("*.yml") if p.name not in NON_TEMPLATE_FILES
-    )
-    if not template_paths:
-        errors.append(f"{ISSUE_TEMPLATE_DIR}: no issue templates found")
-        return
-
-    for template_path in template_paths:
-        rel = template_path.relative_to(repo_root)
-        try:
-            with template_path.open(encoding="utf-8") as handle:
-                template = yaml.safe_load(handle)
-        except (OSError, yaml.YAMLError) as exc:
-            errors.append(f"{rel}: issue template could not be parsed ({exc})")
-            continue
-        if not isinstance(template, dict):
-            errors.append(f"{rel}: expected a YAML mapping")
-            continue
-        labels = template.get("labels", [])
-        if not isinstance(labels, list):
-            errors.append(f"{rel}: `labels` must be a list")
-            continue
-        label_set = {str(label) for label in labels}
-        stale = sorted(label_set & STALE_LABELS)
-        if stale:
-            errors.append(
-                f"{rel}: uses removed/stale labels {stale} — use "
-                "`infrastructure`/`enhancement`, not `infra`/`feature`"
-            )
-        unknown = sorted(label_set - KNOWN_LABELS)
-        if unknown:
-            errors.append(
-                f"{rel}: uses labels not in the repository taxonomy: {unknown}"
-            )
-
-
 def required_string(mapping: dict, key: str, *, context: str, errors: list[str]) -> str:
     value = mapping.get(key)
     if not isinstance(value, str) or not value.strip():
@@ -575,7 +488,6 @@ def run_contract(repo_root: Path) -> int:
         check_workflows,
         check_main_only_jobs,
         check_ssot_docs,
-        check_issue_templates,
         check_action_runtime_inventory,
     ):
         check(repo_root, errors)
