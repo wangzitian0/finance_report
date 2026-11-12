@@ -87,15 +87,14 @@ Integration tests and E2E tests are intentionally different in this project:
 
 | Metric | Definition | Data source | Regression gate behavior |
 |---|---|---|---|
-| Unified Line Coverage | `(sum covered LF) / (sum executable LF)` over unified files only | `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov` after policy mapping | No-regression vs `unified-coverage.json`; line-based only |
+| Unified Line Coverage | `(sum covered LF) / (sum executable LF)` over unified files only | local pytest/Vitest coverage reports | Threshold floors only (`--cov-fail-under=96` branch, Vitest 98/84); the unified no-regression baseline retired in #2934 Wave A |
 | AC Pass Rate | `(ACs with at least one passing qualifying test) / (Total ACs)` | Generated AC coverage audit report | Informational for behavior completeness; not a line-coverage substitute |
-| AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_index.py`, `common/testing/data/test-execution-matrix.yaml`, `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
+| AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_index.py`, `common/testing/data/test-execution-matrix.yaml` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
 
-AC rates are generated on each CI run from `python tools/build_ac_traceability.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
+AC classification is derived from the AC-keyed graph by `python tools/check_ac_index.py` and does not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
 
 Current test and AC coverage status is generated, not hand-maintained here.
-Use `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`,
-`python tools/check_ac_index.py`, and CI artifacts for live proof
+Use `python tools/check_ac_index.py` and CI artifacts for live proof
 counts.
 
 ### 2.3.2 E2E EPIC Traceability
@@ -103,9 +102,8 @@ counts.
 Every `test_*` function under product E2E roots must carry at least one
 `EPIC-xxx` ID in the test function name or function docstring. Every
 `docs/project/EPIC-*.md` file must be owned by at least one product E2E test
-function. The CI traceability gate enforces this with
-`tools/check_e2e_epic_traceability.py` before generating traceability artifacts.
-The same gate validates the root README EPIC map against the project EPIC file
+function. The AC-graph consistency gate `tools/check_ac_index.py` enforces the
+proof references and validates the root README EPIC map against the project EPIC file
 set, and scans E2E-like test assets so files outside product E2E roots are
 either explicitly classified as non-product infrastructure assets or fail CI.
 
@@ -130,7 +128,7 @@ proof is managed by:
 |---|---|
 | README macro outcomes and owner EPIC declarations | `README.md`, EPIC `Macro Proof Ownership` sections |
 | Critical E2E proof paths | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml)) |
-| Product E2E function ownership | `tools/check_e2e_epic_traceability.py` |
+| Product E2E function ownership | `tools/check_ac_index.py` |
 | AC proof and placeholder/stub exclusion | `tools/check_ac_index.py`, CI traceability artifact |
 
 New scenario coverage must be added as ACs plus tests or as critical proof
@@ -460,8 +458,8 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
-  owned by `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` and
-  CI traceability artifacts.
+  owned by the AC-keyed graph validated by `python tools/check_ac_index.py` and
+  CI artifacts.
 - Mandatory AC gate behavior is owned by `python tools/check_ac_index.py`.
 - Test path execution status for AC proof is owned by
   [test-execution-matrix.yaml](../../common/testing/data/test-execution-matrix.yaml).
@@ -602,9 +600,10 @@ reconciliation), #1558 (package declaration rollout + mirror-assertion ratchet).
 Follow-up to AC8.22 (issue #1557): marker expressions and test paths for every
 junit-emitting pytest invocation across `.github/workflows/*.yml` now live once
 in `common/testing/matrix.py` (`WORKFLOW_PYTEST_CONTRACTS`), enforced
-fail-closed by a central conformance gate; and a declared `ci_tier="pr_ci"` on
-an `@ac_proof` is reconciled against actual PR junit evidence in the
-`ac-behavioral-ratchet` job — execution tier becomes a contract, not metadata.
+fail-closed by a central conformance gate; the declared `ci_tier="pr_ci"`
+reconciliation against actual PR junit evidence ran in the retired
+`ac-behavioral-ratchet` job (#2934 Wave A) and its executor moves to
+`infra2-sdk` in a later wave — execution tier remains a contract, not metadata.
 
 > (AC8.23.1 removed, canonical: migrated to `AC-testing.conformance.1`.)
 > (AC8.23.2 removed, canonical: migrated to `AC-testing.conformance.2`.)
@@ -682,7 +681,7 @@ by tooling instead of being copied into this EPIC:
 | Fact | Owner |
 |---|---|
 | Test path -> execution stage mapping | [test-execution-matrix.yaml](../../common/testing/data/test-execution-matrix.yaml) |
-| Product E2E function -> EPIC ownership | `tools/check_e2e_epic_traceability.py` |
+| Product E2E function -> EPIC ownership | `tools/check_ac_index.py` |
 | Mandatory AC proof eligibility | `tools/check_ac_index.py` |
 | Critical macro outcome proof | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml)) |
 
