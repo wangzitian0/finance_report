@@ -1235,7 +1235,7 @@
   "tests/extraction/test_extraction.py::TestUnderExtractionPenalty::test_default_is_not_brokerage": 0.007,
   "tests/extraction/test_extraction.py::TestUnderExtractionPenalty::test_effective_count_uses_persisted_not_extracted": 0.009,
   "tests/extraction/test_extraction_cassette_replay.py::test_AC23_6_extraction_text_happy_path_via_replay": 0.168,
-  "tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_1_missing_period_remains_review_only_via_replay": 0.103,
+  "tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_1_missing_period_remains_review_only_via_stub": 0.103,
   "tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay": 0.086,
   "tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_replay": 0.454,
   "tests/extraction/test_extraction_determinism.py::TestRepeatedParseDeterminism::test_AC20_9_2_balance_invalid_parse_is_quarantined": 0.26,

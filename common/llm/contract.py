@@ -164,7 +164,7 @@ provider-error-code.1||test_AC_llm_provider_error_code_1_text_names_status_and_c
 13.5||test_AC6_11_5_model_modality_lookup
 13.6||test_AC6_11_6_catalog_get_bare_or_qualified
 @$be/extraction/test_extraction_cassette_replay.py|P1
-14.1||test_AC_llm_14_1_missing_period_remains_review_only_via_replay
+14.1||test_AC_llm_14_1_missing_period_remains_review_only_via_stub
 14.2||test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay
 14.3||test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_replay
 @$t/test_evidence_bundle.py|P1
