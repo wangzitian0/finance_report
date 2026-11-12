@@ -7,6 +7,7 @@ in 4 of 4. The pass costs 74 to 85 completion tokens per row, and a second pass 
 same reading.
 """
 
+import re
 from unittest.mock import AsyncMock, patch
 
 import fitz
@@ -28,6 +29,19 @@ def _pdf(pages: list[str]) -> bytes:
         page = document.new_page()
         if text:
             page.insert_text((72, 72), text)
+    data = document.tobytes()
+    document.close()
+    return data
+
+
+def _column_major_table_pdf() -> bytes:
+    """A statement table drawn column by column, as the Monopoly sample draws it: all dates, then all descriptions, then all amounts."""
+    document = fitz.open()
+    page = document.new_page()
+    rows = [("24/07", "SAVORY MORNING", "2.90"), ("25/07", "METRO TRANSIT", "17.16"), ("25/07", "SUNNY CAFE", "17.40")]
+    for column, x in enumerate((72, 160, 420)):
+        for index, row in enumerate(rows):
+            page.insert_text((x, 120 + index * 18), row[column])
     data = document.tobytes()
     document.close()
     return data
@@ -198,3 +212,13 @@ async def test_AC_extraction_2983_5_duplicate_currency_balances_stop_the_retry_w
                 file_content=b"x", institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
             )
     assert mock.await_count == 1
+
+
+async def test_AC_extraction_2987_12_the_cells_of_one_table_row_reach_the_model_on_one_line():
+    """AC-extraction.2987.12: Date, description and amount of one row stay on one line of the page text."""
+    _, model_call = await _extract(_service(), _column_major_table_pdf())
+    text = _text_of(model_call.await_args_list[0].kwargs["messages"])
+    lines = [line for line in text.split("\n") if "SAVORY" in line or "METRO" in line or "SUNNY" in line]
+    assert len(lines) == 3
+    assert all(re.search(r"\d\d/07\s+[A-Z ]+\s+\d+\.\d\d", line) for line in lines)
+    assert "17.16" in lines[1] and "METRO TRANSIT" in lines[1]
