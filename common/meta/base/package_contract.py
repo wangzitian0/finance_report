@@ -499,7 +499,7 @@ class PackageContract(BaseModel):
     command_boundaries: list[CommandBoundary] = []
 
     @model_validator(mode="after")
-    def _governance_is_unique_and_package_owned(self) -> PackageContract:
+    def _roadmap_ids_are_unique(self) -> PackageContract:
         ac_ids = [ac.id for ac in self.roadmap]
         if len(ac_ids) != len(set(ac_ids)):
             raise ValueError(f"package {self.name!r}: duplicate roadmap AC id")

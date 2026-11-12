@@ -358,7 +358,6 @@ fe-ia-reconciliation.2||${label}: both Stage 1 and Stage 2 attention surface in 
 fe-ia-reconciliation.5||${label} renders the attention queue ranked by confidence without overflow
 @$fe/__tests__/stage2ReviewQueueParts.test.tsx|P1
 fe-ia-reconciliation.9||AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks
-@$be/reconciliation/test_economic_disposition_governance.py
 @$be/reconciliation/test_keyword_leg_base_currency.py|P0|done|property
 named-transfer-legs.6||test_AC_reconciliation_named_transfer_legs_6_a_foreign_row_posts_no_leg_and_creates_no_account
 @$fe/__tests__/TransactionTable.test.tsx|P1

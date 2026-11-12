@@ -777,7 +777,6 @@ fe-ia-extraction.1||AC22.5.2 enables Approve and shows no blocker when nothing i
 fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confidence
 @$be/integration/test_statement_reject_cleans_up_orphan_account.py|P1
 1832.4||test_AC_extraction_1832_4_rejected_parse_deletes_the_account_it_just_created
-@$be/extraction/test_source_lifecycle_governance.py
 @$be/extraction/test_statement_opening_guards.py|P0|done|invariant
 2832.2||test_AC_extraction_2832_2_reconcile_statement_chain_anchors_out_of_order_and_gap_plugs
 @$be/extraction/test_statement_release_ownership.py

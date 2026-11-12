@@ -135,12 +135,9 @@ split below is therefore the **conceptual/intended** layering each file maps ont
 ## Published language
 `__init__.__all__` (must equal `contract.interface`): the tier vocabulary + matrix + the classifier's `band` / `classify_repo` / `BANDS`.
 ## Governance control plane
-Governance work is declared with the package that owns the behavior. A package contract may contain `GovernanceInitiative` records; each initiative groups the guarantees produced by one root-cause design and links them to package-owned ACs, a detector and target, a lock, an exact proof, and an enforcing gate. There is no central authored initiative registry.
-`common/meta/data/governance_control.py` joins those declarations to supplied detector, proof, workflow/ruleset, and GitHub issue observations. Its state is derived: an authored `status="done"`, a test reference, or a green report-only job cannot make a guarantee complete. The target must be met, the declared proof must pass at the target SHA with the required strength, and the proof's gate must
-reach a supplied live required context. Missing observations remain findings in the stable package/initiative and package/guarantee detail records. External systems stay outside meta's L0 base. Testing adapters and authenticated GitHub collectors serialize neutral observations into this projection; stale or partial snapshots must be treated as missing enforcement rather than cached
-success. The blocking adapter consumes an explicit target SHA. Package detector artifacts may contain detector results only; they cannot manufacture proof or enforcement. One package-owned control-integrity detector reads contract projection, issue, workflow, and live-ruleset facts only; proof never certifies its own detector. Independent proof comes from the declared AC testcase's canonical
-executed-proof record, which is archived in the bundle and decoded again at the consumer boundary. Workflow reachability is derived from `finish.needs`, while blocking is separately proven only from a canonical unconditional nonzero exit branch; both reconcile with the authenticated live ruleset. Open issue work must be fully enforced. Closed initiatives remain
-visible as historical, possibly unverified detail; a closed issue with an open AC is contradictory and blocks. Generating JSON or Markdown never counts as a passing policy result.
+
+Retired in #2934 Wave B: the `GovernanceInitiative` contract records, the `governance_control.py` join layer, the package detectors, and their counterfactual suites are gone. The guarantees they pinned stay covered by the behavior tests of each boundary.
+
 ## Follow-ups (out of scope here)
 - Migrating the remaining EPIC-table ACs into package `roadmap`s (the ratchet shrinks as packages adopt them); retiring the `{tier:XX}` marker and the `HU` code once no EPIC AC carries them. - A derived **module-level tier view** (already the natural unit now that tier is per-package). - Upgrading the proof-kind gate from asserting the *declared* `proof_kind` to
   statically inspecting the referenced test's shape (e.g. rejecting an exact-golden assertion mislabeled `property` on an LLM-LED AC).

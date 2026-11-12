@@ -414,7 +414,6 @@ cash-events.7||test_AC_reporting_cash_events_7_consumer_proof_state_is_explicit
 cash-events.8||test_AC_reporting_cash_events_8_event_lineage_exposes_ledger_and_decision_anchors
 cash-events.12||test_AC_reporting_cash_events_12_statement_balance_sheet_categories_classify
 2832.1||test_AC_reporting_2832_1_cross_period_gap_plug_bridges_as_opening_stock_adjustment|P1
-@$be/reporting/test_cash_event_governance.py
 @$fe/__tests__/homeActionBanner.test.tsx|P1
 fe-period-cockpit.6||AC-reporting.fe-period-cockpit.6 picks at most one action: the queue first, then the workflow, then the first upload
 fe-period-cockpit.9||AC-reporting.fe-period-cockpit.9 names the count and the first item of the queue before a workflow blocker
