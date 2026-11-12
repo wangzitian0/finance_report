@@ -1,8 +1,9 @@
 """Add statement_runs: one row per extraction or classification attempt (#2994).
 
 The partial unique index allows at most one requested or running run per statement. The upgrade
-backfills one running extract run for each statement that is parsing now: those jobs started before
-this release and have no run. The reaper fails them when no heartbeat arrives.
+backfills one running extract run (trigger backfill, actor system) for each statement that is parsing
+now: those jobs started before this release and have no run. A backfilled run has no trace record.
+The reaper fails them when no heartbeat arrives.
 
 Revision ID: 0074_statement_runs
 Revises: 0073_stmt_gin_trace_trig_perf
@@ -65,12 +66,6 @@ def upgrade() -> None:
         sa.Column("result_summary", postgresql.JSONB(astext_type=sa.Text(), none_as_null=True), nullable=True),
         sa.Column("error_code", sa.String(length=64), nullable=True),
         sa.Column("error_message", sa.String(length=500), nullable=True, comment="Redacted by the caller"),
-        sa.Column(
-            "retryable",
-            sa.Boolean(),
-            nullable=True,
-            comment="Set when the run fails: may a later run retry this failure",
-        ),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(
@@ -112,7 +107,7 @@ def upgrade() -> None:
             CAST('extract' AS statement_run_kind_enum),
             CAST('running' AS statement_run_state_enum),
             CAST('system' AS statement_run_actor_kind_enum),
-            CAST('upload' AS statement_run_trigger_enum),
+            CAST('backfill' AS statement_run_trigger_enum),
             CAST('{}' AS jsonb),
             s.created_at, s.updated_at, s.updated_at
         FROM statement_summaries AS s

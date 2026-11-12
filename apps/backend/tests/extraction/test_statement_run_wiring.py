@@ -31,7 +31,9 @@ from src.extraction import (
     RunTrigger,
     StatementIngestionStatus,
     StatementSummary,
+    claim_run,
     create_run,
+    fail_run,
     reap_stale_runs,
 )
 from src.audit.orm import TraceRecordRow
@@ -41,6 +43,7 @@ from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_run import StatementRun
+from src.runtime import StorageError
 from tests.factories import AccountFactory, StatementSummaryFactory
 
 CSV = (
@@ -74,6 +77,21 @@ class ScriptedService:
         if error is not None:
             raise error
         return await self.real.parse_document(*args, **kwargs)
+
+
+class ScriptedLoader:
+    """Raise the scripted storage error of each call, then return the source bytes."""
+
+    def __init__(self, errors: list[BaseException | None]) -> None:
+        self.errors = list(errors)
+        self.calls = 0
+
+    async def __call__(self, _storage_key: str) -> bytes:
+        self.calls += 1
+        error = self.errors.pop(0) if self.errors else None
+        if error is not None:
+            raise error
+        return CSV
 
 
 class ForbiddenService:
@@ -218,7 +236,6 @@ async def test_AC_extraction_2994_23_a_successful_parse_finishes_its_run_with_th
     assert run.extraction_result_id == statement.current_extraction_result_id
     assert run.started_at is not None
     assert run.finished_at is not None
-    assert run.retryable is None
     stored = await db.get(StatementExtractionResultRecord, run.extraction_result_id)
     assert stored.statement_id == statement_id
     records = await db.execute(
@@ -295,7 +312,6 @@ async def test_AC_extraction_2994_26_an_extraction_error_fails_the_run_and_rejec
     assert statement.status is BankStatementStatus.REJECTED
     assert run.state is RunState.FAILED
     assert run.error_code == "extraction_error"
-    assert run.retryable is False
     assert run.error_message is not None
     assert len(run.error_message) <= 500
     assert "owner@example.com" not in run.error_message
@@ -333,16 +349,16 @@ async def test_AC_extraction_2994_27_a_late_failure_does_not_touch_a_statement_t
 
 
 async def test_AC_extraction_2994_28_a_retryable_error_chains_system_runs_up_to_three_attempts(db, test_user):
-    """AC-extraction.2994.28: Two retryable errors give three linked runs, and the third run succeeds."""
+    """AC-extraction.2994.28: Two content-load failures give three linked runs, and the third run succeeds."""
     statement_id, job = await _statement_with_run(db, test_user)
     sleeps = Sleeps()
-    service = ScriptedService([RuntimeError("provider down 1"), RuntimeError("provider down 2"), None])
+    loader = ScriptedLoader([StorageError("storage down 1"), StorageError("storage down 2"), None])
 
-    outcome = await _use_case(db, service, sleeps).execute(job, content=CSV)
+    outcome = await _use_case(db, sleeps=sleeps, content_loader=loader).execute(job)
 
     first, second, third = await _runs(db, statement_id)
     assert outcome.status is StatementIngestionStatus.COMPLETED
-    assert service.calls == 3
+    assert loader.calls == 3
     assert sleeps.delays == [30, 30]
     assert [run.seq for run in (first, second, third)] == [1, 2, 3]
     assert [run.state for run in (first, second, third)] == [RunState.FAILED, RunState.FAILED, RunState.SUCCEEDED]
@@ -357,8 +373,8 @@ async def test_AC_extraction_2994_28_a_retryable_error_chains_system_runs_up_to_
         RunTrigger.AUTO_RETRY,
         RunTrigger.AUTO_RETRY,
     ]
-    assert [run.retryable for run in (first, second, third)] == [True, True, None]
     assert first.error_code == "retryable_statement_ingestion_error"
+    assert "Statement content load failed: storage down 1" in first.error_message
     assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSED
 
 
@@ -366,17 +382,16 @@ async def test_AC_extraction_2994_29_three_failed_attempts_leave_the_statement_t
     """AC-extraction.2994.29: After the third failed attempt the error reaches the caller; the supervisor rejects it."""
     statement_id, job = await _statement_with_run(db, test_user)
     sleeps = Sleeps()
-    service = ScriptedService([RuntimeError("down 1"), RuntimeError("down 2"), RuntimeError("down 3"), None])
+    loader = ScriptedLoader([StorageError("down 1"), StorageError("down 2"), StorageError("down 3"), None])
 
     with pytest.raises(RetryableStatementIngestionError):
-        await _use_case(db, service, sleeps).execute(job, content=CSV)
+        await _use_case(db, sleeps=sleeps, content_loader=loader).execute(job)
 
     runs = await _runs(db, statement_id)
     statement = await _statement(db, statement_id)
-    assert service.calls == 3
+    assert loader.calls == 3
     assert sleeps.delays == [30, 30]
     assert [run.state for run in runs] == [RunState.FAILED] * 3
-    assert [run.retryable for run in runs] == [True, True, True]
     assert "down 3" in (runs[2].error_message or "")
     assert await _count(db, StatementRun, StatementRun.state.in_([RunState.REQUESTED, RunState.RUNNING])) == 0
     assert statement.status is BankStatementStatus.PARSING, "an application error alone does not reject the source"
@@ -385,30 +400,71 @@ async def test_AC_extraction_2994_29_three_failed_attempts_leave_the_statement_t
 
     rejected = await _statement(db, statement_id)
     assert rejected.status is BankStatementStatus.REJECTED
-    assert rejected.validation_error == "Parsing timed out. Please retry."
+    assert rejected.validation_error == "Parsing failed. Please retry."
 
 
-async def test_AC_extraction_2994_33_the_retry_loop_reads_the_retryable_column_of_the_failed_run(db, test_user, monkeypatch):
-    """AC-extraction.2994.33: The loop starts no new run when the failed run is stored as not retryable."""
-    from src.extraction.extension import statement_parsing
-
-    real_fail_run = statement_parsing.fail_run
-
-    async def fail_run_as_not_retryable(session, run_id, **kwargs):
-        return await real_fail_run(session, run_id, **{**kwargs, "retryable": False})
-
-    monkeypatch.setattr(statement_parsing, "fail_run", fail_run_as_not_retryable)
+async def test_AC_extraction_2994_34_a_worker_claims_the_run_before_it_loads_the_content(db, test_user):
+    """AC-extraction.2994.34: A second worker for a claimed run loads nothing and cannot fail the run."""
     statement_id, job = await _statement_with_run(db, test_user)
-    sleeps = Sleeps()
-    service = ScriptedService([RuntimeError("down 1"), None])
+    await claim_run(db, job.run_id)
+    await db.commit()
+    loader = ScriptedLoader([StorageError("storage down")])
 
-    with pytest.raises(RetryableStatementIngestionError):
-        await _use_case(db, service, sleeps).execute(job, content=CSV)
+    outcome = await _use_case(db, ForbiddenService(), content_loader=loader).execute(job)
 
     (run,) = await _runs(db, statement_id)
-    assert service.calls == 1
+    assert outcome.status is StatementIngestionStatus.RUN_STALE
+    assert loader.calls == 0
+    assert (run.state, run.error_code) == (RunState.RUNNING, None)
+
+
+async def test_AC_extraction_2994_35_a_worker_stops_when_the_heartbeat_finds_its_run_gone(db, test_user, monkeypatch):
+    """AC-extraction.2994.35: A heartbeat that finds the run no longer running cancels the parse and writes nothing."""
+    statement_id, job = await _statement_with_run(db, test_user)
+    monkeypatch.setattr(supervisor, "PARSING_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+
+    async def run_is_gone(_session, _run_id) -> bool:
+        return False
+
+    monkeypatch.setattr(supervisor, "heartbeat_run", run_is_gone)
+    cancelled = asyncio.Event()
+
+    class SlowService:
+        async def parse_document(self, *_args, **_kwargs):
+            try:
+                await asyncio.sleep(6)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    outcome = await asyncio.wait_for(_use_case(db, SlowService()).execute(job, content=CSV), timeout=3)
+
+    (run,) = await _runs(db, statement_id)
+    assert outcome.status is StatementIngestionStatus.RUN_STALE
+    assert cancelled.is_set()
+    assert (run.state, run.error_code) == (RunState.RUNNING, None), "the cancelled worker writes nothing"
+    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSING
+
+
+async def test_AC_extraction_2994_38_an_error_inside_parse_document_is_not_retried(db, test_user, monkeypatch):
+    """AC-extraction.2994.38: The service wraps every error in ExtractionError, which rejects the source without a retry."""
+    statement_id, job = await _statement_with_run(db, test_user)
+
+    async def lost_database(*_args, **_kwargs):
+        raise RuntimeError("database connection lost")
+
+    monkeypatch.setattr("src.extraction.extension.service.dual_write_layer2", lost_database)
+    sleeps = Sleeps()
+
+    outcome = await _use_case(db, sleeps=sleeps).execute(job, content=CSV)
+
+    (run,) = await _runs(db, statement_id)
+    assert outcome.status is StatementIngestionStatus.SOURCE_REJECTED
+    assert run.state is RunState.FAILED
+    assert run.error_code == "extraction_error"
+    assert "database connection lost" in run.error_message
+    assert (await _statement(db, statement_id)).status is BankStatementStatus.REJECTED
     assert sleeps.delays == []
-    assert (run.state, run.retryable) == (RunState.FAILED, False)
 
 
 def test_AC_extraction_2994_30_the_prefect_flow_has_no_retries():
@@ -465,9 +521,7 @@ async def test_AC_extraction_2994_31_the_supervisor_rejects_a_parsing_statement_
     old = datetime.now(UTC) - timedelta(minutes=10)
     from sqlalchemy import update
 
-    from src.extraction import fail_run
-
-    await fail_run(db, orphan_run, error_code="retryable_statement_ingestion_error", error_message="Failed.", retryable=True)
+    await fail_run(db, orphan_run, error_code="retryable_statement_ingestion_error", error_message="Failed.")
     await db.execute(
         update(StatementRun)
         .where(StatementRun.id.in_([parsing_run, parsed_run, approved_run, classify_run]))
@@ -478,10 +532,13 @@ async def test_AC_extraction_2994_31_the_supervisor_rejects_a_parsing_statement_
     count = await supervisor.reap_stale_parsing_runs(create_session_maker_from_db(db))
 
     assert count == 5
-    for rejected_id in (parsing, orphan):
+    for rejected_id, message in (
+        (parsing, "Parsing timed out. Please retry."),
+        (orphan, "Parsing failed. Please retry."),
+    ):
         rejected = await _statement(db, rejected_id)
         assert rejected.status is BankStatementStatus.REJECTED
-        assert rejected.validation_error == "Parsing timed out. Please retry."
+        assert rejected.validation_error == message
         assert rejected.confidence_score == 0
         assert rejected.balance_validated is False
     assert (await _statement(db, parsed)).status is BankStatementStatus.PARSED
@@ -491,6 +548,72 @@ async def test_AC_extraction_2994_31_the_supervisor_rejects_a_parsing_statement_
     assert (await _runs(db, parsing))[0].error_code == "heartbeat_lost"
     assert (await _runs(db, fresh))[0].state is RunState.RUNNING
     assert await supervisor.reap_stale_parsing_runs(create_session_maker_from_db(db)) == 0
+
+
+async def test_AC_extraction_2994_36_the_supervisor_skips_a_statement_that_another_transaction_holds(db, test_user):
+    """AC-extraction.2994.36: The supervisor locks the statements first and skips the rows that others hold."""
+    statement_id, run_id = await _run_of_statement(
+        db, test_user, status=BankStatementStatus.PARSING, file_hash="lock-1"
+    )
+    await fail_run(db, run_id, error_code="storage_error", error_message="Failed.")
+    await db.commit()
+    maker = create_session_maker_from_db(db)
+
+    async with maker() as holder:
+        await holder.execute(
+            select(StatementSummary.id).where(StatementSummary.id == statement_id).with_for_update(key_share=True)
+        )
+        count = await asyncio.wait_for(supervisor.reap_stale_parsing_runs(maker), timeout=5)
+        status_while_held = (await _statement(db, statement_id)).status
+        await holder.rollback()
+
+    assert count == 0
+    assert status_while_held is BankStatementStatus.PARSING
+    assert await supervisor.reap_stale_parsing_runs(maker) == 1
+    assert (await _statement(db, statement_id)).status is BankStatementStatus.REJECTED
+
+
+async def test_AC_extraction_2994_37_the_failure_report_locks_the_statement_before_the_run(db, test_user, monkeypatch):
+    """AC-extraction.2994.37: A failure report and the reaper take the statement lock first, so they cannot deadlock."""
+    from src.extraction.extension import statement_parsing
+
+    statement_id, run_id = await _run_of_statement(
+        db, test_user, status=BankStatementStatus.PARSING, file_hash="order-1"
+    )
+    job = ParseJob(
+        statement_id=statement_id,
+        run_id=run_id,
+        filename="order.csv",
+        institution="DBS",
+        user_id=test_user.id,
+        account_id=None,
+        file_hash="order-1",
+        storage_key="statements/order.csv",
+        model=None,
+    )
+    maker = create_session_maker_from_db(db)
+    swallowed: list[tuple] = []
+    monkeypatch.setattr(statement_parsing.logger, "exception", lambda *args, **_kwargs: swallowed.append(args))
+
+    async def report_failure() -> None:
+        async with maker() as session:
+            statement = await session.get(StatementSummary, statement_id)
+            await handle_parse_failure(statement, session, job=job, message="late", error_type="ExtractionError")
+
+    async with maker() as reaper:
+        await reaper.execute(
+            select(StatementSummary.id).where(StatementSummary.id == statement_id).with_for_update(key_share=True)
+        )
+        reporter = asyncio.create_task(report_failure())
+        await asyncio.sleep(1.0)
+        assert await reap_stale_runs(reaper, now=datetime.now(UTC) + timedelta(minutes=10)) == [run_id]
+        await reaper.commit()
+    await asyncio.wait_for(reporter, timeout=10)
+
+    assert swallowed == [], "the failure report was the victim of a deadlock"
+    (run,) = await _runs(db, statement_id)
+    assert (run.state, run.error_code) == (RunState.FAILED, "heartbeat_lost")
+    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSING
 
 
 async def test_AC_extraction_2994_32_the_supervisor_loop_calls_the_run_reaper(monkeypatch):

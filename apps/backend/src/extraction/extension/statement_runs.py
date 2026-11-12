@@ -167,7 +167,6 @@ def _manifest(run: StatementRun) -> dict[str, object]:
         )
     if run.state is RunState.FAILED:
         manifest["error_code"] = run.error_code
-        manifest["retryable"] = run.retryable
     return manifest
 
 
@@ -333,12 +332,10 @@ async def fail_run(
     *,
     error_code: str,
     error_message: str,
-    retryable: bool = False,
 ) -> StatementRun:
     """Move a requested or running run to failed.
 
-    `error_code` is a short machine code. The caller redacts `error_message`. The column `retryable`
-    tells a later step that it may retry this failure.
+    `error_code` is a short machine code. The caller redacts `error_message`.
     """
     if _ERROR_CODE.fullmatch(error_code) is None:
         raise ValueError("error_code is 1 to 64 characters: a lowercase letter, then lowercase letters, digits or _")
@@ -352,7 +349,6 @@ async def fail_run(
         finished_at=_now(),
         error_code=error_code,
         error_message=error_message,
-        retryable=retryable,
     )
     return _only(runs, run_id, RunState.FAILED)
 
@@ -366,7 +362,7 @@ async def reap_stale_runs(
     """Fail every run that shows no sign of a worker for longer than `stale_after`. Return the failed run ids.
 
     A running run with an old `heartbeat_at` fails with `heartbeat_lost`. A requested run with an old
-    `requested_at` fails with `claim_timeout`: its dispatch was lost. Both failures are retryable.
+    `requested_at` fails with `claim_timeout`: its dispatch was lost.
     """
     moment = now or _now()
     cutoff = moment - stale_after
@@ -385,7 +381,6 @@ async def reap_stale_runs(
             (never_claimed, f"No worker claimed the run within {seconds} seconds."),
             else_=f"The worker sent no heartbeat for more than {seconds} seconds.",
         ),
-        retryable=True,
     )
     return [run.id for run in runs]
 

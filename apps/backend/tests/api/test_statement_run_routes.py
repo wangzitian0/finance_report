@@ -6,6 +6,8 @@ dispatch. A second reparse while a run is active returns 409 with `active_run_id
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -212,6 +214,13 @@ async def test_AC_extraction_2994_19_a_reparse_while_a_run_is_active_returns_409
     assert rejected.json()["active_run_id"] == str(other_active_id)
     assert [run.id for run in await _runs(db, reject_statement_id)] == [other_active_id]
     assert jobs == []
+    untouched = await db.scalar(
+        select(StatementSummary)
+        .where(StatementSummary.id == reject_statement_id)
+        .execution_options(populate_existing=True)
+    )
+    assert untouched.status is BankStatementStatus.PARSED, "a 409 must come before any write of the reject"
+    assert untouched.stage1_reviewed_at is None
 
 
 async def test_AC_extraction_2994_20_reject_then_reparse_shows_parsing_while_the_job_runs(
@@ -250,3 +259,71 @@ def test_AC_extraction_2994_21_the_retry_flag_and_the_watchdog_are_gone():
     assert "reset_for_retry" not in inspect.signature(statements_router._queue_statement_reparse).parameters
     assert not hasattr(supervisor, "reset_stale_parsing_jobs")
     assert not hasattr(supervisor, "PARSING_STALE_THRESHOLD")
+
+
+async def test_AC_extraction_2994_39_two_concurrent_rejects_give_one_200_and_one_409(
+    client, db, monkeypatch, storage_stub, test_user
+):
+    """AC-extraction.2994.39: The run insert decides the race: the statement is never REJECTED while a run is active."""
+    jobs = _capture_dispatch(monkeypatch)
+
+    for round_number in range(6):
+        statement = await _statement_with_document(
+            db, test_user, status=BankStatementStatus.PARSED, file_hash=f"hash_double_reject_{round_number}"
+        )
+        statement_id = statement.id
+        first, second = await asyncio.gather(
+            client.post(f"/statements/{statement_id}/review/reject", json={"notes": "double click"}),
+            client.post(f"/statements/{statement_id}/review/reject", json={"notes": "double click"}),
+        )
+
+        assert sorted([first.status_code, second.status_code]) == [200, 409], (first.text, second.text)
+        loser = first if first.status_code == 409 else second
+        runs = await _runs(db, statement_id)
+        assert len(runs) == 1
+        assert loser.json()["active_run_id"] == str(runs[0].id)
+        final = await db.scalar(
+            select(StatementSummary)
+            .where(StatementSummary.id == statement_id)
+            .execution_options(populate_existing=True)
+        )
+        assert final.status is BankStatementStatus.PARSING
+    await statements_router.wait_for_parse_tasks()
+    assert len(jobs) == 6
+
+
+async def test_AC_extraction_2994_40_the_reject_notes_become_the_hint_note_of_the_rerun(
+    client, db, monkeypatch, storage_stub, test_user
+):
+    """AC-extraction.2994.40: The notes of a reject reach the run row; more than 500 characters give 422."""
+    jobs = _capture_dispatch(monkeypatch)
+    too_long = await _statement_with_document(
+        db, test_user, status=BankStatementStatus.PARSED, file_hash="hash_notes_too_long"
+    )
+    too_long_id = too_long.id
+    rejected_long = await client.post(f"/statements/{too_long_id}/review/reject", json={"notes": "n" * 501})
+    rejected_control = await client.post(f"/statements/{too_long_id}/review/reject", json={"notes": "bell\x07"})
+    assert rejected_long.status_code == 422, rejected_long.text
+    assert rejected_long.json()["detail"][0]["type"] == "string_too_long", "the schema holds the limit"
+    assert rejected_control.status_code == 422, rejected_control.text
+    assert await _runs(db, too_long_id) == []
+    untouched = await db.scalar(
+        select(StatementSummary).where(StatementSummary.id == too_long_id).execution_options(populate_existing=True)
+    )
+    assert untouched.status is BankStatementStatus.PARSED
+
+    exact = await _statement_with_document(db, test_user, status=BankStatementStatus.PARSED, file_hash="hash_notes_ok")
+    exact_id = exact.id
+    accepted = await client.post(f"/statements/{exact_id}/review/reject", json={"notes": "n" * 500})
+    plain = await _statement_with_document(db, test_user, status=BankStatementStatus.PARSED, file_hash="hash_notes_none")
+    plain_id = plain.id
+    without_notes = await client.post(f"/statements/{plain_id}/review/reject", json={})
+    await statements_router.wait_for_parse_tasks()
+
+    assert accepted.status_code == 200, accepted.text
+    assert without_notes.status_code == 200, without_notes.text
+    (exact_run,) = await _runs(db, exact_id)
+    (plain_run,) = await _runs(db, plain_id)
+    assert exact_run.hints == {"keywords": [], "note": "n" * 500}
+    assert plain_run.hints == {"keywords": [], "note": None}
+    assert len(jobs) == 2

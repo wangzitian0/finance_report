@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import (
-    Boolean,
     DateTime,
     Enum as SQLEnum,
     ForeignKey,
@@ -115,7 +114,4 @@ class StatementRun(Base, UUIDMixin):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(
         String(ERROR_MESSAGE_MAX_LENGTH), nullable=True, comment="Redacted by the caller"
-    )
-    retryable: Mapped[bool | None] = mapped_column(
-        Boolean, nullable=True, comment="Set when the run fails: may a later run retry this failure"
     )

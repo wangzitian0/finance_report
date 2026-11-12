@@ -236,7 +236,6 @@ async def test_AC_extraction_2994_3_a_finish_after_the_reaper_failed_the_run_cha
     assert stored.error_code == "heartbeat_lost"
     assert stored.finished_at == reaped_at
     assert stored.extraction_result_id is None
-    assert stored.retryable is True
     assert stored.result_summary is None
     records = await _traces(db, statement.id, run.id)
     assert [row.assertion_id for row in records] == ["extract.requested", "extract.running", "extract.failed"]
@@ -323,7 +322,6 @@ async def test_AC_extraction_2994_13_the_reaper_fails_a_requested_run_that_no_wo
     reaped = await stored(unclaimed)
     assert reaped.state is RunState.FAILED
     assert reaped.error_code == "claim_timeout"
-    assert reaped.retryable is True
     assert reaped.started_at is None
     assert reaped.finished_at == now
     assert (await stored(fresh)).state is RunState.REQUESTED
@@ -335,37 +333,12 @@ async def test_AC_extraction_2994_13_the_reaper_fails_a_requested_run_that_no_wo
     assert records["extract.failed"].occurred_at == now
 
 
-async def test_AC_extraction_2994_14_fail_run_and_the_reaper_record_retryable_in_its_own_column(db, test_user):
-    """AC-extraction.2994.14: The retryable flag is a boolean column that only a failed run holds."""
-    now = datetime(2026, 11, 12, 8, 0, tzinfo=UTC)
-    retryable = await _create(db, await _statement(db, test_user))
-    await fail_run(db, retryable.id, error_code="provider_timeout", error_message="Timed out.", retryable=True)
-    plain = await _create(db, await _statement(db, test_user))
-    await fail_run(db, plain.id, error_code="provider_timeout", error_message="Timed out.")
-    reaped = await _running(db, await _statement(db, test_user))
-    await db.execute(update(StatementRun).where(StatementRun.id == reaped.id).values(heartbeat_at=now - timedelta(hours=1)))
-    done = await _running(db, await _statement(db, test_user))
-    await finish_run(db, done.id)
-    await db.commit()
-    assert await reap_stale_runs(db, now=now) == [reaped.id]
-    await db.commit()
+def test_AC_extraction_2994_41_a_run_has_no_retryable_column():
+    """AC-extraction.2994.41: Nothing reads a retryable flag, so neither the table nor fail_run holds one."""
+    import inspect
 
-    rows = {
-        name: await db.scalar(
-            select(StatementRun).where(StatementRun.id == run.id).execution_options(populate_existing=True)
-        )
-        for name, run in {"retryable": retryable, "plain": plain, "reaped": reaped, "done": done}.items()
-    }
-
-    assert [rows[name].retryable for name in ("retryable", "plain", "reaped", "done")] == [True, False, True, None]
-    assert all(row.result_summary is None for row in rows.values())
-    for run, flag in ((retryable, True), (plain, False)):
-        failed_record = next(
-            record for record in await _traces(db, run.statement_id, run.id) if record.assertion_id == "extract.failed"
-        )
-        assert failed_record.evidence_manifest_digest == canonical_json_digest(
-            {"state": "failed", "run_id": str(run.id), "error_code": "provider_timeout", "retryable": flag}
-        )
+    assert "retryable" not in StatementRun.__table__.columns
+    assert "retryable" not in inspect.signature(fail_run).parameters
 
 
 @pytest.mark.parametrize("actor", list(RunActorKind), ids=lambda actor: actor.value)
@@ -617,7 +590,7 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
         select_runs = text(
             "SELECT statement_id, user_id, seq, kind::text, state::text, actor_kind::text, trigger::text, "
             "hints, heartbeat_at, started_at, requested_at, finished_at, parent_run_id, extraction_result_id, "
-            "result_summary, error_code, error_message, retryable FROM statement_runs"
+            "result_summary, error_code, error_message FROM statement_runs"
         )
         with engine.connect() as connection:
             rows = connection.execute(select_runs).all()
@@ -630,7 +603,7 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
                     "extract",
                     "running",
                     "system",
-                    "upload",
+                    "backfill",
                 )
                 assert row.hints == {}
                 assert row.heartbeat_at == updated_at
@@ -642,7 +615,6 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
                 assert row.result_summary is None
                 assert row.error_code is None
                 assert row.error_message is None
-                assert row.retryable is None
             types = {
                 row[0]
                 for row in connection.execute(text("SELECT typname FROM pg_type WHERE typtype = 'e' AND typname LIKE 'statement\\_run\\_%'"))
@@ -720,12 +692,9 @@ async def test_AC_extraction_2994_11_each_transition_accepts_only_its_source_sta
         await fail_run(db, run.id, error_code="Not A Code", error_message="x")
     with pytest.raises(ValueError, match="error_message"):
         await fail_run(db, run.id, error_code="provider_timeout", error_message="x" * 501)
-    failed = await fail_run(
-        db, run.id, error_code="provider_timeout", error_message="x" * 500, retryable=True
-    )
+    failed = await fail_run(db, run.id, error_code="provider_timeout", error_message="x" * 500)
     await db.commit()
     assert failed.state is RunState.FAILED
-    assert failed.retryable is True
     assert failed.result_summary is None
     assert failed.finished_at is not None
 
@@ -744,7 +713,6 @@ async def test_AC_extraction_2994_11_each_transition_accepts_only_its_source_sta
     await db.commit()
     assert skipped.state is RunState.FAILED
     assert skipped.started_at is None
-    assert skipped.retryable is False
     assert skipped.seq == 2
 
 

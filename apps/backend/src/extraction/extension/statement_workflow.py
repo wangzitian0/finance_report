@@ -144,12 +144,14 @@ async def reject_statement_workflow(
     *,
     reason: str | None = None,
     dependencies: StatementPostingDependencies | None = None,
+    commit: bool = True,
 ) -> StatementSummary:
     """Reject a PARSED statement as one committed unit, returning the refreshed row.
 
     Owns the PARSED→REJECTED transition and its ``commit``. Re-parse queueing is a
     caller (router/background) concern and is intentionally excluded so the state
-    transition stays a pure, committed unit.
+    transition stays a pure, committed unit. A caller that must commit the reject together
+    with another write passes ``commit=False``: the function then flushes and the caller commits.
     """
     # The reject changes the status, so the status before the reject decides which statements keep a shared row.
     # A missing statement gives None here, and ``reject_statement`` reports it.
@@ -174,6 +176,9 @@ async def reject_statement_workflow(
     account_id = getattr(statement, "account_id", None)
     if account_id is not None:
         await reconcile_account_statement_chain(db, user_id=user_id, account_id=account_id, dependencies=dependencies)
-    await db.commit()
-    await db.refresh(statement)
+    if commit:
+        await db.commit()
+        await db.refresh(statement)
+    else:
+        await db.flush()
     return statement
