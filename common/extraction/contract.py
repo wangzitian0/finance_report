@@ -60,13 +60,15 @@ effective_statement_transaction_filter|svc|extension/transaction_membership.py
 ExtractionService|svc|extension/service.py
 StatementIngestionUseCase|svc|extension/statement_parsing.py
 @fac|-|build_statement_ingestion_use_case extraction_trace_policy_registry
+@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run
 DeduplicationService|svc|extension/deduplication.py
 BrokeragePositionImportService|svc|extension/brokerage_positions.py
 EvidenceGraphIntegrationService|svc|extension/evidence_graph_integration.py
 snapshot_currencies|svc|extension/currencies.py
 AtomicTransactionRepository|repo
 BalanceChainViolated|ev
-@vo|base/types.py|DocumentSource ExtractedTransactionRow ParseJob RetireStatementCommand StatementIngestionOutcome StatementIngestionStatus StatementPostingOutcome StatementPostingStatus
+@vo|base/types.py|DocumentSource ExtractedTransactionRow ParseJob RetireStatementCommand RunHints StatementIngestionOutcome StatementIngestionStatus StatementPostingOutcome StatementPostingStatus
+@vo|base/run_vocabulary.py|RunKind RunState RunActorKind RunTrigger
 retire_statement|svc|extension/source_lifecycle.py
 StatementExtractionResult|vo|base/result.py
 ResolvedStatementContribution|vo|base/contribution.py
@@ -133,6 +135,8 @@ resolve_statement_transactions effective_statement_transaction_filter
 resolve_transaction_currency run_parsing_supervisor set_opening_balance
 snapshot_currencies submit_parse_pipeline supports_reviewed_statement_envelope
 validate_balance validate_balance_chain validation
+ActiveRunExists RunActorKind RunHints RunKind RunState RunTrigger StaleRun
+claim_run create_run fail_run finish_run get_active_run heartbeat_run reap_stale_runs
 """.split(),
     events=[],
     command_boundaries=[
@@ -826,6 +830,19 @@ source-lifecycle.9||test_AC_extraction_source_lifecycle_9_governance_detail_is_e
 2960.2||test_AC_extraction_2960_2_a_printed_balance_that_does_not_reconcile_is_still_retried
 2960.3||test_AC_extraction_2960_3_balance_is_evaluable_with_both_ends_or_a_per_currency_list
 2960.4||test_AC_extraction_2960_4_a_later_pass_without_balances_does_not_replace_a_reconcilable_parse
+@$be/extraction/test_statement_runs.py|P1
+2994.1|A second requested or running run for one statement raises ActiveRunExists with the id of the active run.|test_AC_extraction_2994_1_a_second_active_run_for_one_statement_raises_active_run_exists
+2994.2|Two concurrent claims of one requested run give one winner and one StaleRun.|test_AC_extraction_2994_2_two_concurrent_claims_give_one_winner_and_one_stale_run
+2994.3|A finish after the reaper failed the run raises StaleRun and changes nothing.|test_AC_extraction_2994_3_a_finish_after_the_reaper_failed_the_run_changes_nothing
+2994.4|The reaper fails a running run only when its heartbeat is older than the threshold.|test_AC_extraction_2994_4_the_reaper_fails_only_runs_with_an_old_heartbeat
+2994.5|The user, ai and system actors give the same states and the same trace records.|test_AC_extraction_2994_5_user_ai_and_system_actors_give_the_same_transition_sequence
+2994.6|A run with hints and a result that equals an earlier result keeps its own row and number.|test_AC_extraction_2994_6_a_run_with_hints_and_an_identical_result_keeps_its_own_row
+2994.7|The requested trace record pins the hints, actor and inputs by digest and holds the real transition time.|test_AC_extraction_2994_7_the_requested_trace_record_binds_hints_actor_and_the_transition_time
+2994.8|RunHints reject a 21st keyword, a 65-character keyword, a 501-character note and control characters.|test_AC_extraction_2994_8_run_hints_reject_values_outside_the_bounds
+2994.9|RunHints accept 20 keywords, a 64-character keyword and a 500-character note, and strip keyword padding.|test_AC_extraction_2994_9_run_hints_accept_values_inside_the_bounds
+2994.10|The migration backfills one running extract run for each parsing statement, and its downgrade removes the table.|test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsing_statement
+2994.11|Each transition function accepts only its source states and raises StaleRun for any other state.|test_AC_extraction_2994_11_each_transition_accepts_only_its_source_states
+2994.12|A transition logs the run id, kind, state, hints digest and keyword count, and never the hint text. A failed insert hides its parameters.|test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_the_hint_text
 """,
     ),
     concepts=concepts(
@@ -838,6 +855,7 @@ evidence_lineage|common/extraction/evidence-lineage.md|Generic Evidence Graph fo
 extraction_confidence_tiers|common/extraction/readme.md#confidence-scoring|Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.|common/reconciliation/readme.md#thresholds,common/extraction/confirmation-workflow.md#confidence-tier-rollup|-|extraction|concept
 extraction_failed_case_registry|common/extraction/audit-failed-cases.yaml|Sanitized registry for parsing cases that fail audit.|common/extraction/readme.md,docs/project/EPIC-003.statement-parsing.md|tests/tooling/test_extraction_failed_case_registry.py|extraction|registry
 extraction_pipeline|common/extraction/readme.md|Gemini Vision document parsing and validation pipeline.|common/reconciliation/reconciliation.md,apps/backend/tests/extraction/test_dual_write_layer2.py|-|extraction|concept
+statement_run|common/extraction/readme.md#statement-run|One attempt to extract or classify one statement: inputs, actor, hints, state, and at most one active run per statement.|apps/backend/src/extraction/orm/statement_run.py,apps/backend/src/extraction/extension/statement_runs.py|apps/backend/tests/extraction/test_statement_runs.py|extraction|concept
 """
     ),
     governance=[
