@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wait until the cheap CI jobs (lint and ac-traceability) succeed for a given commit SHA."""
+"""Wait until the cheap CI job (lint) succeeds for a given commit SHA."""
 
 from __future__ import annotations
 
