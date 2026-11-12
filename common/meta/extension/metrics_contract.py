@@ -138,32 +138,15 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "tools/check_toolchain_contract.py",
             "tools/ci_change_classifier.py",
             "tools/github_workflow_timing_summary.py",
-            "tools/check_coverage_policy.py",
-            "tools/calculate_unified_coverage.py",
             "tools/lint_doc_consistency.py",
             "tools/check_ssot_ownership.py",
             "tools/check_manifest.py",
             "uv run --frozen ruff check src tests",
             "uv run --frozen ruff format src tests --check",
-            "tooling-coverage:",
-            "Tooling/Common Coverage",
-            "coverage-tooling",
-            "Download tooling coverage",
-            "Upload tooling coverage context",
             # The AC-index gate is the single index gate; its INTEGRITY gate folds
             # in the former standalone check_ac_traceability + check_critical_proof_matrix
             # contracts (those are no longer separate CI steps).
             "tools/check_ac_index.py",
-            "tools/check_e2e_epic_traceability.py",
-            'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
-            "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md",
-            "--cov=common",
-            "--cov=tools",
-            "coverage/common.lcov",
-            "coverage/tools.lcov",
-            "coverage/coverage-context.txt",
-            "Upload unified coverage context",
-            "unified-coverage-context",
             "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml",
             "backend-shard-${{ matrix.shard }}-test-context",
             "backend-integration-test-context",
@@ -172,13 +155,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "frontend-vitest-test-context",
             "frontend-playwright-test-context",
             "frontend-telemetry-test-context",
-            "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md",
-            "coverage/coveralls-unified.lcov",
-            "Upload main unified coverage to Coveralls",
             "github.event_name == 'push' && github.ref == 'refs/heads/main'",
-            "Write coverage gate summary",
-            "Authoritative coverage gate",
-            "Pull requests do not publish Coveralls status contexts",
             "Backend Tests (Shard ${{ matrix.shard }}/${{ strategy.job-total }})",
             "--splits ${{ strategy.job-total }}",
             "--splitting-algorithm=least_duration",
@@ -193,22 +170,6 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         for token in required_workflow_tokens:
             if token not in workflow_text:
                 errors.append(f"CI workflow is missing metrics token: {token}")
-        if (
-            "tools/check_ci_metrics_contract.py" in workflow_text
-            and "tools/check_coverage_policy.py" in workflow_text
-            and workflow_text.index("tools/check_ci_metrics_contract.py")
-            > workflow_text.index("tools/check_coverage_policy.py")
-        ):
-            errors.append("CI metrics contract must run before coverage policy audit")
-        if (
-            "tools/check_e2e_epic_traceability.py" in workflow_text
-            and "tools/build_ac_traceability.py --output" in workflow_text
-            and workflow_text.index("tools/check_e2e_epic_traceability.py")
-            > workflow_text.index("tools/build_ac_traceability.py --output")
-        ):
-            errors.append(
-                "E2E EPIC traceability gate must run before audit artifact generation"
-            )
 
     if ci_cd.exists():
         ci_cd_text = ci_cd.read_text(encoding="utf-8")
@@ -219,11 +180,8 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "README EPIC map drift",
             "unclassified E2E-like assets outside declared roots",
             "trivial placeholder assertions",
-            "Coveralls uploads are main-only reporting",
-            "coverage gate summary",
             "Coverage scope is deny-list based within each governed source root",
             "CI observability artifacts",
-            "strip branch records before upload",
             "PR CI dry-runs staging image builds before merge",
             "Main and release-branch push CI, plus on-demand",
             "New `apps/*/src`, `packages/*/src`, or root shared source roots fail CI",

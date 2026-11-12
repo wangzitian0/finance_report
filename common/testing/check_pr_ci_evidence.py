@@ -4,7 +4,7 @@ A behavioral ``@ac_proof`` declaring ``ci_tier="pr_ci"`` promises its test runs
 on every PR. Until issue #1557 that field was shape-validated but never checked
 against real execution — a proof could claim pr_ci and silently never run.
 
-This gate runs in the ``ac-behavioral-ratchet`` job after junit aggregation:
+This gate ran in the retired ``ac-behavioral-ratchet`` job after junit aggregation (#2934 Wave A retired the job; Wave B re-homes the gate onto ``infra2-sdk``):
 every behavioral pr_ci proof whose file classifies (via the execution matrix)
 into a PR-evidence stage must appear as an executed testcase in the aggregated
 junit. Absent → hard fail. Present but skipped-only → hard fail too (#1558):

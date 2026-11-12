@@ -10,7 +10,7 @@ printer here any more: the one gate entry point is ``tools/check_ac_index.py``.
 It also owns the two shared AC rules: :func:`is_deprecated` (the one deprecation
 rule) and :func:`classify_references` (the one real / placeholder / stub /
 missing classifier). The protection count, the doc lint and the audit builder
-(``build_ac_traceability``) call them instead of keeping copies.
+(``check_ac_index``) call them instead of keeping copies.
 """
 
 from __future__ import annotations

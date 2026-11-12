@@ -167,9 +167,6 @@ provider-error-code.1||test_AC_llm_provider_error_code_1_text_names_status_and_c
 14.1||test_AC_llm_14_1_missing_period_remains_review_only_via_stub
 14.2||test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay
 14.3||test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_replay
-@$t/test_evidence_bundle.py|P1
-evidence-bundle.1||test_AC8_13_164_bundle_assembles_the_four_ratchet_water_lines_and_gate_map
-evidence-bundle.2||test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow
 @$fe/__tests__/aiModels.test.ts|P2
 fe-ai-models-catalog.1||AC16.8.1 calls /api/llm/catalog with no query when no options provided
 fe-ai-models-catalog.2||AC16.8.2 appends modality query param when provided

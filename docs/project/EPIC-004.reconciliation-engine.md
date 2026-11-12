@@ -54,7 +54,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 ### AC4.10: Reconciliation Accuracy Audit Harness
 > Migrated to [`common/reconciliation/contract.py`](../../common/reconciliation/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-reconciliation.audit-harness.1` / `.2`. | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC4.10.3 | CI treats reconciliation audit JSON/Markdown as a hard gate for the EPIC-004 accuracy, false-positive, false-negative, and 10,000-transaction runtime targets | `test_AC4_10_3_ci_gates_reconciliation_audit_thresholds` | `tests/tooling/test_reconciliation_audit.py` | P0 | <!-- epic-owned: horizontal -->
+| AC4.10.3 | The reconciliation audit thresholds (accuracy, false-positive, false-negative, 10,000-transaction runtime) are enforced by the backend reconciliation test suite; the standalone CI job and its `tools/reconciliation_audit.py` shim are retired (#2934 Wave A) | `test_reconciliation_audit` | `apps/backend/tests/reconciliation/test_reconciliation_audit.py` | P0 | <!-- epic-owned: horizontal -->
 > **Retained**: `AC4.10.3`'s test asserts a literal substring of this EPIC file's own text (the "10,000-transaction runtime targets" phrase two lines above), so it is a doc-governance self-check, not `reconciliation` package behavior — it cannot move (same category as EPIC-012's `AC12.25.1`).
 ### AC4.11: Decimal-Safe Unmatched Review UI
 Unmatched transaction triage may create ledger entries, so monetary values shown in the queue and created-entry confirmation must use the same Decimal-safe frontend formatting contract as other accounting surfaces. See: common/ledger/readme.md#decimal-rule
@@ -87,8 +87,7 @@ Unmatched transaction triage may create ledger entries, so monetary values shown
 - [x] Explicit 0.1 USD tolerance check is covered by
       `test_amount_tolerance_0_10_boundary` (was AC4.6's boundary row,
       migrated — `AC-reconciliation.source-type-transfer.1`). - [x] Archive baseline benchmark residual is explicitly owned by EPIC-004 and
-      now closed through AC4.10.3. The hard-gated audit runs
-      `python tools/reconciliation_audit.py --stdout`, includes a 100-transaction manual false-positive audit plus 10,000-transaction benchmark evidence, and fails CI when the `>=95%`, `<0.5%`, `<2%`, or `<10s` targets are missed. Current traceability review also uses `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` and
+      now closed through AC4.10.3. The audit covers a 100-transaction manual false-positive audit plus 10,000-transaction benchmark evidence, runs in the backend CI suite (`apps/backend/tests/reconciliation/test_reconciliation_audit.py`; the former standalone CI job and `tools/reconciliation_audit.py` shim retired in #2934 Wave A), and fails CI when the `>=95%`, `<0.5%`, `<2%`, or `<10s` targets are missed. Consistency of the AC graph is gated by
       `python tools/check_ac_index.py`.
 ## 🗄️ Archive Integration Notes
 The removed `EPIC-004.reconciliation-accuracy-report.md` archive snapshot is folded into this EPIC as a historical baseline; the removed inventory is retained in [#548](https://github.com/wangzitian0/finance_report/issues/548). Scoring dimensions, threshold routing, review queue flow, and anomaly handling were implemented, but the old archive had pending accuracy and performance

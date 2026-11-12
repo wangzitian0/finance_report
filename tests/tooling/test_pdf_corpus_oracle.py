@@ -39,7 +39,3 @@ def test_pdf_corpus_oracle_edge_branches_and_live_cli(tmp_path: Path, monkeypatc
     class FailRegHttpxClient(FakeHttpxClient):
         def post(self, url: str, **kwargs: object) -> Any: r = MagicMock(); r.status_code = 500; r.text = 'Internal Server Error'; return r
     monkeypatch.setattr(pco.httpx, 'Client', FailRegHttpxClient); assert oracle_cli_main(['--app-url', 'https://report-staging.zitian.party', '--fixture', 'dbs_statement_fixture']) == 1
-def test_git_diff_text_handles_non_utf8_pdf_bytes_safely(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import subprocess as sp; from common.testing.coverage import diff_coverage; captured_kwargs: dict[str, Any] = {}; real_run = sp.run
-    def _inspecting_run(cmd: list[str], **kwargs: Any) -> Any: captured_kwargs.update(kwargs); return real_run([sys.executable, '-c', "import sys; sys.stdout.buffer.write(b'diff --git a/x.pdf b/x.pdf\\n+%PDF-1.4\\n+%\\x93\\x8c\\x8b\\x9e\\n')"], **kwargs)
-    import sys; monkeypatch.setattr(diff_coverage.subprocess, 'run', _inspecting_run); diff_out = diff_coverage.git_diff_text('origin/main', repo_root=tmp_path); assert captured_kwargs.get('encoding') == 'utf-8'; assert captured_kwargs.get('errors') == 'replace'; assert '%PDF-1.4' in diff_out; assert '�' in diff_out

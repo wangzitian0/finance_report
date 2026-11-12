@@ -202,7 +202,7 @@ forbidden from containing proof; each proof observation embeds its canonical
 `TraceRecord`, which is decoded and reconciled again when the serialized bundle is
 consumed. Mixed target SHAs, parameterized pass/skip results, stale bundles,
 missing canonical proof, inactive/unknown rulesets, and inventory/workflow drift
-fail closed. The existing `ac-traceability` job consumes the bundle and remains an
+fail closed. The retired `ac-traceability` job consumed the bundle (#2934 Wave A); the observation adapter remains an
 input to the one required `finish` context.
 The staging AI-OCR implementation now lives in
 `staging_ai_ocr_gate_contract.py`, with replay-count data in
@@ -303,18 +303,17 @@ scenario-bound @ac_proof
       --tools/check_pr_ci_evidence.py------------->  exact repo/commit/run proof gate
 ```
 
-### CI wiring (blocking, not a follow-up)
+### CI wiring
 
-- The dedicated `ac-behavioral-ratchet` job in `.github/workflows/ci.yml` waits
-  on every test stage that emits junit (`backend`, `backend-integration`,
-  `frontend`), downloads their junit artifacts, and runs
-  `tools/check_pr_ci_evidence.py`. It is a **separate** job — not part of
-  `ac-traceability`.
-- The `finish` aggregation job **requires** `ac-behavioral-ratchet` to succeed
-  (both via `needs:` and an explicit `result != "success"` failure check) on the
-  PR test path.
-- If no junit evidence reaches the job, the check fails: a lost or
-  un-uploaded artifact cannot pass vacuously.
+- The dedicated `ac-behavioral-ratchet` job ran the ci_tier reconciliation on
+  every test stage that emitted junit (`backend`, `backend-integration`,
+  `frontend`): it downloaded their junit artifacts and ran
+  `tools/check_pr_ci_evidence.py`. #2934 Wave A retired the job; Wave B
+  re-homes the reconciliation onto `infra2-sdk`.
+- The `finish` aggregation job required the job to succeed (via `needs:` and an
+  explicit `result != "success"` failure check) on the PR test path.
+- Fail-closed rule that survives the retirement: missing junit evidence is a
+  failure — a lost or un-uploaded artifact can never pass vacuously.
 
 ## Scenario-bound execution proof
 

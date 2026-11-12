@@ -3,8 +3,7 @@
 EPIC status and completion are *derived* facts, not hand-written prose. The
 per-EPIC numbers are a view of the one AC-keyed graph and are NOT committed: a
 committed snapshot churns on every AC change. The README therefore carries only
-a fixed pointer to the on-demand per-EPIC table of
-:mod:`common.testing.build_ac_traceability`, whose classification comes from
+a fixed pointer to the AC graph whose classification comes from
 :mod:`common.testing.check_ac_traceability` (the one classifier).
 
 This module writes the pointer block into the README, or (with ``--check``)
@@ -40,16 +39,11 @@ def render_pointer_block() -> str:
             "> snapshot churns on every AC change and is the merge-train false-sharing",
             "> hotspot this model removes.",
             ">",
-            "> Render the live per-EPIC table on demand:",
-            ">",
-            "> ```bash",
-            "> python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md",
-            "> ```",
-            ">",
-            '> Its "Coverage by EPIC" table reports real, placeholder-only, stub-only and',
-            "> missing ACs per EPIC and excludes deprecated ACs. Consistency (no dangling /",
-            "> missing proof) is gated by `python tools/check_ac_index.py`; live CI and",
-            "> deploy run status are intentionally excluded.",
+            '> The "Coverage by EPIC" classification of the graph reports real,',
+            "> placeholder-only, stub-only and missing ACs per EPIC and excludes",
+            "> deprecated ACs. Consistency (no dangling / missing proof) is gated by",
+            "> `python tools/check_ac_index.py`; live CI and deploy run status are",
+            "> intentionally excluded.",
             "",
             END_MARKER,
         ]

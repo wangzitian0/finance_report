@@ -1,7 +1,6 @@
 # Finance Report
 
 [![CI](https://github.com/wangzitian0/finance_report/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
 [![Deploy Staging](https://github.com/wangzitian0/finance_report/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/deploy.yml)
 [![Docs](https://github.com/wangzitian0/finance_report/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/docs.yml)
 
@@ -49,7 +48,7 @@ from project intent to executable proof without reading archive fragments.
 | EPIC residue | `docs/project/EPIC-*.md` | Existing non-package-owned scope and known gaps; shrink-only | AC index and residue ratchet |
 | AC registry | `common/meta/extension/generate_ac_registry.py` | In-memory acceptance criteria inventory from package roadmaps and marked EPIC residue | `tools/check_ac_index.py` |
 | Concept ownership registry | `common/meta/data/MANIFEST.yaml` | Technical truth ownership map (which package owns which concept) | `tools/check_manifest.py`, `tools/check_ssot_ownership.py` |
-| Testing proof | CI traceability artifact, `unified-coverage.json` | AC-to-test proof and coverage baseline | `tools/check_ac_index.py`, `tools/check_coverage_policy.py` |
+| Testing proof | AC-to-test proof graph | AC proof, coverage floors, and traceability consistency | `tools/check_ac_index.py` |
 
 Implementation facts should be code-owned where possible. Prose SSOT documents
 explain rationale and link to code, tests, generated registries, or issues
@@ -63,15 +62,8 @@ change whenever registries, tests, or coverage baselines change.
 
 Use these sources instead:
 
-- Live local AC coverage: `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`
 - Traceability gate: `python tools/check_ac_index.py`
-- E2E EPIC closure gate: `python tools/check_e2e_epic_traceability.py`
-- Coverage baseline data: `unified-coverage.json`
 - Coverage policy owner: `common/meta/extension/coverage/policy.py`
-
-The Coveralls badge is main-branch reporting only. Pull requests do not publish
-Coveralls status contexts; merge readiness follows the `finish` check and the
-committed `unified-coverage.json` baseline.
 
 Important caveat: the current AC coverage analyzer excludes `_ac_stubs`,
 trivial placeholder assertions, pure `pass`, and pure skipped tests from
@@ -88,8 +80,8 @@ See [`common/llm/readme.md#cassettes`](common/llm/readme.md#cassettes) and [`com
 
 ## EPIC Map
 
-This map is for navigation only. Its EPIC row set is CI-validated against
-`docs/project/EPIC-*.md` by `tools/check_e2e_epic_traceability.py`. Project
+This map is for navigation only. AC-graph consistency across the EPIC set is
+CI-validated by `tools/check_ac_index.py`. Project
 status and AC proof counts should be read from EPIC documents, generated
 registries, and generated reports rather than duplicated here.
 
@@ -125,8 +117,8 @@ registries, and generated reports rather than duplicated here.
 
 EPIC completion is a **derived view** of the one AC-keyed graph, rendered on
 demand from the AC registries and test reports, never hand-written and never
-committed-materialized (a committed snapshot churns on every AC change). Render
-it with `tools/build_ac_traceability.py`. Real, placeholder-only, stub-only and
+committed-materialized (a committed snapshot churns on every AC change). Real,
+placeholder-only, stub-only and
 missing ACs are reported separately so a high coverage number cannot hide
 placeholder debt; mutable live CI/deploy run status is deliberately excluded.
 
@@ -138,16 +130,11 @@ placeholder debt; mutable live CI/deploy run status is deliberately excluded.
 > snapshot churns on every AC change and is the merge-train false-sharing
 > hotspot this model removes.
 >
-> Render the live per-EPIC table on demand:
->
-> ```bash
-> python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md
-> ```
->
-> Its "Coverage by EPIC" table reports real, placeholder-only, stub-only and
-> missing ACs per EPIC and excludes deprecated ACs. Consistency (no dangling /
-> missing proof) is gated by `python tools/check_ac_index.py`; live CI and
-> deploy run status are intentionally excluded.
+> The "Coverage by EPIC" classification of the graph reports real,
+> placeholder-only, stub-only and missing ACs per EPIC and excludes
+> deprecated ACs. Consistency (no dangling / missing proof) is gated by
+> `python tools/check_ac_index.py`; live CI and deploy run status are
+> intentionally excluded.
 
 <!-- END GENERATED: epic-status -->
 
@@ -160,8 +147,8 @@ Known proof-quality caveats:
 - AC-to-EPIC mismatch audit output is validated by
   `python tools/check_ac_index.py`; do not copy current mismatch
   counts into this README.
-- README EPIC status and completion metrics are a derived view rendered on
-  demand by `python tools/build_ac_traceability.py`; the mutable numbers
+- README EPIC status and completion metrics are a derived view of the AC
+  graph; the mutable numbers
   are not committed (they churn on every AC change), and the AC-graph
   consistency gate `python tools/check_ac_index.py` enforces no dangling/missing
   proof. See [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
@@ -310,7 +297,7 @@ migration path is tracked in
 | [vision.md](vision.md) | Decision filter and long-term direction |
 | [docs/project/](docs/project/) | EPIC documents (terminal residue) and project audits |
 | [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) | Concept ownership registry — routes to each owning package's `readme.md` / `contract.py` |
-| `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` | Live local AC-to-test coverage report |
+| `python tools/check_ac_index.py` | AC-graph consistency gate (no dangling or missing proof) |
 | [docs/index.md](docs/index.md) | Documentation portal and system architecture |
 | [docs/agents/](docs/agents/) | Agent workflow and red-line rules |
 

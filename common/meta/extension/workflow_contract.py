@@ -24,8 +24,6 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
             "frontend-vitest",
             "frontend-playwright",
             "frontend-telemetry-e2e",
-            "unified-coverage",
-            "ac-traceability",
             "finish",
         ),
         "triggers": ("push", "pull_request", "workflow_dispatch"),
@@ -45,30 +43,6 @@ WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
 WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {}
 
 MAIN_ONLY_JOBS: dict[str, dict[str, Any]] = {
-    "unified-coverage-baseline-pr": {
-        "pr_rehearsal": (
-            "python",
-            "tools/open_unified_coverage_baseline_pr.py",
-            "--coverage-context",
-            "unified-coverage.json",
-            "--dry-run",
-        ),
-        "failure_isolation": True,
-        "isolation_reason": (
-            "Baseline PR creation is non-blocking automation with step continue-on-error"
-        ),
-    },
-    "evidence-bundle": {
-        "pr_rehearsal": (
-            "python",
-            "tools/generate_evidence_bundle.py",
-            "--dry-run",
-        ),
-        "failure_isolation": True,
-        "isolation_reason": (
-            "Evidence bundle aggregation is informational with step continue-on-error"
-        ),
-    },
     "verify-sha-image-published": {
         "pr_rehearsal": (
             "python",

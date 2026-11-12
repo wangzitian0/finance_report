@@ -19,7 +19,7 @@ def test_AC8_13_140_update_floor_raises_floors(tmp_path, monkeypatch) -> None:
 def test_AC8_13_139_no_committed_materialized_index_files() -> None:
     'AC-testing.acgates.1 AC-testing.acgates.15 AC8.13.17 AC8.13.139'
     for relative in ('docs/ac_registry.yaml', 'docs/infra_registry.yaml', 'docs/ac_registry_overrides.yaml', 'docs/ssot/critical-proof-matrix.yaml', 'docs/ssot/vision-proof-matrix.yaml', 'docs/reference/vision-proof-matrix.md', 'common/testing/data/ac-score-baseline.jsonl'): assert not (REPO_ROOT / relative).exists(), f'{relative} must NOT be committed-materialized any more'
-    readme = (REPO_ROOT / 'README.md').read_text(encoding='utf-8'); assert '<!-- BEGIN GENERATED: epic-status -->' in readme; assert 'tools/build_ac_traceability.py' in readme; assert '| EPIC-001 |' not in readme; 'AC8.13.139'; 'AC8.13.139'; assert gate.main(['--repo-root', str(REPO_ROOT)]) == 0
+    readme = (REPO_ROOT / 'README.md').read_text(encoding='utf-8'); assert '<!-- BEGIN GENERATED: epic-status -->' in readme; assert 'tools/check_ac_index.py' in readme; assert '| EPIC-001 |' not in readme; 'AC8.13.139'; 'AC8.13.139'; assert gate.main(['--repo-root', str(REPO_ROOT)]) == 0
 def test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral(capsys) -> None:
     'AC-testing.acgates.14 AC8.13.135'; import re; assert gate.main(['--repo-root', str(REPO_ROOT)]) == 0; out = capsys.readouterr().out; assert 'PROTECTION dashboard' in out; assert all((ptype in out for ptype in ('has_real_ref', 'has_proof', 'has_mirror')))
     def _count(t: str) -> int: m = re.search(f'{t}: current (\\d+)', out); return int(m.group(1)) if m else -1

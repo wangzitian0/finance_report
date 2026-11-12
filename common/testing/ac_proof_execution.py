@@ -27,7 +27,7 @@ PROOF_EXECUTION_STAGES = (
 def sdk_proof_execution_stages() -> tuple[str, ...]:
     """Return the canonical delivery stages from `infra2_sdk.ci.load_delivery_stages()`.
 
-    Loaded lazily inside a function so stdlib-only CI fan-in jobs (`ac-behavioral-ratchet`)
+    Loaded lazily inside a function so stdlib-only CI fan-in steps (the former `ac-behavioral-ratchet` job, retired in #2934 Wave A)
     can import `common.testing.ac_proof_execution` without installing the SDK wheel first.
     """
     from infra2_sdk.ci import load_delivery_stages

@@ -508,14 +508,6 @@ def write_github_outputs(
             (f"{name}_changed", str(classification.component_changed[name]).lower())
             for name in COMPONENT_PREFIXES
         ),
-        (
-            "coverage_gate_components",
-            ",".join(
-                name
-                for name in COMPONENT_PREFIXES
-                if classification.component_changed[name]
-            ),
-        ),
         ("touched_e2e_tests", _json_output(list(classification.touched_e2e_tests))),
     ]
     with output_path.open("a", encoding="utf-8") as fh:

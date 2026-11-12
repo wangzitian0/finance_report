@@ -50,9 +50,6 @@ TrustedYearScenario|ent
     invariants=invs(
         """
 passes-own-governance-gate|check_package_contract validates testing with no violations.|$t/test_testing_package.py::test_AC_testing_1_1_package_contract_gate_passes_for_testing
-@$t/test_coverage_policy.py
-registered-source-missing-from-lcov-fails|The coverage policy fails when a registered source file is missing from the lcov report.|test_compare_component_fails_when_source_file_is_missing_from_lcov
-source-set-recursive-with-exclusions|The expected coverage source set recursively includes all eligible files except the declared exclusions.|test_expected_sources_recursively_include_all_eligible_files_except_exclusions
 """
     ),
     roadmap=acs(
@@ -210,15 +207,10 @@ ci-structure.5||test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates
 ci-structure.6||test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures|P1
 ci-structure.7||test_AC8_13_147_frontend_ci_split_preserves_merge_authority|P1
 ci-structure.8||test_AC8_13_148_backend_shards_use_seeded_least_duration_split|P1
-ci-structure.9||test_AC8_13_149_fan_in_jobs_download_only_required_artifacts|P1
 ci-structure.10||test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass|P1:property
 ci-structure.11||test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass|P1:property
 ci-structure.12||test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action|P1:property
 ci-structure.14||test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs|P1:property
-coverage.2||test_AC8_13_27_coveralls_uploads_are_reporting_only
-coverage.4||test_AC8_13_75_coverage_gate_summary_is_nonblocking|P1
-coverage.5||test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push|P1
-acgates.2||test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate|P1
 governance.1||test_AC8_13_47_delivery_engine_recommendations_are_tracked|P1
 governance.3||test_AC8_13_94_env_and_pipeline_stage_contract_is_documented
 governance.4||test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented
@@ -268,10 +260,6 @@ ci-structure.15||test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsa
 governance.11||test_AC7_15_1_real_repo_passes_the_workflow_contract
 governance.12||test_AC7_15_2_stale_or_missing_contract_inputs_fail
 governance.13||test_AC7_15_3_stale_ci_classifier_job_name_fails
-@$t/test_build_unified_lcov.py
-coverage.3||test_build_unified_lcov_can_emit_line_only_coveralls_report
-@$t/test_coverage_artifact_preflight.py|P1|done|property
-coverage.6||test_AC8_13_163_scoped_to_the_regressed_component_still_fails
 @$t/test_ac_index_consistency.py|P1
 acgates.1|In-memory AC registry loader (common/meta/extension/generate_ac_registry.py) extracts entries from package roadmaps and marked EPIC residue.|test_AC8_13_139_no_committed_materialized_index_files|P0
 acgates.15|The historical AC-score ratchet baseline (common/testing/data/ac-score-baseline.jsonl) and its one-consumer scoring machinery are retired alongside the materialized proof/vision/status views.|^
@@ -282,9 +270,6 @@ acgates.17||test_AC8_13_140_every_ac_managed_with_empty_protection_passes
 acgates.3||test_classifies_placeholder_assertion
 acgates.4||test_placeholder_and_stub_refs_do_not_count_as_real_coverage
 acgates.11||test_AC8_13_78_ci_required_real_refs_cover_mandatory_gate
-@$t/test_check_e2e_epic_traceability.py
-acgates.8||test_AC_testing_acgates_8_design_docs_do_not_require_product_e2e
-acgates.9||test_AC8_13_70_classified_non_product_e2e_assets_are_allowed
 @$t/test_lint_doc_consistency.py
 acgates.10||test_AC8_13_77_active_stub_orphan_fails
 governance.2||test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number|P1
@@ -295,15 +280,8 @@ schema.2||test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets
 schema.3||test_AC8_13_123_schema_guardrails_scan_real_migration_directory
 @$t/test_two_gate_consolidation.py|P1
 acgates.18||test_AC8_13_141_green_tree_old_gates_and_consolidated_agree
-@$t/test_ci_gate_inventory.py|P1|done|property
-gate-inventory.1||test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job
-gate-inventory.3||test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary
-gate-inventory.4||test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow
-gate-inventory.5||test_AC8_13_154_production_release_line_lives_in_release_yml
 @$t/test_ac_proof_execution_model.py|P1|done|property
 gate-inventory.2||test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
-@$t/test_evidence_bundle_baseline_inventory.py|P0|done|property
-evidence.1||test_AC_testing_evidence_1_inventory_discovers_new_baselines_by_glob
 @$t/test_runtime_incident_response_ssot.py
 governance.6||test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage
 @$t/test_governance_exceptions_registry.py|P1
@@ -363,12 +341,6 @@ lifecycle.13||test_AC16_13_12_generate_statement_builds_pdf_rows
 @$t/test_worktree_doctor.py|P1
 preflight.4||test_AC_testing_preflight_4_worktree_doctor_audit_and_prune
 preflight.5||test_AC_testing_preflight_5_worktree_doctor_recognizes_squash_merged_prs
-@$t/test_diff_coverage.py
-diff-coverage.1||test_cli_blocks_below_threshold_and_passes_at_or_above
-diff-coverage.2||test_red_verdict_lists_uncovered_line_ranges_and_new_file_hole
-diff-coverage.3||test_out_of_scope_files_and_absent_artifacts_are_lenient|P1
-@$t/test_calculate_unified_coverage.py
-diff-coverage.4||test_ratchet_report_mode_reports_regression_without_blocking
 @$fe/__tests__/playwrightMobileLane.test.ts|P1
 fe-lane.1||AC-testing.fe-lane.1 the blocking Playwright config declares a true mobile device project
 @$fe/__tests__/useApiQuery.test.tsx|P1
@@ -415,7 +387,6 @@ pdf-checkpoint.3||test_pdf_checkpoint_three_statements_and_saved_package
 @$t/test_package_governance_observations.py
 governance.23||test_AC_testing_governance_23_builds_only_from_real_inputs
 governance.24||test_AC_testing_governance_24_derives_live_enforcement_from_raw_facts
-governance.25||test_AC_testing_governance_25_existing_finish_path_blocks_false_green
 governance.26||test_AC_testing_governance_26_discovers_only_package_owned_detectors
 governance.27||test_AC_testing_governance_27_refreshes_closed_initiative_proof
 @$t/test_benchmark_runner_selection.py|P1
@@ -500,8 +471,8 @@ protection_count_floor|common/testing/data/protection-floor.json|Per-type PROTEC
 source_capability_proof_join|common/testing/source_capability_proof.py|Generic fail-closed join from owner-declared source capabilities to the existing AC proof graph.|apps/backend/src/extraction/base/source_capability.py,common/testing/ac_proof.py,common/testing/check_ac_index.py,tools/check_ac_index.py|tests/tooling/test_source_capability_proof.py,tools/check_ac_index.py|source|concept
 ssot_governance_gates|common/testing/tdd.md#ssot-governance-gates|Incremental prevent-worse CI gates for changed SSOT files and changed manifest entries.|docs/project/EPIC-014.ttd-transformation.md,common/meta/data/governance-exceptions.yaml,common/meta/extension/governance_report/_gate.py,tools/report_ssot_governance.py,tests/tooling/test_ssot_governance_report.py,.github/workflows/ci.yml|-|tdd|concept
 ssot_governance_metrics|common/testing/tdd.md#ssot-governance-metrics|Report-only governance metrics for SSOT ownership, shape, proof coverage, and future gate candidates.|docs/project/EPIC-014.ttd-transformation.md,common/meta/extension/governance_report/_metrics.py,tools/report_ssot_governance.py,tests/tooling/test_ssot_governance_report.py,.github/workflows/ci.yml|-|tdd|baseline
-tdd_workflow|common/testing/tdd.md|EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.|AGENTS.md,docs/agents/orchestration.md,.github/workflows/ci.yml,tools/check_e2e_epic_traceability.py|-|tdd|playbook
-test_coverage|common/testing/coverage.md|Unified coverage system (backend + frontend + common + tools).|common/testing/tdd.md,common/testing/ci-cd.md|tests/tooling/test_coverage_policy.py,tests/tooling/test_calculate_unified_coverage.py|tdd|baseline
+tdd_workflow|common/testing/tdd.md|EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.|AGENTS.md,docs/agents/orchestration.md,.github/workflows/ci.yml,tools/check_ac_index.py|-|tdd|playbook
+test_coverage|common/testing/coverage.md|Unified coverage system (backend + frontend + common + tools).|common/testing/tdd.md,common/testing/ci-cd.md|tests/tooling/test_ci_metrics_contract.py|tdd|baseline
 test_execution_matrix|common/testing/matrix.py|Test placement and selection SSOT.|common/testing/data/test-execution-matrix.yaml,common/testing/ci-cd.md,common/testing/tdd.md,tools/check_ac_index.py,tools/test_selection.py|tests/tooling/test_execution_matrix_contract.py|tdd|matrix
 test_execution_matrix_generated_view|common/testing/data/test-execution-matrix.yaml|Generated view of common/testing/matrix.py kept for AC-traceability consumers.|common/testing/matrix.py,tools/test_selection.py|tests/tooling/test_execution_matrix_contract.py|tdd|matrix|-|test_execution_matrix
 test_optimization|common/testing/ci-cd.md#test-optimization|Smart/fast/full test modes and 8-way seeded backend sharding strategy.|common/meta/development.md,common/testing/coverage.md|apps/backend/tests/unit/infra/test_test_lifecycle.py,tests/tooling/test_github_workflow_timing_summary.py|platform|concept
@@ -534,17 +505,6 @@ vision_proof_matrix|common/testing/generate_vision_proof_matrix.py|Vision-anchor
                     target="zero stale, missing, or contradictory live enforcement inputs",
                     lock="ci.tooling_coverage",
                     proof="package-governance-live-enforcement",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="blocking-existing-finish",
-                    statement="Unproven open governance work blocks the existing finish authority.",
-                    affected_acs=["AC-testing.governance.25"],
-                    detector="package-governance-control-integrity",
-                    target="zero false-green package governance paths",
-                    lock="ci.tooling_coverage",
-                    proof="package-governance-existing-finish-policy",
                     required_proof_strength="exact",
                     enforcing_gate="ci.tooling_coverage",
                 ),
@@ -584,8 +544,6 @@ vision_proof_matrix|common/testing/generate_vision_proof_matrix.py|Vision-anchor
 )
 
 TEST_ROOTS: tuple[str, ...] = (
-    "tests/tooling/test_coverage_policy.py",
-    "tests/tooling/test_calculate_unified_coverage.py",
-    "tests/tooling/test_coverage_artifact_preflight.py",
-    "tests/tooling/test_diff_coverage.py",
+    "tests/tooling/test_ci_metrics_contract.py",
+    "tests/tooling/test_workflow_contract.py",
 )
