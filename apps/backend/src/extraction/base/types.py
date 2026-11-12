@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -12,6 +13,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TypedDict
 from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PrefectParseParams(TypedDict):
@@ -160,6 +163,48 @@ class ParseJob:
             model=params.get("model"),
             request_id=params.get("request_id"),
         )
+
+
+HINT_MAX_KEYWORDS = 20
+HINT_KEYWORD_MAX_LENGTH = 64
+HINT_NOTE_MAX_LENGTH = 500
+
+
+def _has_control_character(value: str, *, allowed: str = "") -> bool:
+    return any(unicodedata.category(character) == "Cc" and character not in allowed for character in value)
+
+
+class RunHints(BaseModel):
+    """Guidance that a user or an AI adds to a run: keywords and one note.
+
+    The bounds keep a hint from carrying a prompt of its own. The output of the model still passes the
+    schema and balance checks. A hint cannot bypass a validation.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    keywords: list[str] = Field(default_factory=list, max_length=HINT_MAX_KEYWORDS)
+    note: str | None = Field(default=None, max_length=HINT_NOTE_MAX_LENGTH)
+
+    @field_validator("keywords")
+    @classmethod
+    def _clean_keywords(cls, keywords: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for keyword in keywords:
+            keyword = keyword.strip()
+            if not 1 <= len(keyword) <= HINT_KEYWORD_MAX_LENGTH:
+                raise ValueError(f"a keyword has 1 to {HINT_KEYWORD_MAX_LENGTH} characters after the strip")
+            if _has_control_character(keyword):
+                raise ValueError("a keyword holds no control character")
+            cleaned.append(keyword)
+        return cleaned
+
+    @field_validator("note")
+    @classmethod
+    def _check_note(cls, note: str | None) -> str | None:
+        if note is not None and _has_control_character(note, allowed="\n\t"):
+            raise ValueError("a note holds no control character except newline and tab")
+        return note
 
 
 @dataclass(frozen=True, slots=True)
