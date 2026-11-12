@@ -106,10 +106,10 @@ token is involved at any step on the Finance Report side.
 #    From the infra2 repo this writes 1Password only, never Vault:
 invoke env.set KEY=VALUE --project=finance_report --env=production --service=app --type=root_vars
 # 2. Step 3 redeploys production under the approval from step 0.
-# 3. Redeploy the CURRENT release tag from this repo (release.yml workflow_dispatch).
+# 3. Redeploy the CURRENT release tag through the infra2 production path (reconcile-iac-inputs.yml, promote_prod=true).
 #    infra2's secret supply — running in the iac-runner under its own bounded
 #    VAULT_TOKEN — copies the changed value into Vault and restarts vault-agent + backend.
-gh workflow run release.yml -f version_ref=vX.Y.Z
+gh workflow run reconcile-iac-inputs.yml -R wangzitian0/infra2 -f promote_prod=true -f after=vX.Y.Z
 python tools/debug.py logs backend --env production --tail 20   # verify
 ```
 
@@ -125,7 +125,7 @@ token); the daily reconcile reports the write.
 # approval, with the owner present, before this command.
 invoke env.set SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')" \
   --project=finance_report --env=production --service=app --break-glass
-# Then redeploy the CURRENT release tag (release.yml, as above). Old tokens stay
+# Then redeploy the CURRENT release tag (infra2 reconcile-iac-inputs.yml, as above). Old tokens stay
 # valid until ACCESS_TOKEN_EXPIRE_MINUTES elapses — verify an old bearer still works.
 ```
 
