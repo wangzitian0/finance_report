@@ -147,14 +147,6 @@ class DeduplicationService:
                 source_doc_type=source_doc_type,
                 ordinal=source_docs.index(source_doc) if source_doc in source_docs else 0,
             )
-            logger.info(
-                f"Appended source document to existing atomic transaction {existing.id}",
-                extra={
-                    "dedup_hash": dedup_hash,
-                    "source_doc_id": str(source_doc_id),
-                    "source_doc_type": source_doc_type.value,
-                },
-            )
             return existing
 
         new_txn = AtomicTransaction(
@@ -182,15 +174,6 @@ class DeduplicationService:
             source_doc_id=source_doc_id,
             source_doc_type=source_doc_type,
             ordinal=0,
-        )
-        logger.info(
-            f"Created new atomic transaction {new_txn.id}",
-            extra={
-                "dedup_hash": dedup_hash,
-                "txn_date": str(row.txn_date),
-                "amount": str(row.amount),
-                "direction": direction.value,
-            },
         )
         return new_txn
 
