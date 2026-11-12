@@ -1,5 +1,5 @@
 {
-  "fingerprint": "4eab5443b3ee48c89127e70a5e9381a7f2e159890f2d323a8652ba364bca9503",
+  "fingerprint": "b382275e8d0c6238b2c5dd124d41a0effa50bd7586eea8c334d79b893e21b91a",
   "request": {
     "decode_params": {
       "extra_body": {
@@ -19,7 +19,7 @@
             "type": "text"
           },
           {
-            "text": "[Page 1]\nACME Bank Statement\nAccount: 1234-5678\nOpening balance: 1000.00\nDate          Description        Amount\n-             Salary credit      +2000.00\n-             Rent payment       -1200.00\nClosing balance: 1800.00\n",
+            "text": "[Page 1]\nACME BANK - Account Statement\n\n\nOpening balance: 100.00\nDate      Description   Type  Amount  Balance\n2026-01-02  Coffee shop    Debit   5.00   95.00\n2026-01-05  Salary credit   Credit  50.00  145.00\n2026-01-09  Groceries     Debit   15.00  130.00\nClosing balance: 130.00",
             "type": "text"
           }
         ],
@@ -29,7 +29,7 @@
     "role": "text"
   },
   "response": {
-    "stream_text": "{\n  \"institution\": \"ACME Bank\",\n  \"account_last4\": \"5678\",\n  \"currency\": null,\n  \"period_start\": null,\n  \"period_end\": null,\n  \"opening_balance\": \"1000.00\",\n  \"closing_balance\": \"1800.00\",\n  \"transactions\": [\n    {\n      \"date\": null,\n      \"description\": \"Salary credit\",\n      \"amount\": \"2000.00\",\n      \"direction\": \"IN\",\n      \"reference\": null,\n      \"currency\": null,\n      \"balance_after\": null\n    },\n    {\n      \"date\": null,\n      \"description\": \"Rent payment\",\n      \"amount\": \"1200.00\",\n      \"direction\": \"OUT\",\n      \"reference\": null,\n      \"currency\": null,\n      \"balance_after\": null\n    }\n  ]\n}"
+    "stream_text": "{\"institution\":\"ACME BANK\",\"account_last4\":null,\"currency\":null,\"period_start\":\"2026-01-02\",\"period_end\":\"2026-01-09\",\"opening_balance\":\"100.00\",\"closing_balance\":\"130.00\",\"balances\":[{\"currency\":null,\"opening\":\"100.00\",\"closing\":\"130.00\"}],\"transactions\":[{\"date\":\"2026-01-02\",\"description\":\"Coffee shop\",\"amount\":\"5.00\",\"direction\":\"OUT\",\"reference\":null,\"currency\":null,\"balance_after\":\"95.00\"},{\"date\":\"2026-01-05\",\"description\":\"Salary credit\",\"amount\":\"50.00\",\"direction\":\"IN\",\"reference\":null,\"currency\":null,\"balance_after\":\"145.00\"},{\"date\":\"2026-01-09\",\"description\":\"Groceries\",\"amount\":\"15.00\",\"direction\":\"OUT\",\"reference\":null,\"currency\":null,\"balance_after\":\"130.00\"}]}"
   },
   "role": "text",
   "tag": "flow-only"

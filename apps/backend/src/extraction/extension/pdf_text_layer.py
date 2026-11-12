@@ -12,6 +12,9 @@ from src.extraction.extension._base import logger
 def read_pdf_text_pages(file_content: bytes | None, *, max_pages: int | None = None) -> list[str] | None:
     """Return the text of each PDF page, or None when the PDF has no readable text.
 
+    ``sort=True`` puts the cells of one table row on one line. Without it a table drawn column by column
+    lists all dates, then all descriptions, then all amounts, and a reader must pair them by position.
+
     With ``max_pages`` set, a PDF above that page count returns None. The vision
     extraction fails above the same count anyway.
     """
@@ -30,7 +33,7 @@ def read_pdf_text_pages(file_content: bytes | None, *, max_pages: int | None = N
     try:
         if max_pages is not None and len(document) > max_pages:
             return None
-        return [page.get_text() or "" for page in document]
+        return [page.get_text(sort=True) or "" for page in document]
     except Exception as exc:
         logger.info("PDF text layer could not be read", error_type=type(exc).__name__)
         return None
