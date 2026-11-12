@@ -80,8 +80,7 @@ def wait_for_cheap_ci(
         if jobs:
             # We want to check status of:
             # 1. Lint (job name is "Lint")
-            # 2. AC Traceability Check (job name is "AC Traceability Check")
-            target_jobs = {"Lint": None, "AC Traceability Check": None}
+            target_jobs = {"Lint": None}
 
             for job in jobs:
                 name = job.get("name")
@@ -115,9 +114,7 @@ def wait_for_cheap_ci(
 
             if all_done:
                 if all_success:
-                    print(
-                        "✅ Both cheap CI jobs (Lint and AC Traceability Check) succeeded!"
-                    )
+                    print("✅ The cheap CI job (Lint) succeeded!")
                     return 0
                 else:
                     # If this run failed, but another run is active or successful, do not fail yet

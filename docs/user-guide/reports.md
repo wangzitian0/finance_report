@@ -1,5 +1,5 @@
 # Reports & Dashboards
-Finance Report provides financial reports and dashboards to help you understand your financial position. Stable report scope is described by [EPIC-005](../project/EPIC-005.reporting-visualization.md). Current proof metrics live in CI artifacts and `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`.
+Finance Report provides financial reports and dashboards to help you understand your financial position. Stable report scope is described by [EPIC-005](../project/EPIC-005.reporting-visualization.md). AC-graph consistency is gated by `python tools/check_ac_index.py`.
 ## Available Reports
 ### Personal Report Package
 The personal financial-report package is one stable document used by preview, generation, reopen, frontend rendering, and export. Preview it with:

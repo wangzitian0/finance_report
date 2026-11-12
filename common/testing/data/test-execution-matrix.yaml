@@ -29,15 +29,11 @@ ownership:
     package: runtime
   - path: apps/backend/tests/ledger/
     package: ledger
-  - path: tests/tooling/test_calculate_unified_coverage.py
-    package: testing
-  - path: tests/tooling/test_coverage_artifact_preflight.py
-    package: testing
-  - path: tests/tooling/test_coverage_policy.py
-    package: testing
-  - path: tests/tooling/test_diff_coverage.py
+  - path: tests/tooling/test_ci_metrics_contract.py
     package: testing
   - path: tests/tooling/test_ledger_module.py
     package: ledger
   - path: tests/tooling/test_ledger_package.py
     package: ledger
+  - path: tests/tooling/test_workflow_contract.py
+    package: testing

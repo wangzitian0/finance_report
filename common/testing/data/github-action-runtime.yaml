@@ -39,9 +39,6 @@ actions:
   - uses: astral-sh/setup-uv@v8.2.0
     runtime_status: node24_native
     owner: ci_workflow
-  - uses: coverallsapp/github-action@v2
-    runtime_status: node24_native
-    owner: ci_workflow
   - uses: docker/build-push-action@v7
     runtime_status: node24_native
     owner: ci_workflow

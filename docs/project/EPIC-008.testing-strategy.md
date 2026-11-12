@@ -291,12 +291,9 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 | <!-- epic-owned: horizontal -->
 | AC8.13.63 | Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope | `test_AC8_13_63_performance_testing_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 | <!-- epic-owned: horizontal -->
 (AC8.13.90 removed, canonical: migrated to the `runtime` package roadmap as `AC-runtime.fe-deploy.1`, #1821 Wave B)
-> (AC8.13.164 removed and AC8.13.165 removed, canonical: migrated to the `llm`
-> package roadmap as `AC-llm.evidence-bundle.1-2` — routed to `llm` not
-> `testing` because the authority classifier bands
-> tests/tooling/test_evidence_bundle.py LLM, which would trip
-> `check_authority_reconcile.py` under `testing`'s declared CODE-ONLY tier;
-> #1821 Wave A.)
+> (AC8.13.164 removed and AC8.13.165 removed; the successor AC-llm.evidence-bundle.1-2
+> and its evidence-bundle tooling retired in #2934 Wave A — the CI evidence-bundle
+> aggregation they covered no longer exists.)
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|

@@ -206,9 +206,9 @@ stage2-batch.5||test_batch_approve_matches_reconciles_referenced_entry|P1
 conflict-resolution.1||test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts
 conflict-resolution.2||test_AC16_34_1_resolve_unblocks_stage1_approval
 conflict-resolution.3||test_AC16_34_2_reject_clears_conflict_resolution
-@$t/test_reconciliation_audit.py|P1
-audit-harness.1||test_AC4_10_1_reconciliation_audit_report_schema_and_outputs
-audit-harness.2||test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive
+@$be/reconciliation/test_reconciliation_audit.py|P1
+audit-harness.1||test_AC4_10_1_backend_reconciliation_audit_writes_reports
+audit-harness.2||test_AC4_10_2_backend_reconciliation_audit_classifies_failure_modes
 @$be/api/test_typed_contract_sweep.py|P2
 uuid-path-params.1||test_AC4_12_1_accept_match_malformed_uuid_returns_422
 uuid-path-params.2||test_AC4_12_2_reviewed_disposition_malformed_uuid_returns_422

@@ -493,13 +493,6 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="--junit-xml=test-results/backend-integration.xml",
     ),
     WorkflowPytestContract(
-        stage="tooling_ci",
-        workflow=".github/workflows/ci.yml",
-        marker=None,
-        paths=("tests/tooling/",),
-        anchor="--junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml",
-    ),
-    WorkflowPytestContract(
         stage="preview_minimum_e2e",
         workflow="runtime-hooks.manifest.json",
         marker=PREVIEW_MINIMUM_E2E_MARKER,
