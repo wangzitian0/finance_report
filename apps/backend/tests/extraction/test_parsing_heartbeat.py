@@ -10,6 +10,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import update
 
 from src.composition import compose_statement_posting_dependencies
@@ -35,7 +36,7 @@ from src.extraction.extension.statement_parsing_supervisor import (
     parsing_heartbeat,
     reap_stale_parsing_runs,
 )
-from src.extraction.extension.statement_runs import DEFAULT_STALE_AFTER
+from src.extraction.extension.statement_runs import DEFAULT_STALE_AFTER, StaleRun
 from src.extraction.orm.statement_run import StatementRun
 from tests.factories import StatementSummaryFactory
 
@@ -114,7 +115,7 @@ async def test_AC_extraction_2960_5_a_running_parse_with_a_heartbeat_is_not_rese
 
 
 async def test_AC_extraction_2960_6_the_heartbeat_does_not_touch_a_row_that_left_parsing(db, test_user):
-    """AC-extraction.2960.6: The heartbeat never changes a run that is no longer running."""
+    """AC-extraction.2960.6: The heartbeat never changes a run that is no longer running; it ends the work (#2994)."""
     failed_statement, failed_run_id = await _row(db, test_user, status=BankStatementStatus.REJECTED)
     await fail_run(db, failed_run_id, error_code="heartbeat_lost", error_message="No heartbeat.")
     await db.commit()
@@ -122,10 +123,11 @@ async def test_AC_extraction_2960_6_the_heartbeat_does_not_touch_a_row_that_left
     maker = create_session_maker_from_db(db)
     failed_before = (await _run_row(maker, failed_run_id)).heartbeat_at
     live_before = (await _run_row(maker, live_run_id)).heartbeat_at
-    async with parsing_heartbeat(failed_run_id, maker, interval_seconds=0.05):
-        async with parsing_heartbeat(live_run_id, maker, interval_seconds=0.05):
-            await _wait_for_beat(maker, live_run_id, live_before)
-            await asyncio.sleep(0.2)
+    async with parsing_heartbeat(live_run_id, maker, interval_seconds=0.05):
+        await _wait_for_beat(maker, live_run_id, live_before)
+    with pytest.raises(StaleRun):
+        async with parsing_heartbeat(failed_run_id, maker, interval_seconds=0.05):
+            await asyncio.sleep(5)
     assert (await _run_row(maker, failed_run_id)).heartbeat_at == failed_before
 
 

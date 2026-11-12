@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 import mimetypes
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -270,8 +270,15 @@ async def _queue_statement_reparse(
     user_id: UUID,
     *,
     model: str | None = None,
+    note: str | None = None,
+    while_pending: Callable[[], Awaitable[StatementSummary]] | None = None,
 ) -> None:
-    """Start a user rerun of the statement. A second rerun while a run is active raises `ActiveRunExists` (409)."""
+    """Start a user rerun of the statement.
+
+    The run is flushed first. A rerun while a run is active raises `ActiveRunExists` (409) there, before
+    `while_pending` or any other write. The reject passes `while_pending`, so its writes and the run
+    commit together.
+    """
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
         raise StorageError("Source document is no longer available for reparse")
@@ -288,11 +295,13 @@ async def _queue_statement_reparse(
         kind=RunKind.EXTRACT,
         actor_kind=RunActorKind.USER,
         trigger=RunTrigger.RERUN,
-        hints=RunHints(),
+        hints=RunHints(note=note),
         model=model_to_use,
         parent_run_id=previous_run.id if previous_run is not None else None,
     )
     run_id = run.id
+    if while_pending is not None:
+        statement = await while_pending()
     statement.status = BankStatementStatus.PARSING
     statement.validation_error = None
     await db.commit()
@@ -872,15 +881,32 @@ async def reject_statement_stage1(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    """Stage 1: Reject statement and enqueue reparse."""
+    """Stage 1: Reject statement and enqueue reparse. The notes become the hint note of the rerun."""
     try:
-        statement = await reject_statement_workflow(
-            db, statement_id, user_id, reason=decision.notes, dependencies=compose_statement_posting_dependencies()
+        statement = await db.scalar(
+            select(StatementSummary).where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
         )
-        await _queue_statement_reparse(db, statement, user_id)
+        if statement is None:
+            raise ValueError("Statement not found or access denied")
+        await _queue_statement_reparse(
+            db,
+            statement,
+            user_id,
+            note=decision.notes or None,
+            while_pending=lambda: reject_statement_workflow(
+                db,
+                statement_id,
+                user_id,
+                reason=decision.notes,
+                dependencies=compose_statement_posting_dependencies(),
+                commit=False,
+            ),
+        )
     except ValueError as e:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except StorageError as exc:
+        await db.rollback()
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 

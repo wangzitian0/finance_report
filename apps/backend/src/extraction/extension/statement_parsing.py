@@ -124,14 +124,10 @@ class StatementIngestionUseCase:
         return outcome
 
     async def _attempt(self, job: ParseJob, content: bytes | None) -> StatementIngestionOutcome:
-        if content is None:
-            try:
-                content = await self.content_loader(job.storage_key)
-            except Exception as exc:
-                raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
         return await _execute_statement_ingestion(
             job=job,
             content=content,
+            content_loader=self.content_loader,
             session_maker=self.session_maker,
             extraction_service_factory=self.extraction_service_factory,
             posting_dependencies=self.posting_dependencies,
@@ -155,13 +151,12 @@ class StatementIngestionUseCase:
                     job.run_id,
                     error_code=_run_error_code(type(error).__name__),
                     error_message=_run_error_message(str(error)),
-                    retryable=True,
                 )
             except StaleRun:
                 await session.rollback()
                 logger.warning("statement.run.retry_stale", run_id=str(job.run_id), statement_id=str(job.statement_id))
                 return None
-            if not failed.retryable or attempt >= MAX_PARSE_ATTEMPTS:
+            if attempt >= MAX_PARSE_ATTEMPTS:
                 await session.commit()
                 return None
             successor = await create_run(
@@ -479,7 +474,8 @@ async def handle_parse_failure(
             )
             return
     try:
-        refreshed = await db.get(StatementSummary, statement_id)
+        # Lock the statement before the run. The reaper and the finalize take the locks in this order too.
+        refreshed = await db.get(StatementSummary, statement_id, with_for_update={"key_share": True})
         if refreshed is None:
             logger.error("Statement not found after rollback", statement_id=str(statement_id), reason=_redacted(message))
             return
@@ -490,7 +486,6 @@ async def handle_parse_failure(
                     job.run_id,
                     error_code=_run_error_code(error_type),
                     error_message=_run_error_message(message),
-                    retryable=False,
                 )
             except StaleRun:
                 await db.rollback()
@@ -531,7 +526,8 @@ async def handle_parse_failure(
 async def _execute_statement_ingestion(
     job: ParseJob,
     *,
-    content: bytes,
+    content: bytes | None,
+    content_loader: ContentLoader,
     session_maker: async_sessionmaker[AsyncSession],
     extraction_service_factory: ExtractionServiceFactory,
     posting_dependencies: StatementPostingDependencies,
@@ -571,6 +567,13 @@ async def _execute_statement_ingestion(
                 "statement.run.claim_stale", run_id=str(job.run_id), statement_id=str(statement_id), request_id=request_id
             )
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
+
+        # The claim comes first: a worker that does not own the run loads nothing and fails nothing.
+        if content is None:
+            try:
+                content = await content_loader(job.storage_key)
+            except Exception as exc:
+                raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
 
         current_phase = "parse_started"
 
@@ -626,6 +629,15 @@ async def _execute_statement_ingestion(
                 file_type=file_type,
             )
             checkpoint("extraction_completed")
+        except StaleRun:
+            await session.rollback()
+            logger.warning(
+                "statement.run.heartbeat_lost_cancelled",
+                run_id=str(job.run_id),
+                statement_id=str(statement_id),
+                request_id=request_id,
+            )
+            return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
         except ExtractionError as exc:
             await handle_parse_failure(
                 statement,

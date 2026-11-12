@@ -8,9 +8,9 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.extraction import BankStatementStatus, TransactionCategory, brokerage_import_failure_reason
+from src.extraction import BankStatementStatus, RunHints, TransactionCategory, brokerage_import_failure_reason
 from src.schemas.base import CurrencyCode, ListResponse, default_list
 
 if TYPE_CHECKING:
@@ -33,7 +33,18 @@ class BankStatementUploadRequest(BaseModel):
 
 
 class StatementDecisionRequest(BaseModel):
-    notes: str | None = None
+    notes: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Why the reviewer rejects the statement. It becomes the hint note of the rerun.",
+    )
+
+    @field_validator("notes")
+    @classmethod
+    def _notes_fit_a_hint(cls, notes: str | None) -> str | None:
+        """The notes become the hint note of the rerun, so they follow the hint rules."""
+        RunHints(note=notes)
+        return notes
 
 
 class RetryParsingRequest(BaseModel):
