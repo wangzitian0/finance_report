@@ -324,8 +324,6 @@ router.1||test_AC25_5_1_no_router_imports_another_router
 ssot-governance.7||test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent
 @$t/test_governance_exceptions_registry.py
 governance-baseline.2||test_AC_meta_governance_baseline_2_gate_rejects_stale_or_ambiguous_ssot_exceptions
-@$t/test_issue_template_contract.py|P1
-issue-templates.1||test_AC14_1_11_issue_templates_carry_their_type_required_fields
 @$t/test_generate_db_schema_reference.py|P1
 generated-refs.1||test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata
 @$t/test_generate_epic_status.py|P1

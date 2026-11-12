@@ -266,7 +266,7 @@ ci-structure.13||test_AC_testing_ci_structure_13_real_split_is_exhaustive_disjoi
 @$t/test_workflow_contract.py
 ci-structure.15||test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsal_or_isolation|P1:property
 governance.11||test_AC7_15_1_real_repo_passes_the_workflow_contract
-governance.12||test_AC7_15_2_stale_issue_template_label_fails
+governance.12||test_AC7_15_2_stale_or_missing_contract_inputs_fail
 governance.13||test_AC7_15_3_stale_ci_classifier_job_name_fails
 @$t/test_build_unified_lcov.py
 coverage.3||test_build_unified_lcov_can_emit_line_only_coveralls_report
