@@ -1114,7 +1114,6 @@
   "tests/extraction/test_correction_service.py::test_few_shot_examples_returns_corrections": 0.492,
   "tests/extraction/test_correction_service.py::test_get_correction_stats_aggregates": 0.573,
   "tests/extraction/test_correction_service.py::test_get_correction_stats_empty": 0.245,
-  "tests/extraction/test_correction_service.py::test_prompt_injection_with_corrections": 0.106,
   "tests/extraction/test_correction_service.py::test_record_correction_handles_null_original": 0.523,
   "tests/extraction/test_correction_service.py::test_record_correction_invalid_category_raises": 0.258,
   "tests/extraction/test_correction_service.py::test_record_correction_not_found_raises": 0.237,

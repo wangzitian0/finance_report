@@ -194,6 +194,14 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+class DuplicateCurrencyError(ValueError):
+    """The balances of one statement list the same currency twice (usually two accounts in one PDF)."""
+
+    def __init__(self, currency: str) -> None:
+        super().__init__(f"Duplicate currency in balances: {currency}")
+        self.currency = currency
+
+
 def _currency_buckets(extracted: dict[str, Any]) -> list[dict[str, Any]]:
     raw_balances = extracted.get("balances")
     if raw_balances:
@@ -202,7 +210,7 @@ def _currency_buckets(extracted: dict[str, Any]) -> list[dict[str, Any]]:
         for entry in raw_balances:
             currency = (entry.get("currency") or "*").strip().upper() or "*"
             if currency in seen:
-                raise ValueError(f"Duplicate currency in balances: {currency}")
+                raise DuplicateCurrencyError(currency)
             seen.add(currency)
             buckets.append(
                 {
