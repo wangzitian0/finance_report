@@ -2,24 +2,32 @@
 
 import asyncio
 import json
+import time
 from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
 import httpx
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.normalization_engine import sanitize_account_last4
-from src.extraction.base.paged_extraction import build_paged_meta_prompt, build_paged_prompt, merge_paged_extractions
+from src.extraction.base.paged_extraction import (
+    MultipleAccountsError,
+    build_paged_meta_prompt,
+    build_paged_prompt,
+    merge_paged_extractions,
+)
 from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
 from src.extraction.base.source_balance_check import SourceBalanceVerdict, check_closing_balance_against_text
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
+    balance_gap_suspect_rows,
     balance_is_evaluable,
     bank_currency_balances,
     compute_confidence_score,
@@ -392,11 +400,17 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 statement.stage1_status = Stage1Status.REJECTED
                 statement.validation_error = f"{reason.value}: {llm_led_gate.message}"
                 record_financial_invariant_violation(kind=metric_kind, institution_class=institution_class)
+                balance_gap = balance_result["difference"]
                 logger.warning(
                     "LLM-LED invariant gate quarantined extraction (blocked from trusted truth)",
                     reason=reason.value,
                     is_brokerage=is_brokerage_payload,
                     file_hash=resolved_file_hash,
+                    row_count=len(transactions),
+                    balance_gap=balance_gap,
+                    in_count=sum(1 for t in transactions if t.direction == TransactionDirection.IN.value),
+                    out_count=sum(1 for t in transactions if t.direction == TransactionDirection.OUT.value),
+                    suspect_rows=balance_gap_suspect_rows([t.amount for t in transactions], Decimal(balance_gap)),
                 )
                 if bank_allocation is not None and db is not None:
                     await release_rejected_custody(db, bank_allocation)
@@ -669,6 +683,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         for attempt in range(max_attempts):
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
+            structlog.contextvars.bind_contextvars(extract_attempt=attempt + 1)
             try:
                 extracted = normalize_statement_balance_payload(
                     await self.extract_financial_data(
@@ -693,6 +708,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
                 last_error = exc
                 continue
+            finally:
+                structlog.contextvars.unbind_contextvars("extract_attempt")
             last_parse = extracted
 
             if looks_like_brokerage_payload(
@@ -937,15 +954,30 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 return await asyncio.to_thread(pop_batch, batch_index)
             return list(media_batches[batch_index])
 
-        if len(media_batches) == 1:
-            single_batch = await _load_batch(0)
-            messages = _messages(prompt, single_batch)
-            del single_batch
-            return await self._extract_json_with_model(
+        part_count = len(media_batches)
+
+        async def _call(messages: list[dict[str, Any]], *, batch_index: int, pages: int) -> dict[str, Any]:
+            started = time.perf_counter()
+            part = await self._extract_json_with_model(
                 messages=messages, model=model, seed_override=seed_override, user_id=user_id
             )
+            logger.info(
+                "statement.extraction.call_completed",
+                batch_index=batch_index,
+                batch_count=part_count,
+                pages=pages,
+                rows=len(part.get("transactions") or []),
+                duration_ms=round((time.perf_counter() - started) * 1000),
+            )
+            return part
 
-        part_count = len(media_batches)
+        if part_count == 1:
+            single_batch = await _load_batch(0)
+            messages = _messages(prompt, single_batch)
+            pages = len(single_batch)
+            del single_batch
+            return await _call(messages, batch_index=1, pages=pages)
+
         pages_per_call = self.PDF_VISION_MAX_PAGES
         total_pages = getattr(media_batches, "total_pages", None) or sum(len(media) for media in media_batches)
 
@@ -963,10 +995,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         meta_messages = _messages(
             build_paged_meta_prompt(prompt, page_numbers=meta_page_numbers, total_pages=total_pages), meta_media
         )
+        meta_pages = len(meta_media)
         del meta_media
-        meta_part = await self._extract_json_with_model(
-            messages=meta_messages, model=model, seed_override=seed_override, user_id=user_id
-        )
+        meta_part = await _call(meta_messages, batch_index=0, pages=meta_pages)
         del meta_messages
         parts.append({k: v for k, v in meta_part.items() if k not in ("transactions", "positions")})
 
@@ -989,14 +1020,17 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             )
             part_media = [context_page, *media] if has_context_page and context_page is not None else list(media)
             messages = _messages(part_prompt, part_media)
+            pages = len(media)
             del media, part_media
-            part = await self._extract_json_with_model(
-                messages=messages, model=model, seed_override=seed_override, user_id=user_id
-            )
+            part = await _call(messages, batch_index=part_index, pages=pages)
             del messages
             parts.append(part)
 
-        merged = merge_paged_extractions(parts)
+        try:
+            merged = merge_paged_extractions(parts)
+        except MultipleAccountsError as exc:
+            logger.warning("Multiple accounts in paged extraction", parts_by_account=exc.parts_by_account)
+            raise
         logger.info(
             "Merged paged vision extraction",
             part_count=part_count,

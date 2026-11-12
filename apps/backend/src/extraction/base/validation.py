@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -280,6 +281,14 @@ def bank_currency_balances(extracted: dict[str, Any]) -> list[dict[str, str]] | 
         {"currency": bucket["currency"], "opening": str(bucket["opening"]), "closing": str(bucket["closing"])}
         for bucket in buckets
     ]
+
+
+def balance_gap_suspect_rows(amounts: Sequence[Decimal], gap: Decimal, limit: int = 5) -> list[int]:
+    """Return the indexes of rows whose amount equals the balance gap or half of it.
+
+    A row equal to the gap was dropped. A row equal to half of the gap has a flipped direction.
+    """
+    return [index for index, amount in enumerate(amounts) if amount in (gap, gap / 2)][:limit]
 
 
 def balance_is_evaluable(opening: Any, closing: Any, per_currency: list[dict[str, str]] | None) -> bool:

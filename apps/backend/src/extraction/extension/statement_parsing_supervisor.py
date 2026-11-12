@@ -81,6 +81,7 @@ async def reset_stale_parsing_jobs(
         stale_statements = result.scalars().all()
 
         for statement in stale_statements:
+            updated_at = statement.updated_at.replace(tzinfo=statement.updated_at.tzinfo or UTC)
             statement.status = BankStatementStatus.REJECTED
             statement.validation_error = "Parsing timed out. Please retry."
             statement.confidence_score = 0
@@ -90,6 +91,7 @@ async def reset_stale_parsing_jobs(
                 statement_id=str(statement.id),
                 threshold_seconds=int(threshold.total_seconds()),
                 updated_at=str(statement.updated_at),
+                age_seconds=int((datetime.now(UTC) - updated_at).total_seconds()),
             )
 
         if stale_statements:

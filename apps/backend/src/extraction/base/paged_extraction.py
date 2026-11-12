@@ -130,6 +130,14 @@ def build_paged_prompt(
     )
 
 
+class MultipleAccountsError(ValueError):
+    """Page batches of one document report different accounts; `parts_by_account` maps suffix to part indexes."""
+
+    def __init__(self, parts_by_account: dict[str, list[int]]) -> None:
+        super().__init__("Multiple accounts in one extraction require separate source review")
+        self.parts_by_account = parts_by_account
+
+
 def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
     """Merge per-batch extraction payloads into one whole-document payload."""
     dict_parts = [part for part in parts if isinstance(part, dict)]
@@ -138,10 +146,13 @@ def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
     if len(dict_parts) == 1:
         return dict_parts[0]
 
-    accounts = {sanitize_account_last4(str(part["account_last4"])) for part in dict_parts if part.get("account_last4")}
-    accounts.discard(None)
-    if len(accounts) > 1:
-        raise ValueError("Multiple accounts in one extraction require separate source review")
+    parts_by_account: dict[str, list[int]] = {}
+    for index, part in enumerate(dict_parts):
+        suffix = sanitize_account_last4(str(part["account_last4"])) if part.get("account_last4") else None
+        if suffix:
+            parts_by_account.setdefault(suffix, []).append(index)
+    if len(parts_by_account) > 1:
+        raise MultipleAccountsError(parts_by_account)
     merged: dict[str, Any] = dict(dict_parts[0])
 
     # Scalar metadata: first non-empty part wins.
