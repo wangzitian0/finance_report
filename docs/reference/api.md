@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `135`
-- Schema count: `274`
+- Endpoint count: `136`
+- Schema count: `281`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -34,7 +34,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `reconciliation` | 11 |
 | `reports` | 23 |
 | `review` | 9 |
-| `statements` | 14 |
+| `statements` | 15 |
 | `untagged` | 2 |
 | `user-settings` | 2 |
 | `users` | 4 |
@@ -258,12 +258,13 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |
 | `POST` | `/statements/{statement_id}/brokerage/import` | yes | `statement_id`* (path) | - | `200` `BrokerageImportResponse` | Import Brokerage Statement Positions |
 | `GET` | `/statements/{statement_id}/document` | yes | `statement_id`* (path) | - | `200` - | Get Statement Document |
-| `POST` | `/statements/{statement_id}/retry` | yes | `statement_id`* (path) | `RetryParsingRequest` \| null | `200` `BankStatementResponse` | Retry Statement Parsing |
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |
 | `POST` | `/statements/{statement_id}/review/approve` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
 | `POST` | `/statements/{statement_id}/review/envelope` | yes | `statement_id`* (path) | `ReviewedStatementEnvelopeRequest` | `200` `ReviewedStatementEnvelopeResponse` | Confirm Statement Review Envelope |
 | `POST` | `/statements/{statement_id}/review/opening-balance` | yes | `statement_id`* (path) | `SetOpeningBalanceRequest` | `200` `BankStatementResponse` | Set Statement Opening Balance |
 | `POST` | `/statements/{statement_id}/review/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
+| `GET` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | - | `200` `ListResponse_StatementRunRecord_` | List Statement Runs |
+| `POST` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | `StatementRunRequest` | `202` `StatementRunRecord` | Create Statement Run |
 | `GET` | `/statements/{statement_id}/transactions` | yes | `statement_id`* (path) | - | `200` `ListResponse_AtomicTransactionResponse_` | List Statement Transactions |
 
 ### untagged

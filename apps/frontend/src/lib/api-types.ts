@@ -138,12 +138,12 @@ export interface paths {
   "/statements/{statement_id}": _P<{ get: _O["get_statement_statements__statement_id__get"]; delete: _O["delete_statement_statements__statement_id__delete"] }>;
   "/statements/{statement_id}/brokerage/import": _P<{ post: _O["import_brokerage_statement_positions_statements__statement_id__brokerage_import_post"] }>;
   "/statements/{statement_id}/document": _P<{ get: _O["get_statement_document_statements__statement_id__document_get"] }>;
-  "/statements/{statement_id}/retry": _P<{ post: _O["retry_statement_parsing_statements__statement_id__retry_post"] }>;
   "/statements/{statement_id}/review": _P<{ get: _O["get_statement_for_review_statements__statement_id__review_get"] }>;
   "/statements/{statement_id}/review/approve": _P<{ post: _O["approve_statement_stage1_statements__statement_id__review_approve_post"] }>;
   "/statements/{statement_id}/review/envelope": _P<{ post: _O["confirm_statement_review_envelope_statements__statement_id__review_envelope_post"] }>;
   "/statements/{statement_id}/review/opening-balance": _P<{ post: _O["set_statement_opening_balance_statements__statement_id__review_opening_balance_post"] }>;
   "/statements/{statement_id}/review/reject": _P<{ post: _O["reject_statement_stage1_statements__statement_id__review_reject_post"] }>;
+  "/statements/{statement_id}/runs": _P<{ get: _O["list_statement_runs_statements__statement_id__runs_get"]; post: _O["create_statement_run_statements__statement_id__runs_post"] }>;
   "/statements/{statement_id}/stage2/run-checks": _P<{ post: _O["run_stage2_checks_statements__statement_id__stage2_run_checks_post"] }>;
   "/statements/{statement_id}/transactions": _P<{ get: _O["list_statement_transactions_statements__statement_id__transactions_get"] }>;
   "/transactions/{transaction_id}/audit": _P<{ get: _O["get_transaction_audit_transactions__transaction_id__audit_get"] }>;
@@ -1074,6 +1074,7 @@ export interface components {
     ListResponse_ManualValuationSnapshotResponse_: _LR<_S["ManualValuationSnapshotResponse"]>;
     ListResponse_ProcessingPendingItem_: _LR<_S["ProcessingPendingItem"]>;
     ListResponse_ReconciliationMatchResponse_: _LR<_S["ReconciliationMatchResponse"]>;
+    ListResponse_StatementRunRecord_: _LR<_S["StatementRunRecord"]>;
     ListResponse_UserResponse_: _LR<_S["UserResponse"]>;
     LlmCatalogResponse: {
       models: _S["LlmModelResponse"][];
@@ -1772,9 +1773,6 @@ export interface components {
       resolved_by?: string | null;
       transaction_id: string;
     };
-    RetryParsingRequest: {
-      model?: string | null;
-    };
     ReviewConflictCandidate: {
       amount: string;
       description: string;
@@ -1820,6 +1818,14 @@ export interface components {
       review_trace_record_id: string;
       source_result_digest: string;
     };
+    RunActorKind: "user" | "ai" | "system";
+    RunHints: {
+      keywords?: string[];
+      note?: string | null;
+    };
+    RunKind: "extract" | "classify";
+    RunState: "requested" | "running" | "succeeded" | "failed" | "cancelled";
+    RunTrigger: "upload" | "rerun" | "auto_classify" | "auto_retry" | "backfill";
     Scene: "extraction.ocr" | "extraction.vision" | "extraction.json" | "advisor.chat" | "statement.summary";
     SetOpeningBalanceRequest: {
       opening_balance: number | string;
@@ -1907,6 +1913,29 @@ export interface components {
       updated_at: string;
       user_id: string;
       validation_error: string | null;
+    };
+    StatementRunRecord: {
+      actor_kind: _S["RunActorKind"];
+      error_code: string | null;
+      error_message: string | null;
+      finished_at: string | null;
+      hints: _S["RunHints"];
+      id: string;
+      kind: _S["RunKind"];
+      model: string | null;
+      parent_run_id: string | null;
+      prompt_digest: string | null;
+      prompt_template_version: string | null;
+      requested_at: string;
+      seq: number;
+      started_at: string | null;
+      state: _S["RunState"];
+      trigger: _S["RunTrigger"];
+    };
+    StatementRunRequest: {
+      hints?: _S["RunHints"];
+      kind: "extract";
+      model?: string | null;
     };
     TopCorrection: {
       corrected_category: string;
@@ -2771,13 +2800,6 @@ export interface operations {
     requestBody?: never;
     responses: _R<unknown>;
   };
-  retry_statement_parsing_statements__statement_id__retry_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody?: _B<_S["RetryParsingRequest"] | null>;
-    responses: _R<_S["BankStatementResponse"]>;
-  };
   get_statement_for_review_statements__statement_id__review_get: {
     parameters: _PP<{
         statement_id: string;
@@ -2812,6 +2834,20 @@ export interface operations {
       }>;
     requestBody: _B<_S["StatementDecisionRequest"]>;
     responses: _R<_S["BankStatementResponse"]>;
+  };
+  list_statement_runs_statements__statement_id__runs_get: {
+    parameters: _PP<{
+        statement_id: string;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ListResponse_StatementRunRecord_"]>;
+  };
+  create_statement_run_statements__statement_id__runs_post: {
+    parameters: _PP<{
+        statement_id: string;
+      }>;
+    requestBody: _B<_S["StatementRunRequest"]>;
+    responses: _R<_S["StatementRunRecord"], 202>;
   };
   run_stage2_checks_statements__statement_id__stage2_run_checks_post: {
     parameters: _PP<{
