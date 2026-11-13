@@ -340,11 +340,18 @@ async def _get_previous_approved_statement(db: AsyncSession, statement: Statemen
 
 
 async def _get_statement_for_update(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
+    """Lock the statement row and return it as the database holds it now.
+
+    `populate_existing` makes the row replace the cached object. A caller that read the statement before
+    the lock, for example the approve route, then sees a status that another transaction committed in between,
+    such as the PARSING of a rerun.
+    """
     statement = (
         await db.execute(
             select(StatementSummary)
             .where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
     if not statement:
@@ -437,12 +444,22 @@ def _raise_if_approved_envelope_incomplete(statement: StatementSummary) -> None:
         )
 
 
+# PARSED is the status that waits for a review. A high-confidence parse sets APPROVED as its auto-approve
+# candidate marker (`route_by_threshold`), and the auto-approve then posts. Any other status, such as the PARSING
+# of a rerun, must not be approved: its entries would disagree with the statement.
+_APPROVABLE_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.APPROVED})
+
+
 async def approve_statement_with_transactions(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
 ) -> tuple[StatementSummary, list[AtomicTransaction]]:
     statement = await _get_statement_for_update(db, statement_id, user_id)
+    if statement.status not in _APPROVABLE_STATUSES:
+        raise ValueError(
+            f"Statement cannot be approved while its status is {statement.status.value}. Reload the statement."
+        )
     await require_current_statement_envelope_trust(db, statement=statement)
     _raise_if_approved_envelope_incomplete(statement)
     transactions = await resolve_statement_transactions(db, statement)

@@ -28,13 +28,13 @@ if not settings.database_url.startswith("sqlite"):
     _pool_kwargs["max_overflow"] = settings.db_pool_max_overflow
 
 
-def create_app_engine(url: str, **pool_kwargs: object) -> AsyncEngine:
-    """Create an async engine of the app.
+def create_app_engine(url: str, **options: object) -> AsyncEngine:
+    """Create an async engine of the app. The app and the test fixtures build every engine here.
 
-    `hide_parameters=True` keeps the SQL parameters out of every error text. A failed insert of a run holds
-    the hints of the run in its parameters, and telemetry logs the error text.
+    `hide_parameters=True` keeps the SQL parameters out of every error text, and no caller can turn it off. A
+    failed insert of a run holds the hints of the run in its parameters, and telemetry logs the error text.
     """
-    return create_async_engine(url, echo=settings.debug, hide_parameters=True, **pool_kwargs)
+    return create_async_engine(url, **{"echo": settings.debug, **options, "hide_parameters": True})
 
 
 engine = create_app_engine(settings.database_url, **_pool_kwargs)
