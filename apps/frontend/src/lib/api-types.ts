@@ -496,7 +496,6 @@ export interface components {
     };
     BatchApproveResponse: {
       approved_count: number;
-      journal_entries_created: number;
       journal_entries_reconciled: number;
     };
     BatchRejectRequest: {

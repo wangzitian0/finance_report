@@ -160,7 +160,6 @@ class Stage2ReviewQueueResponse(BaseModel):
 
 class BatchApproveResponse(BaseModel):
     approved_count: int
-    journal_entries_created: int
     journal_entries_reconciled: int
 
 

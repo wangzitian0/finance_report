@@ -456,11 +456,6 @@ async def sync_reconciliation_matches_journal_entry_links_batch(
     await db.flush()
 
 
-async def sync_reconciliation_match_journal_entry_links(db: AsyncSession, match: ReconciliationMatch) -> None:
-    """Synchronize trusted reconciliation anchor links from the compatibility JSONB list."""
-    await sync_reconciliation_matches_journal_entry_links_batch(db, [match])
-
-
 def auto_accept(match_score: int, config: ReconciliationConfig) -> bool:
     """Return True if match score meets auto-accept threshold."""
     return match_score >= config.auto_accept

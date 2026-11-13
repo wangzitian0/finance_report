@@ -16,7 +16,6 @@ from src.extraction import (
     resolve_statement_transactions,
     resolve_transaction_currency,
 )
-from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict, raise_not_found
 from src.reconciliation import (
@@ -26,7 +25,7 @@ from src.reconciliation import (
     ReconciliationError,
     ReconciliationMatch,
     ReconciliationStatus,
-    accept_match as accept_match_service,
+    accept_pending_matches,
     derive_reconciliation_score_tier,
     get_stage2_queue,
     has_unresolved_checks,
@@ -253,7 +252,7 @@ async def batch_approve_matches(
     if await has_unresolved_checks(db, user_id, run_id=request.run_id):
         raise_conflict("Cannot batch approve while there are unresolved consistency checks")
     if not request.match_ids:
-        return BatchApproveResponse(approved_count=0, journal_entries_created=0, journal_entries_reconciled=0)
+        return BatchApproveResponse(approved_count=0, journal_entries_reconciled=0)
 
     query = (
         select(ReconciliationMatch)
@@ -263,36 +262,19 @@ async def batch_approve_matches(
             ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
             AtomicTransaction.user_id == user_id,
         )
+        .order_by(ReconciliationMatch.id)
+        .with_for_update(of=ReconciliationMatch)
     )
     if request.run_id:
         query = query.where(ReconciliationMatch.run_id == request.run_id)
     matches = list((await db.execute(query)).scalars().all())
-
-    reconciled = 0
-    for match in matches:
-        try:
-            accepted = await accept_match_service(db, match.id, user_id=user_id)
-        except ReconciliationError as exc:
-            await db.rollback()
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-        after_ids = [UUID(eid) for eid in (accepted.journal_entry_ids or [])]
-        if after_ids:
-            reconciled += len(
-                (
-                    await db.execute(
-                        select(JournalEntry.id).where(
-                            JournalEntry.id.in_(after_ids),
-                            JournalEntry.user_id == user_id,
-                            JournalEntry.status == JournalEntryStatus.RECONCILED,
-                        )
-                    )
-                ).scalars().all()
-            )
+    try:
+        reconciled = await accept_pending_matches(db, matches, user_id=user_id)
+    except ReconciliationError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     await db.commit()
-    return BatchApproveResponse(
-        approved_count=len(matches), journal_entries_created=0, journal_entries_reconciled=reconciled
-    )
+    return BatchApproveResponse(approved_count=len(matches), journal_entries_reconciled=reconciled)
 
 
 @router.post("/batch-reject-matches", response_model=BatchRejectResponse)
