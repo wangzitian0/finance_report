@@ -60,6 +60,38 @@ def _safe_parse_decimal(value: Any) -> Decimal | None:
         return None
 
 
+def repair_directions_from_running_balance(
+    transactions: list[dict[str, Any]], *, opening_balance: Decimal | None = None
+) -> int:
+    """Set each direction that the printed running balance contradicts. Return the number of rows changed.
+
+    A row is proven when the step from the previous balance equals its amount. The repair runs only when fewer
+    than half of the proven rows disagree: a card that prints balances owed disagrees on every row, and the
+    sign inversion handles it.
+    """
+    previous = opening_balance
+    proven: list[tuple[dict[str, Any], Decimal, str, str]] = []
+    for txn in transactions:
+        balance = _safe_parse_decimal(txn.get("balance_after"))
+        raw_amount = _safe_parse_decimal(txn.get("amount"))
+        if balance is None:
+            previous = None
+            continue
+        if raw_amount is not None and previous is not None:
+            amount, stated = normalize_amount_direction(raw_amount, txn.get("direction"))
+            step = balance - previous
+            if step != 0 and abs(abs(step) - amount) <= BALANCE_TOLERANCE:
+                proven.append((txn, amount, stated, "IN" if step > 0 else "OUT"))
+        previous = balance
+    wrong = [row for row in proven if row[2] != row[3]]
+    if not wrong or len(wrong) * 2 >= len(proven):
+        return 0
+    for txn, amount, _stated, direction in wrong:
+        txn["amount"] = str(amount)
+        txn["direction"] = direction
+    return len(wrong)
+
+
 def _derive_running_balance_endpoints(
     transactions: list[dict[str, Any]],
     *,
@@ -132,9 +164,15 @@ def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, 
                 extracted["opening_balance"] = str(primary_bucket["opening"])
             if extracted.get("closing_balance") is None and primary_bucket.get("closing") is not None:
                 extracted["closing_balance"] = str(primary_bucket["closing"])
+        if len(raw_balances) == 1 and len(txn_groups) <= 1:
+            # A one-entry list repeats the scalar fields; keeping it would skip the card sign inversion below.
+            del extracted["balances"]
 
     opening_dec = _safe_parse_decimal(extracted.get("opening_balance"))
     closing_dec = _safe_parse_decimal(extracted.get("closing_balance"))
+    single_currency = len(txn_groups) <= 1
+    for group in [transactions] if single_currency else txn_groups.values():
+        repair_directions_from_running_balance(group, opening_balance=opening_dec if single_currency else None)
     if not extracted.get("balances") and len(txn_groups) <= 1 and (opening_dec is None or closing_dec is None):
         single_ccy = header_ccy or (next(iter(txn_groups)) if txn_groups else None)
         endpoints = _derive_running_balance_endpoints(
@@ -441,7 +479,9 @@ def _score_balance_progression(transactions: list[dict[str, Any]]) -> int:
         bal, amt = txn.get("balance_after"), txn.get("amount")
         if bal is not None and amt is not None:
             try:
-                amount, direction = normalize_amount_direction(Decimal(str(amt)), str(txn.get("direction", "IN")).upper())
+                amount, direction = normalize_amount_direction(
+                    Decimal(str(amt)), str(txn.get("direction", "IN")).upper()
+                )
                 balances.append((Decimal(str(bal)), amount, direction))
             except (ValueError, TypeError, InvalidOperation):
                 continue
