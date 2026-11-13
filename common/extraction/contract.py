@@ -901,10 +901,13 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.71|The JSON schema of RunHints carries 20 keywords, 64 characters and 500 characters, and a keyword is stripped before its length is checked.|test_AC_extraction_2994_71_the_schema_of_run_hints_carries_the_three_limits
 @$be/extraction/test_statement_run_locks.py|P1
 2994.76|The lock of a rerun on the statement row is FOR NO KEY UPDATE: the retry run insert of the worker passes it, and another writer does not.|test_AC_extraction_2994_76_the_rerun_lock_lets_the_retry_run_insert_of_the_worker_pass
-2994.85|The retry of the worker locks the statement row before it fails the old run, so it does not deadlock with a user run start.|test_AC_extraction_2994_85_the_worker_retry_and_a_user_run_start_do_not_deadlock
+2994.85|The retry of the worker holds the statement lock before it fails the old run, so it does not deadlock with a user run start, in either order of the run indexes.|test_AC_extraction_2994_85_the_worker_retry_and_a_user_run_start_do_not_deadlock
 2994.77|The engine of the app and of the test fixtures hides SQL parameters, so an error text holds no hint.|test_AC_extraction_2994_77_an_engine_error_text_holds_no_sql_parameter
 2994.79|start_user_extract_run checks the CSV rule, reads the storage, locks the row and checks the status, inserts the run with its parent and sets PARSING, in this order.|test_AC_extraction_2994_79_start_user_extract_run_takes_the_statement_lock_before_the_run_insert
+@$be/extraction/test_envelope_and_active_run.py|P1
+2994.86|The envelope confirmation refuses a statement with an active run or the status PARSING, in the first confirmation and in the replay of the same command, and writes nothing.|test_AC_extraction_2994_86_a_stale_tab_cannot_confirm_an_envelope_while_a_rerun_parses
 @$be/api/test_statement_approve_race.py|P1
+2994.87|Approve refuses a statement with an active run, also when its status says PARSED. The auto-approve of the worker (after finish_run) and the recovery approve still post, and the worker finishes its run before its auto-approve.|test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run
 2994.83|An approve that read the statement before a rerun committed sees PARSING under its lock: it posts nothing and the statement stays PARSING. A normal approve of a PARSED statement still posts.|test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_nothing
 2994.84|A parse failure writes the final status only while the statement is PARSING: an approved statement and its entries stay untouched.|test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statement_and_its_entries
 @$be/api/test_statement_run_api.py|P1
