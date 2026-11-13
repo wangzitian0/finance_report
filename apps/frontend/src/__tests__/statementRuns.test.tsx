@@ -89,6 +89,9 @@ function mockApi(options: {
   }) as unknown as typeof apiOperation);
 }
 
+const STATEMENT_GET = "get_statement_statements__statement_id__get";
+const REVIEW_GET = "get_statement_for_review_statements__statement_id__review_get";
+const callsOf = (operationId: string) => mockedApi.mock.calls.filter((call) => call[0] === operationId);
 const runPosts = () => mockedApi.mock.calls.filter((call) => call[0] === RUNS_POST);
 const runListCalls = () => mockedApi.mock.calls.filter((call) => call[0] === RUNS_GET);
 const runAgainButton = () => screen.getByRole("button", { name: "Run again" });
@@ -198,6 +201,21 @@ describe("Parsing attempts and Run again on the statement page", () => {
     await screen.findByText(/A parse is running/);
 
     expect(runAgainButton()).toBeDisabled();
+  });
+
+  it("AC-extraction.2994.63 refetches the statement, the review and the attempts after a run starts", async () => {
+    mockApi({ runs: () => [makeRun({ seq: 1, state: "failed", error_code: "extraction_error" })] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+    await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(0));
+    const before = { statement: callsOf(STATEMENT_GET).length, review: callsOf(REVIEW_GET).length, runs: runListCalls().length };
+
+    fireEvent.click(runAgainButton());
+
+    await waitFor(() => expect(runPosts()).toHaveLength(1));
+    await waitFor(() => expect(callsOf(STATEMENT_GET).length).toBeGreaterThan(before.statement));
+    await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(before.review));
+    await waitFor(() => expect(runListCalls().length).toBeGreaterThan(before.runs));
   });
 
   it("AC-extraction.2994.59 shows a clear message when the server answers 409", async () => {
