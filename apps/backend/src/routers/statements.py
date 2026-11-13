@@ -25,6 +25,7 @@ from src.extraction import (
     BankStatementStatus,
     BrokerageImportRejectedError,
     BrokeragePositionImportService,
+    HintsNotApplicable,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
@@ -36,6 +37,7 @@ from src.extraction import (
     StatementPostingOutcome,
     StatementPostingStatus,
     StatementRunRecord,
+    StatementStatusChanged,
     StatementSummary,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
@@ -48,13 +50,10 @@ from src.extraction import (
     create_run,
     current_reviewed_statement_envelope,
     get_current_statement_extraction_result,
-    get_latest_run,
-    hints_apply_to_file_type,
     is_bank_custody_source,
     is_statement_classification_running,
     list_runs,
     lock_statement_classification,
-    lock_statement_for_run,
     pending_stage1_review_filter,
     record_brokerage_import_failure,
     register_statement_source,
@@ -64,6 +63,7 @@ from src.extraction import (
     resolve_statement_transactions,
     retire_statement,
     set_opening_balance,
+    start_user_extract_run,
     submit_parse_pipeline,
     supports_reviewed_statement_envelope,
     validate_balance_chain,
@@ -108,6 +108,8 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 _ALLOWED_EXTENSIONS = {"pdf", "csv", "png", "jpg", "jpeg"}
 # A user can run the extraction again from these statuses.
 _RERUN_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.REJECTED, BankStatementStatus.PARSING})
+# A reject can start from these statuses. A retired or uploaded statement has no parse to run again.
+_REJECT_STATUSES = _RERUN_STATUSES | {BankStatementStatus.APPROVED}
 logger = get_logger(__name__)
 
 _PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
@@ -273,65 +275,52 @@ async def _queue_statement_reparse(
     statement: StatementSummary,
     user_id: UUID,
     *,
+    allowed_statuses: frozenset[BankStatementStatus],
     model: str | None = None,
     hints: RunHints | None = None,
-    allowed_statuses: frozenset[BankStatementStatus] | None = None,
     strict_hints: bool = False,
     while_pending: Callable[[], Awaitable[StatementSummary]] | None = None,
 ) -> UUID:
-    """Start a user rerun of the statement and return the id of its run.
+    """Start a user rerun of the statement, commit it, dispatch its job and return the id of its run.
 
-    With `allowed_statuses` the statement row is locked first and its status checked again. A status that
-    changed after the caller's check, for example an approval from another tab, gives 409 and no write.
-    A CSV parse sends no prompt. Hints on a CSV statement give 400 with `strict_hints`, else the run keeps
-    empty hints. The run is flushed next. A rerun while a run is active raises `ActiveRunExists` (409) there, before
-    `while_pending` or any other write. The reject passes `while_pending`, so its writes and the run
-    commit together.
+    `start_user_extract_run` owns the order of the steps and the rules: the CSV rule, the storage read, the row
+    lock, the status check, the run insert. This function maps its errors to HTTP and dispatches the job.
+    The reject passes `while_pending`, so its writes and the run commit together.
     """
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
         raise StorageError("Source document is no longer available for reparse")
     storage_key = uploaded_document.file_path
     filename = uploaded_document.original_filename
-    content = await run_in_threadpool(StorageService().get_object, storage_key)
+    file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     request_id = ensure_request_id()
     model_to_use = None if model == settings.multimodal_model else model
-    file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
-    hints = hints or RunHints()
-    if not hints.is_empty and not hints_apply_to_file_type(file_type):
-        if strict_hints:
-            raise_bad_request("Hints apply to PDF and image statements only. A CSV statement sends no prompt.")
-        hints = RunHints()
-    if allowed_statuses is not None:
-        locked = await lock_statement_for_run(db, statement.id, user_id, allowed=allowed_statuses)
-        if locked is None:
-            await db.rollback()
-            raise_conflict("The statement changed while the run started. Reload the page and try again.")
-        statement = locked
-    previous_run = await get_latest_run(db, statement.id)
-    run = await create_run(
-        db,
-        statement_id=statement.id,
-        user_id=user_id,
-        kind=RunKind.EXTRACT,
-        actor_kind=RunActorKind.USER,
-        trigger=RunTrigger.RERUN,
-        hints=hints,
-        model=model_to_use,
-        parent_run_id=previous_run.id if previous_run is not None else None,
-    )
-    run_id = run.id
-    if while_pending is not None:
-        statement = await while_pending()
-    statement.status = BankStatementStatus.PARSING
-    statement.validation_error = None
+    try:
+        started = await start_user_extract_run(
+            db,
+            statement_id=statement.id,
+            user_id=user_id,
+            file_type=file_type,
+            hints=hints or RunHints(),
+            model=model_to_use,
+            allowed_statuses=allowed_statuses,
+            strict_hints=strict_hints,
+            load_content=lambda: run_in_threadpool(StorageService().get_object, storage_key),
+            while_pending=while_pending,
+        )
+    except HintsNotApplicable as exc:
+        raise_bad_request(str(exc), cause=exc)
+    except StatementStatusChanged:
+        await db.rollback()
+        raise_conflict("The statement changed while the run started. Reload the page and try again.")
     await db.commit()
+    statement = started.statement
     await db.refresh(statement)
     await _enqueue_parse_job(
         db,
         job=ParseJob(
             statement_id=statement.id,
-            run_id=run_id,
+            run_id=started.run_id,
             filename=filename,
             institution=None if statement.institution == "Pending Detection" else statement.institution,
             user_id=user_id,
@@ -341,10 +330,10 @@ async def _queue_statement_reparse(
             model=model_to_use,
             request_id=request_id,
         ),
-        content=content,
+        content=started.content,
         file_type=file_type,
     )
-    return run_id
+    return started.run_id
 
 
 async def _create_statement_account_from_confirmation(
@@ -936,6 +925,7 @@ async def reject_statement_stage1(
             statement,
             user_id,
             hints=RunHints(note=decision.notes or None),
+            allowed_statuses=_REJECT_STATUSES,
             while_pending=lambda: reject_statement_workflow(
                 db,
                 statement_id,

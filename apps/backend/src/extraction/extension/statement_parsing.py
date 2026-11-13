@@ -571,10 +571,14 @@ async def _execute_statement_ingestion(
             )
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
 
+        hints: RunHints | None = None
         try:
             hints = RunHints.model_validate(stored_hints)
         except ValidationError:
-            # The error text echoes the hint text. Neither the run message nor a log may carry it.
+            # The error text echoes the hint text. Only set a flag here: an error in the failure handling would
+            # chain this exception into its traceback, and a log would carry the hint text.
+            hints = None
+        if hints is None:
             await handle_parse_failure(
                 statement,
                 session,

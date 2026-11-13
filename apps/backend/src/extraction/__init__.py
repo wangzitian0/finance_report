@@ -170,8 +170,11 @@ from src.extraction.extension.statement_posting import (
 )
 from src.extraction.extension.statement_runs import (
     ActiveRunExists,
+    HintsNotApplicable,
     StaleRun,
+    StartedRun,
     StatementRunRecord,
+    StatementStatusChanged,
     claim_run,
     create_run,
     fail_run,
@@ -182,6 +185,7 @@ from src.extraction.extension.statement_runs import (
     list_runs,
     lock_statement_for_run,
     reap_stale_runs,
+    start_user_extract_run,
 )
 from src.extraction.extension.statement_summary import (
     StatementEventSource,
@@ -310,7 +314,9 @@ __all__ = [
     "StatementIngestionError",
     "StatementIngestionOutcome",
     "StatementIngestionStatus",
+    "StartedRun",
     "StatementRunRecord",
+    "StatementStatusChanged",
     "StatementDispositionPolicySnapshot",
     "StatementIngestionUseCase",
     "StatementBalanceFact",
@@ -385,11 +391,13 @@ __all__ = [
     "get_statement_event_sources",
     "get_uploaded_document_filenames",
     "heartbeat_run",
+    "HintsNotApplicable",
     "hints_apply_to_file_type",
     "list_runs",
     "lock_statement_for_run",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",
+    "start_user_extract_run",
     "parse_brokerage_csv_payload",
     "parse_brokerage_positions",
     "pending_stage1_review_filter",

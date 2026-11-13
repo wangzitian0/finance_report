@@ -41,7 +41,7 @@ class DatabaseCheck:
         start = time.perf_counter()
         engine = None
         try:
-            engine = create_async_engine(self._database_url, echo=False)
+            engine = create_async_engine(self._database_url, echo=False, hide_parameters=True)
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             return _ok(self.name, "Connection successful", start)
