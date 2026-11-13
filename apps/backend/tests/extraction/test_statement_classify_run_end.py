@@ -286,7 +286,7 @@ async def test_AC_extraction_2994_108_an_off_catalog_answer_that_equals_a_descri
     run = await _run(db, await classify_statement(db, seeded.id))
 
     text = _log_text(caplog)
-    assert "transaction classification pass" in text, "the log line of the pass was captured"
+    assert "statement.classification.batch" in text, "the log line of the batch was captured"
     assert run.result_summary["by_category"] == {"other": 1, "DINING": 1}
     assert OFF_CATALOG not in str(run.result_summary)
     assert OFF_CATALOG not in text

@@ -452,10 +452,11 @@ async def claim_run(db: AsyncSession, run_id: UUID) -> StatementRun:
     return _only(runs, run_id, RunState.RUNNING)
 
 
-async def heartbeat_run(db: AsyncSession, run_id: UUID) -> bool:
-    """Show that the worker lives. Return False when the run is no longer running."""
+async def heartbeat_run(db: AsyncSession, run_id: UUID, *, result_summary: dict | None = None) -> bool:
+    """Show that the worker lives, and store its progress counters when given. False: the run is no longer running."""
+    values = {} if result_summary is None else {"result_summary": result_summary}
     runs = await _update_runs(
-        db, StatementRun.id == run_id, StatementRun.state == RunState.RUNNING, heartbeat_at=_now()
+        db, StatementRun.id == run_id, StatementRun.state == RunState.RUNNING, heartbeat_at=_now(), **values
     )
     return bool(runs)
 

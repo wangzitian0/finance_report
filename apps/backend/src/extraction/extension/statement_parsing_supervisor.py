@@ -42,7 +42,7 @@ async def parsing_heartbeat(
     *,
     interval_seconds: float | None = None,
 ) -> AsyncIterator[None]:
-    """Refresh `heartbeat_at` of a running run while its work (a parse or a classification) runs.
+    """Refresh `heartbeat_at` of a running run while its work (a parse) runs.
 
     The reaper fails a running run whose heartbeat is older than the stale threshold. A long statement
     needs more time than that threshold, so a live parse must show it is alive. A beat that finds the
