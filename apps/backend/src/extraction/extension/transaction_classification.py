@@ -9,6 +9,7 @@ import re
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import Enum
@@ -312,6 +313,19 @@ def _proposal_from_item(item: object) -> CategoryProposal | None:
     return CategoryProposal(category=category, confidence=confidence, reason=str(item.get("reason", ""))[:500])
 
 
+def model_batches(
+    rows: Sequence[AtomicTransaction], policy: ClassificationPolicy
+) -> list[Sequence[AtomicTransaction]]:
+    """Split rows into the groups that one model call answers: policy 1 sends one call, a later policy sends batches."""
+    size = max(1, len(rows)) if policy.version == 1 else CLASSIFICATION_BATCH_SIZE
+    return [rows[start : start + size] for start in range(0, len(rows), size)]
+
+
+def batch_slots() -> asyncio.Semaphore:
+    """The limit of model calls that run at the same time."""
+    return asyncio.Semaphore(CLASSIFICATION_PARALLEL_BATCHES)
+
+
 async def propose_categories(
     transactions: Sequence[AtomicTransaction], policy: ClassificationPolicy, *, user_id: UUID | None = None
 ) -> list[CategoryProposal | None]:
@@ -319,20 +333,29 @@ async def propose_categories(
     if not transactions:
         return []
     owner = user_id if user_id is not None else _CLASSIFICATION_USER.get()
-    if policy.version == 1:
-        return await _propose_batch(transactions, policy, owner, indexed=False)
-    batches = [
-        transactions[start : start + CLASSIFICATION_BATCH_SIZE]
-        for start in range(0, len(transactions), CLASSIFICATION_BATCH_SIZE)
-    ]
-    slots = asyncio.Semaphore(CLASSIFICATION_PARALLEL_BATCHES)
+    slots = batch_slots()
 
     async def run(batch: Sequence[AtomicTransaction]) -> list[CategoryProposal | None]:
         async with slots:
-            return await _propose_batch(batch, policy, owner, indexed=True)
+            return await _propose_batch(batch, policy, owner, indexed=policy.version != 1)
 
-    answers = await asyncio.gather(*(run(batch) for batch in batches))
+    answers = await asyncio.gather(*(run(batch) for batch in model_batches(transactions, policy)))
     return [proposal for answer in answers for proposal in answer]
+
+
+async def ask_model(
+    user_id: UUID,
+    rows: Sequence[AtomicTransaction],
+    policy: ClassificationPolicy | None,
+    proposer: Proposer | None = None,
+) -> list[CategoryProposal | None]:
+    """Ask the model for one group of rows. The call takes no session, so no connection is held while it runs (#3028)."""
+    assert policy is not None, "the model is off: no plan asks it"
+    token = _CLASSIFICATION_USER.set(user_id)
+    try:
+        return await (proposer or propose_categories)(rows, policy)
+    finally:
+        _CLASSIFICATION_USER.reset(token)
 
 
 async def _propose_batch(
@@ -632,129 +655,142 @@ async def _already_classified_ids(
     return classified | await _user_decided_txn_ids(db, user_id, txn_ids)
 
 
-async def classify_transactions(
-    db: AsyncSession,
-    user_id: UUID,
-    transactions: Sequence[AtomicTransaction],
-    *,
-    policy: ClassificationPolicy | None,
-    proposer: Proposer | None = None,
-    commit_basis: bool = True,
-    apply_rules: bool = True,
-) -> list[ClassificationOutcome]:
-    """Classify transactions under deterministic user rules first, then optional LLM policy."""
-    if not transactions:
-        return []
+@dataclass(frozen=True)
+class ClassificationPlan:
+    """What the reads of one policy bucket found (#3028). It holds no session, so a model call needs no connection."""
 
-    service = ClassificationService()
-    rules = [r for r in await service.get_active_rules(db, user_id) if r.rule_name != POLICY_RULE_NAME]
-    ruled: dict[UUID, ClassificationRule] = {}
-    if rules:
-        for txn in transactions:
-            matched_rule = next((rule for rule in rules if service._match_rule(txn, rule)), None)
-            if matched_rule is not None:
-                ruled[txn.id] = matched_rule
-        if ruled and commit_basis and apply_rules:
-            await service.apply_rules(db, user_id, [txn for txn in transactions if txn.id in ruled])
+    user_id: UUID
+    policy: ClassificationPolicy | None  # None: the model is off for this user
+    rows: Sequence[AtomicTransaction]
+    ruled: dict[UUID, int]  # row id -> version number of the keyword rule that matches the row
+    already: frozenset[UUID]  # row ids with an answer under this policy version, or a decision of the user
+    to_propose: list[AtomicTransaction]  # the rows that the model answers
+    auto_accept: bool
+    commit_basis: bool
 
-    remaining = [t for t in transactions if t.id not in ruled]
+    @property
+    def version(self) -> int | None:
+        return self.policy.version if self.policy is not None else None
 
-    if not await classification_enabled(db, user_id):
-        disabled_outcomes = [
+    def base_outcomes(self) -> list[ClassificationOutcome]:
+        """The outcomes of the rows that no model call answers: a keyword rule, an earlier answer, or the model off."""
+        asked = {txn.id for txn in self.to_propose}
+        rest: Disposition = "already_classified" if self.policy is not None else "no_proposal"
+        return [
             ClassificationOutcome(
                 atomic_txn_id=txn.id,
                 disposition="rule",
-                policy_version=ruled[txn.id].version_number,
-                wrote_row=commit_basis and apply_rules,
+                policy_version=self.ruled[txn.id],
+                wrote_row=self.commit_basis,
             )
-            if txn.id in ruled
-            else ClassificationOutcome(atomic_txn_id=txn.id, disposition="no_proposal", policy_version=None)
-            for txn in transactions
+            if txn.id in self.ruled
+            else ClassificationOutcome(atomic_txn_id=txn.id, disposition=rest, policy_version=self.version)
+            for txn in self.rows
+            if txn.id not in asked
         ]
-        if commit_basis:
-            await db.flush()
-        logger.info(
-            "transaction classification pass",
-            policy_version=None,
-            commit_basis=commit_basis,
-            **summarize_outcomes(disabled_outcomes),
-        )
-        return disabled_outcomes
 
-    if policy is None:
+
+async def plan_classification(
+    db: AsyncSession,
+    user_id: UUID,
+    rows: Sequence[AtomicTransaction],
+    policy: ClassificationPolicy | None,
+    *,
+    commit_basis: bool = True,
+) -> ClassificationPlan:
+    """Read what one policy bucket needs: the keyword rules and their matches, the two flags, the rows with an answer."""
+    service = ClassificationService()
+    rules = [r for r in await service.get_active_rules(db, user_id) if r.rule_name != POLICY_RULE_NAME]
+    ruled: dict[UUID, int] = {}
+    for txn in rows:
+        matched_rule = next((rule for rule in rules if service._match_rule(txn, rule)), None)
+        if matched_rule is not None:
+            ruled[txn.id] = matched_rule.version_number
+    enabled = await classification_enabled(db, user_id)
+    if enabled and policy is None:
         raise ValueError("classification policy is required when LLM proposals are enabled")
+    policy = policy if enabled else None
+    already: frozenset[UUID] = frozenset()
+    if policy is not None and commit_basis:
+        already = frozenset(await _already_classified_ids(db, user_id, policy.version, [txn.id for txn in rows]))
+    return ClassificationPlan(
+        user_id=user_id,
+        policy=policy,
+        rows=rows,
+        ruled=ruled,
+        already=already,
+        to_propose=[txn for txn in rows if policy is not None and txn.id not in ruled and txn.id not in already],
+        auto_accept=policy is not None and await auto_accept_enabled(db, user_id),
+        commit_basis=commit_basis,
+    )
 
-    propose = proposer or propose_categories
-    outcomes: list[ClassificationOutcome] = []
-    auto_accept = await auto_accept_enabled(db, user_id)
+
+async def write_before_model(db: AsyncSession, plan: ClassificationPlan) -> None:
+    """Write what needs no model call: the keyword-rule answers, the promotion of drafts, the sweep of older versions."""
+    if not plan.commit_basis:
+        return
+    if plan.ruled:
+        await ClassificationService().apply_rules(db, plan.user_id, [txn for txn in plan.rows if txn.id in plan.ruled])
+    if plan.policy is not None:
+        if plan.auto_accept:
+            await _promote_drafts(db, plan.user_id, plan.policy, plan.rows)
+        await _supersede_older_model_rows(db, plan.user_id, sorted(plan.already), plan.policy.version)
+    await db.flush()
+
+
+async def write_answers(
+    db: AsyncSession,
+    plan: ClassificationPlan,
+    rows: Sequence[AtomicTransaction],
+    proposals: Sequence[CategoryProposal | None],
+) -> list[ClassificationOutcome]:
+    """Decide the answer of each row from its proposal and write it: the one write phase of the model's answers.
+
+    Under the policy-rule lock, a row that another writer answered after the plan is skipped (#3028).
+    """
+    policy, user_id, auto_accept, commit_basis = plan.policy, plan.user_id, plan.auto_accept, plan.commit_basis
+    assert policy is not None, "the model is off: no plan asks it"
+    tags: dict[str, Any]
     apply_threshold = policy.review_threshold if auto_accept else policy.auto_apply_threshold
-
-    all_ids = [txn.id for txn in transactions]
-    already_classified = await _already_classified_ids(db, user_id, policy.version, all_ids) if commit_basis else set()
-
-    to_propose = [txn for txn in remaining if txn.id not in already_classified]
-    token = _CLASSIFICATION_USER.set(user_id)
-    try:
-        proposals = await propose(to_propose, policy) if to_propose else []
-    finally:
-        _CLASSIFICATION_USER.reset(token)
+    proposal_by_txn = dict(zip(rows, proposals))
+    late: set[UUID] = set()
+    if commit_basis and any(proposal is not None for proposal in proposals):
+        await _lock_policy_rule(db, user_id, policy)
+        late = await _already_classified_ids(db, user_id, policy.version, [txn.id for txn in rows])
 
     policy_rule: ClassificationRule | None = None
-    proposal_by_txn = dict(zip(to_propose, proposals))
     category_account_cache: dict[tuple[TransactionCategory, str], Account] = {}
-    new_row_txn_ids: list[UUID] = []
-    if auto_accept and commit_basis:
-        await _promote_drafts(db, user_id, policy, transactions)
+    new_rows: list[TransactionClassification] = []
+    outcomes: list[ClassificationOutcome] = []
 
-    async def ensure_rule() -> ClassificationRule:
+    async def add(txn: AtomicTransaction, account_id: UUID | None, tags: dict, score: int, status: ClassificationStatus):
         nonlocal policy_rule
         if policy_rule is None:
             policy_rule = await _ensure_policy_rule(db, user_id, policy)
-        return policy_rule
-
-    if commit_basis and any(proposal is not None for proposal in proposals):
-        await _lock_policy_rule(db, user_id, policy)
-        already_classified |= await _already_classified_ids(db, user_id, policy.version, [txn.id for txn in to_propose])
-
-    async def write_fallback(txn: AtomicTransaction, proposal: CategoryProposal, reason: str) -> None:
-        rule = await ensure_rule()
-        account = await _general_account(db, user_id, txn)
-        db.add(
+        new_rows.append(
             TransactionClassification(
                 atomic_txn_id=txn.id,
-                rule_version_id=rule.id,
-                account_id=account.id,
-                tags={
-                    "category": UNCLASSIFIED,
-                    "reason": reason[:200],
-                    "auto_accepted": True,
-                    "original_category": proposal.category,
-                    "original_confidence": proposal.confidence,
-                },
-                confidence_score=0,
-                status=ClassificationStatus.APPLIED,
+                rule_version_id=policy_rule.id,
+                account_id=account_id,
+                tags=tags,
+                confidence_score=score,
+                status=status,
             )
         )
-        new_row_txn_ids.append(txn.id)
 
-    for txn in transactions:
-        if txn.id in ruled:
-            outcomes.append(
-                ClassificationOutcome(atomic_txn_id=txn.id, disposition="rule", policy_version=ruled[txn.id].version_number)
-            )
-            continue
+    def outcome(txn: AtomicTransaction, disposition: Disposition, proposal: CategoryProposal | None = None):
+        return ClassificationOutcome(
+            atomic_txn_id=txn.id,
+            disposition=disposition,
+            category=proposal.category if proposal else None,
+            confidence=proposal.confidence if proposal else None,
+            policy_version=policy.version,
+        )
 
-        if txn.id in already_classified:
-            outcomes.append(
-                ClassificationOutcome(atomic_txn_id=txn.id, disposition="already_classified", policy_version=policy.version)
-            )
-            continue
-
+    for txn in rows:
         proposal = proposal_by_txn.get(txn)
-        if proposal is None:
-            outcomes.append(
-                ClassificationOutcome(atomic_txn_id=txn.id, disposition="no_proposal", policy_version=policy.version)
-            )
+        if txn.id in late or proposal is None:
+            outcomes.append(outcome(txn, "already_classified" if txn.id in late else "no_proposal"))
             continue
 
         try:
@@ -762,106 +798,48 @@ async def classify_transactions(
         except ValueError:
             category = None
         if category is None or category not in policy.catalog:
-            outcomes.append(
-                ClassificationOutcome(
-                    atomic_txn_id=txn.id,
-                    disposition="off_catalog",
-                    category=proposal.category,
-                    confidence=proposal.confidence,
-                    policy_version=policy.version,
-                )
-            )
+            outcomes.append(outcome(txn, "off_catalog", proposal))
             continue
 
         if category in NON_PNL_CATEGORIES and auto_accept and proposal.confidence <= 0:
-            outcomes.append(
-                ClassificationOutcome(
-                    atomic_txn_id=txn.id,
-                    disposition="no_proposal",
-                    category=category.value,
-                    confidence=proposal.confidence,
-                    policy_version=policy.version,
-                )
-            )
+            outcomes.append(outcome(txn, "no_proposal", proposal))
             continue
 
         if category in BALANCE_SHEET_ACCOUNTS and auto_accept and proposal.confidence >= policy.review_threshold:
             if commit_basis:
-                rule = await ensure_rule()
                 account = await _balance_sheet_account(db, user_id, category, txn.currency)
-                db.add(
-                    TransactionClassification(
-                        atomic_txn_id=txn.id,
-                        rule_version_id=rule.id,
-                        account_id=account.id,
-                        tags={
-                            "category": category.value,
-                            "reason": proposal.reason,
-                            "intent": balance_sheet_intent(category, txn.direction).value,
-                            "auto_accepted": True,
-                        },
-                        confidence_score=proposal.confidence,
-                        status=ClassificationStatus.APPLIED,
-                    )
-                )
-                new_row_txn_ids.append(txn.id)
-            outcomes.append(
-                ClassificationOutcome(
-                    atomic_txn_id=txn.id,
-                    disposition="applied",
-                    category=category.value,
-                    confidence=proposal.confidence,
-                    policy_version=policy.version,
-                )
-            )
+                tags = {
+                    "category": category.value,
+                    "reason": proposal.reason,
+                    "intent": balance_sheet_intent(category, txn.direction).value,
+                    "auto_accepted": True,
+                }
+                await add(txn, account.id, tags, proposal.confidence, ClassificationStatus.APPLIED)
+            outcomes.append(outcome(txn, "applied", proposal))
             continue
 
         if category in NON_PNL_CATEGORIES:
             writes_draft = auto_accept or proposal.confidence >= policy.review_threshold
             suspense = auto_accept and category in BALANCE_SHEET_ACCOUNTS
             if commit_basis and writes_draft:
-                rule = await ensure_rule()
-                db.add(
-                    TransactionClassification(
-                        atomic_txn_id=txn.id,
-                        rule_version_id=rule.id,
-                        account_id=None,
-                        tags={
-                            "category": category.value,
-                            "reason": proposal.reason,
-                            **({SUSPENSE_TAG: True} if suspense else {}),
-                        },
-                        confidence_score=proposal.confidence,
-                        status=ClassificationStatus.DRAFT,
-                    )
-                )
-                new_row_txn_ids.append(txn.id)
-            outcomes.append(
-                ClassificationOutcome(
-                    atomic_txn_id=txn.id,
-                    disposition="non_pnl",
-                    category=category.value,
-                    confidence=proposal.confidence,
-                    policy_version=policy.version,
-                )
-            )
+                tags = {"category": category.value, "reason": proposal.reason, **({SUSPENSE_TAG: True} if suspense else {})}
+                await add(txn, None, tags, proposal.confidence, ClassificationStatus.DRAFT)
+            outcomes.append(outcome(txn, "non_pnl", proposal))
             continue
 
         usable = category_fits_direction(category, txn.direction)
         if auto_accept and (not usable or proposal.confidence < policy.review_threshold):
             if commit_basis:
-                await write_fallback(
-                    txn, proposal, "the suggestion does not fit the direction" if not usable else "low confidence"
-                )
-            outcomes.append(
-                ClassificationOutcome(
-                    atomic_txn_id=txn.id,
-                    disposition="fallback",
-                    category=category.value,
-                    confidence=proposal.confidence,
-                    policy_version=policy.version,
-                )
-            )
+                account = await _general_account(db, user_id, txn)
+                tags = {
+                    "category": UNCLASSIFIED,
+                    "reason": ("the suggestion does not fit the direction" if not usable else "low confidence")[:200],
+                    "auto_accepted": True,
+                    "original_category": proposal.category,
+                    "original_confidence": proposal.confidence,
+                }
+                await add(txn, account.id, tags, 0, ClassificationStatus.APPLIED)
+            outcomes.append(outcome(txn, "fallback", proposal))
             continue
 
         if proposal.confidence >= apply_threshold and (auto_accept or category not in REVIEW_ONLY_CATEGORIES):
@@ -872,55 +850,53 @@ async def classify_transactions(
             disposition = "tail"
 
         if commit_basis and disposition in ("applied", "review"):
-            rule = await ensure_rule()
             acc_key = (category, txn.currency)
             if acc_key not in category_account_cache:
                 category_account_cache[acc_key] = await _resolve_category_account(db, user_id, category, txn.currency)
-            account = category_account_cache[acc_key]
-            db.add(
-                TransactionClassification(
-                    atomic_txn_id=txn.id,
-                    rule_version_id=rule.id,
-                    account_id=account.id,
-                    tags={
-                        "category": category.value,
-                        "reason": proposal.reason,
-                        **(
-                            {"auto_accepted": True}
-                            if auto_accept
-                            and (proposal.confidence < policy.auto_apply_threshold or category in REVIEW_ONLY_CATEGORIES)
-                            else {}
-                        ),
-                    },
-                    confidence_score=proposal.confidence,
-                    status=ClassificationStatus.APPLIED if disposition == "applied" else ClassificationStatus.DRAFT,
-                )
-            )
-            new_row_txn_ids.append(txn.id)
+            tags = {"category": category.value, "reason": proposal.reason}
+            if auto_accept and (proposal.confidence < policy.auto_apply_threshold or category in REVIEW_ONLY_CATEGORIES):
+                tags["auto_accepted"] = True
+            status = ClassificationStatus.APPLIED if disposition == "applied" else ClassificationStatus.DRAFT
+            await add(txn, category_account_cache[acc_key].id, tags, proposal.confidence, status)
 
-        outcomes.append(
-            ClassificationOutcome(
-                atomic_txn_id=txn.id,
-                disposition=disposition,
-                category=category.value,
-                confidence=proposal.confidence,
-                policy_version=policy.version,
-            )
-        )
+        outcomes.append(outcome(txn, disposition, proposal))
 
     if commit_basis:
-        sweep_ids = set(new_row_txn_ids) | {txn.id for txn in transactions if txn.id in already_classified}
-        await _supersede_older_model_rows(db, user_id, sorted(sweep_ids), policy.version)
+        db.add_all(new_rows)
+        wrote = {row.atomic_txn_id for row in new_rows}
+        await _supersede_older_model_rows(db, user_id, sorted(wrote | late), policy.version)
         await db.flush()
-        written = set(new_row_txn_ids) | (set(ruled) if apply_rules else set())
-        outcomes = [
-            outcome.model_copy(update={"wrote_row": True}) if outcome.atomic_txn_id in written else outcome
-            for outcome in outcomes
-        ]
+        outcomes = [o.model_copy(update={"wrote_row": True}) if o.atomic_txn_id in wrote else o for o in outcomes]
+    return outcomes
 
+
+async def classify_transactions(
+    db: AsyncSession,
+    user_id: UUID,
+    transactions: Sequence[AtomicTransaction],
+    *,
+    policy: ClassificationPolicy | None,
+    proposer: Proposer | None = None,
+    commit_basis: bool = True,
+) -> list[ClassificationOutcome]:
+    """Classify transactions under deterministic user rules first, then optional LLM policy.
+
+    The inline path: every phase runs in the one session of the caller. A classify run composes the same phase
+    functions with a session for each phase and none for the model call (#3028).
+    """
+    if not transactions:
+        return []
+    plan = await plan_classification(db, user_id, transactions, policy, commit_basis=commit_basis)
+    await write_before_model(db, plan)
+    answered: list[ClassificationOutcome] = []
+    if plan.to_propose:
+        proposals = await ask_model(user_id, plan.to_propose, plan.policy, proposer)
+        answered = await write_answers(db, plan, plan.to_propose, proposals)
+    by_txn = {outcome.atomic_txn_id: outcome for outcome in [*plan.base_outcomes(), *answered]}
+    outcomes = [by_txn[txn.id] for txn in transactions]
     logger.info(
         "transaction classification pass",
-        policy_version=policy.version,
+        policy_version=plan.version,
         commit_basis=commit_basis,
         **summarize_outcomes(outcomes),
     )
@@ -1208,17 +1184,12 @@ async def settle_drafts_after_posting(
         await db.flush()
 
 
-async def _run_grouped_by_effective_policy(
-    db: AsyncSession,
-    user_id: UUID,
-    transactions: Sequence[AtomicTransaction],
-    *,
-    apply_rules: bool = True,
-    tolerate_pre_policy: bool = False,
-) -> list[tuple[int | None, list[ClassificationOutcome]]]:
-    """Group transactions by effective policy date and classify each version bucket."""
+async def policy_buckets(
+    db: AsyncSession, user_id: UUID, transactions: Sequence[AtomicTransaction], *, tolerate_pre_policy: bool = False
+) -> list[tuple[ClassificationPolicy | None, list[AtomicTransaction]]]:
+    """Group transactions by effective policy date. With the model off there is one bucket and no policy."""
     if not await classification_enabled(db, user_id):
-        return [(None, await classify_transactions(db, user_id, transactions, policy=None, apply_rules=apply_rules))]
+        return [(None, list(transactions))]
 
     by_version: dict[int, list[AtomicTransaction]] = {}
     policies: dict[int, ClassificationPolicy] = {}
@@ -1236,14 +1207,23 @@ async def _run_grouped_by_effective_policy(
     if skipped:
         logger.warning("transactions predate every classification policy; left unclassified", skipped=skipped)
 
+    return [(policies[version], by_version[version]) for version in sorted(by_version)]
+
+
+async def _run_grouped_by_effective_policy(
+    db: AsyncSession,
+    user_id: UUID,
+    transactions: Sequence[AtomicTransaction],
+    *,
+    tolerate_pre_policy: bool = False,
+) -> list[tuple[int | None, list[ClassificationOutcome]]]:
+    """Classify each policy bucket in the one session of the caller, a bucket after a bucket: the inline path."""
     return [
         (
-            version,
-            await classify_transactions(
-                db, user_id, by_version[version], policy=policies[version], apply_rules=apply_rules
-            ),
+            policy.version if policy is not None else None,
+            await classify_transactions(db, user_id, rows, policy=policy),
         )
-        for version in sorted(by_version)
+        for policy, rows in await policy_buckets(db, user_id, transactions, tolerate_pre_policy=tolerate_pre_policy)
     ]
 
 
@@ -1293,15 +1273,9 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
 
 
 async def classify_by_effective_policy(
-    db: AsyncSession,
-    user_id: UUID,
-    transactions: Sequence[AtomicTransaction],
-    *,
-    apply_rules: bool = True,
+    db: AsyncSession, user_id: UUID, transactions: Sequence[AtomicTransaction]
 ) -> list[ClassificationOutcome]:
     if not transactions:
         return []
-    grouped = await _run_grouped_by_effective_policy(
-        db, user_id, transactions, apply_rules=apply_rules, tolerate_pre_policy=True
-    )
+    grouped = await _run_grouped_by_effective_policy(db, user_id, transactions, tolerate_pre_policy=True)
     return [outcome for _ver, outs in grouped for outcome in outs]

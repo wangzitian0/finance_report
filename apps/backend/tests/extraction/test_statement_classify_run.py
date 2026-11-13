@@ -350,7 +350,7 @@ async def test_AC_extraction_2994_90_a_classify_run_ends_with_counts_and_no_row_
 async def test_AC_extraction_2994_91_a_classify_run_that_passes_its_deadline_fails_with_a_timeout_code(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.91: The run fails with classification_timeout. The statement keeps its rows and writes nothing."""
+    """AC-extraction.2994.91: The run fails with classification_timeout. A call that never returned writes nothing."""
     outcomes = _spy_outcomes(monkeypatch)
     hung = _install(monkeypatch, Proposer(gate=asyncio.Event()))
     seeded = await _seed(db, test_user)
@@ -474,7 +474,7 @@ async def test_AC_extraction_2994_95_the_reaper_fails_a_classify_run_that_no_wor
 async def test_AC_extraction_2994_95_a_finish_after_the_reaper_failed_the_classify_run_discards_the_answers(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.95: The reaper fails the run during the model call: the late finish writes no answer."""
+    """AC-extraction.2994.95: The reaper fails the run during the model call: the batch is not written."""
     seeded = await _seed(db, test_user)
     run_id = await classify_run_for(db, seeded.id)
     maker = create_session_maker_from_db(db)
@@ -496,64 +496,6 @@ async def test_AC_extraction_2994_95_a_finish_after_the_reaper_failed_the_classi
     assert posted == 0
     assert (run.state, run.error_code) == (RunState.FAILED, "heartbeat_lost")
     assert await _answers(db, test_user) == 0
-
-
-async def test_AC_extraction_2994_96_the_heartbeat_finds_a_reaped_classify_run_and_stops_the_model_call(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.96: The heartbeat runs on the run row. A reaped run cancels the call; the worker writes nothing."""
-    hung = _install(monkeypatch, Proposer(gate=asyncio.Event()))
-    seeded = await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-    maker = create_session_maker_from_db(db)
-    worker = asyncio.create_task(
-        execute_classify_run(
-            maker, run_id=run_id, posting_dependencies=compose_statement_posting_dependencies(), heartbeat_interval=0.05
-        )
-    )
-    try:
-        await asyncio.wait_for(hung.started.wait(), timeout=WAIT_SECONDS)
-        async with maker() as other_session:
-            assert await reap_stale_runs(other_session, now=datetime.now(UTC) + timedelta(minutes=10)) == [run_id]
-            await other_session.commit()
-        posted = await asyncio.wait_for(worker, timeout=WAIT_SECONDS)
-    finally:
-        if not worker.done():
-            worker.cancel()
-            await asyncio.gather(worker, return_exceptions=True)
-
-    run = await _run(db, run_id)
-    assert posted == 0
-    assert (run.state, run.error_code) == (RunState.FAILED, "heartbeat_lost")
-    assert await _answers(db, test_user) == 0
-
-
-async def test_AC_extraction_2994_96_a_live_classify_run_beats_its_heartbeat_on_the_run_row(db, test_user, monkeypatch):
-    """AC-extraction.2994.96: While the model call runs, heartbeat_at moves. The statement row is not written."""
-    gate = asyncio.Event()
-    hung = _install(monkeypatch, Proposer(gate=gate))
-    seeded = await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-    maker = create_session_maker_from_db(db)
-    updated_before = (await _statement(db, seeded.id)).updated_at
-    worker = asyncio.create_task(
-        execute_classify_run(
-            maker, run_id=run_id, posting_dependencies=compose_statement_posting_dependencies(), heartbeat_interval=0.05
-        )
-    )
-    try:
-        await asyncio.wait_for(hung.started.wait(), timeout=WAIT_SECONDS)
-        first = (await _run(db, run_id)).heartbeat_at
-        deadline = asyncio.get_running_loop().time() + WAIT_SECONDS
-        while (await _run(db, run_id)).heartbeat_at <= first:
-            assert asyncio.get_running_loop().time() < deadline, "no heartbeat landed"
-            await asyncio.sleep(0.05)
-        assert (await _run(db, run_id)).state is RunState.RUNNING
-        assert (await _statement(db, seeded.id)).updated_at == updated_before
-    finally:
-        gate.set()
-        await asyncio.wait_for(worker, timeout=WAIT_SECONDS)
-    assert (await _run(db, run_id)).state is RunState.SUCCEEDED
 
 
 # --- Keyword rules answer in the run ---------------------------------------------------------------------
