@@ -33,6 +33,7 @@ from src.extraction.base.reviewed_statement_envelope import (
 )
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status
 from src.extraction.extension.custody_binding import resolve_bank_custody_account
+from src.extraction.extension.statement_runs import get_active_run
 from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
@@ -305,12 +306,19 @@ async def confirm_reviewed_statement_envelope(
             select(StatementSummary)
             .where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
     if statement is None:
         raise ValueError("Statement not found or access denied")
     if statement.status is BankStatementStatus.RETIRED:
         raise ValueError("Retired statement cannot receive a new source confirmation")
+    # One guard before both branches below, the first confirmation and the replay of the same command: each
+    # writes PARSED. A rerun leaves the current extraction result in place, so the old digest still matches.
+    # A confirmation that wrote PARSED over a run would let an approve post entries that the finalize of the
+    # run then overwrites.
+    if statement.status is BankStatementStatus.PARSING or await get_active_run(db, statement.id) is not None:
+        raise ValueError("Statement is parsing again. Reload the statement before confirming its envelope.")
     if statement.current_extraction_result_id is None:
         raise ValueError("Statement has no current source result; reparse before confirming its envelope")
 

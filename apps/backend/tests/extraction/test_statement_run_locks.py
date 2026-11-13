@@ -297,8 +297,42 @@ async def test_AC_extraction_2994_79_start_user_extract_run_takes_the_statement_
             await route.rollback()
 
 
-async def test_AC_extraction_2994_85_the_worker_retry_and_a_user_run_start_do_not_deadlock(db, test_user, monkeypatch):
-    """AC-extraction.2994.85: The user start enters the run indexes while the worker retries: no deadlock, one winner."""
+async def _recreate_the_seq_constraint(db_engine) -> None:
+    """Give uq_statement_runs_statement_seq a newer index than the active-run index: the active index is checked first."""
+    async with db_engine.begin() as connection:
+        await connection.execute(text("ALTER TABLE statement_runs DROP CONSTRAINT uq_statement_runs_statement_seq"))
+        await connection.execute(
+            text("ALTER TABLE statement_runs ADD CONSTRAINT uq_statement_runs_statement_seq UNIQUE (statement_id, seq)")
+        )
+
+
+async def _recreate_the_active_index(db_engine) -> None:
+    """Restore the order of the schema: the active-run index is the newest one again."""
+    async with db_engine.begin() as connection:
+        definition = (
+            await connection.execute(
+                text("SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_statement_runs_one_active'")
+            )
+        ).scalar_one()
+        await connection.execute(text("DROP INDEX uq_statement_runs_one_active"))
+        await connection.execute(text(definition))
+
+
+@pytest.mark.parametrize("index_order", ["seq_first", "active_first"])
+async def test_AC_extraction_2994_85_the_worker_retry_and_a_user_run_start_do_not_deadlock(
+    db, db_engine, test_user, monkeypatch, index_order
+):
+    """AC-extraction.2994.85: The worker holds the statement lock before it fails the old run, in either index order."""
+    if index_order == "active_first":
+        await _recreate_the_seq_constraint(db_engine)
+    try:
+        await _worker_retry_against_a_user_start(db, test_user, monkeypatch)
+    finally:
+        if index_order == "active_first":
+            await _recreate_the_active_index(db_engine)
+
+
+async def _worker_retry_against_a_user_start(db, test_user, monkeypatch) -> None:
     statement_id, run_id = await _parsing_statement_with_running_run(db, test_user)
     maker = create_session_maker_from_db(db)
     use_case = compose_statement_ingestion_use_case(session_maker=maker)
@@ -317,30 +351,53 @@ async def test_AC_extraction_2994_85_the_worker_retry_and_a_user_run_start_do_no
     old_run_failed = asyncio.Event()
     real_fail_run = statement_parsing.fail_run
 
-    async def fail_then_let_the_user_start_in(*args, **kwargs):
+    async def fail_then_pause(*args, **kwargs):
         failed = await real_fail_run(*args, **kwargs)
         old_run_failed.set()
-        # The user start now reaches its run insert, before the worker inserts its retry run.
-        await asyncio.sleep(0.5)
+        # The worker stays here, with the old run failed and nothing committed. The user start runs meanwhile.
+        await asyncio.sleep(1.5)
         return failed
 
-    monkeypatch.setattr(statement_parsing, "fail_run", fail_then_let_the_user_start_in)
+    monkeypatch.setattr(statement_parsing, "fail_run", fail_then_pause)
+    observed: dict[str, object] = {}
 
     async def worker():
         return await use_case._end_failed_attempt(job, RetryableStatementIngestionError("load failed"), attempt=1)
 
     async def user_start():
         await old_run_failed.wait()
-        async with maker() as route:
+        # The lock itself, whatever the order of the run indexes: another writer cannot take the statement row now.
+        async with maker() as probe:
             try:
-                return await _start(
-                    route, test_user, statement_id, _Loader(), allowed_statuses=PARSING_ONLY, hints=RunHints()
+                await probe.execute(
+                    text("SELECT id FROM statement_summaries WHERE id = :id FOR NO KEY UPDATE NOWAIT"),
+                    {"id": statement_id},
                 )
+                observed["probe_blocked"] = False
+            except DBAPIError:
+                observed["probe_blocked"] = True
+            finally:
+                await probe.rollback()
+        async with maker() as route:
+            start = asyncio.ensure_future(
+                _start(route, test_user, statement_id, _Loader(), allowed_statuses=PARSING_ONLY, hints=RunHints())
+            )
+            finished, _pending = await asyncio.wait({start}, timeout=0.5)
+            observed["still_pending"] = not finished
+            try:
+                return await start
             finally:
                 await route.rollback()
 
     retry_job, user_result = await asyncio.gather(worker(), user_start(), return_exceptions=True)
 
+    assert observed.get("probe_blocked") is True, "the worker must hold the statement lock before it fails the old run"
+    assert observed.get("still_pending") is True, "the user start must wait while the worker holds the statement"
     assert isinstance(retry_job, ParseJob), f"the retry of the worker must succeed, not end in {retry_job!r}"
     assert isinstance(user_result, ActiveRunExists), f"the user start must end with a 409, not {user_result!r}"
     assert user_result.active_run_id == retry_job.run_id
+
+
+async def test_AC_extraction_2994_77_the_engine_of_the_test_fixtures_hides_sql_parameters(db_engine):
+    """AC-extraction.2994.77: The db fixture builds its engine through create_app_engine: parameters stay hidden."""
+    assert db_engine.sync_engine.hide_parameters is True
