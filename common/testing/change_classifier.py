@@ -114,11 +114,18 @@ IMAGE_BUILD_EXACT = frozenset(
 IMAGE_BUILD_PREFIXES = ("apps/backend/scripts/",)
 
 COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
-    "backend": ("apps/backend/", "common/", ".github/actions/setup-backend-env/"),
-    "frontend": ("apps/frontend/", "common/meta/flows/"),
+    "backend": ("apps/backend/",),
+    "frontend": ("apps/frontend/",),
     "tools": ("tools/", "tests/tooling/"),
     "common": ("common/",),
 }
+
+# Fail-closed test selection (#2996). A suite is skipped only when EVERY changed path is
+# in its skip set. An unlisted path runs the suite. A guard test in
+# tests/tooling/test_ci_change_classifier.py scans what each suite reads and fails when
+# a skip prefix overlaps a path that the suite reads.
+BACKEND_TESTS_SKIP_PREFIXES = ("apps/frontend/playwright/",)
+VITEST_SKIP_PREFIXES = ("apps/backend/src/", "apps/backend/tests/")
 
 CI_DEFINITION_PATHS = frozenset(
     {
@@ -236,6 +243,21 @@ class ChangeClassification:
     image_build_required: bool
     component_changed: Mapping[str, bool]
     touched_e2e_tests: tuple[str, ...] = ()
+
+    def _runs_unless_all_in(self, skip_prefixes: tuple[str, ...]) -> bool:
+        return (
+            not self.files
+            or any(path in CI_DEFINITION_PATHS for path in self.files)
+            or not all(path.startswith(skip_prefixes) for path in self.files)
+        )
+
+    @property
+    def backend_tests_required(self) -> bool:
+        return self._runs_unless_all_in(BACKEND_TESTS_SKIP_PREFIXES)
+
+    @property
+    def vitest_required(self) -> bool:
+        return self._runs_unless_all_in(VITEST_SKIP_PREFIXES)
 
     @property
     def staging_files(self) -> tuple[str, ...]:
@@ -508,6 +530,8 @@ def write_github_outputs(
             (f"{name}_changed", str(classification.component_changed[name]).lower())
             for name in COMPONENT_PREFIXES
         ),
+        ("backend_tests_required", str(classification.backend_tests_required).lower()),
+        ("vitest_required", str(classification.vitest_required).lower()),
         ("touched_e2e_tests", _json_output(list(classification.touched_e2e_tests))),
     ]
     with output_path.open("a", encoding="utf-8") as fh:

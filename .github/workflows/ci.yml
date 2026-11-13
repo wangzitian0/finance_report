@@ -38,6 +38,8 @@ jobs:
       # #1689: per-component change flags, so a PR only pays for what it touched
       # (frontend-telemetry-e2e skip).
       backend_changed: ${{ steps.classify.outputs.backend_changed }}
+      backend_tests_required: ${{ steps.classify.outputs.backend_tests_required }}
+      vitest_required: ${{ steps.classify.outputs.vitest_required }}
       frontend_changed: ${{ steps.classify.outputs.frontend_changed }}
       tools_changed: ${{ steps.classify.outputs.tools_changed }}
       common_changed: ${{ steps.classify.outputs.common_changed }}
@@ -406,7 +408,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.backend_changed == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.backend_tests_required == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -655,7 +657,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.vitest_required == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -983,8 +985,9 @@ jobs:
       - uses: actions/checkout@v7
 
       # The finish job's merge authority is the "Check job status" step alone. The
-      # three summary steps below are non-gating reporting and all carry
-      # continue-on-error so a step-summary write can never fail the merge gate.
+      # coverage-effect summary step below is non-gating reporting and carries
+      # continue-on-error so a step-summary write can never fail the merge gate. The
+      # budget step has none: it fails only when the run cannot be measured.
       # Orphan enforcement only makes sense when the backend suites actually ran:
       # on lightweight (docs/ci-only) pushes the heavy jobs are skipped, no
       # served-manifest artifacts exist, and every non-truth-paired cassette
@@ -1099,7 +1102,7 @@ jobs:
               echo "::error::Schema migration contract failed"
               exit 1
             fi
-            # #2996: backend is skipped when backend_changed=false, a pass.
+            # #2996: backend is skipped when backend_tests_required=false, a pass.
             if [[ "${{ needs.backend.result }}" != "success" && "${{ needs.backend.result }}" != "skipped" ]]; then
               echo "::error::Backend tests failed"
               exit 1
@@ -1116,7 +1119,7 @@ jobs:
               echo "::error::Frontend build/typecheck failed"
               exit 1
             fi
-            # #2996: frontend-vitest is skipped when frontend_changed=false, a pass.
+            # #2996: frontend-vitest is skipped when vitest_required=false, a pass.
             if [[ "${{ needs.frontend-vitest.result }}" != "success" && "${{ needs.frontend-vitest.result }}" != "skipped" ]]; then
               echo "::error::Frontend Vitest coverage failed"
               exit 1
