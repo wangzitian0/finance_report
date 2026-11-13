@@ -346,8 +346,8 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
   );
 }
 
-export function StatementHeader({ statement, canImport, canRetry, canDelete = true, importLoading, retryLoading, deleteLoading = false, onBrokerageImport, onRetry, onDelete, formatCode, formatPeriod }: {
-  statement: BankStatement; canImport: boolean; canRetry: boolean; canDelete?: boolean; importLoading: boolean; retryLoading: boolean; deleteLoading?: boolean; onBrokerageImport: () => void; onRetry: () => void; onDelete?: () => void; formatCode: (c?: string | null) => string; formatPeriod: (s?: string | null, e?: string | null, missing?: string) => string;
+export function StatementHeader({ statement, canImport, canDelete = true, importLoading, deleteLoading = false, onBrokerageImport, onDelete, formatCode, formatPeriod }: {
+  statement: BankStatement; canImport: boolean; canDelete?: boolean; importLoading: boolean; deleteLoading?: boolean; onBrokerageImport: () => void; onDelete?: () => void; formatCode: (c?: string | null) => string; formatPeriod: (s?: string | null, e?: string | null, missing?: string) => string;
 }) {
   return (
     <div className="page-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -361,7 +361,6 @@ export function StatementHeader({ statement, canImport, canRetry, canDelete = tr
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {canImport && <button type="button" onClick={onBrokerageImport} disabled={importLoading} className="btn-secondary flex items-center gap-2" aria-label="Import brokerage positions to portfolio">{importLoading ? "Importing..." : "Import to Portfolio"}</button>}
-        {canRetry && <button type="button" onClick={onRetry} disabled={retryLoading} className="btn-secondary flex items-center gap-2">Retry Parse</button>}
         {canDelete && onDelete && <button type="button" onClick={onDelete} disabled={deleteLoading} className="btn-secondary text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)] flex items-center gap-2" aria-label="Delete statement">Delete</button>}
       </div>
     </div>

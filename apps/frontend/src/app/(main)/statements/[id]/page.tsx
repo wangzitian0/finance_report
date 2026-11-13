@@ -12,10 +12,11 @@ import { ApiError, apiOperation } from "@/lib/api-client";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
 import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
-import { BankStatement, BrokerageImportResponse, normalizeBankStatement } from "@/lib/types";
+import { BankStatement, BrokerageImportResponse, StatementRunHints, normalizeBankStatement } from "@/lib/types";
 import { PARSING_POLL_MS, canImportBrokerageStatement, currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
+import { ParsingAttempts, RunAgainPanel, isRunActive } from "@/components/review/StatementRuns";
 import {
   PdfPreviewPane,
   hasInlinePreview,
@@ -49,7 +50,7 @@ export default function StatementDetailPage() {
   const [statement, setStatement] = useState<BankStatement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retryLoading, setRetryLoading] = useState(false);
+  const [runAgainError, setRunAgainError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [polling, setPolling] = useState(false);
@@ -164,7 +165,7 @@ export default function StatementDetailPage() {
         requestSequenceRef.current += 1;
         updatePolling(false);
         setParsingStartTime(null);
-        setPollingStoppedReason("Parsing has been running for over 5 minutes. It may be stuck. You can retry parsing with a different model.");
+        setPollingStoppedReason("Parsing has been running for over 5 minutes. It may be stuck. You can run the parse again.");
         showToast("Parsing appears stuck — stopped auto-refresh", "error");
         return;
       }
@@ -207,6 +208,18 @@ export default function StatementDetailPage() {
     enabled: isParsed,
   });
 
+  // While the statement parses, the page polls the statement itself. The attempts load when the parse ends,
+  // and they refresh while a run is still requested or running.
+  const runsEnabled = Boolean(statement) && statement?.status !== "parsing";
+  const { data: runsData } = useQuery({
+    queryKey: ["statement-runs", statementId],
+    queryFn: () => apiOperation("list_statement_runs_statements__statement_id__runs_get", { path: { statement_id: statementId } }),
+    enabled: runsEnabled,
+    refetchInterval: (query) => ((query.state.data?.items ?? []).some(isRunActive) ? PARSING_POLL_MS : false),
+  });
+  const runs = runsData?.items;
+  const hasActiveRun = Boolean(runs?.some(isRunActive));
+
   const pendingStatements = pendingStatementsData?.items || [];
   const duplicateCandidates = conflicts?.duplicates || [];
   const transferPairCandidates = conflicts?.transfer_pairs || [];
@@ -238,6 +251,7 @@ export default function StatementDetailPage() {
   const refreshAfterReview = () => {
     void queryClient.invalidateQueries({ queryKey: ["pending-statements"] });
     void queryClient.invalidateQueries({ queryKey: ["statement-review", statementId] });
+    void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
     return fetchStatement({ supersede: true });
   };
 
@@ -354,21 +368,31 @@ export default function StatementDetailPage() {
     }));
   }, [review, requiresEnvelopeConfirmation, custodyAccountsData?.items, statement?.currency, statement?.institution]);
 
-  const handleRetry = async () => {
-    setRetryLoading(true);
-    setParsingStartTime(null);
-    setPollingStoppedReason(null);
-    try {
-      await apiOperation("retry_statement_parsing_statements__statement_id__retry_post", { path: { statement_id: statementId } });
-      showToast("Re-parsing started", "success");
+  const runAgainMutation = useMutation({
+    mutationFn: (hints: StatementRunHints) => apiOperation("create_statement_run_statements__statement_id__runs_post", { path: { statement_id: statementId }, body: { kind: "extract", hints } }),
+    onMutate: () => setRunAgainError(null),
+    onSuccess: () => {
+      setParsingStartTime(null);
+      setPollingStoppedReason(null);
+      showToast("Parsing started", "success");
       void invalidateLedgerDerivedQueries(queryClient);
-      await fetchStatement({ supersede: true });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to retry parsing";
-      showToast(msg, "error");
-      setError(msg);
-    } finally {
-      setRetryLoading(false);
+      void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
+      return fetchStatement({ supersede: true });
+    },
+    onError: (err) => {
+      const conflict = err instanceof ApiError && err.status === 409;
+      const message = conflict ? "A parse is already running for this statement. Wait for it to end, then run again." : err instanceof Error ? err.message : "Failed to start the run";
+      setRunAgainError(message);
+      showToast(message, "error");
+      if (conflict) void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
+    },
+  });
+  const runAgain = async (hints: StatementRunHints): Promise<boolean> => {
+    try {
+      await runAgainMutation.mutateAsync(hints);
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -424,7 +448,7 @@ export default function StatementDetailPage() {
     );
   }
 
-  const canRetry = statement.status === "parsed" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
+  const canRunAgain = statement.status === "parsed" || statement.status === "rejected" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
   const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved") && canImportBrokerageStatement(statement);
   const validationResult = review?.balance_validation_result ?? null;
   const balanceValid = Boolean(validationResult?.closing_match);
@@ -460,7 +484,7 @@ export default function StatementDetailPage() {
           <button onClick={resumePolling} className="btn-secondary text-sm">Resume Auto-Refresh</button>
         </div>
       )}
-      <StatementHeader statement={statement} canImport={canImport} canRetry={canRetry} canDelete={true} importLoading={importLoading} retryLoading={retryLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onRetry={handleRetry} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
+      <StatementHeader statement={statement} canImport={canImport} canDelete={true} importLoading={importLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
       {isParsed && !review && reviewLoading && (
         <div role="status" className="mb-4 text-xs text-muted text-right">
           Loading balance verification...
@@ -499,7 +523,7 @@ export default function StatementDetailPage() {
               </select>
             </label>
           )}
-          <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={handleRetry} reparsePending={retryLoading} />
+          <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={() => void runAgain({ keywords: [], note: null })} reparsePending={runAgainMutation.isPending} />
         </div>
       )}
       {(economicReviewRequired || hasUnclassifiedPendingTxns || statement.validation_error?.startsWith("Economic review required:")) && isParsed && (
@@ -534,8 +558,13 @@ export default function StatementDetailPage() {
       {statement.status === "rejected" && (
         <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg">
           <div className="font-medium text-[var(--error)] mb-1">Parsing Failed</div>
-          {statement.validation_error && <div className="text-sm text-[var(--foreground-muted)] mb-3 break-words">{statement.validation_error}</div>}
-          <button type="button" onClick={handleRetry} disabled={retryLoading} className="btn-secondary text-sm">{retryLoading ? "Retrying..." : "Retry Parse"}</button>
+          {statement.validation_error && <div className="text-sm text-[var(--foreground-muted)] break-words">{statement.validation_error}</div>}
+        </div>
+      )}
+      {(canRunAgain || runs) && (
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
+          {runs && <ParsingAttempts runs={runs} />}
+          {canRunAgain && <RunAgainPanel activeRun={hasActiveRun} pending={runAgainMutation.isPending} errorMessage={runAgainError} onRun={runAgain} />}
         </div>
       )}
       {review && <BalanceIndicator openingBalance={review.opening_balance} closingBalance={review.closing_balance} validationResult={validationResult} currency={review.currency || "SGD"} />}
@@ -549,7 +578,7 @@ export default function StatementDetailPage() {
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
       <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />
       <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate(hasUnclassifiedPendingTxns ? { autoFill: true } : undefined)} title="Approve Statement" message={(hasUnclassifiedPendingTxns ? "Transactions without a category will be filed under default categories. " : "") + (review?.account_id || envelopeDraft.accountId ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?")} confirmLabel="Approve" loading={approveMutation.isPending} />
-      <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={(reason) => rejectMutation.mutate(reason)} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement and re-parse it (Retry Parse) on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection..." }} loading={rejectMutation.isPending} />
+      <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={(reason) => rejectMutation.mutate(reason)} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement with a reason. The reason guides the next parse, or run it again with hints on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection...", maxLength: 500 }} loading={rejectMutation.isPending} />
       <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />
     </div>
   );
