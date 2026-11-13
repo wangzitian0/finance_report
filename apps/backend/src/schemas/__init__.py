@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from src.schemas.assets import ManagedPositionListResponse, ManagedPositionResponse, ReconcilePositionsResponse
     from src.schemas.chat import ChatHistoryResponse, ChatMessageResponse, ChatRequest, ChatSessionResponse, ChatSuggestionsResponse
     from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, ErrorResponse, error_code_for_status
-    from src.schemas.extraction import AtomicTransactionResponse, BankStatementListItemResponse, BankStatementListResponse, BankStatementResponse, BankStatementStatusEnum, BankStatementTransactionListResponse, BankStatementUploadRequest, ParsedStatementPreview, RetryParsingRequest, StatementDecisionRequest, compose_statement_list_item_response, compose_statement_response
+    from src.schemas.extraction import AtomicTransactionResponse, BankStatementListItemResponse, BankStatementListResponse, BankStatementResponse, BankStatementStatusEnum, BankStatementTransactionListResponse, BankStatementUploadRequest, ParsedStatementPreview, StatementDecisionRequest, StatementRunListResponse, StatementRunRequest, StatementRunResponse, compose_statement_list_item_response, compose_statement_response
     from src.schemas.journal import JournalEntryCreate, JournalEntryListResponse, JournalEntryResponse, JournalLineCreate, JournalLineResponse, VoidJournalEntryRequest
     from src.schemas.ping import PingStateResponse
     from src.schemas.reconciliation import AnomalyResponse, BankTransactionSummary, BatchAcceptRequest, JournalEntrySummary, ReconciliationMatchListResponse, ReconciliationMatchResponse, ReconciliationRunRequest, ReconciliationRunResponse, ReconciliationStatsResponse, ReconciliationStatusEnum, UnmatchedTransactionsResponse
@@ -63,8 +63,10 @@ _GROUPS: dict[str, tuple[str, ...]] = {
         "BankStatementTransactionListResponse",
         "BankStatementUploadRequest",
         "ParsedStatementPreview",
-        "RetryParsingRequest",
         "StatementDecisionRequest",
+        "StatementRunListResponse",
+        "StatementRunRequest",
+        "StatementRunResponse",
         "compose_statement_list_item_response",
         "compose_statement_response",
     ),
@@ -298,9 +300,11 @@ __all__ = [
     "ReconciliationStatsResponse",
     "ReconciliationStatusEnum",
     "ResolveCheckRequest",
-    "RetryParsingRequest",
     "Stage2ReviewQueueResponse",
     "StatementDecisionRequest",
+    "StatementRunListResponse",
+    "StatementRunRequest",
+    "StatementRunResponse",
     "UnmatchedTransactionsResponse",
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",

@@ -28,7 +28,7 @@ from src.extraction import (
 from src.extraction.extension import statement_pipeline
 from src.extraction.orm.statement_run import StatementRun
 from src.routers import statements as statements_router
-from src.schemas import RetryParsingRequest, StatementDecisionRequest
+from src.schemas import StatementRunRequest, StatementDecisionRequest
 from tests.api._statement_router_fixtures import (
     _compose_mock_ingestion,
     build_statement,
@@ -149,25 +149,29 @@ async def test_AC_extraction_2994_18_a_reparse_creates_a_rerun_with_the_previous
     previous_id = previous.id
     jobs = _capture_dispatch(monkeypatch)
 
-    response = await statements_router.retry_statement_parsing(
-        statement_id, RetryParsingRequest(model=None), db=db, user_id=test_user.id
+    response = await statements_router.create_statement_run(
+        statement_id, StatementRunRequest(model=None), db=db, user_id=test_user.id
     )
     await statements_router.wait_for_parse_tasks()
+    statement_after = await db.scalar(
+        select(StatementSummary).where(StatementSummary.id == statement_id).execution_options(populate_existing=True)
+    )
 
     runs = await _runs(db, statement_id)
     assert [run.seq for run in runs] == [1, 2]
     assert (runs[1].kind, runs[1].state) == (RunKind.EXTRACT, RunState.REQUESTED)
     assert (runs[1].actor_kind, runs[1].trigger) == (RunActorKind.USER, RunTrigger.RERUN)
     assert runs[1].parent_run_id == previous_id
-    assert response.status == BankStatementStatus.PARSING
-    assert response.validation_error is None
+    assert statement_after.status == BankStatementStatus.PARSING
+    assert statement_after.validation_error is None
+    assert response.id == runs[1].id
     assert [job.run_id for job in jobs] == [runs[1].id]
 
 
 async def test_AC_extraction_2994_19_a_reparse_while_a_run_is_active_returns_409_with_the_active_run_id(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.19: The retry route and the reject route return 409 and start no second run."""
+    """AC-extraction.2994.19: The runs route and the reject route return 409 and start no second run."""
     jobs = _capture_dispatch(monkeypatch)
     retry_statement = await _statement_with_document(
         db, test_user, status=BankStatementStatus.PARSING, file_hash="hash_active_retry"
@@ -185,7 +189,7 @@ async def test_AC_extraction_2994_19_a_reparse_while_a_run_is_active_returns_409
     await db.commit()
     active_id = active.id
 
-    retried = await client.post(f"/statements/{retry_statement_id}/retry", json={})
+    retried = await client.post(f"/statements/{retry_statement_id}/runs", json={})
 
     assert retried.status_code == 409, retried.text
     assert retried.json()["active_run_id"] == str(active_id)

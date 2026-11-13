@@ -10,7 +10,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.extraction import BankStatementStatus, RunHints, TransactionCategory, brokerage_import_failure_reason
+from src.extraction import (
+    BankStatementStatus,
+    RunActorKind,
+    RunHints,
+    RunKind,
+    RunState,
+    RunTrigger,
+    TransactionCategory,
+    brokerage_import_failure_reason,
+)
 from src.schemas.base import CurrencyCode, ListResponse, default_list
 
 if TYPE_CHECKING:
@@ -47,8 +56,42 @@ class StatementDecisionRequest(BaseModel):
         return notes
 
 
-class RetryParsingRequest(BaseModel):
+class StatementRunRequest(BaseModel):
+    """Run the extraction of a statement again, with optional hints (#2994).
+
+    The actor of the run comes from the authenticated principal. The body cannot set it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["extract"] = "extract"
+    hints: RunHints = Field(
+        default_factory=RunHints,
+        description="Keywords and a note that guide the run. Empty hints leave the prompt unchanged.",
+    )
     model: str | None = None
+
+
+class StatementRunResponse(BaseModel):
+    """One attempt to extract a statement: its inputs, its state and its error."""
+
+    id: UUID
+    seq: int
+    kind: RunKind
+    state: RunState
+    actor_kind: RunActorKind
+    trigger: RunTrigger
+    parent_run_id: UUID | None = None
+    hints: RunHints
+    model: str | None = None
+    prompt_template_version: str | None = None
+    prompt_digest: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    requested_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AtomicTransactionResponse(BaseModel):
@@ -197,6 +240,7 @@ def compose_statement_response(
 
 
 BankStatementListResponse = ListResponse[BankStatementListItemResponse]
+StatementRunListResponse = ListResponse[StatementRunResponse]
 BankStatementTransactionListResponse = ListResponse[AtomicTransactionResponse]
 
 
