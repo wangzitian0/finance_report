@@ -383,13 +383,15 @@ jobs:
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
             echo "database=finance_report_test"
-            echo "proof=alembic-upgrade-head-plus-alembic-check"
+            echo "proof=alembic-upgrade-head-plus-alembic-check-plus-enum-labels"
           } > ci-context/schema-migration-context.txt
           {
             echo "[schema-migration] uv run --frozen alembic upgrade head"
             uv run --frozen alembic upgrade head
             echo "[schema-migration] uv run --frozen alembic check"
             uv run --frozen alembic check
+            echo "[schema-migration] uv run --frozen python scripts/check_migrated_enums.py"
+            uv run --frozen python scripts/check_migrated_enums.py
           } 2>&1 | tee test-results/schema-migration.log
 
       - name: Upload schema migration test context
