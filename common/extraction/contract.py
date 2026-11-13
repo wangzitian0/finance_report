@@ -141,11 +141,10 @@ reject_statement_workflow resolve_bank_custody_account
 resolve_custody_account_id resolve_ingest_currency
 resolve_statement_conflicts resolve_statement_contribution
 resolve_statement_posting_account resolve_statement_transactions
-resolve_transaction_currency retire_statement run_parsing_supervisor
-set_opening_balance settle_drafts_after_posting start_user_extract_run snapshot_currencies
 statement_disposition_policy_for_user submit_parse_pipeline
 supports_reviewed_statement_envelope validate_balance validate_balance_chain
 validation
+retire_statement run_parsing_supervisor settle_drafts_after_posting snapshot_currencies start_user_extract_run
     """.split(),
     events=[],
     command_boundaries=[

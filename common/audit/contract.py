@@ -141,7 +141,6 @@ AC-money.22.3||test_convert_amount_wraps_invalid_currency_as_pricing_error
 @$be/audit/test_currency_resolution.py
 40.1||test_AC12_40_1_attaches_explicit_currency
 40.2||test_AC12_40_2_flags_unresolved_instead_of_silent_default
-40.3||test_AC12_40_3_reviewer_resolves_currency_with_audit
 40.4||test_AC12_40_4_promotion_gate_blocks_unresolved_currency
 @$be/audit/promotion/test_promotion_gate.py|P1
 41.1||test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason

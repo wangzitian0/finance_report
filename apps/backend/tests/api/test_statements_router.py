@@ -59,10 +59,6 @@ async def test_get_statement_not_found(db, test_user):
     'AC-extraction.5.11'
     with pytest.raises(HTTPException) as exc: await statements_router.get_statement(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), db=db, user_id=test_user.id)
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
-async def test_list_statement_transactions_not_found(db, test_user):
-    'AC-extraction.5.11'
-    with pytest.raises(HTTPException) as exc: await statements_router.list_statement_transactions(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), db=db, user_id=test_user.id)
-    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 async def test_upload_file_too_large(db, model_catalog_stub, test_user):
     'AC-extraction.5.12'; content = b'x' * (10 * 1024 * 1024 + 1); upload_file = make_upload_file('large-statement.pdf', content)
     with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=test_user.id)
@@ -155,11 +151,6 @@ async def test_get_statement_for_review_not_found(db, test_user):
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 async def test_get_statement_for_review_storage_error(db, test_user, monkeypatch): statement = build_statement(test_user.id, 'hash_review_s3', 75); db.add(statement); await db.commit(); await db.refresh(statement); statement_id = statement.id; mock_storage = MagicMock(); mock_storage.generate_presigned_url.side_effect = statements_router.StorageError('S3 Down'); monkeypatch.setattr(statements_router, 'StorageService', MagicMock(return_value=mock_storage)); result = await statements_router.get_statement_for_review(statement_id=statement_id, db=db, user_id=test_user.id); assert result.id == statement_id; assert result.pdf_url is None
 async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(db, test_user, monkeypatch): 'AC-extraction.document-delivery.1 AC16.33.4'; statement = build_statement(test_user.id, 'hash_review_short_presign', 75); db.add(statement); await db.flush(); document = await seed_uploaded_document(db, statement, file_path='statements/review/short-presign.pdf'); await db.commit(); await db.refresh(statement); mock_storage = MagicMock(); mock_storage.generate_presigned_url.return_value = 'https://example.com/file'; monkeypatch.setattr(statements_router, 'StorageService', MagicMock(return_value=mock_storage)); result = await statements_router.get_statement_for_review(statement_id=statement.id, db=db, user_id=test_user.id); assert result.pdf_url == 'https://example.com/file'; mock_storage.generate_presigned_url.assert_called_once_with(key=document.file_path, expires_in=statements_router.settings.statement_review_presign_expiry_seconds, public=True)
-async def test_set_opening_balance_success(db, test_user): from src.schemas.review import SetOpeningBalanceRequest; statement = build_statement(test_user.id, 'hash_ob', 80); db.add(statement); await db.commit(); statement_id = statement.id; result = await statements_router.set_statement_opening_balance(statement_id=statement_id, request=SetOpeningBalanceRequest(opening_balance=Decimal('500.00')), db=db, user_id=test_user.id); assert result.id == statement_id
-async def test_set_opening_balance_not_found(db, test_user):
-    from src.schemas.review import SetOpeningBalanceRequest
-    with pytest.raises(HTTPException) as exc: await statements_router.set_statement_opening_balance(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), request=SetOpeningBalanceRequest(opening_balance=Decimal('100.00')), db=db, user_id=test_user.id)
-    assert exc.value.status_code == 400
 async def test_retry_statement_invalid_model(db, monkeypatch, storage_stub, test_user):
     from src.schemas import StatementRunRequest; statement = build_statement(test_user.id, 'hash_retry_inv', 80); statement.status = BankStatementStatus.REJECTED; db.add(statement); await db.commit()
     async def fake_catalog_get(self, model_id): return None

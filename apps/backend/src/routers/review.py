@@ -6,7 +6,6 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from src.audit import InvalidCurrencyError
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     AtomicTransaction,
@@ -14,7 +13,6 @@ from src.extraction import (
     StatementSummary,
     resolve_statement_conflicts,
     resolve_statement_transactions,
-    resolve_transaction_currency,
 )
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict, raise_not_found
@@ -42,8 +40,6 @@ from src.schemas.review import (
     ConsistencyCheckResponse,
     ResolveCheckRequest,
     ResolveConflictsRequest,
-    ResolveCurrencyRequest,
-    ResolveCurrencyResponse,
     ReviewConflictCandidate,
     ReviewConflictsResolveResponse,
     ReviewConflictsResponse,
@@ -131,34 +127,6 @@ async def resolve_review_conflicts(
         note=request.note,
     )
     return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)
-
-
-@conflicts_router.post("/transactions/{transaction_id}/currency", response_model=ResolveCurrencyResponse)
-async def resolve_transaction_currency_endpoint(
-    transaction_id: UUID,
-    request: ResolveCurrencyRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> ResolveCurrencyResponse:
-    """Specify ISO-4217 currency for a `currency_unresolved` transaction."""
-    try:
-        txn = await resolve_transaction_currency(db, transaction_id, user_id=user_id, currency=request.currency)
-    except InvalidCurrencyError as exc:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except ValueError as exc:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-
-    response = ResolveCurrencyResponse(
-        transaction_id=txn.id,
-        currency=txn.currency,
-        currency_unresolved=txn.currency_unresolved,
-        resolved_by=txn.currency_resolved_by,
-        resolved_at=txn.currency_resolved_at,
-    )
-    await db.commit()
-    return response
 
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)

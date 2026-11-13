@@ -107,7 +107,6 @@ from src.extraction.extension.currencies import snapshot_currencies
 from src.extraction.extension.currency_resolution import (
     CurrencyUnresolvedError,
     resolve_ingest_currency,
-    resolve_transaction_currency,
 )
 from src.extraction.extension.deduplication import (
     DeduplicationService,
@@ -197,7 +196,6 @@ from src.extraction.extension.statement_validation import (
     pending_stage1_review_filter,
     resolve_statement_conflicts,
     resolve_statement_transactions,
-    set_opening_balance,
     validate_balance_chain,
 )
 from src.extraction.extension.statement_workflow import (
@@ -412,9 +410,7 @@ __all__ = [
     "resolve_statement_posting_account",
     "resolve_statement_transactions",
     "effective_statement_transaction_filter",
-    "resolve_transaction_currency",
     "run_parsing_supervisor",
-    "set_opening_balance",
     "snapshot_currencies",
     "submit_parse_pipeline",
     "supports_reviewed_statement_envelope",

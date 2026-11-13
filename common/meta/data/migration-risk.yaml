@@ -198,3 +198,12 @@ migrations:
     staging_validation: Deploy the pinned release to staging. Count the statements with status parsing before the upgrade and the runs with state running after it. Confirm that the two counts are equal.
     production_preflight: Take a database backup. Count the statements with status parsing and keep the count as release evidence. Each of them gets one running run. This revision changes no existing row. The reaper of the next change of #2994 fails each backfilled run after five minutes without a heartbeat.
     rollback_strategy: The upgrade is transactional. Roll back the application and keep the additive table, or run the downgrade. The downgrade drops statement_runs and its four enum types and loses the run history that the release created. Restore the pre-upgrade backup only for a full database rollback.
+  0075_drop_ping_state:
+    file: 0075_drop_ping_state.py
+    risk: critical
+    issue: "#3011"
+    destructive_confirmation: Confirmed destructive drop of the ping_state demo table; it holds only the demo ping-pong toggle state, no financial data, and no client or document references it.
+    proof: Slice 2 of the #3009 URL-surface diet retires the demo GET /ping route, the PingState model, and its schema surface in the same change. A repo-wide grep shows no client, job, or document consumed the route or the table; the table holds only the demo ping-pong toggle state.
+    staging_validation: Deploy the pinned release to staging. Confirm the app boots, the health probe passes, and GET /api/ping returns 404. Confirm no other endpoint references the ping_state table.
+    production_preflight: Take a database backup. Confirm the ping_state table exists and note its row count (the demo toggle history) as release evidence; the drop loses only that demo state.
+    rollback_strategy: The upgrade is transactional. Roll back the application and keep the dropped table absent, or run the downgrade, which recreates the empty ping_state table (the demo toggle history is not restored). Restore the pre-upgrade backup only for a full database rollback.
