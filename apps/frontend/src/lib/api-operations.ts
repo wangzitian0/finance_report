@@ -88,7 +88,6 @@ export const API_OPERATIONS = {
   "list_consistency_checks_statements_consistency_checks_list_get": { method: "GET", path: "/api/statements/consistency-checks/list" },
   "list_journal_entries_journal_entries_get": { method: "GET", path: "/api/journal-entries" },
   "list_matches_reconciliation_matches_get": { method: "GET", path: "/api/reconciliation/matches" },
-  "list_notifications_endpoint_notifications_get": { method: "GET", path: "/api/notifications" },
   "list_pending_review_statements_pending_review_get": { method: "GET", path: "/api/statements/pending-review" },
   "list_personal_report_package_cash_flow_events_reports_package_cash_flow_events_get": { method: "GET", path: "/api/reports/package/cash-flow-events" },
   "list_personal_report_package_line_details_reports_package_line_details_get": { method: "GET", path: "/api/reports/package/line-details" },

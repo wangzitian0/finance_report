@@ -6,7 +6,7 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `136`
+- Endpoint count: `135`
 - Schema count: `281`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
@@ -29,7 +29,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `llm` | 7 |
 | `market-data` | 3 |
 | `metrics` | 1 |
-| `notifications` | 1 |
 | `portfolio` | 12 |
 | `reconciliation` | 11 |
 | `reports` | 23 |
@@ -165,12 +164,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/metrics/correction-loop/replay` | yes | - | - | `200` `CorrectionLoopReplayResponse` | Get Correction Loop Replay |
-
-### notifications
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/notifications` | yes | `status` (query), `limit` (query) | - | `200` `WorkflowEventListResponse` | List Notifications Endpoint |
 
 ### portfolio
 
