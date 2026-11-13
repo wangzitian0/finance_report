@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Thin wrapper for common.testing.check_pr_ci_evidence (issue #1557)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 
@@ -12,5 +10,5 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.testing.check_pr_ci_evidence import main  # noqa: E402
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

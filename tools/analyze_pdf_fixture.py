@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+"""analyze_pdf_fixture"""
 
 import sys
 from pathlib import Path

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for governance proof-exception registry validation."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

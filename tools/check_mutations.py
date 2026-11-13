@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """CLI wrapper for common.testing.mutation_check (#2448)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Thin CLI shim for the staging AI-OCR gate contract."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 
@@ -12,5 +10,5 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.testing.staging_ai_ocr_gate_contract import main  # noqa: E402
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

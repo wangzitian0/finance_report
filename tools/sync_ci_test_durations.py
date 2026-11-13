@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Thin wrapper for common.testing.sync_ci_test_durations."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 
