@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `141`
-- Schema count: `285`
+- Endpoint count: `135`
+- Schema count: `274`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -18,24 +18,23 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `accounts` | 10 |
 | `ai-feedback` | 2 |
 | `app-config` | 2 |
-| `assets` | 11 |
+| `assets` | 10 |
 | `audit` | 1 |
 | `auth` | 4 |
 | `chat` | 4 |
 | `classifications` | 1 |
 | `corrections` | 2 |
 | `evidence` | 1 |
-| `income` | 1 |
 | `journal-entries` | 6 |
 | `llm` | 7 |
 | `market-data` | 3 |
 | `metrics` | 1 |
 | `notifications` | 1 |
-| `portfolio` | 13 |
+| `portfolio` | 12 |
 | `reconciliation` | 11 |
-| `reports` | 25 |
+| `reports` | 23 |
 | `review` | 9 |
-| `statements` | 15 |
+| `statements` | 14 |
 | `untagged` | 2 |
 | `user-settings` | 2 |
 | `users` | 4 |
@@ -80,7 +79,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/assets/positions/{position_id}` | yes | `position_id`* (path) | - | `200` `ManagedPositionResponse` | Get Position |
 | `GET` | `/assets/positions/{position_id}/depreciation` | yes | `position_id`* (path), `method` (query), `useful_life_years` (query), `salvage_value` (query), `as_of_date` (query) | - | `200` `DepreciationResponse` | Get Position Depreciation |
 | `POST` | `/assets/reconcile` | yes | - | - | `200` `ReconcilePositionsResponse` | Reconcile Positions |
-| `GET` | `/assets/restricted` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`RestrictedHoldingResponse`] | List Restricted Holdings |
 | `GET` | `/assets/valuation-components` | yes | `as_of_date` (query), `include_restricted` (query) | - | `200` `ValuationComponentsResponse` | List Valuation Components |
 | `GET` | `/assets/valuation-snapshots` | yes | `as_of_date` (query), `component_type` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ManualValuationSnapshotResponse_` | List Valuation Snapshots |
 | `POST` | `/assets/valuation-snapshots` | yes | - | `ManualValuationSnapshotCreate` | `201` `ManualValuationSnapshotResponse` | Create Valuation Snapshot |
@@ -130,12 +128,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/evidence/lineage` | yes | `entity_type`* (query), `entity_id`* (query), `node_kind` (query), `direction` (query), `max_depth` (query) | - | `200` `EvidenceLineageResponse` | Get Evidence Lineage |
-
-### income
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/income/annualized` | yes | `as_of` (query) | - | `200` `AnnualizedIncomeResponse` | Get Annualized Income |
 
 ### journal-entries
 
@@ -189,7 +181,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/portfolio/allocation/sector` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Sector Allocation |
 | `POST` | `/portfolio/brokerage/import` | yes | - | `BrokerageImportRequest` | `200` `BrokerageImportResponse` | Import Brokerage Positions |
 | `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query), `limit` (query), `offset` (query) | - | `200` `HoldingsListResponse` | Get Holdings |
-| `GET` | `/portfolio/performance` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query) | - | `200` `PerformanceMetricsResponse` | Get Performance |
 | `GET` | `/portfolio/performance/report-schedule` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query), `currency` (query) | - | `200` `InvestmentPerformanceReportScheduleResponse` | Get Investment Performance Report Schedule |
 | `POST` | `/portfolio/prices/update` | yes | - | `PriceUpdateBatchRequest` | `200` `PriceUpdateBatchResponse` | Update Prices |
 | `GET` | `/portfolio/summary` | yes | `as_of_date` (query) | - | `200` `PortfolioSummaryDashboardResponse` | Get Portfolio Summary |
@@ -241,8 +232,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
 | `GET` | `/reports/package/snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `PersonalReportPackageSnapshotResponse` | Get Personal Report Package Snapshot |
 | `GET` | `/reports/package/snapshots/{snapshot_id}/export` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |
-| `GET` | `/reports/trend` | yes | `account_id`* (query), `period` (query), `currency` (query) | - | `200` `AccountTrendResponse` | Account Trend |
-| `GET` | `/reports/{report_type}/snapshots` | yes | `report_type`* (path) | - | `200` array[`ReportSnapshotSummary`] | List Report Snapshots |
 
 ### review
 
@@ -272,7 +261,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/statements/{statement_id}/retry` | yes | `statement_id`* (path) | `RetryParsingRequest` \| null | `200` `BankStatementResponse` | Retry Statement Parsing |
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |
 | `POST` | `/statements/{statement_id}/review/approve` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
-| `POST` | `/statements/{statement_id}/review/edit` | yes | `statement_id`* (path) | `EditAndApproveRequest` | `200` `Stage1ApprovalResponse` | Edit And Approve Statement |
 | `POST` | `/statements/{statement_id}/review/envelope` | yes | `statement_id`* (path) | `ReviewedStatementEnvelopeRequest` | `200` `ReviewedStatementEnvelopeResponse` | Confirm Statement Review Envelope |
 | `POST` | `/statements/{statement_id}/review/opening-balance` | yes | `statement_id`* (path) | `SetOpeningBalanceRequest` | `200` `BankStatementResponse` | Set Statement Opening Balance |
 | `POST` | `/statements/{statement_id}/review/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |

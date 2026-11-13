@@ -164,20 +164,12 @@ layer3.1|The income statement's classification coverage reads Layer 3 APPLIED Tr
 layer3.3|Income statement payloads include the applied Layer 3 classification coverage breakdown.|^
 net-worth-components.3||test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources
 @$be/api/test_reports_router.py|P1
-cash-flow.3||test_account_trend_with_period
 cash-flow.4||test_category_breakdown_success
 cash-flow.5||test_category_breakdown_with_period
 errors.3||test_unauthenticated_access
-errors.5|GET /reports/{report_type}/snapshots returns the user's persisted report snapshots.|test_list_report_snapshots_returns_created_snapshots
-layer3.2|ReportSnapshot rows are generated and queryable.|^
 @$be/reporting/test_cash_flow_preview_payload.py|P1|done|property
 cash-flow.6||test_AC_reporting_cash_flow_6_year_scale_preview_is_bounded
 cash-flow.7||test_AC_reporting_cash_flow_7_line_events_pages_equal_document|:exact
-@$be/reporting/test_income_annualized_router.py|P1
-kpis.1|The annualized income KPI endpoint groups the last 12 months of income.|test_annualized_income_endpoint_groups_last_12_month_income|P0
-annualized-dashboard.1|GET /api/income/annualized returns {annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of} derived from the last 12 months of Income-type journal entries.|^
-annualized-dashboard.2||test_restricted_assets_endpoint_returns_latest_locked_holdings
-annualized-dashboard.3||test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_totals
 @$be/reporting/test_reporting_extreme_fallbacks.py|P1
 kpis.4||test_account_trend_raises_when_prefetched_rate_missing
 kpis.5||test_category_breakdown_raises_when_prefetched_rate_missing
@@ -263,15 +255,9 @@ fe-fetch-budget.9||AC-reporting.fe-fetch-budget.9 loads the policy decisions onl
 year-scale.1||test_AC5_20_year_scale_reporting_ties_out_within_budget
 net-worth-timeseries.4||test_AC_reporting_net_worth_timeseries_4_six_month_daily_series_within_budget
 @$be/reporting/test_income_typed_currency.py|P2
-income-typed.1||test_AC5_32_1_currency_code_type_validates_and_normalizes
 income-typed.2||test_AC5_32_2_annualized_income_totals_is_typed_intermediate
 income-typed.3||test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain
-income-typed.4||test_AC5_32_4_fx_conversion_error_response_model_declared
 income-typed.5||test_AC5_32_5_normalize_currency_code_is_shared_helper
-income-typed.6||test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_config
-@$be/api/test_typed_contract_sweep.py|P2
-snapshots-typed.1||test_AC5_36_1_report_snapshots_unknown_type_returns_422
-snapshots-typed.2||test_AC5_36_2_report_snapshots_valid_type_returns_typed_list
 @$be/reporting/test_reporting_shift_left.py
 journeys.1||test_balance_sheet_accounting_equation_articulation
 journeys.2||test_income_statement_revenues_expenses_net_income

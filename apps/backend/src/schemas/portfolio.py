@@ -16,7 +16,6 @@ from src.schemas.base import (
     NonNegativeMoneyAmount,
     Percent,
     Quantity,
-    default_dict,
     default_list,
 )
 from src.schemas.provenance import DataProvenance
@@ -191,13 +190,6 @@ class DividendEventResponse(BaseModel):
     currency: CurrencyCode
     reinvested: bool = False
     journal_entry_id: UUID | None = None
-
-
-class PerformanceMetricsResponse(BaseModel):
-    xirr: OptionalRate = None
-    time_weighted_return: OptionalRate = None
-    money_weighted_return: OptionalRate = None
-    unavailable_reasons: dict[str, str] = default_dict()
 
 
 class RealizedLotResponse(BaseModel):

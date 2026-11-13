@@ -8,24 +8,19 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from src.audit import Ratio, to_money
+from src.audit import to_money
 from src.deps import CurrentUserId, DbSession
 from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
 from src.observability import get_logger
 from src.portfolio import (
     AssetNotFoundError,
-    InsufficientDataError,
     InvestmentAccountingService,
     InvestmentAccountingValidationError,
     InvestmentTransaction,
     InvestmentTransactionType,
-    PerformanceError,
     PortfolioNotFoundError,
     PositionServiceError,
     build_investment_performance_report_schedule,
-    calculate_money_weighted_return,
-    calculate_time_weighted_return,
-    calculate_xirr,
     get_asset_class_allocation as asset_class_allocation_breakdowns,
     get_geography_allocation as geography_allocation_breakdowns,
     get_sector_allocation as sector_allocation_breakdowns,
@@ -40,7 +35,6 @@ from src.schemas.portfolio import (
     DividendEventResponse,
     HoldingsListResponse,
     InvestmentPerformanceReportScheduleResponse,
-    PerformanceMetricsResponse,
     PortfolioSummaryDashboardResponse,
     PriceUpdateBatchResponse,
     PriceUpdateRequest,
@@ -56,11 +50,6 @@ _MAX_LIST_LIMIT = 500
 _portfolio_service = portfolio_service
 _brokerage_import_service = BrokeragePositionImportService()
 _investment_accounting_service = InvestmentAccountingService()
-
-
-def _canonical_percent(value: Decimal) -> Decimal:
-    ratio = Ratio.from_percent(value)
-    return ratio.to_percent()
 
 
 def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> DividendEventResponse:
@@ -274,50 +263,6 @@ async def update_holding_cost_basis_method(
         p.cost_basis_method = request.cost_basis_method
     await db.commit()
     return CostBasisMethodUpdateResponse(updated_count=len(positions), cost_basis_method=request.cost_basis_method)
-
-
-@router.get("/performance", response_model=PerformanceMetricsResponse)
-async def get_performance(
-    db: DbSession,
-    user_id: CurrentUserId,
-    period_start: date | None = Query(None, description="Period start date (for TWR)"),
-    period_end: date | None = Query(None, description="Period end date (for TWR, default: today)"),
-    as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
-) -> PerformanceMetricsResponse:
-    """Calculate portfolio performance metrics (XIRR, TWR, MWR)."""
-    as_of = as_of_date or date.today()
-    p_end = period_end or date.today()
-    reasons: dict[str, str] = {}
-
-    async def _eval_metric(key: str, coro) -> Decimal | None:
-        try:
-            return _canonical_percent(await coro)
-        except InsufficientDataError as exc:
-            reasons[key] = str(exc)
-            return None
-        except (PerformanceError, PricingError) as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-
-    xirr = await _eval_metric("xirr", calculate_xirr(db=db, user_id=user_id, as_of_date=as_of))
-    if period_start:
-        if await db.scalar(select(ManagedPosition.id).where(ManagedPosition.user_id == user_id).limit(1)) is None:
-            twr = None
-            reasons["time_weighted_return"] = "No positions found for time-weighted return calculation"
-        else:
-            twr = await _eval_metric(
-                "time_weighted_return",
-                calculate_time_weighted_return(db=db, user_id=user_id, period_start=period_start, period_end=p_end),
-            )
-    else:
-        twr = None
-        reasons["time_weighted_return"] = "period_start is required for time-weighted return calculation"
-    mwr = await _eval_metric(
-        "money_weighted_return", calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
-    )
-
-    return PerformanceMetricsResponse(
-        xirr=xirr, time_weighted_return=twr, money_weighted_return=mwr, unavailable_reasons=reasons
-    )
 
 
 @router.get("/performance/report-schedule", response_model=InvestmentPerformanceReportScheduleResponse)

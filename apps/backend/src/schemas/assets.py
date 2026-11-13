@@ -140,14 +140,5 @@ class ValuationComponentsResponse(BaseModel):
     warnings: list[dict[str, str]] = default_list()
 
 
-class RestrictedHoldingResponse(BaseModel):
-    ticker: str
-    quantity: Quantity
-    vesting_schedule: str | None = None
-    unlock_date: date | None = None
-    fair_value: MoneyAmount
-    currency: CurrencyCode
-
-
 ManagedPositionListResponse = ListResponse[ManagedPositionResponse]
 ManualValuationSnapshotListResponse = ListResponse[ManualValuationSnapshotResponse]

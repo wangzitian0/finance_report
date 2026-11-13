@@ -148,8 +148,6 @@ provenance.2||test_AC22_13_1_explicit_as_of_holdings_preserve_snapshot_provenanc
 holdings.6||test_AC_portfolio_holdings_6_unreconciled_snapshot_disclosed_in_warnings
 api.1||test_get_holdings_with_date_filter
 api.2||test_get_holdings_include_disposed
-api.3||test_get_performance_without_period
-api.4||test_get_performance_with_period
 api.5||test_get_sector_allocation_empty
 api.6||test_get_sector_allocation_with_data
 api.7||test_get_geography_allocation_empty
@@ -161,10 +159,6 @@ api.12||test_update_prices_batch
 api.13||test_update_prices_invalid_payload
 api.14||test_portfolio_endpoints_require_auth
 api.15||test_allocation_with_as_of_date
-api.16||test_performance_metrics_response_format
-api.17||test_get_performance_insufficient_data
-api.18||test_get_performance_xirr_calculation_error
-api.19||test_get_performance_mwr_calculation_error
 2673.1||test_AC_portfolio_2673_1_create_holding_dividend_posts_balanced_journal_entry
 as-of.2||test_get_holdings_explicit_date_uses_historical_snapshot_quantity|P0
 report-schedule.1|The investment performance schedule API exposes report-ready metrics and per-holding/allocation rows.|test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule|P0

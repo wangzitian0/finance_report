@@ -486,11 +486,6 @@ async def resolve_statement_conflicts(db: AsyncSession, statement_id: UUID, user
     return statement
 
 
-async def edit_and_approve(db: AsyncSession, statement_id: UUID, user_id: UUID, edits: list[dict]) -> StatementSummary:
-    _ = (db, statement_id, user_id, edits)
-    raise ValueError("Editing parsed transactions is unsupported; reject and re-parse the statement instead.")
-
-
 async def set_opening_balance(
     db: AsyncSession, statement_id: UUID, user_id: UUID, opening_balance: Decimal
 ) -> StatementSummary:

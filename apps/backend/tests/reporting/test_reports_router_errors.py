@@ -7,9 +7,6 @@ class TestReportsRouterErrors:
         with patch('src.routers.reports.generate_income_statement', new_callable=AsyncMock) as mock_gen: mock_gen.side_effect = ReportError('Invalid date range'); response = await client.get('/reports/income-statement', params={'start_date': '2024-12-31', 'end_date': '2024-01-01'}); assert response.status_code == 400; assert 'date' in response.json()['detail'].lower()
     async def test_cash_flow_report_error(self, client, db, test_user):
         with patch('src.routers.reports.generate_cash_flow', new_callable=AsyncMock) as mock_gen: mock_gen.side_effect = ReportError('No cash accounts found'); response = await client.get('/reports/cash-flow', params={'start_date': '2024-01-01', 'end_date': '2024-12-31'}); assert response.status_code == 400; assert 'cash' in response.json()['detail'].lower()
-    async def test_account_trend_report_error(self, client, db, test_user):
-        account_id = uuid4()
-        with patch('src.routers.reports.get_account_trend', new_callable=AsyncMock) as mock_trend: mock_trend.side_effect = ReportError('Account not found'); response = await client.get('/reports/trend', params={'account_id': str(account_id)}); assert response.status_code == 400; assert 'account' in response.json()['detail'].lower()
     async def test_category_breakdown_report_error(self, client, db, test_user):
         with patch('src.routers.reports.get_category_breakdown', new_callable=AsyncMock) as mock_breakdown: mock_breakdown.side_effect = ReportError('No data available for period'); response = await client.get('/reports/breakdown', params={'type': 'income'}); assert response.status_code == 400; assert 'data' in response.json()['detail'].lower()
     async def test_export_balance_sheet_report_error(self, client, db, test_user):

@@ -41,13 +41,11 @@ from src.extraction import (
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
     approve_statement_workflow,
-    auto_create_posted_entries_for_statement,
     classification_suggestions,
     clear_brokerage_import_failure,
     confirm_reviewed_statement_envelope,
     create_run,
     current_reviewed_statement_envelope,
-    edit_and_approve,
     get_current_statement_extraction_result,
     get_latest_run,
     is_bank_custody_source,
@@ -91,7 +89,6 @@ from src.schemas.extraction import compose_statement_list_item_response, compose
 from src.schemas.portfolio import BrokerageImportResponse
 from src.schemas.review import (
     BalanceValidationResult,
-    EditAndApproveRequest,
     ReviewedStatementEnvelopeRequest,
     ReviewedStatementEnvelopeResponse,
     SetOpeningBalanceRequest,
@@ -909,30 +906,6 @@ async def reject_statement_stage1(
         await db.rollback()
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
-
-
-@router.post("/{statement_id}/review/edit", response_model=Stage1ApprovalResponse)
-async def edit_and_approve_statement(
-    statement_id: UUID,
-    request: EditAndApproveRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> Stage1ApprovalResponse:
-    """Stage 1: Edit transactions and approve."""
-    edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
-    try:
-        statement = await edit_and_approve(db, statement_id, user_id, edits_data)
-        outcome = await auto_create_posted_entries_for_statement(
-            db, statement, user_id, dependencies=compose_statement_posting_dependencies()
-        )
-        await db.commit()
-    except ValueError as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-    created_count = _posting_count_or_conflict(outcome)
-    response = await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
-    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
 
 
 @router.post("/{statement_id}/review/opening-balance", response_model=BankStatementResponse)
