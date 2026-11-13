@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { ApiError, apiOperation } from "@/lib/api-client";
+import { LEDGER_DERIVED_QUERY_KEYS } from "@/lib/queryClient";
 import type { StatementRun } from "@/lib/types";
 
 const showToastMock = vi.fn();
@@ -20,6 +22,7 @@ vi.mock("@/lib/api-client", async (importOriginal) => ({
 
 const RUNS_GET = "list_statement_runs_statements__statement_id__runs_get";
 const RUNS_POST = "create_statement_run_statements__statement_id__runs_post";
+const REJECT_POST = "reject_statement_stage1_statements__statement_id__review_reject_post";
 
 const statement = {
   id: "s1",
@@ -66,6 +69,7 @@ function mockApi(options: {
   status?: string;
   runs: () => StatementRun[];
   post?: (body: unknown) => Promise<unknown>;
+  reject?: (body: unknown) => Promise<unknown>;
 }) {
   mockedApi.mockImplementation(((operationId: string, request?: { body?: unknown }) => {
     switch (operationId) {
@@ -83,6 +87,8 @@ function mockApi(options: {
       }
       case RUNS_POST:
         return options.post ? options.post(request?.body) : Promise.resolve(makeRun({ seq: 9 }));
+      case REJECT_POST:
+        return options.reject ? options.reject(request?.body) : Promise.resolve({ ...statement, status: "rejected" });
       default:
         return Promise.reject(new Error(`Unexpected operation ${operationId}`));
     }
@@ -205,23 +211,35 @@ describe("Parsing attempts and Run again on the statement page", () => {
 
   it("AC-extraction.2994.63 refetches the statement, the review and the attempts after a run starts", async () => {
     mockApi({ runs: () => [makeRun({ seq: 1, state: "failed", error_code: "extraction_error" })] });
-    render(<StatementDetailPage />);
-    await screen.findByTestId("run-again-panel");
-    await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(0));
-    const before = { statement: callsOf(STATEMENT_GET).length, review: callsOf(REVIEW_GET).length, runs: runListCalls().length };
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    try {
+      render(<StatementDetailPage />);
+      await screen.findByTestId("run-again-panel");
+      await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(0));
+      const before = { statement: callsOf(STATEMENT_GET).length, review: callsOf(REVIEW_GET).length, runs: runListCalls().length };
+      invalidate.mockClear();
 
-    fireEvent.click(runAgainButton());
+      fireEvent.click(runAgainButton());
 
-    await waitFor(() => expect(runPosts()).toHaveLength(1));
-    await waitFor(() => expect(callsOf(STATEMENT_GET).length).toBeGreaterThan(before.statement));
-    await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(before.review));
-    await waitFor(() => expect(runListCalls().length).toBeGreaterThan(before.runs));
+      await waitFor(() => expect(runPosts()).toHaveLength(1));
+      await waitFor(() => expect(callsOf(STATEMENT_GET).length).toBeGreaterThan(before.statement));
+      await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(before.review));
+      await waitFor(() => expect(runListCalls().length).toBeGreaterThan(before.runs));
+      // The exact keys: the attempts of this statement and every ledger-derived read, which includes the review.
+      const keys = invalidate.mock.calls.map((call) => JSON.stringify((call[0] as { queryKey?: unknown } | undefined)?.queryKey));
+      expect(keys).toContain(JSON.stringify(["statement-runs", "s1"]));
+      for (const key of LEDGER_DERIVED_QUERY_KEYS) expect(keys).toContain(JSON.stringify(key));
+      expect(keys).toContain(JSON.stringify(["statement-review"]));
+    } finally {
+      invalidate.mockRestore();
+    }
   });
 
-  it("AC-extraction.2994.59 shows a clear message when the server answers 409", async () => {
+  it("AC-extraction.2994.59 names the active run when the 409 body carries active_run_id", async () => {
+    const body = { error_id: "conflict", message: "The statement has an active run.", active_run_id: "run-active" };
     mockApi({
       runs: () => [makeRun({ seq: 1, state: "failed", error_code: "extraction_error" })],
-      post: () => Promise.reject(new ApiError("The statement has an active run.", 409, "conflict")),
+      post: () => Promise.reject(new ApiError(body.message, 409, "conflict", null, body as never)),
     });
     render(<StatementDetailPage />);
     await screen.findByTestId("run-again-panel");
@@ -231,6 +249,23 @@ describe("Parsing attempts and Run again on the statement page", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("A parse is already running for this statement. Wait for it to end, then run again.");
     expect(showToastMock).toHaveBeenCalledWith(expect.stringContaining("already running"), "error");
+  });
+
+  it("AC-extraction.2994.59 says that the statement changed for a 409 without an active run", async () => {
+    const body = { error_id: "conflict", message: "The statement changed while the run started." };
+    mockApi({
+      runs: () => [makeRun({ seq: 1, state: "failed", error_code: "extraction_error" })],
+      post: () => Promise.reject(new ApiError(body.message, 409, "conflict", null, body as never)),
+    });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+
+    fireEvent.click(runAgainButton());
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("The statement changed. Reload the page.");
+    expect(screen.queryByText(/already running/)).not.toBeInTheDocument();
+    expect(showToastMock).toHaveBeenCalledWith("The statement changed. Reload the page.", "error");
   });
 
   it("AC-extraction.2994.60 enforces 20 keywords of 64 characters and a note of 500 characters", async () => {
@@ -258,13 +293,13 @@ describe("Parsing attempts and Run again on the statement page", () => {
     expect(runPosts()).toHaveLength(0);
   });
 
-  it("AC-extraction.2994.72 refuses control characters and line or paragraph separators before the request", async () => {
+  it("AC-extraction.2994.72 refuses control characters before the request", async () => {
     mockApi({ runs: () => [] });
     render(<StatementDetailPage />);
     await screen.findByTestId("run-again-panel");
-    const message = "Keywords and the note cannot contain control characters or line or paragraph separators.";
+    const message = "Keywords and the note cannot contain control characters.";
 
-    for (const bad of ["\u2028", "\u2029", "\u0007", "\u0000", "\u200e\u0085"]) {
+    for (const bad of ["\u0007", "\u0000", "\u200e\u0085"]) {
       fireEvent.change(keywordField(), { target: { value: `interest, bad${bad}word` } });
       expect(runAgainButton(), `keyword with U+${bad.charCodeAt(0).toString(16)}`).toBeDisabled();
       expect(screen.getByRole("alert")).toHaveTextContent(message);
@@ -272,7 +307,7 @@ describe("Parsing attempts and Run again on the statement page", () => {
     fireEvent.change(keywordField(), { target: { value: "interest" } });
     expect(runAgainButton()).toBeEnabled();
 
-    for (const bad of ["\u2028", "\u2029", "\u0007", "\r"]) {
+    for (const bad of ["\u0007", "\r"]) {
       fireEvent.change(noteField(), { target: { value: `first${bad}second` } });
       expect(runAgainButton(), `note with U+${bad.charCodeAt(0).toString(16)}`).toBeDisabled();
       expect(screen.getByRole("alert")).toHaveTextContent(message);
@@ -280,6 +315,23 @@ describe("Parsing attempts and Run again on the statement page", () => {
     fireEvent.change(noteField(), { target: { value: "first line\n\tsecond line, with a tab" } });
     expect(runAgainButton()).toBeEnabled();
     expect(runPosts()).toHaveLength(0);
+  });
+
+  it("AC-extraction.2994.80 turns U+2028 and U+2029 into a new line in the note and a space in a keyword", async () => {
+    mockApi({ runs: () => [] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+
+    fireEvent.change(keywordField(), { target: { value: "FX\u2028fee, rent\u2029due" } });
+    fireEvent.change(noteField(), { target: { value: "first\u2028second\u2029third" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(runAgainButton()).toBeEnabled();
+    fireEvent.click(runAgainButton());
+
+    await waitFor(() => expect(runPosts()).toHaveLength(1));
+    expect(runPosts()[0][1]).toMatchObject({
+      body: { kind: "extract", hints: { keywords: ["FX fee", "rent due"], note: "first\nsecond\nthird" } },
+    });
   });
 
   it("AC-extraction.2994.72 keeps zero width joiners valid", async () => {
@@ -345,6 +397,47 @@ describe("Parsing attempts and Run again on the statement page", () => {
     expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();
     expect(await screen.findByText(/A parse is running/)).toBeInTheDocument();
     expect(runAgainButton()).toBeDisabled();
+  });
+
+  it("AC-extraction.2994.81 sends a reject note with U+2028 and U+2029 as new lines", async () => {
+    mockApi({ status: "parsed", runs: () => [] });
+    render(<StatementDetailPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject Statement" });
+
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "first\u2028second\u2029third" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(callsOf(REJECT_POST)).toHaveLength(1));
+    expect(callsOf(REJECT_POST)[0][1]).toMatchObject({ body: { notes: "first\nsecond\nthird" } });
+  });
+
+  it("AC-extraction.2994.81 refuses a reject note with a control character and sends nothing", async () => {
+    mockApi({ status: "parsed", runs: () => [] });
+    render(<StatementDetailPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject Statement" });
+
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "bad\u0007note" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(showToastMock).toHaveBeenCalledWith("Keywords and the note cannot contain control characters.", "error"));
+    expect(callsOf(REJECT_POST)).toHaveLength(0);
+  });
+
+  it("AC-extraction.2994.82 shows one fixed sentence for a 422 of the reject and never the raw body", async () => {
+    const raw = JSON.stringify({ detail: [{ type: "value_error", input: "SECRET-REJECT-NOTE" }] });
+    mockApi({ status: "parsed", runs: () => [], reject: () => Promise.reject(new ApiError(raw, 422, "validation_error")) });
+    render(<StatementDetailPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject Statement" });
+
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "SECRET-REJECT-NOTE" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
+
+    const fixed = "The hints are not valid. Check the keywords and the note.";
+    await waitFor(() => expect(showToastMock).toHaveBeenCalledWith(fixed, "error"));
+    expect(JSON.stringify(showToastMock.mock.calls)).not.toContain("SECRET-REJECT-NOTE");
   });
 
   it("AC-extraction.2994.61 limits the note of the reject dialog to 500 characters", async () => {

@@ -12,12 +12,22 @@ export const HINT_NOTE_MAX_LENGTH = 500;
 
 export const isRunActive = (run: StatementRun): boolean => run.state === "requested" || run.state === "running";
 
+/** The message of the page for a 422: the response body echoes the hints, so the page never shows it. */
+export const INVALID_HINTS_MESSAGE = "The hints are not valid. Check the keywords and the note.";
+
+/**
+ * U+2028 and U+2029 are line and paragraph separators, common in text that is pasted from a PDF. The backend
+ * refuses them. The page turns a separator into its meaning: a new line in the note, a space in a keyword.
+ */
+export const normalizeNote = (text: string): string => text.replace(/[\u2028\u2029]/g, "\n");
+const normalizeKeywordText = (text: string): string => text.replace(/[\u2028\u2029]/g, " ");
+
 /** Split the keyword field on commas and new lines. Trim each keyword and drop the empty ones. */
 export function parseKeywords(text: string): string[] {
-  return text.split(/[,\n]/).map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0);
+  return normalizeKeywordText(text).split(/[,\n]/).map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0);
 }
 
-const INVALID_CHARACTERS_MESSAGE = "Keywords and the note cannot contain control characters or line or paragraph separators.";
+const INVALID_CHARACTERS_MESSAGE = "Keywords and the note cannot contain control characters.";
 
 /** The backend rule: no control character (Cc) except those in `allowed`, and no U+2028 or U+2029. */
 function hasForbiddenCharacter(text: string, allowed = ""): boolean {
@@ -97,13 +107,14 @@ export function RunAgainPanel({ activeRun, pending, errorMessage, onRun }: {
   const [keywordText, setKeywordText] = useState("");
   const [note, setNote] = useState("");
   const keywords = parseKeywords(keywordText);
-  const problem = keywordProblem(keywords) ?? noteProblem(note);
+  const normalizedNote = normalizeNote(note);
+  const problem = keywordProblem(keywords) ?? noteProblem(normalizedNote);
   const disabled = activeRun || pending || problem !== null;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (disabled) return;
-    const started = await onRun({ keywords, note: note.trim() ? note : null });
+    const started = await onRun({ keywords, note: normalizedNote.trim() ? normalizedNote : null });
     if (started) {
       setKeywordText("");
       setNote("");
