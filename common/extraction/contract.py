@@ -58,7 +58,7 @@ effective_statement_transaction_filter|svc|extension/transaction_membership.py
 ExtractionService|svc|extension/service.py
 StatementIngestionUseCase|svc|extension/statement_parsing.py
 @fac|-|build_statement_ingestion_use_case extraction_trace_policy_registry
-@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run get_latest_run
+@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run get_latest_run list_runs
 DeduplicationService|svc|extension/deduplication.py
 BrokeragePositionImportService|svc|extension/brokerage_positions.py
 EvidenceGraphIntegrationService|svc|extension/evidence_graph_integration.py
@@ -106,7 +106,7 @@ StatementEvidenceType StatementExtractionResult
 StatementIngestionConfigurationError StatementIngestionError
 StatementIngestionOutcome StatementIngestionStatus StatementIngestionUseCase
 StatementPostingDependencies StatementPostingOutcome StatementPostingStatus
-StatementSourceType StatementSummary StatementTransaction
+StatementRunRecord StatementSourceType StatementSummary StatementTransaction
 SuggestionCorrectionError TransactionCategory TransactionClassification
 TransactionDirection UploadedDocument _brokerage_import_not_ready_reason
 _brokerage_payload_from_persisted_extraction
@@ -130,7 +130,7 @@ get_current_statement_extraction_result get_known_storage_paths
 get_latest_run get_or_create_account get_parsing_prompt
 get_statement_coverage_rows get_statement_event_sources
 get_uploaded_document_filenames heartbeat_run is_bank_custody_source
-is_statement_classification_running list_statement_contributions
+is_statement_classification_running list_runs list_statement_contributions
 lock_statement_classification looks_like_brokerage_document
 looks_like_brokerage_payload parse_brokerage_csv_payload
 parse_brokerage_positions pending_stage1_review_filter
@@ -653,7 +653,7 @@ fe-remainder-extraction.3||AC19.15.2 keeps secondary intake passive: CSV and Man
 @$fe/__tests__/statementDetailPage.test.tsx|P2
 fe-stage1-review.4||AC16.18.1 loads detail data and renders transactions
 fe-stage1-review.5||AC16.18.2 shows approve and reject only while the statement is parsed
-fe-stage1-review.6||AC16.18.3 retry parse posts retry API and refreshes
+fe-stage1-review.6||AC16.18.3 run again posts the runs API with empty hints and refreshes
 fe-stage1-review.15||AC-extraction.fe-stage1-review.15 keeps detail polling single-flight and aborts active work on teardown|P1
 fe-stage1-review.19||AC-extraction.fe-stage1-review.19 shows the PDF original beside the extracted transactions on one page|P1
 @apps/frontend/playwright/mobile-ux.spec.ts
@@ -880,12 +880,35 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.16|Upload commits the statement and its extract run, then dispatches the job.|test_AC_extraction_2994_16_upload_creates_the_extract_run_before_dispatch
 2994.17|The run insert and the statement insert commit together or not at all.|test_AC_extraction_2994_17_a_failed_run_insert_leaves_no_statement
 2994.18|A reparse writes a user rerun run with a parent, sets PARSING and clears the error.|test_AC_extraction_2994_18_a_reparse_creates_a_rerun_with_the_previous_run_as_parent
-2994.19|The retry route and the reject route return 409 with active_run_id, start no second run, and the reject writes nothing.|test_AC_extraction_2994_19_a_reparse_while_a_run_is_active_returns_409_with_the_active_run_id
+2994.19|The runs route and the reject route return 409 with active_run_id, start no second run, and the reject writes nothing.|test_AC_extraction_2994_19_a_reparse_while_a_run_is_active_returns_409_with_the_active_run_id
 2994.20|A reject followed by its reparse leaves PARSING with a new run, not REJECTED.|test_AC_extraction_2994_20_reject_then_reparse_shows_parsing_while_the_job_runs
 2994.39|Two concurrent rejects give one 200 and one 409, and the statement is never REJECTED while a run is active.|test_AC_extraction_2994_39_two_concurrent_rejects_give_one_200_and_one_409
 2994.40|The notes of a reject become the hint note of the rerun, and notes of more than 500 characters give 422.|test_AC_extraction_2994_40_the_reject_notes_become_the_hint_note_of_the_rerun
 2994.42|A retryable failure through the router waits for the retry delay, and cancelling the wait leaves no pending task.|test_AC_extraction_2994_42_a_retryable_failure_through_the_router_waits_for_the_retry_delay
 2994.21|The reparse has no reset_for_retry parameter and the watchdog no longer exists.|test_AC_extraction_2994_21_the_retry_flag_and_the_watchdog_are_gone
+@$be/extraction/test_statement_run_hints.py|P1
+2994.43|Empty hints give a prompt that is byte-identical to the prompt without hints.|test_AC_extraction_2994_43_empty_hints_leave_the_prompt_byte_identical
+2994.44|A hint appends one block of data after the unchanged prompt: keywords as a JSON array, the note as a JSON string.|test_AC_extraction_2994_44_hints_append_one_block_after_the_base_prompt
+2994.45|A fake end marker or an order inside a hint stays inside its JSON string.|test_AC_extraction_2994_45_hostile_hint_text_stays_inside_its_json_string
+2994.46|A change of the prompt text needs a new template version: a test pins the prompt digests to the version.|test_AC_extraction_2994_46_the_base_prompt_text_is_pinned_to_its_template_version
+2994.47|The prompt digest is the SHA-256 of the canonical JSON of the version, model and hints, and every extract run stores it.|test_AC_extraction_2994_47_the_prompt_digest_is_sha256_of_version_model_and_hints
+2994.48|parse_document passes the hints to the prompt of every extraction pass, including a re-extract.|test_AC_extraction_2994_48_hints_reach_the_prompt_of_every_extraction_pass
+2994.49|The worker reads the hints from the run row that it claims and passes them to parse_document.|test_AC_extraction_2994_49_the_worker_passes_the_hints_of_the_claimed_run
+@$be/api/test_statement_run_api.py|P1
+2994.50|POST runs writes a user rerun run with the typed hints, the model and the digest, and dispatches it.|test_AC_extraction_2994_50_post_runs_starts_a_rerun_with_the_hints_as_typed
+2994.51|A classify kind, an actor in the body or a hint over its limit gives 422 and no run.|test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits
+2994.52|POST runs of a statement of another user or of an unknown statement gives 404.|test_AC_extraction_2994_52_post_runs_of_another_users_statement_gives_404
+2994.53|Hints on a CSV statement give 400 and no run, because a CSV parse sends no prompt.|test_AC_extraction_2994_53_post_runs_of_a_csv_statement_with_hints_gives_400
+2994.54|GET runs lists the runs of the owner by seq with hints, actor, state and error, and gives 404 for another user.|test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_their_hints
+2994.55|The retry route and RetryParsingRequest no longer exist.|test_AC_extraction_2994_55_the_retry_route_and_its_request_schema_are_gone
+@$fe/__tests__/statementRuns.test.tsx|P1
+2994.56|The statement page lists each attempt, newest first, with actor, trigger, state, hints and error code.|AC-extraction.2994.56 lists each attempt, newest first, with actor, trigger, state, hints and error code
+2994.57|Run again posts the typed hints through the runs operation, trimmed keywords and the note as typed.|AC-extraction.2994.57 posts the hints exactly as typed through the runs operation
+2994.58|Run again is disabled while a run is requested or running, and the attempts refetch while one is active.|AC-extraction.2994.58 disables Run again while a run is active, refetches the attempts, and enables it when the run ends
+2994.59|A 409 from the runs route shows a clear message.|AC-extraction.2994.59 shows a clear message when the server answers 409
+2994.60|The form allows 20 keywords of 64 characters and a note of 500 characters.|AC-extraction.2994.60 enforces 20 keywords of 64 characters and a note of 500 characters
+2994.61|The note of the reject dialog stops at 500 characters.|AC-extraction.2994.61 limits the note of the reject dialog to 500 characters
+2994.62|An approved statement has no Run again panel, and no Retry Parse button exists.|AC-extraction.2994.62 offers no Run again for an approved statement and has no Retry Parse button
 """,
     ),
     concepts=concepts(
