@@ -14,7 +14,7 @@ from src.ledger import JournalEntry, JournalEntryStatus, JournalLine, current_an
 from src.observability import get_logger
 from src.reconciliation.base.errors import AmountMismatchError, EntryCreationError, MatchNotFoundError
 from src.reconciliation.extension.entry_reads import entry_total_amount
-from src.reconciliation.extension.matching import sync_reconciliation_match_journal_entry_links
+from src.reconciliation.extension.matching import sync_reconciliation_matches_journal_entry_links_batch
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
@@ -84,75 +84,93 @@ async def _get_locked_pending_match(db: AsyncSession, match_id: UUID | str, user
     return match
 
 
+async def accept_pending_matches(
+    db: AsyncSession, matches: Sequence[ReconciliationMatch], *, user_id: UUID
+) -> int:
+    """Accept already-locked pending matches after entry-balance verification.
+
+    Loads the transactions and every referenced journal entry once, checks each amount, flips the
+    entries to RECONCILED, and syncs the anchor links once. Returns the count of reconciled entries
+    that the accepted matches reference.
+    """
+    pending = [m for m in matches if m.status == ReconciliationStatus.PENDING_REVIEW]
+    if not pending:
+        return 0
+    txns = {
+        t.id: t
+        for t in (
+            await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_({m.atomic_txn_id for m in pending})))
+        ).scalars()
+    }
+    for match in pending:
+        if match.journal_entry_ids or match.atomic_txn_id not in txns:
+            continue
+        existing_entry = (
+            await db.execute(
+                _anchored_entries(user_id=user_id, transaction_id=match.atomic_txn_id)
+                .where(JournalEntry.status != JournalEntryStatus.VOID)
+                .limit(1)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if existing_entry is None:
+            raise EntryCreationError(
+                "Authoritative economic disposition is required before accepting a reconciliation match; "
+                "a pre-existing journal entry must exist, so post the source transaction first"
+            )
+        match.journal_entry_ids = [str(existing_entry.id)]
+
+    entry_ids_by_match = {m: {UUID(e) for e in m.journal_entry_ids or []} for m in pending}
+    all_ids = set().union(*entry_ids_by_match.values())
+    entries = (
+        {
+            e.id: e
+            for e in (
+                await db.execute(
+                    _anchored_entries(user_id=user_id)
+                    .where(JournalEntry.id.in_(all_ids))
+                    .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+                )
+            ).scalars()
+        }
+        if all_ids
+        else {}
+    )
+    for match in pending:
+        ids = entry_ids_by_match[match]
+        txn = txns.get(match.atomic_txn_id)
+        if ids and txn:
+            if not ids <= entries.keys():
+                raise EntryCreationError(
+                    "Reconciliation match references a journal entry without current decision authority"
+                )
+            total_entry_amount = sum(entry_total_amount(entries[i], currency=txn.currency) for i in ids)
+            tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))
+            if abs(total_entry_amount - txn.amount) > tolerance:
+                raise AmountMismatchError(
+                    f"Amount mismatch: transaction={txn.amount}, entries={total_entry_amount}, tolerance={tolerance}"
+                )
+        match.status = ReconciliationStatus.ACCEPTED
+        match.version += 1
+        for entry in (entries[i] for i in ids if i in entries):
+            if entry.status != JournalEntryStatus.VOID:
+                entry.status = JournalEntryStatus.RECONCILED
+    await db.flush()
+    await sync_reconciliation_matches_journal_entry_links_batch(db, pending, user_id=user_id, known_candidates=entries)
+    return sum(
+        entries[i].status == JournalEntryStatus.RECONCILED for ids in entry_ids_by_match.values() for i in ids if i in entries
+    )
+
+
 async def accept_match(
     db: AsyncSession,
     match_id: UUID,
     *,
     user_id: UUID,
 ) -> ReconciliationMatch:
-    """Accept a pending reconciliation match after entry-balance verification."""
+    """Accept one pending reconciliation match after entry-balance verification."""
     match = await _get_locked_pending_match(db, match_id, user_id)
-    if match.status != ReconciliationStatus.PENDING_REVIEW:
-        return match
-
-    txn = await db.get(AtomicTransaction, match.atomic_txn_id)
-
-    if txn and not match.journal_entry_ids:
-        existing_entry = (
-            await db.execute(
-                _anchored_entries(user_id=user_id, transaction_id=txn.id)
-                .where(JournalEntry.status != JournalEntryStatus.VOID)
-                .limit(1)
-                .with_for_update()
-            )
-        ).scalar_one_or_none()
-        if existing_entry:
-            match.journal_entry_ids = [str(existing_entry.id)]
-        else:
-            raise EntryCreationError(
-                "Authoritative economic disposition is required before accepting a reconciliation match; "
-                "a pre-existing journal entry must exist, so post the source transaction first"
-            )
-
-    if match.journal_entry_ids and txn:
-        entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        entries = list(
-            (
-                await db.execute(
-                    _anchored_entries(user_id=user_id)
-                    .where(JournalEntry.id.in_(entry_ids))
-                    .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-                )
-            ).scalars()
-        )
-        if len(entries) != len(set(entry_ids)):
-            raise EntryCreationError(
-                "Reconciliation match references a journal entry without current decision authority"
-            )
-
-        total_entry_amount = sum(entry_total_amount(entry, currency=txn.currency) for entry in entries)
-        tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))
-        if abs(total_entry_amount - txn.amount) > tolerance:
-            raise AmountMismatchError(
-                f"Amount mismatch: transaction={txn.amount}, entries={total_entry_amount}, tolerance={tolerance}"
-            )
-
-    match.status = ReconciliationStatus.ACCEPTED
-    match.version += 1
-
-    if match.journal_entry_ids:
-        entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        reconciled_entries = (
-            await db.execute(
-                select(JournalEntry).where(JournalEntry.id.in_(entry_ids), JournalEntry.user_id == user_id)
-            )
-        ).scalars()
-        for entry in reconciled_entries:
-            if entry.status != JournalEntryStatus.VOID:
-                entry.status = JournalEntryStatus.RECONCILED
-
-    await db.flush()
-    await sync_reconciliation_match_journal_entry_links(db, match)
+    await accept_pending_matches(db, [match], user_id=user_id)
     return match
 
 

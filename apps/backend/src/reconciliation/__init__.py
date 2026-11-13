@@ -58,11 +58,12 @@ from src.reconciliation.extension.matching import (
     execute_matching,
     score_group,
     score_single,
-    sync_reconciliation_match_journal_entry_links,
+    sync_reconciliation_matches_journal_entry_links_batch,
 )
 from src.reconciliation.extension.named_transfers import NamedTransfer, post_named_transfer_legs
 from src.reconciliation.extension.review_queue import (
     accept_match,
+    accept_pending_matches,
     apply_reconciliation_feedback,
     batch_accept,
     count_pending_review_items,
@@ -136,6 +137,7 @@ __all__ = [
     "_find_transfer_candidates",
     "_within_combination_tolerance",
     "accept_match",
+    "accept_pending_matches",
     "accepted_transfer_txn_ids",
     "apply_reconciliation_feedback",
     "auto_accept",
@@ -178,6 +180,6 @@ __all__ = [
     "score_pattern",
     "submit_reviewed_disposition",
     "supersede_transaction_transfer_legs",
-    "sync_reconciliation_match_journal_entry_links",
+    "sync_reconciliation_matches_journal_entry_links_batch",
     "weighted_total",
 ]
