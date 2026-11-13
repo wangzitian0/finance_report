@@ -74,6 +74,7 @@ export function ParsingAttempts({ runs }: { runs: readonly StatementRun[] }) {
               <li key={run.id} data-testid={`parsing-attempt-${run.seq}`} className="border-t border-[var(--border)] pt-3 text-sm first:border-t-0 first:pt-0">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-medium">Attempt {run.seq}</span>
+                  <span data-testid={`parsing-attempt-kind-${run.seq}`} className="font-medium">{humanizeIdentifier(run.kind)}</span>
                   <span className="text-muted">{humanizeIdentifier(run.actor_kind)} · {humanizeIdentifier(run.trigger)}</span>
                   <span className={`font-medium ${STATE_TONE[run.state] ?? "text-muted"}`}>{humanizeIdentifier(run.state)}</span>
                   <time dateTime={run.requested_at} className="text-xs text-muted">{formatDateTimeDisplay(run.requested_at)}</time>

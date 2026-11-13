@@ -179,9 +179,7 @@ export default function StatementDetailPage() {
     queryKey: ["statement-review", statementId],
     queryFn: () => apiOperation("get_statement_for_review_statements__statement_id__review_get", { path: { statement_id: statementId } }),
     enabled: reviewReady,
-    refetchInterval: (query) => (query.state.data?.preclassification_in_progress ? PARSING_POLL_MS : false),
   });
-  const preclassificationInProgress = Boolean(review?.preclassification_in_progress);
   useEffect(() => {
     if (!review) return;
     setStatement((prev) => {
@@ -219,6 +217,8 @@ export default function StatementDetailPage() {
   });
   const runs = runsData?.items;
   const hasActiveRun = Boolean(runs?.some(isRunActive));
+  // The classify run writes the answers of the rows. The approve waits for its end (#2994).
+  const classifyActive = Boolean(runs?.some((run) => run.kind === "classify" && isRunActive(run)));
 
   const pendingStatements = pendingStatementsData?.items || [];
   const duplicateCandidates = conflicts?.duplicates || [];
@@ -229,7 +229,7 @@ export default function StatementDetailPage() {
   const requiresOtherSourceReview = isParsed && !sourceEnvelopeReviewable && sourceMissingFacts.length > 0 && !review?.reviewed_envelope;
   const hasUnclassifiedPendingTxns =
     isParsed &&
-    !preclassificationInProgress &&
+    !classifyActive &&
     !requiresEnvelopeConfirmation &&
     !requiresOtherSourceReview &&
     (statement?.transactions ?? []).some(
@@ -254,6 +254,14 @@ export default function StatementDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
     return fetchStatement({ supersede: true });
   };
+
+  // The end of a classify run changes the answers of the rows, and its auto-approve can change the status.
+  const wasClassifyingRef = useRef(false);
+  useEffect(() => {
+    if (wasClassifyingRef.current && !classifyActive) void refreshAfterReview();
+    wasClassifyingRef.current = classifyActive;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAfterReview is new in each render; the run state is the trigger
+  }, [classifyActive]);
 
   const approveMutation = useMutation({
     mutationFn: (variables: { autoFill?: boolean } | void) => apiOperation(
@@ -473,7 +481,8 @@ export default function StatementDetailPage() {
   const validationResult = review?.balance_validation_result ?? null;
   const balanceValid = Boolean(validationResult?.closing_match);
   const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
-  const approvalBlockedReason = requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
+  const approvalBlockedReason = classifyActive ? "Wait for the classification to end before approving this statement."
+    : requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
     : requiresOtherSourceReview ? "This source has facts that a cash statement check cannot confirm."
     : hasUnresolvedConflicts ? "Resolve duplicate and transfer-pair candidates before approval" : null;
   const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
@@ -510,7 +519,7 @@ export default function StatementDetailPage() {
           Loading balance verification...
         </div>
       )}
-      {isParsed && preclassificationInProgress && (
+      {isParsed && classifyActive && (
         <div role="status" aria-live="polite" className="mb-4 card p-4 flex items-center gap-3">
           <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
           <div className="text-sm text-muted">Classifying transactions…</div>
@@ -551,7 +560,7 @@ export default function StatementDetailPage() {
           <h2 className="font-semibold text-[var(--foreground)]">Transaction classifications need review</h2>
           <p className="mt-1 text-sm text-muted">These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A transfer or a card repayment is posted to the Processing account until the other side of the movement arrives. A loan payment goes to Loans Payable and a trade to Investments. A row in a foreign currency stays here for you. You can also review every row manually.</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
+            <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending || classifyActive} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
             <Link href={`${NEEDS_YOU_HREF}&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
             <Link href={`/reconciliation?tab=unmatched&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}`} className="btn-secondary inline-flex">Review transaction classifications</Link>
           </div>
