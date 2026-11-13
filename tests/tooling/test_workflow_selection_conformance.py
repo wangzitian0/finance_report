@@ -1,4 +1,5 @@
 'EPIC-008'; from __future__ import annotations; import copy; import os; import re; from html import escape; from pathlib import Path; from types import SimpleNamespace; from typing import Any; import pytest; from common.audit.base import TraceRecord, TraceResult, TraceTargetClass, VersionedTraceRef; from common.testing import matrix; from common.testing.ac_proof import PROOF_ATTR, AcProof; from common.testing.check_pr_ci_evidence import _module_for, collect_executed; from common.testing.executed_proof import record_executed_proof, register_executed_proof_consumer; ROOT = Path(__file__).resolve().parents[2]; WORKFLOWS = ROOT / '.github' / 'workflows'; _BASE_CRITICAL_PROOF_MATRIX: dict[str, Any] | None = None
+from tests.tooling.hook_text import hook_steps
 def _get_base_matrix() -> dict[str, Any]:
     global _BASE_CRITICAL_PROOF_MATRIX
     if _BASE_CRITICAL_PROOF_MATRIX is None: from common.testing.ac_graph import build_proofs_only; from common.testing.generate_critical_proof_matrix import build_matrix_from_graph; _BASE_CRITICAL_PROOF_MATRIX = build_matrix_from_graph(build_proofs_only())
@@ -10,7 +11,7 @@ def _joined_lines(text: str) -> list[str]:
         if line.endswith('\\'): buffer += line[:-1] + ' '; continue
         lines.append(buffer + line); buffer = ''
     lines.append(buffer) if buffer else None; return lines
-_RUN_LINE = re.compile('tools/test_selection\\.py .* --run$')
+_RUN_LINE = re.compile('common\\.testing\\.test_selection .* --run$')
 def _pytest_invocations() -> dict[str, list[str]]:
     from infra2_sdk.manifests import load_hooks_manifest; found: dict[str, list[str]] = {}
     for wf in sorted(WORKFLOWS.glob('*.yml')):
@@ -24,7 +25,7 @@ def _pytest_invocations() -> dict[str, list[str]]:
         manifest_data = load_hooks_manifest(hooks_manifest)
         for (slot_name, spec) in manifest_data.slots.items():
             seen_in_slot: set[str] = set()
-            for part in str(spec.run).split('&&'):
+            for part in hook_steps(spec):
                 stripped = part.strip()
                 if re.search('\\bpytest\\b', stripped) or _RUN_LINE.search(stripped):
                     key = f'{slot_name}:{stripped}'
@@ -46,7 +47,7 @@ def test_AC8_23_2_registered_invocations_match_matrix_selection() -> None:
     'AC-testing.conformance.2 AC8.23.2'; invocations = _pytest_invocations()
     for contract in matrix.WORKFLOW_PYTEST_CONTRACTS:
         line = next((line for line in invocations[contract.workflow] if contract.anchor in line))
-        if _RUN_LINE.search(line): assert contract.marker == _run_line_marker(line), f'{contract.stage}: marker drifted from the stage marker the selection tool applies: {contract.marker!r}'; assert ' -m ' not in line, f'{contract.stage}: a --run line must not pass its own -m: {line}'
+        if _RUN_LINE.search(line): assert contract.marker == _run_line_marker(line), f'{contract.stage}: marker drifted from the stage marker the selection tool applies: {contract.marker!r}'; assert not re.search(' -m (?!common\\.testing)', line), f'{contract.stage}: a --run line must not pass its own -m: {line}'
         elif contract.marker is not None: assert f'-m "{contract.marker}"' in line, f'{contract.stage}: marker drifted from matrix constant.\n  expected: -m "{contract.marker}"\n  line: {line}'
         assert _selection_tokens(line) == set(contract.paths), f'{contract.stage}: selection tokens drifted from the matrix contract.\n  expected: {sorted(contract.paths)}\n  found: {sorted(_selection_tokens(line))}\n  line: {line}'
 def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None: 'AC-testing.conformance.3 AC8.23.3'; from common.testing.staging_ai_ocr_gate_contract import gate_files; corpus = set(gate_files()); llm_rows = {row.file for row in matrix.E2E_ROWS if matrix.NEEDS_LLM_PROVIDER in row.needs}; connectivity = {'tests/e2e/test_ai_provider_connectivity.py'}; assert corpus <= llm_rows, f'corpus files missing llm rows: {corpus - llm_rows}'; assert llm_rows - corpus == connectivity, f'llm-marked matrix rows not covered by the staging corpus (and not the connectivity probe): {llm_rows - corpus - connectivity}'

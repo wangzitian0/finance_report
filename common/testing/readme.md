@@ -85,8 +85,8 @@ Hybrid UI test suites between these two tiers are prohibited.
 #### Stage Breakdown & Live 3-Statement Verification (`runtime-hooks.manifest.json`)
 
 - **Stage 1 (`local.advisory`) & Stage 2 (`github_ci.merge_authority`)**: Offline deterministic replay (`LLM_CASSETTE_MODE=replay`, zero live LLM calls) plus offline `test_pdf_corpus_oracle.py` manifest and mathematical checks.
-- **Stage 3 (`staging.release_validation` / `staging_gate` and `staging.provider_regression` / `scheduled_audit`)**: Live-token execution against `$INFRA2_HOOK_APP_URL` (with `AI_API_KEY` / `glm-5.3-flash` Vault-injected on the Staging VPS container; the CI hook runner requires no local `AI_API_KEY`). `scheduled_audit` runs `Staging AI/OCR` (`audit_replay` + `core_journey`), the **20-PDF 7-Invariant 3-Statement Oracle** (`python -m common.testing.benchmarks.pdf_corpus_oracle --app-url "$INFRA2_HOOK_APP_URL" --max-workers 1`), and the **30-Flow Financial Scenario Benchmark** (`python -m common.testing.benchmarks.run_financial_scenario_benchmark --app-url "$INFRA2_HOOK_APP_URL" --case 1,2,3,4,5,6`).
-- **Stage 4 (`prod.release_integrity` / `smoke`)**: Read-only smoke (`bash tools/smoke_test.sh "$INFRA2_HOOK_APP_URL"`).
+- **Stage 3 (`staging.release_validation` / `staging_gate` and `staging.provider_regression` / `scheduled_audit`)**: Live-token execution against `$INFRA2_HOOK_APP_URL` (with `AI_API_KEY` / `glm-5.3-flash` Vault-injected on the Staging VPS container; the CI hook runner requires no local `AI_API_KEY`). `runtime-hooks.manifest.json` lists the checks of each slot; `scheduled_audit` adds the **20-PDF 7-Invariant 3-Statement Oracle** and the **30-Flow Financial Scenario Benchmark**.
+- **Stage 4 (`prod.release_integrity` / `smoke`)**: Read-only smoke (the `smoke` slot of `runtime-hooks.manifest.json`).
 
 The root browser context records every HTTP 429 response through
 `e2e_rate_limit.py`. Its pytest report hook fails the owning journey with a
