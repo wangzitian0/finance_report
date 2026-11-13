@@ -7,11 +7,6 @@ from common.testing.benchmarks.case_types import (
     FLOW_TO_DOMAIN,
     get_case_to_flows,
 )
-from common.testing.benchmarks.case_types import (
-    FLOW_TO_CASES,
-    FLOW_TO_DOMAIN,
-    get_case_to_flows,
-)
 from decimal import Decimal
 from decimal import InvalidOperation
 from pathlib import Path
@@ -43,7 +38,6 @@ DELTA_FIXED_MIN = Decimal("1E-6")
 
 DELTA_FIXED_MAX = Decimal("1E+12")
 
-COUNT_LIMIT = DURATION_LIMIT = 10**9
 
 COUNT_LIMIT = DURATION_LIMIT = 10**9
 
