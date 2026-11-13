@@ -211,7 +211,6 @@ audit-harness.2||test_AC4_10_2_backend_reconciliation_audit_classifies_failure_m
 uuid-path-params.1||test_AC4_12_1_accept_match_malformed_uuid_returns_422
 uuid-path-params.2||test_AC4_12_2_reviewed_disposition_malformed_uuid_returns_422
 stage2-batch.3||test_AC16_35_1_batch_approve_empty_returns_typed_response|P1
-stage2-batch.4||test_AC16_35_2_batch_approve_blocked_returns_409|P1
 @$be/accounting/test_validation.py
 per-currency-balance.1||test_AC1_per_currency_reconcile_does_not_cross_sum
 per-currency-balance.2||test_AC1_per_currency_reconcile_flags_only_offending_currency
