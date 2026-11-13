@@ -6,6 +6,7 @@ class _ApprovalClient:
     def __init__(self, statement: dict[str, Any], review_status: int=200, envelope_status: int=200, needs_confirmation: bool=True, statement_statuses: list[int] | None=None) -> None: self.statement = statement; self.review_status = review_status; self.envelope_status = envelope_status; self.needs_confirmation = needs_confirmation; self.statement_statuses = list(statement_statuses or []); self.posts: list[tuple[str, dict[str, Any]]] = []; self.confirmed = False
     def get(self, url: str) -> _Resp:
         if url.endswith('/review'): return _Resp(self.review_status, {'source_result_digest': 'digest-1', 'account_id': 'acc-1'}, 'review text')
+        if url.endswith('/runs'): return _Resp(200, {'items': []}, 'runs text')
         status = self.statement_statuses.pop(0) if self.statement_statuses else 200; return _Resp(status, self.statement, 'statement text')
     def post(self, url: str, json: dict[str, Any]) -> _Resp:
         self.posts.append((url, json))

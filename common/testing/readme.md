@@ -125,11 +125,13 @@ states the facts and means that the samples show no instability. It makes no
 claim about the next minute. Example:
 `e2e path quality: 6 new connections, 0 failed, edge location SIN`.
 
-`approve_statement_with_fixture_review` first polls `GET /statements/{id}/review`
-once per second until `preclassification_in_progress` is false, for at most 240 s,
-and only then posts an approval (`AC-testing.e2e-classification-wait.1`, `#2950`).
-Without the wait, the server holds the approval request until the classification
-pass ends (up to 200 s), and the 120 s client timeout of the journeys ends it first.
+`approve_statement_with_fixture_review` first polls `GET /statements/{id}/runs`
+once per second until no run is `requested` or `running`, for at most 240 s,
+and only then posts an approval (`AC-testing.e2e-runs-wait.1`, `#2994`).
+Without the wait, the approval answers 409 with `active_run_id` while the classify
+run of the statement is active (up to 180 s). The scripts with a synchronous client
+(`ScenarioBenchmarkRunner.approve_statement` and the PDF corpus oracle) call
+`wait_for_statement_runs_sync`, the blocking twin of the same helper.
 
 The Ping An journey matches each extracted row to the fixture event with the same
 balance after (not the date). It counts the rows whose description differs, prints

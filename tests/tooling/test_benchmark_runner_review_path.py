@@ -28,3 +28,11 @@ def test_AC_testing_benchmarks_9_approve_posts_for_parsed_statement() -> None:
         if request.method == 'GET': return httpx.Response(200, json={'id': 's1', 'status': 'parsed'})
         return httpx.Response(200, json={'id': 's1', 'status': 'approved'})
     result = _runner().approve_statement(_client(handler), 's1'); assert result['status'] == 'approved'; assert ('POST', '/api/statements/s1/review/approve') in calls
+def test_AC_testing_e2e_runs_wait_1_the_benchmark_runner_posts_the_approval_only_after_the_runs_end(monkeypatch: pytest.MonkeyPatch) -> None:
+    'AC-testing.e2e-runs-wait.1'; from common.testing import provider_review; monkeypatch.setattr(provider_review, 'blocking_sleep', lambda _seconds: None); states = ['running', 'succeeded']; calls: list[tuple[str, str]] = []
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        if request.url.path == '/api/statements/s1/runs': return httpx.Response(200, json={'items': [{'state': states.pop(0)}], 'total': 1})
+        if request.method == 'GET': return httpx.Response(200, json={'id': 's1', 'status': 'parsed'})
+        return httpx.Response(200, json={'id': 's1', 'status': 'approved'})
+    _runner().approve_statement(_client(handler), 's1'); assert calls == [('GET', '/api/statements/s1'), ('GET', '/api/statements/s1/runs'), ('GET', '/api/statements/s1/runs'), ('POST', '/api/statements/s1/review/approve')]

@@ -16,6 +16,8 @@ from typing import Any
 import httpx
 import yaml
 
+from common.testing.provider_review import wait_for_statement_runs_sync
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MANIFEST_PATH = (
     REPO_ROOT / "common" / "testing" / "fixtures" / "benchmarks" / "manifest.yaml"
@@ -803,14 +805,15 @@ def run_live_pdf_statement_verification(
         r = client.get(f"/api/statements/{stmt_id}/review")
         if r.status_code == 200:
             d = r.json()
-            if d.get("status") in ("parsed", "approved", "rejected") and not d.get(
-                "preclassification_in_progress"
-            ):
+            if d.get("status") in ("parsed", "approved", "rejected"):
                 rev = d
                 break
         time.sleep(int(poll_interval_seconds))
     if rev is None:
         raise TimeoutError(f"Timed out waiting for {spec.fixture_id} ({stmt_id})")
+    # The classify run follows the extract run: wait for it, then read the review that holds its answers.
+    wait_for_statement_runs_sync(client, f"/api/statements/{stmt_id}/runs")
+    rev = client.get(f"/api/statements/{stmt_id}/review").json()
 
     if rev.get("status") == "parsed":
         acc_id = rev.get("account_id")

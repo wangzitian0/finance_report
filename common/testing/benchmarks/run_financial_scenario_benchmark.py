@@ -41,6 +41,7 @@ from common.testing.benchmarks.cases import (  # noqa: E402
     execute_case_6,
 )
 from common.testing.benchmarks.oracles import verify_browser_ui_hygiene  # noqa: E402
+from common.testing.provider_review import wait_for_statement_runs_sync  # noqa: E402
 
 
 def _check_resp(resp: Any, label: str, expected: tuple[int, ...] = (200,)) -> Any:
@@ -348,6 +349,8 @@ class ScenarioBenchmarkRunner:
         current = client.get(f"/api/statements/{statement_id}")
         if current.status_code == 200 and current.json().get("status") == "approved":
             return current.json()
+        # The approval answers 409 while the classify run of the statement is active (#2994).
+        wait_for_statement_runs_sync(client, f"/api/statements/{statement_id}/runs")
         url = f"/api/statements/{statement_id}/review/approve"
         resp = client.post(url, json={"create_account_if_missing": True})
         if (
