@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.extraction import Stage1Status
 from src.reconciliation import CheckStatus, CheckType
 from src.schemas.base import default_list
-from src.schemas.extraction import BankStatementResponse
+from src.schemas.extraction import BankStatementResponse, BankStatementStatusEnum
 
 Stage1StatusEnum = Stage1Status
 
@@ -92,7 +92,13 @@ class BankStatementWithStage1Response(BankStatementResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
-class Stage1ApprovalResponse(BankStatementResponse):
+class Stage1ApprovalResponse(BaseModel):
+    """What the approval changed. The page refetches the statement, so this holds no transaction rows."""
+
+    id: UUID
+    account_id: UUID | None
+    status: BankStatementStatusEnum
+    validation_error: str | None
     journal_entries_created: int = 0
 
 

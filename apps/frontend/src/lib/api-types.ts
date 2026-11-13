@@ -1839,26 +1839,9 @@ export interface components {
     };
     Stage1ApprovalResponse: {
       account_id: string | null;
-      account_last4: string | null;
-      balance_validated: boolean | null;
-      brokerage_import_failed: boolean;
-      brokerage_import_failure_reason?: string | null;
-      closing_balance: string | null;
-      confidence_score: number | null;
-      created_at: string;
-      currency: string | null;
-      file_path: string;
       id: string;
-      institution: string;
       journal_entries_created: number;
-      opening_balance: string | null;
-      original_filename: string;
-      period_end: string | null;
-      period_start: string | null;
       status: _S["BankStatementStatus"];
-      transactions?: _S["AtomicTransactionResponse"][];
-      updated_at: string;
-      user_id: string;
       validation_error: string | null;
     };
     Stage1Status: "pending_review" | "approved" | "rejected" | "edited";
