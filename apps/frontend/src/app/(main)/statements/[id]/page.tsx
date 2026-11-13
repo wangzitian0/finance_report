@@ -208,9 +208,9 @@ export default function StatementDetailPage() {
     enabled: isParsed,
   });
 
-  // While the statement parses, the page polls the statement itself. The attempts load when the parse ends,
-  // and they refresh while a run is still requested or running.
-  const runsEnabled = Boolean(statement) && statement?.status !== "parsing";
+  // The attempts load as soon as the statement has loaded, also while it parses: a statement that stays in
+  // parsing shows the attempt that explains it. They refresh while a run is requested or running.
+  const runsEnabled = Boolean(statement);
   const { data: runsData } = useQuery({
     queryKey: ["statement-runs", statementId],
     queryFn: () => apiOperation("list_statement_runs_statements__statement_id__runs_get", { path: { statement_id: statementId } }),
@@ -381,7 +381,13 @@ export default function StatementDetailPage() {
     },
     onError: (err) => {
       const conflict = err instanceof ApiError && err.status === 409;
-      const message = conflict ? "A parse is already running for this statement. Wait for it to end, then run again." : err instanceof Error ? err.message : "Failed to start the run";
+      // A 422 body echoes the hints that the user typed. The page shows one fixed sentence, never that body.
+      const invalid = err instanceof ApiError && err.status === 422;
+      const message = conflict
+        ? "A parse is already running for this statement. Wait for it to end, then run again."
+        : invalid
+          ? "The hints are not valid. Check the keywords and the note."
+          : err instanceof Error ? err.message : "Failed to start the run";
       setRunAgainError(message);
       showToast(message, "error");
       if (conflict) void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });

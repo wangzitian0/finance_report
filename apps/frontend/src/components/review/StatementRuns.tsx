@@ -17,10 +17,28 @@ export function parseKeywords(text: string): string[] {
   return text.split(/[,\n]/).map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0);
 }
 
+const INVALID_CHARACTERS_MESSAGE = "Keywords and the note cannot contain control characters or line or paragraph separators.";
+
+/** The backend rule: no control character (Cc) except those in `allowed`, and no U+2028 or U+2029. */
+function hasForbiddenCharacter(text: string, allowed = ""): boolean {
+  for (const character of text) {
+    const code = character.codePointAt(0) ?? 0;
+    const control = code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+    if ((control && !allowed.includes(character)) || code === 0x2028 || code === 0x2029) return true;
+  }
+  return false;
+}
+
 export function keywordProblem(keywords: string[]): string | null {
   if (keywords.length > HINT_MAX_KEYWORDS) return `Use at most ${HINT_MAX_KEYWORDS} keywords.`;
   if (keywords.some((keyword) => keyword.length > HINT_KEYWORD_MAX_LENGTH)) return `Each keyword has at most ${HINT_KEYWORD_MAX_LENGTH} characters.`;
+  if (keywords.some((keyword) => hasForbiddenCharacter(keyword))) return INVALID_CHARACTERS_MESSAGE;
   return null;
+}
+
+/** A note may hold a new line and a tab, and no other control character. */
+export function noteProblem(note: string): string | null {
+  return hasForbiddenCharacter(note, "\n\t") ? INVALID_CHARACTERS_MESSAGE : null;
 }
 
 const STATE_TONE: Record<string, string> = {
@@ -79,7 +97,7 @@ export function RunAgainPanel({ activeRun, pending, errorMessage, onRun }: {
   const [keywordText, setKeywordText] = useState("");
   const [note, setNote] = useState("");
   const keywords = parseKeywords(keywordText);
-  const problem = keywordProblem(keywords);
+  const problem = keywordProblem(keywords) ?? noteProblem(note);
   const disabled = activeRun || pending || problem !== null;
 
   const submit = async (event: FormEvent) => {
