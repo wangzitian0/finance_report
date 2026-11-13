@@ -108,7 +108,14 @@ def _use_case(db, service=None, sleeps: Sleeps | None = None, **overrides):
 
 
 async def _statement_with_run(
-    db, user, *, content: bytes = CSV, name: str = "wiring.csv", hints: RunHints | None = None, model: str | None = None
+    db,
+    user,
+    *,
+    content: bytes = CSV,
+    name: str = "wiring.csv",
+    hints: RunHints | None = None,
+    model: str | None = None,
+    job_model: str | None = None,
 ) -> tuple[UUID, ParseJob]:
     file_hash = hashlib.sha256(content).hexdigest()
     statement = StatementSummaryFactory.build(
@@ -143,7 +150,7 @@ async def _statement_with_run(
         account_id=None,
         file_hash=file_hash,
         storage_key=f"statements/{name}",
-        model=model,
+        model=job_model or model,
         request_id=f"req-{name}",
     )
     return statement.id, job

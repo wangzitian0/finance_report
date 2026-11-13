@@ -19,6 +19,7 @@ hints verbatim.
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, fields
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -49,7 +50,11 @@ from src.extraction.base.run_vocabulary import (
     RunTrigger,
 )
 from src.extraction.base.types import RunHints
-from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION, parsing_prompt_digest
+from src.extraction.extension.prompts.statement import (
+    PARSING_PROMPT_TEMPLATE_VERSION,
+    hints_apply_to_file_type,
+    parsing_prompt_digest,
+)
 from src.extraction.orm.statement_run import StatementRun
 from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import get_logger
@@ -86,6 +91,14 @@ class ActiveRunExists(RuntimeError):
     def __init__(self, active_run_id: UUID) -> None:
         super().__init__(f"The statement has an active run: {active_run_id}")
         self.active_run_id = active_run_id
+
+
+class HintsNotApplicable(RuntimeError):
+    """The hints cannot reach a model: a CSV parse sends no prompt."""
+
+
+class StatementStatusChanged(RuntimeError):
+    """The status of the statement is not one that the caller allows. Another transaction changed it."""
 
 
 class StaleRun(RuntimeError):
@@ -220,14 +233,19 @@ async def lock_statement_for_run(
 ) -> StatementSummary | None:
     """Lock the statement row of the user and return it when its status is in `allowed`, else None.
 
-    The lock comes before the run insert, the order that approve, reject, the reaper and the finalize use.
-    A caller that sets the status after the run therefore never overwrites a status that another
-    transaction committed in between. The lock lasts until the caller commits or rolls back.
+    The lock comes before the run insert. A caller that sets the status after the run therefore never
+    overwrites a status that another transaction committed in between. The lock lasts until the caller
+    commits or rolls back.
+
+    The lock is FOR NO KEY UPDATE (`key_share=True`), never FOR UPDATE. The foreign key check of a run insert
+    takes FOR KEY SHARE on the statement row. FOR UPDATE would block that check: the route would wait for the
+    worker run in the unique index while the worker waited for the statement row, and Postgres would abort
+    the worker. Rule: no FOR UPDATE on the statement row before a run insert.
     """
     statement = await db.scalar(
         select(StatementSummary)
         .where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
-        .with_for_update()
+        .with_for_update(key_share=True)
         .execution_options(populate_existing=True)
     )
     return statement if statement is not None and statement.status in allowed else None
@@ -358,6 +376,69 @@ async def create_run(
     raise last_error
 
 
+@dataclass(frozen=True, slots=True)
+class StartedRun:
+    """The result of `start_user_extract_run`: the new run, the locked statement and the source bytes."""
+
+    run_id: UUID
+    statement: StatementSummary
+    content: bytes
+
+
+async def start_user_extract_run(
+    db: AsyncSession,
+    *,
+    statement_id: UUID,
+    user_id: UUID,
+    file_type: str,
+    hints: RunHints,
+    model: str | None,
+    allowed_statuses: frozenset[BankStatementStatus],
+    strict_hints: bool,
+    load_content: Callable[[], Awaitable[bytes]],
+    while_pending: Callable[[], Awaitable[StatementSummary]] | None = None,
+) -> StartedRun:
+    """Start a user run that extracts the statement again. The one entry of POST runs and of the reject.
+
+    The order is fixed and every step before the run insert writes nothing:
+    1. The CSV rule. A CSV parse sends no prompt, so hints on a CSV statement raise `HintsNotApplicable`
+       with `strict_hints`, and are dropped (empty hints) without it. This comes before any storage read.
+    2. `load_content` reads the source bytes. Its failure leaves the database untouched.
+    3. The statement row is locked with FOR NO KEY UPDATE and its status checked against `allowed_statuses`.
+       A status that changed after the caller's read raises `StatementStatusChanged`.
+    4. The run is inserted with the latest run as its parent. An active run raises `ActiveRunExists`.
+    5. `while_pending` runs (the reject workflow), then the status is set to PARSING and the error cleared.
+
+    The statement row comes first and the run insert second, the order of the whole change. The function does
+    not commit: the caller commits, then dispatches the job.
+    """
+    effective = hints
+    if not hints.is_empty and not hints_apply_to_file_type(file_type):
+        if strict_hints:
+            raise HintsNotApplicable("Hints apply to PDF and image statements only. A CSV statement sends no prompt.")
+        effective = RunHints()
+    content = await load_content()
+    locked = await lock_statement_for_run(db, statement_id, user_id, allowed=allowed_statuses)
+    if locked is None:
+        raise StatementStatusChanged("The statement changed while the run started.")
+    previous_run = await get_latest_run(db, statement_id)
+    run = await create_run(
+        db,
+        statement_id=statement_id,
+        user_id=user_id,
+        kind=RunKind.EXTRACT,
+        actor_kind=RunActorKind.USER,
+        trigger=RunTrigger.RERUN,
+        hints=effective,
+        model=model,
+        parent_run_id=previous_run.id if previous_run is not None else None,
+    )
+    statement = await while_pending() if while_pending is not None else locked
+    statement.status = BankStatementStatus.PARSING
+    statement.validation_error = None
+    return StartedRun(run_id=run.id, statement=statement, content=content)
+
+
 async def claim_run(db: AsyncSession, run_id: UUID) -> StatementRun:
     """Move a requested run to running. Of two concurrent callers, one wins and one gets `StaleRun`."""
     now = _now()
@@ -461,8 +542,11 @@ async def reap_stale_runs(
 
 __all__ = [
     "ActiveRunExists",
+    "HintsNotApplicable",
     "StaleRun",
+    "StartedRun",
     "StatementRunRecord",
+    "StatementStatusChanged",
     "claim_run",
     "create_run",
     "fail_run",
@@ -473,4 +557,5 @@ __all__ = [
     "list_runs",
     "lock_statement_for_run",
     "reap_stale_runs",
+    "start_user_extract_run",
 ]

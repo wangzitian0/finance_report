@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import traceback
 from dataclasses import replace
 from uuid import uuid4
 
@@ -39,6 +40,7 @@ from src.extraction.extension.prompts.statement import (
     parsing_prompt_digest,
     parsing_template_fingerprint,
 )
+from src.extraction.extension import statement_parsing
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.statement_run import StatementRun
 from src.runtime import StorageError
@@ -380,7 +382,10 @@ async def test_AC_extraction_2994_49_the_worker_passes_the_hints_of_the_claimed_
 async def test_AC_extraction_2994_65_an_auto_retry_successor_keeps_the_hints_and_the_model(db, test_user):
     """AC-extraction.2994.65: A retry after a retryable failure runs with the hints and model of the failed run."""
     hints = RunHints(keywords=["salary", "bonus"], note="Check the payroll rows.")
-    statement_id, job = await _statement_with_run(db, test_user, hints=hints, model="vendor/vision-x")
+    # The job names another model than the failed run: only a copy from the failed run gives the run model.
+    statement_id, job = await _statement_with_run(
+        db, test_user, hints=hints, model="vendor/vision-x", job_model="vendor/job-model"
+    )
     service = _RecordingService()
     loader = ScriptedLoader([StorageError("storage down 1"), StorageError("storage down 2"), None])
 
@@ -462,3 +467,40 @@ def test_AC_extraction_2994_71_a_keyword_is_stripped_before_its_length_is_checke
         RunHints(keywords=["k" * 65])
     with pytest.raises(ValidationError):
         RunHints(keywords=["   "])
+
+
+async def test_AC_extraction_2994_68_an_error_in_the_failure_handling_does_not_chain_the_hint_text(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2994.68: The rendered traceback of an error in the failure handling holds no hint text."""
+    statement_id, job = await _statement_with_run(db, test_user)
+    secret = "SECRET-NOTE-TEXT"
+    await db.execute(
+        StatementRun.__table__.update()
+        .where(StatementRun.id == job.run_id)
+        .values(hints={"keywords": ["ok"], "note": f"{secret}\x07"})
+    )
+    await db.commit()
+    rendered: list[str] = []
+    real_logger = statement_parsing.logger
+
+    class RenderingLogger:
+        """Render the active exception with its chain, as a log handler does. capture_logs does not render it."""
+
+        def __getattr__(self, name):
+            return getattr(real_logger, name)
+
+        def exception(self, *args, **kwargs):
+            rendered.append(traceback.format_exc())
+            return real_logger.exception(*args, **kwargs)
+
+    async def broken_fail_run(*_args, **_kwargs):
+        raise RuntimeError("the failure report broke")
+
+    monkeypatch.setattr(statement_parsing, "logger", RenderingLogger())
+    monkeypatch.setattr(statement_parsing, "fail_run", broken_fail_run)
+
+    await _use_case(db, ForbiddenService(), sleeps=Sleeps()).execute(job)
+
+    assert rendered, "the failure handling must log the error with its traceback"
+    assert secret not in "".join(rendered), "the chained traceback must not hold the text of a hint"

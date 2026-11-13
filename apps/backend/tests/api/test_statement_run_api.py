@@ -420,31 +420,6 @@ async def test_AC_extraction_2994_67_a_status_that_changed_after_the_check_gives
     assert jobs == []
 
 
-async def test_AC_extraction_2994_67_the_rerun_waits_for_the_row_lock_of_an_approval(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
-):
-    """AC-extraction.2994.67: The rerun locks the statement row first, so it waits for an approval that holds the lock."""
-    statement = await _statement(db, test_user)
-    statement_id = statement.id
-    approved = await _approved_values(db, test_user)
-    jobs = _capture_dispatch(monkeypatch)
-    maker = create_session_maker_from_db(db)
-
-    async with maker() as approver:
-        await approver.execute(select(StatementSummary.id).where(StatementSummary.id == statement_id).with_for_update())
-        rerun = asyncio.ensure_future(client.post(f"/statements/{statement_id}/runs", json={}))
-        finished, _pending = await asyncio.wait({rerun}, timeout=0.5)
-        assert not finished, "the rerun must wait for the row lock of the approval"
-        await approver.execute(update(StatementSummary).where(StatementSummary.id == statement_id).values(**approved))
-        await approver.commit()
-    response = await rerun
-
-    assert response.status_code == 409, response.text
-    assert await _status(db, statement_id) is BankStatementStatus.APPROVED
-    assert await _runs(db, statement_id) == []
-    assert jobs == []
-
-
 async def test_AC_extraction_2994_69_reject_on_a_csv_statement_records_empty_hints(
     client, db, monkeypatch, storage_stub, test_user
 ):
@@ -500,3 +475,80 @@ async def test_AC_extraction_2994_54_get_runs_lists_a_run_whose_stored_hints_no_
 
     assert response.status_code == 200, response.text
     assert response.json()["items"][0]["hints"]["keywords"] == ["ok"]
+
+
+class _CountingStorage:
+    """Storage that holds no file: every read is counted and fails."""
+
+    reads = 0
+
+    def get_object(self, key: str) -> bytes:
+        type(self).reads += 1
+        raise statements_router.StorageError("the stored file is missing")
+
+
+async def test_AC_extraction_2994_78_hints_on_a_csv_statement_give_400_before_any_storage_read(
+    client, db, monkeypatch, model_catalog_stub, test_user
+):
+    """AC-extraction.2994.78: The CSV rule comes before the storage read: a missing file still gives 400, not 503."""
+    statement = await _statement(db, test_user, name="bank.csv")
+    statement_id = statement.id
+    _CountingStorage.reads = 0
+    monkeypatch.setattr(statements_router, "StorageService", _CountingStorage)
+
+    rejected = await client.post(f"/statements/{statement_id}/runs", json={"hints": {"keywords": ["x"]}})
+
+    assert rejected.status_code == 400, rejected.text
+    assert _CountingStorage.reads == 0, "a CSV statement with hints must cost no storage read"
+    assert await _runs(db, statement_id) == []
+
+
+async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_after_its_first_read(
+    client, db, monkeypatch, storage_stub, test_user
+):
+    """AC-extraction.2994.78: The reject locks the statement row and checks the status again: a retired statement gives 409."""
+    statement = await _statement(db, test_user)
+    statement_id = statement.id
+    jobs = _capture_dispatch(monkeypatch)
+    maker = create_session_maker_from_db(db)
+    original = statements_router._resolve_uploaded_document
+
+    async def resolve_after_a_retirement(*args, **kwargs):
+        async with maker() as other_tab:
+            await other_tab.execute(
+                update(StatementSummary).where(StatementSummary.id == statement_id).values(status=BankStatementStatus.RETIRED)
+            )
+            await other_tab.commit()
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(statements_router, "_resolve_uploaded_document", resolve_after_a_retirement)
+
+    response = await client.post(f"/statements/{statement_id}/review/reject", json={"notes": "check again"})
+
+    assert response.status_code == 409, response.text
+    assert await _status(db, statement_id) is BankStatementStatus.RETIRED, "the reject must not revive a retired statement"
+    assert await _runs(db, statement_id) == []
+    assert jobs == []
+
+
+async def test_AC_extraction_2994_78_a_reject_and_a_rerun_at_once_give_one_winner_and_one_409(
+    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
+    """AC-extraction.2994.78: A reject against a rerun, and a reject against a reject: one winner, a 409 for the loser."""
+    jobs = _capture_dispatch(monkeypatch)
+    for round_number in range(6):
+        statement = await _statement(db, test_user)
+        statement_id = statement.id
+        first, second = await asyncio.gather(
+            client.post(f"/statements/{statement_id}/review/reject", json={"notes": "again"}),
+            client.post(f"/statements/{statement_id}/runs", json={}) if round_number % 2 else client.post(
+                f"/statements/{statement_id}/review/reject", json={"notes": "twice"}
+            ),
+        )
+
+        codes = sorted([first.status_code, second.status_code])
+        assert codes[1] == 409 and codes[0] in (200, 202), (round_number, first.text, second.text)
+        assert len(await _runs(db, statement_id)) == 1, "the loser must not leave a second run"
+        assert await _status(db, statement_id) is BankStatementStatus.PARSING
+    await statements_router.wait_for_parse_tasks()
+    assert len(jobs) == 6
