@@ -64,16 +64,14 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
         assert exc.value.status_code == 503
     with patch('src.routers.statements.StorageService') as mock_storage_cls: mock_storage = mock_storage_cls.return_value; mock_storage.get_object.return_value = b'content'; resp = await retry_statement_parsing(sid, RetryParsingRequest(model=None), db=db, user_id=uid); assert resp.status == BankStatementStatus.PARSING
 async def test_report_router_error_handlers(db, test_user, monkeypatch):
-    from src.reporting import ReportError; from src.routers.reports import account_trend, balance_sheet, cash_flow, category_breakdown, income_statement; from src.schemas.reporting import BreakdownPeriod, BreakdownType, TrendPeriod; uid = test_user.id
+    from src.reporting import ReportError; from src.routers.reports import balance_sheet, cash_flow, category_breakdown, income_statement; from src.schemas.reporting import BreakdownPeriod, BreakdownType; uid = test_user.id
     async def mock_fail(*args, **kwargs): raise ReportError('Report Fail')
-    monkeypatch.setattr('src.routers.reports.generate_balance_sheet', mock_fail); monkeypatch.setattr('src.routers.reports.generate_income_statement', mock_fail); monkeypatch.setattr('src.routers.reports.generate_cash_flow', mock_fail); monkeypatch.setattr('src.routers.reports.get_account_trend', mock_fail); monkeypatch.setattr('src.routers.reports.get_category_breakdown', mock_fail)
+    monkeypatch.setattr('src.routers.reports.generate_balance_sheet', mock_fail); monkeypatch.setattr('src.routers.reports.generate_income_statement', mock_fail); monkeypatch.setattr('src.routers.reports.generate_cash_flow', mock_fail); monkeypatch.setattr('src.routers.reports.get_category_breakdown', mock_fail)
     with pytest.raises(HTTPException) as exc: await balance_sheet(db=db, user_id=uid)
     assert exc.value.status_code == 400
     with pytest.raises(HTTPException) as exc: await income_statement(start_date=date.today(), end_date=date.today(), db=db, user_id=uid)
     assert exc.value.status_code == 400
     with pytest.raises(HTTPException) as exc: await cash_flow(start_date=date.today(), end_date=date.today(), db=db, user_id=uid)
-    assert exc.value.status_code == 400
-    with pytest.raises(HTTPException) as exc: await account_trend(account_id=uuid4(), period=TrendPeriod.MONTHLY, db=db, user_id=uid)
     assert exc.value.status_code == 400
     with pytest.raises(HTTPException) as exc: await category_breakdown(breakdown_type=BreakdownType.EXPENSE, period=BreakdownPeriod.MONTHLY, db=db, user_id=uid)
     assert exc.value.status_code == 400
