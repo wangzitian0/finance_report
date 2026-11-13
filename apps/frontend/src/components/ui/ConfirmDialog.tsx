@@ -7,6 +7,8 @@ interface ConfirmDialogInput {
     label?: string;
     placeholder?: string;
     required?: boolean;
+    /** Longest text the field accepts. Omitted means no limit. */
+    maxLength?: number;
 }
 
 interface ConfirmDialogProps {
@@ -126,6 +128,7 @@ export default function ConfirmDialog({
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 placeholder={input.placeholder}
+                                maxLength={input.maxLength}
                                 rows={3}
                                 className="input resize-none w-full"
                                 autoFocus
