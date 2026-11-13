@@ -100,7 +100,7 @@ RetryableStatementIngestionError ReviewedStatementEnvelopeCommand
 ReviewedStatementEnvelopeConflict RuleType RunActorKind RunHints RunKind
 RunState RunTrigger SOURCE_CAPABILITIES SYSTEM_PROMPT SourceCapability
 SourceCapabilityStatus SourceProvenance Stage1Status StaleRun
-StartedRun StatementBalanceFact StatementClassificationBusy
+StartedRun StatementBalanceFact
 StatementDispositionPolicySnapshot StatementEventSource
 StatementEvidenceType StatementExtractionResult
 StatementIngestionConfigurationError StatementIngestionError
@@ -116,7 +116,7 @@ auto_create_posted_entries_for_statement backfill_classifications
 balance_sheet_booking brokerage_import_failure_reason
 build_csv_mapping_prompt build_disposition_trace_records
 build_statement_ingestion_use_case claim_run classification_suggestions
-classify_by_effective_policy classify_statement_by_effective_policy
+classify_by_effective_policy
 clear_brokerage_import_failure compute_confidence_score
 confirm_reviewed_statement_envelope coverage_bank_custody_account_ids
 create_entry_from_txn create_run current_reviewed_statement_envelope
@@ -130,8 +130,8 @@ get_current_statement_extraction_result get_known_storage_paths
 get_latest_run get_or_create_account get_parsing_prompt
 get_statement_coverage_rows get_statement_event_sources
 get_uploaded_document_filenames heartbeat_run hints_apply_to_file_type is_bank_custody_source
-is_statement_classification_running list_runs list_statement_contributions
-lock_statement_classification lock_statement_for_run looks_like_brokerage_document
+list_runs list_statement_contributions
+lock_statement_for_run looks_like_brokerage_document
 looks_like_brokerage_payload parse_brokerage_csv_payload
 parse_brokerage_positions pending_stage1_review_filter
 persist_statement_extraction_result reap_stale_runs reconciliation_enabled
@@ -297,8 +297,7 @@ statement-memo.1||test_AC_extraction_statement_memo_1_approval_posts_a_row_with_
 reviewed-envelope.4||test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition|:invariant
 disposition.5||test_AC_extraction_disposition_5_stage1_requires_economic_review|:invariant
 disposition.6||test_AC_extraction_disposition_6_auto_post_requires_authoritative_trace_decision|:invariant
-2822.2||test_AC_extraction_2822_2_approve_binds_explicit_account_id_and_review_reports_preclassification_in_progress|P1
-2950.1||test_AC_extraction_2950_1_review_reports_classification_held_by_another_session|P1
+2822.2||test_AC_extraction_2822_2_approve_binds_explicit_account_id|P1
 2826.1||test_AC_extraction_2826_1_review_response_inherits_bank_statement_response|P1
 @$e2e/test_accounts_and_statements_ui_journey.py
 5.1|Full Upload Flow.|test_statement_detail_and_review_surface
@@ -593,11 +592,11 @@ statement-list.2||test_AC_extraction_statement_list_2_list_has_no_transactions_o
 statement-list.3||test_AC_extraction_statement_list_3_document_lookup_keeps_user_isolation_and_hash_fallback
 @$be/extraction/test_statement_classify_after_parse.py|P1
 statement-classify.1||test_AC_extraction_statement_classify_1_parse_classifies_and_approve_makes_zero_model_calls
-statement-classify.2||test_AC_extraction_statement_classify_2_a_failed_phase_leaves_the_rows_to_the_approve
-statement-classify.3||test_AC_extraction_statement_classify_3_approve_waits_for_a_running_phase_and_asks_no_second_time
+statement-classify.2||test_AC_extraction_statement_classify_2_a_failed_run_leaves_the_rows_to_the_economic_review
+statement-classify.3||test_AC_extraction_statement_classify_3_a_second_run_asks_no_row_that_has_an_answer
 statement-classify.4||test_AC_extraction_statement_classify_4_each_row_gets_the_policy_of_its_own_date
 statement-classify.5||test_AC_extraction_statement_classify_5_state_after_parse_classify_approve_equals_main
-2813.3||test_AC_extraction_2813_3_propose_batch_pins_deterministic_decode_and_recovers_auto_post
+2813.3||test_AC_extraction_2813_3_propose_batch_pins_deterministic_decode
 @$be/extraction/test_statement_approve_budget.py|P1
 statement-approve.2||test_AC_extraction_statement_approve_2_sql_count_of_80_rows_is_bounded
 statement-approve.3||test_AC_extraction_statement_approve_3_extra_rows_cost_a_bounded_number_of_statements
@@ -907,8 +906,8 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 @$be/extraction/test_envelope_and_active_run.py|P1
 2994.86|The envelope confirmation refuses a statement with an active run or the status PARSING, in the first confirmation and in the replay of the same command, and writes nothing.|test_AC_extraction_2994_86_a_stale_tab_cannot_confirm_an_envelope_while_a_rerun_parses
 @$be/api/test_statement_approve_race.py|P1
-2994.87|Approve refuses a statement with an active run, also when its status says PARSED. The auto-approve of the worker (after finish_run) and the recovery approve still post, and the worker finishes its run before its auto-approve.|test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run
-2994.83|An approve that read the statement before a rerun committed sees PARSING under its lock: it posts nothing and the statement stays PARSING. A normal approve of a PARSED statement still posts.|test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_nothing
+2994.87|Approve refuses a statement with an active run, also when its status says PARSED, with ActiveRunExists (409 with active_run_id). The auto-approve of a candidate still posts after its run finished.|test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run
+2994.83|An approve that read the statement before a rerun committed sees the active run under its lock: it answers 409 with the run id, posts nothing and the statement stays PARSING. A normal approve of a PARSED statement still posts.|test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_nothing
 2994.84|A parse failure writes the final status only while the statement is PARSING: an approved statement and its entries stay untouched.|test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statement_and_its_entries
 @$be/api/test_statement_run_api.py|P1
 2994.50|POST runs writes a user rerun run with the typed hints, the model and the digest, and dispatches it.|test_AC_extraction_2994_50_post_runs_starts_a_rerun_with_the_hints_as_typed
@@ -937,6 +936,29 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.82|A 422 of the reject shows one fixed sentence and never the response body.|AC-extraction.2994.82 shows one fixed sentence for a 422 of the reject and never the raw body
 2994.73|A 422 shows one fixed sentence and never the response body.|AC-extraction.2994.73 shows one fixed sentence for a 422 and never the raw body
 2994.74|The attempts list loads while the statement is parsing, and Run again is disabled for a stuck parsing statement with an active run.|AC-extraction.2994.74 lists the attempts while the statement is parsing, with the failed attempt that explains it
+@$be/api/test_statement_approve_without_model.py|P1
+2994.100|With the model off and no stored answer the approve gives the economic review 409 and posts nothing. A keyword-rule row posts after a classify run applied the rule, with no model call.|test_AC_extraction_2994_100_approve_of_rows_without_an_answer_goes_to_economic_review
+@$be/extraction/test_statement_classify_run.py|P1
+2994.88|A successful extract run creates a classify run in its final transaction (kind classify, system, auto_classify, parent the extract run), and the same task executes it. A failed classify insert leaves no succeeded extract run.|test_AC_extraction_2994_88_a_successful_extract_run_creates_the_classify_run_in_its_transaction
+2994.89|A failed extract run creates no classify run.|test_AC_extraction_2994_89_a_failed_extract_run_creates_no_classify_run
+2994.90|A classify run ends succeeded with the counts of the outcomes and no row text, and writes the three trace records of its transitions.|test_AC_extraction_2994_90_a_classify_run_ends_with_counts_and_no_row_text
+2994.91|A classify run that passes its deadline fails with classification_timeout, writes no answer and leaves the statement PARSED.|test_AC_extraction_2994_91_a_classify_run_that_passes_its_deadline_fails_with_a_timeout_code
+2994.92|Any other error fails the run with classification_failed and a message that holds no row text. A driver timeout is a failure, not the deadline.|test_AC_extraction_2994_92_any_other_error_fails_the_run_with_a_code_and_no_row_text
+2994.93|The model off gives a succeeded run with the outcome skipped_disabled. A refused row gives partial. A statement without rows gives nothing_to_classify.|test_AC_extraction_2994_93_a_classify_run_with_the_model_off_succeeds_with_a_skipped_summary
+2994.94|A run that finds a statement outside PARSED asks no model and ends succeeded with the outcome skipped_state.|test_AC_extraction_2994_94_a_statement_that_left_parsed_is_skipped_and_the_run_still_ends
+2994.95|The reaper fails a classify run that no worker claimed with claim_timeout, and a finish after the reaper failed the run writes no answer.|test_AC_extraction_2994_95_the_reaper_fails_a_classify_run_that_no_worker_claimed
+2994.96|The heartbeat of a classify run moves heartbeat_at on the run row only, and a heartbeat that finds the run failed cancels the model call.|test_AC_extraction_2994_96_a_live_classify_run_beats_its_heartbeat_on_the_run_row
+2994.97|The classify run applies the stored keyword rules: the rule row has its answer without a model call, and the approve then posts all rows.|test_AC_extraction_2994_97_the_classify_run_answers_a_keyword_rule_row_without_the_model_and_approve_posts
+2994.98|Approve with an active classify run gives 409 with active_run_id in under 1 s and writes nothing. After a failed run it asks no model and goes to the economic review.|test_AC_extraction_2994_98_approve_with_an_active_classify_run_gives_409_at_once_and_writes_nothing
+2994.99|A candidate that the parse marked is PARSED until the classify run succeeded, then it is approved and posted. A failed run, a missing mark or a user approve that came first leave it as it is.|test_AC_extraction_2994_99_a_high_confidence_statement_is_approved_only_after_the_classify_run_succeeded
+2994.101|The one-click fill refuses a statement with an active run with ActiveRunExists, and the backfill skips such a statement and reports skipped_statements.|test_AC_extraction_2994_101_the_one_click_fill_refuses_a_statement_with_an_active_run
+2994.103|The review response has no preclassification_in_progress field.|test_AC_extraction_2994_103_the_review_response_has_no_classification_flag
+2994.104|No advisory lock, lock wait constant or busy error guards the classification.|test_AC_extraction_2994_104_no_advisory_lock_guards_the_classification
+@$be/api/test_statement_classify_run_routes.py|P1
+2994.102|A rerun or a reject during a classify run answers 409 with the run id without a deadlock, and the reject voids nothing.|test_AC_extraction_2994_102_a_user_rerun_during_a_classify_run_gives_409_without_a_deadlock
+@$fe/__tests__/statementClassifyRun.test.tsx|P1
+2994.105|While a classify run is requested or running the page shows the classifying notice and disables Approve and the auto-fill button, and it reads the review again when the run ends.|AC-extraction.2994.105 shows the classifying notice and blocks the approve and the auto-fill while a classify run is active
+2994.106|The attempts list shows the kind of each run, classify runs too.|AC-extraction.2994.106 lists the kind of each attempt, classify runs too
 """,
     ),
     concepts=concepts(
