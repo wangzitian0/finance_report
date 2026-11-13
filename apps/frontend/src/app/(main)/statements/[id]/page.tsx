@@ -263,6 +263,13 @@ export default function StatementDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAfterReview is new in each render; the run state is the trigger
   }, [classifyActive]);
 
+  // A 409 can mean that a run began elsewhere, in another tab or in the worker: the notice and the polling follow the runs.
+  const refetchAfterConflict = (err: unknown) => {
+    if (!(err instanceof ApiError && err.status === 409)) return;
+    void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
+    void queryClient.invalidateQueries({ queryKey: ["statement-review", statementId] });
+  };
+
   const approveMutation = useMutation({
     mutationFn: (variables: { autoFill?: boolean } | void) => apiOperation(
       "approve_statement_stage1_statements__statement_id__review_approve_post",
@@ -286,6 +293,7 @@ export default function StatementDetailPage() {
       if (fromAttention) router.push(ATTENTION_RETURN_HREF);
     },
     onError: (err) => {
+      refetchAfterConflict(err);
       if (err instanceof ApiError && err.status === 409 && err.message.startsWith("Economic review required:")) {
         setEconomicReviewRequired(true);
         setApproveDialogOpen(false);
@@ -337,7 +345,10 @@ export default function StatementDetailPage() {
       if (fromAttention) router.push(ATTENTION_RETURN_HREF);
     },
     // A 422 body echoes the note. The page shows one fixed sentence, never that body.
-    onError: (err) => showToast(err instanceof ApiError && err.status === 422 ? INVALID_HINTS_MESSAGE : err instanceof Error ? err.message : "Failed to reject", "error"),
+    onError: (err) => {
+      refetchAfterConflict(err);
+      showToast(err instanceof ApiError && err.status === 422 ? INVALID_HINTS_MESSAGE : err instanceof Error ? err.message : "Failed to reject", "error");
+    },
   });
   const handleReject = (reason?: string) => {
     const note = normalizeNote(reason ?? "");
@@ -481,7 +492,7 @@ export default function StatementDetailPage() {
   const validationResult = review?.balance_validation_result ?? null;
   const balanceValid = Boolean(validationResult?.closing_match);
   const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
-  const approvalBlockedReason = classifyActive ? "Wait for the classification to end before approving this statement."
+  const approvalBlockedReason = hasActiveRun ? "Wait for the active run to end before approving this statement."
     : requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
     : requiresOtherSourceReview ? "This source has facts that a cash statement check cannot confirm."
     : hasUnresolvedConflicts ? "Resolve duplicate and transfer-pair candidates before approval" : null;
@@ -560,7 +571,7 @@ export default function StatementDetailPage() {
           <h2 className="font-semibold text-[var(--foreground)]">Transaction classifications need review</h2>
           <p className="mt-1 text-sm text-muted">These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A transfer or a card repayment is posted to the Processing account until the other side of the movement arrives. A loan payment goes to Loans Payable and a trade to Investments. A row in a foreign currency stays here for you. You can also review every row manually.</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending || classifyActive} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
+            <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending || hasActiveRun} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
             <Link href={`${NEEDS_YOU_HREF}&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
             <Link href={`/reconciliation?tab=unmatched&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}`} className="btn-secondary inline-flex">Review transaction classifications</Link>
           </div>
