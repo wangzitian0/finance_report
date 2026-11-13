@@ -46,6 +46,7 @@ from tests.extraction.test_statement_classify_run import (
     _model_on,  # noqa: F401 - the autouse fixture of the sibling module
     _parsing_job,
     _rows,
+    _answers,
     _run,
     _seed,
 )
@@ -378,3 +379,55 @@ async def test_AC_extraction_2994_112_two_writers_of_one_rule_row_do_not_collide
 
     assert [row.id for row in second_rows] == [row.id for row in first_rows]
     assert await _count(db, TransactionClassification, TransactionClassification.atomic_txn_id == coffee_id) == 1
+
+
+# --- A candidate whose run the reaper failed writes no answer -----------------------------------
+
+
+async def test_AC_extraction_2994_95_a_candidate_whose_run_the_reaper_failed_during_the_call_writes_no_answer(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2994.95: The answers of a candidate commit with a check of the run: a reaped run writes none."""
+    rows = _rows()
+    service, content = _high_confidence(rows)
+    statement_id, job = await _parsing_job(db, test_user, content)
+    maker = create_session_maker_from_db(db)
+    real = Proposer()
+
+    async def reaped_during_the_call(transactions, policy):
+        async with maker() as other_session:
+            assert await reap_stale_runs(other_session, now=datetime.now(UTC) + timedelta(minutes=10))
+            await other_session.commit()
+        return await real(transactions, policy)
+
+    _install(monkeypatch, reaped_during_the_call)
+
+    outcome = await _use_case(db, service).execute(job, content=content)
+
+    classify = (await _runs(db, statement_id))[-1]
+    assert outcome.auto_posted_count == 0
+    assert (classify.kind, classify.state, classify.error_code) == (RunKind.CLASSIFY, RunState.FAILED, "heartbeat_lost")
+    assert await _answers(db, test_user) == 0, "a finish after the reaper failed the run writes no answer"
+    assert await _count(db, JournalEntry) == 0
+    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSED
+
+
+async def test_AC_extraction_2994_95_a_failure_after_the_answers_committed_does_not_claim_that_the_rows_have_no_answer(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2994.95: If the approve and the finish both fail, the run fails, and its message says nothing about answers."""
+    _install(monkeypatch, Proposer())
+    service, content = _high_confidence(_rows())
+    statement_id, job = await _parsing_job(db, test_user, content)
+
+    async def broken_finish(*_args, **_kwargs):
+        raise RuntimeError(SECRET)
+
+    monkeypatch.setattr(statement_classification_run, "finish_run", broken_finish)
+
+    await _use_case(db, service).execute(job, content=content)
+
+    classify = (await _runs(db, statement_id))[-1]
+    assert await _answers(db, test_user) == len(_rows()), "the answers were committed before the failure"
+    assert (classify.state, classify.error_code) == (RunState.FAILED, "classification_failed")
+    assert "no answer" not in classify.error_message.lower() and "PAYNOW" not in classify.error_message

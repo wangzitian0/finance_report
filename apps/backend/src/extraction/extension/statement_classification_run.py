@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.extraction.base.run_vocabulary import RunState
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.extension.ai_settings import classification_enabled
 from src.extraction.extension.statement_parsing_supervisor import parsing_heartbeat
@@ -25,7 +26,7 @@ from src.extraction.extension.statement_posting import (
     auto_approve_parsed_candidate,
     posted_entry_txn_ids,
 )
-from src.extraction.extension.statement_runs import StaleRun, claim_run, fail_run, finish_run
+from src.extraction.extension.statement_runs import StaleRun, claim_run, fail_run, finish_run, heartbeat_run
 from src.extraction.extension.statement_validation import resolve_statement_transactions
 from src.extraction.extension.transaction_classification import (
     CLASSIFICATION_PHASE_DEADLINE_SECONDS,
@@ -56,13 +57,11 @@ class ClassifyOutcome(StrEnum):
     FAILED = "failed"  # an error: nothing written
 
 
-#: The run error code and message of the two failure outcomes. The message holds no row text.
+#: The run error code and message of the two failure outcomes. The message holds no row text, and it does not say
+#: that the rows have no answer: a failure after the answers committed leaves them in place.
 _FAILURES = {
-    ClassifyOutcome.TIMED_OUT: (
-        "classification_timeout",
-        "The classification ran past its deadline. The rows keep no answer.",
-    ),
-    ClassifyOutcome.FAILED: ("classification_failed", "The classification failed. The rows keep no answer."),
+    ClassifyOutcome.TIMED_OUT: ("classification_timeout", "The classification ran past its deadline."),
+    ClassifyOutcome.FAILED: ("classification_failed", "The classification failed."),
 }
 
 
@@ -154,6 +153,8 @@ async def _classify_and_commit(
         summary = {"outcome": outcome.value, **summarize_outcomes(outcomes)}
         if finish:
             await finish_run(session, run_id, result_summary=summary)
+        elif not await heartbeat_run(session, run_id):  # a reaped run writes no answer; this locks only the run row
+            raise StaleRun(run_id, RunState.RUNNING)
         await session.commit()
     return outcome, summary
 

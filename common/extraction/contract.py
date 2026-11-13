@@ -906,7 +906,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 @$be/extraction/test_envelope_and_active_run.py|P1
 2994.86|The envelope confirmation refuses a statement with an active extract run (ActiveRunExists, 409 with the run id) or the status PARSING, in the first confirmation and in the replay of the same command, and writes nothing.|test_AC_extraction_2994_86_a_stale_tab_cannot_confirm_an_envelope_while_a_rerun_parses
 @$be/api/test_statement_approve_race.py|P1
-2994.87|Approve refuses a statement with an active run, also when its status says PARSED, with ActiveRunExists (409 with active_run_id). The auto-approve of a candidate still posts after its run finished.|test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run
+2994.87|Approve refuses a statement with an active run, also when its status says PARSED, with ActiveRunExists (409 with active_run_id). The auto-approve of a candidate still posts: it exempts its own classify run and ends it in the same transaction.|test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run
 2994.83|An approve that read the statement before a rerun committed sees the active run under its lock: it answers 409 with the run id, posts nothing and the statement stays PARSING. A normal approve of a PARSED statement still posts.|test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_nothing
 2994.84|A parse failure writes the final status only while the statement is PARSING: an approved statement and its entries stay untouched.|test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statement_and_its_entries
 @$be/api/test_statement_run_api.py|P1
@@ -946,7 +946,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.92|Any other error fails the run with classification_failed and a message that holds no row text. A driver timeout is a failure, not the deadline.|test_AC_extraction_2994_92_any_other_error_fails_the_run_with_a_code_and_no_row_text
 2994.93|The model off gives a succeeded run with the outcome skipped_disabled. A refused row gives partial. A statement without rows gives nothing_to_classify.|test_AC_extraction_2994_93_a_classify_run_with_the_model_off_succeeds_with_a_skipped_summary
 2994.94|A run that finds a statement outside PARSED asks no model and ends succeeded with the outcome skipped_state.|test_AC_extraction_2994_94_a_statement_that_left_parsed_is_skipped_and_the_run_still_ends
-2994.95|The reaper fails a classify run that no worker claimed with claim_timeout, and a finish after the reaper failed the run writes no answer.|test_AC_extraction_2994_95_the_reaper_fails_a_classify_run_that_no_worker_claimed
+2994.95|The reaper fails a classify run that no worker claimed with claim_timeout, and a finish after the reaper failed the run writes no answer, for a candidate too.|test_AC_extraction_2994_95_the_reaper_fails_a_classify_run_that_no_worker_claimed
 2994.96|The heartbeat of a classify run moves heartbeat_at on the run row only, and a heartbeat that finds the run failed cancels the model call.|test_AC_extraction_2994_96_a_live_classify_run_beats_its_heartbeat_on_the_run_row
 2994.97|The classify run applies the stored keyword rules: the rule row has its answer without a model call, and the approve then posts all rows.|test_AC_extraction_2994_97_the_classify_run_answers_a_keyword_rule_row_without_the_model_and_approve_posts
 2994.98|Approve with an active classify run gives 409 with active_run_id in under 1 s and writes nothing. After a failed run it asks no model and goes to the economic review.|test_AC_extraction_2994_98_approve_with_an_active_classify_run_gives_409_at_once_and_writes_nothing
@@ -968,6 +968,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.106|The attempts list shows the kind of each run, classify runs too.|AC-extraction.2994.106 lists the kind of each attempt, classify runs too
 2994.113|The page keeps the source-facts confirmation available while a classify run is active.|AC-extraction.2994.113 keeps the source-facts confirmation available while a classify run is active
 2994.114|A 409 of the auto-fill or the reject makes the page read the runs and the review again, and show a run that began elsewhere.|AC-extraction.2994.114 reads the runs and the review again when the auto-fill returns 409, and shows the run that began elsewhere
+2994.115|A 409 of the source-facts confirmation makes the page read the runs and the review again.|AC-extraction.2994.115 reads the runs and the review again when the source-facts confirmation returns 409
 """,
     ),
     concepts=concepts(
