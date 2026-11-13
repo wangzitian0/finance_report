@@ -52,7 +52,7 @@ async def ensure_database(db_url: str):
 DISABLE_AUTOVACUUM_STATEMENTS = ("\nCREATE FUNCTION public.test_disable_autovacuum() RETURNS event_trigger\nLANGUAGE plpgsql AS $$\nDECLARE\n    created record;\nBEGIN\n    FOR created IN\n        SELECT d.objid\n        FROM pg_event_trigger_ddl_commands() AS d JOIN pg_class AS c ON c.oid = d.objid\n        WHERE d.object_type = 'table' AND d.schema_name = 'public' AND c.relkind = 'r'\n    LOOP\n        EXECUTE format('ALTER TABLE %s SET (autovacuum_enabled = false)', created.objid::regclass);\n    END LOOP;\nEND\n$$\n", "\nCREATE EVENT TRIGGER test_disable_autovacuum ON ddl_command_end\nWHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')\nEXECUTE FUNCTION public.test_disable_autovacuum()\n", 'ALTER EVENT TRIGGER test_disable_autovacuum ENABLE ALWAYS')
 @pytest_asyncio.fixture(scope='session')
 async def _schema_engine(test_database_url):
-    await ensure_database(test_database_url); import src.counter.extension.sql; import src.identity.extension.sql; import src.orm_registry; import src.platform.extension.sql; from src.database import Base; engine = create_async_engine(test_database_url, echo=False, poolclass=NullPool)
+    await ensure_database(test_database_url); import src.counter.extension.sql; import src.identity.extension.sql; import src.orm_registry; import src.platform.extension.sql; from src.database import Base, create_app_engine; engine = create_app_engine(test_database_url, echo=False, poolclass=NullPool)
     @event.listens_for(engine.sync_engine, 'before_cursor_execute')
     def _track_dirty_tables(conn, cursor, statement, parameters, context, executemany):
         stripped = statement.strip()

@@ -46,7 +46,14 @@ from src.extraction.extension.statement_preclassification import (
     StatementClassificationPhase,
     classify_parsed_statement,
 )
-from src.extraction.extension.statement_runs import StaleRun, claim_run, create_run, fail_run, finish_run
+from src.extraction.extension.statement_runs import (
+    StaleRun,
+    claim_run,
+    create_run,
+    fail_run,
+    finish_run,
+    lock_statement_for_run,
+)
 from src.extraction.extension.statement_workflow import approve_statement_workflow
 from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
 from src.extraction.orm.layer1 import UploadedDocument
@@ -146,6 +153,13 @@ class StatementIngestionUseCase:
         The statement stays parsing: the supervisor rejects a parsing statement that has no active run.
         """
         async with self.session_maker() as session:
+            # Lock the statement row first, then touch the runs: the order of every writer. Without the lock, the
+            # retry insert and the run insert of a user run start wait for each other in the run indexes.
+            locked = await lock_statement_for_run(
+                session, job.statement_id, job.user_id, allowed=frozenset(BankStatementStatus)
+            )
+            if locked is None:
+                return None  # The statement is gone, and its runs went with it.
             try:
                 failed = await fail_run(
                     session,
@@ -493,6 +507,17 @@ async def handle_parse_failure(
                 await db.rollback()
                 logger.warning("statement.run.fail_stale", run_id=str(job.run_id), statement_id=str(statement_id))
                 return
+        if refreshed.status is not BankStatementStatus.PARSING:
+            # The parse no longer owns the statement, for example after an approval. The run ends as failed, and
+            # the status, the error and the ledger stay as they are.
+            await db.commit()
+            logger.warning(
+                "statement.parse.failed_status_kept",
+                statement_id=str(refreshed.id),
+                status=refreshed.status.value,
+                error_type=error_type,
+            )
+            return
         review_required = error_type == TransactionIdentityReviewRequired.__name__
         refreshed.status = BankStatementStatus.PARSED if review_required else BankStatementStatus.REJECTED
         refreshed.stage1_status = Stage1Status.PENDING_REVIEW if review_required else Stage1Status.REJECTED

@@ -372,8 +372,7 @@ async def create_run(
         _log_transition(run)
         return run
     assert last_error is not None
-    last_error.hide_parameters = True  # The INSERT parameters hold the hints.
-    raise last_error
+    raise last_error  # The engine hides the INSERT parameters, which hold the hints (`create_app_engine`).
 
 
 @dataclass(frozen=True, slots=True)

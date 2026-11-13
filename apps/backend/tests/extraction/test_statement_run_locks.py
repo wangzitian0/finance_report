@@ -15,10 +15,14 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from src.composition import compose_statement_ingestion_use_case
 from src.database import create_app_engine, create_session_maker_from_db
+from src.extraction.extension import statement_parsing
 from src.runtime import StorageError
 from src.extraction import (
     ActiveRunExists,
+    ParseJob,
+    RetryableStatementIngestionError,
     BankStatementStatus,
     RunActorKind,
     RunHints,
@@ -291,3 +295,52 @@ async def test_AC_extraction_2994_79_start_user_extract_run_takes_the_statement_
                 rerun.cancel()
                 await asyncio.gather(rerun, return_exceptions=True)
             await route.rollback()
+
+
+async def test_AC_extraction_2994_85_the_worker_retry_and_a_user_run_start_do_not_deadlock(db, test_user, monkeypatch):
+    """AC-extraction.2994.85: The user start enters the run indexes while the worker retries: no deadlock, one winner."""
+    statement_id, run_id = await _parsing_statement_with_running_run(db, test_user)
+    maker = create_session_maker_from_db(db)
+    use_case = compose_statement_ingestion_use_case(session_maker=maker)
+    job = ParseJob(
+        statement_id=statement_id,
+        run_id=run_id,
+        filename="retry.pdf",
+        institution="DBS",
+        user_id=test_user.id,
+        account_id=None,
+        file_hash="h" * 64,
+        storage_key="statements/retry.pdf",
+        model=None,
+        request_id="req-retry",
+    )
+    old_run_failed = asyncio.Event()
+    real_fail_run = statement_parsing.fail_run
+
+    async def fail_then_let_the_user_start_in(*args, **kwargs):
+        failed = await real_fail_run(*args, **kwargs)
+        old_run_failed.set()
+        # The user start now reaches its run insert, before the worker inserts its retry run.
+        await asyncio.sleep(0.5)
+        return failed
+
+    monkeypatch.setattr(statement_parsing, "fail_run", fail_then_let_the_user_start_in)
+
+    async def worker():
+        return await use_case._end_failed_attempt(job, RetryableStatementIngestionError("load failed"), attempt=1)
+
+    async def user_start():
+        await old_run_failed.wait()
+        async with maker() as route:
+            try:
+                return await _start(
+                    route, test_user, statement_id, _Loader(), allowed_statuses=PARSING_ONLY, hints=RunHints()
+                )
+            finally:
+                await route.rollback()
+
+    retry_job, user_result = await asyncio.gather(worker(), user_start(), return_exceptions=True)
+
+    assert isinstance(retry_job, ParseJob), f"the retry of the worker must succeed, not end in {retry_job!r}"
+    assert isinstance(user_result, ActiveRunExists), f"the user start must end with a 409, not {user_result!r}"
+    assert user_result.active_run_id == retry_job.run_id
