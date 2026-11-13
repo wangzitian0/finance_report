@@ -32,11 +32,16 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         "jobs": ("build",),
         "triggers": ("push", "workflow_dispatch"),
     },
+    ".github/workflows/issue-form.yml": {
+        "jobs": ("form",),
+        "triggers": ("issues",),
+    },
 }
 
 APP_WORKFLOW_FILES = (
     ".github/workflows/ci.yml",
     ".github/workflows/docs.yml",
+    ".github/workflows/issue-form.yml",
 )
 
 WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
@@ -176,7 +181,10 @@ def iter_action_uses(value: object) -> set[str]:
     found: set[str] = set()
     if isinstance(value, dict):
         uses = value.get("uses")
-        if isinstance(uses, str) and not uses.startswith(("./", "docker://")):
+        # A reusable workflow ("owner/repo/.github/workflows/x.yml@ref") is not an
+        # action; the runtime inventory describes action metadata only.
+        is_reusable = isinstance(uses, str) and "/.github/workflows/" in uses
+        if isinstance(uses, str) and not uses.startswith(("./", "docker://")) and not is_reusable:
             found.add(uses)
         for nested in value.values():
             found.update(iter_action_uses(nested))
