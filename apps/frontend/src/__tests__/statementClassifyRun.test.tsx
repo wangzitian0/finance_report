@@ -1,7 +1,7 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
-import { apiOperation } from "@/lib/api-client";
+import { ApiError, apiOperation } from "@/lib/api-client";
 import type { StatementRun } from "@/lib/types";
 
 vi.mock("next/navigation", () => ({
@@ -19,7 +19,11 @@ vi.mock("@/lib/api-client", async (importOriginal) => ({
 const REVIEW_GET = "get_statement_for_review_statements__statement_id__review_get";
 const STATEMENT_GET = "get_statement_statements__statement_id__get";
 const RUNS_GET = "list_statement_runs_statements__statement_id__runs_get";
+const APPROVE_POST = "approve_statement_stage1_statements__statement_id__review_approve_post";
+const REJECT_POST = "reject_statement_stage1_statements__statement_id__review_reject_post";
+const CONFIRM_POST = "confirm_statement_review_envelope_statements__statement_id__review_envelope_post";
 const NOTICE = "Classifying transactions…";
+const BLOCKED = "Wait for the active run to end before approving this statement.";
 
 const validBalance = {
   opening_balance: "1000.00",
@@ -84,7 +88,10 @@ const classifyRun = (state: StatementRun["state"]) =>
 const mockedApi = vi.mocked(apiOperation);
 const callsOf = (operationId: string) => mockedApi.mock.calls.filter((call) => call[0] === operationId);
 
-function mockApi(runs: () => StatementRun[]) {
+function mockApi(
+  runs: () => StatementRun[],
+  extra: { review?: Record<string, unknown>; post?: (operationId: string) => Promise<unknown> } = {},
+) {
   mockedApi.mockImplementation(((operationId: string) => {
     switch (operationId) {
       case STATEMENT_GET:
@@ -97,6 +104,7 @@ function mockApi(runs: () => StatementRun[]) {
           source_envelope_reviewable: false,
           reviewed_envelope: { id: "e1" },
           account_id: "a1",
+          ...extra.review,
         });
       case "list_pending_review_statements_pending_review_get":
         return Promise.resolve({ items: [], total: 0 });
@@ -106,6 +114,10 @@ function mockApi(runs: () => StatementRun[]) {
         const items = runs();
         return Promise.resolve({ items, total: items.length });
       }
+      case APPROVE_POST:
+      case REJECT_POST:
+      case CONFIRM_POST:
+        return extra.post ? extra.post(operationId) : Promise.reject(new Error(`Unexpected operation ${operationId}`));
       default:
         return Promise.reject(new Error(`Unexpected operation ${operationId}`));
     }
@@ -129,7 +141,7 @@ describe("The classify run on the statement page", () => {
 
     expect(await screen.findByText(NOTICE)).toBeInTheDocument();
     await waitFor(() => expect(approveButton()).toBeDisabled());
-    expect(screen.getByText("Wait for the classification to end before approving this statement.")).toBeInTheDocument();
+    expect(screen.getByText(BLOCKED)).toBeInTheDocument();
     expect(autoFillButton()).toBeDisabled();
     expect(callsOf(REVIEW_GET).length).toBeGreaterThan(0);
   });
@@ -142,14 +154,16 @@ describe("The classify run on the statement page", () => {
     await waitFor(() => expect(approveButton()).toBeDisabled());
   });
 
-  it("AC-extraction.2994.105 shows no classifying notice and no block when only an extract run is active", async () => {
+  it("AC-extraction.2994.105 blocks the approve and the auto-fill for an active extract run too, with no classifying notice", async () => {
     mockApi(() => [makeRun({ seq: 1, state: "running", finished_at: null })]);
     render(<StatementDetailPage />);
 
     await screen.findByTestId("parsing-attempts");
-    await waitFor(() => expect(approveButton()).toBeEnabled());
+
+    await waitFor(() => expect(approveButton()).toBeDisabled());
+    expect(screen.getByText(BLOCKED)).toBeInTheDocument();
+    expect(autoFillButton()).toBeDisabled();
     expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
-    expect(autoFillButton()).toBeEnabled();
   });
 
   it("AC-extraction.2994.105 enables the approve and reads the review again when the classify run ends", async () => {
@@ -186,4 +200,49 @@ describe("The classify run on the statement page", () => {
     expect(second.getByText("System · Auto Classify")).toBeInTheDocument();
     expect(second.getByText("Succeeded")).toBeInTheDocument();
   });
+  it("AC-extraction.2994.113 keeps the source-facts confirmation available while a classify run is active", async () => {
+    mockApi(() => [makeRun({ seq: 1 }), classifyRun("running")], {
+      review: { reviewed_envelope: null, source_envelope_reviewable: true, source_result_digest: "digest-1" },
+      post: () => Promise.resolve({ id: "env-1" }),
+    });
+    render(<StatementDetailPage />);
+    expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+
+    const rationale = await screen.findByLabelText(/Why are these facts confirmed/);
+    fireEvent.change(rationale, { target: { value: "Checked against the original file." } });
+    const confirm = await screen.findByRole("button", { name: "Confirm statement details" });
+
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    await waitFor(() => expect(callsOf(CONFIRM_POST)).toHaveLength(1));
+  });
+
+  it.each(["auto-fill", "reject"])(
+    "AC-extraction.2994.114 reads the runs and the review again when the %s returns 409, and shows the run that began elsewhere",
+    async (action) => {
+      let runs: StatementRun[] = [makeRun({ seq: 1 })];
+      const conflict = new ApiError("The statement has an active run.", 409, "conflict", null, { active_run_id: "run-2" } as never);
+      mockApi(() => runs, { post: () => Promise.reject(conflict) });
+      render(<StatementDetailPage />);
+      await screen.findByTestId("parsing-attempts");
+      await waitFor(() => expect(approveButton()).toBeEnabled());
+      const runCalls = callsOf(RUNS_GET).length;
+      const reviewCalls = callsOf(REVIEW_GET).length;
+      runs = [makeRun({ seq: 1 }), classifyRun("running")]; // another tab started the run
+
+      if (action === "auto-fill") {
+        fireEvent.click(autoFillButton());
+      } else {
+        fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+        const dialog = await screen.findByRole("dialog", { name: "Reject Statement" });
+        fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
+      }
+
+      await waitFor(() => expect(callsOf(action === "auto-fill" ? APPROVE_POST : REJECT_POST)).toHaveLength(1));
+      await waitFor(() => expect(callsOf(RUNS_GET).length).toBeGreaterThan(runCalls));
+      await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(reviewCalls));
+      expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+      await waitFor(() => expect(approveButton()).toBeDisabled());
+    },
+  );
 });
