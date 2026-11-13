@@ -236,6 +236,9 @@ deploy-gates.45||test_AC_testing_deploy_gates_45_canonical_trace_observation_and
 deploy-gates.43||test_AC7_17_1_smoke_asserts_only_existing_public_frontend_routes
 @$t/test_hook_manifest.py|P0|done|property
 deploy-gates.46||test_AC_testing_deploy_gates_46_hook_steps_are_posix_strict_gates
+hook-main.1||test_AC_testing_hook_main_1_module_prints_each_node_of_the_matrix_selection
+hook-main.2||test_AC_testing_hook_main_2_each_manifest_module_check_prints_help
+hook-main.3||test_AC_testing_hook_main_3_the_scan_covers_every_hook_slot_with_a_module
 @$t/test_critical_skip_gate.py
 product-gates.1||test_AC8_13_6_strict_gates_off_never_converts
 @$e2e/test_vision_upload_to_dashboard_hard_gate.py
