@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -198,3 +199,79 @@ def test_AC_testing_deploy_gates_46_stage_env_covers_critical_env_skips() -> Non
                 gap = sorted(names - set(matrix.stage_env(stage)))
                 assert not gap, f"{file}::{test}: STAGE_ENV[{stage!r}] lacks {gap}"
     assert checked >= 1, "no critical test with an env skip condition was scanned"
+
+
+PYTHON_MODULE = re.compile(r"\bpython3?\s+-m\s+([A-Za-z_][\w.]*)")
+HOOK_SLOTS_WITH_MODULES = ("preview_gate", "staging_gate", "scheduled_audit")
+
+
+def _python_modules(line: str) -> list[str]:
+    """Return the module name of each `python -m <module>` in a shell line."""
+    return PYTHON_MODULE.findall(line)
+
+
+def _module_checks() -> list[tuple[str, str, str]]:
+    """Return (slot, step id, module) for each `python -m <module>` step of the manifest."""
+    steps: list[tuple[str, str, str]] = []
+    for slot, spec in SLOTS.items():
+        steps += [(slot, key, spec[key]) for key in ("bootstrap", "run") if key in spec]
+        steps += [(slot, c["id"], _check_line(c)) for c in spec.get("checks", [])]
+    return [(s, i, m) for s, i, line in steps for m in _python_modules(line)]
+
+
+MODULE_CHECKS = _module_checks()
+
+
+def _run_module(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run `<this python> -m <args>` in the repository root, as the SDK runs a hook step."""
+    return subprocess.run(
+        [sys.executable, "-m", *args],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=40,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("stage", "corpus"), [("staging_core_e2e", None), ("staging_ai_ocr", "canary")]
+)
+def test_AC_testing_hook_main_1_module_prints_each_node_of_the_matrix_selection(
+    stage: str, corpus: str | None
+) -> None:
+    """AC-testing.hook-main.1: `python -m common.testing.test_selection --stage <stage>` exits 0 and prints each node of the matrix selection."""
+    nodes, _ = matrix.stage_selection(stage, corpus=corpus or "all")
+    assert nodes, f"the matrix selects no test for {stage}"
+    extra = ["--corpus", corpus] if corpus else []
+    run = _run_module("common.testing.test_selection", "--stage", stage, *extra)
+    assert run.returncode == 0, run.stderr
+    assert run.stdout.splitlines() == list(nodes), (
+        f"{stage}: the module printed {run.stdout!r}"
+    )
+
+
+@pytest.mark.parametrize(("slot", "step", "module"), MODULE_CHECKS)
+def test_AC_testing_hook_main_2_each_manifest_module_check_prints_help(
+    slot: str, step: str, module: str
+) -> None:
+    """AC-testing.hook-main.2: each `python -m <module>` step of the manifest exits 0 on `--help` and prints text."""
+    run = _run_module(module, "--help")
+    assert run.returncode == 0, f"{slot}.{step}: {module} --help: {run.stderr}"
+    assert run.stdout.strip(), (
+        f"{slot}.{step}: `python -m {module} --help` printed nothing; the module has no main block"
+    )
+
+
+def test_AC_testing_hook_main_3_the_scan_covers_every_hook_slot_with_a_module() -> None:
+    """AC-testing.hook-main.3: the scan reads the manifest and finds a module in each gate slot."""
+    found = {slot: {m for s, _, m in MODULE_CHECKS if s == slot} for slot in SLOTS}
+    for slot in HOOK_SLOTS_WITH_MODULES:
+        assert found[slot], f"the scan finds no `python -m` step in {slot}"
+    assert "common.testing.test_selection" in found["staging_gate"]
+    assert len({m for _, _, m in MODULE_CHECKS}) >= 3, "the scan lost a module"
+    assert _python_modules("env A=1 python3 -m a.b --x; sh -c 'python -m c_d'") == [
+        "a.b",
+        "c_d",
+    ]
+    assert _python_modules("python tools/test_selection.py --stage x") == []

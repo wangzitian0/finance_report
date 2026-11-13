@@ -30,7 +30,9 @@ Hook steps run under `sh -lc` (dash on the runner): use
 `--run` starts `python -m pytest` with the stage marker and forces
 `STRICT_E2E_GATES=1`. The stage env (`STAGE_ENV` in `matrix.py`) sets each env
 name that skips a critical test, so the market data test runs (#2914).
-`tests/tooling/test_hook_manifest.py` enforces these rules.
+`tests/tooling/test_hook_manifest.py` enforces these rules. It also runs `--help` of each
+`python -m <module>` step of the manifest and fails when the module exits non-zero or prints nothing,
+because a module without an `if __name__ == "__main__"` block exits 0 and runs no test (AC-testing.hook-main.2, #3031).
 
 [`backend_shard.py`](./backend_shard.py) (CLI: `tools/backend_shard_files.py`)
 decides which backend test files each CI shard runs: a seeded, file-level

@@ -147,3 +147,7 @@ def main(
     for node in nodes:
         print(node)
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
