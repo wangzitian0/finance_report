@@ -107,7 +107,9 @@ def _use_case(db, service=None, sleeps: Sleeps | None = None, **overrides):
     return replace(use_case, **changes)
 
 
-async def _statement_with_run(db, user, *, content: bytes = CSV, name: str = "wiring.csv") -> tuple[UUID, ParseJob]:
+async def _statement_with_run(
+    db, user, *, content: bytes = CSV, name: str = "wiring.csv", hints: RunHints | None = None, model: str | None = None
+) -> tuple[UUID, ParseJob]:
     file_hash = hashlib.sha256(content).hexdigest()
     statement = StatementSummaryFactory.build(
         id=uuid4(),
@@ -128,7 +130,8 @@ async def _statement_with_run(db, user, *, content: bytes = CSV, name: str = "wi
         kind=RunKind.EXTRACT,
         actor_kind=RunActorKind.USER,
         trigger=RunTrigger.UPLOAD,
-        hints=RunHints(),
+        hints=hints or RunHints(),
+        model=model,
     )
     await db.commit()
     job = ParseJob(
@@ -140,7 +143,7 @@ async def _statement_with_run(db, user, *, content: bytes = CSV, name: str = "wi
         account_id=None,
         file_hash=file_hash,
         storage_key=f"statements/{name}",
-        model=None,
+        model=model,
         request_id=f"req-{name}",
     )
     return statement.id, job

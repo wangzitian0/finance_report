@@ -35,6 +35,7 @@ from src.extraction import (
     RunTrigger,
     StatementPostingOutcome,
     StatementPostingStatus,
+    StatementRunRecord,
     StatementSummary,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
@@ -48,10 +49,12 @@ from src.extraction import (
     current_reviewed_statement_envelope,
     get_current_statement_extraction_result,
     get_latest_run,
+    hints_apply_to_file_type,
     is_bank_custody_source,
     is_statement_classification_running,
     list_runs,
     lock_statement_classification,
+    lock_statement_for_run,
     pending_stage1_review_filter,
     record_brokerage_import_failure,
     register_statement_source,
@@ -86,7 +89,6 @@ from src.schemas import (
     StatementDecisionRequest,
     StatementRunListResponse,
     StatementRunRequest,
-    StatementRunResponse,
 )
 from src.schemas.extraction import compose_statement_list_item_response, compose_statement_response
 from src.schemas.portfolio import BrokerageImportResponse
@@ -104,6 +106,8 @@ router = APIRouter(prefix="/statements", tags=["statements"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 _ALLOWED_EXTENSIONS = {"pdf", "csv", "png", "jpg", "jpeg"}
+# A user can run the extraction again from these statuses.
+_RERUN_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.REJECTED, BankStatementStatus.PARSING})
 logger = get_logger(__name__)
 
 _PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
@@ -271,11 +275,16 @@ async def _queue_statement_reparse(
     *,
     model: str | None = None,
     hints: RunHints | None = None,
+    allowed_statuses: frozenset[BankStatementStatus] | None = None,
+    strict_hints: bool = False,
     while_pending: Callable[[], Awaitable[StatementSummary]] | None = None,
 ) -> UUID:
     """Start a user rerun of the statement and return the id of its run.
 
-    The run is flushed first. A rerun while a run is active raises `ActiveRunExists` (409) there, before
+    With `allowed_statuses` the statement row is locked first and its status checked again. A status that
+    changed after the caller's check, for example an approval from another tab, gives 409 and no write.
+    A CSV parse sends no prompt. Hints on a CSV statement give 400 with `strict_hints`, else the run keeps
+    empty hints. The run is flushed next. A rerun while a run is active raises `ActiveRunExists` (409) there, before
     `while_pending` or any other write. The reject passes `while_pending`, so its writes and the run
     commit together.
     """
@@ -287,6 +296,18 @@ async def _queue_statement_reparse(
     content = await run_in_threadpool(StorageService().get_object, storage_key)
     request_id = ensure_request_id()
     model_to_use = None if model == settings.multimodal_model else model
+    file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
+    hints = hints or RunHints()
+    if not hints.is_empty and not hints_apply_to_file_type(file_type):
+        if strict_hints:
+            raise_bad_request("Hints apply to PDF and image statements only. A CSV statement sends no prompt.")
+        hints = RunHints()
+    if allowed_statuses is not None:
+        locked = await lock_statement_for_run(db, statement.id, user_id, allowed=allowed_statuses)
+        if locked is None:
+            await db.rollback()
+            raise_conflict("The statement changed while the run started. Reload the page and try again.")
+        statement = locked
     previous_run = await get_latest_run(db, statement.id)
     run = await create_run(
         db,
@@ -295,7 +316,7 @@ async def _queue_statement_reparse(
         kind=RunKind.EXTRACT,
         actor_kind=RunActorKind.USER,
         trigger=RunTrigger.RERUN,
-        hints=hints or RunHints(),
+        hints=hints,
         model=model_to_use,
         parent_run_id=previous_run.id if previous_run is not None else None,
     )
@@ -321,7 +342,7 @@ async def _queue_statement_reparse(
             request_id=request_id,
         ),
         content=content,
-        file_type=filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf",
+        file_type=file_type,
     )
     return run_id
 
@@ -558,34 +579,36 @@ async def upload_statement(
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
-@router.post(
-    "/{statement_id}/runs", response_model=StatementRunResponse, status_code=status.HTTP_202_ACCEPTED
-)
+@router.post("/{statement_id}/runs", response_model=StatementRunRecord, status_code=status.HTTP_202_ACCEPTED)
 async def create_statement_run(
     statement_id: UUID,
     request: StatementRunRequest,
     *,
     db: DbSession,
     user_id: CurrentUserId,
-) -> StatementRunResponse:
+) -> StatementRunRecord:
     """Run the extraction of a statement again, with optional hints and a model override.
 
     The actor of the run is the authenticated user. An active run gives 409 with `active_run_id`.
     """
     statement = await _get_statement_or_404(db, statement_id, user_id)
-    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.REJECTED, BankStatementStatus.PARSING):
+    if statement.status not in _RERUN_STATUSES:
         raise_bad_request("Can only run again for parsed, rejected, or stuck parsing statements")
     await _validate_vision_model(request.model)
-    if not request.hints.is_empty:
-        document = await _resolve_uploaded_document(db, statement, user_id)
-        if document is not None and document.original_filename.lower().endswith(".csv"):
-            raise_bad_request("Hints apply to PDF and image statements only. A CSV statement sends no prompt.")
     try:
-        run_id = await _queue_statement_reparse(db, statement, user_id, model=request.model, hints=request.hints)
+        run_id = await _queue_statement_reparse(
+            db,
+            statement,
+            user_id,
+            model=request.model,
+            hints=request.hints,
+            allowed_statuses=_RERUN_STATUSES,
+            strict_hints=True,
+        )
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
     runs = await list_runs(db, statement_id, user_id)
-    return StatementRunResponse.model_validate(next(run for run in runs if run.id == run_id))
+    return next(run for run in runs if run.id == run_id)
 
 
 @router.get("/{statement_id}/runs", response_model=StatementRunListResponse)
@@ -595,7 +618,7 @@ async def list_statement_runs(
     """List the runs of a statement by attempt number, with their hints, actor, state and error."""
     await _get_statement_or_404(db, statement_id, user_id)
     runs = await list_runs(db, statement_id, user_id)
-    return StatementRunListResponse(items=[StatementRunResponse.model_validate(run) for run in runs], total=len(runs))
+    return StatementRunListResponse(items=runs, total=len(runs))
 
 
 @router.get("", response_model=BankStatementListResponse)

@@ -135,7 +135,7 @@ from src.extraction.extension.evidence_lineage import (
 )
 from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
 from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
-from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt
+from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt, hints_apply_to_file_type
 from src.extraction.extension.review_queue import (
     create_entry_from_txn,
     get_or_create_account,
@@ -180,6 +180,7 @@ from src.extraction.extension.statement_runs import (
     get_latest_run,
     heartbeat_run,
     list_runs,
+    lock_statement_for_run,
     reap_stale_runs,
 )
 from src.extraction.extension.statement_summary import (
@@ -384,7 +385,9 @@ __all__ = [
     "get_statement_event_sources",
     "get_uploaded_document_filenames",
     "heartbeat_run",
+    "hints_apply_to_file_type",
     "list_runs",
+    "lock_statement_for_run",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",
     "parse_brokerage_csv_payload",

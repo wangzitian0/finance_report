@@ -39,12 +39,16 @@ def build_paged_meta_prompt(
     *,
     page_numbers: list[int],
     total_pages: int,
+    hints_block: str = "",
 ) -> str:
     """Build the Stage 1 metadata extraction prompt for multi-page PDFs (#2813).
 
     Receives the deduplicated head + tail pages (first 5 pages and last 5 pages)
     of a multi-page PDF so the model sees both the cover/opening summary and the
     final closing summary on a single call.
+
+    ``hints_block`` is the reviewer guidance of the run. It comes last, after the stage rules, so the
+    guidance never outranks them.
     """
     pages_label = ", ".join(str(p) for p in page_numbers)
     return (
@@ -65,6 +69,7 @@ def build_paged_meta_prompt(
         "- Extract both period_start and period_end (converting single-date headers such as "
         "'As at 30 Nov 2024' to the statement month's start and end dates when the rows span "
         "that month)."
+        f"{hints_block}"
     )
 
 
@@ -77,8 +82,11 @@ def build_paged_prompt(
     page_end: int,
     total_pages: int,
     has_context_page: bool = False,
+    hints_block: str = "",
 ) -> str:
     """Append the multi-part extraction rules to the base parsing prompt.
+
+    ``hints_block`` is the reviewer guidance of the run. It comes last, after the part rules.
 
     ``part_index`` is 1-based. The rules keep each part honest about what it can
     see: transactions only from its own pages, statement-level balances only when
@@ -95,7 +103,7 @@ def build_paged_prompt(
     path happy).
     """
     if part_count <= 1:
-        return base_prompt
+        return f"{base_prompt}{hints_block}"
     if has_context_page:
         header = (
             f"IMPORTANT — PARTIAL DOCUMENT ({part_index}/{part_count}): the FIRST page below is "
@@ -127,6 +135,7 @@ def build_paged_prompt(
         "- Other metadata (institution, account digits, period, currency): report what is "
         "visible on these pages, otherwise use null.\n"
         "- Do not invent transactions from pages you cannot see."
+        f"{hints_block}"
     )
 
 

@@ -11,10 +11,10 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
-from typing import TypedDict
+from typing import Annotated, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints, field_validator
 
 
 class PrefectParseParams(TypedDict):
@@ -179,7 +179,28 @@ HINT_NOTE_MAX_LENGTH = 500
 
 
 def _has_control_character(value: str, *, allowed: str = "") -> bool:
-    return any(unicodedata.category(character) == "Cc" and character not in allowed for character in value)
+    """True for a control character (Cc) that is not allowed, and for U+2028 and U+2029 (Zl, Zp).
+
+    The separators end a line in some readers and break a JSON value that a prompt carries. Format
+    characters (Cf), such as the zero width joiners that some scripts need, stay valid.
+    """
+    return any(
+        (unicodedata.category(character) == "Cc" and character not in allowed)
+        or unicodedata.category(character) in ("Zl", "Zp")
+        for character in value
+    )
+
+
+def _strip_keyword(value: object) -> object:
+    return value.strip() if isinstance(value, str) else value
+
+
+# The limits sit in the type, so the OpenAPI spec carries them. The strip comes first: padding does not count.
+HintKeyword = Annotated[
+    str,
+    BeforeValidator(_strip_keyword),
+    StringConstraints(min_length=1, max_length=HINT_KEYWORD_MAX_LENGTH),
+]
 
 
 class RunHints(BaseModel):
@@ -191,7 +212,7 @@ class RunHints(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    keywords: list[str] = Field(default_factory=list, max_length=HINT_MAX_KEYWORDS)
+    keywords: list[HintKeyword] = Field(default_factory=list, max_length=HINT_MAX_KEYWORDS)
     note: str | None = Field(default=None, max_length=HINT_NOTE_MAX_LENGTH)
 
     @property
@@ -201,22 +222,18 @@ class RunHints(BaseModel):
 
     @field_validator("keywords")
     @classmethod
-    def _clean_keywords(cls, keywords: list[str]) -> list[str]:
-        cleaned: list[str] = []
-        for keyword in keywords:
-            keyword = keyword.strip()
-            if not 1 <= len(keyword) <= HINT_KEYWORD_MAX_LENGTH:
-                raise ValueError(f"a keyword has 1 to {HINT_KEYWORD_MAX_LENGTH} characters after the strip")
-            if _has_control_character(keyword):
-                raise ValueError("a keyword holds no control character")
-            cleaned.append(keyword)
-        return cleaned
+    def _check_keywords(cls, keywords: list[str]) -> list[str]:
+        if any(_has_control_character(keyword) for keyword in keywords):
+            raise ValueError("a keyword holds no control character and no line or paragraph separator")
+        return keywords
 
     @field_validator("note")
     @classmethod
     def _check_note(cls, note: str | None) -> str | None:
         if note is not None and _has_control_character(note, allowed="\n\t"):
-            raise ValueError("a note holds no control character except newline and tab")
+            raise ValueError(
+                "a note holds no control character except newline and tab, and no line or paragraph separator"
+            )
         return note
 
 
