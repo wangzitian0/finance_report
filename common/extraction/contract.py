@@ -909,6 +909,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.60|The form allows 20 keywords of 64 characters and a note of 500 characters.|AC-extraction.2994.60 enforces 20 keywords of 64 characters and a note of 500 characters
 2994.61|The note of the reject dialog stops at 500 characters.|AC-extraction.2994.61 limits the note of the reject dialog to 500 characters
 2994.62|An approved statement has no Run again panel, and no Retry Parse button exists.|AC-extraction.2994.62 offers no Run again for an approved statement and has no Retry Parse button
+2994.63|After a run starts, the statement reloads and the review and the attempts list refetch.|AC-extraction.2994.63 refetches the statement, the review and the attempts after a run starts
 """,
     ),
     concepts=concepts(
