@@ -71,19 +71,6 @@ class StatementReviewResponse(BankStatementResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TransactionEditRequest(BaseModel):
-    txn_id: UUID
-    amount: Decimal | None = None
-    description: str | None = None
-    txn_date: date | None = None
-    direction: str | None = None
-    reference: str | None = None
-
-
-class EditAndApproveRequest(BaseModel):
-    edits: list[TransactionEditRequest] = default_list()
-
-
 class Stage1ApprovalRequest(BaseModel):
     account_id: UUID | None = None
     create_account_if_missing: bool = False

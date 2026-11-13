@@ -188,7 +188,6 @@ from src.extraction.extension.statement_summary import (
     resolve_custody_account_id,
 )
 from src.extraction.extension.statement_validation import (
-    edit_and_approve,
     pending_stage1_review_filter,
     resolve_statement_conflicts,
     resolve_statement_transactions,
@@ -369,7 +368,6 @@ __all__ = [
     "dual_write_layer2",
     "emit_disposition_trace_records",
     "extraction_trace_policy_registry",
-    "edit_and_approve",
     "fail_run",
     "finish_run",
     "find_in_flight_parse_id",

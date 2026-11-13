@@ -21,9 +21,8 @@ from src.reporting import (
     QualityActionItem as QualityActionItem,
     QualityGrade as QualityGrade,
     ReportLineId,
-    ReportType,
 )
-from src.schemas.base import BaseResponse, CurrencyCode, default_list, default_obj
+from src.schemas.base import CurrencyCode, default_list, default_obj
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.provenance import DataProvenance
 
@@ -144,12 +143,6 @@ class IncomeStatementResponse(BaseModel):
     trends: list[IncomeStatementTrend]
 
 
-class TrendPeriod(str, Enum):
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-
-
 class NetWorthGranularity(str, Enum):
     DAILY = "daily"
     MONTHLY = "monthly"
@@ -197,19 +190,6 @@ class NetWorthAllocationResponse(BaseModel):
     opening_balance_warnings: list[dict[str, str]] = default_list()
     portfolio_warnings: list[dict[str, str]] = default_list()
     excluded_holdings: list[ExcludedHoldingRow] = default_list()
-
-
-class AccountTrendPoint(BaseModel):
-    period_start: date
-    period_end: date
-    amount: Decimal
-
-
-class AccountTrendResponse(BaseModel):
-    account_id: UUID
-    currency: CurrencyStr
-    period: TrendPeriod
-    points: list[AccountTrendPoint]
 
 
 class BreakdownPeriod(str, Enum):
@@ -467,16 +447,6 @@ class PersonalReportPackageSnapshotSummary(BaseModel):
     as_of_date: date
     currency: CurrencyStr
     readiness_state: str
-    is_latest: bool
-    created_at: datetime | None = None
-
-
-class ReportSnapshotSummary(BaseResponse):
-    id: UUID
-    report_type: ReportType
-    as_of_date: date | None = None
-    start_date: date | None = None
-    rule_version_id: UUID | None = None
     is_latest: bool
     created_at: datetime | None = None
 

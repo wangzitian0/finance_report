@@ -416,7 +416,6 @@ export type AnnualizedIncomeScheduleIncome = Schemas["AnnualizedIncomeScheduleIn
 export type AnnualizedIncomeScheduleHolding = Schemas["AnnualizedIncomeScheduleHolding"];
 export type AnnualizedIncomeScheduleNetWorthTreatment = Schemas["AnnualizedIncomeScheduleNetWorthTreatment"];
 export type AnnualizedIncomeScheduleResponse = Schemas["AnnualizedIncomeScheduleResponse"];
-export type AnnualizedIncomeResponse = Schemas["AnnualizedIncomeResponse"];
 export type ValuationComponentsResponse = Schemas["ValuationComponentsResponse"];
 export type ReconciliationStatsResponse = Schemas["ReconciliationStatsResponse"];
 export type ConsistencyCheck = Schemas["ConsistencyCheckResponse"];

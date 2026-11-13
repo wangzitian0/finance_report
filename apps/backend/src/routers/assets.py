@@ -8,9 +8,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from src.audit import Currency, Money, to_money
+from src.audit import Currency, Money
 from src.config_app import get_effective_base_currency
-from src.deps import CurrentUserId, DbSession, Pagination
+from src.deps import CurrentUserId, DbSession
 from src.extraction import ManagedPosition, PositionStatus
 from src.ledger import Account
 from src.observability import get_logger
@@ -18,12 +18,10 @@ from src.platform import raise_bad_request, raise_internal_error, raise_not_foun
 from src.portfolio import PositionService, PositionServiceError
 from src.pricing import (
     ManualValuationComponentType,
-    ManualValuationLiquidityClass,
     PricingError,
     ValuationService,
     ValuationServiceError,
     convert_money,
-    list_current_manual_valuation_facts,
 )
 from src.reporting import DEFAULT_INCLUDE_RESTRICTED
 from src.schemas.assets import (
@@ -35,7 +33,6 @@ from src.schemas.assets import (
     ManualValuationSnapshotResponse,
     ManualValuationSnapshotUpdate,
     ReconcilePositionsResponse,
-    RestrictedHoldingResponse,
     ValuationComponentResponse,
     ValuationComponentsResponse,
 )
@@ -268,46 +265,6 @@ async def list_valuation_components(
         net_worth_delta=result.net_worth_delta,
         warnings=result.warnings,
     )
-
-
-@router.get("/restricted", response_model=list[RestrictedHoldingResponse])
-async def list_restricted_holdings(
-    db: DbSession,
-    user_id: CurrentUserId,
-    pagination: Pagination,
-    as_of_date: date | None = Query(default=None),
-) -> list[RestrictedHoldingResponse]:
-    """List latest ESOP/RSU/locked manual valuations as restricted holdings."""
-    report_date = as_of_date or date.today()
-    snapshots = await list_current_manual_valuation_facts(
-        db,
-        user_id,
-        as_of_date=report_date,
-        component_types=ManualValuationComponentType.restricted_compensation_types(),
-        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
-    )
-
-    # Paginate the deduplicated current-head holdings (dedup runs over the full
-    # result set before slicing, so the bound is applied here rather than in SQL).
-    # Sort explicitly with a stable tiebreaker (id) so offset pagination is
-    # deterministic when as_of_date / created_at tie.
-    ordered = sorted(
-        snapshots,
-        key=lambda s: (s.as_of_date, s.created_at, s.id),
-        reverse=True,
-    )
-    page = ordered[pagination.offset : pagination.offset + pagination.limit]
-    return [
-        RestrictedHoldingResponse(
-            ticker=snapshot.source,
-            quantity=Decimal("1.000000"),
-            vesting_schedule=snapshot.notes,
-            unlock_date=snapshot.reminder_date,
-            fair_value=to_money(snapshot.value),
-            currency=snapshot.currency,
-        )
-        for snapshot in page
-    ]
 
 
 @router.get("/positions/{position_id}", response_model=ManagedPositionResponse)

@@ -47,7 +47,6 @@ from src.reporting import (
     generate_cash_flow,
     generate_income_statement,
     get_account_lineage,
-    get_account_trend,
     get_category_breakdown,
     get_net_worth_allocation_schedule,
     get_net_worth_timeseries,
@@ -65,7 +64,6 @@ from src.reporting import (
 )
 from src.schemas import (
     AccountLineageResponse,
-    AccountTrendResponse,
     BalanceSheetResponse,
     BreakdownPeriod,
     BreakdownType,
@@ -84,8 +82,6 @@ from src.schemas import (
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotSummary,
     PersonalReportPackageTraceabilityAnchorName,
-    ReportSnapshotSummary,
-    TrendPeriod,
 )
 from src.schemas.reporting import PersonalReportPackagePolicyDecisionsPage, ReportCoverageResponse
 from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
@@ -703,27 +699,6 @@ async def list_cash_flow_line_events(
     return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
 
 
-@router.get("/trend", response_model=AccountTrendResponse)
-async def account_trend(
-    account_id: UUID = Query(...),
-    period: TrendPeriod = Query(default=TrendPeriod.MONTHLY),
-    currency: str | None = Query(default=None, min_length=3, max_length=3),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> AccountTrendResponse:
-    """Get account trend data."""
-    report = await _run_fresh_report(
-        db,
-        user_id,
-        currency=currency,
-        end_date=date.today(),
-        label="Account trend generation",
-        build=lambda: get_account_trend(db, user_id, account_id=account_id, period=period.value, currency=currency),
-    )
-    return AccountTrendResponse.model_validate(report)
-
-
 @router.get("/net-worth/timeseries", response_model=NetWorthTimeSeriesResponse)
 async def net_worth_timeseries(
     from_date: date = Query(..., alias="from"),
@@ -859,22 +834,3 @@ async def export_report(
 
     await db.commit()
     return _stream_envelope_text(csv_text, ExportStreamMediaType.CSV, filename)
-
-
-@router.get("/{report_type}/snapshots", response_model=list[ReportSnapshotSummary])
-async def list_report_snapshots(
-    report_type: SnapshotReportType,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> list[ReportSnapshotSummary]:
-    """List available report snapshots for a given report type."""
-    rows = (
-        await db.execute(
-            select(ReportSnapshot)
-            .where(ReportSnapshot.report_type == report_type, ReportSnapshot.user_id == user_id)
-            .order_by(ReportSnapshot.created_at.desc())
-            .limit(50)
-        )
-    ).scalars().all()
-    return [ReportSnapshotSummary.model_validate(s) for s in rows]

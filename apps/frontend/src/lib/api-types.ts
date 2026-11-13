@@ -48,7 +48,6 @@ export interface paths {
   "/assets/positions/{position_id}": _P<{ get: _O["get_position_assets_positions__position_id__get"] }>;
   "/assets/positions/{position_id}/depreciation": _P<{ get: _O["get_position_depreciation_assets_positions__position_id__depreciation_get"] }>;
   "/assets/reconcile": _P<{ post: _O["reconcile_positions_assets_reconcile_post"] }>;
-  "/assets/restricted": _P<{ get: _O["list_restricted_holdings_assets_restricted_get"] }>;
   "/assets/valuation-components": _P<{ get: _O["list_valuation_components_assets_valuation_components_get"] }>;
   "/assets/valuation-snapshots": _P<{ get: _O["list_valuation_snapshots_assets_valuation_snapshots_get"]; post: _O["create_valuation_snapshot_assets_valuation_snapshots_post"] }>;
   "/assets/valuation-snapshots/{snapshot_id}": _P<{ get: _O["get_valuation_snapshot_assets_valuation_snapshots__snapshot_id__get"]; delete: _O["delete_valuation_snapshot_assets_valuation_snapshots__snapshot_id__delete"]; patch: _O["update_valuation_snapshot_assets_valuation_snapshots__snapshot_id__patch"] }>;
@@ -65,7 +64,6 @@ export interface paths {
   "/corrections/stats": _P<{ get: _O["correction_stats_corrections_stats_get"] }>;
   "/evidence/lineage": _P<{ get: _O["get_evidence_lineage_evidence_lineage_get"] }>;
   "/health": _P<{ get: _O["health_check_health_get"] }>;
-  "/income/annualized": _P<{ get: _O["get_annualized_income_income_annualized_get"] }>;
   "/journal-entries": _P<{ get: _O["list_journal_entries_journal_entries_get"]; post: _O["create_entry_journal_entries_post"] }>;
   "/journal-entries/{entry_id}": _P<{ get: _O["get_journal_entry_journal_entries__entry_id__get"]; delete: _O["delete_journal_entry_journal_entries__entry_id__delete"] }>;
   "/journal-entries/{entry_id}/postings": _P<{ post: _O["post_entry_journal_entries__entry_id__postings_post"] }>;
@@ -86,7 +84,6 @@ export interface paths {
   "/portfolio/allocation/sector": _P<{ get: _O["get_sector_allocation_portfolio_allocation_sector_get"] }>;
   "/portfolio/brokerage/import": _P<{ post: _O["import_brokerage_positions_portfolio_brokerage_import_post"] }>;
   "/portfolio/holdings": _P<{ get: _O["get_holdings_portfolio_holdings_get"] }>;
-  "/portfolio/performance": _P<{ get: _O["get_performance_portfolio_performance_get"] }>;
   "/portfolio/performance/report-schedule": _P<{ get: _O["get_investment_performance_report_schedule_portfolio_performance_report_schedule_get"] }>;
   "/portfolio/prices/update": _P<{ post: _O["update_prices_portfolio_prices_update_post"] }>;
   "/portfolio/summary": _P<{ get: _O["get_portfolio_summary_portfolio_summary_get"] }>;
@@ -127,8 +124,6 @@ export interface paths {
   "/reports/package/snapshots": _P<{ get: _O["list_personal_report_package_snapshots_reports_package_snapshots_get"] }>;
   "/reports/package/snapshots/{snapshot_id}": _P<{ get: _O["get_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__get"] }>;
   "/reports/package/snapshots/{snapshot_id}/export": _P<{ get: _O["export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get"] }>;
-  "/reports/trend": _P<{ get: _O["account_trend_reports_trend_get"] }>;
-  "/reports/{report_type}/snapshots": _P<{ get: _O["list_report_snapshots_reports__report_type__snapshots_get"] }>;
   "/review/conflicts/{statement_id}": _P<{ get: _O["get_review_conflicts_review_conflicts__statement_id__get"] }>;
   "/review/conflicts/{statement_id}/resolve": _P<{ post: _O["resolve_review_conflicts_review_conflicts__statement_id__resolve_post"] }>;
   "/review/transactions/{transaction_id}/currency": _P<{ post: _O["resolve_transaction_currency_endpoint_review_transactions__transaction_id__currency_post"] }>;
@@ -146,7 +141,6 @@ export interface paths {
   "/statements/{statement_id}/retry": _P<{ post: _O["retry_statement_parsing_statements__statement_id__retry_post"] }>;
   "/statements/{statement_id}/review": _P<{ get: _O["get_statement_for_review_statements__statement_id__review_get"] }>;
   "/statements/{statement_id}/review/approve": _P<{ post: _O["approve_statement_stage1_statements__statement_id__review_approve_post"] }>;
-  "/statements/{statement_id}/review/edit": _P<{ post: _O["edit_and_approve_statement_statements__statement_id__review_edit_post"] }>;
   "/statements/{statement_id}/review/envelope": _P<{ post: _O["confirm_statement_review_envelope_statements__statement_id__review_envelope_post"] }>;
   "/statements/{statement_id}/review/opening-balance": _P<{ post: _O["set_statement_opening_balance_statements__statement_id__review_opening_balance_post"] }>;
   "/statements/{statement_id}/review/reject": _P<{ post: _O["reject_statement_stage1_statements__statement_id__review_reject_post"] }>;
@@ -238,17 +232,6 @@ export interface components {
       updated_at: string;
       user_id: string;
     };
-    AccountTrendPoint: {
-      amount: string;
-      period_end: string;
-      period_start: string;
-    };
-    AccountTrendResponse: {
-      account_id: string;
-      currency: string;
-      period: _S["TrendPeriod"];
-      points: _S["AccountTrendPoint"][];
-    };
     AccountType: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
     AccountUpdate: {
       code?: string | null;
@@ -304,14 +287,6 @@ export interface components {
       currency: string;
       framework_id: _S["PersonalReportingFrameworkId"];
       year: number;
-    };
-    AnnualizedIncomeResponse: {
-      annualized_bonus: string;
-      annualized_dividend: string;
-      annualized_salary: string;
-      annualized_total: string;
-      as_of: string;
-      currency: string;
     };
     AnnualizedIncomeScheduleHolding: {
       compensation_type: string;
@@ -799,9 +774,6 @@ export interface components {
       reinvested: boolean;
     };
     EconomicIntent: "income" | "expense" | "expense_refund" | "transfer" | "investment_purchase" | "investment_sale" | "loan_principal" | "loan_interest" | "card_repayment" | "unknown";
-    EditAndApproveRequest: {
-      edits?: _S["TransactionEditRequest"][];
-    };
     EquationDiagnosticCategory: "BALANCED" | "UNPOSTED_DRAFT" | "FX_ROUNDING_DRIFT" | "UNKNOWN_DISCREPANCY";
     EquationDiagnosticResult: {
       confidence: number;
@@ -912,9 +884,6 @@ export interface components {
       report_period_start: string;
       required_statements: string[];
       result_id: string;
-    };
-    FxConversionErrorResponse: {
-      detail: string;
     };
     GenericNodeProperties: {
       [key: string]: unknown;
@@ -1320,14 +1289,6 @@ export interface components {
       memo: string;
     };
     PackageSnapshotExportFormat: "json" | "csv" | "zip";
-    PerformanceMetricsResponse: {
-      money_weighted_return?: string | null;
-      time_weighted_return?: string | null;
-      unavailable_reasons?: {
-        [key: string]: string;
-      };
-      xirr?: string | null;
-    };
     PersonalDataQualityHealthResponse: {
       action_items: _S["QualityActionItem"][];
       as_of_date: string;
@@ -1793,16 +1754,6 @@ export interface components {
       type: _S["AccountType"];
     };
     ReportLineId: "assets.cash_and_cash_equivalents" | "assets.cash_in_transit" | "income.salary" | "income.investment_income" | "income.refunds" | "income.other" | "expenses.dining" | "expenses.groceries" | "expenses.transport" | "expenses.housing" | "expenses.utilities" | "expenses.shopping" | "expenses.healthcare" | "expenses.entertainment" | "expenses.travel" | "expenses.education" | "expenses.insurance" | "expenses.fees" | "expenses.other" | "assets.marketable_securities" | "assets.financial_assets_at_fair_value" | "assets.investments.funds" | "assets.restricted_compensation" | "assets.investment_property" | "assets.biological_assets" | "assets.manual_private_assets" | "liabilities.financial_liabilities" | "equity.fx_translation" | "income.dividends_and_interest" | "income.unrealized_investment_gain_loss" | "income.fair_value_change_in_financial_assets" | "income.fx_gain_loss" | "expenses.investment_fees" | "cash.ending_cash" | "investing.fees" | "cash.internal_transfers" | "notes.fund_liquidity" | "notes.tax_hooks" | "notes.restricted_asset_treatment" | "notes.manual_valuation_basis" | "notes.liability_coverage" | "notes.transfer_matching" | "notes.tax_relevant_items" | "notes.us_like_market_price_basis" | "notes.hk_like_fair_value_basis";
-    ReportSnapshotSummary: {
-      as_of_date?: string | null;
-      created_at?: string | null;
-      id: string;
-      is_latest: boolean;
-      report_type: _S["ReportType"];
-      rule_version_id?: string | null;
-      start_date?: string | null;
-    };
-    ReportType: "balance_sheet" | "income_statement" | "cash_flow" | "package";
     ResolveCheckRequest: {
       action: string;
       note?: string | null;
@@ -1820,14 +1771,6 @@ export interface components {
       resolved_at?: string | null;
       resolved_by?: string | null;
       transaction_id: string;
-    };
-    RestrictedHoldingResponse: {
-      currency: string;
-      fair_value: string;
-      quantity: string;
-      ticker: string;
-      unlock_date?: string | null;
-      vesting_schedule?: string | null;
     };
     RetryParsingRequest: {
       model?: string | null;
@@ -1971,15 +1914,6 @@ export interface components {
       original_category: string | null;
     };
     TransactionCategory: "SALARY" | "INTEREST" | "INVESTMENT_INCOME" | "REFUND" | "OTHER_INCOME" | "DINING" | "GROCERIES" | "TRANSPORT" | "HOUSING" | "UTILITIES" | "SHOPPING" | "HEALTHCARE" | "ENTERTAINMENT" | "TRAVEL" | "EDUCATION" | "INSURANCE" | "FEES" | "OTHER_EXPENSE" | "TRANSFER" | "CARD_REPAYMENT" | "LOAN_PRINCIPAL" | "INVESTMENT_TRADE";
-    TransactionEditRequest: {
-      amount?: number | string | null;
-      description?: string | null;
-      direction?: string | null;
-      reference?: string | null;
-      txn_date?: string | null;
-      txn_id: string;
-    };
-    TrendPeriod: "daily" | "weekly" | "monthly";
     UserAiSettingsResponse: {
       auto_accept_ai_suggestions: boolean;
       auto_accept_ai_suggestions_active: boolean;
@@ -2193,15 +2127,6 @@ export interface operations {
     responses: _R<_S["DepreciationResponse"]>;
   };
   reconcile_positions_assets_reconcile_post: _OpN<_S["ReconcilePositionsResponse"]>;
-  list_restricted_holdings_assets_restricted_get: {
-    parameters: _QP<{
-        as_of_date?: string | null;
-        limit?: number;
-        offset?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["RestrictedHoldingResponse"][]>;
-  };
   list_valuation_components_assets_valuation_components_get: {
     parameters: _QP<{
         as_of_date?: string | null;
@@ -2318,23 +2243,6 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<unknown>;
-  };
-  get_annualized_income_income_annualized_get: {
-    parameters: _QP<{
-        as_of?: string | null;
-      }>;
-    requestBody?: never;
-    responses: {
-      200: _J<_S["AnnualizedIncomeResponse"]>;
-      400: _J<_S["FxConversionErrorResponse"]>;
-      401: _E;
-      403: _E;
-      404: _E;
-      409: _E;
-      422: _VE;
-      429: _E;
-      500: _E;
-    };
   };
   list_journal_entries_journal_entries_get: {
     parameters: _QP<{
@@ -2454,15 +2362,6 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<_S["HoldingsListResponse"]>;
-  };
-  get_performance_portfolio_performance_get: {
-    parameters: _QP<{
-        period_start?: string | null;
-        period_end?: string | null;
-        as_of_date?: string | null;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["PerformanceMetricsResponse"]>;
   };
   get_investment_performance_report_schedule_portfolio_performance_report_schedule_get: {
     parameters: _QP<{
@@ -2785,22 +2684,6 @@ export interface operations {
     requestBody?: never;
     responses: _R<unknown>;
   };
-  account_trend_reports_trend_get: {
-    parameters: _QPR<{
-        account_id: string;
-        period?: _S["TrendPeriod"];
-        currency?: string | null;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["AccountTrendResponse"]>;
-  };
-  list_report_snapshots_reports__report_type__snapshots_get: {
-    parameters: _PP<{
-        report_type: _S["ReportType"];
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ReportSnapshotSummary"][]>;
-  };
   get_review_conflicts_review_conflicts__statement_id__get: {
     parameters: _PP<{
         statement_id: string;
@@ -2907,13 +2790,6 @@ export interface operations {
         statement_id: string;
       }>;
     requestBody?: _B<_S["Stage1ApprovalRequest"] | null>;
-    responses: _R<_S["Stage1ApprovalResponse"]>;
-  };
-  edit_and_approve_statement_statements__statement_id__review_edit_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody: _B<_S["EditAndApproveRequest"]>;
     responses: _R<_S["Stage1ApprovalResponse"]>;
   };
   confirm_statement_review_envelope_statements__statement_id__review_envelope_post: {

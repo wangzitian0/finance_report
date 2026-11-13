@@ -4,8 +4,6 @@ class TestReportsRouterAdditionalCoverage:
         with patch('src.routers.reports.generate_income_statement') as mock_report: mock_report.side_effect = ReportError('Test report error'); response = await client.get('/reports/income-statement', params={'start_date': '2024-01-01', 'end_date': '2024-12-31'}); assert response.status_code == 400; assert 'Test report error' in response.json()['detail']
     async def test_cash_flow_report_error(self, client, test_user):
         with patch('src.routers.reports.generate_cash_flow') as mock_report: mock_report.side_effect = ReportError('Cash flow error'); response = await client.get('/reports/cash-flow', params={'start_date': '2024-01-01', 'end_date': '2024-12-31'}); assert response.status_code == 400
-    async def test_trend_analysis_report_error(self, client, test_user):
-        with patch('src.routers.reports.get_account_trend') as mock_report: mock_report.side_effect = ReportError('Trend analysis error'); response = await client.get('/reports/trend', params={'account_id': str(uuid4()), 'period': 'monthly'}); assert response.status_code == 400
     async def test_breakdown_analysis_report_error(self, client, test_user):
         with patch('src.routers.reports.get_category_breakdown') as mock_report: mock_report.side_effect = ReportError('Breakdown error'); response = await client.get('/reports/breakdown', params={'type': 'income'}); assert response.status_code == 400
     async def test_export_excel_not_found(self, client, test_user): fake_id = uuid4(); response = await client.get(f'/reports/{fake_id}/export/excel'); assert response.status_code == 404

@@ -69,7 +69,7 @@ Internal transfers are not accepted by this command: they must be paired in the 
 ### API endpoints
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/statements/{id}/review` | Stage 1 review data with PDF URL | | POST | `/statements/{id}/review/approve` | Approve with balance validation | | POST | `/statements/{id}/review/reject` | Reject and trigger re-parse | | POST | `/statements/{id}/review/edit` | Unsupported — returns HTTP 400 (reject + re-parse instead) | | POST | `/statements/{id}/review/opening-balance` | Set manual opening balance |
+| GET | `/statements/{id}/review` | Stage 1 review data with PDF URL | | POST | `/statements/{id}/review/approve` | Approve with balance validation | | POST | `/statements/{id}/review/reject` | Reject and trigger re-parse | 
 | GET | `/review/conflicts/{statement_id}` | Stage 1 duplicate and transfer-pair conflict candidates | | GET | `/statements/stage2/queue` | Stage 2 review queue (global) | | POST | `/statements/{id}/stage2/run-checks` | Run consistency checks for statement | | POST | `/statements/consistency-checks/{id}/resolve` | Resolve a check | | GET | `/statements/consistency-checks/list` | List/filter consistency checks |
 | POST | `/statements/batch-approve-matches` | Batch approve matches | | POST | `/statements/batch-reject-matches` | Batch reject matches |
 ### Files
