@@ -13,13 +13,14 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from time import monotonic
+from time import sleep as blocking_sleep
 from typing import Any, Protocol
 
-# The product waits at most 200 s for the classification pass
-# (CLASSIFICATION_LOCK_WAIT_SECONDS in transaction_classification.py of the backend).
-# The limit adds a margin. ``common/`` does not import ``apps/backend``.
-CLASSIFICATION_POLL_SECONDS = 1.0
-CLASSIFICATION_WAIT_SECONDS = 240.0
+# A classify run ends within 180 s (CLASSIFICATION_PHASE_DEADLINE_SECONDS in transaction_classification.py of the
+# backend). The limit adds a margin. ``common/`` does not import ``apps/backend``.
+RUN_POLL_SECONDS = 1.0
+RUN_WAIT_SECONDS = 240.0
+ACTIVE_RUN_STATES = frozenset({"requested", "running"})
 
 
 class _Response(Protocol):
@@ -125,24 +126,35 @@ def _require_success(response: _Response, *, action: str) -> dict[str, Any]:
     return response.json()
 
 
-async def _wait_for_classification(
-    client: _Client, get: Getter | None, review_url: str
-) -> None:
-    """Poll the review lookup until the classification pass ends (#2950).
+def has_active_run(runs: Mapping[str, Any]) -> bool:
+    """True when ``GET /statements/{id}/runs`` lists a run that is requested or running."""
+    return any(run.get("state") in ACTIVE_RUN_STATES for run in runs.get("items", ()))
 
-    The server holds ``POST /review/approve`` for that pass, longer than the 120 s
-    client timeout of a journey. At the limit this returns and does not raise: the
-    approval then gets the honest answer of the server (its busy error).
+
+async def wait_for_statement_runs(client: _Client, get: Getter | None, runs_url: str) -> None:
+    """Poll the runs list until no run is active (#2994).
+
+    The approval answers 409 with ``active_run_id`` while a run is active, for example the classify run that
+    follows each extraction. At the limit this returns and does not raise: the approval then gets the honest
+    answer of the server.
     """
-    deadline = monotonic() + CLASSIFICATION_WAIT_SECONDS
+    deadline = monotonic() + RUN_WAIT_SECONDS
     while True:
-        review = _require_success(
-            await _send_get(client, get, review_url),
-            action="classification state lookup",
-        )
-        if not review.get("preclassification_in_progress") or monotonic() >= deadline:
+        runs = _require_success(await _send_get(client, get, runs_url), action="statement runs lookup")
+        if not has_active_run(runs) or monotonic() >= deadline:
             return
-        await sleep(CLASSIFICATION_POLL_SECONDS)
+        await sleep(RUN_POLL_SECONDS)
+
+
+def wait_for_statement_runs_sync(client: Any, runs_url: str) -> None:
+    """The blocking twin of ``wait_for_statement_runs`` for the scripts that use a synchronous client."""
+    deadline = monotonic() + RUN_WAIT_SECONDS
+    while True:
+        response = client.get(runs_url)
+        _require_success(response, action="statement runs lookup")
+        if not has_active_run(response.json()) or monotonic() >= deadline:
+            return
+        blocking_sleep(RUN_POLL_SECONDS)
 
 
 async def approve_statement_with_fixture_review(
@@ -155,16 +167,16 @@ async def approve_statement_with_fixture_review(
     envelope: FixtureEnvelope | None = None,
     get: Getter | None = None,
 ) -> dict[str, Any]:
-    """Wait for classification, approve, resolve ``intent_missing`` from fixture facts, retry.
+    """Wait for the runs, approve, resolve ``intent_missing`` from fixture facts, retry.
 
-    The helper first polls the review lookup until the classification pass ends
-    (at least 1 GET request). It sends 2 more GET requests when the approval needs
-    them: the source review lookup and the unmatched lookup. All of them use ``get``
-    when the caller passes it, and ``client.get`` otherwise. A POST never uses ``get``.
+    The helper first polls the runs list until no run is active (at least 1 GET request). It sends
+    2 more GET requests when the approval needs them: the source review lookup and the unmatched
+    lookup. All of them use ``get`` when the caller passes it, and ``client.get`` otherwise. A POST
+    never uses ``get``.
     """
 
-    await _wait_for_classification(
-        client, get, api_url(f"/statements/{statement_id}/review")
+    await wait_for_statement_runs(
+        client, get, api_url(f"/statements/{statement_id}/runs")
     )
     approval_path = api_url(f"/statements/{statement_id}/review/approve")
     approval = await client.post(
