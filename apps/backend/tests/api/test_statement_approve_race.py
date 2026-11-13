@@ -216,15 +216,15 @@ async def _candidate_for_auto_approve(db, user):
     return statement_id
 
 
-async def test_AC_extraction_2994_87_the_auto_approve_after_finish_run_still_posts(db, test_user):
-    """AC-extraction.2994.87: finish_run comes first in the transaction, so the run is no longer active: it posts."""
+async def test_AC_extraction_2994_87_the_auto_approve_with_its_own_run_exempt_still_posts(db, test_user):
+    """AC-extraction.2994.87: The run of the worker is still active at its auto-approve: only that run id is exempt."""
     statement_id = await _candidate_for_auto_approve(db, test_user)
     run_id = await _running_run(db, statement_id, test_user)
-    await finish_run(db, run_id)  # The worker does this before its auto-approve, in the same transaction.
 
     created = await try_auto_approve_high_confidence_statement(
-        db, statement_id, test_user.id, dependencies=compose_statement_posting_dependencies()
+        db, statement_id, test_user.id, dependencies=compose_statement_posting_dependencies(), ignore_run_id=run_id
     )
+    await finish_run(db, run_id)  # The worker ends the run in the same transaction as the approve.
     await db.commit()
 
     assert created == len(ROWS)

@@ -2,7 +2,7 @@
 
 The extract run ends and creates a `classify` run in the same transaction. The same worker task claims that
 run, asks the model for the rows without an answer, and ends the run. A high-confidence statement is
-auto-approved after the classify run succeeded. No lock guards the classification: the active-run index
+auto-approved by the transaction that ends the classify run. No lock guards the classification: the active-run index
 and a 409 with `active_run_id` replace it.
 """
 
