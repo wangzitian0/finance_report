@@ -58,7 +58,7 @@ effective_statement_transaction_filter|svc|extension/transaction_membership.py
 ExtractionService|svc|extension/service.py
 StatementIngestionUseCase|svc|extension/statement_parsing.py
 @fac|-|build_statement_ingestion_use_case extraction_trace_policy_registry
-@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run get_latest_run list_runs
+@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run get_latest_run list_runs lock_statement_for_run
 DeduplicationService|svc|extension/deduplication.py
 BrokeragePositionImportService|svc|extension/brokerage_positions.py
 EvidenceGraphIntegrationService|svc|extension/evidence_graph_integration.py
@@ -129,9 +129,9 @@ general_account_name get_active_run get_correction_stats
 get_current_statement_extraction_result get_known_storage_paths
 get_latest_run get_or_create_account get_parsing_prompt
 get_statement_coverage_rows get_statement_event_sources
-get_uploaded_document_filenames heartbeat_run is_bank_custody_source
+get_uploaded_document_filenames heartbeat_run hints_apply_to_file_type is_bank_custody_source
 is_statement_classification_running list_runs list_statement_contributions
-lock_statement_classification looks_like_brokerage_document
+lock_statement_classification lock_statement_for_run looks_like_brokerage_document
 looks_like_brokerage_payload parse_brokerage_csv_payload
 parse_brokerage_positions pending_stage1_review_filter
 persist_statement_extraction_result reap_stale_runs reconciliation_enabled
@@ -890,17 +890,26 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.43|Empty hints give a prompt that is byte-identical to the prompt without hints.|test_AC_extraction_2994_43_empty_hints_leave_the_prompt_byte_identical
 2994.44|A hint appends one block of data after the unchanged prompt: keywords as a JSON array, the note as a JSON string.|test_AC_extraction_2994_44_hints_append_one_block_after_the_base_prompt
 2994.45|A fake end marker or an order inside a hint stays inside its JSON string.|test_AC_extraction_2994_45_hostile_hint_text_stays_inside_its_json_string
-2994.46|A change of the prompt text needs a new template version: a test pins the prompt digests to the version.|test_AC_extraction_2994_46_the_base_prompt_text_is_pinned_to_its_template_version
+2994.46|A change of any template part needs a new template version: one fingerprint over the base prompts, every institution hint, the hints block and the paged prompts is pinned to the version.|test_AC_extraction_2994_46_every_template_part_is_pinned_to_its_template_version
 2994.47|The prompt digest is the SHA-256 of the canonical JSON of the version, model and hints, and every extract run stores it.|test_AC_extraction_2994_47_the_prompt_digest_is_sha256_of_version_model_and_hints
 2994.48|parse_document passes the hints to the prompt of every extraction pass, including a re-extract.|test_AC_extraction_2994_48_hints_reach_the_prompt_of_every_extraction_pass
 2994.49|The worker reads the hints from the run row that it claims and passes them to parse_document.|test_AC_extraction_2994_49_the_worker_passes_the_hints_of_the_claimed_run
+2994.64|The hints block is the last part of every prompt, including the meta and part prompts of a paged PDF, and ends with an explicit end line.|test_AC_extraction_2994_64_the_hints_block_is_the_last_part_of_every_prompt_of_a_paged_pdf
+2994.65|An auto retry successor keeps the hints and the model of the failed run, and its digest.|test_AC_extraction_2994_65_an_auto_retry_successor_keeps_the_hints_and_the_model
+2994.68|Stored hints that no longer validate fail the run with invalid_hints, and no message or log holds their text.|test_AC_extraction_2994_68_stored_hints_that_no_longer_validate_fail_the_run_without_their_text
+2994.70|RunHints reject U+2028 and U+2029 in a keyword and in the note, and keep the zero width joiners.|test_AC_extraction_2994_70_run_hints_reject_line_and_paragraph_separators
+2994.71|The JSON schema of RunHints carries 20 keywords, 64 characters and 500 characters, and a keyword is stripped before its length is checked.|test_AC_extraction_2994_71_the_schema_of_run_hints_carries_the_three_limits
 @$be/api/test_statement_run_api.py|P1
 2994.50|POST runs writes a user rerun run with the typed hints, the model and the digest, and dispatches it.|test_AC_extraction_2994_50_post_runs_starts_a_rerun_with_the_hints_as_typed
 2994.51|A classify kind, an actor in the body or a hint over its limit gives 422 and no run.|test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits
 2994.52|POST runs of a statement of another user or of an unknown statement gives 404.|test_AC_extraction_2994_52_post_runs_of_another_users_statement_gives_404
 2994.53|Hints on a CSV statement give 400 and no run, because a CSV parse sends no prompt.|test_AC_extraction_2994_53_post_runs_of_a_csv_statement_with_hints_gives_400
 2994.54|GET runs lists the runs of the owner by seq with hints, actor, state and error, and gives 404 for another user.|test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_their_hints
-2994.55|The retry route and RetryParsingRequest no longer exist.|test_AC_extraction_2994_55_the_retry_route_and_its_request_schema_are_gone
+2994.55|The retry route and RetryParsingRequest no longer exist, and StatementRunRecord is the response model.|test_AC_extraction_2994_55_the_retry_route_and_its_request_schema_are_gone
+2994.67|A rerun locks the statement row first and checks the status again: a status that changed gives 409 and no write.|test_AC_extraction_2994_67_a_status_that_changed_after_the_check_gives_409_and_no_write
+2994.69|A reject of a CSV statement records empty hints, and one package rule says which file types send a prompt.|test_AC_extraction_2994_69_reject_on_a_csv_statement_records_empty_hints
+@$fe/__tests__/statementRunLimits.test.ts|P1
+2994.75|The limits of the Run again form equal the limits in openapi.json.|AC-extraction.2994.75 the keyword count, keyword length and note length match openapi.json
 @$fe/__tests__/statementRuns.test.tsx|P1
 2994.56|The statement page lists each attempt, newest first, with actor, trigger, state, hints and error code.|AC-extraction.2994.56 lists each attempt, newest first, with actor, trigger, state, hints and error code
 2994.57|Run again posts the typed hints through the runs operation, trimmed keywords and the note as typed.|AC-extraction.2994.57 posts the hints exactly as typed through the runs operation
@@ -910,6 +919,9 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.61|The note of the reject dialog stops at 500 characters.|AC-extraction.2994.61 limits the note of the reject dialog to 500 characters
 2994.62|An approved statement has no Run again panel, and no Retry Parse button exists.|AC-extraction.2994.62 offers no Run again for an approved statement and has no Retry Parse button
 2994.63|After a run starts, the statement reloads and the review and the attempts list refetch.|AC-extraction.2994.63 refetches the statement, the review and the attempts after a run starts
+2994.72|The panel refuses control characters and line or paragraph separators in the keywords and the note.|AC-extraction.2994.72 refuses control characters and line or paragraph separators before the request
+2994.73|A 422 shows one fixed sentence and never the response body.|AC-extraction.2994.73 shows one fixed sentence for a 422 and never the raw body
+2994.74|The attempts list loads while the statement is parsing, and Run again is disabled for a stuck parsing statement with an active run.|AC-extraction.2994.74 lists the attempts while the statement is parsing, with the failed attempt that explains it
 """,
     ),
     concepts=concepts(
