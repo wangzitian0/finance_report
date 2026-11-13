@@ -14,6 +14,7 @@ from src.extraction.base.validation import (
     STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
     should_invert_positive_balance_owed,
 )
+from src.extraction.extension.statement_runs import get_active_run
 from src.extraction.extension.reviewed_statement_envelope import (
     get_current_statement_extraction_result,
     require_current_statement_envelope_trust,
@@ -460,6 +461,11 @@ async def approve_statement_with_transactions(
         raise ValueError(
             f"Statement cannot be approved while its status is {statement.status.value}. Reload the statement."
         )
+    # A statement with an active run parses again, whatever its status says: another path, such as the
+    # confirmation of an envelope, may have written PARSED over it. The worker finishes its own run before its
+    # auto-approve, in the same transaction, so this check never blocks the worker.
+    if await get_active_run(db, statement_id) is not None:
+        raise ValueError("Statement is parsing again. Reload the statement before approving it.")
     await require_current_statement_envelope_trust(db, statement=statement)
     _raise_if_approved_envelope_incomplete(statement)
     transactions = await resolve_statement_transactions(db, statement)

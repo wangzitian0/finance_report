@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select, update
 
+from src.composition import compose_statement_posting_dependencies
 from src.database import create_session_maker_from_db
 from src.extraction import (
     BankStatementStatus,
@@ -24,8 +25,12 @@ from src.extraction import (
     TransactionDirection,
     claim_run,
     create_run,
+    finish_run,
+    get_active_run,
 )
-from src.extraction.extension.statement_parsing import handle_parse_failure
+from src.extraction.extension import statement_parsing
+from src.extraction.extension.statement_parsing import _try_recover_auto_approve_after_classification, handle_parse_failure
+from src.extraction.extension.statement_posting import ECONOMIC_REVIEW_NOTICE, try_auto_approve_high_confidence_statement
 from src.extraction.orm.statement_run import StatementRun
 from src.ledger import JournalEntry
 from src.routers import statements as statements_router
@@ -33,6 +38,10 @@ from tests.api._statement_router_fixtures import create_statement_account
 from tests.factories import seed_parsed_statement
 from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 
+CSV_FOR_WORKER = (
+    b"Statement Currency,Date,Description,Debit Amount,Credit Amount\n"
+    b"SGD,2026-01-05,Salary,,5000.00\n"
+)
 ROWS = [
     {"description": "Salary Jan", "amount": Decimal("2500.00"), "direction": TransactionDirection.IN, "date": date(2026, 1, 5)},
     {"description": "Rent Jan", "amount": Decimal("12.50"), "direction": TransactionDirection.OUT, "date": date(2026, 1, 6)},
@@ -164,3 +173,135 @@ async def test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statemen
         select(StatementRun).where(StatementRun.id == run.id).execution_options(populate_existing=True)
     )
     assert failed.state is RunState.FAILED, "the run still ends as failed"
+
+
+async def _running_run(db, statement_id, user):
+    run = await create_run(
+        db,
+        statement_id=statement_id,
+        user_id=user.id,
+        kind=RunKind.EXTRACT,
+        actor_kind=RunActorKind.USER,
+        trigger=RunTrigger.RERUN,
+        hints=RunHints(),
+    )
+    await claim_run(db, run.id)
+    await db.commit()
+    return run.id
+
+
+async def test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run(client, db, test_user):
+    """AC-extraction.2994.87: Approve refuses an active run, also when the statement still says PARSED."""
+    statement_id = await _approvable_statement(db, test_user)
+    await _running_run(db, statement_id, test_user)  # The state that a stale envelope confirmation left behind.
+
+    response = await client.post(f"/statements/{statement_id}/review/approve", json={})
+
+    assert response.status_code == 400, response.text
+    assert "parsing again" in response.json()["detail"].lower()
+    assert await _entry_count(db, test_user) == 0
+    assert (await _fresh(db, statement_id)).status is BankStatementStatus.PARSED
+
+
+async def _candidate_for_auto_approve(db, user):
+    """A statement that the parse marked as an auto-approve candidate: APPROVED, balanced, high confidence."""
+    statement_id = await _approvable_statement(db, user)
+    statement = await _fresh(db, statement_id)
+    statement.status = BankStatementStatus.APPROVED
+    statement.balance_validated = True
+    statement.confidence_score = 95
+    await db.commit()
+    return statement_id
+
+
+async def test_AC_extraction_2994_87_the_auto_approve_after_finish_run_still_posts(db, test_user):
+    """AC-extraction.2994.87: finish_run comes first in the transaction, so the run is no longer active: it posts."""
+    statement_id = await _candidate_for_auto_approve(db, test_user)
+    run_id = await _running_run(db, statement_id, test_user)
+    await finish_run(db, run_id)  # The worker does this before its auto-approve, in the same transaction.
+
+    created = await try_auto_approve_high_confidence_statement(
+        db, statement_id, test_user.id, dependencies=compose_statement_posting_dependencies()
+    )
+    await db.commit()
+
+    assert created == len(ROWS)
+    assert await _entry_count(db, test_user) >= len(ROWS)
+    assert (await _fresh(db, statement_id)).status is BankStatementStatus.APPROVED
+
+
+async def test_AC_extraction_2994_87_the_auto_approve_of_a_still_running_run_posts_nothing(db, test_user):
+    """AC-extraction.2994.87: The order matters: against a running run the approve refuses, and nothing is posted."""
+    statement_id = await _candidate_for_auto_approve(db, test_user)
+    await _running_run(db, statement_id, test_user)
+
+    created = await try_auto_approve_high_confidence_statement(
+        db, statement_id, test_user.id, dependencies=compose_statement_posting_dependencies()
+    )
+    await db.commit()
+
+    assert created == 0
+    assert await _entry_count(db, test_user) == 0
+
+
+async def test_AC_extraction_2994_87_the_worker_finishes_its_run_before_its_auto_approve(db, test_user, monkeypatch):
+    """AC-extraction.2994.87: At the call of the auto-approve, the run of the worker is no longer active."""
+    from tests.extraction.test_statement_run_wiring import _statement_with_run, _use_case
+
+    statement_id, job = await _statement_with_run(db, test_user)
+    seen: list[object] = []
+    real = statement_parsing.try_auto_approve_high_confidence_statement
+
+    async def spy(session, sid, user_id, *, dependencies):
+        seen.append(await get_active_run(session, sid))
+        return await real(session, sid, user_id, dependencies=dependencies)
+
+    monkeypatch.setattr(statement_parsing, "try_auto_approve_high_confidence_statement", spy)
+
+    await _use_case(db).execute(job, content=CSV_FOR_WORKER)
+
+    assert seen == [None], "the run of the worker must be finished before the auto-approve runs"
+
+
+async def _recoverable_statement(db, user):
+    statement_id = await _approvable_statement(db, user)
+    statement = await _fresh(db, statement_id)
+    statement.balance_validated = True
+    statement.confidence_score = 95
+    statement.validation_error = ECONOMIC_REVIEW_NOTICE + " 1 row needs review"
+    await db.commit()
+    return statement_id
+
+
+async def test_AC_extraction_2994_87_the_recovery_approve_after_the_classification_still_posts(db, test_user):
+    """AC-extraction.2994.87: The recovery runs after the parse committed its finished run: it posts."""
+    statement_id = await _recoverable_statement(db, test_user)
+    run_id = await _running_run(db, statement_id, test_user)
+    await finish_run(db, run_id)
+    await db.commit()
+
+    created = await _try_recover_auto_approve_after_classification(
+        create_session_maker_from_db(db),
+        statement_id=statement_id,
+        user_id=test_user.id,
+        posting_dependencies=compose_statement_posting_dependencies(),
+    )
+
+    assert created == len(ROWS)
+    assert (await _fresh(db, statement_id)).status is BankStatementStatus.APPROVED
+
+
+async def test_AC_extraction_2994_87_the_recovery_approve_posts_nothing_while_a_rerun_parses(db, test_user):
+    """AC-extraction.2994.87: A rerun that started in the meantime stops the recovery approve."""
+    statement_id = await _recoverable_statement(db, test_user)
+    await _running_run(db, statement_id, test_user)
+
+    created = await _try_recover_auto_approve_after_classification(
+        create_session_maker_from_db(db),
+        statement_id=statement_id,
+        user_id=test_user.id,
+        posting_dependencies=compose_statement_posting_dependencies(),
+    )
+
+    assert created == 0
+    assert await _entry_count(db, test_user) == 0
