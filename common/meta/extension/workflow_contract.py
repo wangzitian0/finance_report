@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -115,6 +116,7 @@ SSOT_REQUIRED_PROSE: dict[str, tuple[str, ...]] = {
     "common/runtime/environments.md": ("same gate family", "workflow_dispatch"),
 }
 
+
 def read_text(repo_root: Path, relative_path: str) -> str:
     return (repo_root / relative_path).read_text(encoding="utf-8")
 
@@ -177,14 +179,21 @@ def workflow_set_display(paths: set[str], *, prefix: str = "") -> list[str]:
     return sorted(f"{prefix}{path}" for path in paths)
 
 
+REUSABLE_WORKFLOW_REF = re.compile(r"^[^@\s]+/\.github/workflows/[^@\s]+\.ya?ml@")
+
+
 def iter_action_uses(value: object) -> set[str]:
     found: set[str] = set()
     if isinstance(value, dict):
         uses = value.get("uses")
         # A reusable workflow ("owner/repo/.github/workflows/x.yml@ref") is not an
         # action; the runtime inventory describes action metadata only.
-        is_reusable = isinstance(uses, str) and "/.github/workflows/" in uses
-        if isinstance(uses, str) and not uses.startswith(("./", "docker://")) and not is_reusable:
+        is_reusable = isinstance(uses, str) and bool(REUSABLE_WORKFLOW_REF.match(uses))
+        if (
+            isinstance(uses, str)
+            and not uses.startswith(("./", "docker://"))
+            and not is_reusable
+        ):
             found.add(uses)
         for nested in value.values():
             found.update(iter_action_uses(nested))
