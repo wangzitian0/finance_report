@@ -114,8 +114,8 @@ IMAGE_BUILD_EXACT = frozenset(
 IMAGE_BUILD_PREFIXES = ("apps/backend/scripts/",)
 
 COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
-    "backend": ("apps/backend/",),
-    "frontend": ("apps/frontend/",),
+    "backend": ("apps/backend/", "common/", ".github/actions/setup-backend-env/"),
+    "frontend": ("apps/frontend/", "common/meta/flows/"),
     "tools": ("tools/", "tests/tooling/"),
     "common": ("common/",),
 }

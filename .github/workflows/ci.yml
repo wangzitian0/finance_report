@@ -406,13 +406,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.backend_changed == 'true'
     strategy:
       fail-fast: false
       matrix:
         # The matrix is the one place that sets the shard count: the job name and
         # --splits read strategy.job-total. Raise it when the slowest shard
-        # passes 4 minutes (#2688).
+        # drives the run past its time budget (#2688).
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
 
     services:
@@ -655,7 +655,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -970,6 +970,11 @@ jobs:
             --version-ref "${{ steps.get_sha.outputs.short_sha }}"
 
   finish:
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
     needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
@@ -1050,9 +1055,11 @@ jobs:
       - name: Install infra2-sdk for the timing summary
         uses: ./.github/actions/install-infra2-sdk
 
-      - name: Write CI timing summary
+      # #2996: the one budget step. It fails only when the run cannot be measured. An overrun
+      # comments on the PR, or on main opens or updates the `ci-budget` issue, and `finish`
+      # stays green: no release waits on a timing number. Budgets: PIPELINE_BUDGET_SECONDS.
+      - name: Write CI timing summary and check the time budget
         if: ${{ always() }}
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1060,7 +1067,9 @@ jobs:
             --repo "${{ github.repository }}" \
             --run-id "${{ github.run_id }}" \
             --title "CI Timing Summary" \
-            --summary-path "$GITHUB_STEP_SUMMARY"
+            --summary-path "$GITHUB_STEP_SUMMARY" \
+            --budget "${{ github.event_name == 'pull_request' && 'pr' || 'main' }}" \
+            --comment ${{ github.event_name == 'pull_request' && format('--pr {0}', github.event.pull_request.number) || '' }}
 
       - name: Check job status
         if: ${{ always() }}
@@ -1090,7 +1099,8 @@ jobs:
               echo "::error::Schema migration contract failed"
               exit 1
             fi
-            if [[ "${{ needs.backend.result }}" != "success" ]]; then
+            # #2996: backend is skipped when backend_changed=false, a pass.
+            if [[ "${{ needs.backend.result }}" != "success" && "${{ needs.backend.result }}" != "skipped" ]]; then
               echo "::error::Backend tests failed"
               exit 1
             fi
@@ -1106,7 +1116,8 @@ jobs:
               echo "::error::Frontend build/typecheck failed"
               exit 1
             fi
-            if [[ "${{ needs.frontend-vitest.result }}" != "success" ]]; then
+            # #2996: frontend-vitest is skipped when frontend_changed=false, a pass.
+            if [[ "${{ needs.frontend-vitest.result }}" != "success" && "${{ needs.frontend-vitest.result }}" != "skipped" ]]; then
               echo "::error::Frontend Vitest coverage failed"
               exit 1
             fi
@@ -1139,80 +1150,6 @@ jobs:
             echo "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
           fi
           echo "✅ All checks passed!"
-
-  # #2688: the time budget of this run. A PR run only prints the verdict. A main run past its
-  # budget turns this job red and comments on the budget issue. Job-level continue-on-error
-  # keeps the ci.yml run conclusion green whatever happens here (an overrun, a script crash,
-  # a missing timing input or an SDK install flake): release.yml requires a successful main
-  # CI run (verify_source_ci), so this job must never decide that conclusion.
-  pipeline-budget:
-    name: Pipeline Budget
-    needs: [finish]
-    if: ${{ !cancelled() }}
-    continue-on-error: true
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      actions: read
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install infra2-sdk
-        uses: ./.github/actions/install-infra2-sdk
-
-      - name: Print the time budget verdict
-        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python tools/github_workflow_timing_summary.py \
-            --repo "${{ github.repository }}" \
-            --run-id "${{ github.run_id }}" \
-            --title "CI Time Budget" \
-            --summary-path "$GITHUB_STEP_SUMMARY" \
-            --budget "${{ github.event_name == 'pull_request' && 'pr' || 'main' }}"
-
-      # No step-level continue-on-error: a budget check that cannot run must show red on this job.
-      - name: Enforce the main-branch time budget
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python tools/github_workflow_timing_summary.py \
-            --repo "${{ github.repository }}" \
-            --run-id "${{ github.run_id }}" \
-            --title "Main CI Time Budget" \
-            --summary-path "$GITHUB_STEP_SUMMARY" \
-            --budget main \
-            --enforce \
-            --comment
-
-      - name: Report pipeline budget failure
-        if: failure()
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TARGET_ISSUE: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '2688' }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          marker="<!-- pipeline-budget-alert:${GITHUB_RUN_ID} -->"
-          body="${marker}
-          ⚠️ **Pipeline Budget Alert**: The \`pipeline-budget\` job failed (budget violation, unmeasured run, script crash, or SDK install flake) on [run ${GITHUB_RUN_ID}](${RUN_URL})."
-          existing_id="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${TARGET_ISSUE}/comments" --jq ".[] | select(.body | contains(\"<!-- pipeline-budget-alert\")) | .id" | head -n 1 || true)"
-          if [ -n "$existing_id" ]; then
-            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing_id}" -f body="$body"
-          else
-            gh issue comment "$TARGET_ISSUE" --repo "$GITHUB_REPOSITORY" --body "$body"
-          fi
 
   promote-release-images:
     name: Promote Release Tag Images
