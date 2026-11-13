@@ -30,22 +30,14 @@ from src.extraction.base.types import (
     StatementIngestionOutcome,
     StatementIngestionStatus,
 )
-from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
 from src.extraction.extension.brokerage_statement_payload import _extract_brokerage_payload_from_metadata
 from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing_supervisor import parsing_heartbeat
-from src.extraction.extension.statement_posting import (
-    ECONOMIC_REVIEW_NOTICE,
-    StatementPostingDependencies,
-    try_auto_approve_high_confidence_statement,
-)
-from src.extraction.extension.statement_preclassification import (
-    StatementClassificationPhase,
-    classify_parsed_statement,
-)
+from src.extraction.extension.statement_classification_run import AUTO_APPROVE_CANDIDATE, execute_classify_run
+from src.extraction.extension.statement_posting import StatementPostingDependencies, is_high_confidence_auto_approve_candidate
 from src.extraction.extension.statement_runs import (
     StaleRun,
     claim_run,
@@ -54,7 +46,6 @@ from src.extraction.extension.statement_runs import (
     finish_run,
     lock_statement_for_run,
 )
-from src.extraction.extension.statement_workflow import approve_statement_workflow
 from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
@@ -115,20 +106,12 @@ class StatementIngestionUseCase:
                     raise
                 await self.sleep(PARSE_RETRY_DELAY_SECONDS)
                 job, attempt = next_job, attempt + 1
-        if outcome.status is StatementIngestionStatus.COMPLETED:
+        if outcome.status is StatementIngestionStatus.COMPLETED and outcome.classify_run_id is not None:
             del content
-            phase = await classify_parsed_statement(
-                self.session_maker, statement_id=job.statement_id, user_id=job.user_id
+            posted = await execute_classify_run(
+                self.session_maker, run_id=outcome.classify_run_id, posting_dependencies=self.posting_dependencies
             )
-            if phase is StatementClassificationPhase.CLASSIFIED:
-                recovered = await _try_recover_auto_approve_after_classification(
-                    self.session_maker,
-                    statement_id=job.statement_id,
-                    user_id=job.user_id,
-                    posting_dependencies=self.posting_dependencies,
-                )
-                if recovered > 0:
-                    outcome = replace(outcome, auto_posted_count=outcome.auto_posted_count + recovered)
+            outcome = replace(outcome, auto_posted_count=posted)
         return outcome
 
     async def _attempt(self, job: ParseJob, content: bytes | None) -> StatementIngestionOutcome:
@@ -138,7 +121,6 @@ class StatementIngestionUseCase:
             content_loader=self.content_loader,
             session_maker=self.session_maker,
             extraction_service_factory=self.extraction_service_factory,
-            posting_dependencies=self.posting_dependencies,
             brokerage_router=self.brokerage_router,
             trace_emitter_factory=self.trace_emitter_factory,
             clock=self.clock,
@@ -195,38 +177,6 @@ class StatementIngestionUseCase:
                 delay_seconds=PARSE_RETRY_DELAY_SECONDS,
             )
             return replace(job, run_id=successor.id)
-
-
-async def _try_recover_auto_approve_after_classification(
-    session_maker: async_sessionmaker[AsyncSession],
-    *,
-    statement_id: UUID,
-    user_id: UUID,
-    posting_dependencies: StatementPostingDependencies,
-) -> int:
-    try:
-        async with session_maker() as session:
-            stmt = await session.get(StatementSummary, statement_id)
-            if (
-                stmt is None
-                or stmt.user_id != user_id
-                or stmt.status is not BankStatementStatus.PARSED
-                or stmt.balance_validated is not True
-                or stmt.confidence_score is None
-                or stmt.confidence_score < HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
-                or stmt.account_id is None
-                or not (stmt.validation_error or "").startswith(ECONOMIC_REVIEW_NOTICE)
-            ):
-                return 0
-            return (await approve_statement_workflow(session, statement_id, user_id, dependencies=posting_dependencies)).created_count
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "statement.auto_approve_recovery.failed",
-            statement_id=str(statement_id),
-            error_type=type(exc).__name__,
-            safe_error_message=safe_error_message(str(exc)),
-        )
-        return 0
 
 
 def build_statement_ingestion_use_case(
@@ -557,7 +507,6 @@ async def _execute_statement_ingestion(
     content_loader: ContentLoader,
     session_maker: async_sessionmaker[AsyncSession],
     extraction_service_factory: ExtractionServiceFactory,
-    posting_dependencies: StatementPostingDependencies,
     brokerage_router: BrokerageRouter,
     trace_emitter_factory: TraceEmitterFactory,
     clock: Clock,
@@ -735,11 +684,18 @@ async def _execute_statement_ingestion(
                 session, statement=statement, result=persisted_result, source_trace_record_id=trace_records[0].record_id
             )
 
-            await finish_run(session, job.run_id, extraction_result_id=statement.current_extraction_result_id)
-            checkpoint("statement_persisted")
-            auto_posted_count = await try_auto_approve_high_confidence_statement(
-                session, statement.id, job.user_id, dependencies=posting_dependencies
+            candidate = is_high_confidence_auto_approve_candidate(statement)
+            if candidate:
+                # `route_by_threshold` marked it APPROVED. It stays PARSED until the classify run ends (statement_posting).
+                statement.status = BankStatementStatus.PARSED
+                statement.stage1_status = Stage1Status.PENDING_REVIEW
+            await finish_run(
+                session,
+                job.run_id,
+                extraction_result_id=statement.current_extraction_result_id,
+                result_summary={AUTO_APPROVE_CANDIDATE: candidate},
             )
+            checkpoint("statement_persisted")
             await brokerage_router(
                 summary=statement,
                 db=session,
@@ -750,6 +706,20 @@ async def _execute_statement_ingestion(
                 request_id=request_id,
                 model_to_use=job.model,
             )
+            classify_run_id: UUID | None = None
+            if statement.status is BankStatementStatus.PARSED:
+                # Part of this transaction: no gap leaves a PARSED statement without a run for its unclassified rows.
+                classify_run = await create_run(
+                    session,
+                    statement_id=statement.id,
+                    user_id=job.user_id,
+                    kind=RunKind.CLASSIFY,
+                    actor_kind=RunActorKind.SYSTEM,
+                    trigger=RunTrigger.AUTO_CLASSIFY,
+                    hints=RunHints(),
+                    parent_run_id=job.run_id,
+                )
+                classify_run_id = classify_run.id
             await session.commit()
             logger.info(
                 "statement.parse.completed",
@@ -759,7 +729,7 @@ async def _execute_statement_ingestion(
                 phase="parse_completed",
                 duration_ms=round((clock() - start_time) * 1000, 2),
                 transactions_count=len(extraction_result.transactions),
-                auto_posted_count=auto_posted_count,
+                classify_run_id=str(classify_run_id) if classify_run_id is not None else None,
             )
             record_statement_parse_outcome(
                 outcome="rejected" if statement.status is BankStatementStatus.REJECTED else "success"
@@ -768,7 +738,7 @@ async def _execute_statement_ingestion(
                 statement_id=statement_id,
                 status=StatementIngestionStatus.COMPLETED,
                 transactions_count=len(extraction_result.transactions),
-                auto_posted_count=auto_posted_count,
+                classify_run_id=classify_run_id,
             )
         except StaleRun:
             await session.rollback()

@@ -53,14 +53,6 @@ class RetryableStatementIngestionError(StatementIngestionError):
     """Infrastructure/application failure that durable execution may retry."""
 
 
-class StatementClassificationBusy(RuntimeError):
-    """Another task still classifies this statement, and the wait limit has passed.
-
-    The caller changed nothing. A later call can succeed (#2637). The class is not a ``ValueError``: a handler
-    of domain errors must not turn this wait into a domain answer such as a 400 or a 404.
-    """
-
-
 @dataclass(frozen=True, slots=True, kw_only=True)
 class RetireStatementCommand:
     """Idempotently retire one user-owned statement without purging facts."""
@@ -83,6 +75,7 @@ class StatementIngestionOutcome:
     status: StatementIngestionStatus
     transactions_count: int = 0
     auto_posted_count: int = 0
+    classify_run_id: UUID | None = None
 
 
 class StatementPostingStatus(StrEnum):

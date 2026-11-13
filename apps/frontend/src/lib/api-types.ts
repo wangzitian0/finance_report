@@ -381,6 +381,7 @@ export interface components {
     BackfillClassificationsResponse: {
       candidates: number;
       classified: number;
+      skipped_statements: number;
     };
     BalanceSheetResponse: {
       as_of_date: string;
@@ -1901,7 +1902,6 @@ export interface components {
       pdf_url?: string | null;
       period_end: string | null;
       period_start: string | null;
-      preclassification_in_progress: boolean;
       reviewed_envelope?: _S["ReviewedStatementEnvelopeResponse"] | null;
       source_envelope_reviewable: boolean;
       source_missing_facts?: string[];

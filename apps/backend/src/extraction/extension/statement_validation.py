@@ -14,7 +14,7 @@ from src.extraction.base.validation import (
     STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
     should_invert_positive_balance_owed,
 )
-from src.extraction.extension.statement_runs import get_active_run
+from src.extraction.extension.statement_runs import ActiveRunExists, get_active_run
 from src.extraction.extension.reviewed_statement_envelope import (
     get_current_statement_extraction_result,
     require_current_statement_envelope_trust,
@@ -445,9 +445,9 @@ def _raise_if_approved_envelope_incomplete(statement: StatementSummary) -> None:
         )
 
 
-# PARSED is the status that waits for a review. A high-confidence parse sets APPROVED as its auto-approve
-# candidate marker (`route_by_threshold`), and the auto-approve then posts. Any other status, such as the PARSING
-# of a rerun, must not be approved: its entries would disagree with the statement.
+# PARSED is the status that waits for a review. APPROVED passes too: the auto-approve sets it as the candidate mark
+# before it posts (`auto_approve_parsed_candidate`), and a repeated approve posts nothing new. Any other status, such
+# as the PARSING of a rerun, must not be approved: its entries would disagree with the statement.
 _APPROVABLE_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.APPROVED})
 
 
@@ -457,15 +457,15 @@ async def approve_statement_with_transactions(
     user_id: UUID,
 ) -> tuple[StatementSummary, list[AtomicTransaction]]:
     statement = await _get_statement_for_update(db, statement_id, user_id)
+    # An active run changes the statement under the approve, whatever its status says: a rerun parses it again, or a
+    # classify run writes answers. The route answers 409 with its id. The auto-approve runs after that run ended.
+    active_run = await get_active_run(db, statement_id)
+    if active_run is not None:
+        raise ActiveRunExists(active_run.id)
     if statement.status not in _APPROVABLE_STATUSES:
         raise ValueError(
             f"Statement cannot be approved while its status is {statement.status.value}. Reload the statement."
         )
-    # A statement with an active run parses again, whatever its status says: another path, such as the
-    # confirmation of an envelope, may have written PARSED over it. The worker finishes its own run before its
-    # auto-approve, in the same transaction, so this check never blocks the worker.
-    if await get_active_run(db, statement_id) is not None:
-        raise ValueError("Statement is parsing again. Reload the statement before approving it.")
     await require_current_statement_envelope_trust(db, statement=statement)
     _raise_if_approved_envelope_incomplete(statement)
     transactions = await resolve_statement_transactions(db, statement)
