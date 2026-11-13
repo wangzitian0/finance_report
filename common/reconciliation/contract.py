@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ContextScope,
-    GovernanceGuarantee,
-    GovernanceInitiative,
     PackageContract,
     acs,
     concepts,
@@ -360,8 +358,6 @@ fe-ia-reconciliation.2||${label}: both Stage 1 and Stage 2 attention surface in 
 fe-ia-reconciliation.5||${label} renders the attention queue ranked by confidence without overflow
 @$fe/__tests__/stage2ReviewQueueParts.test.tsx|P1
 fe-ia-reconciliation.9||AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks
-@$be/reconciliation/test_economic_disposition_governance.py
-economic-disposition.8||test_AC_reconciliation_economic_disposition_8_governance_detail_is_exact
 @$be/reconciliation/test_keyword_leg_base_currency.py|P0|done|property
 named-transfer-legs.6||test_AC_reconciliation_named_transfer_legs_6_a_foreign_row_posts_no_leg_and_creates_no_account
 @$fe/__tests__/TransactionTable.test.tsx|P1
@@ -376,102 +372,4 @@ reconciliation_state_machine|common/reconciliation/readme.md#state-machine|pendi
 reconciliation_thresholds|common/reconciliation/readme.md#thresholds|Score ≥85 auto-accept; 60-84 review; <60 unmatched.|docs/agents/red-lines.md,common/reconciliation/reconciliation.md|-|reconciliation|baseline
 """
     ),
-    governance=[
-        GovernanceInitiative(
-            id="economic-disposition-atomicity",
-            title="Economic disposition atomicity and persistent transfer state",
-            issue="https://github.com/wangzitian0/finance_report/issues/1994",
-            depends_on=["meta/governance-control-plane"],
-            guarantees=[
-                GovernanceGuarantee(
-                    id="normal-candidate-first",
-                    statement="Eligible journal candidates precede transfer fallback.",
-                    affected_acs=["AC-reconciliation.economic-disposition.1"],
-                    detector="transfer-priority-violations",
-                    target="0 priority violations",
-                    lock="ci.backend",
-                    proof="economic-disposition-normal-first",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="one-active-head",
-                    statement="Each source transaction has at most one active disposition head.",
-                    affected_acs=["AC-reconciliation.economic-disposition.2"],
-                    detector="duplicate-active-disposition-heads",
-                    target="0 duplicate active heads",
-                    lock="ci.backend_integration",
-                    proof="economic-disposition-active-head-schema",
-                    required_proof_strength="schema",
-                    enforcing_gate="ci.backend_integration",
-                ),
-                GovernanceGuarantee(
-                    id="worker-convergence",
-                    statement="Independent workers converge without duplicate financial effects.",
-                    affected_acs=["AC-reconciliation.economic-disposition.3"],
-                    detector="non-convergent-disposition-races",
-                    target="0 race losers creating effects",
-                    lock="ci.backend_integration",
-                    proof="economic-disposition-two-session-race",
-                    required_proof_strength="concurrency",
-                    enforcing_gate="ci.backend_integration",
-                ),
-                GovernanceGuarantee(
-                    id="persistent-transfer-pair",
-                    statement="Transfer decisions and unique leg membership are persistent facts.",
-                    affected_acs=["AC-reconciliation.economic-disposition.4"],
-                    detector="unpersisted-or-duplicate-transfer-memberships",
-                    target="0 unpersisted or duplicate memberships",
-                    lock="ci.backend_integration",
-                    proof="economic-disposition-transfer-pair",
-                    required_proof_strength="schema",
-                    enforcing_gate="ci.backend_integration",
-                ),
-                GovernanceGuarantee(
-                    id="currency-explicit",
-                    statement="Disposition comparisons operate in an explicit currency domain.",
-                    affected_acs=["AC-reconciliation.economic-disposition.5"],
-                    detector="implicit-currency-comparison-calls",
-                    target="0 implicit currency calls",
-                    lock="ci.backend",
-                    proof="economic-disposition-currency-oracle",
-                    required_proof_strength="value-oracle",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="idempotent-command",
-                    statement="Retries and phase permutations preserve aggregate cardinality.",
-                    affected_acs=["AC-reconciliation.economic-disposition.6"],
-                    detector="non-idempotent-disposition-retries",
-                    target="0 cardinality drift",
-                    lock="ci.backend_integration",
-                    proof="economic-disposition-idempotency",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend_integration",
-                ),
-                GovernanceGuarantee(
-                    id="typed-ledger-boundary",
-                    statement="All Processing writes cross ledger's typed command boundary.",
-                    affected_acs=["AC-reconciliation.economic-disposition.7"],
-                    detector="reconciliation-owned-ledger-writes",
-                    target="0 alternate posting paths",
-                    lock="ci.backend",
-                    proof="economic-disposition-ledger-boundary",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="exact-governance-detail",
-                    statement="Control-plane detail exposes current exact proof and enforcement facts.",
-                    affected_acs=["AC-reconciliation.economic-disposition.8"],
-                    detector="economic-disposition-governance-join-gaps",
-                    target="0 missing detail facts",
-                    lock="ci.backend",
-                    proof="economic-disposition-governance-detail",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-            ],
-        ),
-    ],
 )

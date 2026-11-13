@@ -78,15 +78,6 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
                 "vision_anchor": ac.vision_anchor,
             }
 
-    governance: dict[str, dict] = {}
-    for c in contracts:
-        for initiative in c.governance:
-            key = f"{c.name}/{initiative.id}"
-            governance[key] = {
-                "owner": c.name,
-                **initiative.model_dump(mode="json"),
-            }
-
     consumers: dict[str, list[str]] = {name: [] for name in by_name}
     for c in contracts:
         for dep in c.depends_on:
@@ -111,7 +102,6 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
         "registry": registry,
         "ac_index": ac_index,
         "roadmap": roadmap,
-        "governance": governance,
         "consumers": consumers,
         "units_by_layer": units_by_layer,
         "command_boundaries": {

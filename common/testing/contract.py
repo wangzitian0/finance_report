@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ContextScope,
-    GovernanceGuarantee,
-    GovernanceInitiative,
     PackageContract,
     acs,
     concepts,
@@ -384,11 +382,6 @@ package-lifecycle.3|A fresh ordinary user uploads a generated supported GXS PDF,
 pdf-checkpoint.1||test_pdf_checkpoint_persists_source_and_fact_identity
 pdf-checkpoint.2||test_pdf_checkpoint_report_lineage_reaches_source
 pdf-checkpoint.3||test_pdf_checkpoint_three_statements_and_saved_package
-@$t/test_package_governance_observations.py
-governance.23||test_AC_testing_governance_23_builds_only_from_real_inputs
-governance.24||test_AC_testing_governance_24_derives_live_enforcement_from_raw_facts
-governance.26||test_AC_testing_governance_26_discovers_only_package_owned_detectors
-governance.27||test_AC_testing_governance_27_refreshes_closed_initiative_proof
 @$t/test_benchmark_runner_selection.py|P1
 benchmarks.1||test_domain_alone_selects_only_the_cases_of_that_domain
 benchmarks.2||test_a_run_with_only_skipped_cases_never_succeeds
@@ -479,68 +472,6 @@ test_optimization|common/testing/ci-cd.md#test-optimization|Smart/fast/full test
 vision_proof_matrix|common/testing/generate_vision_proof_matrix.py|Vision-anchor -> EPIC -> AC -> test proof matrix, a DERIVED (not committed) view of the one AC-keyed graph, built in memory by build_matrix and gated by tools/check_ac_index.py (supersedes #442/#480).|vision.md,common/testing/ac_graph.py,docs/project/EPIC-014.ttd-transformation.md,.github/workflows/ci.yml|tests/tooling/test_generate_vision_proof_matrix.py|tdd|matrix|-|ac_graph
 """
     ),
-    governance=[
-        GovernanceInitiative(
-            id="package-governance-observation-adapter",
-            title="Package governance execution observations",
-            issue="https://github.com/wangzitian0/finance_report/issues/1983",
-            depends_on=["meta/governance-control-plane"],
-            guarantees=[
-                GovernanceGuarantee(
-                    id="real-observation-bundle",
-                    statement="Governance observations come from current execution and live enforcement inputs rather than report defaults or hard-coded truth.",
-                    affected_acs=["AC-testing.governance.23"],
-                    detector="package-governance-control-integrity",
-                    target="zero missing or authored observation inputs",
-                    lock="ci.tooling_coverage",
-                    proof="package-governance-observation-bundle",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="live-github-enforcement",
-                    statement="Workflow and live GitHub enforcement are derived from fresh raw observations rather than supplied conclusion booleans.",
-                    affected_acs=["AC-testing.governance.24"],
-                    detector="package-governance-control-integrity",
-                    target="zero stale, missing, or contradictory live enforcement inputs",
-                    lock="ci.tooling_coverage",
-                    proof="package-governance-live-enforcement",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-            ],
-        ),
-        GovernanceInitiative(
-            id="package-governance-evidence-discovery",
-            title="Package-owned governance evidence discovery",
-            issue="https://github.com/wangzitian0/finance_report/issues/1992",
-            depends_on=["testing/package-governance-observation-adapter"],
-            guarantees=[
-                GovernanceGuarantee(
-                    id="package-detector-discovery",
-                    statement="Only the owning package can publish its independently computed detector observations through the shared adapter protocol.",
-                    affected_acs=["AC-testing.governance.26"],
-                    detector="package-governance-control-integrity",
-                    target="zero missing, foreign, duplicate, or proof-derived detector facts",
-                    lock="ci.tooling_coverage",
-                    proof="package-governance-detector-discovery",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="historical-proof-refresh",
-                    statement="Issue closure never suppresses a current canonical proof or turns absent, wrong-strength, or wrong-lane historical evidence into a green observation.",
-                    affected_acs=["AC-testing.governance.27"],
-                    detector="package-governance-control-integrity",
-                    target="zero suppressed, forged, stale, wrong-strength, or wrong-lane historical proof observations",
-                    lock="ci.tooling_coverage",
-                    proof="package-governance-historical-proof-refresh",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-            ],
-        ),
-    ],
 )
 
 TEST_ROOTS: tuple[str, ...] = (

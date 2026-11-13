@@ -5,8 +5,6 @@ from __future__ import annotations
 from common.meta.package_contract import (
     CommandBoundary,
     ContextScope,
-    GovernanceGuarantee,
-    GovernanceInitiative,
     PackageContract,
     acs,
     concepts,
@@ -83,61 +81,72 @@ current_statement_disposition_policy_snapshot|svc|extension/disposition_policy.p
 """
     ),
     interface="""
-AssetType AtomicPosition AtomicTransaction BankStatementStatus
-BrokerageImportRejectedError BrokeragePositionImportService ClassificationRule
-ClassificationStatus CorrectionLoopService CostBasisMethod CurrencyUnresolvedError
+ActiveRunExists AssetType AtomicPosition AtomicTransaction
+BROKERAGE_IMPORTABLE_STATUSES BROKERAGE_IMPORT_FAILED_MESSAGE
+BROKERAGE_IMPORT_FAILURE_KEY BankStatementStatus
+BrokerageImportRejectedError BrokeragePositionImportService
+ClassificationRule ClassificationStatus ClassificationSuggestion
+CorrectionLoopService CostBasisMethod CurrencyUnresolvedError
 DEFAULT_MAX_DEPTH DeduplicationService DispositionCommand DispositionContext
-DocumentSource DocumentStatus DocumentType EvidenceEdge EvidenceGraphIntegrationService
-EvidenceGraphMaterializationService EvidenceLineageService EvidenceNode
-EvidenceTraversalStep ExtractedPositionFact ExtractionError ExtractionService
-ExtractedTransactionFact ExtractedTransactionRow ExtractionMethod ManagedPosition
-PositionStatus ParseJob RetryableStatementIngestionError RetireStatementCommand
-ReviewedStatementEnvelopeCommand ReviewedStatementEnvelopeConflict RuleType
 DispositionDecision DispositionMode DispositionPolicy DispositionStatus
-ClassificationSuggestion SuggestionCorrectionError EconomicIntent IntentProposal
-IntentProposalOrigin SourceCapability SourceCapabilityStatus SOURCE_CAPABILITIES
-SourceProvenance SYSTEM_PROMPT Stage1Status StatementBalanceFact
-StatementClassificationBusy StatementIngestionConfigurationError StatementIngestionError
+DocumentSource DocumentStatus DocumentType EconomicIntent EvidenceEdge
+EvidenceGraphIntegrationService EvidenceGraphMaterializationService
+EvidenceLineageService EvidenceNode EvidenceTraversalStep
+ExtractedPositionFact ExtractedTransactionFact ExtractedTransactionRow
+ExtractionError ExtractionMethod ExtractionService IntentProposal
+IntentProposalOrigin ManagedPosition ParseJob PositionStatus
+ResolvedStatementContribution RetireStatementCommand
+RetryableStatementIngestionError ReviewedStatementEnvelopeCommand
+ReviewedStatementEnvelopeConflict RuleType RunActorKind RunHints RunKind
+RunState RunTrigger SOURCE_CAPABILITIES SYSTEM_PROMPT SourceCapability
+SourceCapabilityStatus SourceProvenance Stage1Status StaleRun
+StatementBalanceFact StatementClassificationBusy
+StatementDispositionPolicySnapshot StatementEventSource
+StatementEvidenceType StatementExtractionResult
+StatementIngestionConfigurationError StatementIngestionError
 StatementIngestionOutcome StatementIngestionStatus StatementIngestionUseCase
-StatementDispositionPolicySnapshot StatementExtractionResult
-ResolvedStatementContribution StatementEvidenceType StatementPostingDependencies
-StatementPostingOutcome StatementPostingStatus StatementSourceType StatementTransaction
-StatementEventSource StatementSummary TransactionCategory TransactionClassification
-TransactionDirection UploadedDocument BROKERAGE_IMPORT_FAILED_MESSAGE
-BROKERAGE_IMPORT_FAILURE_KEY BROKERAGE_IMPORTABLE_STATUSES
-brokerage_import_failure_reason clear_brokerage_import_failure
-record_brokerage_import_failure _brokerage_import_not_ready_reason
-_brokerage_payload_from_persisted_extraction _brokerage_payload_from_statement
-approve_statement_workflow applied_rows_the_policy_accepts
-auto_create_posted_entries_for_statement auto_accept_preference backfill_classifications
+StatementPostingDependencies StatementPostingOutcome StatementPostingStatus
+StatementSourceType StatementSummary StatementTransaction
+SuggestionCorrectionError TransactionCategory TransactionClassification
+TransactionDirection UploadedDocument _brokerage_import_not_ready_reason
+_brokerage_payload_from_persisted_extraction
+_brokerage_payload_from_statement applied_rows_the_policy_accepts
+apply_suggestion_feedback approve_statement_workflow auto_accept_preference
+auto_create_posted_entries_for_statement backfill_classifications
+balance_sheet_booking brokerage_import_failure_reason
 build_csv_mapping_prompt build_disposition_trace_records
-build_statement_ingestion_use_case compute_confidence_score
-confirm_reviewed_statement_envelope create_entry_from_txn get_or_create_account
-current_reviewed_statement_envelope current_statement_disposition_policy_snapshot
-detect_balance_chain_break balance_sheet_booking classification_suggestions
+build_statement_ingestion_use_case claim_run classification_suggestions
 classify_by_effective_policy classify_statement_by_effective_policy
-lock_statement_classification effective_auto_accept effective_classification
-effective_reconciliation general_account_name reconciliation_enabled
-settle_drafts_after_posting statement_disposition_policy_for_user
-apply_suggestion_feedback dual_write_layer2 emit_disposition_trace_records
-edit_and_approve extraction_trace_policy_registry find_in_flight_parse_id
-get_correction_stats get_current_statement_extraction_result get_known_storage_paths
-get_parsing_prompt get_statement_coverage_rows get_statement_event_sources
-get_uploaded_document_filenames looks_like_brokerage_document
-looks_like_brokerage_payload parse_brokerage_csv_payload parse_brokerage_positions
-pending_stage1_review_filter persist_statement_extraction_result record_correction
-resolve_statement_contribution list_statement_contributions register_position_reconciler
-register_statement_source reject_json_floats reject_statement_workflow retire_statement
-resolve_custody_account_id resolve_ingest_currency resolve_statement_conflicts
-resolve_bank_custody_account is_bank_custody_source is_statement_classification_running
-coverage_bank_custody_account_ids resolve_statement_posting_account
-resolve_statement_transactions effective_statement_transaction_filter
-resolve_transaction_currency run_parsing_supervisor set_opening_balance
-snapshot_currencies submit_parse_pipeline supports_reviewed_statement_envelope
-validate_balance validate_balance_chain validation
-ActiveRunExists RunActorKind RunHints RunKind RunState RunTrigger StaleRun
-claim_run create_run fail_run finish_run get_active_run get_latest_run heartbeat_run reap_stale_runs
-""".split(),
+clear_brokerage_import_failure compute_confidence_score
+confirm_reviewed_statement_envelope coverage_bank_custody_account_ids
+create_entry_from_txn create_run current_reviewed_statement_envelope
+current_statement_disposition_policy_snapshot detect_balance_chain_break
+dual_write_layer2 edit_and_approve effective_auto_accept
+effective_classification effective_reconciliation
+effective_statement_transaction_filter emit_disposition_trace_records
+extraction_trace_policy_registry fail_run find_in_flight_parse_id finish_run
+general_account_name get_active_run get_correction_stats
+get_current_statement_extraction_result get_known_storage_paths
+get_latest_run get_or_create_account get_parsing_prompt
+get_statement_coverage_rows get_statement_event_sources
+get_uploaded_document_filenames heartbeat_run is_bank_custody_source
+is_statement_classification_running list_statement_contributions
+lock_statement_classification looks_like_brokerage_document
+looks_like_brokerage_payload parse_brokerage_csv_payload
+parse_brokerage_positions pending_stage1_review_filter
+persist_statement_extraction_result reap_stale_runs reconciliation_enabled
+record_brokerage_import_failure record_correction
+register_position_reconciler register_statement_source reject_json_floats
+reject_statement_workflow resolve_bank_custody_account
+resolve_custody_account_id resolve_ingest_currency
+resolve_statement_conflicts resolve_statement_contribution
+resolve_statement_posting_account resolve_statement_transactions
+resolve_transaction_currency retire_statement run_parsing_supervisor
+set_opening_balance settle_drafts_after_posting snapshot_currencies
+statement_disposition_policy_for_user submit_parse_pipeline
+supports_reviewed_statement_envelope validate_balance validate_balance_chain
+validation
+    """.split(),
     events=[],
     command_boundaries=[
         CommandBoundary(
@@ -779,8 +788,6 @@ fe-ia-extraction.1||AC22.5.2 enables Approve and shows no blocker when nothing i
 fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confidence
 @$be/integration/test_statement_reject_cleans_up_orphan_account.py|P1
 1832.4||test_AC_extraction_1832_4_rejected_parse_deletes_the_account_it_just_created
-@$be/extraction/test_source_lifecycle_governance.py
-source-lifecycle.9||test_AC_extraction_source_lifecycle_9_governance_detail_is_exact
 @$be/extraction/test_statement_opening_guards.py|P0|done|invariant
 2832.2||test_AC_extraction_2832_2_reconcile_statement_chain_anchors_out_of_order_and_gap_plugs
 @$be/extraction/test_statement_release_ownership.py
@@ -888,124 +895,4 @@ extraction_pipeline|common/extraction/readme.md|Gemini Vision document parsing a
 statement_run|common/extraction/readme.md#statement-run|One attempt to extract or classify one statement: inputs, actor, hints, state, and at most one active run per statement.|apps/backend/src/extraction/orm/statement_run.py,apps/backend/src/extraction/extension/statement_runs.py|apps/backend/tests/extraction/test_statement_runs.py|extraction|concept
 """
     ),
-    governance=[
-        GovernanceInitiative(
-            id="source-lifecycle-convergence",
-            title="Source-fact lifecycle and failure convergence",
-            issue="https://github.com/wangzitian0/finance_report/issues/1995",
-            depends_on=["meta/governance-control-plane"],
-            guarantees=[
-                GovernanceGuarantee(
-                    id="per-currency-approval",
-                    statement="Approval proves each declared currency without scalar cancellation.",
-                    affected_acs=["AC-extraction.source-lifecycle.1"],
-                    detector="cross-currency-stage1-validation-paths",
-                    target="0 cross-currency scalar approval paths",
-                    lock="ci.backend",
-                    proof="source-lifecycle-per-currency-oracle",
-                    required_proof_strength="value-oracle",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="one-source-identity",
-                    statement="Concurrent ingestion converges on one canonical source identity.",
-                    affected_acs=["AC-extraction.source-lifecycle.2"],
-                    detector="duplicate-canonical-source-identities",
-                    target="0 duplicate source identities",
-                    lock="ci.backend",
-                    proof="source-lifecycle-two-session-identity",
-                    required_proof_strength="concurrency",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="session-recovery",
-                    statement="Dedup conflicts preserve the outer database session.",
-                    affected_acs=["AC-extraction.source-lifecycle.3"],
-                    detector="unprotected-source-dedup-conflicts",
-                    target="0 unprotected conflict sites",
-                    lock="ci.backend",
-                    proof="source-lifecycle-savepoint-recovery",
-                    required_proof_strength="concurrency",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="append-only-retirement",
-                    statement="Ordinary removal retires and preserves source history.",
-                    affected_acs=["AC-extraction.source-lifecycle.4"],
-                    detector="destructive-statement-lifecycle-paths",
-                    target="0 destructive ordinary lifecycle paths",
-                    lock="ci.backend",
-                    proof="source-lifecycle-history-preservation",
-                    required_proof_strength="schema",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="storage-db-consistency",
-                    statement="Retirement cannot split object state from database source truth.",
-                    affected_acs=["AC-extraction.source-lifecycle.5"],
-                    detector="storage-database-split-lifecycle-paths",
-                    target="0 split lifecycle paths",
-                    lock="ci.backend",
-                    proof="source-lifecycle-storage-failure",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="failure-convergence",
-                    statement="Failure and retry preserve canonical lifecycle cardinality.",
-                    affected_acs=["AC-extraction.source-lifecycle.6"],
-                    detector="non-idempotent-source-lifecycle-retries",
-                    target="0 retry cardinality drift",
-                    lock="ci.backend",
-                    proof="source-lifecycle-failure-retry",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="typed-command-boundary",
-                    statement="Financial lifecycle inputs cross typed extraction boundaries.",
-                    affected_acs=["AC-extraction.source-lifecycle.7"],
-                    detector="untyped-source-lifecycle-boundaries",
-                    target="0 untyped audited boundaries",
-                    lock="ci.backend",
-                    proof="source-lifecycle-signature-contract",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="purge-boundary",
-                    statement="Ordinary extraction commands cannot physically purge source facts.",
-                    affected_acs=["AC-extraction.source-lifecycle.8"],
-                    detector="ordinary-api-physical-purge-paths",
-                    target="0 ordinary purge paths",
-                    lock="ci.backend",
-                    proof="source-lifecycle-purge-boundary",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="exact-governance-detail",
-                    statement="Control-plane detail exposes exact current proof and enforcement facts.",
-                    affected_acs=["AC-extraction.source-lifecycle.9"],
-                    detector="source-lifecycle-governance-join-gaps",
-                    target="0 missing detail facts",
-                    lock="ci.backend",
-                    proof="source-lifecycle-governance-detail",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-                GovernanceGuarantee(
-                    id="counterfactual-lock",
-                    statement="The adversarial lifecycle matrix remains executable and blocking.",
-                    affected_acs=["AC-extraction.source-lifecycle.10"],
-                    detector="missing-source-lifecycle-counterfactuals",
-                    target="0 missing counterfactuals",
-                    lock="ci.backend",
-                    proof="source-lifecycle-counterfactual-matrix",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
-                ),
-            ],
-        ),
-    ],
 )
