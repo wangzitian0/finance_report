@@ -39,6 +39,7 @@ from src.audit import (
     canonical_json_digest,
     text_digest,
 )
+from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.run_vocabulary import (
     ACTIVE_RUN_STATES,
     ERROR_MESSAGE_MAX_LENGTH,
@@ -50,6 +51,7 @@ from src.extraction.base.run_vocabulary import (
 from src.extraction.base.types import RunHints
 from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION, parsing_prompt_digest
 from src.extraction.orm.statement_run import StatementRun
+from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -209,6 +211,28 @@ async def _next_seq(db: AsyncSession, statement_id: UUID) -> int:
     return int(highest or 0) + 1
 
 
+async def lock_statement_for_run(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+    *,
+    allowed: frozenset[BankStatementStatus],
+) -> StatementSummary | None:
+    """Lock the statement row of the user and return it when its status is in `allowed`, else None.
+
+    The lock comes before the run insert, the order that approve, reject, the reaper and the finalize use.
+    A caller that sets the status after the run therefore never overwrites a status that another
+    transaction committed in between. The lock lasts until the caller commits or rolls back.
+    """
+    statement = await db.scalar(
+        select(StatementSummary)
+        .where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return statement if statement is not None and statement.status in allowed else None
+
+
 async def get_active_run(db: AsyncSession, statement_id: UUID) -> StatementRun | None:
     """Return the requested or running run of the statement, if one exists."""
     return await db.scalar(
@@ -240,7 +264,7 @@ class StatementRunRecord:
     actor_kind: RunActorKind
     trigger: RunTrigger
     parent_run_id: UUID | None
-    hints: dict
+    hints: RunHints
     model: str | None
     prompt_template_version: str | None
     prompt_digest: str | None
@@ -259,8 +283,15 @@ async def list_runs(db: AsyncSession, statement_id: UUID, user_id: UUID) -> list
         .order_by(StatementRun.seq)
         .execution_options(populate_existing=True)
     )
-    names = [field.name for field in fields(StatementRunRecord)]
-    return [StatementRunRecord(**{name: getattr(run, name) for name in names}) for run in rows.scalars()]
+    names = [field.name for field in fields(StatementRunRecord) if field.name != "hints"]
+    return [
+        StatementRunRecord(
+            **{name: getattr(run, name) for name in names},
+            # A stored row that the current rules reject must not break the audit list: no validation here.
+            hints=RunHints.model_construct(keywords=list(run.hints.get("keywords", [])), note=run.hints.get("note")),
+        )
+        for run in rows.scalars()
+    ]
 
 
 async def create_run(
@@ -280,7 +311,8 @@ async def create_run(
     """Insert a requested run with the next attempt number.
 
     An extract run that names no prompt version stores `PARSING_PROMPT_TEMPLATE_VERSION` and the digest of
-    its own model and hints, so a reader reproduces the digest from the stored columns.
+    its own model and hints, so a reader recomputes the digest from the stored columns. The digest does not name
+    the institution or the document kind that the parse uses.
 
     The partial unique index rejects a second active run. The function then raises `ActiveRunExists`
     with the id of the active run.
@@ -439,5 +471,6 @@ __all__ = [
     "get_latest_run",
     "heartbeat_run",
     "list_runs",
+    "lock_statement_for_run",
     "reap_stale_runs",
 ]

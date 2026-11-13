@@ -67,7 +67,7 @@ from src.extraction.extension.custody_binding import (
 )
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
-from src.extraction.extension.prompts.statement import get_parsing_prompt
+from src.extraction.extension.prompts.statement import PROMPT_FILE_TYPES, get_parsing_prompt, hints_block
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.statement_summary import StatementSummary
@@ -167,7 +167,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         try:
             if file_type == "csv":
                 extracted = await self._extract_csv_source(source, institution=institution)
-            elif file_type in ("pdf", "png", "jpg", "jpeg"):
+            elif file_type in PROMPT_FILE_TYPES:
                 extracted = await self._extract_vision_source(
                     source,
                     institution=institution,
@@ -949,7 +949,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 filename=filename,
                 file_type=file_type,
             )
-        prompt = get_parsing_prompt(institution, document_kind=document_kind, hints=hints)
+        prompt = get_parsing_prompt(institution, document_kind=document_kind)
+        guidance = hints_block(hints)
         model = force_model or self.multimodal_model
         if not model:
             raise ExtractionError("Multimodal model is not configured")
@@ -961,7 +962,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         )
         if text_batches is not None:
             from_text = await self._extract_json_from_media_batches(
-                media_batches=text_batches, model=model, prompt=prompt, seed_override=seed_override, user_id=user_id
+                media_batches=text_batches,
+                model=model,
+                prompt=prompt,
+                hints_block=guidance,
+                seed_override=seed_override,
+                user_id=user_id,
             )
             if from_text.get("transactions"):
                 return from_text
@@ -971,7 +977,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         )
         del file_content
         return await self._extract_json_from_media_batches(
-            media_batches=media_batches, model=model, prompt=prompt, seed_override=seed_override, user_id=user_id
+            media_batches=media_batches,
+            model=model,
+            prompt=prompt,
+            hints_block=guidance,
+            seed_override=seed_override,
+            user_id=user_id,
         )
 
     async def _extract_json_from_media_batches(
@@ -982,7 +993,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         prompt: str,
         seed_override: int | None,
         user_id: UUID | None,
+        hints_block: str = "",
     ) -> dict[str, Any]:
+        """Call the model once per page batch. ``hints_block`` is the last part of every prompt."""
+
         def _messages(part_prompt: str, media: list[dict[str, Any]]) -> list[dict[str, Any]]:
             return [{"role": "user", "content": [{"type": "text", "text": part_prompt}, *media]}]
 
@@ -1011,7 +1025,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         if part_count == 1:
             single_batch = await _load_batch(0)
-            messages = _messages(prompt, single_batch)
+            messages = _messages(f"{prompt}{hints_block}", single_batch)
             pages = len(single_batch)
             del single_batch
             return await _call(messages, batch_index=1, pages=pages)
@@ -1031,7 +1045,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             meta_page_numbers = [*range(1, head_end + 1), *range(tail_start + 1, len(all_flat) + 1)]
 
         meta_messages = _messages(
-            build_paged_meta_prompt(prompt, page_numbers=meta_page_numbers, total_pages=total_pages), meta_media
+            build_paged_meta_prompt(
+                prompt, page_numbers=meta_page_numbers, total_pages=total_pages, hints_block=hints_block
+            ),
+            meta_media,
         )
         meta_pages = len(meta_media)
         del meta_media
@@ -1055,6 +1072,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 page_end=page_end,
                 total_pages=total_pages,
                 has_context_page=has_context_page,
+                hints_block=hints_block,
             )
             part_media = [context_page, *media] if has_context_page and context_page is not None else list(media)
             messages = _messages(part_prompt, part_media)

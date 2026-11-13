@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from fastapi.concurrency import run_in_threadpool
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -166,8 +167,9 @@ class StatementIngestionUseCase:
                 kind=RunKind.EXTRACT,
                 actor_kind=RunActorKind.SYSTEM,
                 trigger=RunTrigger.AUTO_RETRY,
-                hints=RunHints(),
-                model=job.model,
+                # The retry repeats the request of the failed run: same hints and same model.
+                hints=RunHints.model_validate(failed.hints),
+                model=failed.model,
                 parent_run_id=failed.id,
             )
             await session.commit()
@@ -560,7 +562,7 @@ async def _execute_statement_ingestion(
 
         try:
             claimed = await claim_run(session, job.run_id)
-            hints = RunHints.model_validate(claimed.hints)
+            stored_hints = claimed.hints
             await session.commit()
         except StaleRun:
             await session.rollback()
@@ -568,6 +570,21 @@ async def _execute_statement_ingestion(
                 "statement.run.claim_stale", run_id=str(job.run_id), statement_id=str(statement_id), request_id=request_id
             )
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
+
+        try:
+            hints = RunHints.model_validate(stored_hints)
+        except ValidationError:
+            # The error text echoes the hint text. Neither the run message nor a log may carry it.
+            await handle_parse_failure(
+                statement,
+                session,
+                job=job,
+                message="The stored hints of the run are not valid.",
+                phase="hints_validated",
+                model_to_use=job.model,
+                error_type="InvalidHints",
+            )
+            return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED)
 
         # The claim comes first: a worker that does not own the run loads nothing and fails nothing.
         if content is None:
