@@ -21,8 +21,6 @@ from src.composition import (
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
-    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
-    AtomicTransaction,
     BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
     BrokerageImportRejectedError,
@@ -196,17 +194,22 @@ async def _resolve_uploaded_documents(
 
 
 async def _compose_statement_response(
-    db: AsyncSession,
-    statement: StatementSummary,
-    user_id: UUID,
-    *,
-    transactions: list[AtomicTransaction] | None = None,
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> BankStatementResponse:
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
-    if transactions is None:
-        transactions = await resolve_statement_transactions(db, statement)
+    transactions = await resolve_statement_transactions(db, statement)
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
     return compose_statement_response(statement, uploaded_document, transactions, suggestions=suggestions)
+
+
+def _approval_response(statement: StatementSummary, created_count: int) -> Stage1ApprovalResponse:
+    return Stage1ApprovalResponse(
+        id=statement.id,
+        account_id=statement.account_id,
+        status=statement.status,
+        validation_error=statement.validation_error,
+        journal_entries_created=created_count,
+    )
 
 
 async def _get_statement_or_404(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
@@ -905,10 +908,7 @@ async def approve_statement_stage1(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     created_count = _posting_count_or_conflict(outcome) + auto_filled
-    response = await _compose_statement_response(
-        db, statement, user_id, transactions=getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
-    )
-    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
+    return _approval_response(statement, created_count)
 
 
 @router.post("/{statement_id}/review/reject", response_model=BankStatementResponse)
