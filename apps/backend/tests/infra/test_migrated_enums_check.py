@@ -30,6 +30,14 @@ KIND = frozenset({"extract", "classify"})
         ({"k_enum": frozenset({"extract"})}, "labels missing in the database ['classify']"),
         ({"k_enum": KIND | {"gone"}}, "labels only in the database ['gone']"),
         ({"k_enum": KIND, "old_enum": frozenset({"a"})}, "old_enum: type only in the database"),
+        (
+            {"k_enum": frozenset({"extract", "other"})},
+            "labels missing in the database ['classify'], labels only in the database ['other']",
+        ),
+        (
+            {"k_enum": frozenset({"EXTRACT", "CLASSIFY"})},
+            "labels missing in the database ['classify', 'extract'], labels only in the database ['CLASSIFY', 'EXTRACT']",
+        ),
     ],
 )
 def test_AC_meta_phase0_20_enum_differences_name_each_kind_of_drift(database, expected):
@@ -79,14 +87,16 @@ def test_AC_meta_phase0_23_main_exits_one_on_a_difference_and_zero_otherwise(mon
 
 
 def test_AC_meta_phase0_24_the_schema_migrations_job_runs_the_check_after_alembic_check():
-    """AC-meta.phase0.24: The merge-authority job migrates a fresh database and then compares its enums with the ORM."""
+    """AC-meta.phase0.24: The merge-authority job migrates a fresh database and then runs the enum check, unguarded."""
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    block = workflow.split("  schema-migrations:", 1)[1].split("  backend:", 1)[0]
-    assert (
-        block.index("alembic upgrade head")
-        < block.index("alembic check")
-        < block.index("uv run --frozen python scripts/check_migrated_enums.py")
-    )
+    lines = [
+        line.strip() for line in workflow.split("  schema-migrations:", 1)[1].split("  backend:", 1)[0].splitlines()
+    ]
+    command = "uv run --frozen python scripts/check_migrated_enums.py"
+    assert lines.count(command) == 1, "the command must be its own line, with no `|| true` or other suffix"
+    index = lines.index(command)
+    assert lines.index("uv run --frozen alembic upgrade head") < lines.index("uv run --frozen alembic check") < index
+    assert index < lines.index("} 2>&1 | tee test-results/schema-migration.log")
 
 
 def test_AC_meta_phase0_25_a_column_that_is_not_a_native_enum_is_not_an_enum_type():
@@ -98,8 +108,9 @@ def test_AC_meta_phase0_25_a_column_that_is_not_a_native_enum_is_not_an_enum_typ
 
 
 def test_AC_meta_phase0_26_the_database_side_groups_labels_and_drops_the_async_driver_suffix(monkeypatch):
-    """AC-meta.phase0.26: The labels of one type are grouped, and psycopg2 gets a URL without `+asyncpg`."""
+    """AC-meta.phase0.26: The labels of one type are grouped, psycopg2 gets a URL without `+asyncpg`, and only visible types count."""
     seen: list[str] = []
+    queries: list[str] = []
 
     class Connection:
         def __enter__(self):
@@ -111,8 +122,8 @@ def test_AC_meta_phase0_26_the_database_side_groups_labels_and_drops_the_async_d
         def cursor(self):
             return self
 
-        def execute(self, _sql):
-            return None
+        def execute(self, sql):
+            queries.append(sql)
 
         def fetchall(self):
             return [("k_enum", "extract"), ("k_enum", "classify"), ("s_enum", "x")]
@@ -120,3 +131,4 @@ def test_AC_meta_phase0_26_the_database_side_groups_labels_and_drops_the_async_d
     monkeypatch.setattr(check.psycopg2, "connect", lambda url: seen.append(url) or Connection())
     assert check.migrated_enums("postgresql+asyncpg://db/app") == {"k_enum": KIND, "s_enum": frozenset({"x"})}
     assert seen == ["postgresql://db/app"]
+    assert len(queries) == 1 and "pg_type_is_visible(t.oid)" in queries[0]
