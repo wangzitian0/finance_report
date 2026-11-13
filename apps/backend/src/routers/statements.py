@@ -21,6 +21,8 @@ from src.composition import (
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
+    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
+    AtomicTransaction,
     BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
     BrokerageImportRejectedError,
@@ -194,10 +196,15 @@ async def _resolve_uploaded_documents(
 
 
 async def _compose_statement_response(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID
+    db: AsyncSession,
+    statement: StatementSummary,
+    user_id: UUID,
+    *,
+    transactions: list[AtomicTransaction] | None = None,
 ) -> BankStatementResponse:
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
-    transactions = await resolve_statement_transactions(db, statement)
+    if transactions is None:
+        transactions = await resolve_statement_transactions(db, statement)
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
     return compose_statement_response(statement, uploaded_document, transactions, suggestions=suggestions)
 
@@ -898,7 +905,9 @@ async def approve_statement_stage1(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     created_count = _posting_count_or_conflict(outcome) + auto_filled
-    response = await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
+    response = await _compose_statement_response(
+        db, statement, user_id, transactions=getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
+    )
     return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
 
 
