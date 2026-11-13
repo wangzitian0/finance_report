@@ -16,7 +16,7 @@ import { BankStatement, BrokerageImportResponse, StatementRunHints, normalizeBan
 import { PARSING_POLL_MS, canImportBrokerageStatement, currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
-import { ParsingAttempts, RunAgainPanel, isRunActive } from "@/components/review/StatementRuns";
+import { INVALID_HINTS_MESSAGE, ParsingAttempts, RunAgainPanel, isRunActive, noteProblem, normalizeNote } from "@/components/review/StatementRuns";
 import {
   PdfPreviewPane,
   hasInlinePreview,
@@ -328,8 +328,18 @@ export default function StatementDetailPage() {
       void refreshAfterReview();
       if (fromAttention) router.push(ATTENTION_RETURN_HREF);
     },
-    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error"),
+    // A 422 body echoes the note. The page shows one fixed sentence, never that body.
+    onError: (err) => showToast(err instanceof ApiError && err.status === 422 ? INVALID_HINTS_MESSAGE : err instanceof Error ? err.message : "Failed to reject", "error"),
   });
+  const handleReject = (reason?: string) => {
+    const note = normalizeNote(reason ?? "");
+    const problem = noteProblem(note);
+    if (problem) {
+      showToast(problem, "error");
+      return;
+    }
+    rejectMutation.mutate(note);
+  };
 
   const resolveConflictsMutation = useMutation({
     mutationFn: (action: "confirm_distinct" | "link_transfer") => apiOperation("resolve_review_conflicts_review_conflicts__statement_id__resolve_post", { path: { statement_id: statementId }, body: { action } }),
@@ -381,12 +391,16 @@ export default function StatementDetailPage() {
     },
     onError: (err) => {
       const conflict = err instanceof ApiError && err.status === 409;
+      // Only a 409 with an `active_run_id` means that a parse runs. Any other 409 says that the statement changed.
+      const activeRunId = conflict ? (err.body as { active_run_id?: string } | null)?.active_run_id : undefined;
       // A 422 body echoes the hints that the user typed. The page shows one fixed sentence, never that body.
       const invalid = err instanceof ApiError && err.status === 422;
       const message = conflict
-        ? "A parse is already running for this statement. Wait for it to end, then run again."
+        ? activeRunId
+          ? "A parse is already running for this statement. Wait for it to end, then run again."
+          : "The statement changed. Reload the page."
         : invalid
-          ? "The hints are not valid. Check the keywords and the note."
+          ? INVALID_HINTS_MESSAGE
           : err instanceof Error ? err.message : "Failed to start the run";
       setRunAgainError(message);
       showToast(message, "error");
@@ -584,7 +598,7 @@ export default function StatementDetailPage() {
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
       <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />
       <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate(hasUnclassifiedPendingTxns ? { autoFill: true } : undefined)} title="Approve Statement" message={(hasUnclassifiedPendingTxns ? "Transactions without a category will be filed under default categories. " : "") + (review?.account_id || envelopeDraft.accountId ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?")} confirmLabel="Approve" loading={approveMutation.isPending} />
-      <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={(reason) => rejectMutation.mutate(reason)} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement with a reason. The reason guides the next parse, or run it again with hints on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection...", maxLength: 500 }} loading={rejectMutation.isPending} />
+      <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={handleReject} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement with a reason. The reason guides the next parse, or run it again with hints on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection...", maxLength: 500 }} loading={rejectMutation.isPending} />
       <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />
     </div>
   );
