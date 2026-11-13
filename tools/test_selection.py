@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """CLI over the test execution matrix (common/testing/matrix.py)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

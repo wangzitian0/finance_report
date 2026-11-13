@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for the LLM cassette integrity gate (EPIC-023 AC23.7)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

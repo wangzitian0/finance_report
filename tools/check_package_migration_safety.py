@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Thin CLI shim for consolidated package-model migration-safety gates."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for the cassette graded field-accuracy eval gate (EPIC-023 AC23.8)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

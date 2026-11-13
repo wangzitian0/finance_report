@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+"""dev_backend"""
 
 import sys
 from pathlib import Path

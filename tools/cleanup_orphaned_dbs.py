@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+"""cleanup_orphaned_dbs"""
 
 import sys
 from pathlib import Path

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Generate the machine-readable SLA manifest (finance_report#1654)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

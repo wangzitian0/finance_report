@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Thin CLI shim for the Tier-2 deployed HTTP E2E probe."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 
@@ -12,5 +10,5 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.runtime.tier2_http_e2e import main  # noqa: E402
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for common.meta.extension.check_app_boundary."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

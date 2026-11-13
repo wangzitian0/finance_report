@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for the npm lockfile registry hygiene gate (#2668)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

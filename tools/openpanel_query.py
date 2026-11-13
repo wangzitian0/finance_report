@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for the OpenPanel frontend-analytics query CLI."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

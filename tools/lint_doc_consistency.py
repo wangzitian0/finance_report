@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for documentation consistency linting."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

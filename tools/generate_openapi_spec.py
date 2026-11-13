@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Command wrapper for the generated OpenAPI spec (#1004)."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 
