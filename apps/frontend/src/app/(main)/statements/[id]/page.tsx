@@ -323,7 +323,10 @@ export default function StatementDetailPage() {
       showToast("Statement details confirmed. You can now continue the review.", "success");
       queryClient.invalidateQueries({ queryKey: ["statement-review", statementId] });
     },
-    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to confirm source facts", "error"),
+    onError: (err) => {
+      refetchAfterConflict(err);
+      showToast(err instanceof Error ? err.message : "Failed to confirm source facts", "error");
+    },
   });
 
   const createCustodyAccountMutation = useMutation({

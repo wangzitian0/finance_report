@@ -246,4 +246,27 @@ describe("The classify run on the statement page", () => {
   it("AC-extraction.2994.114 reads the runs and the review again when the auto-fill returns 409, and shows the run that began elsewhere", () => refetchesAfterConflict("auto-fill"));
 
   it("AC-extraction.2994.114 reads the runs and the review again when the reject returns 409, and shows the run that began elsewhere", () => refetchesAfterConflict("reject"));
+  it("AC-extraction.2994.115 reads the runs and the review again when the source-facts confirmation returns 409", async () => {
+    let runs: StatementRun[] = [makeRun({ seq: 1 })];
+    const conflict = new ApiError("The statement has an active run.", 409, "conflict", null, { active_run_id: "run-2" } as never);
+    mockApi(() => runs, {
+      review: { reviewed_envelope: null, source_envelope_reviewable: true, source_result_digest: "digest-1" },
+      post: () => Promise.reject(conflict),
+    });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("parsing-attempts");
+    fireEvent.change(await screen.findByLabelText(/Why are these facts confirmed/), { target: { value: "Checked against the original file." } });
+    const confirm = await screen.findByRole("button", { name: "Confirm statement details" });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    const runCalls = callsOf(RUNS_GET).length;
+    const reviewCalls = callsOf(REVIEW_GET).length;
+    runs = [makeRun({ seq: 1 }), makeRun({ seq: 2, state: "running", finished_at: null })]; // a rerun began in another tab
+
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(callsOf(CONFIRM_POST)).toHaveLength(1));
+    await waitFor(() => expect(callsOf(RUNS_GET).length).toBeGreaterThan(runCalls));
+    await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(reviewCalls));
+    expect(await screen.findByText(BLOCKED)).toBeInTheDocument();
+  });
 });
