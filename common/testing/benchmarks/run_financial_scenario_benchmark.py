@@ -218,7 +218,7 @@ class ScenarioBenchmarkRunner:
                     retries_used += 1
                     time.sleep(retry_backoff_seconds)
                     _check_resp(
-                        client.post(f"/api/statements/{statement_id}/retry"),
+                        client.post(f"/api/statements/{statement_id}/runs", json={}),
                         f"Retrying statement {statement_id} failed",
                         expected=(200, 202),
                     )

@@ -25,7 +25,7 @@ from src.extraction.base.paged_extraction import (
 from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
 from src.extraction.base.source_balance_check import SourceBalanceVerdict, check_closing_balance_against_text
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
-from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
+from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, RunHints
 from src.extraction.base.validation import (
     DuplicateCurrencyError,
     balance_gap_suspect_rows,
@@ -119,6 +119,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         file_type: str,
         force_model: str | None,
         user_id: UUID,
+        hints: RunHints | None = None,
     ) -> dict[str, Any]:
         return await self._extract_with_balance_retry(
             file_content=source.content,
@@ -128,6 +129,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             force_model=force_model,
             filename=source.filename,
             user_id=user_id,
+            hints=hints,
         )
 
     async def parse_document(
@@ -140,8 +142,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         account_id: UUID | None = None,
         force_model: str | None = None,
         db: AsyncSession | None = None,
+        hints: RunHints | None = None,
     ) -> StatementExtractionResult:
-        """Parse document via AI vision or CSV parser into an immutable StatementExtractionResult."""
+        """Parse document via AI vision or CSV parser into an immutable StatementExtractionResult.
+
+        ``hints`` are the reviewer guidance of the run. They reach the prompt of a PDF or image parse. A CSV
+        parse sends no prompt and ignores them.
+        """
         if not isinstance(source, DocumentSource):
             raise TypeError("parse_document requires a DocumentSource")
 
@@ -162,7 +169,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 extracted = await self._extract_csv_source(source, institution=institution)
             elif file_type in ("pdf", "png", "jpg", "jpeg"):
                 extracted = await self._extract_vision_source(
-                    source, institution=institution, file_type=file_type, force_model=force_model, user_id=user_id
+                    source,
+                    institution=institution,
+                    file_type=file_type,
+                    force_model=force_model,
+                    user_id=user_id,
+                    hints=hints,
                 )
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
@@ -674,6 +686,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         force_model: str | None,
         filename: str | None,
         user_id: UUID | None = None,
+        hints: RunHints | None = None,
     ) -> dict[str, Any]:
         max_attempts = max(1, settings.ai_extract_max_attempts)
         base_seed = settings.ai_json_seed
@@ -697,6 +710,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         filename=filename,
                         user_id=user_id,
                         read_text_layer=attempt == 0,
+                        hints=hints,
                     )
                 )
                 per_currency = bank_currency_balances(extracted)
@@ -894,6 +908,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         filename: str | None = None,
         user_id: UUID | None = None,
         read_text_layer: bool = True,
+        hints: RunHints | None = None,
     ) -> dict[str, Any]:
         """Extract structured statement data from the PDF text layer, or from page images when it is unusable.
 
@@ -934,7 +949,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 filename=filename,
                 file_type=file_type,
             )
-        prompt = get_parsing_prompt(institution, document_kind=document_kind)
+        prompt = get_parsing_prompt(institution, document_kind=document_kind, hints=hints)
         model = force_model or self.multimodal_model
         if not model:
             raise ExtractionError("Multimodal model is not configured")

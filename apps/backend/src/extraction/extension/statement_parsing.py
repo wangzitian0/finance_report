@@ -559,7 +559,8 @@ async def _execute_statement_ingestion(
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.STATEMENT_NOT_FOUND)
 
         try:
-            await claim_run(session, job.run_id)
+            claimed = await claim_run(session, job.run_id)
+            hints = RunHints.model_validate(claimed.hints)
             await session.commit()
         except StaleRun:
             await session.rollback()
@@ -618,6 +619,7 @@ async def _execute_statement_ingestion(
                     account_id=job.account_id,
                     force_model=job.model,
                     db=session,
+                    hints=hints,
                 )
             logger.info(
                 "statement.parse.extraction_completed",

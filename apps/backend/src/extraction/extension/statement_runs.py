@@ -19,6 +19,7 @@ hints verbatim.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, fields
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -47,6 +48,7 @@ from src.extraction.base.run_vocabulary import (
     RunTrigger,
 )
 from src.extraction.base.types import RunHints
+from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION, parsing_prompt_digest
 from src.extraction.orm.statement_run import StatementRun
 from src.observability import get_logger
 
@@ -227,6 +229,40 @@ async def get_latest_run(db: AsyncSession, statement_id: UUID) -> StatementRun |
     )
 
 
+@dataclass(frozen=True, slots=True)
+class StatementRunRecord:
+    """Plain read model of one run for the audit list. The ORM class stays inside the package."""
+
+    id: UUID
+    seq: int
+    kind: RunKind
+    state: RunState
+    actor_kind: RunActorKind
+    trigger: RunTrigger
+    parent_run_id: UUID | None
+    hints: dict
+    model: str | None
+    prompt_template_version: str | None
+    prompt_digest: str | None
+    error_code: str | None
+    error_message: str | None
+    requested_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+async def list_runs(db: AsyncSession, statement_id: UUID, user_id: UUID) -> list[StatementRunRecord]:
+    """Return the runs of one statement of one user, ordered by attempt number."""
+    rows = await db.execute(
+        select(StatementRun)
+        .where(StatementRun.statement_id == statement_id, StatementRun.user_id == user_id)
+        .order_by(StatementRun.seq)
+        .execution_options(populate_existing=True)
+    )
+    names = [field.name for field in fields(StatementRunRecord)]
+    return [StatementRunRecord(**{name: getattr(run, name) for name in names}) for run in rows.scalars()]
+
+
 async def create_run(
     db: AsyncSession,
     *,
@@ -243,9 +279,15 @@ async def create_run(
 ) -> StatementRun:
     """Insert a requested run with the next attempt number.
 
+    An extract run that names no prompt version stores `PARSING_PROMPT_TEMPLATE_VERSION` and the digest of
+    its own model and hints, so a reader reproduces the digest from the stored columns.
+
     The partial unique index rejects a second active run. The function then raises `ActiveRunExists`
     with the id of the active run.
     """
+    if kind is RunKind.EXTRACT and prompt_template_version is None and prompt_digest is None:
+        prompt_template_version = PARSING_PROMPT_TEMPLATE_VERSION
+        prompt_digest = parsing_prompt_digest(model, hints)
     requested_at = _now()
     last_error: IntegrityError | None = None
     for _attempt in range(_SEQ_ATTEMPTS):
@@ -388,6 +430,7 @@ async def reap_stale_runs(
 __all__ = [
     "ActiveRunExists",
     "StaleRun",
+    "StatementRunRecord",
     "claim_run",
     "create_run",
     "fail_run",
@@ -395,5 +438,6 @@ __all__ = [
     "get_active_run",
     "get_latest_run",
     "heartbeat_run",
+    "list_runs",
     "reap_stale_runs",
 ]

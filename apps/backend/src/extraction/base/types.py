@@ -194,6 +194,11 @@ class RunHints(BaseModel):
     keywords: list[str] = Field(default_factory=list, max_length=HINT_MAX_KEYWORDS)
     note: str | None = Field(default=None, max_length=HINT_NOTE_MAX_LENGTH)
 
+    @property
+    def is_empty(self) -> bool:
+        """True when the hints hold no keyword and no note with a visible character."""
+        return not self.keywords and not (self.note or "").strip()
+
     @field_validator("keywords")
     @classmethod
     def _clean_keywords(cls, keywords: list[str]) -> list[str]:

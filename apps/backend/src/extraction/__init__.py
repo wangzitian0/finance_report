@@ -171,6 +171,7 @@ from src.extraction.extension.statement_posting import (
 from src.extraction.extension.statement_runs import (
     ActiveRunExists,
     StaleRun,
+    StatementRunRecord,
     claim_run,
     create_run,
     fail_run,
@@ -178,6 +179,7 @@ from src.extraction.extension.statement_runs import (
     get_active_run,
     get_latest_run,
     heartbeat_run,
+    list_runs,
     reap_stale_runs,
 )
 from src.extraction.extension.statement_summary import (
@@ -307,6 +309,7 @@ __all__ = [
     "StatementIngestionError",
     "StatementIngestionOutcome",
     "StatementIngestionStatus",
+    "StatementRunRecord",
     "StatementDispositionPolicySnapshot",
     "StatementIngestionUseCase",
     "StatementBalanceFact",
@@ -381,6 +384,7 @@ __all__ = [
     "get_statement_event_sources",
     "get_uploaded_document_filenames",
     "heartbeat_run",
+    "list_runs",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",
     "parse_brokerage_csv_payload",
