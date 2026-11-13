@@ -67,11 +67,8 @@ from src.extraction.extension.statement_validation import (
     approve_statement_with_transactions,
     resolve_statement_transactions,
 )
-from src.extraction.extension.transaction_classification import (
-    classification_suggestions,
-    classify_statement_by_effective_policy,
-    try_lock_statement_classification,
-)
+from src.extraction.extension.statement_runs import lock_statement_for_run
+from src.extraction.extension.transaction_classification import classification_suggestions
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -135,6 +132,7 @@ class StatementPostingDependencies:
 
 
 def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bool:
+    """True for the candidate mark of the parse: `route_by_threshold` sets APPROVED before any entry exists."""
     return (
         statement.status == BankStatementStatus.APPROVED
         and statement.balance_validated is True
@@ -210,7 +208,6 @@ async def auto_create_posted_entries_for_statement(
     preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
 
-    await classify_statement_by_effective_policy(db, user_id, statement.id, txns_to_post)
     legs_posted = 0
     if dependencies.post_named_transfers is not None and dependencies.disposition_mode is DispositionMode.ENFORCE:
         if await auto_accept_enabled(db, user_id):
@@ -1179,12 +1176,6 @@ async def try_auto_approve_high_confidence_statement(
     if statement is None or not is_high_confidence_auto_approve_candidate(statement):
         return 0
 
-    if not await try_lock_statement_classification(db, statement_id):
-        statement.status = BankStatementStatus.PARSED
-        statement.stage1_status = Stage1Status.PENDING_REVIEW
-        await db.flush()
-        return 0
-
     try:
         async with db.begin_nested():
             approved, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
@@ -1206,3 +1197,27 @@ async def try_auto_approve_high_confidence_statement(
         return 0
 
     return outcome.created_count
+
+
+async def auto_approve_parsed_candidate(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+    *,
+    dependencies: StatementPostingDependencies,
+) -> int:
+    """Approve and post a statement that the parse marked as a candidate, after its classify run succeeded (#2994).
+
+    The parse leaves it PARSED, so a statement is APPROVED only when its entries are posted. The statement row is locked
+    first (FOR NO KEY UPDATE): a user approve or a rerun that holds it finishes before the status is read, and a
+    statement that is no longer PARSED stays as it is. The candidate mark that `try_auto_approve_high_confidence_statement`
+    consumes is set here, and that call posts the entries or sets PARSED again. The caller commits.
+    """
+    statement = await lock_statement_for_run(db, statement_id, user_id, allowed=frozenset({BankStatementStatus.PARSED}))
+    if statement is None:
+        return 0
+    statement.status = BankStatementStatus.APPROVED
+    if not is_high_confidence_auto_approve_candidate(statement):
+        statement.status = BankStatementStatus.PARSED
+        return 0
+    return await try_auto_approve_high_confidence_statement(db, statement_id, user_id, dependencies=dependencies)

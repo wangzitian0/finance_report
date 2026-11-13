@@ -19,6 +19,7 @@ from src.config import settings
 from src.config_app import get_effective_base_currency
 from src.database import async_session_maker
 from src.extraction import (
+    ActiveRunExists,
     AtomicTransaction,
     ClassificationSuggestion,
     DispositionMode,
@@ -33,10 +34,11 @@ from src.extraction import (
     balance_sheet_booking,
     build_statement_ingestion_use_case,
     classification_suggestions,
-    classify_statement_by_effective_policy,
+    classify_by_effective_policy,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
     general_account_name,
+    get_active_run,
     get_or_create_account,
     settle_drafts_after_posting,
     snapshot_currencies,
@@ -325,7 +327,10 @@ async def _accepted_suggestion_for(
 async def auto_fill_default_statement_dispositions(
     db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> int:
-    """Accept draft AI suggestions and fill general counter accounts for remaining rows."""
+    """Accept draft AI suggestions and fill general counter accounts for remaining rows. An active run refuses (#2994)."""
+    active_run = await get_active_run(db, statement.id)
+    if active_run is not None:
+        raise ActiveRunExists(active_run.id)
     unmatched_txns = (await db.execute(_statement_unmatched_txns_query(statement, user_id))).scalars().all()
     if not unmatched_txns:
         return 0
@@ -333,7 +338,7 @@ async def auto_fill_default_statement_dispositions(
     dependencies = compose_reviewed_disposition_dependencies(db)
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
-    await classify_statement_by_effective_policy(db, user_id, statement.id, unmatched_txns)
+    await classify_by_effective_policy(db, user_id, unmatched_txns)
     suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
     left_to_posting = await applied_rows_the_policy_accepts(
         db,

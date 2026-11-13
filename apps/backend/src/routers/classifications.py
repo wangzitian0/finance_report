@@ -25,6 +25,7 @@ router = APIRouter(prefix="/classifications", tags=["classifications"])
 class BackfillClassificationsResponse(BaseModel):
     classified: int
     candidates: int
+    skipped_statements: int = 0
 
 
 @router.post("/backfill", response_model=BackfillClassificationsResponse)
@@ -32,7 +33,7 @@ async def backfill_transaction_classifications(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BackfillClassificationsResponse:
-    """Classify the caller's not-yet-classified transactions (duplicate-free; a transaction without a row is re-attempted)."""
+    """Classify the caller's not-yet-classified transactions; a statement with an active run is skipped (#2994)."""
     result = await backfill_classifications(db, user_id)
     await db.commit()
-    return BackfillClassificationsResponse(classified=result["classified"], candidates=result["candidates"])
+    return BackfillClassificationsResponse.model_validate(result)

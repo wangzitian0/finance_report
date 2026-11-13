@@ -25,7 +25,6 @@ from src.config import settings
 from src.database import async_session_maker, engine, init_db
 from src.extraction import (
     ActiveRunExists,
-    StatementClassificationBusy,
     find_in_flight_parse_id,
     get_known_storage_paths,
     get_statement_coverage_rows,
@@ -305,12 +304,6 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
         request_id=request_id,
     )
     return _error_json(exc.status_code, exc.error_id, exc.message, request_id=request_id)
-
-
-@app.exception_handler(StatementClassificationBusy)
-async def statement_classification_busy_handler(request: Request, exc: StatementClassificationBusy) -> JSONResponse:
-    _ = request
-    return _error_json(409, error_code_for_status(409).value, str(exc))
 
 
 @app.exception_handler(ActiveRunExists)

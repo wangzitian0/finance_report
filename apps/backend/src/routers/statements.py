@@ -51,9 +51,7 @@ from src.extraction import (
     current_reviewed_statement_envelope,
     get_current_statement_extraction_result,
     is_bank_custody_source,
-    is_statement_classification_running,
     list_runs,
-    lock_statement_classification,
     pending_stage1_review_filter,
     record_brokerage_import_failure,
     register_statement_source,
@@ -834,7 +832,6 @@ async def get_statement_for_review(
         source_envelope_reviewable=supports_reviewed_statement_envelope(source_result)
         if source_result is not None
         else False,
-        preclassification_in_progress=await is_statement_classification_running(db, statement.id),
         reviewed_envelope=_envelope_response(reviewed_envelope, source_result_digest or "")
         if reviewed_envelope is not None
         else None,
@@ -878,7 +875,6 @@ async def approve_statement_stage1(
 ) -> Stage1ApprovalResponse:
     """Stage 1: Approve statement with balance validation."""
     try:
-        await lock_statement_classification(db, statement_id)
         statement = await _get_statement_or_404(db, statement_id, user_id)
         if request and request.account_id is not None:
             statement.account_id = request.account_id

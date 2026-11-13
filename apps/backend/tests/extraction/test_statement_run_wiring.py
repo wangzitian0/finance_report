@@ -238,8 +238,9 @@ async def test_AC_extraction_2994_23_a_successful_parse_finishes_its_run_with_th
     outcome = await _use_case(db).execute(job, content=CSV)
 
     statement = await _statement(db, statement_id)
-    (run,) = await _runs(db, statement_id)
+    run, classify = await _runs(db, statement_id)
     assert outcome.status is StatementIngestionStatus.COMPLETED
+    assert (classify.kind, classify.state) == (RunKind.CLASSIFY, RunState.SUCCEEDED), "the same task ran the classify run"
     assert statement.status is BankStatementStatus.PARSED
     assert statement.current_extraction_result_id is not None
     assert run.state is RunState.SUCCEEDED
@@ -269,7 +270,7 @@ async def test_AC_extraction_2994_24_the_run_finishes_in_the_transaction_of_the_
 
     outcome = await _use_case(db, brokerage_router=failing_router_once).execute(job, content=CSV)
 
-    first, second = await _runs(db, statement_id)
+    first, second, _classify = await _runs(db, statement_id)
     assert outcome.status is StatementIngestionStatus.COMPLETED
     assert (first.state, second.state) == (RunState.FAILED, RunState.SUCCEEDED)
     assert first.extraction_result_id is None
@@ -366,7 +367,7 @@ async def test_AC_extraction_2994_28_a_retryable_error_chains_system_runs_up_to_
 
     outcome = await _use_case(db, sleeps=sleeps, content_loader=loader).execute(job)
 
-    first, second, third = await _runs(db, statement_id)
+    first, second, third, _classify = await _runs(db, statement_id)
     assert outcome.status is StatementIngestionStatus.COMPLETED
     assert loader.calls == 3
     assert sleeps.delays == [30, 30]

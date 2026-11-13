@@ -16,14 +16,14 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, cast, column, exists, func, literal_column, or_, select, table, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 import src.config
 from src.extraction.base.disposition import EconomicIntent
+from src.extraction.base.run_vocabulary import ACTIVE_RUN_STATES
 from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType, TransactionDirection
-from src.extraction.base.types import StatementClassificationBusy
 from src.extraction.extension._coerce import scan_balanced_json_candidates
 from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
 from src.extraction.extension.classification import ClassificationService
@@ -31,6 +31,8 @@ from src.extraction.extension.correction_service import invalidate_correction_ca
 from src.extraction.orm.correction import CorrectionLog
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
+from src.extraction.orm.statement_run import StatementRun
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.observability import get_logger
 
@@ -43,8 +45,6 @@ SUSPENSE_TAG = "suspense"
 CLASSIFICATION_BATCH_SIZE = 50
 CLASSIFICATION_PARALLEL_BATCHES = 4
 CLASSIFICATION_PHASE_DEADLINE_SECONDS = 180.0
-CLASSIFICATION_LOCK_WAIT_SECONDS = CLASSIFICATION_PHASE_DEADLINE_SECONDS + 20.0
-_LOCK_POLL_SECONDS = 0.25
 _CLASSIFICATION_USER: ContextVar[UUID | None] = ContextVar("classification_user", default=None)
 _PLAIN_NUMBER = re.compile(r"\d+(\.\d+)?")
 
@@ -1243,13 +1243,32 @@ async def _run_grouped_by_effective_policy(
 
 
 async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
-    """Backfill unclassified user transactions under each transaction's effective policy."""
+    """Backfill unclassified user transactions under each transaction's effective policy.
+
+    A statement with an active run is left alone: its classify run writes the answers. `skipped_statements` counts them.
+    """
+    busy = (
+        (
+            await db.execute(
+                select(StatementSummary.uploaded_document_id)
+                .join(StatementRun, StatementRun.statement_id == StatementSummary.id)
+                .where(
+                    StatementSummary.user_id == user_id,
+                    StatementSummary.uploaded_document_id.is_not(None),
+                    StatementRun.state.in_(ACTIVE_RUN_STATES),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     candidates = (
         (
             await db.execute(
                 select(AtomicTransaction)
                 .where(AtomicTransaction.user_id == user_id)
                 .where(~AtomicTransaction.id.in_(select(TransactionClassification.atomic_txn_id)))
+                .where(*(~AtomicTransaction.source_documents.contains([{"doc_id": str(doc_id)}]) for doc_id in busy))
                 .order_by(AtomicTransaction.txn_date)
             )
         )
@@ -1257,12 +1276,13 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
         .all()
     )
     if not candidates:
-        return {"classified": 0, "candidates": 0}
+        return {"classified": 0, "candidates": 0, "skipped_statements": len(busy)}
 
     grouped = await _run_grouped_by_effective_policy(db, user_id, candidates)
     return {
         "classified": sum(1 for _ver, outs in grouped for o in outs if o.wrote_row),
         "candidates": len(candidates),
+        "skipped_statements": len(busy),
         "runs": [{"policy_version": ver, **summarize_outcomes(outs)} for ver, outs in grouped],
     }
 
@@ -1280,66 +1300,3 @@ async def classify_by_effective_policy(
         db, user_id, transactions, apply_rules=apply_rules, tolerate_pre_policy=True
     )
     return [outcome for _ver, outs in grouped for outcome in outs]
-
-
-def _statement_lock_key(statement_id: UUID):
-    return func.hashtextextended(f"statement_classification:{statement_id}", 0)
-
-
-async def try_lock_statement_classification(db: AsyncSession, statement_id: UUID) -> bool:
-    return bool(await db.scalar(select(func.pg_try_advisory_xact_lock(_statement_lock_key(statement_id)))))
-
-
-async def is_statement_classification_running(db: AsyncSession, statement_id: UUID) -> bool:
-    """Return true while any session holds the classification lock of the statement (#2950).
-
-    The parse and the classification pass can run in another process, so only the database knows the state.
-    This read takes no lock: a lock that a read took would make the pass skip the statement. It reads
-    ``pg_locks`` and splits the bigint key of ``_statement_lock_key`` into the ``classid`` and ``objid`` of
-    an advisory lock (high and low 32 bits, ``objsubid`` 1). Other dialects have no advisory locks.
-    """
-    if db.get_bind().dialect.name != "postgresql":
-        return False
-    key = _statement_lock_key(statement_id)
-    pg_locks = table(
-        "pg_locks",
-        column("locktype"),
-        column("granted"),
-        column("database"),
-        column("classid"),
-        column("objid"),
-        column("objsubid"),
-    )
-    pg_database = table("pg_database", column("oid"), column("datname"))
-    held = exists().where(
-        pg_locks.c.locktype == "advisory",
-        pg_locks.c.granted,
-        pg_locks.c.database
-        == select(pg_database.c.oid).where(pg_database.c.datname == func.current_database()).scalar_subquery(),
-        pg_locks.c.objsubid == literal_column("1"),
-        cast(pg_locks.c.classid, BigInteger)
-        == key.op(">>")(literal_column("32")).op("&")(literal_column("4294967295")),
-        cast(pg_locks.c.objid, BigInteger) == key.op("&")(literal_column("4294967295")),
-    )
-    return bool(await db.scalar(select(held)))
-
-
-async def lock_statement_classification(db: AsyncSession, statement_id: UUID) -> None:
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + CLASSIFICATION_LOCK_WAIT_SECONDS
-    while not await try_lock_statement_classification(db, statement_id):
-        if loop.time() >= deadline:
-            raise StatementClassificationBusy(
-                "Classification of this statement is still running. Wait a moment and retry."
-            )
-        await asyncio.sleep(_LOCK_POLL_SECONDS)
-
-
-async def classify_statement_by_effective_policy(
-    db: AsyncSession,
-    user_id: UUID,
-    statement_id: UUID,
-    transactions: Sequence[AtomicTransaction],
-) -> list[ClassificationOutcome]:
-    await lock_statement_classification(db, statement_id)
-    return await classify_by_effective_policy(db, user_id, transactions)

@@ -391,7 +391,7 @@ async def test_AC_extraction_2994_65_an_auto_retry_successor_keeps_the_hints_and
 
     await _use_case(db, service, sleeps=Sleeps(), content_loader=loader).execute(job)
 
-    runs = await _runs(db, statement_id)
+    runs = [run for run in await _runs(db, statement_id) if run.kind is RunKind.EXTRACT]
     assert len(runs) == 3
     assert [RunHints.model_validate(run.hints) for run in runs] == [hints, hints, hints]
     assert [run.model for run in runs] == ["vendor/vision-x"] * 3

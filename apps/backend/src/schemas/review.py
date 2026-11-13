@@ -64,8 +64,6 @@ class StatementReviewResponse(BankStatementResponse):
     source_result_digest: str | None = None
     source_missing_facts: list[str] = default_list()
     source_envelope_reviewable: bool = False
-    # True while any process holds the classification lock of the statement (#2950).
-    preclassification_in_progress: bool = False
     reviewed_envelope: ReviewedStatementEnvelopeResponse | None = None
     pdf_url: str | None = None
     model_config = ConfigDict(from_attributes=True)
