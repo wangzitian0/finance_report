@@ -64,6 +64,7 @@ from src.extraction.base.types import (
     StatementPostingStatus,
 )
 from src.extraction.base.validation import (
+    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
     compute_confidence_score,
     detect_balance_chain_break,
     validate_balance,
@@ -250,6 +251,7 @@ __all__ = [
     "AssetType",
     "AtomicPosition",
     "AtomicTransaction",
+    "STATEMENT_RESOLVED_TRANSACTIONS_ATTR",
     "BankStatementStatus",
     "BrokerageImportRejectedError",
     "BrokeragePositionImportService",

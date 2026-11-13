@@ -17,6 +17,9 @@ async def _overrides(db: AsyncSession, user_id: UUID) -> dict:
     from src.identity import User
 
     user = await db.get(User, user_id)
+    if user is not None:
+        # The identity map holds rows weakly: without a strong reference every reader reloads the user row.
+        db.info.setdefault("held_users", {})[user_id] = user
     return user.ai_settings if user is not None and isinstance(user.ai_settings, dict) else {}
 
 
