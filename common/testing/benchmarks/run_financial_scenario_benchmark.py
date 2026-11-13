@@ -22,9 +22,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from common.testing.benchmarks.benchmark_html_reporter import (  # noqa: E402
+from common.testing.benchmarks.benchmark_summary import (  # noqa: E402
     extract_summary_data,
-    generate_html_report,
     sanitize_for_json,
     write_utf8_atomic,
 )
@@ -776,9 +775,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--json-report", type=Path, default=REPO_ROOT / "tmp/benchmark_run_report.json"
     )
-    parser.add_argument("--output-html", type=Path, default=None)
     parser.add_argument("--output-summary", type=Path, default=None)
-    parser.add_argument("--baseline", type=Path, default=None)
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--insecure", action="store_true", default=False)
     parser.add_argument("--cassette", choices=["replay", "off"], default="off")
@@ -873,17 +870,7 @@ def _save_reports(args: argparse.Namespace, report_data: dict[str, Any]) -> None
     safe_report = sanitize_for_json(report_data)
     if args.json_report:
         write_utf8_atomic(args.json_report, json.dumps(safe_report, indent=2))
-    baseline_data = None
-    if args.baseline and args.baseline.exists():
-        try:
-            baseline_data = json.loads(args.baseline.read_text(encoding="utf-8"))
-        except Exception as exc:
-            print(f"Failed to read baseline {args.baseline}: {exc}", file=sys.stderr)
-    if args.output_html:
-        write_utf8_atomic(
-            args.output_html,
-            generate_html_report(safe_report, baseline_data=baseline_data),
-        )
+
     if args.output_summary:
         summary_data = sanitize_for_json(extract_summary_data(safe_report))
         write_utf8_atomic(args.output_summary, json.dumps(summary_data, indent=2))

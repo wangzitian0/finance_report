@@ -157,7 +157,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "tools/tests/**",
             "tools/wait_for_cheap_ci.py",
             "tools/run_financial_scenario_benchmark.py",
-            "tools/generate_benchmark_index.py",
             "tools/sync_benchmark_fixtures.py",
         ),
         # tools/ is largely one-off governance / CI glue (thin shims over
