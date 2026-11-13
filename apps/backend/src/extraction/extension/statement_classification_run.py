@@ -1,11 +1,10 @@
-"""Execute a classify run, then auto-approve a candidate (#2994).
+"""Execute a classify run and auto-approve a candidate in the transaction that ends it (#2994).
 
-The final transaction of an extract run creates the `classify` run (`statement_parsing.py`). The same worker task
-claims it here. While it is active the statement is PARSED, its rows are visible, and the approve answers 409. The run
-writes the answers of the rows without one: `classify_by_effective_policy` with the stored keyword rules, so the approve
-asks no model and applies no rule. A timeout (`classification_timeout`) or an error (`classification_failed`) fails the
-run, writes no answer and keeps no row text; the approve then sends the rows to the economic review. A succeeded run
-auto-approves a statement that the extract run marked (`AUTO_APPROVE_CANDIDATE`) and that is still PARSED.
+The final transaction of an extract run creates the `classify` run (`statement_parsing.py`); the same task claims it
+here. While it is active the statement is PARSED and the approve answers 409. The run writes the answers of the rows
+without one (`classify_by_effective_policy` with the stored keyword rules). A timeout or an error fails the run, writes
+no answer and keeps no row text. A statement that the extract run marked (`AUTO_APPROVE_CANDIDATE`) keeps its run active
+until the auto-approve ends it, in one transaction.
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ from src.extraction.extension.transaction_classification import (
 )
 from src.extraction.orm.statement_run import StatementRun
 from src.extraction.orm.statement_summary import StatementSummary
-from src.observability import get_logger, record_statement_classification_outcome, safe_error_message
+from src.observability import get_logger, record_statement_classification_outcome
 
 logger = get_logger(__name__)
 
@@ -81,26 +80,39 @@ async def execute_classify_run(
     while the worker ran, changes nothing and returns 0.
     """
     started = time.perf_counter()
-    async with session_maker() as session:
-        try:
+    try:
+        async with session_maker() as session:
             run = await claim_run(session, run_id)
             statement_id, user_id = run.statement_id, run.user_id
             candidate = await _parent_marked_candidate(session, run.parent_run_id)
             await session.commit()
-        except StaleRun:
-            await session.rollback()
-            logger.warning("statement.classification.claim_stale", run_id=str(run_id))
-            return 0
+    except StaleRun:
+        logger.warning("statement.classification.claim_stale", run_id=str(run_id))
+        return 0
+    except Exception as exc:  # noqa: BLE001 - an error of this code must not leave the run requested for 5 minutes
+        logger.warning("statement.classification.claim_failed", run_id=str(run_id), error_type=type(exc).__name__)
+        await _fail(session_maker, run_id, ClassifyOutcome.FAILED)
+        return 0
 
+    posted = 0
     deadline = asyncio.timeout(deadline_seconds)
     try:
-        async with deadline, parsing_heartbeat(run_id, session_maker, interval_seconds=heartbeat_interval):
-            outcome = await _classify_and_finish(session_maker, run_id, statement_id, user_id)
+        async with parsing_heartbeat(run_id, session_maker, interval_seconds=heartbeat_interval):
+            async with deadline:
+                # A candidate keeps its run active: the run ends in the transaction of the auto-approve.
+                outcome, summary = await _classify_and_commit(
+                    session_maker, run_id, statement_id, user_id, finish=not candidate
+                )
+            if candidate:
+                posted = await _approve_and_finish(
+                    session_maker, run_id, statement_id, user_id, summary, posting_dependencies
+                )
     except StaleRun:
         logger.warning("statement.classification.run_stale", run_id=str(run_id), statement_id=str(statement_id))
         return 0
     except Exception as exc:  # noqa: BLE001 - the statement keeps its rows, and the approve sends them to review
-        # A TimeoutError of the driver is a failure, not the deadline of the run.
+        # A TimeoutError of the driver is a failure, not the deadline of the run. The text of an error can hold row
+        # data or driver detail: the log carries the class only.
         timed_out = isinstance(exc, TimeoutError) and deadline.expired()
         outcome = ClassifyOutcome.TIMED_OUT if timed_out else ClassifyOutcome.FAILED
         logger.warning(
@@ -110,7 +122,6 @@ async def execute_classify_run(
             run_id=str(run_id),
             outcome=outcome.value,
             error_type=type(exc).__name__,
-            safe_error_message=safe_error_message(str(exc)),
         )
         if not await _fail(session_maker, run_id, outcome):
             return 0
@@ -123,9 +134,7 @@ async def execute_classify_run(
         phase=outcome.value,
         duration_ms=round((time.perf_counter() - started) * 1000, 2),
     )
-    if outcome in _FAILURES or not candidate:
-        return 0
-    return await _auto_approve(session_maker, statement_id, user_id, posting_dependencies)
+    return 0 if outcome in _FAILURES else posted
 
 
 async def _parent_marked_candidate(session: AsyncSession, parent_run_id: UUID | None) -> bool:
@@ -136,15 +145,17 @@ async def _parent_marked_candidate(session: AsyncSession, parent_run_id: UUID | 
     return isinstance(summary, dict) and summary.get(AUTO_APPROVE_CANDIDATE) is True
 
 
-async def _classify_and_finish(
-    session_maker: async_sessionmaker[AsyncSession], run_id: UUID, statement_id: UUID, user_id: UUID
-) -> ClassifyOutcome:
-    """Write the answers and end the run in one transaction. The summary holds counts only."""
+async def _classify_and_commit(
+    session_maker: async_sessionmaker[AsyncSession], run_id: UUID, statement_id: UUID, user_id: UUID, *, finish: bool
+) -> tuple[ClassifyOutcome, dict]:
+    """Commit the answers, and end the run in the same transaction when `finish`. The summary holds counts only."""
     async with session_maker() as session:
         outcome, outcomes = await _classify_rows(session, statement_id, user_id)
-        await finish_run(session, run_id, result_summary={"outcome": outcome.value, **summarize_outcomes(outcomes)})
+        summary = {"outcome": outcome.value, **summarize_outcomes(outcomes)}
+        if finish:
+            await finish_run(session, run_id, result_summary=summary)
         await session.commit()
-    return outcome
+    return outcome, summary
 
 
 async def _classify_rows(
@@ -185,25 +196,31 @@ async def _fail(session_maker: async_sessionmaker[AsyncSession], run_id: UUID, o
     return True
 
 
-async def _auto_approve(
+async def _approve_and_finish(
     session_maker: async_sessionmaker[AsyncSession],
+    run_id: UUID,
     statement_id: UUID,
     user_id: UUID,
+    summary: dict,
     posting_dependencies: StatementPostingDependencies,
 ) -> int:
-    """Approve and post a marked statement in a new transaction, after the commit of the succeeded run."""
+    """Approve a marked statement and end the run in one transaction, so no moment shows PARSED without an active run.
+
+    If the approve fails with an error, the statement stays PARSED and the run ends alone.
+    """
     try:
         async with session_maker() as session:
             posted = await auto_approve_parsed_candidate(
-                session, statement_id, user_id, dependencies=posting_dependencies
+                session, statement_id, user_id, dependencies=posting_dependencies, ignore_run_id=run_id
             )
+            await finish_run(session, run_id, result_summary=summary)
             await session.commit()
-            return posted
+        return posted
+    except StaleRun:
+        raise
     except Exception as exc:  # noqa: BLE001 - the statement stays PARSED, and the user approves it
-        logger.warning(
-            "statement.auto_approve.failed",
-            statement_id=str(statement_id),
-            error_type=type(exc).__name__,
-            safe_error_message=safe_error_message(str(exc)),
-        )
-        return 0
+        logger.warning("statement.auto_approve.failed", statement_id=str(statement_id), error_type=type(exc).__name__)
+    async with session_maker() as session:
+        await finish_run(session, run_id, result_summary=summary)
+        await session.commit()
+    return 0

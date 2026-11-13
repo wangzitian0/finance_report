@@ -403,7 +403,8 @@ async def _propose_batch(
             )
             return [None] * len(transactions)
     except (AIStreamError, ValueError, TypeError) as e:
-        logger.warning("transaction classification proposal failed", error=str(e))
+        # The text of the error can echo a row of the prompt: the log carries the class only.
+        logger.warning("transaction classification proposal failed", error_type=type(e).__name__)
         return [None] * len(transactions)
 
     if indexed:
@@ -538,12 +539,16 @@ async def _promote_drafts(
     await db.flush()
 
 
+_CATALOG_KEYS = frozenset({category.value for category in TransactionCategory} | {UNCLASSIFIED})
+
+
 def summarize_outcomes(outcomes: Sequence[ClassificationOutcome]) -> dict:
     confidences = [o.confidence for o in outcomes if o.confidence is not None]
     return {
         "total": len(outcomes),
         "by_disposition": dict(Counter(o.disposition for o in outcomes)),
-        "by_category": dict(Counter(o.category for o in outcomes if o.category)),
+        # Keys come from the closed catalog. An answer outside it can echo a row description: it counts as "other".
+        "by_category": dict(Counter(o.category if o.category in _CATALOG_KEYS else "other" for o in outcomes if o.category)),
         "confidence_buckets": dict(Counter(f"{(c // 10) * 10}-{(c // 10) * 10 + 9}" for c in confidences)),
     }
 

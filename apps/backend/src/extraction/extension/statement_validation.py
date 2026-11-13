@@ -455,12 +455,15 @@ async def approve_statement_with_transactions(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
+    *,
+    ignore_run_id: UUID | None = None,
 ) -> tuple[StatementSummary, list[AtomicTransaction]]:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     # An active run changes the statement under the approve, whatever its status says: a rerun parses it again, or a
-    # classify run writes answers. The route answers 409 with its id. The auto-approve runs after that run ended.
+    # classify run writes answers. The route answers 409 with its id. Only the auto-approve of a classify run passes
+    # `ignore_run_id`: that run ends in the transaction of its approve.
     active_run = await get_active_run(db, statement_id)
-    if active_run is not None:
+    if active_run is not None and active_run.id != ignore_run_id:
         raise ActiveRunExists(active_run.id)
     if statement.status not in _APPROVABLE_STATUSES:
         raise ValueError(

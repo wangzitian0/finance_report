@@ -821,32 +821,6 @@ async def test_AC_extraction_2994_99_the_auto_approve_leaves_a_statement_that_a_
     assert await _count(db, JournalEntry) == entries
 
 
-async def test_AC_extraction_2994_99_the_auto_approve_starts_after_the_classify_run_committed_as_succeeded(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.99: At the call of the auto-approve, no run is active and another session sees the run succeeded."""
-    from src.extraction import get_active_run
-
-    _install(monkeypatch, Proposer())
-    service, content = _high_confidence(_rows())
-    statement_id, job = await _parsing_job(db, test_user, content)
-    maker = create_session_maker_from_db(db)
-    seen: list = []
-    real = statement_classification_run.auto_approve_parsed_candidate
-
-    async def spy(session, sid, user_id, *, dependencies):
-        async with maker() as other_session:
-            states = [run.state for run in (await _runs(other_session, sid))]
-        seen.append((await get_active_run(session, sid), states))
-        return await real(session, sid, user_id, dependencies=dependencies)
-
-    monkeypatch.setattr(statement_classification_run, "auto_approve_parsed_candidate", spy)
-
-    await _use_case(db, service).execute(job, content=content)
-
-    assert seen == [(None, [RunState.SUCCEEDED, RunState.SUCCEEDED])]
-
-
 async def test_AC_extraction_2994_99_a_candidate_with_a_refused_row_waits_in_the_economic_review_until_the_next_run(
     client, db, test_user, monkeypatch
 ):

@@ -4,6 +4,7 @@ import re
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType
@@ -94,12 +95,12 @@ class ClassificationService:
                     break
 
             if matched_rule:
-                existing_result = await db.execute(
+                of_this_rule = (
                     select(TransactionClassification)
                     .where(TransactionClassification.atomic_txn_id == txn.id)
                     .where(TransactionClassification.rule_version_id == matched_rule.id)
                 )
-                existing_classification = existing_result.scalar_one_or_none()
+                existing_classification = (await db.execute(of_this_rule)).scalar_one_or_none()
                 if existing_classification:
                     results.append(existing_classification)
                     continue
@@ -112,7 +113,12 @@ class ClassificationService:
                     confidence_score=self._confidence_score_for_rule(txn, matched_rule),
                     status=ClassificationStatus.APPLIED,
                 )
-                db.add(classification)
+                try:
+                    async with db.begin_nested():
+                        db.add(classification)
+                        await db.flush()
+                except IntegrityError:  # a concurrent run wrote the same row and rule: keep its row (#2994)
+                    classification = (await db.scalar(of_this_rule)) or classification
                 results.append(classification)
 
         await db.flush()
