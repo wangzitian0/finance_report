@@ -38,7 +38,6 @@ jobs:
       # #1689: per-component change flags, so a PR only pays for what it touched
       # (frontend-telemetry-e2e skip).
       backend_changed: ${{ steps.classify.outputs.backend_changed }}
-      backend_tests_required: ${{ steps.classify.outputs.backend_tests_required }}
       vitest_required: ${{ steps.classify.outputs.vitest_required }}
       frontend_changed: ${{ steps.classify.outputs.frontend_changed }}
       tools_changed: ${{ steps.classify.outputs.tools_changed }}
@@ -408,7 +407,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.backend_tests_required == 'true'
+    if: needs.changes.outputs.pr_required == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -1102,8 +1101,7 @@ jobs:
               echo "::error::Schema migration contract failed"
               exit 1
             fi
-            # #2996: backend is skipped when backend_tests_required=false, a pass.
-            if [[ "${{ needs.backend.result }}" != "success" && "${{ needs.backend.result }}" != "skipped" ]]; then
+            if [[ "${{ needs.backend.result }}" != "success" ]]; then
               echo "::error::Backend tests failed"
               exit 1
             fi

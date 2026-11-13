@@ -34,12 +34,13 @@ def _paths_read_by(files, pattern: str) -> set[str]:
         for chain in re.findall(r"""['"]apps['"]\s*/\s*['"]frontend['"](?:\s*/\s*['"][^'"]+['"])*""" if 'frontend' in pattern else r"""['"]apps['"]\s*/\s*['"]backend['"](?:\s*/\s*['"][^'"]+['"])*""", text): found.add('/'.join(re.findall(r"""['"]([^'"]+)['"]""", chain)))
     return found
 def _overlaps(literal: str, prefix: str) -> bool: return literal.startswith(prefix) or prefix.startswith(literal.rstrip('/'))
-def test_frontend_only_change_skips_backend() -> None:
-    skip = classifier.BACKEND_TESTS_SKIP_PREFIXES; only = classify_changed_paths(['apps/frontend/playwright/a.spec.ts']); mixed = classify_changed_paths(['apps/frontend/playwright/a.spec.ts', 'apps/frontend/package.json'])
-    assert only.backend_tests_required is False; assert mixed.backend_tests_required is True; assert classify_changed_paths(['apps/frontend/src/app/layout.tsx']).backend_tests_required is True; assert classify_changed_paths(['unlisted/new.file']).backend_tests_required is True; assert classify_changed_paths([]).backend_tests_required is True; assert classify_changed_paths(['apps/backend/src/main.py', 'apps/backend/tests/t.py']).vitest_required is False; assert classify_changed_paths(['apps/backend/Dockerfile']).vitest_required is True; assert classify_changed_paths(['apps/backend/src/main.py', 'common/audit/money/x.py']).vitest_required is True; assert classify_changed_paths(['tools/x.py']).vitest_required is True; assert skip
-def test_backend_skip_set_overlaps_no_path_the_backend_tests_read() -> None:
-    files = [f for f in (_ROOT / 'apps/backend/tests').rglob('*') if f.is_file()]; read = _paths_read_by(files, r'apps/frontend[A-Za-z0-9_./@-]*'); assert 'apps/frontend/package.json' in read
-    clashes = sorted((r, p) for r in read for p in classifier.BACKEND_TESTS_SKIP_PREFIXES if _overlaps(r, p)); assert clashes == [], f'a backend test reads a skipped path: {clashes}'
+def test_backend_job_has_no_skip_condition_and_vitest_skip_is_fail_closed() -> None:
+    import yaml; jobs = yaml.safe_load((_ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'))['jobs']; assert jobs['backend']['if'] == "needs.changes.outputs.pr_required == 'true'"; assert not hasattr(classifier, 'BACKEND_TESTS_SKIP_PREFIXES')
+    assert classify_changed_paths(['apps/backend/src/main.py', 'apps/backend/src/a/b.py']).vitest_required is False; assert classify_changed_paths(['apps/backend/src/main.py', 'apps/backend/tests/t.py']).vitest_required is True; assert classify_changed_paths(['apps/backend/Dockerfile']).vitest_required is True; assert classify_changed_paths(['apps/backend/src/main.py', 'common/audit/money/x.py']).vitest_required is True; assert classify_changed_paths(['tools/x.py']).vitest_required is True; assert classify_changed_paths(['unlisted/new.file']).vitest_required is True; assert classify_changed_paths([]).vitest_required is True
 def test_vitest_skip_set_overlaps_no_path_vitest_reads() -> None:
-    files = [f for f in (_ROOT / 'apps/frontend/src').rglob('*') if f.is_file()] + [_ROOT / 'apps/frontend/package.json', _ROOT / 'apps/frontend/vitest.config.ts']; read = _paths_read_by(files, r'apps/backend[A-Za-z0-9_./@-]*')
+    files = [f for f in (_ROOT / 'apps/frontend/src').rglob('*') if f.is_file()] + [_ROOT / 'apps/frontend/package.json', _ROOT / 'apps/frontend/vitest.config.ts']; pattern = r'(?:apps/backend|common|tools)/[A-Za-z0-9_./@-]*'; direct = _paths_read_by(files, pattern); indirect: set[str] = set()
+    for path in direct:
+        target = _ROOT / path.rstrip('.')
+        if target.is_file() and target.suffix == '.json': indirect |= _paths_read_by([target], r'apps/backend[A-Za-z0-9_./@-]*')
+    read = direct | indirect; assert 'common/audit/money/conformance/vectors.json' in read; assert 'apps/backend/tests/extraction/test_csv_parsing.py' in read
     clashes = sorted((r, p) for r in read for p in classifier.VITEST_SKIP_PREFIXES if _overlaps(r, p)); assert clashes == [], f'Vitest reads a skipped path: {clashes}'
