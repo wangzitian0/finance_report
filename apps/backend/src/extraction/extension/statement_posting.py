@@ -1167,6 +1167,7 @@ async def try_auto_approve_high_confidence_statement(
     user_id: UUID,
     *,
     dependencies: StatementPostingDependencies,
+    ignore_run_id: UUID | None = None,
 ) -> int:
     statement = (
         await db.execute(
@@ -1178,7 +1179,9 @@ async def try_auto_approve_high_confidence_statement(
 
     try:
         async with db.begin_nested():
-            approved, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
+            approved, transactions = await approve_statement_with_transactions(
+                db, statement_id, user_id, ignore_run_id=ignore_run_id
+            )
             outcome = await auto_create_posted_entries_for_statement(
                 db, approved, user_id, dependencies=dependencies, transactions=transactions
             )
@@ -1205,13 +1208,14 @@ async def auto_approve_parsed_candidate(
     user_id: UUID,
     *,
     dependencies: StatementPostingDependencies,
+    ignore_run_id: UUID | None = None,
 ) -> int:
-    """Approve and post a statement that the parse marked as a candidate, after its classify run succeeded (#2994).
+    """Approve and post a statement that the parse marked as a candidate, while its classify run is still active (#2994).
 
-    The parse leaves it PARSED, so a statement is APPROVED only when its entries are posted. The statement row is locked
-    first (FOR NO KEY UPDATE): a user approve or a rerun that holds it finishes before the status is read, and a
-    statement that is no longer PARSED stays as it is. The candidate mark that `try_auto_approve_high_confidence_statement`
-    consumes is set here, and that call posts the entries or sets PARSED again. The caller commits.
+    The parse leaves it PARSED, so a statement is APPROVED only when its entries are posted. The row is locked first
+    (FOR NO KEY UPDATE), and a statement that is no longer PARSED stays as it is. The candidate mark that
+    `try_auto_approve_high_confidence_statement` consumes is set here. `ignore_run_id` is the classify run that the
+    caller ends in the same transaction. The caller commits.
     """
     statement = await lock_statement_for_run(db, statement_id, user_id, allowed=frozenset({BankStatementStatus.PARSED}))
     if statement is None:
@@ -1220,4 +1224,6 @@ async def auto_approve_parsed_candidate(
     if not is_high_confidence_auto_approve_candidate(statement):
         statement.status = BankStatementStatus.PARSED
         return 0
-    return await try_auto_approve_high_confidence_statement(db, statement_id, user_id, dependencies=dependencies)
+    return await try_auto_approve_high_confidence_statement(
+        db, statement_id, user_id, dependencies=dependencies, ignore_run_id=ignore_run_id
+    )

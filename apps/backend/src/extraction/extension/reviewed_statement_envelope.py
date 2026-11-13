@@ -31,9 +31,10 @@ from src.extraction.base.reviewed_statement_envelope import (
     ReviewedStatementEnvelopeCommand,
     supports_reviewed_statement_envelope,
 )
+from src.extraction.base.run_vocabulary import RunKind
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status
 from src.extraction.extension.custody_binding import resolve_bank_custody_account
-from src.extraction.extension.statement_runs import get_active_run
+from src.extraction.extension.statement_runs import ActiveRunExists, get_active_run
 from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
@@ -315,9 +316,13 @@ async def confirm_reviewed_statement_envelope(
         raise ValueError("Retired statement cannot receive a new source confirmation")
     # One guard before both branches below, the first confirmation and the replay of the same command: each
     # writes PARSED. A rerun leaves the current extraction result in place, so the old digest still matches.
-    # A confirmation that wrote PARSED over a run would let an approve post entries that the finalize of the
-    # run then overwrites.
-    if statement.status is BankStatementStatus.PARSING or await get_active_run(db, statement.id) is not None:
+    # A confirmation that wrote PARSED over an extract run would let an approve post entries that the finalize of
+    # the run then overwrites. An active extract run gives 409 with its id. A classify run writes answers of rows, not
+    # source facts, so the confirmation passes during it (#2994).
+    active_run = await get_active_run(db, statement.id)
+    if active_run is not None and active_run.kind is RunKind.EXTRACT:
+        raise ActiveRunExists(active_run.id)
+    if statement.status is BankStatementStatus.PARSING:
         raise ValueError("Statement is parsing again. Reload the statement before confirming its envelope.")
     if statement.current_extraction_result_id is None:
         raise ValueError("Statement has no current source result; reparse before confirming its envelope")
