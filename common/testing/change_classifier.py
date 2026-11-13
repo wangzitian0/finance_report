@@ -120,6 +120,13 @@ COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
     "common": ("common/",),
 }
 
+# Fail-closed Vitest selection (#2996). Vitest is skipped only when EVERY changed path is
+# in this set. An unlisted path runs it. A guard test in
+# tests/tooling/test_ci_change_classifier.py scans what Vitest reads, directly and
+# through the JSON files it loads (it checks `backend_test_ref` paths on disk), and fails when a skip prefix overlaps.
+# The backend shards have no skip: backend tests read paths through contract manifests.
+VITEST_SKIP_PREFIXES = ("apps/backend/src/",)
+
 CI_DEFINITION_PATHS = frozenset(
     {
         ".github/workflows/ci.yml",
@@ -236,6 +243,17 @@ class ChangeClassification:
     image_build_required: bool
     component_changed: Mapping[str, bool]
     touched_e2e_tests: tuple[str, ...] = ()
+
+    def _runs_unless_all_in(self, skip_prefixes: tuple[str, ...]) -> bool:
+        return (
+            not self.files
+            or any(path in CI_DEFINITION_PATHS for path in self.files)
+            or not all(path.startswith(skip_prefixes) for path in self.files)
+        )
+
+    @property
+    def vitest_required(self) -> bool:
+        return self._runs_unless_all_in(VITEST_SKIP_PREFIXES)
 
     @property
     def staging_files(self) -> tuple[str, ...]:
@@ -508,6 +526,7 @@ def write_github_outputs(
             (f"{name}_changed", str(classification.component_changed[name]).lower())
             for name in COMPONENT_PREFIXES
         ),
+        ("vitest_required", str(classification.vitest_required).lower()),
         ("touched_e2e_tests", _json_output(list(classification.touched_e2e_tests))),
     ]
     with output_path.open("a", encoding="utf-8") as fh:
