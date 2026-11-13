@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 import json
 import re
+import runpy
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from common.testing import matrix
+from common.testing.change_classifier import Environment, classify_changed_paths
 
 ROOT = Path(__file__).resolve().parents[2]
 SLOTS = json.loads((ROOT / "runtime-hooks.manifest.json").read_text("utf-8"))["slots"]
@@ -201,25 +204,127 @@ def test_AC_testing_deploy_gates_46_stage_env_covers_critical_env_skips() -> Non
     assert checked >= 1, "no critical test with an env skip condition was scanned"
 
 
-PYTHON_MODULE = re.compile(r"\bpython3?\s+-m\s+([A-Za-z_][\w.]*)")
-HOOK_SLOTS_WITH_MODULES = ("preview_gate", "staging_gate", "scheduled_audit")
+HOOK_SLOTS_WITH_PYTHON = ("preview_gate", "staging_gate", "scheduled_audit")
+SEPARATORS = {"&&", "||", ";", "|", "&"}
+ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
+PYTHON_HEAD = re.compile(r"(?:.*/)?python[0-9.]*|\$\{?\w+\}?")
+MODULE_NAME = re.compile(r"[A-Za-z_][\w.]*")
+BOOTSTRAP_PREFIXES = (["uv", "pip", "install"], ["playwright", "install"])
+HELP_KINDS = ("module", "pytest", "script")
+Step = tuple[str, str]
 
 
-def _python_modules(line: str) -> list[str]:
-    """Return the module name of each `python -m <module>` in a shell line."""
-    return PYTHON_MODULE.findall(line)
+def _commands(text: str) -> list[list[str]]:
+    """Split shell text into simple commands (word lists) at `&&`, `||`, `;`, `|` and `&`."""
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    commands: list[list[str]] = [[]]
+    for word in lexer:
+        commands.append([]) if word in SEPARATORS else commands[-1].append(word)
+    return [words for words in commands if words]
 
 
-def _module_checks() -> list[tuple[str, str, str]]:
-    """Return (slot, step id, module) for each `python -m <module>` step of the manifest."""
-    steps: list[tuple[str, str, str]] = []
+def _module_step(name: str) -> Step | None:
+    if name == "pytest":
+        return ("pytest", "pytest")
+    return ("module", name) if MODULE_NAME.fullmatch(name) else None
+
+
+def _python_step(args: list[str]) -> Step | None:
+    """Return the module or script that the words after a Python interpreter run, or None."""
+    index = 0
+    while index < len(args):
+        word = args[index]
+        if word in ("-X", "-W"):
+            index += 2
+        elif re.fullmatch(r"-[A-Za-z]*c", word):
+            return None
+        elif re.fullmatch(r"-[A-Za-z]*m", word):
+            return _module_step(args[index + 1] if index + 1 < len(args) else "")
+        elif re.fullmatch(r"-m\S+", word):
+            return _module_step(word[2:])
+        elif word.startswith("-"):
+            index += 1
+        else:
+            known = word.endswith(".py") and (ROOT / word).is_file()
+            return ("script", word) if known else None
+    return None
+
+
+def _classify_words(words: list[str], *, bootstrap: bool) -> list[Step]:
+    """Classify one simple command as bash, bootstrap, pytest, module, script or unknown."""
+    text = " ".join(words)
+    words = words[1:] if words[:1] == ["env"] else words
+    while words and ASSIGNMENT.match(words[0]):
+        words = words[1:]
+    if not words:
+        return [("unknown", text)]
+    if bootstrap and any(
+        words[: len(prefix)] == prefix for prefix in BOOTSTRAP_PREFIXES
+    ):
+        return [("bootstrap", text)]
+    head, rest = words[0], words[1:]
+    if (
+        head in ("sh", "bash", "dash")
+        and len(rest) > 1
+        and re.fullmatch(r"-[a-z]*c", rest[0])
+    ):
+        return _classify_text(rest[1], bootstrap=bootstrap)
+    if (
+        head in ("sh", "bash", "dash")
+        and rest
+        and rest[0].endswith(".sh")
+        and (ROOT / rest[0]).is_file()
+    ):
+        return [("bash", rest[0])]
+    if head == "pytest":
+        return [("pytest", "pytest")]
+    if PYTHON_HEAD.fullmatch(head):
+        return [_python_step(rest) or ("unknown", text)]
+    return [("unknown", text)]
+
+
+def _classify_text(text: str, *, bootstrap: bool = False) -> list[Step]:
+    try:
+        commands = _commands(text)
+    except ValueError:
+        return [("unknown", text)]
+    steps = [
+        s for words in commands for s in _classify_words(words, bootstrap=bootstrap)
+    ]
+    return steps or [("unknown", text)]
+
+
+def _classify_step(step: str | list[str], *, bootstrap: bool = False) -> list[Step]:
+    """Classify a manifest step: shell text of `run` and `bootstrap`, or the argv of a check."""
+    if isinstance(step, str):
+        return _classify_text(step, bootstrap=bootstrap)
+    return _classify_words(list(step), bootstrap=bootstrap)
+
+
+def _manifest_steps() -> list[tuple[str, str, str | list[str], bool]]:
+    """Return (slot, step id, command, is bootstrap) for each step of each slot, read from the manifest."""
+    steps: list[tuple[str, str, str | list[str], bool]] = []
     for slot, spec in SLOTS.items():
-        steps += [(slot, key, spec[key]) for key in ("bootstrap", "run") if key in spec]
-        steps += [(slot, c["id"], _check_line(c)) for c in spec.get("checks", [])]
-    return [(s, i, m) for s, i, line in steps for m in _python_modules(line)]
+        steps += [
+            (slot, key, spec[key], key == "bootstrap")
+            for key in ("bootstrap", "run")
+            if key in spec
+        ]
+        steps += [
+            (slot, check["id"], check["argv"], False)
+            for check in spec.get("checks", [])
+        ]
+    return steps
 
 
-MODULE_CHECKS = _module_checks()
+MANIFEST_STEPS = _manifest_steps()
+SCANNED = [
+    (slot, step_id, kind, target)
+    for slot, step_id, step, bootstrap in MANIFEST_STEPS
+    for kind, target in _classify_step(step, bootstrap=bootstrap)
+]
+HELP_CALLS = sorted({call for call in SCANNED if call[2] in HELP_KINDS})
 
 
 def _run_module(*args: str) -> subprocess.CompletedProcess[str]:
@@ -251,27 +356,153 @@ def test_AC_testing_hook_main_1_module_prints_each_node_of_the_matrix_selection(
     )
 
 
-@pytest.mark.parametrize(("slot", "step", "module"), MODULE_CHECKS)
-def test_AC_testing_hook_main_2_each_manifest_module_check_prints_help(
-    slot: str, step: str, module: str
+@pytest.mark.parametrize(("slot", "step", "kind", "target"), HELP_CALLS)
+def test_AC_testing_hook_main_2_each_manifest_python_step_prints_help(
+    slot: str, step: str, kind: str, target: str
 ) -> None:
-    """AC-testing.hook-main.2: each `python -m <module>` step of the manifest exits 0 on `--help` and prints text."""
-    run = _run_module(module, "--help")
-    assert run.returncode == 0, f"{slot}.{step}: {module} --help: {run.stderr}"
+    """AC-testing.hook-main.2: each Python module or script step of the manifest exits 0 on `--help` and prints text."""
+    argv = {
+        "module": [sys.executable, "-m", target, "--help"],
+        "pytest": [sys.executable, "-m", "pytest", "--help"],
+        "script": [sys.executable, target, "--help"],
+    }[kind]
+    run = subprocess.run(
+        argv, cwd=ROOT, capture_output=True, text=True, timeout=40, check=False
+    )
+    assert run.returncode == 0, f"{slot}.{step}: {argv[1:]}: {run.stderr}"
     assert run.stdout.strip(), (
-        f"{slot}.{step}: `python -m {module} --help` printed nothing; the module has no main block"
+        f"{slot}.{step}: `{target} --help` printed nothing; the target has no main block"
     )
 
 
-def test_AC_testing_hook_main_3_the_scan_covers_every_hook_slot_with_a_module() -> None:
-    """AC-testing.hook-main.3: the scan reads the manifest and finds a module in each gate slot."""
-    found = {slot: {m for s, _, m in MODULE_CHECKS if s == slot} for slot in SLOTS}
-    for slot in HOOK_SLOTS_WITH_MODULES:
-        assert found[slot], f"the scan finds no `python -m` step in {slot}"
-    assert "common.testing.test_selection" in found["staging_gate"]
-    assert len({m for _, _, m in MODULE_CHECKS}) >= 3, "the scan lost a module"
-    assert _python_modules("env A=1 python3 -m a.b --x; sh -c 'python -m c_d'") == [
-        "a.b",
-        "c_d",
+def test_AC_testing_hook_main_3_every_manifest_step_fits_a_known_form() -> None:
+    """AC-testing.hook-main.3: each manifest step is bash, bootstrap, pytest, a module or a script; a step of any other form fails."""
+    unknown = [
+        (slot, step, text) for slot, step, kind, text in SCANNED if kind == "unknown"
     ]
-    assert _python_modules("python tools/test_selection.py --stage x") == []
+    assert unknown == [], (
+        f"hook steps that fit no known form; add the form to this test on purpose: {unknown}"
+    )
+    assert {(s, i) for s, i, _, _ in SCANNED} == {
+        (s, i) for s, i, _, _ in MANIFEST_STEPS
+    }
+    for slot in HOOK_SLOTS_WITH_PYTHON:
+        kinds = {kind for s, _, kind, _ in SCANNED if s == slot}
+        assert kinds & set(HELP_KINDS), f"the scan finds no Python step in {slot}"
+    assert (
+        "staging_gate",
+        "staging_core_e2e",
+        "module",
+        "common.testing.test_selection",
+    ) in SCANNED
+    assert len({target for _, _, kind, target in SCANNED if kind == "module"}) >= 3
+
+
+@pytest.mark.parametrize(
+    ("step", "bootstrap", "expected"),
+    [
+        (["python", "-m", "a.b", "--x"], False, [("module", "a.b")]),
+        (["python3.12", "-m", "a.b"], False, [("module", "a.b")]),
+        (["python", "-u", "-m", "a.b"], False, [("module", "a.b")]),
+        (["python", "-X", "dev", "-m", "a.b"], False, [("module", "a.b")]),
+        (["python", "-ma.b"], False, [("module", "a.b")]),
+        (["python", "-um", "a.b"], False, [("module", "a.b")]),
+        (["$PY", "-m", "a.b"], False, [("module", "a.b")]),
+        (["env", "K=V", "python", "-m", "pytest", "-v"], False, [("pytest", "pytest")]),
+        (["pytest", "tests/x.py"], False, [("pytest", "pytest")]),
+        (
+            ["sh", "-c", "python -m a.b && python3 -m c_d"],
+            False,
+            [("module", "a.b"), ("module", "c_d")],
+        ),
+        (
+            ["sh", "-lc", 'bash common/runtime/shell/smoke_test.sh "$U"'],
+            False,
+            [("bash", "common/runtime/shell/smoke_test.sh")],
+        ),
+        (
+            ["python", "tools/preflight.py", "--x"],
+            False,
+            [("script", "tools/preflight.py")],
+        ),
+        (
+            "uv pip install x && playwright install chromium",
+            True,
+            [
+                ("bootstrap", "uv pip install x"),
+                ("bootstrap", "playwright install chromium"),
+            ],
+        ),
+        (["node", "a.js"], False, [("unknown", "node a.js")]),
+        (["python", "-c", "print(1)"], False, [("unknown", "python -c print(1)")]),
+        (
+            ["python", "tools/no_such_gate.py"],
+            False,
+            [("unknown", "python tools/no_such_gate.py")],
+        ),
+        (["python", "-m", "$MOD"], False, [("unknown", "python -m $MOD")]),
+        ("uv pip install x", False, [("unknown", "uv pip install x")]),
+    ],
+)
+def test_AC_testing_hook_main_6_the_classifier_reads_each_form_of_a_python_step(
+    step: str | list[str], bootstrap: bool, expected: list[Step]
+) -> None:
+    """AC-testing.hook-main.6: the step classifier reads flags, `env`, `sh -c`, `$PY` and `-mx`, and marks any other form unknown."""
+    assert _classify_step(step, bootstrap=bootstrap) == expected
+
+
+def test_AC_testing_hook_main_4_module_exits_2_on_an_unknown_stage() -> None:
+    """AC-testing.hook-main.4: `python -m common.testing.test_selection --stage no_such_stage` exits 2 and names the stage error on stderr."""
+    run = _run_module("common.testing.test_selection", "--stage", "no_such_stage")
+    assert run.returncode == 2, f"exit {run.returncode}: {run.stderr!r}"
+    assert "unknown selection stage 'no_such_stage'" in run.stderr
+    assert run.stdout == ""
+
+
+def test_AC_testing_hook_main_5_main_block_exits_with_the_pytest_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.hook-main.5: the main block of the module raises SystemExit with the exit code of the selected pytest run."""
+    calls: list[list[str]] = []
+
+    def failing_run(argv, **_kwargs):
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 3)
+
+    monkeypatch.setattr(subprocess, "run", failing_run)
+    monkeypatch.setattr(
+        sys, "argv", ["test_selection", "--stage", "staging_core_e2e", "--run"]
+    )
+    with pytest.raises(SystemExit) as stop:
+        runpy.run_path(
+            str(ROOT / "common/testing/test_selection.py"), run_name="__main__"
+        )
+    assert stop.value.code == 3
+    assert len(calls) == 1 and calls[0][1:3] == ["-m", "pytest"]
+
+
+def _module_file(module: str) -> str:
+    base = Path(*module.split("."))
+    for candidate in (base.with_suffix(".py"), base / "__main__.py"):
+        if (ROOT / candidate).is_file():
+            return candidate.as_posix()
+    raise AssertionError(f"no file for module {module}")
+
+
+def test_AC_testing_hook_main_7_the_classifier_marks_each_hook_python_file_as_staging_relevant() -> (
+    None
+):
+    """AC-testing.hook-main.7: the change classifier marks the file of each `python -m common...` or `python common/...` hook step as staging-relevant."""
+    modules = {
+        _module_file(t)
+        for _, _, k, t in SCANNED
+        if k == "module" and t.startswith("common.")
+    }
+    scripts = {t for _, _, k, t in SCANNED if k == "script" and t.startswith("common/")}
+    files = sorted(modules | scripts)
+    assert "common/testing/test_selection.py" in files
+    for file in files:
+        staging = classify_changed_paths([file]).envs[Environment.STAGING]
+        assert staging.required and staging.files == (file,), (
+            f"{file} runs in a hook step but a change to it does not start the staging gate"
+        )

@@ -21,6 +21,15 @@ def test_AC_testing_preflight_2_openapi_spec_gate_selects_every_route_file():
             for _m2_part in _m2_command:
                 if _m2_part.endswith('.py') and _m2_part.startswith('tools/'): assert (REPO_ROOT / _m2_part).exists(), f'{_m2_check.name}: missing {_m2_part}'
     _m3_by_name = {_m3_c.name: _m3_c for _m3_c in preflight.CHECKS}; assert _m3_by_name['backend-format'].cwd == 'apps/backend'; assert _m3_by_name['transaction-boundary'].cwd == 'apps/backend'
+ROUTE_DECORATOR = re.compile(r"@\w+\.(?:get|post|put|patch|delete|api_route)\(")
+def test_AC_testing_preflight_2_the_route_scan_finds_every_file_with_a_route_decorator():
+    """AC-testing.preflight.2: each backend source file with a route decorator is in the scan that the openapi-spec test reads."""
+    route_files = set(_route_defining_backend_files())
+    assert route_files, 'the scan found no route-defining backend file'
+    src = REPO_ROOT / 'apps' / 'backend' / 'src'
+    decorated = {path.relative_to(REPO_ROOT).as_posix() for path in sorted(src.rglob('*.py')) if ROUTE_DECORATOR.search(path.read_text(encoding='utf-8'))}
+    assert decorated, 'no backend source file has a route decorator'
+    assert decorated <= route_files, f'files with route decorators that the scan misses: {sorted(decorated - route_files)}'
 def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(): backend_format = next((c for c in preflight.CHECKS if c.name == 'backend-format')); assert backend_format.commands == ((preflight.PY, '-m', 'ruff', 'check', 'src', 'tests'), (preflight.PY, '-m', 'ruff', 'format', '--check', 'src', 'tests')); precommit = (REPO_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8'); assert 'cd apps/backend && uv run python ../../tools/check_env_keys.py' in precommit; assert 'cd apps/backend && uv run python ../../tools/validate_schemas.py' in precommit; _m4_commands: list[list[str]] = []; _m4_schema_check = [_m4_c for _m4_c in preflight.CHECKS if _m4_c.name == 'schema-validate']; preflight.run_checks(_m4_schema_check, changed_files=('apps/backend/src/schemas/review.py', 'apps/backend/src/extraction/extension/service.py'), runner=lambda argv, cwd: _m4_commands.append(list(argv)) or 0, python='python3'); assert _m4_commands == [['python3', 'tools/validate_schemas.py', '--paths', 'apps/backend/src/schemas/review.py']]
 def test_run_checks_passes_each_check_cwd_to_the_runner():
     seen: list[str] = []
