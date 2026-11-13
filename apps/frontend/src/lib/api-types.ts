@@ -77,7 +77,6 @@ export interface paths {
   "/market-data/status": _P<{ get: _O["market_data_status_endpoint_market_data_status_get"] }>;
   "/market-data/stocks/syncs": _P<{ post: _O["sync_stocks_endpoint_market_data_stocks_syncs_post"] }>;
   "/metrics/correction-loop/replay": _P<{ get: _O["get_correction_loop_replay_metrics_correction_loop_replay_get"] }>;
-  "/notifications": _P<{ get: _O["list_notifications_endpoint_notifications_get"] }>;
   "/ping": _P<{ get: _O["get_ping_state_ping_get"] }>;
   "/portfolio/allocation/asset-class": _P<{ get: _O["get_asset_class_allocation_portfolio_allocation_asset_class_get"] }>;
   "/portfolio/allocation/geography": _P<{ get: _O["get_geography_allocation_portfolio_allocation_geography_get"] }>;
@@ -2344,14 +2343,6 @@ export interface operations {
   };
   sync_stocks_endpoint_market_data_stocks_syncs_post: _Op<_S["MarketDataSyncResponse"], _NP, _S["MarketDataSyncRequest"]>;
   get_correction_loop_replay_metrics_correction_loop_replay_get: _OpN<_S["CorrectionLoopReplayResponse"]>;
-  list_notifications_endpoint_notifications_get: {
-    parameters: _QP<{
-        status?: _S["WorkflowEventStatus"] | null;
-        limit?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["WorkflowEventListResponse"]>;
-  };
   get_ping_state_ping_get: _OpN<_S["PingStateResponse"]>;
   get_asset_class_allocation_portfolio_allocation_asset_class_get: {
     parameters: _QP<{

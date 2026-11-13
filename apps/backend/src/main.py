@@ -382,7 +382,6 @@ for _router in (
     llm.router,
     portfolio.router,
     workflow.router,
-    workflow.notifications_router,
     runtime_system_router,
     platform_system_router,
 ):
