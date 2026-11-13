@@ -217,32 +217,33 @@ describe("The classify run on the statement page", () => {
     await waitFor(() => expect(callsOf(CONFIRM_POST)).toHaveLength(1));
   });
 
-  it.each(["auto-fill", "reject"])(
-    "AC-extraction.2994.114 reads the runs and the review again when the %s returns 409, and shows the run that began elsewhere",
-    async (action) => {
-      let runs: StatementRun[] = [makeRun({ seq: 1 })];
-      const conflict = new ApiError("The statement has an active run.", 409, "conflict", null, { active_run_id: "run-2" } as never);
-      mockApi(() => runs, { post: () => Promise.reject(conflict) });
-      render(<StatementDetailPage />);
-      await screen.findByTestId("parsing-attempts");
-      await waitFor(() => expect(approveButton()).toBeEnabled());
-      const runCalls = callsOf(RUNS_GET).length;
-      const reviewCalls = callsOf(REVIEW_GET).length;
-      runs = [makeRun({ seq: 1 }), classifyRun("running")]; // another tab started the run
+  const refetchesAfterConflict = async (action: "auto-fill" | "reject") => {
+    let runs: StatementRun[] = [makeRun({ seq: 1 })];
+    const conflict = new ApiError("The statement has an active run.", 409, "conflict", null, { active_run_id: "run-2" } as never);
+    mockApi(() => runs, { post: () => Promise.reject(conflict) });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("parsing-attempts");
+    await waitFor(() => expect(approveButton()).toBeEnabled());
+    const runCalls = callsOf(RUNS_GET).length;
+    const reviewCalls = callsOf(REVIEW_GET).length;
+    runs = [makeRun({ seq: 1 }), classifyRun("running")]; // another tab started the run
 
-      if (action === "auto-fill") {
-        fireEvent.click(autoFillButton());
-      } else {
-        fireEvent.click(screen.getByRole("button", { name: "Reject" }));
-        const dialog = await screen.findByRole("dialog", { name: "Reject Statement" });
-        fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
-      }
+    if (action === "auto-fill") {
+      fireEvent.click(autoFillButton());
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+      const dialog = await screen.findByRole("dialog", { name: "Reject Statement" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
+    }
 
-      await waitFor(() => expect(callsOf(action === "auto-fill" ? APPROVE_POST : REJECT_POST)).toHaveLength(1));
-      await waitFor(() => expect(callsOf(RUNS_GET).length).toBeGreaterThan(runCalls));
-      await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(reviewCalls));
-      expect(await screen.findByText(NOTICE)).toBeInTheDocument();
-      await waitFor(() => expect(approveButton()).toBeDisabled());
-    },
-  );
+    await waitFor(() => expect(callsOf(action === "auto-fill" ? APPROVE_POST : REJECT_POST)).toHaveLength(1));
+    await waitFor(() => expect(callsOf(RUNS_GET).length).toBeGreaterThan(runCalls));
+    await waitFor(() => expect(callsOf(REVIEW_GET).length).toBeGreaterThan(reviewCalls));
+    expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+    await waitFor(() => expect(approveButton()).toBeDisabled());
+  };
+
+  it("AC-extraction.2994.114 reads the runs and the review again when the auto-fill returns 409, and shows the run that began elsewhere", () => refetchesAfterConflict("auto-fill"));
+
+  it("AC-extraction.2994.114 reads the runs and the review again when the reject returns 409, and shows the run that began elsewhere", () => refetchesAfterConflict("reject"));
 });
