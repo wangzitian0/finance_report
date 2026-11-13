@@ -258,6 +258,95 @@ describe("Parsing attempts and Run again on the statement page", () => {
     expect(runPosts()).toHaveLength(0);
   });
 
+  it("AC-extraction.2994.72 refuses control characters and line or paragraph separators before the request", async () => {
+    mockApi({ runs: () => [] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+    const message = "Keywords and the note cannot contain control characters or line or paragraph separators.";
+
+    for (const bad of ["\u2028", "\u2029", "\u0007", "\u0000", "\u200e\u0085"]) {
+      fireEvent.change(keywordField(), { target: { value: `interest, bad${bad}word` } });
+      expect(runAgainButton(), `keyword with U+${bad.charCodeAt(0).toString(16)}`).toBeDisabled();
+      expect(screen.getByRole("alert")).toHaveTextContent(message);
+    }
+    fireEvent.change(keywordField(), { target: { value: "interest" } });
+    expect(runAgainButton()).toBeEnabled();
+
+    for (const bad of ["\u2028", "\u2029", "\u0007", "\r"]) {
+      fireEvent.change(noteField(), { target: { value: `first${bad}second` } });
+      expect(runAgainButton(), `note with U+${bad.charCodeAt(0).toString(16)}`).toBeDisabled();
+      expect(screen.getByRole("alert")).toHaveTextContent(message);
+    }
+    fireEvent.change(noteField(), { target: { value: "first line\n\tsecond line, with a tab" } });
+    expect(runAgainButton()).toBeEnabled();
+    expect(runPosts()).toHaveLength(0);
+  });
+
+  it("AC-extraction.2994.72 keeps zero width joiners valid", async () => {
+    mockApi({ runs: () => [] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+
+    fireEvent.change(keywordField(), { target: { value: "می\u200cخواهم" } });
+    fireEvent.change(noteField(), { target: { value: "a\u200db" } });
+
+    expect(runAgainButton()).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("AC-extraction.2994.73 shows one fixed sentence for a 422 and never the raw body", async () => {
+    const raw = JSON.stringify({ detail: [{ type: "value_error", loc: ["body", "hints", "keywords"], input: ["SECRET-KEYWORD"] }] });
+    mockApi({ runs: () => [], post: () => Promise.reject(new ApiError(raw, 422, "validation_error")) });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+    fireEvent.change(keywordField(), { target: { value: "SECRET-KEYWORD" } });
+
+    fireEvent.click(runAgainButton());
+
+    const fixed = "The hints are not valid. Check the keywords and the note.";
+    expect(await screen.findByRole("alert")).toHaveTextContent(fixed);
+    expect(screen.getByRole("alert").textContent).toBe(fixed);
+    expect(showToastMock).toHaveBeenCalledWith(fixed, "error");
+    // The user's own text stays in the keyword field. Nothing else on the page may repeat it.
+    expect(screen.queryAllByText(/SECRET-KEYWORD/).filter((element) => element.tagName !== "TEXTAREA")).toEqual([]);
+    expect(screen.queryByText(/"detail"/)).not.toBeInTheDocument();
+    expect(JSON.stringify(showToastMock.mock.calls)).not.toContain("SECRET-KEYWORD");
+  });
+
+  it("AC-extraction.2994.74 lists the attempts while the statement is parsing, with the failed attempt that explains it", async () => {
+    mockApi({
+      status: "parsing",
+      runs: () => [
+        makeRun({ seq: 1, state: "failed", error_code: "heartbeat_lost", actor_kind: "system", trigger: "upload" }),
+        makeRun({ seq: 2, state: "running", actor_kind: "system", trigger: "auto_retry", finished_at: null }),
+      ],
+    });
+    render(<StatementDetailPage />);
+
+    const list = await screen.findByTestId("parsing-attempts");
+
+    expect(within(list).getByText("Error: heartbeat_lost")).toBeInTheDocument();
+    expect(within(screen.getByTestId("parsing-attempt-2")).getByText("Running")).toBeInTheDocument();
+    expect(screen.getByText(/Parsing in progress/)).toBeInTheDocument();
+  });
+
+  it("AC-extraction.2994.74 disables Run again for a stuck parsing statement while a run is active", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    mockApi({ status: "parsing", runs: () => [makeRun({ seq: 1, state: "running", finished_at: null })] });
+    render(<StatementDetailPage />);
+    await screen.findByText(/Parsing in progress/);
+
+    await act(async () => {
+      vi.setSystemTime(new Date("2026-01-01T00:05:01Z"));
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+
+    expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();
+    expect(await screen.findByText(/A parse is running/)).toBeInTheDocument();
+    expect(runAgainButton()).toBeDisabled();
+  });
+
   it("AC-extraction.2994.61 limits the note of the reject dialog to 500 characters", async () => {
     mockApi({ status: "parsed", runs: () => [] });
     render(<StatementDetailPage />);
