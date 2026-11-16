@@ -22,9 +22,7 @@ _LAZY = {
     "DEFAULT_TEST_EMAIL_PATTERN": "src.identity.extension.account_purge",
     "PERSISTENT_TEST_EMAILS": "src.identity.extension.account_purge",
     "PurgeReport": "src.identity.extension.account_purge",
-    "STAGING_DISPOSABLE_EMAIL_PATTERN": "src.identity.extension.account_purge",
     "is_safe_purge_environment": "src.identity.extension.account_purge",
-    "purge_staging_tenant_data": "src.identity.extension.account_purge",
     "purge_test_accounts": "src.identity.extension.account_purge",
     "auth_router": "src.identity.extension.api",
     "get_me": "src.identity.extension.api",
@@ -49,7 +47,6 @@ __all__ = [
     "DEFAULT_TEST_EMAIL_PATTERN",
     "PERSISTENT_TEST_EMAILS",
     "PurgeReport",
-    "STAGING_DISPOSABLE_EMAIL_PATTERN",
     "SqlUserRepository",
     "User",
     "auth_rate_limiter",
@@ -63,7 +60,6 @@ __all__ = [
     "is_safe_purge_environment",
     "login",
     "oauth2_scheme",
-    "purge_staging_tenant_data",
     "purge_test_accounts",
     "register",
     "register_rate_limiter",
@@ -85,10 +81,8 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
     from src.identity.extension.account_purge import (
         DEFAULT_TEST_EMAIL_PATTERN,
         PERSISTENT_TEST_EMAILS,
-        STAGING_DISPOSABLE_EMAIL_PATTERN,
         PurgeReport,
         is_safe_purge_environment,
-        purge_staging_tenant_data,
         purge_test_accounts,
     )
     from src.identity.extension.api import (
