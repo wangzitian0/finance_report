@@ -53,7 +53,7 @@ def _tooling_read_paths() -> set[str]:
     for test_file in test_files:
         text = test_file.read_text(encoding='utf-8')
         for m in path_pat.finditer(text):
-            cand = m.group(1).lstrip('./')
+            cand = m.group(1).removeprefix('./')
             if not cand or cand == '.' or cand.startswith(('tools/', 'tests/tooling/', '.git/')) or cand in {'tools', 'tests', '.git'}: continue
             if cand.isupper(): continue
             target = _ROOT / cand
@@ -61,7 +61,7 @@ def _tooling_read_paths() -> set[str]:
         for m in join_pat.finditer(text):
             parts = re.findall(r"""['"]([^'"]+)['"]""", m.group(1))
             if not parts: continue
-            cand = '/'.join(parts).lstrip('./')
+            cand = '/'.join(parts).removeprefix('./')
             if not cand or cand == '.' or cand.startswith(('tools/', 'tests/tooling/', '.git/')) or cand in {'tools', 'tests', '.git'}: continue
             target = _ROOT / cand
             if target.exists(): discovered.add(cand)

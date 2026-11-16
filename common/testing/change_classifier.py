@@ -139,6 +139,7 @@ TOOLING_LANE_PREFIXES: tuple[str, ...] = (
     ".gemini/",
     ".moon/",
     ".opencode/",
+    ".ws-publish/",
 )
 TOOLING_LANE_EXACT: frozenset[str] = frozenset(
     {
@@ -156,13 +157,14 @@ TOOLING_LANE_EXACT: frozenset[str] = frozenset(
         "runtime-hooks.manifest.json",
         "opencode.json",
         ".env.example",
+        ".gitignore",
         ".mcp.json",
         ".node-version",
         ".npmrc",
         ".nvmrc",
+        ".pre-commit-config.yaml",
         ".python-version",
         ".tool-versions",
-        ".ws-publish",
     }
 )
 
