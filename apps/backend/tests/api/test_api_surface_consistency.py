@@ -189,3 +189,10 @@ def test_issue3014_app_version_reads_from_git_tag(
 
     monkeypatch.setenv('APP_VERSION', 'v9.8.7')
     assert _resolve_app_version() == '9.8.7'
+
+
+async def test_issue2994_the_backfill_route_is_removed(client: AsyncClient, openapi_schema: dict[str, Any]) -> None:
+    """#2994 S4b-2: a model call runs only in a classify run, so POST /classifications/backfill is gone."""
+    assert not any(path.startswith('/classifications') for path in openapi_schema['paths'])
+    response = await client.post('/classifications/backfill')
+    assert response.status_code == 404, f'the backfill route still answers: {response.status_code}'

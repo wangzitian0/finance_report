@@ -112,11 +112,10 @@ TransactionDirection UploadedDocument _brokerage_import_not_ready_reason
 _brokerage_payload_from_persisted_extraction
 _brokerage_payload_from_statement applied_rows_the_policy_accepts
 apply_suggestion_feedback approve_statement_workflow auto_accept_preference
-auto_create_posted_entries_for_statement backfill_classifications
+auto_create_posted_entries_for_statement
 balance_sheet_booking brokerage_import_failure_reason
 build_csv_mapping_prompt build_disposition_trace_records
 build_statement_ingestion_use_case claim_run classification_suggestions
-classify_by_effective_policy
 clear_brokerage_import_failure compute_confidence_score
 confirm_reviewed_statement_envelope coverage_bank_custody_account_ids
 create_entry_from_txn create_run current_reviewed_statement_envelope
@@ -517,16 +516,15 @@ disposition.7||test_AC_extraction_disposition_7_frozen_package_persists_trace_bo
 1814.4||test_AC18_14_4_service_replay_measures_held_out_reduction
 @$be/extraction/test_transaction_classification.py|P1
 1815.1||test_AC18_15_1_policy_is_effective_dated_and_immutable
-1815.2||test_AC18_15_2_classify_is_reproducible_for_same_inputs
+1815.2||test_AC18_15_2_committed_rerun_is_idempotent_not_integrityerror
 1815.3||test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied
 1815.4||test_AC18_15_4_confidence_gate_applies_reviews_or_tails
 1815.5||test_AC18_15_5_model_never_touches_money|P0
-1815.6||test_AC18_15_6_pro_forma_writes_nothing
 1815.7||test_AC18_15_7_user_rule_prepass_wins_over_model
 1815.8||test_AC18_15_8_flag_off_skips_llm_not_deterministic_rules
 non-pnl-categories.1||test_AC_extraction_non_pnl_categories_1_balance_sheet_class_is_never_applied|P0
 non-pnl-categories.2||test_AC_extraction_non_pnl_categories_2_other_buckets_never_auto_apply|P0
-non-pnl-categories.3||test_AC_extraction_non_pnl_categories_3_policy_v1_stays_frozen_and_v2_adds_the_four_classes
+non-pnl-categories.3||test_AC_extraction_non_pnl_categories_3_the_live_policy_holds_the_four_classes
 non-pnl-categories.4||test_AC_extraction_non_pnl_categories_4_prompt_names_the_new_classes
 accept-ai-suggestions.4||test_AC_extraction_accept_ai_suggestions_4_reader_returns_the_latest_classification_per_transaction
 1817.1||test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked|P0
@@ -536,7 +534,6 @@ ai-classification-default.1||test_AC_extraction_ai_classification_default_1_new_
 1816.1||test_AC18_16_1_new_policy_version_never_restates_covered_periods
 1816.2||test_AC18_16_2_import_produces_categorized_income_statement
 1816.3||test_AC18_16_3_flag_off_routes_unknown_meaning_to_review|P1
-1816.4||test_AC18_16_4_backfill_is_idempotent_dated_append_only|P1
 1816.5||test_AC18_16_5_reclassification_never_rewrites_posted_entries
 @$be/api/test_statement_ai_suggestion_accept.py|P1
 accept-ai-suggestions.1||test_AC_extraction_accept_ai_suggestions_1_auto_fill_posts_the_draft_category_and_account|P0
@@ -566,9 +563,6 @@ auto-accept.7||test_AC_extraction_auto_accept_7_one_approval_posts_every_row_of_
 auto-accept.8||test_AC_extraction_auto_accept_8_the_policy_threshold_follows_the_setting|P1
 auto-accept.9||test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_without_a_click
 auto-accept.10||test_AC_extraction_auto_accept_10_a_high_confidence_statement_posts_when_it_is_parsed
-@$be/api/test_classifications_router.py|P1
-auto-accept.11||test_AC_extraction_auto_accept_11_backfill_counts_the_rows_it_wrote_and_does_not_retry_them
-1817.2||test_AC18_17_2_backfill_endpoint_classifies_then_is_idempotent
 @$be/extraction/test_statements_shift_left.py
 804.1||test_statement_upload_csv_direct_parsing
 804.2||test_statement_list_and_get_details
@@ -948,9 +942,10 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.97|The classify run applies the stored keyword rules: the rule row has its answer without a model call, and the approve then posts all rows.|test_AC_extraction_2994_97_the_classify_run_answers_a_keyword_rule_row_without_the_model_and_approve_posts
 2994.98|Approve with an active classify run gives 409 with active_run_id in under 1 s and writes nothing. After a failed run it asks no model and goes to the economic review.|test_AC_extraction_2994_98_approve_with_an_active_classify_run_gives_409_at_once_and_writes_nothing
 2994.99|A candidate that the parse marked is PARSED until its auto-approve, which ends the classify run in the same transaction; then it is approved and posted. A failed run, a missing mark or a user approve that came first leave it as it is.|test_AC_extraction_2994_99_a_high_confidence_statement_is_approved_only_after_the_classify_run_succeeded
-2994.101|The one-click fill refuses a statement with an active run with ActiveRunExists, and the backfill skips such a statement and reports skipped_statements.|test_AC_extraction_2994_101_the_one_click_fill_refuses_a_statement_with_an_active_run
+2994.101|The one-click fill refuses a statement with an active run with ActiveRunExists.|test_AC_extraction_2994_101_the_one_click_fill_refuses_a_statement_with_an_active_run
 2994.103|The review response has no preclassification_in_progress field.|test_AC_extraction_2994_103_the_review_response_has_no_classification_flag
 2994.104|No advisory lock, lock wait constant or busy error guards the classification.|test_AC_extraction_2994_104_no_advisory_lock_guards_the_classification
+2994.155|A model call happens only inside a classify run. The one-click fill asks no model and posts a row without an answer to the general account.|test_AC_extraction_2994_155_the_one_click_fill_asks_no_model_and_posts_to_the_general_accounts
 @$be/extraction/test_statement_classify_hints.py|P1
 2994.124|Empty hints leave the classification prompt byte-identical to the prompt before this change.|test_AC_extraction_2994_124_empty_hints_leave_the_classification_prompt_byte_identical
 2994.125|Hints add one block of data as the last part of the classification prompt, with the purpose line of that prompt. Hostile hint text stays in its JSON string. An answer outside the catalog still counts as other.|test_AC_extraction_2994_125_hints_append_one_block_as_the_last_part_of_the_prompt
@@ -991,9 +986,8 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.116|A failed or timed-out classify run keeps the batches that it wrote. The next automatic run asks the model only for rows without an answer.|test_AC_extraction_2994_116_a_failed_batch_keeps_the_earlier_batches_and_the_next_run_asks_only_the_rest
 2994.117|No database transaction, row lock, policy-rule lock or pooled connection is held while a model call runs.|test_AC_extraction_2994_117_the_pool_of_the_run_has_no_checked_out_connection_during_the_model_call
 2994.118|The keyword-rule answers are committed before the first model call.|test_AC_extraction_2994_118_the_keyword_rule_answer_is_committed_before_the_first_model_call
-2994.119|A classify run and an inline classification of the same rows write one answer for each row. A unique-key collision counts as already answered.|test_AC_extraction_2994_119_an_inline_classification_and_a_run_of_the_same_rows_write_one_answer_each
+2994.119|A unique-key collision in a batch write counts as already answered.|test_AC_extraction_2994_119_a_unique_key_collision_counts_as_already_answered
 2994.120|Each phase and each batch writes one log line with the run id, counts and milliseconds. No log line holds row text, an amount or an error text.|test_AC_extraction_2994_120_each_phase_and_each_batch_writes_one_log_line_with_counts_and_no_row_text
-2994.121|An inline classification holds no draft or sweep row lock while its model call runs.|test_AC_extraction_2994_121_an_inline_call_holds_no_draft_or_sweep_lock_during_its_model_call
 2994.122|A batch write retries only a unique-key collision on uq_txn_classification_version and logs it. Any other integrity error fails the run at once.|test_AC_extraction_2994_122_a_foreign_key_violation_in_a_batch_write_is_not_retried
 2994.123|Model calls that return out of order are written when each call returns. A stale batch write cancels the calls in flight, and they write nothing.|test_AC_extraction_2994_123_batches_that_return_out_of_order_are_written_when_each_call_returns
 @$be/extraction/test_statement_classify_run_end.py|P1

@@ -18,7 +18,7 @@
 - `parse_document` emits an immutable `StatementExtractionResult` (`source_type` bank|brokerage, `evidence_type` `transaction_ledger`|`position_snapshot`); re-parsing advances `StatementSummary.current_extraction_result_id` without overwriting history.
 - `DispositionPolicy` consumes typed `IntentProposal`, reviewed counter-account, and active reconciliation transfers (`accepted` matches outrank proposals) to produce balanced ledger commands under `StatementDispositionPolicySnapshot`.
 - `auto_accept_ai_suggestions` (default enabled under `AUTO_ACCEPT_AI_SUGGESTIONS`) applies score `>= 60` proposals or routes fallback rows to General Income/Expense (`UNCLASSIFIED`), holding ambiguous transfers/investments in suspense; with auto-accept off, rows in `60-84` remain drafts until one-click/manual approval.
-- Background classification runs asynchronously as a `classify` `StatementRun` (180s phase deadline; at most 50 rows/batch, 4 parallel batches) with separate sessions per phase so no DB transaction or policy lock is held across LLM calls (`#3028`).
+- Background classification runs asynchronously as a `classify` `StatementRun` (180s phase deadline; at most 50 rows/batch, 4 parallel batches) with separate sessions per phase so no DB transaction or policy lock is held across LLM calls (`#3028`). A model call happens only inside a `classify` run: the approve and the one-click fill ask no model, and a row without an answer posts to the General account (`#2994`).
 
 ## Upload-First Product Contract
 

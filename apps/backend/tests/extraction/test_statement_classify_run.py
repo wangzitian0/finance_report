@@ -824,16 +824,22 @@ async def test_AC_extraction_2994_101_the_one_click_fill_refuses_a_statement_wit
     assert proposer.calls == []
 
 
-async def test_AC_extraction_2994_101_the_one_click_fill_still_works_without_an_active_run(db, test_user, monkeypatch):
-    """AC-extraction.2994.101: Without an active run the fill classifies its rows itself, without a lock."""
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
-
+async def test_AC_extraction_2994_155_the_one_click_fill_asks_no_model_and_posts_to_the_general_accounts(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2994.155: The fill makes zero model calls. A row without an answer posts to a general account."""
     from src.composition import auto_fill_default_statement_dispositions
 
-    await auto_fill_default_statement_dispositions(db, seeded.statement, test_user.id)
+    proposer = _install(monkeypatch, Proposer(error=AssertionError("the fill asked the model")))
+    seeded = await _seed(db, test_user)
 
-    assert proposer.rows_asked == 5
+    filled = await auto_fill_default_statement_dispositions(db, seeded.statement, test_user.id)
+
+    assert proposer.calls == []
+    assert filled == 5
+    assert await _answers(db, test_user) == 0
+    names = set(await db.scalars(select(Account.name).where(Account.user_id == test_user.id)))
+    assert {"General Expense (SGD)", "General Income (SGD)"} <= names
 
 
 async def test_AC_extraction_2994_101_the_approve_route_with_the_fill_option_gives_409_while_a_run_is_active(
@@ -852,26 +858,6 @@ async def test_AC_extraction_2994_101_the_approve_route_with_the_fill_option_giv
     assert response.status_code == 409, response.text
     assert response.json()["active_run_id"] == str(run_id)
     assert proposer.calls == []
-
-
-async def test_AC_extraction_2994_101_the_backfill_skips_a_statement_with_an_active_run_and_counts_it(
-    client, db, test_user, monkeypatch
-):
-    """AC-extraction.2994.101: The backfill leaves the rows of a statement with an active run and reports the skip."""
-    proposer = _install(monkeypatch, Proposer())
-    busy = await _seed(db, test_user, _rows(3, first_day=date(2026, 1, 1)))
-    free = await _seed(db, test_user, _rows(4, first_day=date(2026, 2, 1)))
-    await classify_run_for(db, busy.id)
-
-    response = await client.post("/classifications/backfill")
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert (body["classified"], body["candidates"], body["skipped_statements"]) == (4, 4, 1)
-    asked = {description for call in proposer.calls for description in call}
-    assert asked == {transaction.description for transaction in free.transactions}
-    assert await _answers(db, test_user) == 4
-    assert busy.statement.id != free.statement.id
 
 
 # --- Interleavings with real sessions: the routes are in tests/api/test_statement_classify_run_routes.py -----

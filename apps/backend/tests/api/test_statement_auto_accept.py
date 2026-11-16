@@ -25,7 +25,7 @@ from tests.api._statement_router_fixtures import (
     counter_account_names,
     create_statement_with_bank,
 )
-from tests.statement_ingestion import classify_statement_rows
+from tests.statement_ingestion import classify_statement_rows, classify_transactions
 
 pytestmark = pytest.mark.asyncio
 
@@ -391,10 +391,10 @@ async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_only
     )
     assert result.status == BankStatementStatus.APPROVED
     assert result.journal_entries_created == 1
-    assert answering.calls == 1, "the one-click fill classifies the row without an answer"
+    assert answering.calls == 0, "the one-click fill asks no model"
     assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 1
     assert sorted((await posted_sources()).scalars().all()) == sorted([wallet.id, lunch.id])
-    assert await counter_account_names(db, lunch, bank.id) == {"Expense - Dining"}
+    assert await counter_account_names(db, lunch, bank.id) == {"General Expense (SGD)"}
 
 
 async def test_AC_extraction_auto_accept_6_a_corrected_suggestion_posts_as_the_decision_of_the_person(
@@ -404,7 +404,7 @@ async def test_AC_extraction_auto_accept_6_a_corrected_suggestion_posts_as_the_d
     from src.audit.orm.trace_record import TraceRecordRow
     from src.extraction import apply_suggestion_feedback
     from src.extraction.extension import transaction_classification as tc
-    from src.extraction.extension.transaction_classification import CategoryProposal, classify_transactions
+    from src.extraction.extension.transaction_classification import CategoryProposal
 
     statement, bank = await create_statement_with_bank(
         db, test_user.id, "auto_corrected", closing="85.00", confidence=70
@@ -418,7 +418,7 @@ async def test_AC_extraction_auto_accept_6_a_corrected_suggestion_posts_as_the_d
     async def proposer(transactions, _policy):
         return [CategoryProposal(category="DINING", confidence=70, reason="test") for _ in transactions]
 
-    await classify_transactions(db, test_user.id, [lunch], policy=tc.POLICY_VERSIONS[1], proposer=proposer)
+    await classify_transactions(db, test_user.id, [lunch], policy=tc.POLICY_VERSIONS[-1], proposer=proposer)
     draft_id = (await db.execute(select(TransactionClassification.id))).scalar_one()
     await apply_suggestion_feedback(db, test_user.id, draft_id, "edit_accept", {"value": "groceries"})
     test_user.ai_settings = {}

@@ -56,7 +56,6 @@ export interface paths {
   "/chat/history": _P<{ get: _O["chat_history_chat_history_get"] }>;
   "/chat/session/{session_id}": _P<{ delete: _O["delete_session_chat_session__session_id__delete"] }>;
   "/chat/suggestions": _P<{ get: _O["suggestions_chat_suggestions_get"] }>;
-  "/classifications/backfill": _P<{ post: _O["backfill_transaction_classifications_classifications_backfill_post"] }>;
   "/corrections": _P<{ post: _O["create_correction_corrections_post"] }>;
   "/evidence/lineage": _P<{ get: _O["get_evidence_lineage_evidence_lineage_get"] }>;
   "/health": _P<{ get: _O["health_check_health_get"] }>;
@@ -361,11 +360,6 @@ export interface components {
       id: string;
       name?: string | null;
       token_type: string;
-    };
-    BackfillClassificationsResponse: {
-      candidates: number;
-      classified: number;
-      skipped_statements: number;
     };
     BalanceSheetResponse: {
       as_of_date: string;
@@ -2104,7 +2098,6 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["ChatSuggestionsResponse"]>;
   };
-  backfill_transaction_classifications_classifications_backfill_post: _OpN<_S["BackfillClassificationsResponse"]>;
   create_correction_corrections_post: _Op<_S["CorrectionResponse"], _NP, _S["CorrectionRequest"], 201>;
   get_evidence_lineage_evidence_lineage_get: {
     parameters: _QPR<{
