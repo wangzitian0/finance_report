@@ -1,4 +1,4 @@
-'AC-platform.29.4 AC-platform.29.5 EPIC-012'; from __future__ import annotations; import ast; import inspect; import re; from pathlib import Path; from typing import Any; from uuid import uuid4; from fastapi import APIRouter, status
+'AC-platform.29.4 AC-platform.29.5 EPIC-012'; from __future__ import annotations; import ast; import inspect; import re; import shutil; import subprocess; from pathlib import Path; from typing import Any; from uuid import uuid4; from fastapi import APIRouter, status
 from fastapi.routing import APIRoute, iter_route_contexts; from httpx import AsyncClient; import src.routers as _routers_pkg; from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT; from src.main import _resolve_app_version, app; from src.reporting import DEFAULT_INCLUDE_RESTRICTED, PACKAGE_INCLUDE_RESTRICTED; _ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent; _RAW_STATUS_CODE = re.compile('status_code\\s*=\\s*\\d'); _BACKEND_SRC = _ROUTER_DIR.parent; _DISHONEST_DEPENDENCY_DEFAULT = re.compile('(?:DbSession|CurrentUserId)\\s*=\\s*None'); _PREVIOUSLY_UNBOUNDED_LIST_PATHS = ('/reconciliation/transactions/{txn_id}/anomalies', '/reports/package/snapshots'); _UNTAGGED_UTILITY_PATHS = frozenset({'/', '/health', '/openapi.json', '/docs', '/docs/oauth2-redirect', '/redoc'}); _api_routes = lambda: [context.route for context in iter_route_contexts(app.routes) if isinstance(context.route, APIRoute)]  # AC-reporting.net-worth-scope.12 EPIC-023
 def test_AC12_29_4_no_route_or_tag_collisions() -> None:
     'AC-platform.29.4'; routes = _api_routes(); seen: dict[tuple[str, str], str] = {}; collisions: list[str] = []
@@ -167,9 +167,25 @@ def test_issue3014_routes_have_docstrings_and_missing_docstring_fails() -> None:
     assert _find_undocumented_api_routes(probe_router.routes) == ['/probe-missing-docstring (no_doc_handler)']
 
 
-def test_issue3014_app_version_reads_from_git_tag(monkeypatch: Any, openapi_schema: dict[str, Any]) -> None:
-    """#3014 #3009 slice 5: app version comes from the git tag or APP_VERSION, never hardcoded 0.1.0."""
-    assert app.version != '0.1.0'
+def test_issue3014_app_version_reads_from_git_tag(
+    tmp_path: Path, monkeypatch: Any, openapi_schema: dict[str, Any]
+) -> None:
+    """#3014 #3009 slice 5: app version resolves from git tag/APP_VERSION and is not hardcoded 0.1.0."""
+    main_source = (_BACKEND_SRC / 'main.py').read_text(encoding='utf-8')
+    assert 'version="0.1.0"' not in main_source
+    assert "version='0.1.0'" not in main_source
     assert openapi_schema['info']['version'] == app.version
+
+    git_bin = shutil.which('git')
+    assert git_bin is not None
+    subprocess.run([git_bin, 'init'], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run([git_bin, 'config', 'user.email', 'test@example.com'], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run([git_bin, 'config', 'user.name', 'Test User'], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run([git_bin, 'commit', '--allow-empty', '-m', 'init'], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run([git_bin, 'tag', 'v0.2.99'], cwd=tmp_path, check=True, capture_output=True)
+
+    monkeypatch.delenv('APP_VERSION', raising=False)
+    assert _resolve_app_version(tmp_path) == '0.2.99'
+
     monkeypatch.setenv('APP_VERSION', 'v9.8.7')
     assert _resolve_app_version() == '9.8.7'

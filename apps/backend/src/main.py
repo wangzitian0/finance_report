@@ -159,16 +159,16 @@ def _sync_fastapi_telemetry_status(target_app: FastAPI) -> bool:
 _init_otel_instrumentation()
 
 
-def _resolve_app_version() -> str:
+def _resolve_app_version(repo_dir: Path | None = None) -> str:
     """Resolve application version from APP_VERSION env, latest git tag, or GIT_COMMIT_SHA."""
-    if env_version := os.getenv("APP_VERSION", "").strip():
+    if repo_dir is None and (env_version := os.getenv("APP_VERSION", "").strip()):
         return env_version.lstrip("v")
     git_bin = shutil.which("git")
     if git_bin:
         try:
             tag = subprocess.check_output(
                 [git_bin, "describe", "--tags", "--abbrev=0"],
-                cwd=Path(__file__).resolve().parent,
+                cwd=repo_dir or Path(__file__).resolve().parent,
                 stderr=subprocess.DEVNULL,
                 text=True,
                 timeout=2,
