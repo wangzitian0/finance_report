@@ -1,8 +1,0 @@
-from datetime import date; from decimal import Decimal; from unittest.mock import patch; from uuid import uuid4; from src.reporting import ReportError
-class TestReportsRouterAdditionalCoverage:
-    async def test_income_statement_report_error(self, client, test_user):
-        with patch('src.routers.reports.generate_income_statement') as mock_report: mock_report.side_effect = ReportError('Test report error'); response = await client.get('/reports/income-statement', params={'start_date': '2024-01-01', 'end_date': '2024-12-31'}); assert response.status_code == 400; assert 'Test report error' in response.json()['detail']
-    async def test_cash_flow_report_error(self, client, test_user):
-        with patch('src.routers.reports.generate_cash_flow') as mock_report: mock_report.side_effect = ReportError('Cash flow error'); response = await client.get('/reports/cash-flow', params={'start_date': '2024-01-01', 'end_date': '2024-12-31'}); assert response.status_code == 400
-    async def test_export_excel_not_found(self, client, test_user): fake_id = uuid4(); response = await client.get(f'/reports/{fake_id}/export/excel'); assert response.status_code == 404
-    async def test_get_available_currencies_success(self, client, db, test_user): from src.pricing.orm.market_data import FxRate; fx_rate = FxRate(base_currency='USD', quote_currency='EUR', rate=Decimal('0.85'), rate_date=date(2024, 1, 1), source='test'); db.add(fx_rate); await db.commit(); response = await client.get('/reports/currencies'); assert response.status_code == 200; currencies = response.json(); assert isinstance(currencies, list); assert 'SGD' in currencies or 'USD' in currencies

@@ -775,7 +775,7 @@ disposition-transfer-fact.4||test_AC_extraction_disposition_transfer_fact_4_appl
 api-vectors.1||test_AC_extraction_api_vectors_1_statement_upload_matches_committed_vector
 @$fe/__tests__/epic016Components.test.tsx|P2
 fe-stage1-review.12||mounts PdfPreviewPane and asserts primary affordance (AC16.23.6)
-@$fe/__tests__/statementDetailPage.coverage.test.tsx|P1
+@$fe/__tests__/statementDetailPage.test.tsx|P1
 fe-upload-layout.5||AC-extraction.fe-upload-layout.5 marks the portfolio reads stale after a successful import on the statement page
 @$be/api/test_brokerage_import_failure_state.py|P1|done|invariant
 2648.1||test_AC_extraction_2648_1_failed_import_is_recorded_beside_the_note_and_a_success_clears_it
@@ -983,12 +983,12 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
         """
 source_capability_registry|apps/backend/src/extraction/base/source_capability.py|Canonical semantic registry for product source classes, their support status, accepted evidence, produced facts, review semantics, and traceability target.|common/extraction/readme.md#sourcecapability-registry,vision.md,common/testing/source_capability_proof.py|apps/backend/tests/extraction/test_statement_result_contract.py,tests/tooling/test_source_capability_proof.py|source|registry
 confidence_tier_rollup|common/extraction/confirmation-workflow.md#confidence-tier-rollup|Confidence-tier rollup that makes extraction confidence load-bearing for promotion.|common/extraction/readme.md#confidence-scoring|-|extraction|concept
-confirmation_workflow|common/extraction/confirmation-workflow.md|Cross-cutting pending_review state machine (Stage 1 & 2).|common/reconciliation/reconciliation.md,common/ledger/readme.md|-|extraction|concept
+confirmation_workflow|common/extraction/confirmation-workflow.md|Cross-cutting pending_review state machine (Stage 1 & 2).|common/reconciliation/readme.md,common/ledger/readme.md|-|extraction|concept
 confirmation_workflow_states|common/extraction/confirmation-workflow.md#state-machine|Stage 1 & Stage 2 confirmation state transitions (the cross-cutting state machine).|common/reconciliation/readme.md#state-machine|-|reconciliation|concept
-evidence_lineage|common/extraction/evidence-lineage.md|Generic Evidence Graph for source-to-ledger-to-report audit lineage.|docs/project/EPIC-018.ai-driven-pipeline.md,common/workflow/workflow-events.md,common/reporting/reporting.md,apps/backend/tests/extraction/test_evidence_graph_materialization.py|-|evidence|concept
+evidence_lineage|common/extraction/evidence-lineage.md|Generic Evidence Graph for source-to-ledger-to-report audit lineage.|docs/project/EPIC-018.ai-driven-pipeline.md,common/workflow/workflow-events.md,common/reporting/readme.md,apps/backend/tests/extraction/test_evidence_graph_materialization.py|-|evidence|concept
 extraction_confidence_tiers|common/extraction/readme.md#confidence-scoring|Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.|common/reconciliation/readme.md#thresholds,common/extraction/confirmation-workflow.md#confidence-tier-rollup|-|extraction|concept
 extraction_failed_case_registry|common/extraction/audit-failed-cases.yaml|Sanitized registry for parsing cases that fail audit.|common/extraction/readme.md,docs/project/EPIC-003.statement-parsing.md|tests/tooling/test_extraction_failed_case_registry.py|extraction|registry
-extraction_pipeline|common/extraction/readme.md|Gemini Vision document parsing and validation pipeline.|common/reconciliation/reconciliation.md,apps/backend/tests/extraction/test_dual_write_layer2.py|-|extraction|concept
+extraction_pipeline|common/extraction/readme.md|Gemini Vision document parsing and validation pipeline.|common/reconciliation/readme.md,apps/backend/tests/extraction/test_dual_write_layer2.py|-|extraction|concept
 statement_run|common/extraction/readme.md#statement-run|One attempt to extract or classify one statement: inputs, actor, hints, state, and at most one active run per statement.|apps/backend/src/extraction/orm/statement_run.py,apps/backend/src/extraction/extension/statement_runs.py|apps/backend/tests/extraction/test_statement_runs.py|extraction|concept
 """
     ),

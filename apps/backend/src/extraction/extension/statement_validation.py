@@ -10,10 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.audit.money.adopt import balance_check
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status, TransactionDirection
-from src.extraction.base.validation import (
-    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
-    should_invert_positive_balance_owed,
-)
+from src.extraction.base.validation import should_invert_positive_balance_owed
 from src.extraction.extension.statement_runs import ActiveRunExists, get_active_run
 from src.extraction.extension.reviewed_statement_envelope import (
     get_current_statement_extraction_result,
@@ -213,8 +210,6 @@ async def validate_balance_chain(
             raise ValueError("Statement not found")
 
     if transactions is None:
-        transactions = getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
-    if transactions is None:
         transactions = await resolve_statement_transactions(db, statement)
 
     typed_balances = statement.typed_currency_balances()
@@ -361,7 +356,7 @@ async def _get_statement_for_update(db: AsyncSession, statement_id: UUID, user_i
     return statement
 
 
-def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: bool = False) -> None:
+def _raise_if_balance_chain_invalid(validation_result: dict) -> None:
     failed_currencies = [
         row["currency"] for row in validation_result.get("per_currency", []) if not row["closing_match"]
     ]
@@ -389,14 +384,9 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
     if verdict.is_authoritative:
         return
     if verdict.failed_invariant == "opening_balance_chain":
-        suffix = " after edits" if after_edits else ""
         raise BalanceChainValidationError(
-            f"Opening balance mismatch{suffix}: delta={validation_result['opening_delta']} exceeds tolerance "
+            f"Opening balance mismatch: delta={validation_result['opening_delta']} exceeds tolerance "
             f"{BALANCE_TOLERANCE}"
-        )
-    if after_edits:
-        raise BalanceChainValidationError(
-            f"Balance still invalid after edits: delta={validation_result['closing_delta']}"
         )
     raise BalanceChainValidationError(
         f"Balance mismatch: delta={validation_result['closing_delta']} exceeds tolerance {BALANCE_TOLERANCE}"
@@ -488,14 +478,8 @@ async def approve_statement_with_transactions(
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.balance_validation_result = validation_result
     statement.status = BankStatementStatus.APPROVED
-    setattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, transactions)
     await db.flush()
     return statement, transactions
-
-
-async def approve_statement(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
-    statement, _ = await approve_statement_with_transactions(db, statement_id, user_id)
-    return statement
 
 
 async def reject_statement(
@@ -516,17 +500,4 @@ async def resolve_statement_conflicts(db: AsyncSession, statement_id: UUID, user
     statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.stage1_conflicts_resolved_at = datetime.now(UTC)
     await db.flush()
-    return statement
-
-
-async def set_opening_balance(
-    db: AsyncSession, statement_id: UUID, user_id: UUID, opening_balance: Decimal
-) -> StatementSummary:
-    statement = await _get_statement_for_update(db, statement_id, user_id)
-    statement.manual_opening_balance = opening_balance
-    await db.flush()
-    if statement.status == BankStatementStatus.APPROVED and statement.account_id is not None:
-        from src.extraction.extension.statement_posting import reconcile_account_statement_chain
-
-        await reconcile_account_statement_chain(db, user_id=user_id, account_id=statement.account_id)
     return statement

@@ -27,10 +27,11 @@ from src.extraction.extension.statement_posting import (
     try_auto_post_statement_opening_balance,
 )
 from src.extraction.extension.statement_validation import (
-    approve_statement,
+    approve_statement_with_transactions,
     reject_statement,
 )
 from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import Account
 from src.observability import get_logger, safe_error_message
 
 logger = get_logger(__name__)
@@ -116,20 +117,27 @@ async def approve_statement_workflow(
     user_id: UUID,
     *,
     dependencies: StatementPostingDependencies,
+    preloaded_bank_account: Account | None = None,
 ) -> StatementPostingOutcome:
     """Approve a PARSED statement and post its journal entries as one committed unit.
 
     Owns the PARSED→APPROVED transition, the auto-posting of journal entries, and
     the single ``commit`` that makes them durable together. The refresh of the planner statistics
-    is requested after that commit and runs in the background (#2970). The posting account
-    must already be resolved/bound by the caller within the same DB session.
+    is requested after that commit and runs in the background (#2970).
     Domain errors (``ValueError``) propagate uncommitted so the caller can map
     them to HTTP 400 (and roll back the surrounding session). A completed
     economic plan returns ``POSTED``; an incomplete plan is committed back to
     pending review and returns ``REVIEW_REQUIRED``.
     """
-    statement = await approve_statement(db, statement_id, user_id)
-    outcome = await auto_create_posted_entries_for_statement(db, statement, user_id, dependencies=dependencies)
+    statement, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
+    outcome = await auto_create_posted_entries_for_statement(
+        db,
+        statement,
+        user_id,
+        dependencies=dependencies,
+        transactions=transactions,
+        preloaded_bank_account=preloaded_bank_account,
+    )
     if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
         await try_auto_post_statement_opening_balance(db, statement, user_id, dependencies=dependencies)
     await db.commit()

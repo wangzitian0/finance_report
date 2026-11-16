@@ -277,7 +277,7 @@ fe-tabs.2||AC-reconciliation.fe-tabs.2 opens on Unmatched when an unmatched row 
 @apps/frontend/playwright/mobile-ux.spec.ts
 fe-stage2-review.12||AC16.25.1 mobile review routes avoid document horizontal scrolling
 fe-stage2-review.13||AC16.25.2 AI suggestions mobile cards expose feedback actions
-@$fe/__tests__/stage2ReviewQueueCoverage99.test.tsx
+@$fe/__tests__/stage2ReviewQueue.test.tsx
 fe-stage2-review.14||AC8.13.76/AC16.26.2 mobile queue renders selectable match cards and batch actions
 fe-stage2-review.15||AC16.26.3 mobile run review preserves approval gate and pending match workflow
 fe-stage2-review.16||AC16.27.1 keeps mobile pending-match cards in the DOM without matchMedia gating
@@ -355,7 +355,7 @@ fe-ia-reconciliation.1||AC22.4.3 links to the AI suggestion review surface so it
 fe-ia-reconciliation.2||${label}: both Stage 1 and Stage 2 attention surface in the upload workflow notices with deep links
 @apps/frontend/playwright/attention-surface.spec.ts|P1
 fe-ia-reconciliation.5||${label} renders the attention queue ranked by confidence without overflow
-@$fe/__tests__/stage2ReviewQueueCoverage99.test.tsx|P1
+@$fe/__tests__/stage2ReviewQueue.test.tsx|P1
 fe-ia-reconciliation.9||AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks
 @$be/reconciliation/test_keyword_leg_base_currency.py|P0|done|property
 named-transfer-legs.6||test_AC_reconciliation_named_transfer_legs_6_a_foreign_row_posts_no_leg_and_creates_no_account
@@ -367,8 +367,8 @@ named-transfer-legs.6||test_AC_reconciliation_named_transfer_legs_6_a_foreign_ro
     ),
     concepts=concepts(
         """
-reconciliation_state_machine|common/reconciliation/readme.md#state-machine|pending → auto_accepted / pending_review → accepted / rejected.|common/reconciliation/confirmation-workflow.md,common/reconciliation/reconciliation.md|-|reconciliation|model
-reconciliation_thresholds|common/reconciliation/readme.md#thresholds|Score ≥85 auto-accept; 60-84 review; <60 unmatched.|docs/agents/red-lines.md,common/reconciliation/reconciliation.md|-|reconciliation|baseline
+reconciliation_state_machine|common/reconciliation/readme.md#state-machine|pending → auto_accepted / pending_review → accepted / rejected.|common/reconciliation/confirmation-workflow.md,common/reconciliation/readme.md|-|reconciliation|model
+reconciliation_thresholds|common/reconciliation/readme.md#thresholds|Score ≥85 auto-accept; 60-84 review; <60 unmatched.|docs/agents/red-lines.md,common/reconciliation/readme.md|-|reconciliation|baseline
 """
     ),
 )

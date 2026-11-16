@@ -11,7 +11,7 @@ Sensitive financial data includes: monetary amounts and balances; account, card,
 ## 🏛️ Accounting Integrity
 These invariants must hold at **all times**:
 ``` Assets = Liabilities + Equity + (Income - Expenses) ``` - Every `JournalEntry` must have **balanced debits and credits**. Test: `apps/backend/tests/ledger/test_accounting.py::test_balanced_entry_passes` - Accounting equation must be satisfied at every point. Test: `apps/backend/tests/ledger/test_accounting_equation.py::test_accounting_equation_violation_detected`
-- Reconciliation thresholds (≥85 auto-accept; 60–84 review; <60 unmatched) must not be overridden. See: [reconciliation.md](../../common/reconciliation/reconciliation.md)
+- Reconciliation thresholds (≥85 auto-accept; 60–84 review; <60 unmatched) must not be overridden. See: [common/reconciliation/readme.md](../../common/reconciliation/readme.md#thresholds)
 ## ⚙️ Engineering Integrity
 | Rule | Detail |
 |------|--------|
@@ -21,4 +21,4 @@ These invariants must hold at **all times**:
 - ✅ Agent **MUST** ensure CI passes before reporting completion. - Merge authority is scoped by [branch-policy.md](../contributing/branch-policy.md) §4 — that section is the only source, not this one. For the full agent workflow, see [orchestration.md](./orchestration.md).
 ## Concept Ownership
 These concepts are **owned** by this document in the SSOT manifest: - `security_red_lines` → `docs/agents/red-lines.md` Cross-referenced by: - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md) - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - [common/meta/schema.md](../../common/meta/schema.md)
-- [common/reconciliation/reconciliation.md](../../common/reconciliation/reconciliation.md)
+- [common/reconciliation/readme.md](../../common/reconciliation/readme.md)

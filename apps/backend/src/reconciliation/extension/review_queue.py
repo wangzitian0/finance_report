@@ -343,7 +343,7 @@ async def batch_accept(
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
         .with_for_update(of=ReconciliationMatch)
     )
-    matches = result.scalars().all()
+    matches = list(result.scalars().all())
     matched_ids = {str(m.id) for m in matches}
     skipped_ids = set(match_ids) - matched_ids
     if skipped_ids:
@@ -355,18 +355,8 @@ async def batch_accept(
             list(skipped_ids),
         )
 
-    accepted: list[ReconciliationMatch] = []
-    for match in matches:
-        accepted.append(
-            await accept_match(
-                db,
-                match.id,
-                user_id=user_id,
-            )
-        )
-
-    await db.flush()
-    return accepted
+    await accept_pending_matches(db, matches, user_id=user_id)
+    return matches
 
 
 async def get_stage2_queue(

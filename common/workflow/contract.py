@@ -57,7 +57,7 @@ WorkflowNextActionType WorkflowPrimaryState WorkflowReportImpact
 WorkflowReportReadinessResponse WorkflowReportReadinessState WorkflowSession
 WorkflowSessionSummaryResponse WorkflowSessionStatus WorkflowStatusResponse
 get_workflow_status list_workflow_events_response stored_package_readiness
-sync_workflow_events_for_user update_workflow_event_status upsert_workflow_event
+sync_workflow_events_for_user update_workflow_event_status
 """.split(),
     events=[],
     invariants=invs(
@@ -85,7 +85,7 @@ sync.6||test_AC_workflow_sync_6_stored_readiness_is_returned_only_while_the_deri
     ),
     concepts=concepts(
         """
-workflow_events|common/workflow/workflow-events.md|User-facing upload-to-report workflow event read model and its package-owned request/response vocabulary.|docs/project/EPIC-019.event-driven-upload-to-report-ux.md,common/extraction/confirmation-workflow.md,common/reporting/reporting.md|-|workflow|concept
+workflow_events|common/workflow/workflow-events.md|User-facing upload-to-report workflow event read model and its package-owned request/response vocabulary.|docs/project/EPIC-019.event-driven-upload-to-report-ux.md,common/extraction/confirmation-workflow.md,common/reporting/readme.md|-|workflow|concept
 """
     ),
 )

@@ -6,7 +6,6 @@ from src.workflow.extension.events import (
     stored_package_readiness,
     sync_workflow_events_for_user,
     update_workflow_event_status,
-    upsert_workflow_event,
 )
 
 __all__ = [
@@ -15,5 +14,4 @@ __all__ = [
     "stored_package_readiness",
     "sync_workflow_events_for_user",
     "update_workflow_event_status",
-    "upsert_workflow_event",
 ]

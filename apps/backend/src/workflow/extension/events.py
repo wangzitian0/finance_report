@@ -262,24 +262,6 @@ async def _apply_or_insert_event(
     return existing
 
 
-async def upsert_workflow_event(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-    payload: WorkflowEventCreate,
-    session_id: UUID | None = None,
-) -> WorkflowEvent:
-    """Create or update a deterministic workflow event without committing."""
-    if session_id is None:
-        session_id = (await get_or_create_active_workflow_session(db, user_id=user_id)).id
-
-    existing = await _get_workflow_event_by_dedupe_key(db, user_id=user_id, dedupe_key=payload.dedupe_key)
-    event = await _apply_or_insert_event(db, user_id=user_id, existing=existing, payload=payload, session_id=session_id)
-    await db.flush()
-    await refresh_workflow_session_summary(db, user_id=user_id, session_id=session_id)
-    return event
-
-
 async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> dict:
     """Derive deterministic workflow events from user records and return package readiness (#987, #1675)."""
     workflow_session: WorkflowSession | None = None
@@ -590,43 +572,6 @@ async def list_workflow_events_response(
         items=[WorkflowEventResponse.model_validate(e) for e in events],
         total=int(total or 0),
         sessions=sessions,
-    )
-
-
-async def build_workflow_session_summary(
-    db: AsyncSession,
-    *,
-    workflow_session: WorkflowSession,
-    primary_state: WorkflowPrimaryState,
-    report_readiness: WorkflowReportReadinessResponse | None,
-) -> WorkflowSessionSummaryResponse:
-    """Build a compact session summary for status and timeline grouping."""
-    aggregate = (
-        await db.execute(
-            select(
-                func.count(WorkflowEvent.id).filter(WorkflowEvent.status == WorkflowEventStatus.UNREAD).label("unread"),
-                func.count(WorkflowEvent.id)
-                .filter(WorkflowEvent.severity == WorkflowEventSeverity.ACTION_REQUIRED)
-                .label("action_required"),
-                func.count(WorkflowEvent.id)
-                .filter(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
-                .label("blocked"),
-            ).where(
-                WorkflowEvent.user_id == workflow_session.user_id,
-                WorkflowEvent.session_id == workflow_session.id,
-                WorkflowEvent.status != WorkflowEventStatus.ARCHIVED,
-            )
-        )
-    ).one()
-    return _session_summary_model(
-        workflow_session,
-        primary_state=primary_state,
-        report_readiness=report_readiness,
-        counts=WorkflowEventCountsResponse(
-            unread=int(aggregate.unread or 0),
-            action_required=int(aggregate.action_required or 0),
-            blocked=int(aggregate.blocked or 0),
-        ),
     )
 
 

@@ -49,14 +49,6 @@ SSOT_FILE_EXCLUDES = {
     "README.md",
     "MANIFEST.yaml",
     "template.md",
-    # Pointer stubs left behind by migration closeout wave 3 (#1664): content
-    # moved into the named package readme, but the file stays as a redirect
-    # for old relative links. Not orphaned — intentionally unowned by design.
-    "reconciliation.md",
-    "ai.md",
-    "reporting.md",
-    "assets.md",
-    "market_data.md",
     "source-type-priority.md",
 }
 # Roots the governance report treats as "SSOT territory" for per-file

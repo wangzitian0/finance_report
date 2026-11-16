@@ -354,7 +354,7 @@ fe-async.1||AC-testing.fe-async.1 fetches the given operation through apiOperati
 fe-async.2||AC-testing.fe-async.2 delete flow invalidates the matrix-declared query keys against a real QueryClient
 @$fe/__tests__/mutationInvalidationLock.test.ts|P1
 fe-async.3||AC-testing.fe-async.3 every useMutation call site in src/ has a matrix row
-@$fe/__tests__/stage2ReviewQueueCoverage99.test.tsx
+@$fe/__tests__/stage2ReviewQueue.test.tsx
 fe-coverage.1||AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes
 @apps/frontend/playwright/mobile-ux.spec.ts
 fe-coverage.2||AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px

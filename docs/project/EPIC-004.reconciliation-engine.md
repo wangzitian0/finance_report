@@ -74,7 +74,7 @@ Unmatched transaction triage may create ledger entries, so monetary values shown
 ### 🚫 Not Acceptable Signals
 - False positive rate > 2% - Accuracy < 90% - Performance timeout (batch > 60s) - Severe review queue backlog
 ## 📚 SSOT References
-- [schema.md](../../common/meta/schema.md) - ReconciliationMatch table - [reconciliation.md](../../common/reconciliation/reconciliation.md) - Reconciliation rules
+- [schema.md](../../common/meta/schema.md) - ReconciliationMatch table - [reconciliation readme](../../common/reconciliation/readme.md) - Reconciliation rules
 ## 🔗 Deliverables
 - [x] `apps/backend/src/reconciliation/orm/reconciliation.py` (moved from `src/models/` in #1675) - [x] `apps/backend/src/reconciliation/extension/matching.py` - [x] `apps/backend/src/reconciliation/extension/review_queue.py` - [x] `apps/backend/src/reconciliation/extension/anomaly.py` - [x] `apps/backend/src/routers/reconciliation.py` - [x] `apps/frontend/app/reconciliation/page.tsx`
 - [x] `apps/backend/tests/reconciliation/` - Test suite

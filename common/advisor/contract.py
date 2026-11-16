@@ -169,7 +169,7 @@ fe-remainder-chat.4||${scenario.name} advisor-brief desktop and mobile layouts a
     ),
     concepts=concepts(
         """
-ai_advisor_policy|common/advisor/readme.md|AI advisor application-layer contract, prompt policy, context scope, and safety controls.|common/llm/ai.md,common/reporting/reporting.md,common/workflow/workflow-events.md,apps/backend/src/extraction/base/source_capability.py,common/pricing/market_data.md,docs/project/EPIC-021.application-ai-advisor.md|-|ai|concept
+ai_advisor_policy|common/advisor/readme.md|AI advisor application-layer contract, prompt policy, context scope, and safety controls.|common/advisor/readme.md,common/reporting/readme.md,common/workflow/workflow-events.md,apps/backend/src/extraction/base/source_capability.py,common/pricing/readme.md,docs/project/EPIC-021.application-ai-advisor.md|-|ai|concept
 """
     ),
 )

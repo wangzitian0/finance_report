@@ -1,5 +1,5 @@
 # Statement Parsing Model Selection Logging
-> **SSOT Key**: `observability-logging` > **Status**: Implemented > **Related**: [observability.md](./observability.md), [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), [ai.md](../llm/ai.md)
+> **SSOT Key**: `observability-logging` > **Status**: Implemented > **Related**: [observability.md](./observability.md), [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), [advisor/readme.md](../advisor/readme.md)
 ## Source of Truth
 ### Files Modified
 - `apps/frontend/src/components/statements/StatementUploader.tsx` - Model selection and upload logging - `apps/backend/src/routers/statements.py` - Upload request and background task logging - `apps/backend/src/routers/reconciliation.py` - Reconciliation run audit checkpoints - `apps/backend/src/observability/` - Shared audit/security event helpers and risky-field redaction (the `observability` package) - `apps/backend/src/identity/extension/auth.py` + `apps/backend/src/identity/extension/observability.py` - Authenticated `user_id` log-context binding and auth-failure warnings (the `identity` package, #1428) - `apps/backend/src/routers/journal.py` - Journal post/void mutation audit events - `apps/backend/src/extraction/extension/statement_parsing.py` - Async parse progress and brokerage import checkpoints
@@ -81,4 +81,4 @@ Audit queries should exclude health checks, SQL echo, and repeated per-day FX or
 ### After
 - ✅ Debug time: 1-2 minutes with precise diagnosis - ✅ Complete trace: frontend → router → extraction → AI provider - ✅ HTTP errors include status code, body, headers, retryability - ✅ 87% debug time reduction (10-15 min → 1-2 min)
 ## Related Documentation
-- [observability.md](./observability.md) - Overall observability architecture - [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) - Statement parsing pipeline - [ai.md](../llm/ai.md) - AI model selection and fallback logic
+- [observability.md](./observability.md) - Overall observability architecture - [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) - Statement parsing pipeline - [advisor/readme.md](../advisor/readme.md) - AI advisor application-layer contract and fallback logic

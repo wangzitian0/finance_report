@@ -167,7 +167,7 @@ STAGING_AI_OCR_EXACT = frozenset(
     {
         "apps/backend/src/config.py",
         "apps/backend/src/extraction/extension/prompts/statement.py",
-        "common/llm/ai.md",
+        "common/advisor/readme.md",
         "common/testing/data/critical-proof-outcomes.yaml",
         "common/extraction/readme.md",
         "runtime-hooks.manifest.json",

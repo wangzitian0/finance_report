@@ -12,6 +12,7 @@ from sqlalchemy import String, bindparam, func, select, text, tuple_
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.audit import (
     DeclarativeTracePolicy,
@@ -555,6 +556,7 @@ def _active_anchored_entries_query(user_id: UUID):
     query = (
         select(JournalEntry, decisions.c.target_kind, decisions.c.target_id)
         .join(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
+        .options(selectinload(JournalEntry.lines))
         .where(
             JournalEntry.user_id == user_id,
             JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED,

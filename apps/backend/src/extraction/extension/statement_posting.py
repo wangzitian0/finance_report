@@ -45,10 +45,7 @@ from src.extraction.base.types import (
     StatementPostingStatus,
     extract_source_document_ids,
 )
-from src.extraction.base.validation import (
-    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
-    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
-)
+from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 from src.extraction.extension.ai_settings import auto_accept_enabled
 from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import (
@@ -165,10 +162,9 @@ async def auto_create_posted_entries_for_statement(
     *,
     dependencies: StatementPostingDependencies,
     transactions: list[AtomicTransaction] | None = None,
+    preloaded_bank_account: Account | None = None,
 ) -> StatementPostingOutcome:
     """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
-    if transactions is None:
-        transactions = getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
     if transactions is None:
         transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]
@@ -205,14 +201,11 @@ async def auto_create_posted_entries_for_statement(
         _clear_economic_review_notice(statement)
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
-    cached_posting = db.info.pop("_stage1_resolved_posting_account", None)
     if (
-        cached_posting is not None
-        and cached_posting[0] == statement.id
-        and cached_posting[1] == statement.account_id
+        preloaded_bank_account is None
+        or preloaded_bank_account.user_id != user_id
+        or (statement.account_id is not None and preloaded_bank_account.id != statement.account_id)
     ):
-        preloaded_bank_account = cached_posting[2]
-    else:
         preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
 
