@@ -24,7 +24,6 @@ _db_pool_observer: Callable[[], dict[str, int]] | None = None
 logger = get_logger(__name__)
 
 _COUNTER_SPECS: tuple[tuple[str, str, str], ...] = (
-    ("http_request_count", "http.server.request.count", "HTTP requests handled by route and status class."),
     ("statement_parse_outcome", "finance.statement_parse.outcome", "Statement parse outcomes."),
     (
         "statement_classification_outcome",
@@ -42,7 +41,6 @@ _COUNTER_SPECS: tuple[tuple[str, str, str], ...] = (
 )
 
 _HISTOGRAM_SPECS: tuple[tuple[str, str, str], ...] = (
-    ("http_request_duration", "http.server.request.duration", "HTTP request duration in milliseconds."),
     ("ai_provider_latency", "finance.ai_provider.latency", "AI provider call latency by model and outcome."),
 )
 
@@ -138,11 +136,6 @@ def configure_otel_metrics() -> None:
     _meter = metrics.get_meter("finance-report-backend")
     _create_instruments(_meter)
     mark_metrics_export_active(True)
-
-
-def http_route_label_from_scope(scope: dict[str, Any]) -> str:
-    route_path = getattr(scope.get("route"), "path", None)
-    return route_path if isinstance(route_path, str) and route_path else "__unmatched__"
 
 
 def _create_instruments(meter: Any) -> None:
@@ -248,22 +241,6 @@ def _observe_db_pool_checkedout(_options: object | None = None) -> list[Any]:
 
 def _observe_db_pool_overflow(_options: object | None = None) -> list[Any]:
     return [_observation(_db_pool_values().get("overflow", 0))]
-
-
-def _status_class(status_code: int) -> str:
-    return "unknown" if status_code < 100 else f"{status_code // 100}xx"
-
-
-def record_http_request(*, method: str, route: str, status_code: int, duration_ms: float) -> None:
-    attrs = {
-        "http.request.method": method,
-        "http.route": route,
-        "http.response.status_code_class": _status_class(status_code),
-    }
-    if (counter := _instruments.get("http_request_count")) is not None:
-        counter.add(1, attrs)
-    if (histogram := _instruments.get("http_request_duration")) is not None:
-        histogram.record(duration_ms, attrs)
 
 
 def record_statement_parse_outcome(*, outcome: str, parser: str = "default") -> None:
