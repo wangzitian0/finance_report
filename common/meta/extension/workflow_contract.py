@@ -25,6 +25,7 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
             "frontend-vitest",
             "frontend-playwright",
             "frontend-telemetry-e2e",
+            "tooling",
             "finish",
         ),
         "triggers": ("push", "pull_request", "workflow_dispatch"),

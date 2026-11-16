@@ -44,3 +44,47 @@ def test_vitest_skip_set_overlaps_no_path_vitest_reads() -> None:
         if target.is_file() and target.suffix == '.json': indirect |= _paths_read_by([target], r'apps/backend[A-Za-z0-9_./@-]*')
     read = direct | indirect; assert 'common/audit/money/conformance/vectors.json' in read; assert 'apps/backend/tests/extraction/test_csv_parsing.py' in read
     clashes = sorted((r, p) for r in read for p in classifier.VITEST_SKIP_PREFIXES if _overlaps(r, p)); assert clashes == [], f'Vitest reads a skipped path: {clashes}'
+def _tooling_read_paths() -> set[str]:
+    import re
+    test_files = sorted((_ROOT / 'tests/tooling').glob('test_*.py'))
+    path_pat = re.compile(r"""['"]([A-Za-z0-9_.@-]+(?:/[A-Za-z0-9_.@-]+)*)['"]""")
+    join_pat = re.compile(r"""(?:_?ROOT(?:_DIR)?|REPO(?:_ROOT)?)\s*/\s*([^\n;)]+)""")
+    discovered: set[str] = set()
+    for test_file in test_files:
+        text = test_file.read_text(encoding='utf-8')
+        for m in path_pat.finditer(text):
+            cand = m.group(1).lstrip('./')
+            if not cand or cand == '.' or cand.startswith(('tools/', 'tests/tooling/', '.git/')) or cand in {'tools', 'tests', '.git'}: continue
+            if cand.isupper(): continue
+            target = _ROOT / cand
+            if target.exists(): discovered.add(cand)
+        for m in join_pat.finditer(text):
+            parts = re.findall(r"""['"]([^'"]+)['"]""", m.group(1))
+            if not parts: continue
+            cand = '/'.join(parts).lstrip('./')
+            if not cand or cand == '.' or cand.startswith(('tools/', 'tests/tooling/', '.git/')) or cand in {'tools', 'tests', '.git'}: continue
+            target = _ROOT / cand
+            if target.exists(): discovered.add(cand)
+    return discovered
+def test_AC_testing_classifier_11_tooling_lane_covers_every_path_tests_tooling_reads() -> None:
+    'AC-testing.classifier.11'; import yaml
+    read_paths = _tooling_read_paths(); assert read_paths, 'expected tests/tooling/ to read repo paths outside tools/ and tests/tooling/'
+    assert 'apps/backend/src/routers' in read_paths or any(p.startswith('apps/backend/src/routers') for p in read_paths) or 'apps/backend/src' in read_paths or 'apps' in read_paths
+    sample_inputs: set[str] = {'apps/backend/src/routers/statements.py'}
+    for path in read_paths:
+        target = _ROOT / path
+        if target.is_dir(): sample_inputs.add(f"{path.rstrip('/')}/example.py")
+        else: sample_inputs.add(path)
+    uncovered = sorted(p for p in sample_inputs if not classify_changed_paths([p]).tooling_required)
+    assert uncovered == [], f'Tooling lane misses paths read by tests/tooling/: {uncovered}'
+    assert classify_changed_paths([]).tooling_required is True
+    assert classify_changed_paths(['unlisted/unrelated.txt']).tooling_required is False
+    workflow = yaml.safe_load((_ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
+    jobs = workflow['jobs']
+    assert 'tooling' in jobs, 'ci.yml must run a tooling job'
+    assert jobs['tooling']['needs'] == ['changes']
+    assert "needs.changes.outputs.tooling_required == 'true'" in str(jobs['tooling'].get('if', ''))
+    assert 'tests/tooling/' in '\n'.join(str(s.get('run', '')) for s in jobs['tooling']['steps'] if isinstance(s, dict))
+    assert 'tooling' in jobs['finish']['needs']
+    finish_commands = '\n'.join(str(s.get('run', '')) for s in jobs['finish']['steps'] if isinstance(s, dict))
+    assert '"${{ needs.tooling.result }}" != "success" && "${{ needs.tooling.result }}" != "skipped"' in finish_commands

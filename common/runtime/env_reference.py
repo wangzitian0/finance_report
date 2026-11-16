@@ -304,12 +304,22 @@ def runtime_hooks_gate_errors(
         )
     if not callable(run_hook_slot):
         errors.append("infra2_sdk.manifests.run_hook_slot is not callable")
-    for slot_name in ("smoke", "preview_gate", "staging_gate", "prod_gate", "scheduled_audit"):
+    for slot_name in (
+        "smoke",
+        "preview_gate",
+        "staging_gate",
+        "prod_gate",
+        "scheduled_audit",
+    ):
         if slot_name not in hooks.slots:
             errors.append(f"runtime-hooks.manifest.json: missing slot {slot_name!r}")
 
     backend_fields = fields if fields is not None else collect_backend_fields()
-    known_env_keys: set[str] = {"TEST_USER_EMAIL", "TEST_USER_PASSWORD"}
+    known_env_keys: set[str] = {
+        "TEST_USER_EMAIL",
+        "TEST_USER_PASSWORD",
+        "INFRA2_TOUCHED_FILES",
+    }
     for field in backend_fields:
         known_env_keys.update([field["key"], *field["aliases"], *field["extra_keys"]])
 

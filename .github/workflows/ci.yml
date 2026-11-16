@@ -39,6 +39,7 @@ jobs:
       # (frontend-telemetry-e2e skip).
       backend_changed: ${{ steps.classify.outputs.backend_changed }}
       vitest_required: ${{ steps.classify.outputs.vitest_required }}
+      tooling_required: ${{ steps.classify.outputs.tooling_required }}
       frontend_changed: ${{ steps.classify.outputs.frontend_changed }}
       tools_changed: ${{ steps.classify.outputs.tools_changed }}
       common_changed: ${{ steps.classify.outputs.common_changed }}
@@ -972,13 +973,31 @@ jobs:
             --image-prefix "${{ env.IMAGE_PREFIX }}" \
             --version-ref "${{ steps.get_sha.outputs.short_sha }}"
 
+  tooling:
+    name: Tooling Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [changes]
+    if: needs.changes.outputs.tooling_required == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up backend environment
+        uses: ./.github/actions/setup-backend-env
+        with:
+          uv-version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run tooling suite
+        run: apps/backend/.venv/bin/python -m pytest tests/tooling/ -n auto --no-cov -q
+
   finish:
     permissions:
       actions: read
       contents: read
       issues: write
       pull-requests: write
-    needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint]
+    needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, tooling, container-images, verify-sha-image-published, lint]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -1087,6 +1106,7 @@ jobs:
           echo "Frontend Vitest: ${{ needs.frontend-vitest.result }}"
           echo "Frontend Playwright: ${{ needs.frontend-playwright.result }}"
           echo "Frontend Telemetry E2E: ${{ needs.frontend-telemetry-e2e.result }}"
+          echo "Tooling: ${{ needs.tooling.result }}"
           echo "Staging Images: ${{ needs.container-images.result }}"
           echo "Verify Commit Image Published: ${{ needs.verify-sha-image-published.result }}"
           echo "Lint: ${{ needs.lint.result }}"
@@ -1096,6 +1116,10 @@ jobs:
           fi
           if [[ "${{ needs.lint.result }}" != "success" ]]; then
             echo "::error::Lint failed"
+            exit 1
+          fi
+          if [[ "${{ needs.tooling.result }}" != "success" && "${{ needs.tooling.result }}" != "skipped" ]]; then
+            echo "::error::Tooling tests failed"
             exit 1
           fi
           if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then

@@ -88,7 +88,7 @@ After a brokerage PDF is uploaded and parsed, users must be able to see the impo
 ### Rules
 - The **"Import to Portfolio"** button is only visible when `statement.status === "parsed" || statement.status === "approved"` and no import result exists yet. - On success, show a result banner with: broker name, positions parsed, new holdings created, holdings reconciled, and a link to `/portfolio`. - On failure, show a safe error message. **Sensitive data (URLs, tokens, storage paths) must be stripped** before display. The `handleBrokerageImport` function applies a regex to replace `https://…` and `s3://…` with `[URL]`. - The **Portfolio page** shows a "Total Portfolio Value" card when active holdings are present, computed as the sum of `market_value` across all active holdings. - All API calls use `apiOperation*` from `lib/api.ts` — never raw `fetch()`.
 ### Files
-- `app/(main)/statements/[id]/page.tsx` — Import button, result/error banners - `app/(main)/portfolio/page.tsx` — Total portfolio value banner - `lib/types.ts` — `BrokerageImportResponse` interface - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
+- `app/(main)/statements/[id]/page.tsx` — Import button, result/error banners - `app/(main)/portfolio/page.tsx` — Total portfolio value banner - `lib/types.ts` — `BrokerageImportResponse` interface - `src/__tests__/statementDetailPage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
 ## 15. Dashboard First-Run Onboarding
 The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
 ### Code References
