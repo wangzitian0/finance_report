@@ -58,7 +58,7 @@ effective_statement_transaction_filter|svc|extension/transaction_membership.py
 ExtractionService|svc|extension/service.py
 StatementIngestionUseCase|svc|extension/statement_parsing.py
 @fac|-|build_statement_ingestion_use_case extraction_trace_policy_registry
-@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run get_latest_run list_runs lock_statement_for_run start_user_extract_run
+@svc|extension/statement_runs.py|create_run claim_run heartbeat_run finish_run fail_run reap_stale_runs get_active_run get_latest_run list_runs lock_statement_for_run start_user_classify_run start_user_extract_run
 DeduplicationService|svc|extension/deduplication.py
 BrokeragePositionImportService|svc|extension/brokerage_positions.py
 EvidenceGraphIntegrationService|svc|extension/evidence_graph_integration.py
@@ -144,7 +144,8 @@ resolve_statement_posting_account resolve_statement_transactions
 statement_disposition_policy_for_user submit_parse_pipeline
 supports_reviewed_statement_envelope validate_balance validate_balance_chain
 validation
-retire_statement run_parsing_supervisor settle_drafts_after_posting snapshot_currencies start_user_extract_run
+retire_statement run_parsing_supervisor settle_drafts_after_posting snapshot_currencies start_user_classify_run
+start_user_extract_run submit_classify_run
     """.split(),
     events=[],
     command_boundaries=[
@@ -906,7 +907,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.84|A parse failure writes the final status only while the statement is PARSING: an approved statement and its entries stay untouched.|test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statement_and_its_entries
 @$be/api/test_statement_run_api.py|P1
 2994.50|POST runs writes a user rerun run with the typed hints, the model and the digest, and dispatches it.|test_AC_extraction_2994_50_post_runs_starts_a_rerun_with_the_hints_as_typed
-2994.51|A classify kind, an actor in the body or a hint over its limit gives 422 and no run.|test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits
+2994.51|An unknown kind, an actor in the body or a hint over its limit gives 422 and no run.|test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits
 2994.52|POST runs of a statement of another user or of an unknown statement gives 404.|test_AC_extraction_2994_52_post_runs_of_another_users_statement_gives_404
 2994.53|Hints on a CSV statement give 400 and no run, because a CSV parse sends no prompt.|test_AC_extraction_2994_53_post_runs_of_a_csv_statement_with_hints_gives_400
 2994.54|GET runs lists the runs of the owner by seq with hints, actor, state and error, and gives 404 for another user.|test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_their_hints
@@ -920,7 +921,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.56|The statement page lists each attempt, newest first, with actor, trigger, state, hints and error code.|AC-extraction.2994.56 lists each attempt, newest first, with actor, trigger, state, hints and error code
 2994.57|Run again posts the typed hints through the runs operation, trimmed keywords and the note as typed.|AC-extraction.2994.57 posts the hints exactly as typed through the runs operation
 2994.58|Run again is disabled while a run is requested or running, and the attempts refetch while one is active.|AC-extraction.2994.58 disables Run again while a run is active, refetches the attempts, and enables it when the run ends
-2994.59|A 409 with active_run_id says that a parse runs, and any other 409 says that the statement changed.|AC-extraction.2994.59 names the active run when the 409 body carries active_run_id
+2994.59|A 409 with active_run_id says that a run is in progress, and any other 409 says that the statement changed.|AC-extraction.2994.59 names the active run when the 409 body carries active_run_id
 2994.60|The form allows 20 keywords of 64 characters and a note of 500 characters.|AC-extraction.2994.60 enforces 20 keywords of 64 characters and a note of 500 characters
 2994.61|The note of the reject dialog stops at 500 characters.|AC-extraction.2994.61 limits the note of the reject dialog to 500 characters
 2994.62|An approved statement has no Run again panel, and no Retry Parse button exists.|AC-extraction.2994.62 offers no Run again for an approved statement and has no Retry Parse button
@@ -931,6 +932,9 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.82|A 422 of the reject shows one fixed sentence and never the response body.|AC-extraction.2994.82 shows one fixed sentence for a 422 of the reject and never the raw body
 2994.73|A 422 shows one fixed sentence and never the response body.|AC-extraction.2994.73 shows one fixed sentence for a 422 and never the raw body
 2994.74|The attempts list loads while the statement is parsing, and Run again is disabled for a stuck parsing statement with an active run.|AC-extraction.2994.74 lists the attempts while the statement is parsing, with the failed attempt that explains it
+2994.134|The Run again panel sends the chosen kind with the hints. Extract is the default for a PDF.|AC-extraction.2994.134 sends the chosen kind with the hints, and extract is the default for a PDF
+2994.135|The panel defaults to Classify again for a CSV. It offers only the extraction for a statement that is not parsed.|AC-extraction.2994.135 defaults to Classify again for a CSV, because a CSV refuses extraction hints
+2994.136|The panel is disabled while a classify run is active. A 409 or a 422 shows the same fixed sentences.|AC-extraction.2994.136 disables the panel while a classify run is active
 @$be/api/test_statement_approve_without_model.py|P1
 2994.100|With the model off and no stored answer the approve gives the economic review 409 and posts nothing. A keyword-rule row posts after a classify run applied the rule, with no model call.|test_AC_extraction_2994_100_approve_of_rows_without_an_answer_goes_to_economic_review
 @$be/extraction/test_statement_classify_run.py|P1
@@ -948,9 +952,44 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.101|The one-click fill refuses a statement with an active run with ActiveRunExists, and the backfill skips such a statement and reports skipped_statements.|test_AC_extraction_2994_101_the_one_click_fill_refuses_a_statement_with_an_active_run
 2994.103|The review response has no preclassification_in_progress field.|test_AC_extraction_2994_103_the_review_response_has_no_classification_flag
 2994.104|No advisory lock, lock wait constant or busy error guards the classification.|test_AC_extraction_2994_104_no_advisory_lock_guards_the_classification
+@$be/extraction/test_statement_classify_hints.py|P1
+2994.124|Empty hints leave the classification prompt byte-identical to the prompt before this change.|test_AC_extraction_2994_124_empty_hints_leave_the_classification_prompt_byte_identical
+2994.125|Hints add one block of data as the last part of the classification prompt, with the purpose line of that prompt. Hostile hint text stays in its JSON string. An answer outside the catalog still counts as other.|test_AC_extraction_2994_125_hints_append_one_block_as_the_last_part_of_the_prompt
+2994.126|One fingerprint over every part of the classification prompt is pinned to its template version.|test_AC_extraction_2994_126_every_template_part_is_pinned_to_its_template_version
+2994.127|One function gives the digest of the run inputs for an extract run and a classify run. Every classify run stores the template version and the digest.|test_AC_extraction_2994_127_one_digest_function_serves_both_kinds_of_run
+2994.128|The classify run passes the hints of its run row to every model call. Stored hints that no longer validate fail the run without their text.|test_AC_extraction_2994_128_the_run_passes_the_hints_of_its_row_to_every_model_call
+2994.129|A user classify run takes the statement row lock FOR NO KEY UPDATE first, needs a PARSED statement, links the latest run as parent, sets no status and does not commit.|test_AC_extraction_2994_129_a_user_classify_run_links_its_parent_and_changes_no_status
+@$be/api/test_statement_classify_run_api.py|P1
+2994.130|POST runs with kind classify starts a user rerun run with the hints and the digest, for every file type. The run is committed before its task starts.|test_AC_extraction_2994_130_post_runs_starts_a_classify_run_with_the_hints_as_typed
+2994.131|The API process runs a classify run as a tracked background task. A dispatch failure fails the run with dispatch_failed and leaves no active run.|test_AC_extraction_2994_131_the_background_task_runs_the_run_with_the_hints
+2994.132|A classify run needs a PARSED statement, gives 409 with active_run_id for an active run, and takes no model.|test_AC_extraction_2994_132_an_active_run_gives_409_with_its_id_and_starts_nothing
+2994.133|A user classify run after an automatic run asks the rows with a model answer again, with its hints. A failed run does not block the next one.|test_AC_extraction_2994_133_a_user_run_after_an_automatic_run_asks_the_answered_rows_again
+2994.142|A 422 body keeps only loc, msg and type of each error. The input and ctx fields are dropped. A msg can hold validator text.|test_AC_extraction_2994_142_a_422_body_keeps_only_loc_msg_and_type
+@$be/extraction/test_statement_classify_reask.py|P1
+2994.137|A user classify run with hints asks again for every row that has a model answer and appends the new answer. It does not ask again for a keyword-rule row, a row that the user decided or a row that the ledger covers.|test_AC_extraction_2994_137_a_user_run_with_hints_asks_again_for_a_model_answer
+2994.138|Every answer that a classify run writes carries the id of the run in its tags.|test_AC_extraction_2994_138_every_answer_that_a_run_writes_carries_its_run_id
+2994.139|An automatic classify run still asks only for rows without an answer.|test_AC_extraction_2994_139_an_automatic_run_still_asks_only_the_rows_without_an_answer
+2994.140|A re-ask that fails in batch 2 keeps the answers of batch 1.|test_AC_extraction_2994_140_a_re_ask_that_fails_in_batch_2_keeps_the_answers_of_batch_1
+2994.141|A re-ask with a low-confidence answer writes a fallback in a new row. The new row holds the original tags of the new proposal. The old row stays as history.|test_AC_extraction_2994_141_a_re_ask_with_a_low_confidence_answer_writes_a_fallback_in_a_new_row
+2994.144|A re-ask appends a new answer with the run id and sets the old answer to SUPERSEDED with superseded_by_id. After two runs with other hints both answers exist, and a reader of the current answer sees only the live one. The run id leads to the hints.|test_AC_extraction_2994_144_a_re_ask_appends_the_answer_and_keeps_the_old_answer_as_history
+2994.149|A user classify run with no hints asks only for rows without an answer, also when the answers have no run id.|test_AC_extraction_2994_149_a_user_run_with_no_hints_asks_only_the_rows_without_an_answer
+2994.150|A user classify run with hints skips a row whose live answer came from a run of the same statement with the same prompt digest. A run that failed resumes. Other hints ask every row.|test_AC_extraction_2994_150_a_run_that_failed_resumes_and_skips_the_rows_that_it_answered
+@$be/extraction/test_statement_classify_reask_ledger_and_locks.py|P1
+2994.145|A row that the ledger covers (an anchored entry, a legacy entry, an accepted transfer match) is not asked again and gets no new answer.|test_AC_extraction_2994_145_a_row_that_the_ledger_covers_is_not_asked_again
+2994.146|A row with accepted_by_user is a decision of the user: a re-ask does not ask it again.|test_AC_extraction_2994_146_a_row_that_the_user_accepted_is_not_asked_again
+2994.147|The batch write checks the ledger coverage again after the policy-rule key. A row that a match covers during the model call gets no new answer.|test_AC_extraction_2994_147_a_row_that_the_ledger_covers_after_the_plan_is_not_written
+2994.148|The batch write reads the answer rows FOR UPDATE ORDER BY id after the policy-rule key and takes the decisions from them. A feedback takes the key first, then the row, so a marker that commits during the wait stays and no deadlock occurs.|test_AC_extraction_2994_148_a_feedback_that_holds_the_policy_key_keeps_its_marker
+@$be/extraction/test_statement_classify_reask_poster_locks.py|P1
+2994.152|A poster holds the transaction row and the account with FOR NO KEY UPDATE, so the insert of a re-ask answer does not wait for it. The poster and the batch write end without a deadlock, with one live answer.|test_AC_extraction_2994_152_a_poster_that_holds_the_row_does_not_deadlock_with_the_batch_write
+2994.153|The auto-fill of the approve takes the statement lock before it looks for an active run. A run start that holds the lock makes it wait, then refuse with the run id, and post nothing.|test_AC_extraction_2994_153_the_auto_fill_takes_the_statement_lock_before_it_looks_for_a_run
+2994.154|A run start waits for the approve that holds the statement lock. The upgrade of that lock to FOR UPDATE does not deadlock, and the run start then finds the statement APPROVED.|test_AC_extraction_2994_154_a_run_start_waits_for_the_approve_and_the_lock_upgrade_does_not_deadlock
+@$be/extraction/test_txn_classification_live_unique_migration.py|P1
+2994.143|Migration 0076 replaces uq_txn_classification_version by a partial unique index on draft and applied answers and adds a plain index on the same columns. A superseded answer may sit beside a live one. The downgrade stops with an error while a pair has history.|test_AC_extraction_2994_143_the_migration_keeps_one_live_answer_and_the_downgrade_stops_on_history
+@$be/extraction/test_txn_classification_lookup_index.py|P1
+2994.151|With 100 other users and fresh statistics, a lookup of classification rows by row id reads at most the rows of that user.|test_AC_extraction_2994_151_a_lookup_by_row_reads_only_the_rows_of_that_user
 @$be/extraction/test_statement_classify_run_phases.py|P1
 2994.96|Each batch write refreshes heartbeat_at on the run row. No heartbeat task runs. Six batches of 59 s do not get the run reaped. The 180 s deadline covers the plan, the rule answers and every batch, and is shorter than the stale threshold.|test_AC_extraction_2994_96_each_batch_write_refreshes_the_heartbeat_so_a_batch_of_59_seconds_is_never_reaped
-2994.116|A failed or timed-out classify run keeps the batches that it wrote. The next run asks the model only for rows without an answer.|test_AC_extraction_2994_116_a_failed_batch_keeps_the_earlier_batches_and_the_next_run_asks_only_the_rest
+2994.116|A failed or timed-out classify run keeps the batches that it wrote. The next automatic run asks the model only for rows without an answer.|test_AC_extraction_2994_116_a_failed_batch_keeps_the_earlier_batches_and_the_next_run_asks_only_the_rest
 2994.117|No database transaction, row lock, policy-rule lock or pooled connection is held while a model call runs.|test_AC_extraction_2994_117_the_pool_of_the_run_has_no_checked_out_connection_during_the_model_call
 2994.118|The keyword-rule answers are committed before the first model call.|test_AC_extraction_2994_118_the_keyword_rule_answer_is_committed_before_the_first_model_call
 2994.119|A classify run and an inline classification of the same rows write one answer for each row. A unique-key collision counts as already answered.|test_AC_extraction_2994_119_an_inline_classification_and_a_run_of_the_same_rows_write_one_answer_each

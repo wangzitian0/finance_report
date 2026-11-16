@@ -67,7 +67,7 @@ from src.extraction.extension.custody_binding import (
 )
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
-from src.extraction.extension.prompts.statement import PROMPT_FILE_TYPES, get_parsing_prompt, hints_block
+from src.extraction.extension.prompts.statement import PROMPT_FILE_TYPES, get_parsing_prompt, parsing_hints_block
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.statement_summary import StatementSummary
@@ -950,7 +950,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 file_type=file_type,
             )
         prompt = get_parsing_prompt(institution, document_kind=document_kind)
-        guidance = hints_block(hints)
+        guidance = parsing_hints_block(hints)
         model = force_model or self.multimodal_model
         if not model:
             raise ExtractionError("Multimodal model is not configured")

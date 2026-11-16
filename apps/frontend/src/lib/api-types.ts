@@ -1831,7 +1831,7 @@ export interface components {
     };
     StatementRunRequest: {
       hints?: _S["RunHints"];
-      kind: "extract";
+      kind: "extract" | "classify";
       model?: string | null;
     };
     TransactionCategory: "SALARY" | "INTEREST" | "INVESTMENT_INCOME" | "REFUND" | "OTHER_INCOME" | "DINING" | "GROCERIES" | "TRANSPORT" | "HOUSING" | "UTILITIES" | "SHOPPING" | "HEALTHCARE" | "ENTERTAINMENT" | "TRAVEL" | "EDUCATION" | "INSURANCE" | "FEES" | "OTHER_EXPENSE" | "TRANSFER" | "CARD_REPAYMENT" | "LOAN_PRINCIPAL" | "INVESTMENT_TRADE";

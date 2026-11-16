@@ -12,7 +12,7 @@ import { ApiError, apiOperation } from "@/lib/api-client";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
 import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
-import { BankStatement, BrokerageImportResponse, StatementRunHints, normalizeBankStatement } from "@/lib/types";
+import { BankStatement, BrokerageImportResponse, StatementRunHints, StatementRunKind, normalizeBankStatement } from "@/lib/types";
 import { PARSING_POLL_MS, canImportBrokerageStatement, currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
@@ -401,25 +401,25 @@ export default function StatementDetailPage() {
   }, [review, requiresEnvelopeConfirmation, custodyAccountsData?.items, statement?.currency, statement?.institution]);
 
   const runAgainMutation = useMutation({
-    mutationFn: (hints: StatementRunHints) => apiOperation("create_statement_run_statements__statement_id__runs_post", { path: { statement_id: statementId }, body: { kind: "extract", hints } }),
+    mutationFn: ({ kind, hints }: { kind: StatementRunKind; hints: StatementRunHints }) => apiOperation("create_statement_run_statements__statement_id__runs_post", { path: { statement_id: statementId }, body: { kind, hints } }),
     onMutate: () => setRunAgainError(null),
-    onSuccess: () => {
+    onSuccess: (_run, { kind }) => {
       setParsingStartTime(null);
       setPollingStoppedReason(null);
-      showToast("Parsing started", "success");
+      showToast(kind === "classify" ? "Classification started" : "Parsing started", "success");
       void invalidateLedgerDerivedQueries(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
       return fetchStatement({ supersede: true });
     },
     onError: (err) => {
       const conflict = err instanceof ApiError && err.status === 409;
-      // Only a 409 with an `active_run_id` means that a parse runs. Any other 409 says that the statement changed.
+      // Only a 409 with an `active_run_id` means that a run is in progress. Any other 409 says that the statement changed.
       const activeRunId = conflict ? (err.body as { active_run_id?: string } | null)?.active_run_id : undefined;
       // A 422 body echoes the hints that the user typed. The page shows one fixed sentence, never that body.
       const invalid = err instanceof ApiError && err.status === 422;
       const message = conflict
         ? activeRunId
-          ? "A parse is already running for this statement. Wait for it to end, then run again."
+          ? "A run is already in progress for this statement. Wait for it to end, then run again."
           : "The statement changed. Reload the page."
         : invalid
           ? INVALID_HINTS_MESSAGE
@@ -429,9 +429,9 @@ export default function StatementDetailPage() {
       if (conflict) void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
     },
   });
-  const runAgain = async (hints: StatementRunHints): Promise<boolean> => {
+  const runAgain = async (kind: StatementRunKind, hints: StatementRunHints): Promise<boolean> => {
     try {
-      await runAgainMutation.mutateAsync(hints);
+      await runAgainMutation.mutateAsync({ kind, hints });
       return true;
     } catch {
       return false;
@@ -566,7 +566,7 @@ export default function StatementDetailPage() {
               </select>
             </label>
           )}
-          <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={() => void runAgain({ keywords: [], note: null })} reparsePending={runAgainMutation.isPending} />
+          <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={() => void runAgain("extract", { keywords: [], note: null })} reparsePending={runAgainMutation.isPending} />
         </div>
       )}
       {(economicReviewRequired || hasUnclassifiedPendingTxns || statement.validation_error?.startsWith("Economic review required:")) && isParsed && (
@@ -607,7 +607,7 @@ export default function StatementDetailPage() {
       {(canRunAgain || runs) && (
         <div className="mb-4 grid gap-4 lg:grid-cols-2">
           {runs && <ParsingAttempts runs={runs} />}
-          {canRunAgain && <RunAgainPanel activeRun={hasActiveRun} pending={runAgainMutation.isPending} errorMessage={runAgainError} onRun={runAgain} />}
+          {canRunAgain && <RunAgainPanel activeRun={hasActiveRun} pending={runAgainMutation.isPending} errorMessage={runAgainError} isCsv={/\.csv$/i.test(statement.original_filename || statement.file_path || "")} canClassify={statement.status === "parsed"} onRun={runAgain} />}
         </div>
       )}
       {review && <BalanceIndicator openingBalance={review.opening_balance} closingBalance={review.closing_balance} validationResult={validationResult} currency={review.currency || "SGD"} />}

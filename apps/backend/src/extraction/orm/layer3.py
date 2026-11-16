@@ -12,10 +12,12 @@ from sqlalchemy import (
     Date,
     Enum as SQLEnum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -89,7 +91,18 @@ class TransactionClassification(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "transaction_classification"
-    __table_args__ = (UniqueConstraint("atomic_txn_id", "rule_version_id", name="uq_txn_classification_version"),)
+    # One live answer for each row and rule version. A superseded answer stays as history (#2994, re-ask).
+    __table_args__ = (
+        Index(
+            "uq_txn_classification_version",
+            "atomic_txn_id",
+            "rule_version_id",
+            unique=True,
+            postgresql_where=text("status IN ('draft', 'applied')"),
+        ),
+        # The partial index cannot serve a query with a bound status: this one keeps the lookups by row indexed.
+        Index("ix_txn_classification_txn_rule", "atomic_txn_id", "rule_version_id"),
+    )
 
     atomic_txn_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),

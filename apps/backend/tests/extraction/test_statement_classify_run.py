@@ -65,6 +65,7 @@ from tests.factories import StatementSummaryFactory, seed_parsed_statement
 from tests.statement_ingestion import classify_run_for, classify_statement, run_for
 
 WAIT_SECONDS = 20
+DEADLINE_SECONDS = 3.0  # the deadline covers the plan: it must stay far above the plan time of a busy machine
 ANSWERS = {
     "Salary": (TransactionCategory.SALARY, 95),
     "Coffee": (TransactionCategory.DINING, 92),
@@ -361,7 +362,7 @@ async def test_AC_extraction_2994_91_a_classify_run_that_passes_its_deadline_fai
             create_session_maker_from_db(db),
             run_id=run_id,
             posting_dependencies=compose_statement_posting_dependencies(),
-            deadline_seconds=0.3,
+            deadline_seconds=DEADLINE_SECONDS,
         ),
         timeout=WAIT_SECONDS,
     )

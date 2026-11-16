@@ -159,7 +159,7 @@ from src.extraction.extension.statement_parsing import (
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
-from src.extraction.extension.statement_pipeline import submit_parse_pipeline
+from src.extraction.extension.statement_pipeline import submit_classify_run, submit_parse_pipeline
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     applied_rows_the_policy_accepts,
@@ -183,6 +183,7 @@ from src.extraction.extension.statement_runs import (
     list_runs,
     lock_statement_for_run,
     reap_stale_runs,
+    start_user_classify_run,
     start_user_extract_run,
 )
 from src.extraction.extension.statement_summary import (
@@ -388,6 +389,7 @@ __all__ = [
     "lock_statement_for_run",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",
+    "start_user_classify_run",
     "start_user_extract_run",
     "parse_brokerage_csv_payload",
     "parse_brokerage_positions",
@@ -412,6 +414,7 @@ __all__ = [
     "effective_statement_transaction_filter",
     "run_parsing_supervisor",
     "snapshot_currencies",
+    "submit_classify_run",
     "submit_parse_pipeline",
     "supports_reviewed_statement_envelope",
     "validate_balance",

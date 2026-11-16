@@ -314,7 +314,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     _ = request
-    return _error_json(422, ErrorCode.UNPROCESSABLE_ENTITY.value, jsonable_encoder(exc.errors()))
+    # `input` echoes the request body (hints, notes, amounts) and `ctx` the validator state: keep loc, msg and type.
+    errors = [{key: error[key] for key in ("loc", "msg", "type")} for error in exc.errors()]
+    return _error_json(422, ErrorCode.UNPROCESSABLE_ENTITY.value, jsonable_encoder(errors))
 
 
 @app.exception_handler(Exception)
