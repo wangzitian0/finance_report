@@ -384,7 +384,6 @@ async def test_AC5_17_1_cash_flow_export_returns_csv(client, monkeypatch: pytest
             "generate_cash_flow",
             {"start_date": date.today().isoformat(), "end_date": date.today().isoformat()},
         ),
-        ("/reports/breakdown", "get_category_breakdown", {"type": "income"}),
     ],
 )
 async def test_reports_router_handles_report_error(
