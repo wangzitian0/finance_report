@@ -963,7 +963,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.130|POST runs with kind classify starts a user rerun run with the hints and the digest, for every file type. The run is committed before its task starts.|test_AC_extraction_2994_130_post_runs_starts_a_classify_run_with_the_hints_as_typed
 2994.131|The API process runs a classify run as a tracked background task. A dispatch failure fails the run with dispatch_failed and leaves no active run.|test_AC_extraction_2994_131_the_background_task_runs_the_run_with_the_hints
 2994.132|A classify run needs a PARSED statement, gives 409 with active_run_id for an active run, and takes no model.|test_AC_extraction_2994_132_an_active_run_gives_409_with_its_id_and_starts_nothing
-2994.133|A second classify run asks only the rows without an answer. A failed run does not block the next one.|test_AC_extraction_2994_133_a_second_classify_run_asks_only_the_rows_without_an_answer
+2994.133|A user classify run after an automatic run asks the rows with a model answer again, with its hints. A failed run does not block the next one.|test_AC_extraction_2994_133_a_user_run_after_an_automatic_run_asks_the_answered_rows_again
 2994.142|A 422 body keeps only loc, msg and type of each error. It never echoes the request body, so the hints stay private.|test_AC_extraction_2994_142_a_422_body_never_echoes_the_request_body
 @$be/extraction/test_statement_classify_reask.py|P1
 2994.137|A user classify run asks again for every row that has only a model answer, and changes that answer in place. It does not ask again for a keyword-rule row, a row that the user decided or a row that a posted entry covers.|test_AC_extraction_2994_137_a_user_run_asks_again_for_a_model_answer_and_changes_it_in_place

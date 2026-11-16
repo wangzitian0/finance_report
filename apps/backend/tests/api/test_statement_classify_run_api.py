@@ -301,10 +301,10 @@ async def test_AC_extraction_2994_132_extraction_hints_still_need_a_prompt_file_
     assert classify.status_code == 202, classify.text
 
 
-async def test_AC_extraction_2994_133_a_second_classify_run_asks_only_the_rows_without_an_answer(
+async def test_AC_extraction_2994_133_a_user_run_after_an_automatic_run_asks_the_answered_rows_again(
     client, db, monkeypatch, test_user
 ):
-    """AC-extraction.2994.133: Rows with an answer are not asked again. A run with hints ends nothing_to_classify then."""
+    """AC-extraction.2994.133: With the hints of the user, the model sees the rows that already have a model answer."""
     seeded = await _parsed(db, test_user, rows=_rows(3, first_day=date(2026, 3, 1)))
     statement_id = seeded.id
     model = _install(monkeypatch, HintsModel())
@@ -316,8 +316,9 @@ async def test_AC_extraction_2994_133_a_second_classify_run_asks_only_the_rows_w
 
     assert response.status_code == 202, response.text
     runs = await _runs(db, statement_id)
-    assert (runs[-1].state, runs[-1].result_summary["outcome"]) == (RunState.SUCCEEDED, "nothing_to_classify")
-    assert len(model.calls) == asked and runs[-1].parent_run_id == runs[0].id
+    assert (runs[-1].state, runs[-1].result_summary["outcome"]) == (RunState.SUCCEEDED, "classified")
+    assert len(model.calls) == 2 * asked and model.hints[-1] == RunHints(**HINTS)
+    assert runs[-1].parent_run_id == runs[0].id
 
 
 async def test_AC_extraction_2994_133_a_failed_run_does_not_block_the_next_one(

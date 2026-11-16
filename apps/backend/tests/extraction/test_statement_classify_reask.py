@@ -123,7 +123,12 @@ async def test_AC_extraction_2994_137_a_row_with_a_keyword_rule_a_decision_or_a_
     await db.commit()
     posted = await client.post(
         f"/reconciliation/unmatched/{seeded.transactions[0].id}/reviewed-disposition",
-        json={"intent": "income", "counter_account_id": str(income.id), "category": "GENERAL", "rationale": "Reviewed."},
+        json={
+            "intent": "income",
+            "counter_account_id": str(income.id),
+            "category": "GENERAL",
+            "rationale": "Reviewed.",
+        },
     )
     assert posted.status_code == 200, posted.text
     rent = await _answer(db, test_user, "Rent")
@@ -234,5 +239,7 @@ async def test_AC_extraction_2994_141_a_re_ask_keeps_the_original_answer_semanti
         10,
     )
     assert (row.confidence_score, row.tags["run_id"]) == (0, str(run_id))
-    rules = await db.scalar(select(ClassificationRule.id).where(ClassificationRule.rule_name == tc.POLICY_RULE_NAME).limit(1))
+    rules = await db.scalar(
+        select(ClassificationRule.id).where(ClassificationRule.rule_name == tc.POLICY_RULE_NAME).limit(1)
+    )
     assert rules is not None

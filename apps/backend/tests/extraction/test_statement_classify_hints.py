@@ -436,7 +436,9 @@ async def test_AC_extraction_2994_128_stored_hints_that_no_longer_validate_fail_
     assert list(records.scalars()) == ["classify.requested", "classify.running", "classify.failed"], (
         "the claim committed before the hints were checked: the running transition is stored, not rolled back"
     )
-    logged = [r.msg for r in caplog.records if isinstance(r.msg, dict) and r.msg.get("event") == "statement.run.transition"]
+    logged = [
+        r.msg for r in caplog.records if isinstance(r.msg, dict) and r.msg.get("event") == "statement.run.transition"
+    ]
     assert [e["state"] for e in logged if e["run_id"] == str(run_id)] == ["requested", "running", "failed"]
 
 
@@ -518,17 +520,16 @@ async def test_AC_extraction_2994_129_the_run_insert_does_not_commit_and_holds_t
     assert run_id is not None and await _runs(db, statement_id) == []
 
 
-async def test_AC_extraction_2994_129_a_statement_without_an_unclassified_row_still_runs_to_nothing_to_classify(
+async def test_AC_extraction_2994_129_a_statement_without_a_row_to_ask_still_runs_to_nothing_to_classify(
     db, test_user, monkeypatch
 ):
     """AC-extraction.2994.129: The run is accepted and ends succeeded with the outcome nothing_to_classify."""
-    seeded = await _seed(db, test_user, _rows(3))
+    from tests.factories import seed_parsed_statement
+
+    empty = await seed_parsed_statement(db, test_user.id, original_filename="empty.pdf", transactions=[])
     model = _install(monkeypatch, HintsModel())
-    first = await classify_run_for(db, seeded.id)
-    await _worker(create_session_maker_from_db(db), first)
-    asked = len(model.calls)
     run_id = await start_user_classify_run(
-        db, statement_id=seeded.id, user_id=test_user.id, hints=RunHints(keywords=["rent"])
+        db, statement_id=empty.id, user_id=test_user.id, hints=RunHints(keywords=["rent"])
     )
     await db.commit()
 
@@ -536,4 +537,4 @@ async def test_AC_extraction_2994_129_a_statement_without_an_unclassified_row_st
 
     run = await _run(db, run_id)
     assert (run.state, run.result_summary["outcome"]) == (RunState.SUCCEEDED, "nothing_to_classify")
-    assert len(model.calls) == asked, "no row has to be asked again"
+    assert model.calls == []
