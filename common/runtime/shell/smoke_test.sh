@@ -157,7 +157,7 @@ echo "--- SRE Consistency Checks ---"
 # 1. API URL Configuration Validation (Critical for PR environments)
 # Verify that the frontend is NOT making requests to double /api/api/ paths
 echo "Checking API URL configuration..."
-API_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/api/ping" 2>/dev/null || echo "000")
+API_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/api/health" 2>/dev/null || echo "000")
 if [ "$API_CHECK" = "200" ]; then
     echo "✓ API endpoint reachable (no double /api/ issue)"
 elif [ "$API_CHECK" = "000" ]; then
@@ -172,7 +172,7 @@ fi
 # Verify if backend correctly handles CORS for the expected frontend URL
 FRONTEND_URL="${BASE_URL%/}"
 echo "Checking CORS for Origin: $FRONTEND_URL"
-curl -sS -I -X OPTIONS "$BASE_URL/api/ping" \
+curl -sS -I -X OPTIONS "$BASE_URL/api/health" \
     -H "Origin: $FRONTEND_URL" \
     -H "Access-Control-Request-Method: GET" \
     | grep -qi "Access-Control-Allow-Origin" && echo "✓ CORS Headers" || { echo "✗ CORS Headers Missing"; FAILED=1; }
@@ -207,7 +207,6 @@ check_endpoint "API Health" "$BASE_URL/api/health" "\"status\":\"healthy\"" || F
 check_endpoint "Dependency Presence (manifest, full)" "$BASE_URL/api/health?full=1" "\"status\":\"healthy\"" || FAILED=1
 check_endpoint "API Docs" "$BASE_URL/api/docs" || FAILED=1
 check_endpoint "Reconciliation Page" "$BASE_URL/reconciliation" || FAILED=1
-check_endpoint "Ping API" "$BASE_URL/api/ping" || FAILED=1
 
 # --- Authentication Tests ---
 echo "--- Authentication Tests ---"

@@ -173,6 +173,8 @@ env-empty-values.1||test_AC_runtime_env_empty_values_1_no_artifact_ships_an_empt
 env-empty-values.2||test_AC_runtime_env_empty_values_2_settings_empty_env_resolution
 @$be/infra/test_ai_key_alias.py|P1
 env-ai-key-alias.1||test_AC_runtime_env_ai_key_alias_1_the_old_name_sets_the_key
+@$t/test_smoke_api_routes_contract.py|P1
+smoke-routes.1|Every /api URL in the smoke script and the tier-2 probe is an app route or /api/docs.|test_AC_runtime_smoke_routes_1_every_api_url_in_the_deployed_probes_is_an_app_route
 """,
     ),
     concepts=concepts(
