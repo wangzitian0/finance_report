@@ -201,6 +201,7 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
         user_id=user_id,
     )
     assert envelope.source_result_digest == source_result.content_digest
+    await db.commit()
     statement.closing_balance = Decimal("999.00")
 
     with pytest.raises(HTTPException, match="diverges from its current reviewed envelope") as exc:
