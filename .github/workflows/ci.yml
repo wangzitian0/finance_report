@@ -35,15 +35,10 @@ jobs:
       # build config/entrypoint). Pure app-source changes are proven by frontend-build
       # and the backend test jobs, so container-images is right-moved off them.
       image_build_required: ${{ steps.classify.outputs.image_build_required }}
-      # #1689: per-component change flags, so a PR only pays for what it touched
-      # (frontend-telemetry-e2e skip).
-      backend_changed: ${{ steps.classify.outputs.backend_changed }}
+      # Per-lane change flags consumed by downstream jobs.
       vitest_required: ${{ steps.classify.outputs.vitest_required }}
       tooling_required: ${{ steps.classify.outputs.tooling_required }}
       frontend_changed: ${{ steps.classify.outputs.frontend_changed }}
-      tools_changed: ${{ steps.classify.outputs.tools_changed }}
-      common_changed: ${{ steps.classify.outputs.common_changed }}
-      touched_e2e_tests: ${{ steps.classify.outputs.touched_e2e_tests }}
     steps:
       - uses: actions/checkout@v7
         with:

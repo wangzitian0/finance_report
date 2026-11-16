@@ -1,8 +1,7 @@
 """Sync CI test durations from GitHub Actions JUnit artifacts or local directories.
 
-SSOT Single Source of Truth for CI test duration seeds:
+SSOT Single Source of Truth for CI test duration seed:
 - apps/backend/ci/backend-test-durations.json
-- ci/tooling-test-durations.json
 
 Reads executed JUnit XML files, converts testcases to canonical node IDs,
 updates duration seeds, and computes shard balance reports.
@@ -181,17 +180,14 @@ def report_backend_balance(
 
 def sync_from_directory(
     junit_root: Path,
-    repo_root: Path,
+    repo_root: Path = REPO_ROOT,
+    *,
     dry_run: bool = False,
 ) -> None:
-    """Find XMLs in directory and update both duration seeds."""
+    """Find XMLs in directory and update backend duration seed."""
     backend_xmls = sorted(
         set(junit_root.glob("backend-shard-*-test-context/**/*.xml"))
         | set(junit_root.glob("backend-shard-*-test-context/*.xml"))
-    )
-    tooling_xmls = sorted(
-        set(junit_root.glob("coverage-tooling-*/**/*.xml"))
-        | set(junit_root.glob("coverage-tooling-*/*.xml"))
     )
 
     if backend_xmls:
@@ -218,21 +214,6 @@ def sync_from_directory(
         )
     else:
         print("Backend: no backend-shard XML files found in directory.")
-
-    if tooling_xmls:
-        t_durations = extract_durations_from_xmls(tooling_xmls)
-        t_seed = repo_root / "ci" / "tooling-test-durations.json"
-        total, updated = update_duration_seed(
-            t_seed,
-            t_durations,
-            repo_root=repo_root,
-            dry_run=dry_run,
-        )
-        print(
-            f"Tooling: {len(tooling_xmls)} XMLs -> {updated} tests updated, total {total} in seed."
-        )
-    else:
-        print("Tooling: no coverage-tooling XML files found in directory.")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -274,8 +255,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                     str(args.run_id),
                     "-p",
                     "backend-shard-*",
-                    "-p",
-                    "coverage-tooling-*",
                     "--dir",
                     str(temp_dir),
                 ],

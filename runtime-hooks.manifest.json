@@ -11,7 +11,7 @@
       "checks": [
         {"id": "smoke", "argv": ["sh", "-c", "bash common/runtime/shell/smoke_test.sh \"$INFRA2_HOOK_APP_URL\""]},
         {"id": "preview_minimum_e2e", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "preview_minimum_e2e", "--run"]},
-        {"id": "touched_files", "argv": ["sh", "-c", "python -m common.testing.test_selection --touched-files ${INFRA2_TOUCHED_FILES:-} --run"]}
+        {"id": "touched_files", "argv": ["python", "-m", "common.testing.test_selection", "--touched-files", "--run"]}
       ],
       "timeout_seconds": 360,
       "optional_env": [
