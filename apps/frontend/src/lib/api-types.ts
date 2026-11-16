@@ -77,7 +77,6 @@ export interface paths {
   "/market-data/status": _P<{ get: _O["market_data_status_endpoint_market_data_status_get"] }>;
   "/market-data/stocks/syncs": _P<{ post: _O["sync_stocks_endpoint_market_data_stocks_syncs_post"] }>;
   "/metrics/correction-loop/replay": _P<{ get: _O["get_correction_loop_replay_metrics_correction_loop_replay_get"] }>;
-  "/notifications": _P<{ get: _O["list_notifications_endpoint_notifications_get"] }>;
   "/portfolio/allocation/asset-class": _P<{ get: _O["get_asset_class_allocation_portfolio_allocation_asset_class_get"] }>;
   "/portfolio/allocation/geography": _P<{ get: _O["get_geography_allocation_portfolio_allocation_geography_get"] }>;
   "/portfolio/allocation/sector": _P<{ get: _O["get_sector_allocation_portfolio_allocation_sector_get"] }>;
@@ -490,7 +489,6 @@ export interface components {
     };
     BatchApproveResponse: {
       approved_count: number;
-      journal_entries_created: number;
       journal_entries_reconciled: number;
     };
     BatchRejectRequest: {
@@ -1802,26 +1800,9 @@ export interface components {
     };
     Stage1ApprovalResponse: {
       account_id: string | null;
-      account_last4: string | null;
-      balance_validated: boolean | null;
-      brokerage_import_failed: boolean;
-      brokerage_import_failure_reason?: string | null;
-      closing_balance: string | null;
-      confidence_score: number | null;
-      created_at: string;
-      currency: string | null;
-      file_path: string;
       id: string;
-      institution: string;
       journal_entries_created: number;
-      opening_balance: string | null;
-      original_filename: string;
-      period_end: string | null;
-      period_start: string | null;
       status: _S["BankStatementStatus"];
-      transactions?: _S["AtomicTransactionResponse"][];
-      updated_at: string;
-      user_id: string;
       validation_error: string | null;
     };
     Stage1Status: "pending_review" | "approved" | "rejected" | "edited";
@@ -2308,14 +2289,6 @@ export interface operations {
   };
   sync_stocks_endpoint_market_data_stocks_syncs_post: _Op<_S["MarketDataSyncResponse"], _NP, _S["MarketDataSyncRequest"]>;
   get_correction_loop_replay_metrics_correction_loop_replay_get: _OpN<_S["CorrectionLoopReplayResponse"]>;
-  list_notifications_endpoint_notifications_get: {
-    parameters: _QP<{
-        status?: _S["WorkflowEventStatus"] | null;
-        limit?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["WorkflowEventListResponse"]>;
-  };
   get_asset_class_allocation_portfolio_allocation_asset_class_get: {
     parameters: _QP<{
         as_of_date?: string | null;
