@@ -250,7 +250,17 @@ MariBank Singapore statement:
 
 # Raise this version in the same change that edits SYSTEM_PROMPT, BROKERAGE_POSITIONS_PROMPT, an entry of
 # INSTITUTION_HINTS or the shared hints block (prompts/hints.py). A run stores it, so an audit can tell which prompt text a run used.
-PARSING_PROMPT_TEMPLATE_VERSION = "2"
+PARSING_PROMPT_TEMPLATE_VERSION = "1"
+
+_HINTS_PURPOSE = """It never changes the output schema, the field names, the signs or the amounts.
+Use it only to find rows and fields that the document shows. Never invent data.
+"""
+
+
+def parsing_hints_block(hints: RunHints | None) -> str:
+    """Return the reviewer guidance of an extraction prompt."""
+    return hints_block(hints, _HINTS_PURPOSE)
+
 
 # The file types whose parse sends a prompt to a model. A CSV parse is deterministic and sends none.
 PROMPT_FILE_TYPES = frozenset({"pdf", "png", "jpg", "jpeg"})
@@ -268,7 +278,7 @@ def parsing_template_fingerprint() -> str:
     and the three paged prompts for a fixed input. A test pins this value to
     ``PARSING_PROMPT_TEMPLATE_VERSION``. A new template part belongs in this function.
     """
-    block = hints_block(RunHints(keywords=["keyword"], note="note"))
+    block = parsing_hints_block(RunHints(keywords=["keyword"], note="note"))
     return canonical_json_digest(
         {
             "system_prompt": SYSTEM_PROMPT,
@@ -311,7 +321,7 @@ def get_parsing_prompt(
             classifier (filename/institution/broker-name keywords). The bank prompt
             is left unchanged for bank documents.
         hints: Optional reviewer guidance of a run. Empty hints leave the prompt byte-identical. Other
-            hints add one block of data after the institution guidance (see ``hints_block``).
+            hints add one block of data after the institution guidance (see ``parsing_hints_block``).
     """
     base_prompt = BROKERAGE_POSITIONS_PROMPT if document_kind == "brokerage" else SYSTEM_PROMPT
     prompt = base_prompt
@@ -324,4 +334,4 @@ def get_parsing_prompt(
                 prompt += hint
                 break
 
-    return prompt + hints_block(hints)
+    return prompt + parsing_hints_block(hints)

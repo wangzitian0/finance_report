@@ -77,9 +77,9 @@ class ClassificationService:
         )
 
     async def apply_rules(
-        self, db: AsyncSession, user_id: UUID, transactions: list[AtomicTransaction]
+        self, db: AsyncSession, user_id: UUID, transactions: list[AtomicTransaction], *, run_id: UUID | None = None
     ) -> list[TransactionClassification]:
-        """Apply active rules to a list of transactions."""
+        """Apply active rules to a list of transactions. The answers that a run writes carry its id in the tags."""
         rules = await self.get_active_rules(db, user_id)
         if not rules:
             return []
@@ -109,7 +109,9 @@ class ClassificationService:
                     atomic_txn_id=txn.id,
                     rule_version_id=matched_rule.id,
                     account_id=matched_rule.default_account_id,
-                    tags=matched_rule.tag_mappings,
+                    tags=matched_rule.tag_mappings
+                    if run_id is None
+                    else {**(matched_rule.tag_mappings or {}), "run_id": str(run_id)},
                     confidence_score=self._confidence_score_for_rule(txn, matched_rule),
                     status=ClassificationStatus.APPLIED,
                 )

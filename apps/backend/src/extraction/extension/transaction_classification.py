@@ -362,7 +362,8 @@ def build_classification_prompt(
         )
     template = templates.INDEXED_PROMPT if indexed else templates.PLAIN_PROMPT
     catalog = ", ".join(c.value for c in policy.catalog)
-    return template.format(catalog=catalog, guidance=guidance, lines=lines) + hints_block(hints)
+    prompt = template.format(catalog=catalog, guidance=guidance, lines=lines)
+    return prompt + hints_block(hints, templates.HINTS_PURPOSE)
 
 
 def classification_template_fingerprint() -> str:
@@ -399,7 +400,8 @@ async def ask_model(
     assert policy is not None, "the model is off: no plan asks it"
     token = _CLASSIFICATION_USER.set(user_id)
     try:
-        return await (proposer or propose_categories)(rows, policy, **({} if hints is None or hints.is_empty else {"hints": hints}))
+        extra = {} if hints is None or hints.is_empty else {"hints": hints}
+        return await (proposer or propose_categories)(rows, policy, **extra)
     finally:
         _CLASSIFICATION_USER.reset(token)
 
@@ -678,6 +680,29 @@ async def _already_classified_ids(
     return classified | await _user_decided_txn_ids(db, user_id, txn_ids)
 
 
+async def _answered_ids(
+    db: AsyncSession, user_id: UUID, policy: ClassificationPolicy, txn_ids: Sequence[UUID], reask: bool
+) -> set[UUID]:
+    """The rows that the model is not asked for: a decision of the user, and for an automatic pass any answer."""
+    if reask:
+        return await _user_decided_txn_ids(db, user_id, txn_ids)
+    return await _already_classified_ids(db, user_id, policy.version, txn_ids)
+
+
+async def _model_rows(
+    db: AsyncSession, user_id: UUID, policy: ClassificationPolicy, txn_ids: Sequence[UUID]
+) -> dict[UUID, TransactionClassification]:
+    """The answers of this policy version that rows have: the unique key allows one, so a re-ask changes it in place."""
+    rows = await db.execute(
+        select(TransactionClassification)
+        .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
+        .where(ClassificationRule.user_id == user_id, ClassificationRule.rule_name == POLICY_RULE_NAME)
+        .where(ClassificationRule.version_number == policy.version)
+        .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
+    )
+    return {row.atomic_txn_id: row for row in rows.scalars()}
+
+
 @dataclass(frozen=True)
 class ClassificationPlan:
     """What the reads of one policy bucket found (#3028). It holds no session, so a model call needs no connection."""
@@ -690,6 +715,8 @@ class ClassificationPlan:
     to_propose: list[AtomicTransaction]  # the rows that the model answers
     auto_accept: bool
     commit_basis: bool
+    reask: bool = False  # a user run asks again for every row that has only a model answer
+    run_id: UUID | None = None  # the run whose answers these are: it goes into the tags of each answer it writes
 
     @property
     def version(self) -> int | None:
@@ -720,8 +747,13 @@ async def plan_classification(
     policy: ClassificationPolicy | None,
     *,
     commit_basis: bool = True,
+    reask: bool = False,
+    run_id: UUID | None = None,
 ) -> ClassificationPlan:
-    """Read what one policy bucket needs: the keyword rules and matches, the two flags, the rows with an answer."""
+    """Read what one policy bucket needs: the keyword rules and matches, the two flags, the rows with an answer.
+
+    An automatic pass skips every row that has an answer. A `reask` pass skips only the rows that the user decided.
+    """
     service = ClassificationService()
     rules = [r for r in await service.get_active_rules(db, user_id) if r.rule_name != POLICY_RULE_NAME]
     ruled: dict[UUID, int] = {}
@@ -735,16 +767,19 @@ async def plan_classification(
     policy = policy if enabled else None
     already: frozenset[UUID] = frozenset()
     if policy is not None and commit_basis:
-        already = frozenset(await _already_classified_ids(db, user_id, policy.version, [txn.id for txn in rows]))
+        already = frozenset(await _answered_ids(db, user_id, policy, [txn.id for txn in rows], reask))
     to_propose = [txn for txn in rows if policy is not None and txn.id not in ruled and txn.id not in already]
     auto_accept = policy is not None and await auto_accept_enabled(db, user_id)
-    return ClassificationPlan(user_id, policy, rows, ruled, already, to_propose, auto_accept, commit_basis)
+    return ClassificationPlan(
+        user_id, policy, rows, ruled, already, to_propose, auto_accept, commit_basis, reask, run_id
+    )
 
 
 async def write_rule_answers(db: AsyncSession, plan: ClassificationPlan) -> None:
     """Write the answers of the keyword rules. They need no model call."""
     if plan.commit_basis and plan.ruled:
-        await ClassificationService().apply_rules(db, plan.user_id, [txn for txn in plan.rows if txn.id in plan.ruled])
+        rows = [txn for txn in plan.rows if txn.id in plan.ruled]
+        await ClassificationService().apply_rules(db, plan.user_id, rows, run_id=plan.run_id)
 
 
 async def settle_drafts(db: AsyncSession, plan: ClassificationPlan) -> None:
@@ -768,9 +803,13 @@ async def write_answers(
     apply_threshold = policy.review_threshold if auto_accept else policy.auto_apply_threshold
     proposal_by_txn = dict(zip(rows, proposals))
     late: set[UUID] = set()
+    existing: dict[UUID, TransactionClassification] = {}
+    changed: set[UUID] = set()
     if commit_basis and any(proposal is not None for proposal in proposals):
         await _lock_policy_rule(db, user_id, policy)
-        late = await _already_classified_ids(db, user_id, policy.version, [txn.id for txn in rows])
+        late = await _answered_ids(db, user_id, policy, [txn.id for txn in rows], plan.reask)
+        if plan.reask:
+            existing = await _model_rows(db, user_id, policy, [txn.id for txn in rows if txn.id not in late])
 
     policy_rule: ClassificationRule | None = None
     category_account_cache: dict[tuple[TransactionCategory, str], Account] = {}
@@ -779,6 +818,13 @@ async def write_answers(
 
     async def add(txn: AtomicTransaction, account_id: UUID | None, tags: dict, score: int, status: ClassificationStatus):
         nonlocal policy_rule
+        if plan.run_id is not None:
+            tags = {**tags, "run_id": str(plan.run_id)}
+        if (row := existing.get(txn.id)) is not None:  # a re-ask changes the answer in place
+            row.account_id, row.tags, row.confidence_score = account_id, tags, score
+            row.status, row.superseded_by_id = status, None
+            changed.add(txn.id)
+            return
         if policy_rule is None:
             policy_rule = await _ensure_policy_rule(db, user_id, policy)
         new_rows.append(
@@ -877,7 +923,7 @@ async def write_answers(
 
     if commit_basis:
         db.add_all(new_rows)
-        wrote = {row.atomic_txn_id for row in new_rows}
+        wrote = {row.atomic_txn_id for row in new_rows} | changed
         await _supersede_older_model_rows(db, user_id, sorted(wrote | late), policy.version)
         await db.flush()
         outcomes = [o.model_copy(update={"wrote_row": True}) if o.atomic_txn_id in wrote else o for o in outcomes]

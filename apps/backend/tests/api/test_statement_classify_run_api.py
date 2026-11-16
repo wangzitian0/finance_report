@@ -110,12 +110,15 @@ async def test_AC_extraction_2994_130_post_runs_starts_a_classify_run_with_the_h
 
 
 async def test_AC_extraction_2994_130_the_run_is_committed_before_the_task_starts(client, db, monkeypatch, test_user):
-    """AC-extraction.2994.130: When the dispatch runs, another session already sees the requested run."""
+    """AC-extraction.2994.130: When the dispatch runs, the session of the request has committed, and another session sees the run."""
     seeded = await _parsed(db, test_user)
     statement_id = seeded.id
     seen: list[list[RunState]] = []
+    open_when_dispatched: list[bool] = []
 
     def submit(run_id, *, db):
+        open_when_dispatched.append(db.in_transaction())  # deterministic: a commit after the dispatch shows here
+
         async def peek():
             from src.database import create_session_maker_from_db
 
@@ -130,6 +133,7 @@ async def test_AC_extraction_2994_130_the_run_is_committed_before_the_task_start
     await _wait_for_tasks()
 
     assert response.status_code == 202, response.text
+    assert open_when_dispatched == [False], "the dispatch ran inside the transaction of the run insert"
     assert seen == [[RunState.REQUESTED]]
 
 
@@ -343,3 +347,22 @@ async def test_AC_extraction_2994_133_a_failed_run_does_not_block_the_next_one(
     assert len(ids) == 1
     everything = "\n".join(f"{r.getMessage()} {r.msg!r}" for r in caplog.records)
     assert "UNIQUE-KEYWORD-SECRET" not in everything and "UNIQUE-NOTE-SECRET" not in everything
+
+
+async def test_AC_extraction_2994_142_a_422_body_never_echoes_the_request_body(client, db, monkeypatch, test_user):
+    """AC-extraction.2994.142: Each entry of a 422 keeps loc, msg and type. No input and no ctx: the hints stay private."""
+    seeded = await _parsed(db, test_user)
+    statement_id = seeded.id
+    _spy_dispatch(monkeypatch)
+    secret = "SECRET-NOTE-TEXT"
+
+    for body in (
+        {"kind": "classify", "model": "x", "hints": {"note": secret}},  # a model validator
+        {"kind": "classify", "hints": {"note": secret + "n" * 500}},  # a field limit
+        {"kind": "classify", "hints": {"keywords": [secret + "k" * 64]}},
+    ):
+        response = await client.post(f"/statements/{statement_id}/runs", json=body)
+
+        assert response.status_code == 422, response.text
+        assert secret not in response.text, body
+        assert all(set(entry) == {"loc", "msg", "type"} for entry in response.json()["detail"]), response.text

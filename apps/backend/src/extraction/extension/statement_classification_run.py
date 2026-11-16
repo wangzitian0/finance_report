@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction.base.run_vocabulary import RunState
+from src.extraction.base.run_vocabulary import RunState, RunTrigger
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import RunHints
 from src.extraction.extension.statement_posting import (
@@ -93,7 +93,7 @@ async def execute_classify_run(
         async with session_maker() as session:
             run = await claim_run(session, run_id)
             statement_id, user_id = run.statement_id, run.user_id
-            hints = RunHints.model_validate(run.hints)  # the run row is immutable: its hints are the hints of this run
+            reask = run.trigger is RunTrigger.RERUN  # a user run asks again for the rows that have a model answer
             candidate = await _parent_marked_candidate(session, run.parent_run_id)
             await session.commit()
     except StaleRun:
@@ -107,8 +107,9 @@ async def execute_classify_run(
     posted = 0
     deadline = asyncio.timeout(deadline_seconds)
     try:
+        hints = RunHints.model_validate(run.hints)  # after the claim committed; the run row is immutable
         async with deadline:
-            outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id, hints)
+            outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id, hints, reask)
         # A candidate keeps its run active: the run ends in the transaction of the auto-approve.
         if candidate:
             posted = await _approve_and_finish(
@@ -170,7 +171,7 @@ async def _beat(session: AsyncSession, run_id: UUID, progress: dict | None = Non
 
 
 async def _plan(
-    session: AsyncSession, statement_id: UUID, user_id: UUID
+    session: AsyncSession, statement_id: UUID, user_id: UUID, run_id: UUID, reask: bool
 ) -> tuple[ClassifyOutcome | None, list[ClassificationPlan]]:
     """Phase a, reads only: the plan of each policy bucket. The outcome is set when there is nothing to plan."""
     statement = await session.get(StatementSummary, statement_id)
@@ -186,16 +187,25 @@ async def _plan(
     if not rows:
         return ClassifyOutcome.NOTHING_TO_CLASSIFY, []
     buckets = await policy_buckets(session, user_id, rows, tolerate_pre_policy=True)
-    return None, [await plan_classification(session, user_id, bucket, policy) for policy, bucket in buckets]
+    plans = [
+        await plan_classification(session, user_id, rows_, policy, reask=reask, run_id=run_id)
+        for policy, rows_ in buckets
+    ]
+    return None, plans
 
 
 async def _classify_in_phases(
-    session_maker: async_sessionmaker[AsyncSession], run_id: UUID, statement_id: UUID, user_id: UUID, hints: RunHints
+    session_maker: async_sessionmaker[AsyncSession],
+    run_id: UUID,
+    statement_id: UUID,
+    user_id: UUID,
+    hints: RunHints,
+    reask: bool,
 ) -> tuple[ClassifyOutcome, dict]:
     """Run the phases. Return the outcome and the summary, which holds counts only. The run itself is still running."""
     started = time.perf_counter()
     async with session_maker() as session:
-        skipped, plans = await _plan(session, statement_id, user_id)
+        skipped, plans = await _plan(session, statement_id, user_id, run_id, reask)
     batches = [(plan, batch) for plan in plans for batch in model_batches(plan.to_propose, plan.policy)]
     _log(
         "plan",

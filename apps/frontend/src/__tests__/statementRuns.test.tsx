@@ -180,7 +180,7 @@ describe("Parsing attempts and Run again on the statement page", () => {
     mockApi({ runs: () => [makeRun({ seq: 1, state, finished_at: state === "running" ? null : "2026-01-05T08:01:00Z" })] });
     render(<StatementDetailPage />);
 
-    expect(await screen.findByText(/A parse is running/)).toBeInTheDocument();
+    expect(await screen.findByText(/A run is in progress/)).toBeInTheDocument();
     expect(runAgainButton()).toBeDisabled();
     fireEvent.click(runAgainButton());
     expect(runPosts()).toHaveLength(0);
@@ -191,7 +191,7 @@ describe("Parsing attempts and Run again on the statement page", () => {
       await vi.advanceTimersByTimeAsync(3100);
     });
     await waitFor(() => expect(runAgainButton()).toBeEnabled());
-    expect(screen.queryByText(/A parse is running/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/A run is in progress/)).not.toBeInTheDocument();
     expect(runListCalls().length).toBeGreaterThan(callsWhileActive);
 
     const callsAfterEnd = runListCalls().length;
@@ -205,7 +205,7 @@ describe("Parsing attempts and Run again on the statement page", () => {
     mockApi({ runs: () => [makeRun({ seq: 1, state: "requested", started_at: null, finished_at: null })] });
     render(<StatementDetailPage />);
 
-    await screen.findByText(/A parse is running/);
+    await screen.findByText(/A run is in progress/);
 
     expect(runAgainButton()).toBeDisabled();
   });
@@ -248,8 +248,8 @@ describe("Parsing attempts and Run again on the statement page", () => {
     fireEvent.click(runAgainButton());
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("A parse is already running for this statement. Wait for it to end, then run again.");
-    expect(showToastMock).toHaveBeenCalledWith(expect.stringContaining("already running"), "error");
+    expect(alert).toHaveTextContent("A run is already in progress for this statement. Wait for it to end, then run again.");
+    expect(showToastMock).toHaveBeenCalledWith(expect.stringContaining("already in progress"), "error");
   });
 
   it("AC-extraction.2994.59 says that the statement changed for a 409 without an active run", async () => {
@@ -396,7 +396,7 @@ describe("Parsing attempts and Run again on the statement page", () => {
     });
 
     expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();
-    expect(await screen.findByText(/A parse is running/)).toBeInTheDocument();
+    expect(await screen.findByText(/A run is in progress/)).toBeInTheDocument();
     expect(runAgainButton()).toBeDisabled();
   });
 
@@ -546,13 +546,17 @@ describe("Classify again on the statement page (#2994, S4b-1)", () => {
   it("AC-extraction.2994.136 disables the panel while a classify run is active", async () => {
     mockApi({ status: "parsed", runs: () => [makeRun({ seq: 1, kind: "classify", state: "running", finished_at: null })] });
     render(<StatementDetailPage />);
-    await screen.findByText(/A parse is running/);
+    await screen.findByText(/A run is in progress/);
 
-    expect(runAgainButton()).toBeDisabled();
     fireEvent.click(classifyRadio());
     fireEvent.click(runAgainButton());
+    // The mutation is asynchronous: wait for the settled state before the check, so that a post cannot hide.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
 
     expect(runPosts()).toHaveLength(0);
+    expect(runAgainButton()).toBeDisabled();
   });
 
   it("AC-extraction.2994.136 shows the same fixed sentences and reads the runs again after a 409 or a 422 of a classify run", async () => {
@@ -568,7 +572,7 @@ describe("Classify again on the statement page (#2994, S4b-1)", () => {
 
     fireEvent.click(runAgainButton());
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("A parse is already running for this statement. Wait for it to end, then run again.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("A run is already in progress for this statement. Wait for it to end, then run again.");
     await waitFor(() => expect(runListCalls().length).toBeGreaterThan(runsBefore));
     reply = () => Promise.reject(new ApiError("unprocessable", 422, "validation_error", null, hintsEcho as never));
 

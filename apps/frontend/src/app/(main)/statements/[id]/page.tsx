@@ -413,13 +413,13 @@ export default function StatementDetailPage() {
     },
     onError: (err) => {
       const conflict = err instanceof ApiError && err.status === 409;
-      // Only a 409 with an `active_run_id` means that a parse runs. Any other 409 says that the statement changed.
+      // Only a 409 with an `active_run_id` means that a run is in progress. Any other 409 says that the statement changed.
       const activeRunId = conflict ? (err.body as { active_run_id?: string } | null)?.active_run_id : undefined;
       // A 422 body echoes the hints that the user typed. The page shows one fixed sentence, never that body.
       const invalid = err instanceof ApiError && err.status === 422;
       const message = conflict
         ? activeRunId
-          ? "A parse is already running for this statement. Wait for it to end, then run again."
+          ? "A run is already in progress for this statement. Wait for it to end, then run again."
           : "The statement changed. Reload the page."
         : invalid
           ? INVALID_HINTS_MESSAGE

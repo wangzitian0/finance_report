@@ -921,7 +921,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.56|The statement page lists each attempt, newest first, with actor, trigger, state, hints and error code.|AC-extraction.2994.56 lists each attempt, newest first, with actor, trigger, state, hints and error code
 2994.57|Run again posts the typed hints through the runs operation, trimmed keywords and the note as typed.|AC-extraction.2994.57 posts the hints exactly as typed through the runs operation
 2994.58|Run again is disabled while a run is requested or running, and the attempts refetch while one is active.|AC-extraction.2994.58 disables Run again while a run is active, refetches the attempts, and enables it when the run ends
-2994.59|A 409 with active_run_id says that a parse runs, and any other 409 says that the statement changed.|AC-extraction.2994.59 names the active run when the 409 body carries active_run_id
+2994.59|A 409 with active_run_id says that a run is in progress, and any other 409 says that the statement changed.|AC-extraction.2994.59 names the active run when the 409 body carries active_run_id
 2994.60|The form allows 20 keywords of 64 characters and a note of 500 characters.|AC-extraction.2994.60 enforces 20 keywords of 64 characters and a note of 500 characters
 2994.61|The note of the reject dialog stops at 500 characters.|AC-extraction.2994.61 limits the note of the reject dialog to 500 characters
 2994.62|An approved statement has no Run again panel, and no Retry Parse button exists.|AC-extraction.2994.62 offers no Run again for an approved statement and has no Retry Parse button
@@ -954,7 +954,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.104|No advisory lock, lock wait constant or busy error guards the classification.|test_AC_extraction_2994_104_no_advisory_lock_guards_the_classification
 @$be/extraction/test_statement_classify_hints.py|P1
 2994.124|Empty hints leave the classification prompt byte-identical to the prompt before this change.|test_AC_extraction_2994_124_empty_hints_leave_the_classification_prompt_byte_identical
-2994.125|Hints add one block of data as the last part of the classification prompt. Hostile hint text stays in its JSON string. An answer outside the catalog still counts as other.|test_AC_extraction_2994_125_hints_append_one_block_as_the_last_part_of_the_prompt
+2994.125|Hints add one block of data as the last part of the classification prompt, with the purpose line of that prompt. Hostile hint text stays in its JSON string. An answer outside the catalog still counts as other.|test_AC_extraction_2994_125_hints_append_one_block_as_the_last_part_of_the_prompt
 2994.126|One fingerprint over every part of the classification prompt is pinned to its template version.|test_AC_extraction_2994_126_every_template_part_is_pinned_to_its_template_version
 2994.127|One function gives the digest of the run inputs for an extract run and a classify run. Every classify run stores the template version and the digest.|test_AC_extraction_2994_127_one_digest_function_serves_both_kinds_of_run
 2994.128|The classify run passes the hints of its run row to every model call. Stored hints that no longer validate fail the run without their text.|test_AC_extraction_2994_128_the_run_passes_the_hints_of_its_row_to_every_model_call
@@ -964,6 +964,13 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
 2994.131|The API process runs a classify run as a tracked background task. A dispatch failure fails the run with dispatch_failed and leaves no active run.|test_AC_extraction_2994_131_the_background_task_runs_the_run_with_the_hints
 2994.132|A classify run needs a PARSED statement, gives 409 with active_run_id for an active run, and takes no model.|test_AC_extraction_2994_132_an_active_run_gives_409_with_its_id_and_starts_nothing
 2994.133|A second classify run asks only the rows without an answer. A failed run does not block the next one.|test_AC_extraction_2994_133_a_second_classify_run_asks_only_the_rows_without_an_answer
+2994.142|A 422 body keeps only loc, msg and type of each error. It never echoes the request body, so the hints stay private.|test_AC_extraction_2994_142_a_422_body_never_echoes_the_request_body
+@$be/extraction/test_statement_classify_reask.py|P1
+2994.137|A user classify run asks again for every row that has only a model answer, and changes that answer in place. It does not ask again for a keyword-rule row, a row that the user decided or a row that a posted entry covers.|test_AC_extraction_2994_137_a_user_run_asks_again_for_a_model_answer_and_changes_it_in_place
+2994.138|Every answer that a classify run writes or changes carries the id of the run in its tags.|test_AC_extraction_2994_138_every_answer_that_a_run_writes_or_changes_carries_its_run_id
+2994.139|An automatic classify run still asks only for rows without an answer.|test_AC_extraction_2994_139_an_automatic_run_still_asks_only_the_rows_without_an_answer
+2994.140|A re-ask that fails in batch 2 keeps the changes of batch 1.|test_AC_extraction_2994_140_a_re_ask_that_fails_in_batch_2_keeps_the_changes_of_batch_1
+2994.141|A re-ask keeps the original-answer tags of a fallback in the same row.|test_AC_extraction_2994_141_a_re_ask_keeps_the_original_answer_semantics_of_a_fallback
 @$be/extraction/test_statement_classify_run_phases.py|P1
 2994.96|Each batch write refreshes heartbeat_at on the run row. No heartbeat task runs. Six batches of 59 s do not get the run reaped. The 180 s deadline covers the plan, the rule answers and every batch, and is shorter than the stale threshold.|test_AC_extraction_2994_96_each_batch_write_refreshes_the_heartbeat_so_a_batch_of_59_seconds_is_never_reaped
 2994.116|A failed or timed-out classify run keeps the batches that it wrote. The next run asks the model only for rows without an answer.|test_AC_extraction_2994_116_a_failed_batch_keeps_the_earlier_batches_and_the_next_run_asks_only_the_rest
