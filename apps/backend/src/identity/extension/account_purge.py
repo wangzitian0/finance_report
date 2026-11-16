@@ -1,12 +1,16 @@
-"""Purge throwaway test/QA accounts and all the data they own (#997 item 4)."""
+"""Purge throwaway test/QA accounts and staging tenant data (#997, #3050)."""
 
 from __future__ import annotations
 
+import importlib
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Table, delete, select
+from sqlalchemy import Column, Table, delete, func, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +21,38 @@ from src.observability import get_logger
 logger = get_logger(__name__)
 
 DEFAULT_TEST_EMAIL_PATTERN = r"^(qa[._].*|e2e[-_].*|load-test[-_].*)@(test\.)?example\.com$"
+STAGING_DISPOSABLE_EMAIL_PATTERN = (
+    r"^(?:"
+    r"qa[._].*|qa-(?!staging-verify$)[^@]*|"
+    r"e2e[-_].*|load-test[-_].*|agent[-_](?:random|acceptance)[-_].*|"
+    r"(?:statements|accounts)_journey[-_].*|recon_(?:disposition|probe)[-_].*|"
+    r"journal_(?:create|falsify)[-_].*|case\d+[-_].*|case_ui[-_].*|"
+    r"pdf_oracle[-_].*|holdout[-_].*|oracle_\d+[-_].*|"
+    r"probe\w*[-_].*|test_(?:bench|wf|ping)[-_].*|test-probe-staging|"
+    r"ux_(?:empty|pop|verify|review|bench|extended_walk|browser_walk)[-_].*|"
+    r"ui_(?:probe|agent|bench|test)[-_].*|staging_(?:verify|open_verify|adv|e2e_\d+|bsb_.*|real_ai|gap_verify)[-_]?.*|"
+    r"staging-playwright\+.*|jui\d+[-_].*|diag(?:_.*|-\w+)?|browser-probe[-_].*|manual-test[-_].*|"
+    r"model_probe[-_].*|codex-(?:staging|debug|mobile|api|upload).*|flow_(?:ui_verifier|debug)[-_].*|"
+    r"debug[_-].*|poststress\d*[-_].*|ssot_probe_\d+[-_].*|u13_probe[-_].*|bc_probe[-_].*|"
+    r"hygiene_test[-_].*|pw_(?:locator_test\d*|test_\d+)|fx-test[-_].*|rl_[ab][-_].*|silk[-_].*|"
+    r"bughunt\d*[-_+].*|oos-(?:trial|seq)[-_].*|cf_(?:fetch|check)[-_].*|fetch_me_test[-_].*|"
+    r"link_nav[-_].*|links[-_].*|exact_err[-_].*|why-stuck[-_].*|nav_test[-_].*|inspect[-_].*|"
+    r"correct_cookie[-_].*|curl_test_cookie|dogfood(?:_bench)?[-_].*|benchmark[-_].*|walk[-_].*|"
+    r"s3_probe[-_].*|card_click[-_].*|bsb\d+[-_].*"
+    r")@(?:test\.)?example\.com$"
+    r"|^qa-(?:sweep|combo|bughunt)-.*@test\.zitian\.party$"
+)
+PERSISTENT_TEST_EMAILS: frozenset[str] = frozenset(
+    {
+        "qa_real_statements@test.example.com",
+        "qa-staging-verify@test.example.com",
+        "ux-cockpit-demo@zitian.party",
+        "test@g.cn",
+    }
+)
 SAFE_PURGE_ENVIRONMENTS = frozenset({"development", "dev", "local", "test", "testing", "ci", "staging"})
+_TENANT_TRACE_TABLES = ("trace_record_parents", "trace_records")
+_PURGE_BATCH_SIZE = 250
 
 
 def is_safe_purge_environment(environment: str | None) -> bool:
@@ -47,14 +82,60 @@ class _DryRunRollback(Exception):
     pass
 
 
+def _ensure_orm_registry() -> None:
+    """Register every ORM model onto Base.metadata without introducing static cross-domain imports."""
+    importlib.import_module("src.orm_registry")
+
+
 def owned_tables_in_delete_order() -> list[Table]:
+    """Return every user-owned table in leaf-to-root foreign-key deletion order."""
+    _ensure_orm_registry()
     return [t for t in reversed(Base.metadata.sorted_tables) if t.name != User.__tablename__ and "user_id" in t.c]
 
 
-async def select_test_user_ids(session: AsyncSession, pattern: str) -> list[tuple[UUID, str]]:
+def _child_fk_links() -> list[tuple[Table, list[tuple[Column[Any], Column[Any]]]]]:
+    """Return non-user_id child tables paired with FK links pointing into user-owned tables."""
+    _ensure_orm_registry()
+    owned_names = {t.name for t in Base.metadata.sorted_tables if t.name != User.__tablename__ and "user_id" in t.c}
+    result: list[tuple[Table, list[tuple[Column[Any], Column[Any]]]]] = []
+    for table in reversed(Base.metadata.sorted_tables):
+        if table.name == User.__tablename__ or "user_id" in table.c:
+            continue
+        links = [
+            (fk.parent, fk.column)
+            for fk in table.foreign_keys
+            if fk.column.table.name in owned_names and "user_id" in fk.column.table.c
+        ]
+        if links:
+            result.append((table, links))
+    return result
+
+
+def non_user_child_tables_in_delete_order() -> list[Table]:
+    """Return child tables lacking ``user_id`` whose FKs reference user-owned tables."""
+    return [table for table, _ in _child_fk_links()]
+
+
+async def select_test_user_ids(
+    session: AsyncSession,
+    pattern: str,
+    *,
+    older_than_days: int | None = None,
+    exclude_emails: Iterable[str] = (),
+) -> list[tuple[UUID, str]]:
+    """Select test account ``(id, email)`` pairs matching regex, age, and allowlist."""
     matcher = re.compile(pattern, re.IGNORECASE)
-    result = await session.execute(select(User.id, User.email).order_by(User.email))
-    return [(row.id, row.email) for row in result if matcher.match(row.email or "")]
+    excluded = {email.strip().lower() for email in exclude_emails if email and email.strip()}
+    stmt = select(User.id, User.email).order_by(User.email)
+    if older_than_days is not None and older_than_days > 0:
+        cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
+        stmt = stmt.where(User.created_at < cutoff)
+    result = await session.execute(stmt)
+    return [
+        (row.id, row.email)
+        for row in result
+        if row.email and row.email.strip().lower() not in excluded and matcher.match(row.email)
+    ]
 
 
 def _block_reason(exc: Exception) -> str:
@@ -63,10 +144,44 @@ def _block_reason(exc: Exception) -> str:
     return text.splitlines()[0] if text else exc.__class__.__name__
 
 
-async def _purge_one(session: AsyncSession, user_id: UUID, tables: list[Table]) -> None:
-    for table in tables:
-        await session.execute(delete(table).where(table.c.user_id == user_id))
-    await session.execute(delete(User).where(User.id == user_id))
+def _tenant_scope_value(table: Table) -> object:
+    col_type = table.c.scope_kind.type
+    enum_class = getattr(col_type, "enum_class", None)
+    return enum_class["TENANT"] if enum_class is not None else "TENANT"
+
+
+async def _delete_tenant_batch(
+    session: AsyncSession,
+    user_ids: Sequence[UUID],
+    owned_tables: list[Table],
+    child_links: list[tuple[Table, list[tuple[Column[Any], Column[Any]]]]],
+    *,
+    include_tenant_traces: bool,
+) -> None:
+    """Delete a batch of users from leaf tables up through child, trace, owned, and user rows."""
+    if not user_ids:
+        return
+    id_list = list(user_ids)
+    for child_table, links in child_links:
+        local_col, target_col = links[0]
+        await session.execute(
+            delete(child_table).where(local_col.in_(select(target_col).where(target_col.table.c.user_id.in_(id_list))))
+        )
+    if include_tenant_traces:
+        id_strs = [str(uid) for uid in id_list]
+        for trace_table_name in _TENANT_TRACE_TABLES:
+            trace_table = Base.metadata.tables.get(trace_table_name)
+            if trace_table is not None:
+                scope_val = _tenant_scope_value(trace_table)
+                await session.execute(
+                    delete(trace_table).where(
+                        trace_table.c.scope_kind == scope_val,
+                        trace_table.c.scope_id.in_(id_strs),
+                    )
+                )
+    for table in owned_tables:
+        await session.execute(delete(table).where(table.c.user_id.in_(id_list)))
+    await session.execute(delete(User).where(User.id.in_(id_list)))
 
 
 async def purge_test_accounts(
@@ -81,11 +196,18 @@ async def purge_test_accounts(
     if not users:
         return report
 
-    tables = owned_tables_in_delete_order()
+    owned_tables = owned_tables_in_delete_order()
+    child_links = _child_fk_links()
     for user_id, email in users:
         try:
             async with session.begin_nested():
-                await _purge_one(session, user_id, tables)
+                await _delete_tenant_batch(
+                    session,
+                    [user_id],
+                    owned_tables,
+                    child_links,
+                    include_tenant_traces=False,
+                )
                 if not apply:
                     raise _DryRunRollback
         except _DryRunRollback:
@@ -97,4 +219,88 @@ async def purge_test_accounts(
         else:
             report.purged.append(email)
             logger.info("test-account purged", email=email)
+    return report
+
+
+async def _set_postgresql_replication_role(session: AsyncSession, role: str) -> bool:
+    conn = await session.connection()
+    if conn.dialect.name != "postgresql":
+        return False
+    await session.execute(text(f"SET LOCAL session_replication_role = '{role}'"))
+    return True
+
+
+async def purge_staging_tenant_data(
+    session: AsyncSession,
+    *,
+    environment: str | None,
+    pattern: str = STAGING_DISPOSABLE_EMAIL_PATTERN,
+    older_than_days: int = 14,
+    exclude_emails: Iterable[str] = PERSISTENT_TEST_EMAILS,
+    apply: bool = False,
+) -> PurgeReport:
+    """Reclaim aged disposable staging tenants including append-only ledger/trace/envelope rows.
+
+    Refuses non-staging/production environments before executing any statement. Runs inside a
+    savepoint with ``SET LOCAL session_replication_role = 'replica'`` so production DDL triggers
+    remain untouched while leaf-to-root deletes leave zero orphan rows.
+    """
+    if not is_safe_purge_environment(environment):
+        raise PermissionError(f"Refusing staging tenant rotation in unsafe environment {environment!r}")
+
+    report = PurgeReport(applied=apply)
+    users = await select_test_user_ids(
+        session,
+        pattern,
+        older_than_days=older_than_days,
+        exclude_emails=exclude_emails,
+    )
+    report.matched = [email for _, email in users]
+    if not users:
+        return report
+
+    owned_tables = owned_tables_in_delete_order()
+    child_links = _child_fk_links()
+    try:
+        async with session.begin_nested():
+            switched = await _set_postgresql_replication_role(session, "replica")
+            try:
+                for start in range(0, len(users), _PURGE_BATCH_SIZE):
+                    batch = users[start : start + _PURGE_BATCH_SIZE]
+                    batch_ids = [uid for uid, _ in batch]
+                    await _delete_tenant_batch(
+                        session,
+                        batch_ids,
+                        owned_tables,
+                        child_links,
+                        include_tenant_traces=True,
+                    )
+            finally:
+                if switched:
+                    await _set_postgresql_replication_role(session, "origin")
+
+            # Verify zero remaining trace or user rows for deleted tenants before committing.
+            trace_table = Base.metadata.tables.get("trace_records")
+            if trace_table is not None:
+                scope_val = _tenant_scope_value(trace_table)
+                leftover_traces = (
+                    await session.execute(
+                        select(func.count())
+                        .select_from(trace_table)
+                        .where(
+                            trace_table.c.scope_kind == scope_val,
+                            trace_table.c.scope_id.in_([str(uid) for uid, _ in users]),
+                        )
+                    )
+                ).scalar_one()
+                if leftover_traces:
+                    raise RuntimeError(f"Post-purge check found {leftover_traces} leftover trace_records")
+
+            if not apply:
+                raise _DryRunRollback
+    except _DryRunRollback:
+        report.purged.extend(email for _, email in users)
+    else:
+        report.purged.extend(email for _, email in users)
+        logger.info("staging tenant rotation applied", purged_count=len(users))
     return report
