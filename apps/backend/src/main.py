@@ -52,7 +52,6 @@ from src.platform import (
     RateLimiter,
     SubscriberRegistry,
     get_client_ip,
-    platform_system_router,
 )
 from src.portfolio import PositionService
 from src.pricing import (
@@ -369,6 +368,5 @@ for _router in (
     portfolio.router,
     workflow.router,
     runtime_system_router,
-    platform_system_router,
 ):
     app.include_router(_router, responses=COMMON_ERROR_RESPONSES)

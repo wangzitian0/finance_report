@@ -1906,8 +1906,6 @@ export interface components {
       email?: string | null;
     };
     ValidationError: {
-      ctx?: Record<string, never>;
-      input?: unknown;
       loc: (string | number)[];
       msg: string;
       type: string;
