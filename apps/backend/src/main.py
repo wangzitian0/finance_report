@@ -4,7 +4,7 @@
 import asyncio
 import time
 import traceback
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 from uuid import uuid4
@@ -40,11 +40,9 @@ from src.observability import (
     configure_otel_metrics,
     current_request_id,
     get_logger,
-    http_route_label_from_scope,
     log_observability_startup,
     log_security_warning,
     mark_fastapi_instrumentation_active,
-    record_http_request,
     record_rate_limit_rejected,
 )
 from src.platform import (
@@ -137,20 +135,24 @@ def _init_otel_instrumentation() -> None:
         logger.warning("OTEL instrumentation not available", exc_info=True)
 
 
-def _instrument_fastapi_app(app: FastAPI) -> None:
-    if not settings.otel_exporter_otlp_endpoint:
-        return
-    try:
-        from opentelemetry.instrumentation.fastapi import (
-            FastAPIInstrumentor,  # pyright: ignore[reportMissingImports]
-        )
+_PROBE_PATHS = frozenset({"/health"})
+_RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
+    {"/ping", "/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
+)
 
-        FastAPIInstrumentor.instrument_app(app)
-        mark_fastapi_instrumentation_active(True)
-        logger.info("OTEL FastAPI request instrumentation applied")
-    except Exception:  # pragma: no cover
-        mark_fastapi_instrumentation_active(False)
-        logger.warning("OTEL FastAPI instrumentation not available", exc_info=True)
+
+def _is_probe_scope(scope: Mapping[str, Any]) -> bool:
+    return scope.get("path") in _PROBE_PATHS
+
+
+def _sync_fastapi_telemetry_status(target_app: FastAPI) -> bool:
+    """Sync request_instrumentation_active from FastAPI's built-in OTel middleware."""
+    native = getattr(target_app, "_native_telemetry", None)
+    active = bool(settings.otel_exporter_otlp_endpoint and native is not None and native.enabled())
+    mark_fastapi_instrumentation_active(active)
+    if active:
+        logger.info("FastAPI built-in OTel telemetry active")
+    return active
 
 
 _init_otel_instrumentation()
@@ -187,13 +189,9 @@ app = FastAPI(
     description="Personal financial management system with double-entry bookkeeping",
     version="0.1.0",
     lifespan=lifespan,
+    telemetry={"exclude": _is_probe_scope},
 )
-_instrument_fastapi_app(app)
-
-_PROBE_PATHS = frozenset({"/health"})
-_RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
-    {"/ping", "/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
-)
+_sync_fastapi_telemetry_status(app)
 
 
 def _is_successful_probe(path: str, status_code: int) -> bool:
@@ -232,22 +230,10 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
         if not _is_successful_probe(request.url.path, response.status_code):
             logger.info("HTTP Request", status_code=response.status_code, duration_ms=duration_ms)
-        record_http_request(
-            method=request.method,
-            route=http_route_label_from_scope(request.scope),
-            status_code=response.status_code,
-            duration_ms=duration_ms,
-        )
         response.headers["X-Request-ID"] = request_id
         return response
     except Exception as exc:
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        record_http_request(
-            method=request.method,
-            route=http_route_label_from_scope(request.scope),
-            status_code=500,
-            duration_ms=duration_ms,
-        )
         logger.exception(
             "HTTP Request Failed", duration_ms=duration_ms, error=str(exc), error_id=ErrorIds.UNHANDLED_EXCEPTION
         )

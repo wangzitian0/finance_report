@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Finance Report Backend - FastAPI + SQLAlchemy"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.111.0",
+    "fastapi>=0.162.2",
     "uvicorn[standard]>=0.30.0",
     "sqlalchemy[asyncio]>=2.0.30",
     "asyncpg>=0.29.0",
@@ -23,7 +23,6 @@ dependencies = [
     "pyjwt>=2.10.1",
     "opentelemetry-sdk>=1.24.0",
     "opentelemetry-exporter-otlp-proto-http>=1.24.0",
-    "opentelemetry-instrumentation-fastapi>=0.45b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.45b0",
     "opentelemetry-instrumentation-httpx>=0.45b0",
     "bcrypt==4.0.1",

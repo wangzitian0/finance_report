@@ -1,5 +1,13 @@
-'AC-runtime.1.1 AC-testing.ci-integration.1 AC-runtime.1.2 AC-runtime.1.3 AC-runtime.1.4 AC-testing.ci-integration.2 AC-testing.ci-integration.3 AC-testing.ci-integration.4 AC-testing.journeys.1 AC-testing.journeys.2 AC-testing.must-have.1'; from __future__ import annotations; from pathlib import Path; from src.main import app; REPO_ROOT = Path(__file__).resolve().parents[4]
-def test_api_health_endpoint_contract() -> None: 'AC-runtime.1.1 AC-runtime.1.2 AC-testing.must-have.1 AC-testing.journeys.1'; route_paths = [route.path for route in app.routes]; assert '/health' in route_paths
+'AC-runtime.1.1 AC-testing.ci-integration.1 AC-runtime.1.2 AC-runtime.1.3 AC-runtime.1.4 AC-testing.ci-integration.2 AC-testing.ci-integration.3 AC-testing.ci-integration.4 AC-testing.journeys.1 AC-testing.journeys.2 AC-testing.must-have.1'
+from __future__ import annotations
+from pathlib import Path
+from fastapi.routing import iter_route_contexts
+from src.main import app
+REPO_ROOT = Path(__file__).resolve().parents[4]
+def test_api_health_endpoint_contract() -> None:
+    """AC-runtime.1.1 AC-runtime.1.2 AC-testing.must-have.1 AC-testing.journeys.1"""
+    route_paths = [getattr(context.route, "path", None) for context in iter_route_contexts(app.routes)]
+    assert "/health" in route_paths
 def test_frontend_api_proxy_routing_contract() -> None: 'AC-runtime.1.3'; next_config_path = REPO_ROOT / 'apps' / 'frontend' / 'next.config.js'; next_config_mjs = REPO_ROOT / 'apps' / 'frontend' / 'next.config.mjs'; config_file = next_config_path if next_config_path.exists() else next_config_mjs; assert config_file.exists(), 'Frontend Next.js config must exist'; content = config_file.read_text(encoding='utf-8'); assert 'rewrites' in content or 'env' in content or 'destination' in content or ('BACKEND_URL' in content)
 def test_database_environment_isolation_contract() -> None: 'AC-runtime.1.4 AC-testing.ci-integration.4'; from src.config import settings; db_url = str(settings.database_url); assert 'production' not in db_url.lower(); assert 'prod.internal' not in db_url.lower()
 def test_ci_workflow_contracts() -> None: 'AC-testing.ci-integration.1 AC-testing.ci-integration.3'; ci_yml = (REPO_ROOT / '.github' / 'workflows' / 'ci.yml').read_text(encoding='utf-8'); assert 'backend:' in ci_yml; assert 'frontend-vitest:' in ci_yml; assert 'ac-traceability:' not in ci_yml

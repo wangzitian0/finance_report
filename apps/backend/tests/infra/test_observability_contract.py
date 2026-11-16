@@ -37,21 +37,76 @@ def test_AC10_11_2_financial_mutation_audit_helpers_and_callsites() -> None: 'AC
 def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None: 'AC-observability.11.3'; safe = observability_module.safe_log_fields({'error_body': 'provider raw response with prompt and account 123456789', 'nested': {'provider_response': 'raw JSON'}}); assert safe['error_body'] == '[REDACTED]'; assert safe['nested']['provider_response'] == '[REDACTED]'; long_message = 'x' * 500; assert observability_module.safe_error_message(long_message).endswith('...'); assert len(observability_module.safe_error_message(long_message)) <= 300; pii_message = observability_module.safe_error_message('provider failed for alice@example.com and account 123456789'); assert 'alice@example.com' not in pii_message; assert '123456789' not in pii_message; assert '[EMAIL]' in pii_message; assert '[BANK_ACCOUNT]' in pii_message; extraction = _read(REPO_ROOT / 'apps' / 'backend' / 'src' / 'extraction' / 'extension'); assert 'error_body=' not in extraction; assert 'safe_error_message=' in extraction; assert 'OCR layout parsing failed: HTTP {response.status_code}: {error_body}' not in extraction
 async def test_AC10_9_3_health_response_includes_redacted_observability_status(monkeypatch) -> None: 'AC-observability.9.3'; from src.boot import Bootloader, ServiceStatus; from src.runtime.extension.api import health_check; mock_db = AsyncMock(); monkeypatch.setattr(Bootloader, '_check_s3', AsyncMock(return_value=ServiceStatus('s3', 'ok', 'Reachable'))); monkeypatch.setattr(observability_module.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); monkeypatch.setattr(observability_module.settings, 'otel_service_name', 'finance-report-backend'); monkeypatch.setattr(observability_module.settings, 'otel_resource_attributes', 'deployment.environment=production'); response = await health_check(full=True, db=mock_db); payload = json.loads(response.body); assert response.status_code == 200; assert payload['checks'] == {'database': True, 's3': True}; assert payload['observability']['service_name'] == 'finance-report-backend'; assert payload['observability']['deployment_environment'] == 'production'; assert 'alert_rule_name' not in payload['observability']; assert 'otel_exporter_otlp_endpoint' not in payload['observability']; assert 'collector:4318' not in json.dumps(payload)
 def test_AC10_4_3_main_instruments_fastapi_app_instance() -> None:
-    'AC-observability.4.3'; source = _read(REPO_ROOT / 'apps' / 'backend' / 'src' / 'main.py'); assert 'FastAPIInstrumentor.instrument_app(app)' in source; assert '_instrument_fastapi_app(app)' in source; assert 'FastAPIInstrumentor.instrument()' not in source; 'AC-observability.4.3'; 'AC-observability.4.3'; _m1_original = observability_module.is_fastapi_instrumentation_active()
-    try: observability_module.mark_fastapi_instrumentation_active(False); _m1_status = observability_module.get_observability_status(); assert _m1_status['request_instrumentation_active'] is False; assert 'service_version' in _m1_status; observability_module.mark_fastapi_instrumentation_active(True); assert observability_module.get_observability_status()['request_instrumentation_active'] is True
-    finally: observability_module.mark_fastapi_instrumentation_active(_m1_original)
-    from src.observability import ErrorIds; assert ErrorIds.HEALTH_CHECK_FAILED == 'ERR_SYS_001'; assert ErrorIds.UNHANDLED_EXCEPTION == 'ERR_SYS_002'; 'AC-observability.11.3'; 'AC-observability.11.3'; import ast; _m3_backend_src = REPO_ROOT / 'apps' / 'backend' / 'src'; _m3_offenders: list[str] = []
-    for _m3_path in sorted(_m3_backend_src.rglob('*.py')):
-        if '__pycache__' in _m3_path.parts: continue
-        _m3_tree = ast.parse(_m3_path.read_text(encoding='utf-8'), filename=str(_m3_path))
-        for _m3_node in ast.walk(_m3_tree):
-            if not isinstance(_m3_node, ast.Call): continue
-            _m3_func = _m3_node.func
-            if not (isinstance(_m3_func, ast.Attribute) and isinstance(_m3_func.value, ast.Name) and (_m3_func.value.id == 'logger')): continue
-            _m3_rel = _m3_path.relative_to(REPO_ROOT)
-            for _m3_kw in _m3_node.keywords: _m3_offenders.append(f'{_m3_rel}:{_m3_node.lineno} passes raw_preview=') if _m3_kw.arg == 'raw_preview' else None; _m3_offenders.append(f'{_m3_rel}:{_m3_node.lineno} slices content[...] in logger.{_m3_func.attr}') if isinstance(_m3_kw.value, ast.Subscript) and isinstance(_m3_kw.value.value, ast.Name) and (_m3_kw.value.value.id == 'content') else None
-            [_m3_offenders.append(f'{_m3_rel}:{_m3_node.lineno} slices content[...] in logger.{_m3_func.attr}') if isinstance(_m3_arg, ast.Subscript) and isinstance(_m3_arg.value, ast.Name) and (_m3_arg.value.id == 'content') else None for _m3_arg in _m3_node.args]
-    assert not _m3_offenders, f'Logger calls must never emit raw model/statement content slices (#2676): {_m3_offenders}'
+    "AC-observability.4.3"
+    source = _read(REPO_ROOT / "apps" / "backend" / "src" / "main.py")
+    assert "telemetry=" in source
+    assert "_sync_fastapi_telemetry_status(app)" in source
+    assert "FastAPIInstrumentor" not in source
+    original = observability_module.is_fastapi_instrumentation_active()
+    try:
+        observability_module.mark_fastapi_instrumentation_active(False)
+        status = observability_module.get_observability_status()
+        assert status["request_instrumentation_active"] is False
+        assert "service_version" in status
+        observability_module.mark_fastapi_instrumentation_active(True)
+        assert observability_module.get_observability_status()["request_instrumentation_active"] is True
+    finally:
+        observability_module.mark_fastapi_instrumentation_active(original)
+    from src.observability import ErrorIds
+
+    assert ErrorIds.HEALTH_CHECK_FAILED == "ERR_SYS_001"
+    assert ErrorIds.UNHANDLED_EXCEPTION == "ERR_SYS_002"
+    import ast
+
+    backend_src = REPO_ROOT / "apps" / "backend" / "src"
+    offenders: list[str] = []
+    for path in sorted(backend_src.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "logger"):
+                continue
+            rel = path.relative_to(REPO_ROOT)
+            for kw in node.keywords:
+                if kw.arg == "raw_preview":
+                    offenders.append(f"{rel}:{node.lineno} passes raw_preview=")
+                if isinstance(kw.value, ast.Subscript) and isinstance(kw.value.value, ast.Name) and kw.value.value.id == "content":
+                    offenders.append(f"{rel}:{node.lineno} slices content[...] in logger.{func.attr}")
+            for arg in node.args:
+                if isinstance(arg, ast.Subscript) and isinstance(arg.value, ast.Name) and arg.value.id == "content":
+                    offenders.append(f"{rel}:{node.lineno} slices content[...] in logger.{func.attr}")
+    assert not offenders, f"Logger calls must never emit raw model/statement content slices (#2676): {offenders}"
+
+
 def test_AC10_4_4_otel_resource_includes_commit_version(monkeypatch) -> None: 'AC-observability.4.4'; monkeypatch.setattr(logger_module.settings, 'git_commit_sha', 'abc1234', raising=False); resource = logger_module._build_otel_resource(); attributes = dict(resource.attributes); assert attributes.get('service.version') == 'abc1234'; assert attributes.get('git.commit') == 'abc1234'; assert attributes.get('service.name') == logger_module.settings.otel_service_name
-def test_AC10_4_3_instrument_app_applies_to_instance(monkeypatch) -> None: 'AC-observability.4.3'; import sys; import types; from fastapi import FastAPI; from src import main as main_module; fake_module = types.ModuleType('opentelemetry.instrumentation.fastapi'); fake_instrumentor = Mock(); fake_module.FastAPIInstrumentor = fake_instrumentor; monkeypatch.setitem(sys.modules, 'opentelemetry.instrumentation.fastapi', fake_module); monkeypatch.setattr(main_module.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318', raising=False); observability_module.mark_fastapi_instrumentation_active(False); app = FastAPI(); main_module._instrument_fastapi_app(app); fake_instrumentor.instrument_app.assert_called_once_with(app); assert observability_module.is_fastapi_instrumentation_active() is True
-def test_AC10_4_3_instrument_app_skips_without_endpoint(monkeypatch) -> None: 'AC-observability.4.3'; from fastapi import FastAPI; from src import main as main_module; monkeypatch.setattr(main_module.settings, 'otel_exporter_otlp_endpoint', None, raising=False); observability_module.mark_fastapi_instrumentation_active(False); main_module._instrument_fastapi_app(FastAPI()); assert observability_module.is_fastapi_instrumentation_active() is False
+
+
+def test_AC10_4_3_instrument_app_applies_to_instance(monkeypatch) -> None:
+    "AC-observability.4.3"
+    from fastapi import FastAPI
+    from src import main as main_module
+
+    monkeypatch.setattr(main_module.settings, "otel_exporter_otlp_endpoint", "http://collector:4318", raising=False)
+    observability_module.mark_fastapi_instrumentation_active(False)
+    app = FastAPI(telemetry={"tracing": True, "tracer_provider": object()})
+    assert main_module._sync_fastapi_telemetry_status(app) is True
+    assert observability_module.is_fastapi_instrumentation_active() is True
+    disabled_app = FastAPI(telemetry={"tracing": False, "metrics": False, "logs": False})
+    assert main_module._sync_fastapi_telemetry_status(disabled_app) is False
+    assert observability_module.is_fastapi_instrumentation_active() is False
+
+
+def test_AC10_4_3_instrument_app_skips_without_endpoint(monkeypatch) -> None:
+    "AC-observability.4.3"
+    from fastapi import FastAPI
+    from src import main as main_module
+
+    monkeypatch.setattr(main_module.settings, "otel_exporter_otlp_endpoint", None, raising=False)
+    observability_module.mark_fastapi_instrumentation_active(True)
+    app = FastAPI(telemetry={"tracing": True, "tracer_provider": object()})
+    assert main_module._sync_fastapi_telemetry_status(app) is False
+    assert observability_module.is_fastapi_instrumentation_active() is False
