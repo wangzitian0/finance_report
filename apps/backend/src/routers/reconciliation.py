@@ -190,7 +190,7 @@ async def run_reconciliation(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationRunResponse:
-    """Run the reconciliation pipeline for the current user.."""
+    """Run the reconciliation pipeline for the current user."""
     statement: StatementSummary | None = None
     if payload.statement_id:
         statement = (
@@ -279,7 +279,7 @@ async def list_matches(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
-    """Return reconciliation matches for the current user.."""
+    """Return reconciliation matches for the current user."""
     clauses = [AtomicTransaction.user_id == user_id]
     if status_filter:
         clauses.append(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
@@ -302,7 +302,7 @@ async def pending_review_queue(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
-    """Return the Stage-2 pending review queue.."""
+    """Return the Stage-2 pending review queue."""
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
     total = await count_pending_review_items(db, user_id=user_id)
     return ReconciliationMatchListResponse(items=await _load_match_responses(db, matches, user_id), total=total)
@@ -310,7 +310,7 @@ async def pending_review_queue(
 
 @router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
 async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
-    """Accept one reconciliation match.."""
+    """Accept one reconciliation match."""
     try:
         match = await accept_match_service(db, match_id, user_id=user_id)
         await db.commit()
@@ -332,7 +332,7 @@ async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId)
 
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
 async def reject_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
-    """Reject one reconciliation match.."""
+    """Reject one reconciliation match."""
     try:
         match = await reject_match_service(db, str(match_id), user_id=user_id)
         await db.commit()
@@ -430,7 +430,7 @@ async def batch_update_matches(
 
 @router.get("/stats", response_model=ReconciliationStatsResponse)
 async def reconciliation_stats(*, db: DbSession, user_id: CurrentUserId) -> ReconciliationStatsResponse:
-    """Return reconciliation statistics.."""
+    """Return reconciliation statistics."""
     stats = await get_reconciliation_stats(db, user_id, include_distribution=True)
     return ReconciliationStatsResponse(
         total_transactions=stats.total_transactions,
@@ -452,7 +452,7 @@ async def list_unmatched(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> UnmatchedTransactionsResponse:
-    """Return unmatched transactions.."""
+    """Return unmatched transactions."""
     query = _unmatched_atomic_txn_query(user_id, include_pending_stage1=statement_id is not None)
     if statement_id is not None:
         statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
@@ -508,7 +508,7 @@ async def submit_unmatched_reviewed_disposition(
 async def list_anomalies(
     txn_id: UUID, *, db: DbSession, user_id: CurrentUserId, pagination: Pagination
 ) -> list[AnomalyResponse]:
-    """Return reconciliation anomalies.."""
+    """Return reconciliation anomalies."""
     txn = await get_owned_or_404(db, AtomicTransaction, txn_id, user_id, name="Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
     return [AnomalyResponse(**a.__dict__) for a in anomalies[pagination.offset : pagination.offset + pagination.limit]]

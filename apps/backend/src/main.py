@@ -2,10 +2,14 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
+import os
+import shutil
+import subprocess
 import time
 import traceback
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -155,6 +159,33 @@ def _sync_fastapi_telemetry_status(target_app: FastAPI) -> bool:
 _init_otel_instrumentation()
 
 
+def _resolve_app_version() -> str:
+    """Resolve application version from APP_VERSION env, latest git tag, or GIT_COMMIT_SHA."""
+    if env_version := os.getenv("APP_VERSION", "").strip():
+        return env_version.lstrip("v")
+    git_bin = shutil.which("git")
+    if git_bin:
+        try:
+            tag = subprocess.check_output(
+                [git_bin, "describe", "--tags", "--abbrev=0"],
+                cwd=Path(__file__).resolve().parent,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=2,
+            ).strip()
+            if tag:
+                return tag.lstrip("v")
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if sha := os.getenv("GIT_COMMIT_SHA", "").strip():
+        if sha != "unknown":
+            return sha
+    return "0.1.0"
+
+
+APP_VERSION = _resolve_app_version()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan - init DB and background workers on startup."""
@@ -170,7 +201,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(run_outbox_relay(stop_event)),
     ]
     log_observability_startup(logger)
-    logger.info("Application started", version="0.1.0")
+    logger.info("Application started", version=APP_VERSION)
     yield
     stop_event.set()
     for task in tasks:
@@ -184,7 +215,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Finance Report API",
     description="Personal financial management system with double-entry bookkeeping",
-    version="0.1.0",
+    version=APP_VERSION,
     lifespan=lifespan,
     telemetry={"exclude": _is_probe_scope},
 )

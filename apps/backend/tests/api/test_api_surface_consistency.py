@@ -1,5 +1,5 @@
-'AC-platform.29.4 AC-platform.29.5 EPIC-012'; from __future__ import annotations; import ast; import re; from pathlib import Path; from typing import Any; from uuid import uuid4; from fastapi import status
-from fastapi.routing import APIRoute, iter_route_contexts; from httpx import AsyncClient; import src.routers as _routers_pkg; from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT; from src.main import app; from src.reporting import DEFAULT_INCLUDE_RESTRICTED, PACKAGE_INCLUDE_RESTRICTED; _ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent; _RAW_STATUS_CODE = re.compile('status_code\\s*=\\s*\\d'); _BACKEND_SRC = _ROUTER_DIR.parent; _DISHONEST_DEPENDENCY_DEFAULT = re.compile('(?:DbSession|CurrentUserId)\\s*=\\s*None'); _PREVIOUSLY_UNBOUNDED_LIST_PATHS = ('/reconciliation/transactions/{txn_id}/anomalies', '/reports/package/snapshots'); _UNTAGGED_UTILITY_PATHS = frozenset({'/', '/health', '/openapi.json', '/docs', '/docs/oauth2-redirect', '/redoc'}); _api_routes = lambda: [context.route for context in iter_route_contexts(app.routes) if isinstance(context.route, APIRoute)]  # AC-reporting.net-worth-scope.12 EPIC-023
+'AC-platform.29.4 AC-platform.29.5 EPIC-012'; from __future__ import annotations; import ast; import inspect; import re; from pathlib import Path; from typing import Any; from uuid import uuid4; from fastapi import APIRouter, status
+from fastapi.routing import APIRoute, iter_route_contexts; from httpx import AsyncClient; import src.routers as _routers_pkg; from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT; from src.main import _resolve_app_version, app; from src.reporting import DEFAULT_INCLUDE_RESTRICTED, PACKAGE_INCLUDE_RESTRICTED; _ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent; _RAW_STATUS_CODE = re.compile('status_code\\s*=\\s*\\d'); _BACKEND_SRC = _ROUTER_DIR.parent; _DISHONEST_DEPENDENCY_DEFAULT = re.compile('(?:DbSession|CurrentUserId)\\s*=\\s*None'); _PREVIOUSLY_UNBOUNDED_LIST_PATHS = ('/reconciliation/transactions/{txn_id}/anomalies', '/reports/package/snapshots'); _UNTAGGED_UTILITY_PATHS = frozenset({'/', '/health', '/openapi.json', '/docs', '/docs/oauth2-redirect', '/redoc'}); _api_routes = lambda: [context.route for context in iter_route_contexts(app.routes) if isinstance(context.route, APIRoute)]  # AC-reporting.net-worth-scope.12 EPIC-023
 def test_AC12_29_4_no_route_or_tag_collisions() -> None:
     'AC-platform.29.4'; routes = _api_routes(); seen: dict[tuple[str, str], str] = {}; collisions: list[str] = []
     for route in routes:
@@ -140,3 +140,36 @@ async def test_issue3013_naming_overlaps_resolved_and_action_url_rule(
     checks_resp = await client.get('/statements/consistency-checks')
     assert checks_resp.status_code == status.HTTP_200_OK, checks_resp.text
     assert 'items' in checks_resp.json()
+
+
+def _find_undocumented_api_routes(routes: Any) -> list[str]:
+    missing: list[str] = []
+    for context in iter_route_contexts(routes):
+        route = context.route
+        if not isinstance(route, APIRoute):
+            continue
+        doc = inspect.getdoc(route.endpoint) or ''
+        if not doc.strip() or doc.strip().endswith('..'):
+            missing.append(f'{route.path} ({route.endpoint.__name__})')
+    return missing
+
+
+def test_issue3014_routes_have_docstrings_and_missing_docstring_fails() -> None:
+    """#3014 #3009 slice 5: every route handler has a clean docstring and missing docstrings fail."""
+    assert _find_undocumented_api_routes(app.routes) == []
+
+    probe_router = APIRouter()
+
+    @probe_router.get('/probe-missing-docstring')
+    async def no_doc_handler() -> dict[str, str]:
+        return {'status': 'ok'}
+
+    assert _find_undocumented_api_routes(probe_router.routes) == ['/probe-missing-docstring (no_doc_handler)']
+
+
+def test_issue3014_app_version_reads_from_git_tag(monkeypatch: Any, openapi_schema: dict[str, Any]) -> None:
+    """#3014 #3009 slice 5: app version comes from the git tag or APP_VERSION, never hardcoded 0.1.0."""
+    assert app.version != '0.1.0'
+    assert openapi_schema['info']['version'] == app.version
+    monkeypatch.setenv('APP_VERSION', 'v9.8.7')
+    assert _resolve_app_version() == '9.8.7'
