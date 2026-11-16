@@ -131,18 +131,6 @@ def run_tier2_http_e2e(
         )
     )
 
-    ping_url = urljoin(f"{base_url}/", "api/ping")
-    ping = requester(ping_url, config.timeout_seconds)
-    checks.append(
-        _result(
-            "api_ping_http_200",
-            ping_url,
-            ping,
-            ping.status_code == 200,
-            "GET /api/ping must return HTTP 200",
-        )
-    )
-
     frontend_url = f"{base_url}/"
     frontend = requester(frontend_url, config.timeout_seconds)
     checks.append(

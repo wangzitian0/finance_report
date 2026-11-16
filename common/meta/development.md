@@ -56,7 +56,7 @@ All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test li
 |----------|-------|------|
 | Test DB container | Before tests | After last test runner exits | | Playwright driver | By pytest | Cleanup on test end | | Child processes | By pytest | on exit |
 ## Smoke Tests
-```bash bash tools/smoke_test.sh                              # Local  bash tools/smoke_test.sh https://report.zitian.party  # Staging/prod ``` Endpoints tested: `/`, `/api/health`, `/api/docs`, `/reconciliation`, `/api/ping`
+```bash bash tools/smoke_test.sh                              # Local  bash tools/smoke_test.sh https://report.zitian.party  # Staging/prod ``` Endpoints tested: `/`, `/api/health`, `/api/docs`, `/reconciliation`
 ## CI Workflows & Deployment
 > **See dedicated files** → > - **[common/testing/ci-cd.md](../testing/ci-cd.md)** — CI job structure, coverage gate (test pipeline) > - **[common/runtime/ci-cd.md](../runtime/ci-cd.md)** — deploy/release workflows (deploy half) > - **[common/runtime/deployment.md](../runtime/deployment.md)** — Vault, staging/production workflows
 ## Environment Variables

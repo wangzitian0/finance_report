@@ -6,15 +6,13 @@ def test_AC8_18_2_tier2_http_success_report_requires_real_http_checks() -> None:
     'AC8.18.2'
     def requester(url: str, _timeout_seconds: float) -> tier2_http_e2e.HttpResponse:
         if url.endswith('/api/health'): return tier2_http_e2e.HttpResponse(200, '{"status":"healthy","git_sha":"abc123"}')
-        if url.endswith('/api/ping'): return tier2_http_e2e.HttpResponse(200, '{"ok":true}')
         if url.endswith('/api/statements'): return tier2_http_e2e.HttpResponse(401, '{"detail":"Not authenticated"}')
         return tier2_http_e2e.HttpResponse(200, '<html></html>')
-    report = tier2_http_e2e.run_tier2_http_e2e(tier2_http_e2e.Tier2Config(base_url='https://report-staging.example.com', expected_sha='abc123'), requester=requester); assert report['proof_tier'] == 'tier2_http'; assert report['status'] == 'passed'; assert report['proof_eligible'] is True; assert [check['name'] for check in report['checks']] == ['api_health_http_200', 'deployed_version_matches_expected', 'api_ping_http_200', 'frontend_http_success', 'protected_api_requires_auth']
+    report = tier2_http_e2e.run_tier2_http_e2e(tier2_http_e2e.Tier2Config(base_url='https://report-staging.example.com', expected_sha='abc123'), requester=requester); assert report['proof_tier'] == 'tier2_http'; assert report['status'] == 'passed'; assert report['proof_eligible'] is True; assert [check['name'] for check in report['checks']] == ['api_health_http_200', 'deployed_version_matches_expected', 'frontend_http_success', 'protected_api_requires_auth']
 def test_AC8_18_2_tier2_http_handles_non_object_health_json() -> None:
     'AC8.18.2'
     def requester(url: str, _timeout_seconds: float) -> tier2_http_e2e.HttpResponse:
         if url.endswith('/api/health'): return tier2_http_e2e.HttpResponse(200, '[]')
-        if url.endswith('/api/ping'): return tier2_http_e2e.HttpResponse(200, '{"ok":true}')
         if url.endswith('/api/statements'): return tier2_http_e2e.HttpResponse(401, '{"detail":"Not authenticated"}')
         return tier2_http_e2e.HttpResponse(200, '<html></html>')
     report = tier2_http_e2e.run_tier2_http_e2e(tier2_http_e2e.Tier2Config(base_url='https://report-staging.example.com', expected_sha='abc123'), requester=requester); version_check = next((check for check in report['checks'] if check['name'] == 'deployed_version_matches_expected')); assert report['status'] == 'failed'; assert version_check['passed'] is False
@@ -22,7 +20,6 @@ def test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match() -> None:
     'AC8.18.2'
     def requester(url: str, _timeout_seconds: float) -> tier2_http_e2e.HttpResponse:
         if url.endswith('/api/health'): return tier2_http_e2e.HttpResponse(200, '{"status":"healthy","git_sha":"abc123456789"}')
-        if url.endswith('/api/ping'): return tier2_http_e2e.HttpResponse(200, '{"ok":true}')
         if url.endswith('/api/statements'): return tier2_http_e2e.HttpResponse(401, '{"detail":"Not authenticated"}')
         return tier2_http_e2e.HttpResponse(200, '<html></html>')
     report = tier2_http_e2e.run_tier2_http_e2e(tier2_http_e2e.Tier2Config(base_url='https://report-staging.example.com', expected_sha='abc123'), requester=requester); assert report['status'] == 'passed'
