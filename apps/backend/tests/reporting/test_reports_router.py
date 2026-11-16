@@ -159,7 +159,7 @@ async def test_AC5_16_2_cash_flow_response_preserves_fx_warnings(client, monkeyp
     ]
 
 
-async def test_net_worth_timeseries_endpoint_commits_boundary(
+async def test_net_worth_timeseries_endpoint_does_not_commit(
     client, db_engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     "AC12.26.2"
@@ -185,7 +185,7 @@ async def test_net_worth_timeseries_endpoint_commits_boundary(
         persisted = await session.scalar(
             select(StockPrice).where(StockPrice.symbol == "REPORT").where(StockPrice.price_date == date(2026, 1, 31))
         )
-    assert persisted is not None
+    assert persisted is None
 
 
 async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(

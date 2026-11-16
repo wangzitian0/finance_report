@@ -110,7 +110,7 @@ marketdata.8||test_sync_stock_prices_fetches_decade_range_once
 marketdata.9||test_market_data_freshness_sync_runs_once_after_24h
 @$e2e/test_market_data_price_paths.py
 marketdata.7|E2E gates cover provider-backed FX sync and stock-price portfolio valuation paths.|test_market_data_provider_sync_feeds_fx_and_stock_price_paths
-marketdata.11|Staging E2E covers report-time market data refresh from an authenticated ordinary-user path.|^
+marketdata.11|Staging E2E covers brokerage-import market data refresh and read-only report rendering from an authenticated ordinary-user path.|^
 @$be/pricing/test_scheduler.py
 marketdata.10||test_next_market_data_sync_at_uses_nightly_sgt_schedule
 marketdata.12||test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider

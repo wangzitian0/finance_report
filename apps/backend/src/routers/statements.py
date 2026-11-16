@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.composition import (
     auto_fill_default_statement_dispositions,
     compose_statement_posting_dependencies,
+    refresh_market_data_for_brokerage_import,
 )
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
@@ -710,6 +711,7 @@ async def import_brokerage_statement_positions(
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
         await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
+        await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=payload)
         await db.commit()
     except Exception as exc:
         is_rejected = isinstance(exc, BrokerageImportRejectedError | PositionServiceError)
