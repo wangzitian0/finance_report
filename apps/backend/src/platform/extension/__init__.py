@@ -64,5 +64,4 @@ __all__ = [
     "raise_too_large",
     "raise_too_many_requests",
     "raise_unauthorized",
-    "platform_system_router",
 ]
