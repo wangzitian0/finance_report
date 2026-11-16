@@ -506,3 +506,90 @@ def test_AC_testing_hook_main_7_the_classifier_marks_each_hook_python_file_as_st
         assert staging.required and staging.files == (file,), (
             f"{file} runs in a hook step but a change to it does not start the staging gate"
         )
+
+
+_SHELL_VAR_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\b")
+_SDK_CONTEXT_ENV = frozenset(
+    {
+        "APP_URL",
+        "APP_VERSION_REF",
+        "BASE_URL",
+        "DEPLOY_BASE_URL",
+        "DEPLOY_ENV",
+        "ENVIRONMENT",
+        "EXPECTED_SHA",
+        "HOOK_ARTIFACTS_DIR",
+        "HOOK_SLOT",
+        "INFRA2_HOOK_APP_URL",
+        "STAGING_BASE_URL",
+        "TA_BASE_URL",
+    }
+)
+
+
+def _referenced_env_vars(line: str) -> set[str]:
+    """Return all shell variable names read in *line*."""
+    return set(_SHELL_VAR_RE.findall(line))
+
+
+def _undeclared_slot_env_vars(slots: dict[str, dict]) -> list[tuple[str, str, str]]:
+    """Return (slot, step, var_name) for any manifest env var not passed into the hook env."""
+    from infra2_sdk.manifests import _HOOK_PASSTHROUGH_KEYS
+
+    undeclared: list[tuple[str, str, str]] = []
+    for slot_name, spec in slots.items():
+        allowed = (
+            set(spec.get("required_env", ()))
+            | set(spec.get("optional_env", ()))
+            | _HOOK_PASSTHROUGH_KEYS
+            | _SDK_CONTEXT_ENV
+        )
+        lines: list[tuple[str, str]] = []
+        for key in ("bootstrap", "run"):
+            if key in spec:
+                lines.append((key, spec[key]))
+        for check in spec.get("checks", ()):
+            lines.append((check["id"], _check_line(check)))
+        for step_name, line in lines:
+            for var in sorted(_referenced_env_vars(line)):
+                if var not in allowed:
+                    undeclared.append((slot_name, step_name, var))
+    return undeclared
+
+
+def test_AC_testing_hook_main_8_every_manifest_env_var_is_passed_through() -> None:
+    """AC-testing.hook-main.8: every env var read by a manifest step is in required_env, optional_env, or SDK pass-through/context env."""
+    from infra2_sdk.manifests import build_hook_env, load_hooks_manifest
+
+    assert _undeclared_slot_env_vars(SLOTS) == []
+    mutant = {
+        "preview_gate": {
+            "checks": [
+                {
+                    "id": "touched_files",
+                    "argv": ["sh", "-c", "echo ${UNDECLARED_VAR:-}"],
+                }
+            ],
+            "optional_env": [],
+        }
+    }
+    assert _undeclared_slot_env_vars(mutant) == [
+        ("preview_gate", "touched_files", "UNDECLARED_VAR")
+    ]
+
+    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    preview_spec = manifest.slots["preview_gate"]
+    touched = "apps/frontend/src/app/(main)/journal/page.tsx"
+    built = build_hook_env(
+        preview_spec,
+        slot="preview_gate",
+        app_url="https://fake.invalid",
+        environment="preview",
+        version_ref="0000000",
+        artifacts_dir=preview_spec.artifacts_dir,
+        ambient_env={"INFRA2_TOUCHED_FILES": touched},
+    )
+    assert built.get("INFRA2_TOUCHED_FILES") == touched
+    assert matrix.select_touched_e2e(touched.split()) == [
+        "tests/e2e/test_journal_ui_journey.py"
+    ]

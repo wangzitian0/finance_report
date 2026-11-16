@@ -243,6 +243,7 @@ hook-main.4||test_AC_testing_hook_main_4_module_exits_2_on_an_unknown_stage
 hook-main.5||test_AC_testing_hook_main_5_main_block_exits_with_the_pytest_exit_code
 hook-main.6||test_AC_testing_hook_main_6_the_classifier_reads_each_form_of_a_python_step
 hook-main.7||test_AC_testing_hook_main_7_the_classifier_marks_each_hook_python_file_as_staging_relevant
+hook-main.8|Every environment variable read by a manifest hook step must be declared in required_env, optional_env, or the SDK pass-through and context env allowlist.|test_AC_testing_hook_main_8_every_manifest_env_var_is_passed_through
 @$t/test_critical_skip_gate.py
 product-gates.1||test_AC8_13_6_strict_gates_off_never_converts
 @$e2e/test_vision_upload_to_dashboard_hard_gate.py
