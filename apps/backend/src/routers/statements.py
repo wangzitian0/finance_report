@@ -20,7 +20,7 @@ from src.composition import (
     refresh_market_data_for_brokerage_import,
 )
 from src.config import settings
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
@@ -630,7 +630,9 @@ async def create_statement_run(
 
 
 @router.get("/{statement_id}/runs", response_model=StatementRunListResponse)
-async def list_statement_runs(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> StatementRunListResponse:
+async def list_statement_runs(
+    statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId
+) -> StatementRunListResponse:
     """List the runs of a statement by attempt number, with their hints, actor, state and error."""
     await _get_statement_or_404(db, statement_id, user_id)
     runs = await list_runs(db, statement_id, user_id)
@@ -638,7 +640,7 @@ async def list_statement_runs(statement_id: UUID, db: DbSession, user_id: Curren
 
 
 @router.get("", response_model=BankStatementListResponse)
-async def list_statements(db: DbSession, user_id: CurrentUserId) -> BankStatementListResponse:
+async def list_statements(db: ReadDbSession, user_id: CurrentUserId) -> BankStatementListResponse:
     """List non-retired statements for the current user."""
     return await _list_statements_by_where(
         db, user_id, StatementSummary.user_id == user_id, StatementSummary.status != BankStatementStatus.RETIRED
@@ -646,7 +648,7 @@ async def list_statements(db: DbSession, user_id: CurrentUserId) -> BankStatemen
 
 
 @router.get("/pending-review", response_model=BankStatementListResponse)
-async def list_pending_review(db: DbSession, user_id: CurrentUserId) -> BankStatementListResponse:
+async def list_pending_review(db: ReadDbSession, user_id: CurrentUserId) -> BankStatementListResponse:
     """List statements pending Stage 1 human review."""
     return await _list_statements_by_where(
         db,
@@ -658,13 +660,13 @@ async def list_pending_review(db: DbSession, user_id: CurrentUserId) -> BankStat
 
 
 @router.get("/{statement_id}", response_model=BankStatementResponse)
-async def get_statement(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> BankStatementResponse:
+async def get_statement(statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId) -> BankStatementResponse:
     """Get a statement with all its transactions."""
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
 @router.get("/{statement_id}/document")
-async def get_statement_document(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> Response:
+async def get_statement_document(statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId) -> Response:
     """Stream the original uploaded document for a statement, same-origin."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
@@ -798,7 +800,7 @@ async def delete_statement(statement_id: UUID, db: DbSession, user_id: CurrentUs
             RetireStatementCommand(statement_id=statement_id, user_id=user_id),
             dependencies=compose_statement_posting_dependencies(),
         )
-        await db.commit()
+        await db.flush()
     except ValueError as exc:
         await db.rollback()
         raise_not_found("Statement", cause=exc)
@@ -806,7 +808,7 @@ async def delete_statement(statement_id: UUID, db: DbSession, user_id: CurrentUs
 
 @router.get("/{statement_id}/review", response_model=StatementReviewResponse)
 async def get_statement_for_review(
-    statement_id: UUID, db: DbSession, user_id: CurrentUserId
+    statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId
 ) -> StatementReviewResponse:
     """Get Stage 1 review data for a statement."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
@@ -869,7 +871,7 @@ async def confirm_statement_review_envelope(
             command=ReviewedStatementEnvelopeCommand(**request.model_dump()),
             trace_emitter=compose_statement_posting_dependencies().trace_emitter_factory(db),
         )
-        await db.commit()
+        await db.flush()
     except ReviewedStatementEnvelopeConflict as exc:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))

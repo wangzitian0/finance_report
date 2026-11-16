@@ -110,12 +110,30 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for database session."""
+    """Dependency for read-write database session (commits on clean exit, rolls back on error)."""
+    maker = _test_session_maker or async_session_maker
+    async with maker() as session:
+        try:
+            yield session
+            if isinstance(session, AsyncSession) and session.in_transaction():
+                await session.commit()
+        except Exception:
+            if isinstance(session, AsyncSession) and session.in_transaction():
+                await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+async def get_db_readonly() -> AsyncGenerator[AsyncSession, None]:
+    """Dependency for read-only database session (rolls back instead of committing)."""
     maker = _test_session_maker or async_session_maker
     async with maker() as session:
         try:
             yield session
         finally:
+            if isinstance(session, AsyncSession) and session.in_transaction():
+                await session.rollback()
             await session.close()
 
 

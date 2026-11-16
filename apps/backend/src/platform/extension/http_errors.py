@@ -60,3 +60,59 @@ class BaseAppException(Exception):
         self.error_id = error_id
         self.message = message
         self.status_code = status_code
+
+
+_DOMAIN_ERROR_IDS: dict[int, str] = {
+    status.HTTP_400_BAD_REQUEST: "bad_request",
+    status.HTTP_404_NOT_FOUND: "not_found",
+    status.HTTP_409_CONFLICT: "conflict",
+    status.HTTP_422_UNPROCESSABLE_CONTENT: "unprocessable_entity",
+}
+
+
+class DomainError(BaseAppException, ValueError):
+    """Domain rule failure that is both a ValueError and an HTTP-mapped BaseAppException."""
+
+    default_status_code: int = status.HTTP_400_BAD_REQUEST
+    default_error_id: str | None = None
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        error_id: str | None = None,
+    ) -> None:
+        resolved_status = self.default_status_code if status_code is None else status_code
+        resolved_error_id = (
+            error_id or self.default_error_id or _DOMAIN_ERROR_IDS.get(resolved_status, f"HTTP_{resolved_status}")
+        )
+        super().__init__(error_id=resolved_error_id, message=message, status_code=resolved_status)
+
+
+class ValidationFailedError(DomainError):
+    """Input or domain invariant validation failed (HTTP 400)."""
+
+    default_status_code = status.HTTP_400_BAD_REQUEST
+    default_error_id = "bad_request"
+
+
+class ResourceNotFoundError(DomainError):
+    """Requested resource does not exist or is not visible to caller (HTTP 404)."""
+
+    default_status_code = status.HTTP_404_NOT_FOUND
+    default_error_id = "not_found"
+
+
+class ConflictError(DomainError):
+    """Operation conflicts with current resource or concurrency state (HTTP 409)."""
+
+    default_status_code = status.HTTP_409_CONFLICT
+    default_error_id = "conflict"
+
+
+class PreconditionFailedError(DomainError):
+    """Request could not proceed under current domain preconditions (HTTP 422)."""
+
+    default_status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    default_error_id = "unprocessable_entity"

@@ -17,6 +17,11 @@ from __future__ import annotations
 from src.platform.extension.bus import OutboxEventBus, RecordingEventBus
 from src.platform.extension.http_errors import (
     BaseAppException,
+    ConflictError,
+    DomainError,
+    PreconditionFailedError,
+    ResourceNotFoundError,
+    ValidationFailedError,
     raise_bad_request,
     raise_conflict,
     raise_gateway_timeout,
@@ -43,15 +48,20 @@ from src.platform.extension.sql import (
 
 __all__ = [
     "BaseAppException",
+    "ConflictError",
+    "DomainError",
     "OutboxEventBus",
     "OutboxRelay",
+    "PreconditionFailedError",
     "RateLimitConfig",
     "RateLimitState",
     "RateLimiter",
     "RecordingEventBus",
+    "ResourceNotFoundError",
     "STATUS_PENDING",
     "STATUS_PUBLISHED",
     "SqlOutboxRepository",
+    "ValidationFailedError",
     "get_client_ip",
     "get_owned_or_404",
     "paginate",
