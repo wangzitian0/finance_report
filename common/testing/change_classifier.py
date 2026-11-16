@@ -127,6 +127,47 @@ COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
 # The backend shards have no skip: backend tests read paths through contract manifests.
 VITEST_SKIP_PREFIXES = ("apps/backend/src/",)
 
+TOOLING_LANE_PREFIXES: tuple[str, ...] = (
+    "tools/",
+    "tests/",
+    "common/",
+    "docs/",
+    "apps/",
+    ".github/",
+    ".agents/",
+    ".claude/",
+    ".gemini/",
+    ".moon/",
+    ".opencode/",
+    ".ws-publish/",
+)
+TOOLING_LANE_EXACT: frozenset[str] = frozenset(
+    {
+        "README.md",
+        "readme.md",
+        "vision.md",
+        "moon.yml",
+        "AGENTS.md",
+        "GEMINI.md",
+        "Makefile",
+        "pytest.ini",
+        "docker-compose.yml",
+        "toolchain.toml",
+        "mkdocs.yml",
+        "runtime-hooks.manifest.json",
+        "opencode.json",
+        ".env.example",
+        ".gitignore",
+        ".mcp.json",
+        ".node-version",
+        ".npmrc",
+        ".nvmrc",
+        ".pre-commit-config.yaml",
+        ".python-version",
+        ".tool-versions",
+    }
+)
+
 CI_DEFINITION_PATHS = frozenset(
     {
         ".github/workflows/ci.yml",
@@ -257,6 +298,17 @@ class ChangeClassification:
     @property
     def vitest_required(self) -> bool:
         return self._runs_unless_all_in(VITEST_SKIP_PREFIXES)
+
+    @property
+    def tooling_required(self) -> bool:
+        return (
+            not self.files
+            or any(path in CI_DEFINITION_PATHS for path in self.files)
+            or any(
+                path in TOOLING_LANE_EXACT or path.startswith(TOOLING_LANE_PREFIXES)
+                for path in self.files
+            )
+        )
 
     @property
     def staging_files(self) -> tuple[str, ...]:
@@ -530,6 +582,7 @@ def write_github_outputs(
             for name in COMPONENT_PREFIXES
         ),
         ("vitest_required", str(classification.vitest_required).lower()),
+        ("tooling_required", str(classification.tooling_required).lower()),
         ("touched_e2e_tests", _json_output(list(classification.touched_e2e_tests))),
     ]
     with output_path.open("a", encoding="utf-8") as fh:

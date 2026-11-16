@@ -221,6 +221,7 @@ classifier.5||test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths
 classifier.6||test_AC8_13_110_github_outputs_include_structured_env_stage_matrix
 classifier.7||test_AC8_13_111_static_stage_rejects_non_static_environments
 classifier.10||test_AC8_13_161_component_changed_isolates_a_single_component|P1:property
+classifier.11|Every repo path read by tests/tooling/ outside tools/ and tests/tooling/ sets tooling_required, and CI runs the tooling job when true.|test_AC_testing_classifier_11_tooling_lane_covers_every_path_tests_tooling_reads|P1:property
 @$t/test_staging_ai_ocr_gate_contract.py|P1|done|property
 deploy-gates.23||test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users|P0:exact
 deploy-gates.28||test_AC8_13_137_summarize_junit_reports_per_doc_failures|:exact
