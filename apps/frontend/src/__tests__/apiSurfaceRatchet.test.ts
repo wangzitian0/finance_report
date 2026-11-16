@@ -97,7 +97,7 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     category: "manual_replay",
     methodPath: "POST /classifications/backfill",
     reason: "Manual replay endpoint for scheduled/background classification backfill.",
-    proofPaths: ["apps/backend/src/routers/classifications.py"],
+    proofPaths: ["apps/backend/tests/api/test_classifications_router.py"],
   },
 
   // Set C (#3009): package-documented contracts pending FE wiring
