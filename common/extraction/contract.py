@@ -782,7 +782,7 @@ fe-upload-layout.5||AC-extraction.fe-upload-layout.5 marks the portfolio reads s
 2648.1||test_AC_extraction_2648_1_failed_import_is_recorded_beside_the_note_and_a_success_clears_it
 @$fe/__tests__/reviewActionBar.test.tsx|P1
 fe-ia-extraction.1||AC22.5.2 enables Approve and shows no blocker when nothing is wrong
-@$fe/__tests__/statementDetailParts.test.tsx|P1
+@$fe/__tests__/statementDetailPage.test.tsx|P1
 fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confidence
 @$be/integration/test_statement_reject_cleans_up_orphan_account.py|P1
 1832.4||test_AC_extraction_1832_4_rejected_parse_deletes_the_account_it_just_created

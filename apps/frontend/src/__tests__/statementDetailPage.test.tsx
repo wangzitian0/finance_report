@@ -1,4 +1,18 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"; import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"; import StatementDetailPage from "@/app/(main)/statements/[id]/page"; import { apiOperation } from "@/lib/api-client"; const showToastMock = vi.fn(); const mockSearchParams = new URLSearchParams(); let mockStatementId = "s1"; vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useParams: () => ({ id: mockStatementId }), useSearchParams: () => mockSearchParams, })); vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: showToastMock }), })); vi.mock("@/lib/api-client", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api-client")>()), apiOperation: vi.fn(), })); const parsedStatement = { id: "s1", original_filename: "statement-jan.pdf", institution: "DBS", currency: "SGD", period_start: "2026-01-01", period_end: "2026-01-31", opening_balance: 1000, closing_balance: 1500, confidence_score: 92, balance_validated: true, validation_error: null, status: "parsed", parsing_progress: 100, transactions: [ { id: "t1", txn_date: "2026-01-02", description: "Salary", reference: "R1", amount: 500, direction: "IN", currency: "SGD", balance_after: 1500, confidence: "high", status: "matched", }, ], }; function deferred<T>() { let resolve!: (value: T) => void
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ComponentProps, ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import StatementDetailPage from "@/app/(main)/statements/[id]/page";
+import { BrokerageImportResultBanner, StatementHeader } from "@/components/review/StatementReview";
+import { apiOperation } from "@/lib/api-client";
+import { formatPeriod } from "@/lib/date";
+import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";
+import type { BankStatement, BrokerageImportResponse } from "@/lib/types";
+
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: ReactNode; [key: string]: unknown }) => (
+    <a href={href} {...rest}>{children}</a>
+  ),
+})); const showToastMock = vi.fn(); const mockSearchParams = new URLSearchParams(); let mockStatementId = "s1"; vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useParams: () => ({ id: mockStatementId }), useSearchParams: () => mockSearchParams, })); vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: showToastMock }), })); vi.mock("@/lib/api-client", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api-client")>()), apiOperation: vi.fn(), })); const parsedStatement = { id: "s1", original_filename: "statement-jan.pdf", institution: "DBS", currency: "SGD", period_start: "2026-01-01", period_end: "2026-01-31", opening_balance: 1000, closing_balance: 1500, confidence_score: 92, balance_validated: true, validation_error: null, status: "parsed", parsing_progress: 100, transactions: [ { id: "t1", txn_date: "2026-01-02", description: "Salary", reference: "R1", amount: 500, direction: "IN", currency: "SGD", balance_after: 1500, confidence: "high", status: "matched", }, ], }; function deferred<T>() { let resolve!: (value: T) => void
 let reject!: (reason?: unknown) => void
 const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise
 reject = rejectPromise }); return { promise, resolve, reject } }; describe("StatementDetailPage", () => { const mockedApiFetch = vi.mocked(apiOperation); const STATEMENT_OP = "get_statement_statements__statement_id__get"; const RUNS_OP = "list_statement_runs_statements__statement_id__runs_get";
@@ -29,4 +43,73 @@ mockStatementApi(() => ({ ...parsedStatement, status: "approved" })); render(<St
 mockStatementApi(() => current, () => { retried()
 current = parsedStatement }); render(<StatementDetailPage />); await waitFor(() => expect(screen.getByText("Parsing Failed")).toBeInTheDocument()); fireEvent.click(screen.getByRole("button", { name: "Run again" })); await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith( "create_statement_run_statements__statement_id__runs_post", { path: { statement_id: "s1" }, body: { kind: "extract", hints: { keywords: [], note: null } }, }, ), ); expect(retried).toHaveBeenCalledTimes(1); await waitFor(() => expect(screen.queryByText("Parsing Failed")).not.toBeInTheDocument()) }); it("shows not found state", async () => { mockedApiFetch.mockResolvedValueOnce(null); render(<StatementDetailPage />); await waitFor(() => expect(screen.getByText("Statement not found")).toBeInTheDocument()) }); it("stops polling after consecutive errors", async () => { const parsingState = { ...parsedStatement, status: "parsing", parsing_progress: 50 }
 mockedApiFetch.mockResolvedValueOnce(parsingState)
-mockedApiFetch.mockRejectedValue(new Error("Poll Failure")); render(<StatementDetailPage />); await waitFor(() => expect(screen.getByText(/Parsing in progress/)).toBeInTheDocument(), { timeout: 3000 }); await waitFor(() => expect(screen.getByText(/Auto-refresh Stopped/)).toBeInTheDocument(), { timeout: 15000 }) }, 20000) }) // AC-extraction.fe-stage1-review.4 AC-extraction.fe-stage1-review.5 AC-extraction.fe-stage1-review.6
+mockedApiFetch.mockRejectedValue(new Error("Poll Failure")); render(<StatementDetailPage />); await waitFor(() => expect(screen.getByText(/Parsing in progress/)).toBeInTheDocument(), { timeout: 3000 }); await waitFor(() => expect(screen.getByText(/Auto-refresh Stopped/)).toBeInTheDocument(), { timeout: 15000 }) }, 20000) })
+
+const partBaseStatement: BankStatement = {
+  id: "s1", user_id: "u1", account_id: null, account_last4: null, file_path: "/tmp/s1.pdf", original_filename: "statement-jan.pdf", institution: "DBS", currency: "SGD", period_start: "2026-01-01", period_end: "2026-01-31", opening_balance: "1000", closing_balance: "1500", status: "parsed", confidence_score: 92, balance_validated: true, validation_error: null, brokerage_import_failed: false, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", transactions: [],
+};
+function renderHeader(overrides: Partial<ComponentProps<typeof StatementHeader>> = {}) {
+  const onBrokerageImport = vi.fn();
+  return { ...render(<StatementHeader statement={partBaseStatement} canImport={false} importLoading={false} onBrokerageImport={onBrokerageImport} formatCode={formatCode} formatPeriod={formatPeriod} {...overrides} />), onBrokerageImport };
+}
+describe("StatementHeader", () => {
+  it("AC22.17.3 renders title, status badge, description and confidence", () => {
+    renderHeader();
+    expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument();
+    expect(screen.getByText("parsed")).toBeInTheDocument();
+    expect(screen.getByText(/DBS • SGD • 2026-01-01 to 2026-01-31/)).toBeInTheDocument();
+    expect(screen.getByText(/Confidence 92% \(/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /review/i })).not.toBeInTheDocument();
+  });
+  it("#1609 labels mid and low confidence with text, not colour alone", () => {
+    const { unmount } = renderHeader({ statement: { ...partBaseStatement, confidence_score: 70 } });
+    expect(screen.getByText(/Confidence 70% \(\S+/)).toBeInTheDocument();
+    unmount();
+    renderHeader({ statement: { ...partBaseStatement, confidence_score: null } });
+    expect(screen.queryByText(/Confidence/)).not.toBeInTheDocument();
+  });
+  it("hides the import button when not allowed and handles import button states", () => {
+    const { unmount } = renderHeader({ canImport: false });
+    expect(screen.queryByRole("button", { name: /import brokerage positions to portfolio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry Parse" })).not.toBeInTheDocument();
+    unmount();
+    const { unmount: unmountIdle, onBrokerageImport } = renderHeader({ canImport: true });
+    const btn = screen.getByRole("button", { name: /import brokerage positions to portfolio/i });
+    expect(btn).toHaveTextContent("Import to Portfolio");
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(onBrokerageImport).toHaveBeenCalledTimes(1);
+    unmountIdle();
+    renderHeader({ canImport: true, importLoading: true });
+    const loadingBtn = screen.getByRole("button", { name: /import brokerage positions to portfolio/i });
+    expect(loadingBtn).toHaveTextContent("Importing...");
+    expect(loadingBtn).toBeDisabled();
+  });
+  it("applies status-specific badge classes for each status", () => {
+    const statuses: Array<{ status: BankStatement["status"]; cls: string }> = [
+      { status: "approved", cls: "badge-success" },
+      { status: "rejected", cls: "badge-error" },
+      { status: "parsed", cls: "badge-warning" },
+      { status: "uploaded", cls: "badge-muted" },
+    ];
+    for (const { status, cls } of statuses) {
+      const { unmount } = renderHeader({ statement: { ...partBaseStatement, status } });
+      expect(screen.getByText(status)).toHaveClass(cls);
+      unmount();
+    }
+  });
+});
+describe("BrokerageImportResultBanner", () => {
+  const result: BrokerageImportResponse = { broker: "Moomoo", parsed_positions: 5, created_atomic_positions: 3, existing_atomic_positions: 2, reconcile_created: 3, reconcile_updated: 2, reconcile_disposed: 0, skipped: 0 };
+  it("AC22.17.3 renders import summary and portfolio link with and without skipped row", () => {
+    const { rerender } = render(<BrokerageImportResultBanner importResult={result} />);
+    const banner = screen.getByTestId("import-result-banner");
+    expect(banner).toHaveTextContent("Brokerage positions imported successfully");
+    expect(banner).toHaveTextContent("Moomoo");
+    expect(screen.getByRole("link", { name: /view portfolio after import/i })).toHaveAttribute("href", "/portfolio");
+    expect(screen.queryByText("Skipped:")).not.toBeInTheDocument();
+    rerender(<BrokerageImportResultBanner importResult={{ ...result, skipped: 4 }} />);
+    expect(screen.getByText("Skipped:")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+}); // AC-extraction.fe-stage1-review.4 AC-extraction.fe-stage1-review.5 AC-extraction.fe-stage1-review.6 AC-extraction.fe-ia-extraction.3

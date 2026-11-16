@@ -35,6 +35,8 @@ export function isWorkflowStatusResponse(
 export const WORKFLOW_STATUS_POLL_PENDING_MS = 30_000;
 /** Poll interval while nothing is pending. */
 export const WORKFLOW_STATUS_POLL_IDLE_MS = 120_000;
+/** Deduplicate remount fetches when navigating between routes quickly. */
+export const WORKFLOW_STATUS_STALE_MS = 5_000;
 
 /**
  * True when the user can still see work move: an active session, a parsing source, an
@@ -67,6 +69,7 @@ export function useWorkflowStatusQuery() {
     "get_workflow_status_endpoint_workflow_status_get",
     {},
     {
+      staleTime: WORKFLOW_STATUS_STALE_MS,
       refetchInterval: (query) =>
         workflowStatusHasPendingWork(query.state.data)
           ? WORKFLOW_STATUS_POLL_PENDING_MS

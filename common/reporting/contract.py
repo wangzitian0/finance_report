@@ -495,7 +495,7 @@ fe-period-cockpit.11||AC-reporting.fe-period-cockpit.11 marks the coverage start
 fe-fetch-budget.3||AC-reporting.fe-fetch-budget.3 the upload page polls every three seconds while a statement parses and stops when none parses
 @$fe/__tests__/queryClient.test.ts|P1
 fe-fetch-budget.4||AC-reporting.fe-fetch-budget.4 marks every ledger-derived read stale after a successful mutation
-@$fe/__tests__/workflowStatusPolling.test.tsx|P1
+@$fe/__tests__/workflowSurfaces.test.tsx|P1
 fe-fetch-budget.6||AC-reporting.fe-fetch-budget.6 polls every 120 s while nothing is pending
 @$be/reporting/test_balance_sheet_provenance.py|P1
 2654.1||test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_it
