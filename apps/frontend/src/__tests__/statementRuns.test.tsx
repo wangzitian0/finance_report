@@ -80,7 +80,7 @@ function mockApi(options: {
         return Promise.resolve({ ...statement, status: options.status ?? "rejected", original_filename: options.filename ?? statement.original_filename, balance_validation_result: null, source_missing_facts: [], source_envelope_reviewable: false, reviewed_envelope: null });
       case "list_pending_review_statements_pending_review_get":
         return Promise.resolve({ items: [], total: 0 });
-      case "get_review_conflicts_review_conflicts__statement_id__get":
+      case "get_review_conflicts_statements__statement_id__conflicts_get":
         return Promise.resolve({ duplicates: [], transfer_pairs: [], resolved: true });
       case RUNS_GET: {
         const items = options.runs();

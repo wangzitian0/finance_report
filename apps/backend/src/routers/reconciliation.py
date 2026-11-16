@@ -30,7 +30,7 @@ from src.ledger import (
     submit_system_journal_entry,
 )
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
-from src.platform import get_owned_or_404, paginate, raise_bad_request, raise_not_found
+from src.platform import get_owned_or_404, paginate, raise_bad_request, raise_conflict, raise_not_found
 from src.reconciliation import (
     MatchNotFoundError,
     ReconciliationError,
@@ -39,13 +39,14 @@ from src.reconciliation import (
     ReviewedDispositionCommand,
     ReviewedDispositionError,
     accept_match as accept_match_service,
-    batch_accept as batch_accept_service,
+    accept_pending_matches,
     count_pending_review_items,
     detect_anomalies,
     entry_total_amount,
     execute_matching,
     get_pending_items,
     get_reconciliation_stats,
+    has_unresolved_checks,
     posted_statement_source_ids,
     reject_match as reject_match_service,
     submit_reviewed_disposition,
@@ -53,10 +54,11 @@ from src.reconciliation import (
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BankTransactionSummary,
-    BatchAcceptRequest,
     JournalEntrySummary,
     ReconciliationAdjustmentRequest,
     ReconciliationAdjustmentResponse,
+    ReconciliationMatchBatchRequest,
+    ReconciliationMatchBatchResponse,
     ReconciliationMatchListResponse,
     ReconciliationMatchResponse,
     ReconciliationRunRequest,
@@ -341,35 +343,89 @@ async def reject_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId)
     return (await _load_match_responses(db, [match], user_id))[0]
 
 
-@router.post("/batch-accept", response_model=ReconciliationMatchListResponse)
-async def batch_accept(
-    payload: BatchAcceptRequest, *, db: DbSession, user_id: CurrentUserId
-) -> ReconciliationMatchListResponse:
-    """Accept multiple reconciliation matches in one call.."""
-    try:
-        matches = await batch_accept_service(db, payload.match_ids, user_id=user_id)
-        await db.commit()
-    except ReconciliationError as exc:
-        raise_bad_request(str(exc), cause=exc)
+@router.post("/matches", response_model=ReconciliationMatchBatchResponse)
+async def batch_update_matches(
+    payload: ReconciliationMatchBatchRequest, *, db: DbSession, user_id: CurrentUserId
+) -> ReconciliationMatchBatchResponse:
+    """Apply a batch accept or reject decision to pending reconciliation matches."""
+    if payload.action == "accept":
+        if await has_unresolved_checks(db, user_id, run_id=payload.run_id):
+            raise_conflict("Cannot batch approve while there are unresolved consistency checks")
+        if not payload.match_ids:
+            return ReconciliationMatchBatchResponse()
+        query = (
+            select(ReconciliationMatch)
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(
+                ReconciliationMatch.id.in_(payload.match_ids),
+                ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+                AtomicTransaction.user_id == user_id,
+            )
+            .order_by(ReconciliationMatch.id)
+            .with_for_update(of=ReconciliationMatch)
+        )
+        if payload.run_id:
+            query = query.where(ReconciliationMatch.run_id == payload.run_id)
+        if payload.min_score is not None:
+            query = query.where(ReconciliationMatch.match_score >= payload.min_score)
+        matches = list((await db.execute(query)).scalars().all())
+        try:
+            reconciled = await accept_pending_matches(db, matches, user_id=user_id)
+            await db.commit()
+        except ReconciliationError as exc:
+            await db.rollback()
+            raise_bad_request(str(exc), cause=exc)
+        log_financial_mutation(
+            logger,
+            "reconciliation.match.batch_accepted",
+            user_id=user_id,
+            action="batch_accept",
+            resource_type="reconciliation_match",
+            resource_id="batch",
+            requested_count=len(payload.match_ids),
+            accepted_count=len(matches),
+        )
+        return ReconciliationMatchBatchResponse(
+            approved_count=len(matches),
+            rejected_count=0,
+            journal_entries_reconciled=reconciled,
+        )
+
+    if not payload.match_ids:
+        return ReconciliationMatchBatchResponse()
+    reject_query = (
+        select(ReconciliationMatch)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(
+            ReconciliationMatch.id.in_(payload.match_ids),
+            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+            AtomicTransaction.user_id == user_id,
+        )
+        .order_by(ReconciliationMatch.id)
+        .with_for_update(of=ReconciliationMatch)
+    )
+    if payload.run_id:
+        reject_query = reject_query.where(ReconciliationMatch.run_id == payload.run_id)
+    matches = list((await db.execute(reject_query)).scalars().all())
+    for match in matches:
+        match.status = ReconciliationStatus.REJECTED
+        match.version += 1
+    await db.commit()
     log_financial_mutation(
         logger,
-        "reconciliation.match.batch_accepted",
+        "reconciliation.match.batch_rejected",
         user_id=user_id,
-        action="batch_accept",
+        action="batch_reject",
         resource_type="reconciliation_match",
         resource_id="batch",
         requested_count=len(payload.match_ids),
-        accepted_count=len(matches),
+        rejected_count=len(matches),
     )
-    if not matches:
-        return ReconciliationMatchListResponse(items=[], total=0)
-    loaded = (
-        (await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.id.in_([m.id for m in matches]))))
-        .scalars()
-        .all()
+    return ReconciliationMatchBatchResponse(
+        approved_count=0,
+        rejected_count=len(matches),
+        journal_entries_reconciled=0,
     )
-    items = await _load_match_responses(db, loaded, user_id)
-    return ReconciliationMatchListResponse(items=items, total=len(items))
 
 
 @router.get("/stats", response_model=ReconciliationStatsResponse)

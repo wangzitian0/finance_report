@@ -12,9 +12,9 @@ if TYPE_CHECKING:
     from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, ErrorResponse, error_code_for_status
     from src.schemas.extraction import AtomicTransactionResponse, BankStatementListItemResponse, BankStatementListResponse, BankStatementResponse, BankStatementStatusEnum, BankStatementUploadRequest, ParsedStatementPreview, StatementDecisionRequest, StatementRunListResponse, StatementRunRequest, compose_statement_list_item_response, compose_statement_response
     from src.schemas.journal import JournalEntryCreate, JournalEntryListResponse, JournalEntryResponse, JournalLineCreate, JournalLineResponse, VoidJournalEntryRequest
-    from src.schemas.reconciliation import AnomalyResponse, BankTransactionSummary, BatchAcceptRequest, JournalEntrySummary, ReconciliationMatchListResponse, ReconciliationMatchResponse, ReconciliationRunRequest, ReconciliationRunResponse, ReconciliationStatsResponse, ReconciliationStatusEnum, UnmatchedTransactionsResponse
+    from src.schemas.reconciliation import AnomalyResponse, BankTransactionSummary, JournalEntrySummary, ReconciliationMatchBatchRequest, ReconciliationMatchBatchResponse, ReconciliationMatchListResponse, ReconciliationMatchResponse, ReconciliationRunRequest, ReconciliationRunResponse, ReconciliationStatsResponse, ReconciliationStatusEnum, UnmatchedTransactionsResponse
     from src.schemas.reporting import AccountLineageLine, AccountLineageResponse, AnnualizedIncomeScheduleHolding, AnnualizedIncomeScheduleIncome, AnnualizedIncomeScheduleNetWorthTreatment, AnnualizedIncomeScheduleResponse, BalanceSheetResponse, BreakdownPeriod, BreakdownType, CategoryBreakdownResponse, FrameworkPolicyDecision, FrameworkPolicyEvidenceAnchor, FrameworkPolicyFact, FrameworkPolicyGap, FrameworkPolicyMatrix, FrameworkPolicyMatrixRule, FrameworkPolicyResult, IncomeStatementResponse, InvariantStatus, MonthContinuityBucket, NetWorthAllocationResponse, NetWorthAllocationRow, NetWorthAllocationSourceLine, NetWorthGranularity, NetWorthTimeSeriesResponse, PersonalDataQualityHealthResponse, PersonalReportingFrameworkId, PersonalReportPackageCompletenessWarning, PersonalReportPackageContractResponse, PersonalReportPackageDocument, PersonalReportPackageDocumentLifecycle, PersonalReportPackageExportContract, PersonalReportPackageGenerateRequest, PersonalReportPackageInputCoverage, PersonalReportPackageLineDetailsPage, PersonalReportPackageManifestEntriesPage, PersonalReportPackageNote, PersonalReportPackageNotesResponse, PersonalReportPackagePreview, PersonalReportPackageReadinessBlocker, PersonalReportPackageReadinessResponse, PersonalReportPackageReadinessState, PersonalReportPackageSectionContract, PersonalReportPackageSections, PersonalReportPackageSnapshotResponse, PersonalReportPackageSnapshotStatus, PersonalReportPackageSnapshotSummary, PersonalReportPackageStatementDispositionPolicy, PersonalReportPackageTraceabilityAnchor, PersonalReportPackageTraceabilityAnchorName, PersonalReportPackageTraceabilityLine, PersonalReportPackageTraceabilityResponse, PersonalReportPackageTraceManifestEntry, PolicyDimension, PolicyFactDomain, PolicyProvenance, PolicyReviewState, QualityActionItem, QualityGrade
-    from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ConsistencyCheckListResponse, ConsistencyCheckResponse, ResolveCheckRequest, Stage2ReviewQueueResponse
+    from src.schemas.review import ConsistencyCheckListResponse, ConsistencyCheckResponse, ResolveCheckRequest, Stage2ReviewQueueResponse
     from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate, UserResponse, UserUpdate
     from src.schemas.workflow import WorkflowEventCountsResponse, WorkflowEventCreate, WorkflowEventListResponse, WorkflowEventResponse, WorkflowEventStatusUpdate, WorkflowNextActionResponse, WorkflowNextActionType, WorkflowPrimaryState, WorkflowReportImpact, WorkflowReportReadinessResponse, WorkflowReportReadinessState, WorkflowStatusResponse
 
@@ -72,8 +72,9 @@ _GROUPS: dict[str, tuple[str, ...]] = {
     "src.schemas.reconciliation": (
         "AnomalyResponse",
         "BankTransactionSummary",
-        "BatchAcceptRequest",
         "JournalEntrySummary",
+        "ReconciliationMatchBatchRequest",
+        "ReconciliationMatchBatchResponse",
         "ReconciliationMatchListResponse",
         "ReconciliationMatchResponse",
         "ReconciliationRunRequest",
@@ -144,8 +145,6 @@ _GROUPS: dict[str, tuple[str, ...]] = {
         "QualityGrade",
     ),
     "src.schemas.review": (
-        "BatchApproveRequest",
-        "BatchRejectRequest",
         "ConsistencyCheckListResponse",
         "ConsistencyCheckResponse",
         "ResolveCheckRequest",
@@ -199,9 +198,6 @@ __all__ = [
     "BankStatementStatusEnum",
     "BankStatementUploadRequest",
     "BankTransactionSummary",
-    "BatchAcceptRequest",
-    "BatchApproveRequest",
-    "BatchRejectRequest",
     "BreakdownPeriod",
     "BreakdownType",
     "COMMON_ERROR_RESPONSES",
@@ -277,6 +273,8 @@ __all__ = [
     "ProcessingSummaryResponse",
     "QualityActionItem",
     "QualityGrade",
+    "ReconciliationMatchBatchRequest",
+    "ReconciliationMatchBatchResponse",
     "ReconciliationMatchListResponse",
     "ReconciliationMatchResponse",
     "ReconciliationRunRequest",

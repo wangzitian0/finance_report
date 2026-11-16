@@ -15,27 +15,19 @@ from src.extraction import (
     resolve_statement_transactions,
 )
 from src.observability import get_logger
-from src.platform import get_owned_or_404, raise_conflict, raise_not_found
+from src.platform import get_owned_or_404, raise_not_found
 from src.reconciliation import (
     CheckResolutionAction,
     CheckStatus,
     CheckType,
     ReconciliationError,
-    ReconciliationMatch,
-    ReconciliationStatus,
-    accept_pending_matches,
     derive_reconciliation_score_tier,
     get_stage2_queue,
-    has_unresolved_checks,
     list_checks,
     resolve_check,
     run_all_consistency_checks,
 )
 from src.schemas.review import (
-    BatchApproveRequest,
-    BatchApproveResponse,
-    BatchRejectRequest,
-    BatchRejectResponse,
     ConsistencyCheckListResponse,
     ConsistencyCheckResponse,
     ResolveCheckRequest,
@@ -50,7 +42,6 @@ from src.schemas.review import (
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/statements", tags=["review"])
-conflicts_router = APIRouter(prefix="/review", tags=["review"])
 
 
 async def _active_statement_or_404(db: DbSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
@@ -60,7 +51,7 @@ async def _active_statement_or_404(db: DbSession, statement_id: UUID, user_id: U
     return stmt
 
 
-@conflicts_router.get("/conflicts/{statement_id}", response_model=ReviewConflictsResponse)
+@router.get("/{statement_id}/conflicts", response_model=ReviewConflictsResponse)
 async def get_review_conflicts(
     statement_id: UUID, db: DbSession, user_id: CurrentUserId
 ) -> ReviewConflictsResponse:
@@ -103,7 +94,7 @@ async def get_review_conflicts(
     )
 
 
-@conflicts_router.post("/conflicts/{statement_id}/resolve", response_model=ReviewConflictsResolveResponse)
+@router.post("/{statement_id}/conflicts/resolve", response_model=ReviewConflictsResolveResponse)
 async def resolve_review_conflicts(
     statement_id: UUID,
     request: ResolveConflictsRequest,
@@ -193,7 +184,7 @@ async def resolve_consistency_check(
     return ConsistencyCheckResponse.model_validate(check)
 
 
-@router.get("/consistency-checks/list", response_model=ConsistencyCheckListResponse)
+@router.get("/consistency-checks", response_model=ConsistencyCheckListResponse)
 async def list_consistency_checks(
     db: DbSession,
     user_id: CurrentUserId,
@@ -211,63 +202,3 @@ async def list_consistency_checks(
         items=[ConsistencyCheckResponse.model_validate(c) for c in checks],
         total=total,
     )
-
-
-@router.post("/batch-approve-matches", response_model=BatchApproveResponse)
-async def batch_approve_matches(
-    request: BatchApproveRequest, db: DbSession, user_id: CurrentUserId
-) -> BatchApproveResponse:
-    """Batch approve matches (blocked by unresolved consistency checks)."""
-    if await has_unresolved_checks(db, user_id, run_id=request.run_id):
-        raise_conflict("Cannot batch approve while there are unresolved consistency checks")
-    if not request.match_ids:
-        return BatchApproveResponse(approved_count=0, journal_entries_reconciled=0)
-
-    query = (
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(
-            ReconciliationMatch.id.in_(request.match_ids),
-            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-            AtomicTransaction.user_id == user_id,
-        )
-        .order_by(ReconciliationMatch.id)
-        .with_for_update(of=ReconciliationMatch)
-    )
-    if request.run_id:
-        query = query.where(ReconciliationMatch.run_id == request.run_id)
-    matches = list((await db.execute(query)).scalars().all())
-    try:
-        reconciled = await accept_pending_matches(db, matches, user_id=user_id)
-    except ReconciliationError as exc:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    await db.commit()
-    return BatchApproveResponse(approved_count=len(matches), journal_entries_reconciled=reconciled)
-
-
-@router.post("/batch-reject-matches", response_model=BatchRejectResponse)
-async def batch_reject_matches(
-    request: BatchRejectRequest, db: DbSession, user_id: CurrentUserId
-) -> BatchRejectResponse:
-    """Batch reject matches."""
-    if not request.match_ids:
-        return BatchRejectResponse(rejected_count=0)
-    matches = list(
-        (
-            await db.execute(
-                select(ReconciliationMatch)
-                .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-                .where(
-                    ReconciliationMatch.id.in_(request.match_ids),
-                    ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-                    AtomicTransaction.user_id == user_id,
-                )
-            )
-        ).scalars().all()
-    )
-    for match in matches:
-        match.status = ReconciliationStatus.REJECTED
-        match.version += 1
-    await db.commit()
-    return BatchRejectResponse(rejected_count=len(matches))

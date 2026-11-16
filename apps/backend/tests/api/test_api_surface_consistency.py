@@ -85,3 +85,58 @@ async def test_issue3012_uncalled_routes_removed(client: AsyncClient, openapi_sc
         kwargs = {'json': {}} if method == 'PUT' else {}
         resp = await client.request(method, url, **kwargs)
         assert resp.status_code in allowed, f'{method} {url} returned {resp.status_code}, expected {allowed}'
+
+
+async def test_issue3013_naming_overlaps_resolved_and_action_url_rule(
+    client: AsyncClient, openapi_schema: dict[str, Any]
+) -> None:
+    """#3013 #3009 slice 4: resolve 5 URL naming overlaps and forbid verb/list action path segments."""
+    paths = openapi_schema['paths']
+    retired = (
+        ('get', '/transactions/{transaction_id}/audit'),
+        ('get', '/review/conflicts/{statement_id}'),
+        ('post', '/review/conflicts/{statement_id}/resolve'),
+        ('get', '/statements/consistency-checks/list'),
+        ('post', '/reconciliation/batch-accept'),
+        ('post', '/statements/batch-approve-matches'),
+        ('post', '/statements/batch-reject-matches'),
+    )
+    still_present = [f'{m.upper()} {p}' for m, p in retired if m in paths.get(p, {})]
+    assert not still_present, f'legacy overlapping #3013 routes still in OpenAPI: {still_present}'
+
+    required = (
+        ('get', '/journal-entries/{entry_id}/audit'),
+        ('get', '/statements/{statement_id}/conflicts'),
+        ('post', '/statements/{statement_id}/conflicts/resolve'),
+        ('get', '/statements/consistency-checks'),
+        ('post', '/reconciliation/matches'),
+    )
+    missing = [f'{m.upper()} {p}' for m, p in required if m not in paths.get(p, {})]
+    assert not missing, f'canonical #3013 routes missing from OpenAPI: {missing}'
+
+    bad_segments = []
+    forbidden_prefixes = ('batch-', 'get-', 'create-', 'update-', 'delete-')
+    for path in sorted(paths):
+        for seg in path.strip('/').split('/'):
+            if seg.startswith('{'):
+                continue
+            if seg == 'list' or seg.startswith(forbidden_prefixes):
+                bad_segments.append(f'{path} ({seg})')
+    assert not bad_segments, f'action/verb URL segments violate REST resource rule (#3013): {bad_segments}'
+
+    uid = uuid4()
+    for method, url, allowed in (
+        ('GET', f'/transactions/{uid}/audit', (404,)),
+        ('GET', f'/review/conflicts/{uid}', (404,)),
+        ('POST', f'/review/conflicts/{uid}/resolve', (404,)),
+        ('GET', '/statements/consistency-checks/list', (404,)),
+        ('POST', '/reconciliation/batch-accept', (404,)),
+        ('POST', '/statements/batch-approve-matches', (404, 405)),
+        ('POST', '/statements/batch-reject-matches', (404, 405)),
+    ):
+        resp = await client.request(method, url)
+        assert resp.status_code in allowed, f'{method} {url} -> {resp.status_code}, expected {allowed}'
+
+    checks_resp = await client.get('/statements/consistency-checks')
+    assert checks_resp.status_code == status.HTTP_200_OK, checks_resp.text
+    assert 'items' in checks_resp.json()

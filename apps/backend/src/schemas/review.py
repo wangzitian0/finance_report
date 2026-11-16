@@ -134,15 +134,6 @@ class ResolveCurrencyResponse(BaseModel):
     resolved_at: datetime | None = None
 
 
-class BatchApproveRequest(BaseModel):
-    match_ids: list[UUID] = default_list()
-    run_id: str | None = None
-
-
-class BatchRejectRequest(BaseModel):
-    match_ids: list[UUID] = default_list()
-
-
 class Stage2PendingMatch(BaseModel):
     id: UUID
     match_score: int
@@ -158,15 +149,6 @@ class Stage2ReviewQueueResponse(BaseModel):
     pending_matches: list[Stage2PendingMatch]
     consistency_checks: list[ConsistencyCheckResponse]
     has_unresolved_checks: bool
-
-
-class BatchApproveResponse(BaseModel):
-    approved_count: int
-    journal_entries_reconciled: int
-
-
-class BatchRejectResponse(BaseModel):
-    rejected_count: int
 
 
 class ReviewConflictCandidate(BaseModel):

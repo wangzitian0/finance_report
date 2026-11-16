@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -75,8 +75,26 @@ class ReconciliationRunResponse(BaseModel):
     unmatched: int
 
 
-class BatchAcceptRequest(BaseModel):
-    match_ids: list[str]
+class ReconciliationMatchBatchRequest(BaseModel):
+    action: Literal["accept", "reject"] = Field(
+        default="accept",
+        description="Batch action to apply to selected pending reconciliation matches.",
+    )
+    match_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Identifiers of pending reconciliation matches to process.",
+    )
+    run_id: str | None = Field(
+        default=None,
+        description="Optional reconciliation run scope for conflict checks and match filtering.",
+    )
+    min_score: Annotated[int | None, Field(ge=0, le=100, description="Minimum match score required when accepting.")] = None
+
+
+class ReconciliationMatchBatchResponse(BaseModel):
+    approved_count: int = Field(default=0, description="Count of matches accepted in the batch.")
+    rejected_count: int = Field(default=0, description="Count of matches rejected in the batch.")
+    journal_entries_reconciled: int = Field(default=0, description="Count of journal entries reconciled.")
 
 
 class ReviewedDispositionRequest(BaseModel):

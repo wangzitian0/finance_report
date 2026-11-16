@@ -446,9 +446,9 @@ class ScenarioBenchmarkRunner:
     ) -> dict[str, Any]:
         return _post_json(
             client,
-            "/api/statements/batch-approve-matches",
+            "/api/reconciliation/matches",
             "Batch approve matches failed",
-            json={"match_ids": match_ids or []},
+            json={"action": "accept", "match_ids": match_ids or []},
         )
 
     def run_reconciliation(

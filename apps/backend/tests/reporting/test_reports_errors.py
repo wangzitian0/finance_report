@@ -24,4 +24,4 @@ async def test_reconciliation_coverage_errors(client: AsyncClient):
 
     with patch('src.routers.reconciliation.reject_match_service', new_callable=AsyncMock) as mock: mock.side_effect = MatchNotFoundError('Match not found'); resp = await client.post(f'/reconciliation/matches/{uuid4()}/reject'); assert resp.status_code == 404
 
-    with patch('src.routers.reconciliation.batch_accept_service', new_callable=AsyncMock) as mock: mock.return_value = []; resp = await client.post('/reconciliation/batch-accept', json={'match_ids': []}); assert resp.status_code == 200; assert resp.json()['total'] == 0
+    resp = await client.post('/reconciliation/matches', json={'action': 'accept', 'match_ids': []}); assert resp.status_code == 200; assert resp.json()['approved_count'] == 0

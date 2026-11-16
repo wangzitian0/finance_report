@@ -62,6 +62,7 @@ export interface paths {
   "/health": _P<{ get: _O["health_check_health_get"] }>;
   "/journal-entries": _P<{ get: _O["list_journal_entries_journal_entries_get"]; post: _O["create_entry_journal_entries_post"] }>;
   "/journal-entries/{entry_id}": _P<{ get: _O["get_journal_entry_journal_entries__entry_id__get"]; delete: _O["delete_journal_entry_journal_entries__entry_id__delete"] }>;
+  "/journal-entries/{entry_id}/audit": _P<{ get: _O["get_journal_entry_audit_journal_entries__entry_id__audit_get"] }>;
   "/journal-entries/{entry_id}/postings": _P<{ post: _O["post_entry_journal_entries__entry_id__postings_post"] }>;
   "/journal-entries/{entry_id}/voidings": _P<{ post: _O["void_entry_journal_entries__entry_id__voidings_post"] }>;
   "/llm/catalog": _P<{ get: _O["get_catalog_llm_catalog_get"] }>;
@@ -85,8 +86,7 @@ export interface paths {
   "/portfolio/{ticker}/dividends": _P<{ get: _O["get_holding_dividends_portfolio__ticker__dividends_get"]; post: _O["create_holding_dividend_portfolio__ticker__dividends_post"] }>;
   "/portfolio/{ticker}/realized": _P<{ get: _O["get_holding_realized_lots_portfolio__ticker__realized_get"] }>;
   "/reconciliation/adjustment": _P<{ post: _O["post_reconciliation_adjustment_reconciliation_adjustment_post"] }>;
-  "/reconciliation/batch-accept": _P<{ post: _O["batch_accept_reconciliation_batch_accept_post"] }>;
-  "/reconciliation/matches": _P<{ get: _O["list_matches_reconciliation_matches_get"] }>;
+  "/reconciliation/matches": _P<{ get: _O["list_matches_reconciliation_matches_get"]; post: _O["batch_update_matches_reconciliation_matches_post"] }>;
   "/reconciliation/matches/{match_id}/accept": _P<{ post: _O["accept_match_reconciliation_matches__match_id__accept_post"] }>;
   "/reconciliation/matches/{match_id}/reject": _P<{ post: _O["reject_match_reconciliation_matches__match_id__reject_post"] }>;
   "/reconciliation/pending": _P<{ get: _O["pending_review_queue_reconciliation_pending_get"] }>;
@@ -116,18 +116,16 @@ export interface paths {
   "/reports/package/snapshots": _P<{ get: _O["list_personal_report_package_snapshots_reports_package_snapshots_get"] }>;
   "/reports/package/snapshots/{snapshot_id}": _P<{ get: _O["get_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__get"] }>;
   "/reports/package/snapshots/{snapshot_id}/export": _P<{ get: _O["export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get"] }>;
-  "/review/conflicts/{statement_id}": _P<{ get: _O["get_review_conflicts_review_conflicts__statement_id__get"] }>;
-  "/review/conflicts/{statement_id}/resolve": _P<{ post: _O["resolve_review_conflicts_review_conflicts__statement_id__resolve_post"] }>;
   "/statements": _P<{ get: _O["list_statements_statements_get"] }>;
-  "/statements/batch-approve-matches": _P<{ post: _O["batch_approve_matches_statements_batch_approve_matches_post"] }>;
-  "/statements/batch-reject-matches": _P<{ post: _O["batch_reject_matches_statements_batch_reject_matches_post"] }>;
-  "/statements/consistency-checks/list": _P<{ get: _O["list_consistency_checks_statements_consistency_checks_list_get"] }>;
+  "/statements/consistency-checks": _P<{ get: _O["list_consistency_checks_statements_consistency_checks_get"] }>;
   "/statements/consistency-checks/{check_id}/resolve": _P<{ post: _O["resolve_consistency_check_statements_consistency_checks__check_id__resolve_post"] }>;
   "/statements/pending-review": _P<{ get: _O["list_pending_review_statements_pending_review_get"] }>;
   "/statements/stage2/queue": _P<{ get: _O["get_stage2_review_queue_statements_stage2_queue_get"] }>;
   "/statements/upload": _P<{ post: _O["upload_statement_statements_upload_post"] }>;
   "/statements/{statement_id}": _P<{ get: _O["get_statement_statements__statement_id__get"]; delete: _O["delete_statement_statements__statement_id__delete"] }>;
   "/statements/{statement_id}/brokerage/import": _P<{ post: _O["import_brokerage_statement_positions_statements__statement_id__brokerage_import_post"] }>;
+  "/statements/{statement_id}/conflicts": _P<{ get: _O["get_review_conflicts_statements__statement_id__conflicts_get"] }>;
+  "/statements/{statement_id}/conflicts/resolve": _P<{ post: _O["resolve_review_conflicts_statements__statement_id__conflicts_resolve_post"] }>;
   "/statements/{statement_id}/document": _P<{ get: _O["get_statement_document_statements__statement_id__document_get"] }>;
   "/statements/{statement_id}/review": _P<{ get: _O["get_statement_for_review_statements__statement_id__review_get"] }>;
   "/statements/{statement_id}/review/approve": _P<{ post: _O["approve_statement_stage1_statements__statement_id__review_approve_post"] }>;
@@ -135,7 +133,6 @@ export interface paths {
   "/statements/{statement_id}/review/reject": _P<{ post: _O["reject_statement_stage1_statements__statement_id__review_reject_post"] }>;
   "/statements/{statement_id}/runs": _P<{ get: _O["list_statement_runs_statements__statement_id__runs_get"]; post: _O["create_statement_run_statements__statement_id__runs_post"] }>;
   "/statements/{statement_id}/stage2/run-checks": _P<{ post: _O["run_stage2_checks_statements__statement_id__stage2_run_checks_post"] }>;
-  "/transactions/{transaction_id}/audit": _P<{ get: _O["get_transaction_audit_transactions__transaction_id__audit_get"] }>;
   "/users/me/settings": _P<{ get: _O["get_current_user_settings_users_me_settings_get"]; patch: _O["patch_current_user_settings_users_me_settings_patch"] }>;
   "/workflow/events": _P<{ get: _O["list_workflow_events_endpoint_workflow_events_get"] }>;
   "/workflow/events/{event_id}": _P<{ patch: _O["update_workflow_event_status_endpoint_workflow_events__event_id__patch"] }>;
@@ -473,23 +470,6 @@ export interface components {
     };
     BaseCurrencyUpdate: {
       base_currency: string;
-    };
-    BatchAcceptRequest: {
-      match_ids: string[];
-    };
-    BatchApproveRequest: {
-      match_ids?: string[];
-      run_id?: string | null;
-    };
-    BatchApproveResponse: {
-      approved_count: number;
-      journal_entries_reconciled: number;
-    };
-    BatchRejectRequest: {
-      match_ids?: string[];
-    };
-    BatchRejectResponse: {
-      rejected_count: number;
     };
     Body_upload_statement_statements_upload_post: {
       account_id?: string | null;
@@ -1621,6 +1601,17 @@ export interface components {
       is_gain: boolean;
       journal_entry_id?: string | null;
     };
+    ReconciliationMatchBatchRequest: {
+      action: "accept" | "reject";
+      match_ids?: string[];
+      min_score?: number | null;
+      run_id?: string | null;
+    };
+    ReconciliationMatchBatchResponse: {
+      approved_count: number;
+      journal_entries_reconciled: number;
+      rejected_count: number;
+    };
     ReconciliationMatchResponse: {
       atomic_txn_id?: string | null;
       created_at: string;
@@ -2159,6 +2150,13 @@ export interface operations {
     requestBody?: never;
     responses: _R204;
   };
+  get_journal_entry_audit_journal_entries__entry_id__audit_get: {
+    parameters: _PP<{
+        entry_id: string;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["AuditTrailResponse"]>;
+  };
   post_entry_journal_entries__entry_id__postings_post: {
     parameters: _PP<{
         entry_id: string;
@@ -2296,7 +2294,6 @@ export interface operations {
     responses: _R<_S["RealizedLotResponse"][]>;
   };
   post_reconciliation_adjustment_reconciliation_adjustment_post: _Op<_S["ReconciliationAdjustmentResponse"], _NP, _S["ReconciliationAdjustmentRequest"]>;
-  batch_accept_reconciliation_batch_accept_post: _Op<_S["ListResponse_ReconciliationMatchResponse_"], _NP, _S["BatchAcceptRequest"]>;
   list_matches_reconciliation_matches_get: {
     parameters: _QP<{
         status?: _S["ReconciliationStatusEnum"] | null;
@@ -2306,6 +2303,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["ListResponse_ReconciliationMatchResponse_"]>;
   };
+  batch_update_matches_reconciliation_matches_post: _Op<_S["ReconciliationMatchBatchResponse"], _NP, _S["ReconciliationMatchBatchRequest"]>;
   accept_match_reconciliation_matches__match_id__accept_post: {
     parameters: _PP<{
         match_id: string;
@@ -2542,24 +2540,8 @@ export interface operations {
     requestBody?: never;
     responses: _R<unknown>;
   };
-  get_review_conflicts_review_conflicts__statement_id__get: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ReviewConflictsResponse"]>;
-  };
-  resolve_review_conflicts_review_conflicts__statement_id__resolve_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody: _B<_S["ResolveConflictsRequest"]>;
-    responses: _R<_S["ReviewConflictsResolveResponse"]>;
-  };
   list_statements_statements_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
-  batch_approve_matches_statements_batch_approve_matches_post: _Op<_S["BatchApproveResponse"], _NP, _S["BatchApproveRequest"]>;
-  batch_reject_matches_statements_batch_reject_matches_post: _Op<_S["BatchRejectResponse"], _NP, _S["BatchRejectRequest"]>;
-  list_consistency_checks_statements_consistency_checks_list_get: {
+  list_consistency_checks_statements_consistency_checks_get: {
     parameters: _QP<{
         status?: _S["CheckStatus"] | null;
         check_type?: _S["CheckType"] | null;
@@ -2614,6 +2596,20 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<_S["BrokerageImportResponse"]>;
+  };
+  get_review_conflicts_statements__statement_id__conflicts_get: {
+    parameters: _PP<{
+        statement_id: string;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ReviewConflictsResponse"]>;
+  };
+  resolve_review_conflicts_statements__statement_id__conflicts_resolve_post: {
+    parameters: _PP<{
+        statement_id: string;
+      }>;
+    requestBody: _B<_S["ResolveConflictsRequest"]>;
+    responses: _R<_S["ReviewConflictsResolveResponse"]>;
   };
   get_statement_document_statements__statement_id__document_get: {
     parameters: _PP<{
@@ -2670,13 +2666,6 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<_S["ConsistencyCheckListResponse"]>;
-  };
-  get_transaction_audit_transactions__transaction_id__audit_get: {
-    parameters: _PP<{
-        transaction_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["AuditTrailResponse"]>;
   };
   get_current_user_settings_users_me_settings_get: _OpN<_S["UserAiSettingsResponse"]>;
   patch_current_user_settings_users_me_settings_patch: _Op<_S["UserAiSettingsResponse"], _NP, _S["UserAiSettingsUpdate"]>;

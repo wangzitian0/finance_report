@@ -1,4 +1,4 @@
-"""POST /statements/batch-approve-matches: statement count grows by a bounded amount per extra match."""
+"""POST /reconciliation/matches: statement count grows by a bounded amount per extra match."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ async def _approve_batch_and_count(client, db, db_engine, user_id, count: int) -
 
     event.listen(db_engine.sync_engine, "before_cursor_execute", capture)
     try:
-        response = await client.post("/statements/batch-approve-matches", json={"match_ids": ids})
+        response = await client.post("/reconciliation/matches", json={"action": "accept", "match_ids": ids})
     finally:
         event.remove(db_engine.sync_engine, "before_cursor_execute", capture)
     assert response.status_code == 200, response.text
@@ -48,6 +48,6 @@ async def test_batch_approve_over_http_costs_a_bounded_number_of_statements_per_
 
     assert small_body["approved_count"] == 2
     assert large_body["approved_count"] == 6
-    assert set(large_body) == {"approved_count", "journal_entries_reconciled"}
+    assert set(large_body) == {"approved_count", "rejected_count", "journal_entries_reconciled"}
     slope = (large_sql - small_sql) / 4
     assert slope <= MAX_EXTRA_STATEMENTS_PER_MATCH, f"{small_sql} -> {large_sql} statements, slope {slope:.1f}"

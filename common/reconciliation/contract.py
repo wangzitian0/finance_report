@@ -285,7 +285,7 @@ fe-stage2-review.17||AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match r
 fe-stage2-review.19||AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes|P2
 @$fe/__tests__/statementDetailReview.test.tsx|P2
 fe-stage2-review.18|Conflict resolution dialog `<ConflictResolutionDialog />` opens.|AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist
-fe-stage2-review.23|Stage 1 conflict dialog loads duplicate and transfer-pair candidates from `GET /api/review/conflicts/{statement_id}`.|^|P0
+fe-stage2-review.23|Stage 1 conflict dialog loads duplicate and transfer-pair candidates from `GET /api/statements/{statement_id}/conflicts`.|^|P0
 @$fe/__tests__/reviewRunPage.test.tsx|P2
 fe-stage2-review.20|Stage 2 run-level review at `/audit?run_id=<id>` summarizes duplicate, transfer-pair.|AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval
 fe-stage2-review.21|Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval.|^

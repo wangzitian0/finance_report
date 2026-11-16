@@ -109,7 +109,7 @@ export default function ReconciliationWorkbench() {
 
   const batchAcceptMutation = useMutation({
     mutationFn: (matchIds: string[]) =>
-      apiOperation("batch_accept_reconciliation_batch_accept_post", { body: { match_ids: matchIds } }),
+      apiOperation("batch_update_matches_reconciliation_matches_post", { body: { action: "accept", match_ids: matchIds } }),
     onSuccess,
     onError: (err: Error) => setError(`Batch accept failed: ${err.message}`),
   });
