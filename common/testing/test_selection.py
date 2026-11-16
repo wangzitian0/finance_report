@@ -40,6 +40,11 @@ def run_pytest(
     return runner(argv, check=False, cwd=ROOT_DIR, env=env).returncode
 
 
+def _resolve_touched_files(raw: Sequence[str]) -> list[str]:
+    """Return CLI touched paths, or whitespace-split ``INFRA2_TOUCHED_FILES``."""
+    return list(raw) if raw else os.environ.get("INFRA2_TOUCHED_FILES", "").split()
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -98,17 +103,18 @@ def main(
         return 0
 
     if args.touched_files is not None:
+        touched_files = _resolve_touched_files(args.touched_files)
         if args.run:
-            nodes, marker = matrix.touched_e2e_selection(args.touched_files)
+            nodes, marker = matrix.touched_e2e_selection(touched_files)
             if not nodes:
                 print("no touched journey: pytest not started")
                 return 0
             env = matrix.stage_env(matrix.STAGING_CORE_E2E_STAGE)
             return run_pytest(nodes, marker, stage_env=env, runner=runner)
         if args.shell:
-            print(matrix.emit_touched_e2e_shell(args.touched_files))
+            print(matrix.emit_touched_e2e_shell(touched_files))
             return 0
-        for node in matrix.select_touched_e2e(args.touched_files):
+        for node in matrix.select_touched_e2e(touched_files):
             print(node)
         return 0
 

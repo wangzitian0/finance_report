@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import runpy
 import shlex
@@ -327,11 +328,15 @@ SCANNED = [
 HELP_CALLS = sorted({call for call in SCANNED if call[2] in HELP_KINDS})
 
 
-def _run_module(*args: str) -> subprocess.CompletedProcess[str]:
+def _run_module(
+    *args: str, env_override: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run `<this python> -m <args>` in the repository root, as the SDK runs a hook step."""
+    env = {**os.environ, **env_override} if env_override else None
     return subprocess.run(
         [sys.executable, "-m", *args],
         cwd=ROOT,
+        env=env,
         capture_output=True,
         text=True,
         timeout=40,
@@ -593,3 +598,10 @@ def test_AC_testing_hook_main_8_every_manifest_env_var_is_passed_through() -> No
     assert matrix.select_touched_e2e(touched.split()) == [
         "tests/e2e/test_journal_ui_journey.py"
     ]
+    run_env = _run_module(
+        "common.testing.test_selection",
+        "--touched-files",
+        env_override={"INFRA2_TOUCHED_FILES": touched},
+    )
+    assert run_env.returncode == 0, run_env.stderr
+    assert run_env.stdout.splitlines() == ["tests/e2e/test_journal_ui_journey.py"]
