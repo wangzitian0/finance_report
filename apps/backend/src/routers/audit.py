@@ -1,4 +1,4 @@
-"""Transaction audit trail endpoints."""
+"""Journal entry audit trail endpoints."""
 
 from uuid import UUID
 
@@ -10,25 +10,25 @@ from src.ledger import JournalAuditLog, JournalEntry
 from src.platform import raise_not_found
 from src.schemas.audit import AuditTrailItem, AuditTrailResponse
 
-router = APIRouter(prefix="/transactions", tags=["audit"])
+router = APIRouter(prefix="/journal-entries", tags=["audit"])
 
 
-@router.get("/{transaction_id}/audit", response_model=AuditTrailResponse)
-async def get_transaction_audit(
-    transaction_id: UUID,
+@router.get("/{entry_id}/audit", response_model=AuditTrailResponse)
+async def get_journal_entry_audit(
+    entry_id: UUID,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AuditTrailResponse:
-    """Return chronological audit records for a user-owned transaction."""
+    """Return chronological audit records for a user-owned journal entry."""
     entry_result = await db.execute(
-        select(JournalEntry.id).where(JournalEntry.id == transaction_id).where(JournalEntry.user_id == user_id)
+        select(JournalEntry.id).where(JournalEntry.id == entry_id).where(JournalEntry.user_id == user_id)
     )
     if entry_result.scalar_one_or_none() is None:
-        raise_not_found("Transaction")
+        raise_not_found("Journal entry")
 
     result = await db.execute(
         select(JournalAuditLog)
-        .where(JournalAuditLog.entry_id == transaction_id)
+        .where(JournalAuditLog.entry_id == entry_id)
         .order_by(JournalAuditLog.created_at.asc())
     )
     logs = result.scalars().all()

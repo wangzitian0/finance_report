@@ -23,8 +23,8 @@ export function AuditTrailPanel({ transactionId }: { transactionId: string }) {
   const fetchAuditTrail = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiOperation("get_transaction_audit_transactions__transaction_id__audit_get", {
-        path: { transaction_id: transactionId },
+      const data = await apiOperation("get_journal_entry_audit_journal_entries__entry_id__audit_get", {
+        path: { entry_id: transactionId },
       });
       setRecords(data.items);
       setError(null);

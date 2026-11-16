@@ -37,7 +37,7 @@ The reconciliation engine uses multi-dimensional scoring to find matches:
 === "Accept Match"
 ```bash curl -X POST https://report.zitian.party/api/reconciliation/matches/{id}/accept ``` === "Reject Match"
 ```bash curl -X POST https://report.zitian.party/api/reconciliation/matches/{id}/reject \  -d '{"reason": "Wrong transaction"}' ``` === "Batch Accept (Score ≥ 80)"
-```bash curl -X POST https://report.zitian.party/api/reconciliation/batch-accept \  -d '{"min_score": 80}' ```
+```bash curl -X POST https://report.zitian.party/api/reconciliation/matches \  -d '{"action": "accept", "match_ids": ["..."], "min_score": 80}' ```
 ## Step 5: Handle Unmatched
 ### View Unmatched Transactions
 ```bash curl https://report.zitian.party/api/reconciliation/unmatched ```

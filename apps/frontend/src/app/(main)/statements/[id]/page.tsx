@@ -202,7 +202,7 @@ export default function StatementDetailPage() {
   });
   const { data: conflicts } = useQuery({
     queryKey: ["statement-conflicts", statementId],
-    queryFn: () => apiOperation("get_review_conflicts_review_conflicts__statement_id__get", { path: { statement_id: statementId } }),
+    queryFn: () => apiOperation("get_review_conflicts_statements__statement_id__conflicts_get", { path: { statement_id: statementId } }),
     enabled: isParsed,
   });
 
@@ -364,7 +364,7 @@ export default function StatementDetailPage() {
   };
 
   const resolveConflictsMutation = useMutation({
-    mutationFn: (action: "confirm_distinct" | "link_transfer") => apiOperation("resolve_review_conflicts_review_conflicts__statement_id__resolve_post", { path: { statement_id: statementId }, body: { action } }),
+    mutationFn: (action: "confirm_distinct" | "link_transfer") => apiOperation("resolve_review_conflicts_statements__statement_id__conflicts_resolve_post", { path: { statement_id: statementId }, body: { action } }),
     onSuccess: () => {
       showToast("Conflicts resolved", "success");
       setConflictsResolved(true);

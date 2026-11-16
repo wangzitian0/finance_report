@@ -10,12 +10,12 @@ See [`common/extraction/confirmation-workflow.md §3`](../extraction/confirmatio
 
 | From | Event | To | Guard |
 |---|---|---|---|
-| `pending_review` | `accept_match()` / `batch-approve-matches` | `accepted` | No unresolved consistency checks in active Stage 2 scope; referenced entries reconcile idempotently |
+| `pending_review` | `accept_match()` / `POST /api/reconciliation/matches` | `accepted` | No unresolved consistency checks in active Stage 2 scope; referenced entries reconcile idempotently |
 | `pending_review` | `reject_match()` | `rejected` | — |
 | `auto_accepted` | system auto-accept | `accepted` | Score `>= 85` |
 | `accepted` | journal reconciled | (terminal) | Linked posted journal entry transitions to `reconciled` |
 
-`accept_match()` and `POST /api/statements/batch-approve-matches` never invent missing journal entries, categories, or accounts; they transition `pending_review -> accepted` and reconcile pre-existing referenced journal entries idempotently (`BatchApproveResponse` returns `approved_count` and `journal_entries_reconciled`). See [`§4`](../extraction/confirmation-workflow.md#4-design-constraints) and [`§5`](../extraction/confirmation-workflow.md#5-tolerance-reference).
+`accept_match()` and `POST /api/reconciliation/matches` never invent missing journal entries, categories, or accounts; they transition `pending_review -> accepted` and reconcile pre-existing referenced journal entries idempotently (`ReconciliationMatchBatchResponse` returns `approved_count`, `rejected_count`, and `journal_entries_reconciled`). See [`§4`](../extraction/confirmation-workflow.md#4-design-constraints) and [`§5`](../extraction/confirmation-workflow.md#5-tolerance-reference).
 
 ## 6. API Contract — Stage 2 Endpoints (reconciliation + statements routers)
 
@@ -23,9 +23,8 @@ See [`common/extraction/confirmation-workflow.md §3`](../extraction/confirmatio
 |---|---|---|
 | `POST /api/reconciliation/matches/{id}/accept` | `match_id`, bearer token | `status -> accepted`; reconciles linked journal entry |
 | `POST /api/reconciliation/matches/{id}/reject` | `match_id`, bearer token | `status -> rejected` |
-| `POST /api/reconciliation/batch-accept` | `match_ids`, bearer token | Accepts pending matches when no unresolved check blocks |
+| `POST /api/reconciliation/matches` | `action`, `match_ids`, optional `run_id`/`min_score`, bearer token | Batch-accepts or rejects matches in scope, reconciles linked journal entries, returns `approved_count`, `rejected_count`, and `journal_entries_reconciled` |
 | `GET /api/statements/stage2/queue` | optional `run_id`, bearer token | Returns pending matches and unresolved consistency checks in scope |
-| `POST /api/statements/batch-approve-matches` | `match_ids`, optional `run_id`, bearer token | Batch-accepts matches in scope, reconciles linked journal entries, returns `approved_count` and `journal_entries_reconciled` |
 | `GET /api/reconciliation/pending` | bearer token | Returns `pending_review` matches |
 
 Stage 1 endpoints: [`common/extraction/confirmation-workflow.md`](../extraction/confirmation-workflow.md#6-api-contract--stage-1-endpoints-in-routersstatementspy).

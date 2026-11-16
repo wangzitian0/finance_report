@@ -156,7 +156,7 @@
           "title": "规则批量自动回填与提交",
           "ui_surface": "/reconciliation?tab=review-queue",
           "component": "Stage2ReviewQueue",
-          "backend_endpoint": "POST /statements/batch-approve-matches",
+          "backend_endpoint": "POST /reconciliation/matches",
           "invariant": "Batch approve commits all matching rules atomically when checks resolved",
           "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/reviewQueuePage.test.tsx",

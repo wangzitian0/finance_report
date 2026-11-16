@@ -62,7 +62,7 @@ Two `TransferLeg` candidates pair via `pair_fx_legs` / `discover_fx_conversions`
 ### Stage 2 & Reviewed Disposition
 
 - Workbench `/reconciliation` tabs (`?tab=matches|unmatched|review-queue`) default to `unmatched` when items exist (`#2646`).
-- `accept_match()` and `POST /statements/batch-approve-matches` share `accept_pending_matches()`: lock matches once, batch-load transactions/entries/anchor links (`~2` SQL per extra match), block if unresolved checks exist in scope (`run_id` when specified), reconcile existing linked journal entries (without fabricating entries/accounts/categories), and return `{approved_count, journal_entries_reconciled}`.
+- `accept_match()` and `POST /reconciliation/matches` share `accept_pending_matches()`: lock matches once, batch-load transactions/entries/anchor links (`~2` SQL per extra match), block if unresolved checks exist in scope (`run_id` when specified), reconcile existing linked journal entries (without fabricating entries/accounts/categories), and return `{approved_count, journal_entries_reconciled}`.
 - `reconciliation_match_journal_entries` is the trusted audit link table alongside compatibility `journal_entry_ids`.
 - `POST /reconciliation/unmatched/{txn_id}/reviewed-disposition` requires explicit non-transfer intent, active counter-account, and rationale; it atomically appends `OBSERVATION` + `DECISION` `TraceRecord` rows and posts one entry under an `AtomicTransaction` lock.
 
@@ -73,12 +73,11 @@ Two `TransferLeg` candidates pair via `pair_fx_legs` / `discover_fx_conversions`
 | `GET` | `/statements/{id}/review` | Stage 1 review payload with PDF URL |
 | `POST` | `/statements/{id}/review/approve` | Stage 1 approve with balance validation |
 | `POST` | `/statements/{id}/review/reject` | Stage 1 reject + extract rerun |
-| `GET` | `/review/conflicts/{statement_id}` | Duplicate and transfer-pair conflicts |
+| `GET` | `/statements/{statement_id}/conflicts` | Duplicate and transfer-pair conflicts |
 | `GET` | `/statements/stage2/queue` | Stage 2 queue (`optional run_id`) |
 | `POST` | `/statements/{id}/stage2/run-checks` | Run consistency checks |
 | `POST` | `/statements/consistency-checks/{id}/resolve` | Resolve consistency check |
-| `GET` | `/statements/consistency-checks/list` | List/filter consistency checks |
-| `POST` | `/statements/batch-approve-matches` | Batch approve matches (`optional run_id`) |
-| `POST` | `/statements/batch-reject-matches` | Batch reject matches |
+| `GET` | `/statements/consistency-checks` | List/filter consistency checks |
+| `POST` | `/reconciliation/matches` | Batch accept or reject matches (`action`, optional `run_id`/`min_score`) |
 
 Key files: `src/reconciliation/extension/{matching,candidate_policy,entry_reads,consistency_checks,review_queue,reviewed_disposition}.py`, `src/routers/{reconciliation,review,statements}.py`, `apps/frontend/src/components/{review/Stage2ReviewQueue,reconciliation/Workbench}.tsx`.

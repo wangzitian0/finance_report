@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `120`
-- Schema count: `264`
+- Endpoint count: `118`
+- Schema count: `261`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -32,7 +32,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `portfolio` | 12 |
 | `reconciliation` | 11 |
 | `reports` | 21 |
-| `review` | 8 |
+| `review` | 6 |
 | `statements` | 13 |
 | `untagged` | 1 |
 | `user-settings` | 2 |
@@ -84,7 +84,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/transactions/{transaction_id}/audit` | yes | `transaction_id`* (path) | - | `200` `AuditTrailResponse` | Get Transaction Audit |
+| `GET` | `/journal-entries/{entry_id}/audit` | yes | `entry_id`* (path) | - | `200` `AuditTrailResponse` | Get Journal Entry Audit |
 
 ### auth
 
@@ -181,8 +181,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `POST` | `/reconciliation/adjustment` | yes | - | `ReconciliationAdjustmentRequest` | `200` `ReconciliationAdjustmentResponse` | Post Reconciliation Adjustment |
-| `POST` | `/reconciliation/batch-accept` | yes | - | `BatchAcceptRequest` | `200` `ListResponse_ReconciliationMatchResponse_` | Batch Accept |
 | `GET` | `/reconciliation/matches` | yes | `status` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ReconciliationMatchResponse_` | List Matches |
+| `POST` | `/reconciliation/matches` | yes | - | `ReconciliationMatchBatchRequest` | `200` `ReconciliationMatchBatchResponse` | Batch Update Matches |
 | `POST` | `/reconciliation/matches/{match_id}/accept` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Accept Match |
 | `POST` | `/reconciliation/matches/{match_id}/reject` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Reject Match |
 | `GET` | `/reconciliation/pending` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_ReconciliationMatchResponse_` | Pending Review Queue |
@@ -222,13 +222,11 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/review/conflicts/{statement_id}` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
-| `POST` | `/review/conflicts/{statement_id}/resolve` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
-| `POST` | `/statements/batch-approve-matches` | yes | - | `BatchApproveRequest` | `200` `BatchApproveResponse` | Batch Approve Matches |
-| `POST` | `/statements/batch-reject-matches` | yes | - | `BatchRejectRequest` | `200` `BatchRejectResponse` | Batch Reject Matches |
-| `GET` | `/statements/consistency-checks/list` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
+| `GET` | `/statements/consistency-checks` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
 | `POST` | `/statements/consistency-checks/{check_id}/resolve` | yes | `check_id`* (path) | `ResolveCheckRequest` | `200` `ConsistencyCheckResponse` | Resolve Consistency Check |
 | `GET` | `/statements/stage2/queue` | yes | `run_id` (query) | - | `200` `Stage2ReviewQueueResponse` | Get Stage2 Review Queue |
+| `GET` | `/statements/{statement_id}/conflicts` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
+| `POST` | `/statements/{statement_id}/conflicts/resolve` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
 | `POST` | `/statements/{statement_id}/stage2/run-checks` | yes | `statement_id`* (path) | - | `200` `ConsistencyCheckListResponse` | Run Stage2 Checks |
 
 ### statements

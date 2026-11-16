@@ -282,7 +282,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
 
   const fetchFilteredChecks = useCallback(async () => {
     try {
-      const result = await apiOperation("list_consistency_checks_statements_consistency_checks_list_get", {
+      const result = await apiOperation("list_consistency_checks_statements_consistency_checks_get", {
         query: { check_type: checkTypeParameter(checkTypeFilter), status: checkStatusParameter(statusFilter), run_id: runId, limit: 500 },
       });
       setFilteredChecks(severityFilter.length > 0 ? result.items.filter((c) => severityFilter.includes(c.severity)) : result.items);
@@ -315,7 +315,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
     if (selectedMatches.size === 0) return;
     setActionLoading(true);
     try {
-      const result = await apiOperation("batch_approve_matches_statements_batch_approve_matches_post", { body: { match_ids: Array.from(selectedMatches) } });
+      const result = await apiOperation("batch_update_matches_reconciliation_matches_post", { body: { action: "accept", match_ids: Array.from(selectedMatches) } });
       showToast(`Approved ${result.approved_count} matches`, "success");
       setSelectedMatches(new Set());
       fetchData();
@@ -331,7 +331,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
     if (selectedMatches.size === 0) return;
     setActionLoading(true);
     try {
-      const result = await apiOperation("batch_reject_matches_statements_batch_reject_matches_post", { body: { match_ids: Array.from(selectedMatches) } });
+      const result = await apiOperation("batch_update_matches_reconciliation_matches_post", { body: { action: "reject", match_ids: Array.from(selectedMatches) } });
       showToast(`Rejected ${result.rejected_count} matches`, "success");
       setSelectedMatches(new Set());
       fetchData();
@@ -351,7 +351,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
     if (matchIds.length === 0) { showToast("No pending matches remain for this run", "success"); return; }
     setActionLoading(true);
     try {
-      const result = await apiOperation("batch_approve_matches_statements_batch_approve_matches_post", { body: { match_ids: matchIds, run_id: runId } });
+      const result = await apiOperation("batch_update_matches_reconciliation_matches_post", { body: { action: "accept", match_ids: matchIds, run_id: runId } });
       showToast(`Approved ${result.approved_count} run matches`, "success");
       setSelectedMatches(new Set());
       fetchData();

@@ -5,7 +5,7 @@
  * (`apps/frontend/openapi.json`, staleness-gated by
  * `tools/generate_openapi_spec.py --check`). This module re-exports its schema
  * objects under ergonomic aliases so call sites can type requests/responses
- * against the generated contract — e.g. `apiFetch<Schemas["BatchApproveResponse"]>(...)`
+ * against the generated contract — e.g. `apiFetch<Schemas["ReconciliationMatchBatchResponse"]>(...)`
  * — giving compile-time FE↔BE drift detection instead of hand-written shapes.
  *
  * Migrate high-traffic modules to these aliases incrementally; do not edit
