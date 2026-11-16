@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `129`
-- Schema count: `272`
+- Endpoint count: `120`
+- Schema count: `264`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -15,15 +15,15 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Group | Endpoints |
 |---|---:|
-| `accounts` | 10 |
+| `accounts` | 9 |
 | `ai-feedback` | 2 |
 | `app-config` | 2 |
-| `assets` | 10 |
+| `assets` | 7 |
 | `audit` | 1 |
 | `auth` | 4 |
 | `chat` | 4 |
 | `classifications` | 1 |
-| `corrections` | 2 |
+| `corrections` | 1 |
 | `evidence` | 1 |
 | `journal-entries` | 6 |
 | `llm` | 7 |
@@ -36,7 +36,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `statements` | 13 |
 | `untagged` | 1 |
 | `user-settings` | 2 |
-| `users` | 4 |
 | `workflow` | 3 |
 
 ## Endpoints
@@ -52,7 +51,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/accounts/opening-balances` | yes | - | `OpeningBalanceRequest` | `201` `JournalEntryResponse` | Post Opening Balances |
 | `GET` | `/accounts/processing/pending` | yes | - | - | `200` `ListResponse_ProcessingPendingItem_` | List Processing Pending |
 | `GET` | `/accounts/processing/summary` | yes | - | - | `200` `ProcessingSummaryResponse` | Get Processing Summary |
-| `GET` | `/accounts/{account_id}` | yes | `account_id`* (path) | - | `200` `AccountResponse` | Get Account |
 | `PUT` | `/accounts/{account_id}` | yes | `account_id`* (path) | `AccountUpdate` | `200` `AccountResponse` | Update Account |
 | `DELETE` | `/accounts/{account_id}` | yes | `account_id`* (path) | - | `204` - | Delete Account |
 
@@ -74,10 +72,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/assets/positions` | yes | `status_filter` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ManagedPositionResponse_` | List Positions |
-| `GET` | `/assets/positions/{position_id}` | yes | `position_id`* (path) | - | `200` `ManagedPositionResponse` | Get Position |
 | `GET` | `/assets/positions/{position_id}/depreciation` | yes | `position_id`* (path), `method` (query), `useful_life_years` (query), `salvage_value` (query), `as_of_date` (query) | - | `200` `DepreciationResponse` | Get Position Depreciation |
-| `POST` | `/assets/reconcile` | yes | - | - | `200` `ReconcilePositionsResponse` | Reconcile Positions |
 | `GET` | `/assets/valuation-components` | yes | `as_of_date` (query), `include_restricted` (query) | - | `200` `ValuationComponentsResponse` | List Valuation Components |
 | `GET` | `/assets/valuation-snapshots` | yes | `as_of_date` (query), `component_type` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ManualValuationSnapshotResponse_` | List Valuation Snapshots |
 | `POST` | `/assets/valuation-snapshots` | yes | - | `ManualValuationSnapshotCreate` | `201` `ManualValuationSnapshotResponse` | Create Valuation Snapshot |
@@ -120,7 +115,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `POST` | `/corrections` | yes | - | `CorrectionRequest` | `201` `CorrectionResponse` | Create Correction |
-| `GET` | `/corrections/stats` | yes | - | - | `200` `CorrectionStatsResponse` | Correction Stats |
 
 ### evidence
 
@@ -267,15 +261,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `GET` | `/users/me/settings` | yes | - | - | `200` `UserAiSettingsResponse` | Get Current User Settings |
 | `PATCH` | `/users/me/settings` | yes | - | `UserAiSettingsUpdate` | `200` `UserAiSettingsResponse` | Patch Current User Settings |
-
-### users
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/users` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_UserResponse_` | List Users |
-| `GET` | `/users/{user_id}` | yes | `user_id`* (path) | - | `200` `UserResponse` | Get User |
-| `PUT` | `/users/{user_id}` | yes | `user_id`* (path) | `UserUpdate` | `200` `UserResponse` | Update User |
-| `DELETE` | `/users/{user_id}` | yes | `user_id`* (path) | - | `204` - | Delete User |
 
 ### workflow
 

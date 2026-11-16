@@ -727,8 +727,6 @@ source-vocabulary.2||test_source_enum_persistence_compatibility
 121.1||test_AC13_21_1_balance_invalid_routes_to_parsed_review
 @$be/ai/test_ai_streaming.py|P1
 116.1||test_stream_ai_json_forwards_zai_knobs_and_seed
-@$be/api/test_users_router.py
-123.1||test_AC13_23_1_delete_user_with_in_flight_parse_returns_409
 @$be/extraction/test_correction_service_cache.py|P1
 407.2||test_get_few_shot_examples_cache_hit_and_limit
 @$e2e/test_brokerage_upload_to_portfolio_value.py
@@ -739,8 +737,6 @@ source-vocabulary.2||test_source_enum_persistence_compatibility
 2502.1||test_statement_workflow_service
 @$be/infra/test_evidence_lineage_migration_contract.py|P1
 1807.2||test_AC18_7_2_evidence_lineage_migration_creates_tables_and_indexes
-@$be/api/test_corrections_router.py|P1
-1802.5||test_AC18_2_5_top_corrections_is_typed_pydantic_model
 @$be/integration/test_non_pnl_classification_posting.py
 non-pnl-categories.5||test_AC_extraction_non_pnl_categories_5_unmatched_transfer_waits_for_review
 @$be/api/test_ai_feedback_effects.py

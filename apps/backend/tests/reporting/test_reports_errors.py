@@ -14,7 +14,7 @@ async def test_journal_router_coverage_errors(client: AsyncClient, db: AsyncSess
 
 async def test_accounts_coverage_errors(client: AsyncClient):
 
-    from src.ledger.extension.account_service import AccountNotFoundError; resp = await client.get(f'/accounts/{uuid4()}'); assert resp.status_code == 404; resp = await client.put(f'/accounts/{uuid4()}', json={'name': 'New'}); assert resp.status_code == 404
+    from src.ledger.extension.account_service import AccountNotFoundError; resp = await client.put(f'/accounts/{uuid4()}', json={'name': 'New'}); assert resp.status_code == 404
 
     with patch('src.routers.accounts.account_service.get_account', new_callable=AsyncMock) as mock: mock.side_effect = AccountNotFoundError(uuid4()); resp = await client.delete(f'/accounts/{uuid4()}'); assert resp.status_code == 404
 

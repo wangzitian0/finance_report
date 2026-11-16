@@ -48,3 +48,40 @@ async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(client:
     'AC-platform.29.5'; sid = uuid4()
     for removed in (f'/statements/{sid}/approve', f'/statements/{sid}/reject'): response = await client.post(removed, json={'notes': ''}); assert response.status_code in (404, 405), f'{removed} still resolves: {response.status_code}'
     paths = set(openapi_schema['paths']); assert '/statements/{statement_id}/approve' not in paths; assert '/statements/{statement_id}/reject' not in paths; assert '/statements/{statement_id}/review/approve' in paths; assert '/statements/{statement_id}/review/reject' in paths
+
+
+async def test_issue3012_uncalled_routes_removed(client: AsyncClient, openapi_schema: dict[str, Any]) -> None:
+    """#3012 #3009 slice 3: uncalled routes deleted and return 404/405."""
+    paths = openapi_schema['paths']
+    retired_ops = (
+        ('get', '/users'),
+        ('get', '/users/{user_id}'),
+        ('put', '/users/{user_id}'),
+        ('delete', '/users/{user_id}'),
+        ('get', '/assets/positions'),
+        ('get', '/assets/positions/{position_id}'),
+        ('post', '/assets/reconcile'),
+        ('get', '/accounts/{account_id}'),
+        ('get', '/corrections/stats'),
+        ('get', '/notifications'),
+    )
+    still_in_openapi = [f'{m.upper()} {p}' for m, p in retired_ops if m in paths.get(p, {})]
+    assert not still_in_openapi, f'uncalled #3012 routes still in OpenAPI: {still_in_openapi}'
+
+    uid = uuid4()
+    probes = (
+        ('GET', '/users', (404,)),
+        ('GET', f'/users/{uid}', (404,)),
+        ('PUT', f'/users/{uid}', (404,)),
+        ('DELETE', f'/users/{uid}', (404,)),
+        ('GET', '/assets/positions', (404,)),
+        ('GET', f'/assets/positions/{uid}', (404,)),
+        ('POST', '/assets/reconcile', (404,)),
+        ('GET', f'/accounts/{uid}', (404, 405)),
+        ('GET', '/corrections/stats', (404,)),
+        ('GET', '/notifications', (404,)),
+    )
+    for method, url, allowed in probes:
+        kwargs = {'json': {}} if method == 'PUT' else {}
+        resp = await client.request(method, url, **kwargs)
+        assert resp.status_code in allowed, f'{method} {url} returned {resp.status_code}, expected {allowed}'

@@ -234,26 +234,6 @@ async def list_account_statement_coverage(
     )
 
 
-@router.get("/{account_id}", response_model=AccountResponse)
-async def get_account(
-    account_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> AccountResponse:
-    """Return one account by id.."""
-    try:
-        account = await account_service.get_account(db, user_id, account_id)
-    except AccountNotFoundError as e:
-        logger.debug("Account not found", account_id=str(account_id))
-        raise_not_found("Account", cause=e)
-
-    balance = await calculate_account_balance(db, account.id, user_id)
-
-    response = AccountResponse.model_validate(account)
-    response.balance = balance
-    return response
-
-
 @router.put("/{account_id}", response_model=AccountResponse)
 async def update_account(
     account_id: UUID,

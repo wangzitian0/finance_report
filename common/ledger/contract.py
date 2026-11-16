@@ -345,8 +345,6 @@ void-memo.1||test_AC_ledger_void_memo_1_voiding_an_entry_with_a_full_memo_posts_
 10.5||test_delete_statement
 @$be/accounting/test_validation.py
 12.6||test_validate_balance_mismatch
-@$be/api/test_users_router.py|P1
-14.6||test_delete_user_with_immutable_entries_returns_409
 @$be/infra/test_trigger_function_drift.py|P1
 14.7||test_AC_ledger_14_7_alembic_and_orm_schemas_hold_the_same_functions_and_triggers
 @$be/ledger/test_default_account_race.py

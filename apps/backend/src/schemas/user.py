@@ -1,4 +1,4 @@
-"""Compatibility exports plus the shared user-list wire envelope."""
+"""Compatibility exports for user schemas."""
 
 from src.identity import (
     UserAiSettingsResponse,
@@ -7,15 +7,11 @@ from src.identity import (
     UserResponse,
     UserUpdate,
 )
-from src.schemas.base import ListResponse
-
-UserListResponse = ListResponse[UserResponse]
 
 __all__ = [
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
     "UserBase",
-    "UserListResponse",
     "UserResponse",
     "UserUpdate",
 ]
