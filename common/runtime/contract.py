@@ -116,6 +116,8 @@ guard-proofs.3||test_AC_runtime_guard_proofs_3_protected_runtime_classification
 24.15||test_AC16_11_15_cleanup_orphaned_clean_all
 24.30||test_AC16_11_30_drop_database_dry_run_returns_true
 24.31||test_AC16_11_31_main_calls_cleanup_orphaned
+24.32|Host PostgreSQL fallback lists and drops orphaned test databases when the container is not running.|test_AC16_11_32_cleanup_orphaned_falls_back_to_host_postgres
+24.33|Orphan cleanup skips any test database with active backend connections.|test_AC16_11_33_cleanup_orphaned_skips_active_backends
 @$t/test_cli_and_dev_servers.py|P1
 24.16||test_AC16_11_16_get_compose_cmd_prefers_podman
 24.17||test_AC16_11_17_cmd_test_frontend_route
