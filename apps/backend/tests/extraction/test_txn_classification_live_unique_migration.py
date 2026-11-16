@@ -13,6 +13,7 @@ from tests.extraction.test_statement_runs import _alembic, _database_url
 PRIOR_REVISION = "0075_drop_ping_state"
 LIVE_KEY_REVISION = "0076_txn_classif_live_unique"
 INDEX = "uq_txn_classification_version"
+LOOKUP = "ix_txn_classification_txn_rule"
 INSERT = text(
     "INSERT INTO transaction_classification (id, atomic_txn_id, rule_version_id, status, created_at, updated_at) "
     "VALUES (:id, :txn, :rule, CAST(:status AS classification_status_enum), NOW(), NOW())"
@@ -23,6 +24,13 @@ def _index_definition(connection) -> str | None:
     return connection.execute(
         text("SELECT indexdef FROM pg_indexes WHERE tablename = 'transaction_classification' AND indexname = :name"),
         {"name": INDEX},
+    ).scalar_one_or_none()
+
+
+def _lookup_definition(connection) -> str | None:
+    return connection.execute(
+        text("SELECT indexdef FROM pg_indexes WHERE tablename = 'transaction_classification' AND indexname = :name"),
+        {"name": LOOKUP},
     ).scalar_one_or_none()
 
 
@@ -90,6 +98,9 @@ def test_AC_extraction_2994_143_the_migration_keeps_one_live_answer_and_the_down
             assert "UNIQUE INDEX" in definition and "(atomic_txn_id, rule_version_id)" in definition
             assert "draft" in definition and "applied" in definition and "superseded" not in definition, definition
             assert _count(connection) == 1, "the upgrade changes no row"
+            lookup = _lookup_definition(connection)
+            assert lookup is not None, "a query with a bound status needs an index that holds every status"
+            assert "UNIQUE" not in lookup and "WHERE" not in lookup and "(atomic_txn_id, rule_version_id)" in lookup
         with pytest.raises(IntegrityError, match=INDEX), engine.begin() as connection:  # a second live answer
             connection.execute(INSERT, {"id": uuid4(), "txn": txn_id, "rule": rule_id, "status": "draft"})
         with engine.begin() as connection:  # superseded answers beside the live one are history
@@ -110,6 +121,7 @@ def test_AC_extraction_2994_143_the_migration_keeps_one_live_answer_and_the_down
         _alembic(database_url, "downgrade", PRIOR_REVISION)
         with engine.connect() as connection:
             assert _is_constraint(connection), "the full unique constraint is back"
+            assert _lookup_definition(connection) is None, "the downgrade drops the lookup index"
             assert _count(connection) == 2
         with pytest.raises(IntegrityError, match=INDEX), engine.begin() as connection:
             connection.execute(INSERT, {"id": uuid4(), "txn": txn_id, "rule": rule_id, "status": "superseded"})

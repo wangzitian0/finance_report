@@ -100,6 +100,8 @@ class TransactionClassification(Base, UUIDMixin, TimestampMixin):
             unique=True,
             postgresql_where=text("status IN ('draft', 'applied')"),
         ),
+        # The partial index cannot serve a query with a bound status: this one keeps the lookups by row indexed.
+        Index("ix_txn_classification_txn_rule", "atomic_txn_id", "rule_version_id"),
     )
 
     atomic_txn_id: Mapped[UUID] = mapped_column(
