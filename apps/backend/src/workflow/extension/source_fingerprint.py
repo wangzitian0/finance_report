@@ -42,7 +42,6 @@ EXCLUDED_SOURCE_TABLES: dict[str, str] = {
     "ai_feedback": "User feedback on AI output is not a derivation input.",
     "counter_tally": "The counter package is not a derivation input.",
     "outbox": "The integration outbox is not a derivation input.",
-    "ping_state": "The liveness ping is not a derivation input.",
 }
 
 # Tables without a ``user_id`` column that belong to one user through a parent row.
