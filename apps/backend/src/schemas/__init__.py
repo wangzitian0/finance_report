@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from src.schemas.reconciliation import AnomalyResponse, BankTransactionSummary, JournalEntrySummary, ReconciliationMatchBatchRequest, ReconciliationMatchBatchResponse, ReconciliationMatchListResponse, ReconciliationMatchResponse, ReconciliationRunRequest, ReconciliationRunResponse, ReconciliationStatsResponse, ReconciliationStatusEnum, UnmatchedTransactionsResponse
     from src.schemas.reporting import AccountLineageLine, AccountLineageResponse, AnnualizedIncomeScheduleHolding, AnnualizedIncomeScheduleIncome, AnnualizedIncomeScheduleNetWorthTreatment, AnnualizedIncomeScheduleResponse, BalanceSheetResponse, BreakdownPeriod, BreakdownType, CategoryBreakdownResponse, FrameworkPolicyDecision, FrameworkPolicyEvidenceAnchor, FrameworkPolicyFact, FrameworkPolicyGap, FrameworkPolicyMatrix, FrameworkPolicyMatrixRule, FrameworkPolicyResult, IncomeStatementResponse, InvariantStatus, MonthContinuityBucket, NetWorthAllocationResponse, NetWorthAllocationRow, NetWorthAllocationSourceLine, NetWorthGranularity, NetWorthTimeSeriesResponse, PersonalDataQualityHealthResponse, PersonalReportingFrameworkId, PersonalReportPackageCompletenessWarning, PersonalReportPackageContractResponse, PersonalReportPackageDocument, PersonalReportPackageDocumentLifecycle, PersonalReportPackageExportContract, PersonalReportPackageGenerateRequest, PersonalReportPackageInputCoverage, PersonalReportPackageLineDetailsPage, PersonalReportPackageManifestEntriesPage, PersonalReportPackageNote, PersonalReportPackageNotesResponse, PersonalReportPackagePreview, PersonalReportPackageReadinessBlocker, PersonalReportPackageReadinessResponse, PersonalReportPackageReadinessState, PersonalReportPackageSectionContract, PersonalReportPackageSections, PersonalReportPackageSnapshotResponse, PersonalReportPackageSnapshotStatus, PersonalReportPackageSnapshotSummary, PersonalReportPackageStatementDispositionPolicy, PersonalReportPackageTraceabilityAnchor, PersonalReportPackageTraceabilityAnchorName, PersonalReportPackageTraceabilityLine, PersonalReportPackageTraceabilityResponse, PersonalReportPackageTraceManifestEntry, PolicyDimension, PolicyFactDomain, PolicyProvenance, PolicyReviewState, QualityActionItem, QualityGrade
     from src.schemas.review import ConsistencyCheckListResponse, ConsistencyCheckResponse, ResolveCheckRequest, Stage2ReviewQueueResponse
-    from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate, UserResponse, UserUpdate
+    from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate
     from src.schemas.workflow import WorkflowEventCountsResponse, WorkflowEventCreate, WorkflowEventListResponse, WorkflowEventResponse, WorkflowEventStatusUpdate, WorkflowNextActionResponse, WorkflowNextActionType, WorkflowPrimaryState, WorkflowReportImpact, WorkflowReportReadinessResponse, WorkflowReportReadinessState, WorkflowStatusResponse
 
 _GROUPS: dict[str, tuple[str, ...]] = {
@@ -153,8 +153,6 @@ _GROUPS: dict[str, tuple[str, ...]] = {
     "src.schemas.user": (
         "UserAiSettingsResponse",
         "UserAiSettingsUpdate",
-        "UserResponse",
-        "UserUpdate",
     ),
     "src.schemas.workflow": (
         "WorkflowEventCountsResponse",
@@ -289,8 +287,6 @@ __all__ = [
     "UnmatchedTransactionsResponse",
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
-    "UserResponse",
-    "UserUpdate",
     "VoidJournalEntryRequest",
     "WorkflowEventCountsResponse",
     "WorkflowEventCreate",

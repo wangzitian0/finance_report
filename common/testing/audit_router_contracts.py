@@ -47,8 +47,8 @@ class UntypedEndpoint:
 def _router_names(tree: ast.AST) -> set[str]:
     """Names bound to an ``APIRouter()`` in this module (plus the conventional ``app``).
 
-    A module may declare more than one router (e.g. ``router`` and ``conflicts_router``
-    in review.py); hardcoding ``{"router", "app"}`` would let endpoints on any other
+    A module may declare more than one router (e.g. a primary ``router`` and an
+    auxiliary router in one file); hardcoding ``{"router", "app"}`` would let endpoints on any other
     router bypass the gate, so the set is derived from the actual assignments.
     """
     names = {"app"}

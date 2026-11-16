@@ -137,7 +137,7 @@ def _init_otel_instrumentation() -> None:
 
 _PROBE_PATHS = frozenset({"/health"})
 _RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
-    {"/ping", "/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
+    {"/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
 )
 
 

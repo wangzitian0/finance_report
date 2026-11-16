@@ -1,38 +1,6 @@
-"""Identity-owned user CRUD and AI-settings wire vocabulary."""
+"""Identity-owned AI-settings wire vocabulary."""
 
-from datetime import UTC, datetime
-from uuid import UUID
-
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
-
-
-class UserBase(BaseModel):
-    """Base user schema."""
-
-    email: EmailStr
-
-
-class UserUpdate(BaseModel):
-    """Schema for updating a user."""
-
-    email: EmailStr | None = None
-
-
-class UserResponse(UserBase):
-    """Schema for user response."""
-
-    id: UUID
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    @field_validator("created_at", "updated_at", mode="before")
-    @classmethod
-    def ensure_timezone_aware(cls, value: datetime) -> datetime:
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value
+from pydantic import BaseModel
 
 
 class UserAiSettingsUpdate(BaseModel):
@@ -57,7 +25,4 @@ class UserAiSettingsResponse(BaseModel):
 __all__ = [
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
-    "UserBase",
-    "UserResponse",
-    "UserUpdate",
 ]
