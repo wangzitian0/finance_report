@@ -29,18 +29,19 @@ from src.extraction.extension.statement_posting import (
 )
 from src.extraction.extension.statement_runs import StaleRun, claim_run, fail_run, finish_run, heartbeat_run
 from src.extraction.extension.statement_validation import resolve_statement_transactions
+from src.extraction.extension import transaction_classification
 from src.extraction.extension.transaction_classification import (
     CLASSIFICATION_PHASE_DEADLINE_SECONDS,
     ClassificationOutcome,
     ClassificationPlan,
     ask_model,
-    batch_slots,
     model_batches,
     plan_classification,
     policy_buckets,
     summarize_outcomes,
     write_answers,
-    write_before_model,
+    settle_drafts,
+    write_rule_answers,
 )
 from src.extraction.orm.statement_run import StatementRun
 from src.extraction.orm.statement_summary import StatementSummary
@@ -161,7 +162,7 @@ def _log(event: str, run_id: UUID, started: float, **fields: object) -> None:
 
 
 async def _beat(session: AsyncSession, run_id: UUID, progress: dict | None = None) -> None:
-    """Refresh the heartbeat and store the progress. A run that is no longer running raises StaleRun: nothing is written."""
+    """Refresh the heartbeat and store the progress. A run that is not running raises StaleRun: nothing is written."""
     if not await heartbeat_run(session, run_id, result_summary=progress):
         raise StaleRun(run_id, RunState.RUNNING)
 
@@ -193,9 +194,7 @@ async def _classify_in_phases(
     started = time.perf_counter()
     async with session_maker() as session:
         skipped, plans = await _plan(session, statement_id, user_id)
-    batches = [
-        (plan, batch) for plan in plans if plan.policy is not None for batch in model_batches(plan.to_propose, plan.policy)
-    ]
+    batches = [(plan, batch) for plan in plans for batch in model_batches(plan.to_propose, plan.policy)]
     _log(
         "plan",
         run_id,
@@ -209,12 +208,13 @@ async def _classify_in_phases(
     async with session_maker() as session:  # phase b: the answers of the keyword rules, committed before any model call
         await _beat(session, run_id, progress)
         for plan in plans:
-            await write_before_model(session, plan)
+            await write_rule_answers(session, plan)
+            await settle_drafts(session, plan)
         await session.commit()
     outcomes = [outcome for plan in plans for outcome in plan.base_outcomes()]
     _log("rule_answers", run_id, started, rule_answers=sum(o.disposition == "rule" for o in outcomes))
 
-    slots = batch_slots()
+    slots = asyncio.Semaphore(transaction_classification.CLASSIFICATION_PARALLEL_BATCHES)
 
     async def ask(index: int, plan: ClassificationPlan, batch):
         async with slots:
@@ -283,10 +283,17 @@ async def _write_batch(
                 await session.commit()
             progress.update(done)
             return written
-        except IntegrityError:
-            if retried:
+        except IntegrityError as error:
+            constraint = getattr(getattr(error.orig, "__cause__", None), "constraint_name", None)  # from the driver
+            if retried or constraint != "uq_txn_classification_version":
                 raise
             retried = True
+            logger.warning(
+                "statement.classification.batch_retry",
+                run_id=str(run_id),
+                error_type=type(error).__name__,
+                constraint=constraint,
+            )
 
 
 async def _finish(session_maker: async_sessionmaker[AsyncSession], run_id: UUID, summary: dict) -> None:
