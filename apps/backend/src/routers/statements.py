@@ -876,20 +876,18 @@ async def approve_statement_stage1(
             preloaded_account = await _create_statement_account_from_confirmation(db, statement, user_id)
         elif not statement.account_id:
             preloaded_account = await resolve_statement_posting_account(db, statement, user_id)
-        if preloaded_account is not None:
-            db.info["_stage1_resolved_posting_account"] = (statement.id, preloaded_account.id, preloaded_account)
-
         auto_filled = (
             await auto_fill_default_statement_dispositions(db, statement, user_id)
             if request and request.auto_fill_default_categories
             else 0
         )
-        try:
-            outcome = await approve_statement_workflow(
-                db, statement_id, user_id, dependencies=compose_statement_posting_dependencies()
-            )
-        finally:
-            db.info.pop("_stage1_resolved_posting_account", None)
+        outcome = await approve_statement_workflow(
+            db,
+            statement_id,
+            user_id,
+            dependencies=compose_statement_posting_dependencies(),
+            preloaded_bank_account=preloaded_account,
+        )
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

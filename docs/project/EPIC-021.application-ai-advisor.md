@@ -38,5 +38,5 @@ These are issue-scoped follow-ups. They should add their own AC IDs only when th
 ## Tracking Issues
 - PR1 framing: [#711](https://github.com/wangzitian0/finance_report/issues/711) - PR2 backend context and suggestion engine: [#712](https://github.com/wangzitian0/finance_report/issues/712) - PR3 frontend Advisor Brief and contextual UX: [#713](https://github.com/wangzitian0/finance_report/issues/713)
 ## Related
-- [ai.md](../../common/llm/ai.md) - [reporting.md](../../common/reporting/reporting.md) - [workflow-events.md](../../common/workflow/workflow-events.md) - [SourceCapability registry](../../apps/backend/src/extraction/base/source_capability.py) - [EPIC-006](./EPIC-006.ai-advisor.md) - [EPIC-018](./EPIC-018.ai-driven-pipeline.md) - [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md)
+- [advisor readme](../../common/advisor/readme.md) - [reporting readme](../../common/reporting/readme.md) - [workflow-events.md](../../common/workflow/workflow-events.md) - [SourceCapability registry](../../apps/backend/src/extraction/base/source_capability.py) - [EPIC-006](./EPIC-006.ai-advisor.md) - [EPIC-018](./EPIC-018.ai-driven-pipeline.md) - [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md)
 - [EPIC-020](./EPIC-020.framework-aware-personal-reporting.md)

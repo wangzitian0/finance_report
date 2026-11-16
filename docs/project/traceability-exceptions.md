@@ -76,9 +76,9 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_generate_workflows.py` | `common/runtime/readme.md` (guards deterministic workflow projection from toolchain SSOT) |
 | `apps/backend/tests/audit/money/test_money.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/ledger/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
-| `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `common/llm/ai.md` |
+| `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `common/advisor/readme.md` |
 | `apps/backend/tests/api/test_assets_valuation_api.py` | `common/meta/flows/thirty_flows_ssot.json` (Flow 5: Alternative Asset Appraisal & Valuation Ingestion API) |
-| `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `common/portfolio/assets.md` |
+| `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `common/portfolio/readme.md` |
 | `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |
 | `apps/backend/tests/runtime/test_manifest.py` | `common/runtime/readme.md` |
 | `apps/backend/tests/extraction/test_account_last4_defense.py` | `common/extraction/readme.md` |
@@ -101,22 +101,21 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/infra/test_schema_drift.py` | `common/meta/schema.md` |
 | `apps/backend/tests/infra/test_schema_guardrails.py` | `common/meta/schema.md` |
 | `apps/backend/tests/pricing/market_data/test_lazy_fx.py` | `common/pricing/contract.py` |
-| `apps/backend/tests/reconciliation/test_anomaly_service.py` | `common/reconciliation/reconciliation.md` |
-| `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `common/reconciliation/reconciliation.md` |
+| `apps/backend/tests/reconciliation/test_anomaly_service.py` | `common/reconciliation/readme.md` |
+| `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `common/reconciliation/readme.md` |
 | `apps/backend/tests/reporting/test_cash_flow_invariants.py` | `common/meta/flows/thirty_flows_ssot.json` (Flow 26: Cash Flow Statement Direct Method Multi-Activity Invariants) |
-| `apps/backend/tests/reporting/test_equation_diagnostics.py` | `common/reporting/reporting.md` (Accounting equation diagnostic triage) |
-| `apps/backend/tests/reporting/test_net_income_average_rates.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_fx_fallbacks.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_helpers.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_layer3.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_snapshot.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/reporting/test_reports_router_additional.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_equation_diagnostics.py` | `common/reporting/readme.md` (Accounting equation diagnostic triage) |
+| `apps/backend/tests/reporting/test_net_income_average_rates.py` | `common/reporting/readme.md` |
+| `apps/backend/tests/reporting/test_reporting_fx_fallbacks.py` | `common/reporting/readme.md` |
+| `apps/backend/tests/reporting/test_reporting_helpers.py` | `common/reporting/readme.md` |
+| `apps/backend/tests/reporting/test_reporting_layer3.py` | `common/reporting/readme.md` |
+| `apps/backend/tests/reporting/test_reporting_snapshot.py` | `common/reporting/readme.md` |
 | `apps/backend/tests/reporting/test_balance_sheet_provenance.py` | Support regression for the reporting provenance display boundary; package authority is covered by `AC-reporting.package-document.7`. |
 | `apps/backend/tests/api/test_data_quality_router.py` | `common/reporting/contract.py` (#2294 Personal Data Quality Observatory API) |
 | `apps/backend/tests/reporting/test_data_quality_service.py` | `common/reporting/contract.py` (#2294 Personal Data Quality Observatory Domain Service) |
-| `apps/backend/tests/reporting/test_reports_errors.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/reporting/test_reports_currencies_and_paths.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `common/llm/ai.md` |
+| `apps/backend/tests/reporting/test_reports_errors.py` | `common/reporting/readme.md` |
+| `apps/backend/tests/reporting/test_reports_currencies_and_paths.py` | `common/reporting/readme.md` |
+| `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `common/advisor/readme.md` |
 | `apps/backend/tests/schemas/test_audit_schema.py` | `common/meta/schema.md` |
 | `apps/backend/tests/schemas/test_user_schema.py` | `common/identity/readme.md` |
 | `apps/backend/tests/unit/schemas/test_schemas.py` | `common/meta/schema.md` |
@@ -135,11 +134,11 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/auth_ssr.test.ts` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/firstRunModal.test.tsx` | `common/llm/readme.md` |
-| `apps/frontend/src/__tests__/holdingsTable.test.tsx` | `common/portfolio/assets.md` |
+| `apps/frontend/src/__tests__/holdingsTable.test.tsx` | `common/portfolio/readme.md` |
 | `apps/frontend/src/__tests__/llmApiFunctions.test.ts` | `common/llm/readme.md` |
 | `apps/frontend/src/__tests__/llmSettingsPage.test.tsx` | `common/llm/readme.md` |
-| `apps/frontend/src/__tests__/performanceCard.test.tsx` | `common/portfolio/assets.md` |
-| `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `common/portfolio/assets.md` |
+| `apps/frontend/src/__tests__/performanceCard.test.tsx` | `common/portfolio/readme.md` |
+| `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `common/portfolio/readme.md` |
 | `apps/frontend/src/__tests__/reportPackage.test.ts` | `apps/frontend/frontend-patterns.md` (#1868 S5 PR-C — pure helpers extracted from usePersonalReportPackage.ts) |
 | `apps/frontend/src/__tests__/statusLabels.test.ts` | `apps/frontend/frontend-patterns.md` (#1609 colour-not-alone status labels) |
 | `apps/frontend/src/__tests__/sheetAndDetailDialogComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
@@ -194,7 +193,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_infra2_pin_is_release_tag.py` | `common/runtime/deployment.md` |
 | `tests/tooling/test_junit.py` | `common/testing/coverage.md` |
 | `tests/tooling/test_preflight.py` | `common/testing/ci-cd.md` |
-| `tests/tooling/test_seed_fx_rates.py` | `common/pricing/market_data.md` |
+| `tests/tooling/test_seed_fx_rates.py` | `common/pricing/readme.md` |
 | `tests/tooling/test_validate_schemas.py` | `common/meta/schema.md` |
 | `tests/tooling/test_enum_casing_integrity.py` | `common/meta/schema.md` |
 | `tests/tooling/test_extraction_pii_mask.py` | `common/llm/readme.md#cassette-graded-eval` |

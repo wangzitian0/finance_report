@@ -392,7 +392,7 @@ fe-accounts-tab.1||AC-ledger.fe-accounts-tab.1 shows the chart of accounts in th
 accounting_equation|common/ledger/readme.md#accounting-equation|Assets = Liabilities + Equity + (Income - Expenses) invariant.|docs/agents/red-lines.md,apps/backend/tests/ledger/test_accounting_equation.py|-|accounting|concept
 decimal_monetary_rule|common/ledger/readme.md#decimal-rule|All monetary amounts MUST use Python Decimal, never float.|AGENTS.md,docs/agents/red-lines.md,apps/backend/tests/accounting/test_decimal_safety.py|apps/backend/tests/accounting/test_decimal_safety.py,apps/backend/tests/audit/money/test_money.py|accounting|concept
 double_entry_bookkeeping|common/ledger/readme.md#entry-balance|Every JournalEntry must have balanced debits and credits.|docs/agents/red-lines.md,apps/backend/tests/ledger/test_accounting.py|-|accounting|concept
-processing_account|common/ledger/readme.md|Unconfirmed in-transit funds; balance 0 means transfer paired.|common/extraction/confirmation-workflow.md,common/reconciliation/reconciliation.md|-|accounting|concept
+processing_account|common/ledger/readme.md|Unconfirmed in-transit funds; balance 0 means transfer paired.|common/extraction/confirmation-workflow.md,common/reconciliation/readme.md|-|accounting|concept
 transaction_boundary|common/ledger/readme.md#async-tx-boundary|Routers commit(); Services flush() only.|docs/agents/red-lines.md,apps/backend/tests/ledger/test_accounting_integration.py|-|accounting|concept
 """
     ),

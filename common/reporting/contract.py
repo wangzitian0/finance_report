@@ -502,8 +502,8 @@ fe-fetch-budget.6||AC-reporting.fe-fetch-budget.6 polls every 120 s while nothin
     ),
     concepts=concepts(
         """
-framework_reporting|common/reporting/framework-reporting.md|US-like and HK-like target-backward policy layer for personal report packages.|common/reporting/reporting.md,common/ledger/readme.md,docs/project/EPIC-020.framework-aware-personal-reporting.md|-|reporting|concept
-reporting_calculations|common/reporting/readme.md|Financial reports, multi-currency consolidation, calculations.|common/reporting/reporting.md,common/ledger/readme.md,common/pricing/market_data.md|-|reporting|concept
+framework_reporting|common/reporting/framework-reporting.md|US-like and HK-like target-backward policy layer for personal report packages.|common/reporting/readme.md,common/ledger/readme.md,docs/project/EPIC-020.framework-aware-personal-reporting.md|-|reporting|concept
+reporting_calculations|common/reporting/readme.md|Financial reports, multi-currency consolidation, calculations.|common/reporting/readme.md,common/ledger/readme.md,common/pricing/readme.md|-|reporting|concept
 """
     ),
 )

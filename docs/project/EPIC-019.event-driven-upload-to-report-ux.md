@@ -88,7 +88,7 @@ The Upload page must present exactly **three** intake entries, not a per-source 
 ```text components/workflow/EventInbox.tsx  components/workflow/HeaderEventBadge.tsx  components/workflow/StatusFeed.tsx  app/(main)/events/page.tsx  app/(main)/dashboard/page.tsx or app/(main)/upload/page.tsx ```
 ### SSOT
 Add or update SSOT before implementation:
-```text common/workflow/workflow-events.md  apps/frontend/frontend-patterns.md  common/extraction/confirmation-workflow.md  common/reporting/reporting.md ``` The SSOT must define: - Event families. - Severity/actionability rules. - Read/archive semantics. - Report readiness states. - Relationship to audit logs. - In-app-only notification policy.
+```text common/workflow/workflow-events.md  apps/frontend/frontend-patterns.md  common/extraction/confirmation-workflow.md  common/reporting/readme.md ``` The SSOT must define: - Event families. - Severity/actionability rules. - Read/archive semantics. - Report readiness states. - Relationship to audit logs. - In-app-only notification policy.
 ### Testing
 Each implementation issue must register ACs when it starts and include tests in the same PR. Expected proof: - Backend unit tests for event derivation. - API tests for workflow status/events. - Frontend component tests for badge, inbox, status feed, and empty states. - Playwright smoke for upload-first home, event inbox, and report readiness. - The existing upload-to-trusted-reports hard gate is the initial macro E2E owner for this planned EPIC. Implementation issues #637, #638, and #639 must add event-specific Playwright coverage before their feature slices are mergeable. - AC traceability gate passing.
 ## Why This Will Be Useful

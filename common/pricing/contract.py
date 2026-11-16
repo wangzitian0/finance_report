@@ -175,8 +175,8 @@ fe-settings.1||AC12.39.3 renders the effective base currency and keeps Save disa
     ),
     concepts=concepts(
         """
-market_data|common/pricing/readme.md#market-data-pre-1610-cutover-shipped-model|FX rates, stock prices, data sources, and sync schedule.|common/pricing/market_data.md,common/reporting/reporting.md,common/pricing/contract.py|-|market|concept
-net_worth_valuation_snapshots|common/pricing/readme.md#manual-valuation-snapshots|Point-in-time manual valuation snapshots for non-ledger net worth components.|common/portfolio/assets.md,common/reporting/reporting.md,common/pricing/contract.py,common/meta/schema.md|-|assets|concept
+market_data|common/pricing/readme.md#market-data-pre-1610-cutover-shipped-model|FX rates, stock prices, data sources, and sync schedule.|common/pricing/readme.md,common/reporting/readme.md,common/pricing/contract.py|-|market|concept
+net_worth_valuation_snapshots|common/pricing/readme.md#manual-valuation-snapshots|Point-in-time manual valuation snapshots for non-ledger net worth components.|common/portfolio/readme.md,common/reporting/readme.md,common/pricing/contract.py,common/meta/schema.md|-|assets|concept
 """
     ),
 )

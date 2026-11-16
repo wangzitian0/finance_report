@@ -8,10 +8,11 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import String, bindparam, func, select, text, tuple_
+from sqlalchemy import String, bindparam, func, inspect as sa_inspect, select, text, tuple_
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.audit import (
     DeclarativeTracePolicy,
@@ -570,9 +571,7 @@ async def _existing_for_target(
     user_id: UUID,
     target: VersionedTraceRef,
 ) -> JournalEntry | None:
-    await db.execute(
-        select(func.pg_advisory_xact_lock(func.hashtextextended(_target_lock_key(user_id, target), 0)))
-    )
+    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(_target_lock_key(user_id, target), 0))))
     query, decisions = _active_anchored_entries_query(user_id)
     row = (
         await db.execute(
@@ -617,6 +616,22 @@ async def _existing_for_targets(
     return owners
 
 
+async def _ensure_entries_lines_loaded(db: AsyncSession, entries: Sequence[JournalEntry]) -> None:
+    unloaded_ids: list[UUID] = []
+    for entry in entries:
+        state = sa_inspect(entry, raiseerr=False)
+        if state is not None and "lines" in state.unloaded:
+            unloaded_ids.append(entry.id)
+    for start in range(0, len(unloaded_ids), _TARGET_READ_CHUNK_SIZE):
+        (
+            await db.execute(
+                select(JournalEntry)
+                .where(JournalEntry.id.in_(unloaded_ids[start : start + _TARGET_READ_CHUNK_SIZE]))
+                .options(selectinload(JournalEntry.lines))
+            )
+        ).scalars().all()
+
+
 async def submit_anchored_journal_entry(
     db: AsyncSession,
     *,
@@ -643,6 +658,7 @@ async def submit_anchored_journal_entry(
     existing = await _existing_for_target(db, user_id=user_id, target=expected_target)
     if existing is not None:
         if existing.decision_anchor_id == command.decision_anchor.decision_id:
+            await _ensure_entries_lines_loaded(db, [existing])
             return existing
         raise DecisionAnchorError("a different decision already owns this immutable source target")
 
@@ -704,6 +720,8 @@ async def submit_anchored_journal_entries(
         else:
             raise DecisionAnchorError("a different decision already owns this immutable source target")
 
+    if results:
+        await _ensure_entries_lines_loaded(db, list(results.values()))
     created = await _create_anchored_journal_entries(
         db,
         user_id,

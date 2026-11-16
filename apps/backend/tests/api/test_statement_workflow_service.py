@@ -10,11 +10,11 @@ class _FakeSession:
     async def commit(self) -> None: self._calls.append(('commit',))
     async def refresh(self, obj: object) -> None: self._calls.append(('refresh', obj))
 async def test_statement_workflow_service(monkeypatch):
-    'AC-extraction.2502.1 AC25.2.1'; statement_id = uuid4(); user_id = uuid4(); approve_calls: list = []; approved_statement = SimpleNamespace(id=statement_id, name='approved')
-    async def fake_approve(db, sid, uid): assert (sid, uid) == (statement_id, user_id); approve_calls.append(('approve_statement',)); return approved_statement
-    async def fake_post(db, statement, uid, *, dependencies): assert statement is approved_statement; assert dependencies is posting_dependencies; approve_calls.append(('auto_post',)); return SimpleNamespace(created_count=3, status=StatementPostingStatus.POSTED)
+    'AC-extraction.2502.1 AC25.2.1'; statement_id = uuid4(); user_id = uuid4(); approve_calls: list = []; approved_statement = SimpleNamespace(id=statement_id, name='approved'); resolved_transactions = ['txn-1']
+    async def fake_approve(db, sid, uid): assert (sid, uid) == (statement_id, user_id); approve_calls.append(('approve_statement',)); return (approved_statement, resolved_transactions)
+    async def fake_post(db, statement, uid, *, dependencies, transactions=None, preloaded_bank_account=None): assert statement is approved_statement; assert transactions is resolved_transactions; assert preloaded_bank_account is None; assert dependencies is posting_dependencies; approve_calls.append(('auto_post',)); return SimpleNamespace(created_count=3, status=StatementPostingStatus.POSTED)
     async def fake_opening(db, statement, uid, *, dependencies): assert statement is approved_statement; assert uid == user_id; assert dependencies is posting_dependencies; approve_calls.append(('opening_stock',))
-    monkeypatch.setattr(statement_workflow, 'try_auto_post_statement_opening_balance', fake_opening); monkeypatch.setattr(statement_workflow, 'approve_statement', fake_approve); monkeypatch.setattr(statement_workflow, 'auto_create_posted_entries_for_statement', fake_post); posting_dependencies = object(); outcome = await statement_workflow.approve_statement_workflow(_FakeSession(approve_calls), statement_id, user_id, dependencies=posting_dependencies); assert outcome.created_count == 3; assert approve_calls == [('approve_statement',), ('auto_post',), ('opening_stock',), ('commit',)]; reject_calls: list = []; rejected_statement = SimpleNamespace(id=statement_id, name='rejected')
+    monkeypatch.setattr(statement_workflow, 'try_auto_post_statement_opening_balance', fake_opening); monkeypatch.setattr(statement_workflow, 'approve_statement_with_transactions', fake_approve); monkeypatch.setattr(statement_workflow, 'auto_create_posted_entries_for_statement', fake_post); posting_dependencies = object(); outcome = await statement_workflow.approve_statement_workflow(_FakeSession(approve_calls), statement_id, user_id, dependencies=posting_dependencies); assert outcome.created_count == 3; assert approve_calls == [('approve_statement',), ('auto_post',), ('opening_stock',), ('commit',)]; reject_calls: list = []; rejected_statement = SimpleNamespace(id=statement_id, name='rejected')
     async def fake_reject(db, sid, uid, *, reason): assert (sid, uid, reason) == (statement_id, user_id, 'looks wrong'); reject_calls.append(('reject_statement',)); return rejected_statement
     monkeypatch.setattr(statement_workflow, 'reject_statement', fake_reject); result = await statement_workflow.reject_statement_workflow(_FakeSession(reject_calls), statement_id, user_id, reason='looks wrong'); assert result is rejected_statement; assert reject_calls == [('read_status',), ('reject_statement',), ('release_lock', f'statement-release:{user_id}'), ('commit',), ('refresh', rejected_statement)]; assert statements_router.approve_statement_workflow is statement_workflow.approve_statement_workflow; assert statements_router.reject_statement_workflow is statement_workflow.reject_statement_workflow; assert not hasattr(statements_router, 'approve_statement_svc'); assert not hasattr(statements_router, 'reject_statement_svc')
 
@@ -124,16 +124,16 @@ def _patch_approval(monkeypatch, calls: list) -> SimpleNamespace:
 
     async def approve(db, statement_id, user_id):
         calls.append(("approve_statement",))
-        return statement
+        return statement, []
 
-    async def post(db, statement, user_id, *, dependencies):
+    async def post(db, statement, user_id, *, dependencies, transactions=None, preloaded_bank_account=None):
         calls.append(("auto_post",))
         return SimpleNamespace(created_count=2, status=StatementPostingStatus.POSTED)
 
     async def opening(db, statement, user_id, *, dependencies):
         calls.append(("opening_balance",))
 
-    monkeypatch.setattr(statement_workflow, "approve_statement", approve)
+    monkeypatch.setattr(statement_workflow, "approve_statement_with_transactions", approve)
     monkeypatch.setattr(statement_workflow, "auto_create_posted_entries_for_statement", post)
     monkeypatch.setattr(statement_workflow, "try_auto_post_statement_opening_balance", opening)
     return statement

@@ -102,11 +102,11 @@ relay-dispatches-once-post-commit|The relay reads committed pending rows in id o
 31.7||test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked
 32.1||test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset
 32.2||test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts
-32.3||test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract
-33.1||test_AC19_8_1_workflow_session_ssot_separates_chat_sessions
+32.3||test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts
+33.1||test_AC19_8_2_workflow_session_model_contract
 33.2||test_AC19_8_2_workflow_session_model_contract
 33.4||test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe
-34.1||test_AC19_12_1_lightweight_derivation_boundary_is_documented
+34.1||test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved
 34.2|Workflow sync derives review-required and review-completed user action events from existing review state.|test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved
 36.1|A Stage 1 review-required workflow event deep-links to that statement's detail page.|^|P1
 36.2|Review-required events are deduplicated by.|^|P1

@@ -75,10 +75,6 @@ class Stage1ApprovalRequest(BaseModel):
     auto_fill_default_categories: bool = False
 
 
-class SetOpeningBalanceRequest(BaseModel):
-    opening_balance: Annotated[Decimal, Field(ge=Decimal("0"))]
-
-
 class StatementReviewListResponse(BaseModel):
     items: list[StatementReviewResponse]
     total: int

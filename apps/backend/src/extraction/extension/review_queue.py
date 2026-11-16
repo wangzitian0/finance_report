@@ -7,7 +7,6 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType, TraceEmitter, TraceRecord
 from src.config_app import get_effective_base_currency
@@ -42,7 +41,6 @@ from src.observability import get_logger
 from src.pricing import ExchangeRateLookup, PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
-_ENTRY_RELOAD_CHUNK_SIZE = 1000
 
 
 async def _resolve_statement_summary(
@@ -288,19 +286,6 @@ def _posting_error(plan: PlannedEntryCommand, exc: ValidationError) -> ValueErro
     return ValueError(f"Generated entry does not balance: {exc}")
 
 
-async def _reload_entries_with_lines(db: AsyncSession, created: Sequence[JournalEntry]) -> list[JournalEntry]:
-    by_id: dict[UUID, JournalEntry] = {}
-    created_ids = [entry.id for entry in created]
-    for start in range(0, len(created_ids), _ENTRY_RELOAD_CHUNK_SIZE):
-        loaded = await db.execute(
-            select(JournalEntry)
-            .where(JournalEntry.id.in_(created_ids[start : start + _ENTRY_RELOAD_CHUNK_SIZE]))
-            .options(selectinload(JournalEntry.lines))
-        )
-        by_id.update({entry.id: entry for entry in loaded.scalars().all()})
-    return [by_id[entry.id] for entry in created]
-
-
 async def _create_entry_from_txn(
     db: AsyncSession,
     txn: AtomicTransaction,
@@ -356,7 +341,6 @@ async def _create_entry_from_txn(
     except ValidationError as exc:
         raise _posting_error(plan, exc) from exc
 
-    (entry,) = await _reload_entries_with_lines(db, [entry])
     if record_evidence:
         try:
             from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
@@ -479,7 +463,7 @@ async def create_entries_from_txns(
                     for request, plan in zip(requests, plans, strict=True)
                 ],
             )
-            created = await submit_anchored_journal_entries(
+            return await submit_anchored_journal_entries(
                 db,
                 user_id=user_id,
                 commands=[_journal_command(plan, anchor) for plan, anchor in zip(plans, anchors, strict=True)],
@@ -488,7 +472,6 @@ async def create_entries_from_txns(
             )
         except ValidationError as exc:
             raise _posting_error(plans[0], exc) from exc
-        return await _reload_entries_with_lines(db, created)
 
     if auto_post:
         async with db.begin_nested():

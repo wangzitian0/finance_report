@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
 import { BrokerageImportResultBanner, StatementHeader } from "@/components/review/StatementReview";
 import { apiOperation } from "@/lib/api-client";
@@ -113,3 +114,225 @@ describe("BrokerageImportResultBanner", () => {
     expect(screen.getByText("4")).toBeInTheDocument();
   });
 }); // AC-extraction.fe-stage1-review.4 AC-extraction.fe-stage1-review.5 AC-extraction.fe-stage1-review.6 AC-extraction.fe-ia-extraction.3
+
+describe("StatementDetailPage - import and lifecycle coverage", () => {
+  const mockedApi = vi.mocked(apiOperation);
+  const parsedBrokerageStatement = {
+    id: "s1",
+    original_filename: "moomoo-2026-01.pdf",
+    institution: "Moomoo",
+    currency: "USD",
+    period_start: "2026-01-01",
+    period_end: "2026-01-31",
+    opening_balance: null,
+    closing_balance: null,
+    status: "parsed",
+    parsing_progress: 100,
+    transactions: [],
+  };
+  const IMPORT_OP = "import_brokerage_statement_positions_statements__statement_id__brokerage_import_post";
+  const RETRY_OP = "create_statement_run_statements__statement_id__runs_post";
+  function renderWithClient(
+    client: QueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  ) {
+    return render(
+      <QueryClientProvider client={client}>
+        <StatementDetailPage />
+      </QueryClientProvider>,
+    );
+  }
+  function mockByOperation(statement: unknown, overrides: Record<string, () => Promise<unknown>> = {}) {
+    mockedApi.mockImplementation(((operationId: string) => {
+      const override = overrides[operationId];
+      if (override) return override();
+      if (operationId === "get_statement_statements__statement_id__get") return Promise.resolve(statement);
+      return Promise.resolve(null);
+    }) as any);
+  }
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  it("renders parsing stopped alert and resume polling button", async () => {
+    const stmt = {
+      id: "s1",
+      original_filename: "file.pdf",
+      institution: "Bank",
+      currency: "SGD",
+      period_start: null,
+      period_end: null,
+      opening_balance: null,
+      closing_balance: null,
+      status: "parsing",
+      parsing_progress: 10,
+      transactions: [],
+    };
+    mockByOperation(stmt);
+    renderWithClient();
+    expect(await screen.findByText(/Parsing in progress/)).toBeInTheDocument();
+  });
+  it("shows statement not found when api returns null", async () => {
+    mockedApi.mockImplementation(() => Promise.resolve(null as any));
+    renderWithClient();
+    expect(await screen.findByText(/Statement not found/)).toBeInTheDocument();
+  });
+  it("AC17.8.1 shows Import to Portfolio button for parsed statement", async () => {
+    mockedApi.mockResolvedValueOnce(parsedBrokerageStatement as any);
+    renderWithClient();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /import brokerage positions to portfolio/i })).toBeInTheDocument(),
+    );
+  });
+  it("AC17.8.2 shows import result banner and portfolio link on success", async () => {
+    const importResult = {
+      broker: "Moomoo",
+      parsed_positions: 5,
+      created_atomic_positions: 3,
+      existing_atomic_positions: 2,
+      reconcile_created: 3,
+      reconcile_updated: 2,
+      reconcile_disposed: 0,
+      skipped: 0,
+    };
+    mockByOperation(parsedBrokerageStatement, { [IMPORT_OP]: () => Promise.resolve(importResult) });
+    renderWithClient();
+    const importBtn = await screen.findByRole("button", { name: /import brokerage positions to portfolio/i });
+    fireEvent.click(importBtn);
+    await waitFor(() => expect(screen.getByTestId("import-result-banner")).toBeInTheDocument());
+    const banner = screen.getByTestId("import-result-banner");
+    expect(banner).toHaveTextContent("Brokerage positions imported successfully");
+    expect(banner).toHaveTextContent("Moomoo");
+    const portfolioLink = screen.getByRole("link", { name: /view portfolio after import/i });
+    expect(portfolioLink).toHaveAttribute("href", "/portfolio");
+  });
+  it("AC17.8.3 shows actionable import error banner without exposing sensitive data", async () => {
+    mockByOperation(parsedBrokerageStatement, {
+      [IMPORT_OP]: () => Promise.reject(new Error("Statement must be in PARSED or APPROVED status before importing")),
+    });
+    renderWithClient();
+    const importBtn = await screen.findByRole("button", { name: /import brokerage positions to portfolio/i });
+    fireEvent.click(importBtn);
+    await waitFor(() => expect(screen.getByTestId("import-error-banner")).toBeInTheDocument());
+    expect(screen.getByText("Brokerage Import Failed")).toBeInTheDocument();
+    expect(screen.getByText(/Statement must be in PARSED or APPROVED status/)).toBeInTheDocument();
+  });
+  it("AC-extraction.fe-upload-layout.5 marks the portfolio reads stale after a successful import on the statement page", async () => {
+    mockByOperation(parsedBrokerageStatement, {
+      [IMPORT_OP]: () =>
+        Promise.resolve({
+          broker: "Moomoo",
+          parsed_positions: 1,
+          created_atomic_positions: 1,
+          existing_atomic_positions: 0,
+          reconcile_created: 1,
+          reconcile_updated: 0,
+          reconcile_disposed: 0,
+          skipped: 0,
+        }),
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const reads = [
+      ["portfolio-holdings", false, ""],
+      ["portfolio-summary", ""],
+      ["reports-net-worth-allocation", "", "SGD", true],
+      ["statements"],
+      ["unrelated"],
+    ];
+    for (const key of reads) client.setQueryData(key, { seeded: true });
+    renderWithClient(client);
+    fireEvent.click(await screen.findByRole("button", { name: /import brokerage positions to portfolio/i }));
+    await waitFor(() => expect(screen.getByTestId("import-result-banner")).toBeInTheDocument());
+    expect(reads.map((key) => client.getQueryState(key)?.isInvalidated)).toEqual([true, true, true, true, false]);
+  });
+  it("AC17.8.3 sanitizes sensitive URLs in import error messages", async () => {
+    mockByOperation(parsedBrokerageStatement, {
+      [IMPORT_OP]: () => Promise.reject(new Error("Import failed: https://s3.example.com/private/token=abc123")),
+    });
+    renderWithClient();
+    const importBtn = await screen.findByRole("button", { name: /import brokerage positions to portfolio/i });
+    fireEvent.click(importBtn);
+    await waitFor(() => expect(screen.getByTestId("import-error-banner")).toBeInTheDocument());
+    expect(screen.queryByText(/s3\.example\.com/)).not.toBeInTheDocument();
+    expect(screen.getByText(/\[URL\]/)).toBeInTheDocument();
+  });
+  it("AC17.8.5 does not show Import to Portfolio for non-parsed statements", async () => {
+    const uploadedStatement = { ...parsedBrokerageStatement, status: "uploaded" };
+    mockedApi.mockResolvedValueOnce(uploadedStatement as any);
+    renderWithClient();
+    await waitFor(() => expect(screen.getByText("moomoo-2026-01.pdf")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /import brokerage positions to portfolio/i })).not.toBeInTheDocument();
+  });
+  it("test_AC8_13_48 stops stuck parsing auto-refresh and resumes polling on demand", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    const parsingStatement = { ...parsedBrokerageStatement, status: "parsing", parsing_progress: 30, transactions: [] };
+    mockedApi.mockResolvedValue(parsingStatement as any);
+    renderWithClient();
+    expect(await screen.findByText(/Parsing in progress/)).toBeInTheDocument();
+    await act(async () => {
+      vi.setSystemTime(new Date("2026-01-01T00:05:01Z"));
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resume Auto-Refresh" }));
+    await waitFor(() =>
+      expect(mockedApi).toHaveBeenCalledWith(
+        "get_statement_statements__statement_id__get",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      ),
+    );
+  });
+  it("test_AC8_13_48 shows run again errors for rejected statements", async () => {
+    const rejectedStatement = {
+      ...parsedBrokerageStatement,
+      status: "rejected",
+      validation_error: "Bad parse",
+      transactions: [],
+    };
+    mockByOperation(rejectedStatement, { [RETRY_OP]: () => Promise.reject(new Error("retry failed")) });
+    renderWithClient();
+    await screen.findByText("Parsing Failed");
+    fireEvent.click(screen.getByRole("button", { name: "Run again" }));
+    await waitFor(() => expect(screen.getAllByText("retry failed").length).toBeGreaterThan(0));
+    expect(mockedApi).toHaveBeenCalledWith("create_statement_run_statements__statement_id__runs_post", {
+      path: { statement_id: "s1" },
+      body: { kind: "extract", hints: { keywords: [], note: null } },
+    });
+  });
+  it("handles delete statement confirmation and API call", async () => {
+    mockedApi.mockImplementation((operationId: string) => {
+      if (operationId === "delete_statement_statements__statement_id__delete") return Promise.resolve(null as any);
+      return Promise.resolve(parsedBrokerageStatement as any);
+    });
+    renderWithClient();
+    const deleteBtn = await screen.findByRole("button", { name: "Delete statement" });
+    expect(deleteBtn).toBeInTheDocument();
+    fireEvent.click(deleteBtn);
+    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+    fireEvent.click(cancelBtn);
+    fireEvent.click(deleteBtn);
+    const confirmBtn = await screen.findByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
+    await waitFor(() => {
+      expect(mockedApi).toHaveBeenCalledWith(
+        "delete_statement_statements__statement_id__delete",
+        expect.objectContaining({ path: { statement_id: "s1" } }),
+      );
+    });
+  });
+  it("handles delete statement error gracefully", async () => {
+    mockedApi.mockImplementation((operationId: string) => {
+      if (operationId === "delete_statement_statements__statement_id__delete")
+        return Promise.reject(new Error("Failed to delete"));
+      return Promise.resolve(parsedBrokerageStatement as any);
+    });
+    renderWithClient();
+    const deleteBtn = await screen.findByRole("button", { name: "Delete statement" });
+    fireEvent.click(deleteBtn);
+    const confirmBtn = await screen.findByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
+    await waitFor(() => {
+      expect(showToastMock).toHaveBeenCalledWith("Failed to delete", "error");
+    });
+  });
+}); // AC-portfolio.fe-assets2.13 AC-portfolio.fe-assets2.15

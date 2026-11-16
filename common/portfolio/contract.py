@@ -250,7 +250,7 @@ fe-assets2.6||AC11.9.9 renders accessible single-column form on a mobile viewpor
 fe-assets2.7|The Full package tab of `/reports` renders the annualized income figures with the currency code.|AC5.11.2 renders annualized income schedule values and restricted treatment
 fe-assets2.8|The Full package tab of `/reports` lists the restricted holdings with their fair value apart from the liquid annualized income.|^
 fe-assets2.10|A frontend test mounts the annualized income schedule of the Full package tab and asserts the salary, bonus, dividend and total figures.|^
-@$fe/__tests__/statementDetailPage.coverage.test.tsx
+@$fe/__tests__/statementDetailPage.test.tsx
 fe-assets2.13||AC17.8.3 shows actionable import error banner without exposing sensitive data
 fe-assets2.15||AC17.8.5 does not show Import to Portfolio for non-parsed statements
 @$fe/__tests__/holdingDetailPage.test.tsx|P2
