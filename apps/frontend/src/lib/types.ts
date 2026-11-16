@@ -452,6 +452,7 @@ export type ProcessingPendingListResponse = ListResponse<ProcessingPendingItem>;
 export type BrokerageImportResponse = Schemas["BrokerageImportResponse"];
 export type StatementRun = Schemas["StatementRunRecord"];
 export type StatementRunHints = Schemas["RunHints"];
+export type StatementRunKind = Schemas["StatementRunRequest"]["kind"];
 export type CorrectionLoopReplayResponse = Schemas["CorrectionLoopReplayResponse"];
 export type UserAiSettings = Schemas["UserAiSettingsResponse"];
 export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.extraction.base.run_vocabulary import RunState
 from src.extraction.base.source_vocabulary import BankStatementStatus
+from src.extraction.base.types import RunHints
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     auto_approve_parsed_candidate,
@@ -92,6 +93,7 @@ async def execute_classify_run(
         async with session_maker() as session:
             run = await claim_run(session, run_id)
             statement_id, user_id = run.statement_id, run.user_id
+            hints = RunHints.model_validate(run.hints)  # the run row is immutable: its hints are the hints of this run
             candidate = await _parent_marked_candidate(session, run.parent_run_id)
             await session.commit()
     except StaleRun:
@@ -106,7 +108,7 @@ async def execute_classify_run(
     deadline = asyncio.timeout(deadline_seconds)
     try:
         async with deadline:
-            outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id)
+            outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id, hints)
         # A candidate keeps its run active: the run ends in the transaction of the auto-approve.
         if candidate:
             posted = await _approve_and_finish(
@@ -188,7 +190,7 @@ async def _plan(
 
 
 async def _classify_in_phases(
-    session_maker: async_sessionmaker[AsyncSession], run_id: UUID, statement_id: UUID, user_id: UUID
+    session_maker: async_sessionmaker[AsyncSession], run_id: UUID, statement_id: UUID, user_id: UUID, hints: RunHints
 ) -> tuple[ClassifyOutcome, dict]:
     """Run the phases. Return the outcome and the summary, which holds counts only. The run itself is still running."""
     started = time.perf_counter()
@@ -219,7 +221,7 @@ async def _classify_in_phases(
     async def ask(index: int, plan: ClassificationPlan, batch):
         async with slots:
             began = time.perf_counter()
-            return index, plan, batch, await ask_model(user_id, batch, plan.policy), _ms(began)
+            return index, plan, batch, await ask_model(user_id, batch, plan.policy, hints=hints), _ms(began)
 
     tasks = [asyncio.ensure_future(ask(index, plan, batch)) for index, (plan, batch) in enumerate(batches)]
     try:

@@ -67,6 +67,7 @@ const mockedApi = vi.mocked(apiOperation);
 
 function mockApi(options: {
   status?: string;
+  filename?: string;
   runs: () => StatementRun[];
   post?: (body: unknown) => Promise<unknown>;
   reject?: (body: unknown) => Promise<unknown>;
@@ -74,9 +75,9 @@ function mockApi(options: {
   mockedApi.mockImplementation(((operationId: string, request?: { body?: unknown }) => {
     switch (operationId) {
       case "get_statement_statements__statement_id__get":
-        return Promise.resolve({ ...statement, status: options.status ?? "rejected" });
+        return Promise.resolve({ ...statement, status: options.status ?? "rejected", original_filename: options.filename ?? statement.original_filename });
       case "get_statement_for_review_statements__statement_id__review_get":
-        return Promise.resolve({ ...statement, status: options.status ?? "rejected", balance_validation_result: null, source_missing_facts: [], source_envelope_reviewable: false, reviewed_envelope: null });
+        return Promise.resolve({ ...statement, status: options.status ?? "rejected", original_filename: options.filename ?? statement.original_filename, balance_validation_result: null, source_missing_facts: [], source_envelope_reviewable: false, reviewed_envelope: null });
       case "list_pending_review_statements_pending_review_get":
         return Promise.resolve({ items: [], total: 0 });
       case "get_review_conflicts_review_conflicts__statement_id__get":
@@ -468,5 +469,112 @@ describe("Parsing attempts and Run again on the statement page", () => {
 
     expect(screen.queryByTestId("run-again-panel")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry Parse" })).not.toBeInTheDocument();
+  });
+});
+
+
+describe("Classify again on the statement page (#2994, S4b-1)", () => {
+  beforeEach(() => {
+    mockedApi.mockReset();
+    showToastMock.mockReset();
+  });
+
+  const extractRadio = () => screen.getByRole("radio", { name: "Extract again" });
+  const classifyRadio = () => screen.getByRole("radio", { name: "Classify again" });
+
+  it("AC-extraction.2994.134 sends the chosen kind with the hints, and extract is the default for a PDF", async () => {
+    mockApi({ status: "parsed", runs: () => [makeRun({ seq: 1 })] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+    expect(extractRadio()).toBeChecked();
+    expect(classifyRadio()).not.toBeChecked();
+
+    fireEvent.click(classifyRadio());
+    fireEvent.change(keywordField(), { target: { value: "rent, salary" } });
+    fireEvent.change(noteField(), { target: { value: "Credits are salary." } });
+    fireEvent.click(runAgainButton());
+
+    await waitFor(() => expect(runPosts()).toHaveLength(1));
+    expect(runPosts()[0]).toEqual([
+      RUNS_POST,
+      { path: { statement_id: "s1" }, body: { kind: "classify", hints: { keywords: ["rent", "salary"], note: "Credits are salary." } } },
+    ]);
+    await waitFor(() => expect(showToastMock).toHaveBeenCalledWith("Classification started", "success"));
+    await waitFor(() => expect(keywordField()).toHaveValue(""));
+  });
+
+  it("AC-extraction.2994.134 sends extract when the user chooses Extract again", async () => {
+    mockApi({ status: "parsed", runs: () => [] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+
+    fireEvent.click(classifyRadio());
+    fireEvent.click(extractRadio());
+    fireEvent.change(keywordField(), { target: { value: "interest" } });
+    fireEvent.click(runAgainButton());
+
+    await waitFor(() => expect(runPosts()).toHaveLength(1));
+    expect(runPosts()[0][1]).toMatchObject({ body: { kind: "extract", hints: { keywords: ["interest"] } } });
+    await waitFor(() => expect(showToastMock).toHaveBeenCalledWith("Parsing started", "success"));
+  });
+
+  it("AC-extraction.2994.135 defaults to Classify again for a CSV, because a CSV refuses extraction hints", async () => {
+    mockApi({ status: "parsed", filename: "statement-jan.CSV", runs: () => [] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+    expect(classifyRadio()).toBeChecked();
+
+    fireEvent.change(keywordField(), { target: { value: "rent" } });
+    fireEvent.click(runAgainButton());
+
+    await waitFor(() => expect(runPosts()).toHaveLength(1));
+    expect(runPosts()[0][1]).toMatchObject({ body: { kind: "classify", hints: { keywords: ["rent"] } } });
+  });
+
+  it("AC-extraction.2994.135 offers no choice for a statement that is not parsed: only the extraction runs again", async () => {
+    mockApi({ status: "rejected", filename: "statement-jan.csv", runs: () => [] });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    fireEvent.click(runAgainButton());
+
+    await waitFor(() => expect(runPosts()).toHaveLength(1));
+    expect(runPosts()[0][1]).toMatchObject({ body: { kind: "extract" } });
+  });
+
+  it("AC-extraction.2994.136 disables the panel while a classify run is active", async () => {
+    mockApi({ status: "parsed", runs: () => [makeRun({ seq: 1, kind: "classify", state: "running", finished_at: null })] });
+    render(<StatementDetailPage />);
+    await screen.findByText(/A parse is running/);
+
+    expect(runAgainButton()).toBeDisabled();
+    fireEvent.click(classifyRadio());
+    fireEvent.click(runAgainButton());
+
+    expect(runPosts()).toHaveLength(0);
+  });
+
+  it("AC-extraction.2994.136 shows the same fixed sentences and reads the runs again after a 409 or a 422 of a classify run", async () => {
+    const hintsEcho = { detail: [{ input: "SECRET-NOTE-TEXT" }] };
+    const active = { error_id: "conflict", message: "The statement has an active run.", active_run_id: "run-7" };
+    let reply: () => Promise<unknown> = () => Promise.reject(new ApiError(active.message, 409, "conflict", null, active as never));
+    mockApi({ status: "parsed", runs: () => [makeRun({ seq: 1 })], post: () => reply() });
+    render(<StatementDetailPage />);
+    await screen.findByTestId("run-again-panel");
+    fireEvent.click(classifyRadio());
+    fireEvent.change(noteField(), { target: { value: "SECRET-NOTE-TEXT" } });
+    const runsBefore = runListCalls().length;
+
+    fireEvent.click(runAgainButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("A parse is already running for this statement. Wait for it to end, then run again.");
+    await waitFor(() => expect(runListCalls().length).toBeGreaterThan(runsBefore));
+    reply = () => Promise.reject(new ApiError("unprocessable", 422, "validation_error", null, hintsEcho as never));
+
+    fireEvent.click(runAgainButton());
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The hints are not valid. Check the keywords and the note."));
+    expect(screen.queryByText(/SECRET-NOTE-TEXT/, { selector: "[role=alert]" })).not.toBeInTheDocument();
   });
 });

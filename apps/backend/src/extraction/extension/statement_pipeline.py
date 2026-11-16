@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.database import create_session_maker_from_db
 from src.extraction.base.types import ParseJob
+from src.extraction.extension.statement_classification_run import execute_classify_run
 from src.observability import get_logger, run_with_async_parse_tracking
 
 logger = get_logger(__name__)
@@ -24,9 +26,24 @@ def compose_statement_ingestion_use_case(*, session_maker):
     return compose(session_maker=session_maker)
 
 
-def _consume_background_task_exception(task: asyncio.Task[None]) -> None:
+def _consume_background_task_exception(task: asyncio.Task) -> None:
     with suppress(asyncio.CancelledError):
         task.exception()
+
+
+def submit_classify_run(run_id: UUID, *, db: AsyncSession) -> asyncio.Task[int]:
+    """Run a classify run as a task of this process. If the process dies, the run stays `requested` until the reaper."""
+    from src.composition import compose_statement_posting_dependencies
+
+    task = asyncio.create_task(
+        execute_classify_run(
+            create_session_maker_from_db(db),
+            run_id=run_id,
+            posting_dependencies=compose_statement_posting_dependencies(),
+        )
+    )
+    task.add_done_callback(_consume_background_task_exception)
+    return task
 
 
 async def submit_parse_pipeline(

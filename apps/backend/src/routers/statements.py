@@ -50,6 +50,7 @@ from src.extraction import (
     confirm_reviewed_statement_envelope,
     create_run,
     current_reviewed_statement_envelope,
+    fail_run,
     get_current_statement_extraction_result,
     is_bank_custody_source,
     list_runs,
@@ -61,7 +62,9 @@ from src.extraction import (
     resolve_statement_posting_account,
     resolve_statement_transactions,
     retire_statement,
+    start_user_classify_run,
     start_user_extract_run,
+    submit_classify_run,
     submit_parse_pipeline,
     supports_reviewed_statement_envelope,
     validate_balance_chain,
@@ -107,11 +110,11 @@ _RERUN_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.REJ
 _REJECT_STATUSES = _RERUN_STATUSES | {BankStatementStatus.APPROVED}
 logger = get_logger(__name__)
 
-_PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
+_PENDING_PARSE_TASKS: set[asyncio.Task] = set()
 _BROKERAGE_IMPORT_SERVICE = BrokeragePositionImportService()
 
 
-def _track_task(task: asyncio.Task[None]) -> None:
+def _track_task(task: asyncio.Task) -> None:
     _PENDING_PARSE_TASKS.add(task)
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
 
@@ -339,6 +342,23 @@ async def _queue_statement_reparse(
         file_type=file_type,
     )
     return started.run_id
+
+
+async def _queue_classify_run(db: DbSession, statement_id: UUID, user_id: UUID, hints: RunHints) -> UUID:
+    """Start a user classify run, commit it, then run it as a task of this process."""
+    try:
+        run_id = await start_user_classify_run(db, statement_id=statement_id, user_id=user_id, hints=hints)
+    except StatementStatusChanged:
+        await db.rollback()
+        raise_conflict("The statement changed while the run started. Reload the page and try again.")
+    await db.commit()
+    try:
+        _track_task(submit_classify_run(run_id, db=db))
+    except Exception as exc:  # noqa: BLE001 - a run that no task owns would stay requested until the reaper
+        await fail_run(db, run_id, error_code="dispatch_failed", error_message="The run could not start.")
+        await db.commit()
+        raise_service_unavailable("The classification could not start. Try again.", cause=exc)
+    return run_id
 
 
 async def _create_statement_account_from_confirmation(
@@ -579,11 +599,17 @@ async def create_statement_run(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> StatementRunRecord:
-    """Run the extraction of a statement again, with optional hints and a model override.
+    """Run the extraction or the classification of a statement again, with optional hints.
 
-    The actor of the run is the authenticated user. An active run gives 409 with `active_run_id`.
+    The actor of the run is the authenticated user. An active run gives 409 with `active_run_id`. A classify run
+    needs a parsed statement, takes the hints for every file type, and runs as a task of this process.
     """
     statement = await _get_statement_or_404(db, statement_id, user_id)
+    if request.kind == "classify":
+        if statement.status is not BankStatementStatus.PARSED:
+            raise_bad_request("Can only classify again for a parsed statement")
+        run_id = await _queue_classify_run(db, statement_id, user_id, request.hints)
+        return next(run for run in await list_runs(db, statement_id, user_id) if run.id == run_id)
     if statement.status not in _RERUN_STATUSES:
         raise_bad_request("Can only run again for parsed, rejected, or stuck parsing statements")
     await _validate_vision_model(request.model)

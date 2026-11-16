@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.extraction import (
     BankStatementStatus,
@@ -54,19 +54,25 @@ class StatementDecisionRequest(BaseModel):
 
 
 class StatementRunRequest(BaseModel):
-    """Run the extraction of a statement again, with optional hints (#2994).
+    """Run the extraction or the classification of a statement again, with optional hints (#2994).
 
     The actor of the run comes from the authenticated principal. The body cannot set it.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["extract"] = "extract"
+    kind: Literal["extract", "classify"] = "extract"
     hints: RunHints = Field(
         default_factory=RunHints,
         description="Keywords and a note that guide the run. Empty hints leave the prompt unchanged.",
     )
-    model: str | None = None
+    model: str | None = Field(default=None, description="A vision model for an extract run. A classify run takes none.")
+
+    @model_validator(mode="after")
+    def _classify_takes_no_model(self) -> StatementRunRequest:
+        if self.kind == "classify" and self.model is not None:
+            raise ValueError("A classify run takes no model.")
+        return self
 
 
 class AtomicTransactionResponse(BaseModel):

@@ -22,7 +22,8 @@ from src.extraction import (
     list_runs,
 )
 from src.extraction.extension import statement_pipeline
-from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION, parsing_prompt_digest
+from src.extraction.extension.prompts.hints import run_prompt_digest
+from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION
 from src.extraction.orm.statement_run import StatementRun
 from src.identity import User
 from src.routers import statements as statements_router
@@ -158,13 +159,13 @@ async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_
     body = (await client.post(f"/statements/{statement.id}/runs", json={"hints": hints, "model": "vendor/vision-x"})).json()
 
     assert body["prompt_template_version"] == PARSING_PROMPT_TEMPLATE_VERSION
-    assert body["prompt_digest"] == parsing_prompt_digest("vendor/vision-x", RunHints(**hints))
+    assert body["prompt_digest"] == run_prompt_digest(PARSING_PROMPT_TEMPLATE_VERSION, "vendor/vision-x", RunHints(**hints))
 
 
 @pytest.mark.parametrize(
     "body",
     [
-        {"kind": "classify"},
+        {"kind": "other"},
         {"kind": "extract", "actor_kind": "system"},
         {"hints": {"keywords": [f"k{n}" for n in range(21)]}},
         {"hints": {"keywords": ["k" * 65]}},
@@ -173,12 +174,12 @@ async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_
         {"hints": {"note": "bell\x07"}},
         {"hints": {"keywords": ["a"], "unknown": 1}},
     ],
-    ids=["classify", "actor_in_body", "21_keywords", "65_chars", "empty_keyword", "501_note", "control", "extra_hint_field"],
+    ids=["unknown_kind", "actor_in_body", "21_keywords", "65_chars", "empty_keyword", "501_note", "control", "extra_hint_field"],
 )
 async def test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits(
     body, client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.51: A classify kind, an actor in the body or a hint over its limit gives 422 and no run."""
+    """AC-extraction.2994.51: An unknown kind, an actor in the body or a hint over its limit gives 422 and no run."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)

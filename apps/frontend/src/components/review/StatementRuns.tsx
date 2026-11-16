@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { formatDateTimeDisplay } from "@/lib/date";
 import { humanizeIdentifier } from "@/lib/statusLabels";
-import type { StatementRun, StatementRunHints } from "@/lib/types";
+import type { StatementRun, StatementRunHints, StatementRunKind } from "@/lib/types";
 
 // The limits of the backend `RunHints` model (extraction/base/types.py). The server checks them again.
 export const HINT_MAX_KEYWORDS = 20;
@@ -98,13 +98,24 @@ export function ParsingAttempts({ runs }: { runs: readonly StatementRun[] }) {
   );
 }
 
-export function RunAgainPanel({ activeRun, pending, errorMessage, onRun }: {
+const RUN_KINDS: { value: StatementRunKind; label: string }[] = [
+  { value: "extract", label: "Extract again" },
+  { value: "classify", label: "Classify again" },
+];
+
+export function RunAgainPanel({ activeRun, pending, errorMessage, isCsv, canClassify, onRun }: {
   activeRun: boolean;
   pending: boolean;
   errorMessage: string | null;
+  /** A CSV parse sends no prompt, so the backend refuses extraction hints for it: classify is the default. */
+  isCsv: boolean;
+  /** Only a parsed statement can be classified again. */
+  canClassify: boolean;
   /** Start the run. Resolve true when it started: the panel then clears its fields. */
-  onRun: (hints: StatementRunHints) => Promise<boolean>;
+  onRun: (kind: StatementRunKind, hints: StatementRunHints) => Promise<boolean>;
 }) {
+  const [chosen, setChosen] = useState<StatementRunKind>(isCsv ? "classify" : "extract");
+  const kind = canClassify ? chosen : "extract";
   const [keywordText, setKeywordText] = useState("");
   const [note, setNote] = useState("");
   const keywords = parseKeywords(keywordText);
@@ -115,7 +126,7 @@ export function RunAgainPanel({ activeRun, pending, errorMessage, onRun }: {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (disabled) return;
-    const started = await onRun({ keywords, note: normalizedNote.trim() ? normalizedNote : null });
+    const started = await onRun(kind, { keywords, note: normalizedNote.trim() ? normalizedNote : null });
     if (started) {
       setKeywordText("");
       setNote("");
@@ -125,7 +136,22 @@ export function RunAgainPanel({ activeRun, pending, errorMessage, onRun }: {
   return (
     <form onSubmit={submit} aria-labelledby="run-again-heading" data-testid="run-again-panel" className="card p-4">
       <h2 id="run-again-heading" className="font-semibold text-[var(--foreground)]">Run again</h2>
-      <p className="mt-1 text-sm text-muted">Add keywords or a note to guide the next parse. The result still passes the same checks.</p>
+      <p className="mt-1 text-sm text-muted">
+        {kind === "classify"
+          ? "Add keywords or a note to guide the next classification. The categories still come from the same list."
+          : "Add keywords or a note to guide the next parse. The result still passes the same checks."}
+      </p>
+      {canClassify && (
+        <fieldset className="mt-3 flex flex-wrap gap-4 text-sm">
+          <legend className="sr-only">What to run again</legend>
+          {RUN_KINDS.map(({ value, label }) => (
+            <label key={value} className="inline-flex items-center gap-2">
+              <input type="radio" name="run-again-kind" value={value} checked={kind === value} onChange={() => setChosen(value)} />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1.5 block font-medium">Keywords</span>

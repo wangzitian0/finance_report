@@ -50,11 +50,9 @@ from src.extraction.base.run_vocabulary import (
     RunTrigger,
 )
 from src.extraction.base.types import RunHints
-from src.extraction.extension.prompts.statement import (
-    PARSING_PROMPT_TEMPLATE_VERSION,
-    hints_apply_to_file_type,
-    parsing_prompt_digest,
-)
+from src.extraction.extension.prompts.classification import CLASSIFICATION_PROMPT_TEMPLATE_VERSION
+from src.extraction.extension.prompts.hints import run_prompt_digest
+from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION, hints_apply_to_file_type
 from src.extraction.orm.statement_run import StatementRun
 from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import get_logger
@@ -65,6 +63,10 @@ DEFAULT_STALE_AFTER = timedelta(minutes=5)
 HEARTBEAT_LOST = "heartbeat_lost"
 CLAIM_TIMEOUT = "claim_timeout"
 _SEQ_ATTEMPTS = 3
+_TEMPLATE_VERSIONS = {
+    RunKind.EXTRACT: PARSING_PROMPT_TEMPLATE_VERSION,
+    RunKind.CLASSIFY: CLASSIFICATION_PROMPT_TEMPLATE_VERSION,
+}
 _ERROR_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 _TRACE_AUTHORITY = TraceAuthorityProfile(
@@ -328,16 +330,16 @@ async def create_run(
 ) -> StatementRun:
     """Insert a requested run with the next attempt number.
 
-    An extract run that names no prompt version stores `PARSING_PROMPT_TEMPLATE_VERSION` and the digest of
-    its own model and hints, so a reader recomputes the digest from the stored columns. The digest does not name
-    the institution or the document kind that the parse uses.
+    A run that names no prompt version stores the template version of its kind and the digest of its own model
+    and hints (`run_prompt_digest`), so a reader recomputes the digest from the stored columns. The digest does not
+    name the other inputs of the prompt, such as the institution or the document kind of a parse.
 
     The partial unique index rejects a second active run. The function then raises `ActiveRunExists`
     with the id of the active run.
     """
-    if kind is RunKind.EXTRACT and prompt_template_version is None and prompt_digest is None:
-        prompt_template_version = PARSING_PROMPT_TEMPLATE_VERSION
-        prompt_digest = parsing_prompt_digest(model, hints)
+    if prompt_template_version is None and prompt_digest is None:
+        prompt_template_version = _TEMPLATE_VERSIONS[kind]
+        prompt_digest = run_prompt_digest(prompt_template_version, model, hints)
     requested_at = _now()
     last_error: IntegrityError | None = None
     for _attempt in range(_SEQ_ATTEMPTS):
@@ -417,6 +419,29 @@ async def start_user_extract_run(
             raise HintsNotApplicable("Hints apply to PDF and image statements only. A CSV statement sends no prompt.")
         effective = RunHints()
     content = await load_content()
+    locked, run = await _start_user_run(
+        db, statement_id, user_id, allowed_statuses, kind=RunKind.EXTRACT, hints=effective, model=model
+    )
+    statement = await while_pending() if while_pending is not None else locked
+    statement.status = BankStatementStatus.PARSING
+    statement.validation_error = None
+    return StartedRun(run_id=run.id, statement=statement, content=content)
+
+
+async def _start_user_run(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+    allowed_statuses: frozenset[BankStatementStatus],
+    *,
+    kind: RunKind,
+    hints: RunHints,
+    model: str | None = None,
+) -> tuple[StatementSummary, StatementRun]:
+    """Lock the statement row, check its status, then insert a user run with the latest run as parent. No commit.
+
+    A status outside `allowed_statuses` raises `StatementStatusChanged`. An active run raises `ActiveRunExists`.
+    """
     locked = await lock_statement_for_run(db, statement_id, user_id, allowed=allowed_statuses)
     if locked is None:
         raise StatementStatusChanged("The statement changed while the run started.")
@@ -425,17 +450,26 @@ async def start_user_extract_run(
         db,
         statement_id=statement_id,
         user_id=user_id,
-        kind=RunKind.EXTRACT,
+        kind=kind,
         actor_kind=RunActorKind.USER,
         trigger=RunTrigger.RERUN,
-        hints=effective,
+        hints=hints,
         model=model,
         parent_run_id=previous_run.id if previous_run is not None else None,
     )
-    statement = await while_pending() if while_pending is not None else locked
-    statement.status = BankStatementStatus.PARSING
-    statement.validation_error = None
-    return StartedRun(run_id=run.id, statement=statement, content=content)
+    return locked, run
+
+
+async def start_user_classify_run(db: AsyncSession, *, statement_id: UUID, user_id: UUID, hints: RunHints) -> UUID:
+    """Start a user run that classifies the rows again, and return its id. Only a PARSED statement qualifies.
+
+    The hints are allowed for every file type: the model classifies the rows of a CSV too, so the extraction rule
+    `hints_apply_to_file_type` does not apply. The run sets no status. The caller commits, then dispatches it.
+    """
+    _, run = await _start_user_run(
+        db, statement_id, user_id, frozenset({BankStatementStatus.PARSED}), kind=RunKind.CLASSIFY, hints=hints
+    )
+    return run.id
 
 
 async def claim_run(db: AsyncSession, run_id: UUID) -> StatementRun:
@@ -557,5 +591,6 @@ __all__ = [
     "list_runs",
     "lock_statement_for_run",
     "reap_stale_runs",
+    "start_user_classify_run",
     "start_user_extract_run",
 ]

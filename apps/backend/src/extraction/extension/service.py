@@ -67,7 +67,8 @@ from src.extraction.extension.custody_binding import (
 )
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
-from src.extraction.extension.prompts.statement import PROMPT_FILE_TYPES, get_parsing_prompt, hints_block
+from src.extraction.extension.prompts.hints import hints_block
+from src.extraction.extension.prompts.statement import PROMPT_FILE_TYPES, get_parsing_prompt
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.statement_summary import StatementSummary
