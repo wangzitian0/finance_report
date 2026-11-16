@@ -59,42 +59,65 @@ async def _scalar_str(db: AsyncSession, stmt: Any) -> str | None:
     return val if isinstance(val, str) else None
 
 
-def _session_user_base_currency(sync_session: Session, user_id: UUID) -> tuple[bool, str | None]:
+def _session_user_base_currency(sync_session: Session, user_id: UUID) -> tuple[bool, bool, str | None]:
     for obj in (*sync_session.new, *sync_session.dirty):
         if isinstance(obj, User):
             data = sa_inspect(obj).dict
             if data.get("id") == user_id and "base_currency" in data:
-                return True, data["base_currency"]
-    return False, None
+                return True, True, data["base_currency"]
+    for obj in sync_session.identity_map.values():
+        if isinstance(obj, User):
+            data = sa_inspect(obj).dict
+            if data.get("id") == user_id and "base_currency" in data:
+                return True, False, data["base_currency"]
+    return False, False, None
 
 
-def _session_operator_base_currency(sync_session: Session) -> tuple[bool, str | None]:
+def _session_operator_base_currency(sync_session: Session) -> tuple[bool, bool, str | None]:
     for obj in (*sync_session.new, *sync_session.dirty):
         if isinstance(obj, AppConfig):
             data = sa_inspect(obj).dict
             if data.get("key") == BASE_CURRENCY_KEY and "value" in data:
-                return True, data["value"]
-    return False, None
+                return True, True, data["value"]
+    for obj in sync_session.identity_map.values():
+        if isinstance(obj, AppConfig):
+            data = sa_inspect(obj).dict
+            if data.get("key") == BASE_CURRENCY_KEY and "value" in data:
+                return True, False, data["value"]
+    return False, False, None
 
 
 async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID | None = None) -> str:
     """Return the user's own value, else the operator default, else the env default."""
     sync_session = getattr(db, "sync_session", None)
-    found_user, own = (
+    found_user, dirty_user, own = (
         _session_user_base_currency(sync_session, user_id)
         if user_id is not None and isinstance(sync_session, Session)
-        else (False, None)
+        else (False, False, None)
     )
-    found_op, operator_default = (
-        _session_operator_base_currency(sync_session)
-        if isinstance(sync_session, Session)
-        else (False, None)
+    found_op, dirty_op, operator_default = (
+        _session_operator_base_currency(sync_session) if isinstance(sync_session, Session) else (False, False, None)
     )
-    can_cache = isinstance(sync_session, Session) and not found_user and not found_op
+    can_cache = isinstance(sync_session, Session) and not dirty_user and not dirty_op
     if can_cache and isinstance(sync_session, Session):
         cached = sync_session.info.get(_CACHE_INFO_KEY)
         if isinstance(cached, dict) and user_id in cached:
             return cached[user_id]
+
+    if user_id is not None and not found_user and not found_op and isinstance(sync_session, Session):
+        row = (
+            await db.execute(
+                select(
+                    select(User.base_currency).where(User.id == user_id).scalar_subquery(),
+                    select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY).scalar_subquery(),
+                )
+            )
+        ).first()
+        if row is not None:
+            own = row[0] if isinstance(row[0], str) else None
+            operator_default = row[1] if isinstance(row[1], str) else None
+        found_user = True
+        found_op = True
 
     if user_id is not None:
         if not found_user:
@@ -107,7 +130,9 @@ async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID | None 
 
     if not found_op:
         operator_default = await _scalar_str(db, select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY))
-    resolved = Currency(operator_default).code if operator_default is not None else Currency(settings.base_currency).code
+    resolved = (
+        Currency(operator_default).code if operator_default is not None else Currency(settings.base_currency).code
+    )
     if can_cache and isinstance(sync_session, Session):
         sync_session.info.setdefault(_CACHE_INFO_KEY, {})[user_id] = resolved
     return resolved
