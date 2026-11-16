@@ -1291,6 +1291,8 @@ async def settle_drafts_after_posting(
                 select(TransactionClassification)
                 .where(TransactionClassification.atomic_txn_id == txn_id)
                 .where(TransactionClassification.status == ClassificationStatus.DRAFT)
+                .with_for_update(of=TransactionClassification)  # read the draft again if a re-ask held it
+                .execution_options(populate_existing=True)
             )
         )
         .scalars()

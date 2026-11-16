@@ -69,19 +69,23 @@ def _legacy_entry(db, user, txn) -> None:
     )
 
 
+async def _lock_waiters(maker, *events: str) -> int:
+    """How many sessions of this database wait for a lock of one of these kinds right now."""
+    async with maker() as probe:  # its own session: the test session keeps its objects
+        return await probe.scalar(
+            text(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                "AND wait_event_type = 'Lock' AND wait_event = ANY(:events)"
+            ),
+            {"events": list(events)},
+        )
+
+
 async def _waiting(maker, *events: str) -> bool:
     """Whether a session of this database waits for a lock of one of these kinds. The caller asserts the result."""
 
     async def blocked() -> bool:
-        async with maker() as probe:  # its own session: the test session keeps its objects
-            count = await probe.scalar(
-                text(
-                    "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
-                    "AND wait_event_type = 'Lock' AND wait_event = ANY(:events)"
-                ),
-                {"events": list(events)},
-            )
-        return bool(count)
+        return bool(await _lock_waiters(maker, *events))
 
     return await _wait_until(blocked, seconds=10.0)
 

@@ -104,8 +104,14 @@ class SqlReconciliationRepository(ReconciliationRepository):
         return result.scalar_one_or_none()
 
     async def _lock_transaction(self, txn_id: UUID) -> None:
-        """Lock the immutable source row. A second request waits until the first request ends."""
-        await self._db.execute(select(AtomicTransaction.id).where(AtomicTransaction.id == txn_id).with_for_update())
+        """Lock the immutable source row. A second request waits until the first request ends.
+
+        The lock is FOR NO KEY UPDATE: the insert of a classification answer takes FOR KEY SHARE on this row, and
+        FOR UPDATE would make a poster that settles the draft and a classify run wait for each other (#2994).
+        """
+        await self._db.execute(
+            select(AtomicTransaction.id).where(AtomicTransaction.id == txn_id).with_for_update(key_share=True)
+        )
 
     async def claim_transaction(self, txn_id: UUID) -> ReconciliationMatch | None:
         """Lock the immutable source row before selecting its disposition head."""

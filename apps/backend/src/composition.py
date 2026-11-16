@@ -22,6 +22,7 @@ from src.database import async_session_maker
 from src.extraction import (
     ActiveRunExists,
     AtomicTransaction,
+    BankStatementStatus,
     ClassificationSuggestion,
     DispositionMode,
     DispositionPolicy,
@@ -41,6 +42,7 @@ from src.extraction import (
     general_account_name,
     get_active_run,
     get_or_create_account,
+    lock_statement_for_run,
     settle_drafts_after_posting,
     snapshot_currencies,
     statement_disposition_policy_for_user,
@@ -331,7 +333,14 @@ async def _accepted_suggestion_for(
 async def auto_fill_default_statement_dispositions(
     db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> int:
-    """Accept draft AI suggestions and fill general counter accounts for remaining rows. An active run refuses (#2994)."""
+    """Accept draft AI suggestions and fill general counter accounts for remaining rows. An active run refuses (#2994).
+
+    The statement lock comes first: a run start takes it before it inserts its run, so it waits for this approve, and
+    the check below sees every run that committed before the lock. The approve upgrades the lock later in the same
+    transaction. No run can overlap the posting and settling of the rows that follow.
+    """
+    if await lock_statement_for_run(db, statement.id, user_id, allowed=frozenset(BankStatementStatus)) is None:
+        return 0  # the row is gone: the approve that follows reports it
     active_run = await get_active_run(db, statement.id)
     if active_run is not None:
         raise ActiveRunExists(active_run.id)

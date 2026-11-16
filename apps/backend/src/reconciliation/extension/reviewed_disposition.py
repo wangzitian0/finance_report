@@ -187,7 +187,7 @@ async def submit_reviewed_disposition(
         select(AtomicTransaction)
         .where(AtomicTransaction.id == transaction_id)
         .where(effective_statement_transaction_filter(user_id))
-        .with_for_update()
+        .with_for_update(key_share=True)  # a classify run inserts an answer for this row and takes FOR KEY SHARE on it
     )
     txn = transaction_result.scalar_one_or_none()
     if txn is None:
@@ -212,7 +212,7 @@ async def submit_reviewed_disposition(
         select(Account)
         .where(Account.id == command.counter_account_id)
         .where(Account.user_id == user_id)
-        .with_for_update()
+        .with_for_update(key_share=True)  # the same insert takes FOR KEY SHARE on the account of its answer
     )
     counter_account = counter_result.scalar_one_or_none()
     if counter_account is None:
