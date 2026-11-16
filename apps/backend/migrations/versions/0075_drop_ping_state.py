@@ -29,8 +29,9 @@ def downgrade() -> None:
     op.create_table(
         "ping_state",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("state", sa.String(length=10), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("state", sa.String(length=10), nullable=False, server_default="ping"),
+        sa.Column("toggle_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
