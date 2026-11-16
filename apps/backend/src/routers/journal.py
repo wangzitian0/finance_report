@@ -35,6 +35,7 @@ async def create_entry(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
+    """Create and post a balanced double-entry journal entry.."""
     lines_data = [line.model_dump() for line in entry_data.lines]
     try:
         base_currency = await get_effective_base_currency(db, user_id=user_id)
@@ -95,6 +96,7 @@ async def get_journal_entry(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
+    """Return one journal entry by id with its lines.."""
     entry = await get_owned_or_404(
         db,
         JournalEntry,
@@ -113,6 +115,7 @@ async def post_entry(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
+    """Post a draft journal entry, making it immutable.."""
     try:
         # `post_journal_entry` validates the draft under the base currency stored at its creation. The
         # effective value applies only to a draft written before revision 0067 (#2539).
@@ -148,6 +151,7 @@ async def void_entry(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
+    """Void a posted journal entry with a reason.."""
     try:
         base_currency = await get_effective_base_currency(db, user_id=user_id)
         reversal_entry = await void_journal_entry(
@@ -181,6 +185,7 @@ async def delete_journal_entry(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> None:
+    """Delete a draft journal entry.."""
     entry = await get_owned_or_404(db, JournalEntry, entry_id, user_id, name="Journal entry")
 
     if entry.status != JournalEntryStatus.DRAFT:

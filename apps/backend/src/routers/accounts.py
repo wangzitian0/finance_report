@@ -99,6 +99,7 @@ async def create_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AccountResponse:
+    """Create a new account.."""
     account = await account_service.create_account(db, user_id, account_data)
     await db.commit()
 
@@ -148,6 +149,7 @@ async def get_processing_summary(
 ) -> ProcessingSummaryResponse:
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
+    """Return the processing-account pipeline summary.."""
     processing_account = await find_processing_account(db, user_id)
     currency = (
         processing_account.currency if processing_account else await get_effective_base_currency(db, user_id=user_id)
@@ -188,6 +190,7 @@ async def list_processing_pending(
 ) -> ProcessingPendingListResponse:
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
+    """Return pending items in the processing pipeline.."""
     processing_account = await find_processing_account(db, user_id)
     currency = (
         processing_account.currency if processing_account else await get_effective_base_currency(db, user_id=user_id)
@@ -237,6 +240,7 @@ async def get_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AccountResponse:
+    """Return one account by id.."""
     try:
         account = await account_service.get_account(db, user_id, account_id)
     except AccountNotFoundError as e:
@@ -257,6 +261,7 @@ async def update_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AccountResponse:
+    """Update an account's mutable fields.."""
     try:
         account = await account_service.update_account(db, user_id, account_id, account_data)
         await db.commit()
@@ -279,6 +284,7 @@ async def delete_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> None:
+    """Delete an account by id.."""
     try:
         account = await account_service.get_account(db, user_id, account_id)
     except AccountNotFoundError as e:
