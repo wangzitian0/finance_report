@@ -30,7 +30,12 @@ def load_openapi() -> dict[str, Any]:
         sys.path.insert(0, str(BACKEND_ROOT))
     from src.main import app  # noqa: PLC0415
 
-    return app.openapi()
+    spec = app.openapi()
+    # Keep checked-in static spec artifacts invariant across out-of-band git release tags;
+    # runtime /openapi.json and /docs still serve app.version directly (#3014).
+    if isinstance(spec, dict) and isinstance(spec.get("info"), dict):
+        return {**spec, "info": {**spec["info"], "version": "contract"}}
+    return spec
 
 
 def render(openapi: dict[str, Any]) -> str:

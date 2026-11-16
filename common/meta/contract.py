@@ -285,6 +285,8 @@ dependency-governance.5||test_AC_meta_dependency_governance_5_public_orm_exports
 dependency-governance.6||test_AC_meta_dependency_governance_6_unit_accountability_is_exact
 @$fe/__tests__/untypedTransportLint.test.ts
 public-boundary.3||AC-meta.public-boundary.3 rejects every import and call of an untyped transport
+@$fe/__tests__/apiSurfaceRatchet.test.ts
+public-boundary.4||AC-meta.public-boundary.4 every operation in api-operations.ts has an FE caller or explicit allow-list reason
 @$t/test_context_contract.py
 context-governance.1||test_AC_meta_context_governance_1_context_scope_rejects_empty_purpose
 @$t/test_semantic_ownership.py
