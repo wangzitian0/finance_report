@@ -350,8 +350,11 @@ async def test_AC_extraction_2994_133_a_failed_run_does_not_block_the_next_one(
     assert "UNIQUE-KEYWORD-SECRET" not in everything and "UNIQUE-NOTE-SECRET" not in everything
 
 
-async def test_AC_extraction_2994_142_a_422_body_never_echoes_the_request_body(client, db, monkeypatch, test_user):
-    """AC-extraction.2994.142: Each entry of a 422 keeps loc, msg and type. No input and no ctx: the hints stay private."""
+async def test_AC_extraction_2994_142_a_422_body_keeps_only_loc_msg_and_type(client, db, monkeypatch, test_user):
+    """AC-extraction.2994.142: Each entry of a 422 keeps loc, msg and type. The input and ctx fields are dropped.
+
+    A msg can hold validator text. For these three bodies, the secret text is not in the response.
+    """
     seeded = await _parsed(db, test_user)
     statement_id = seeded.id
     _spy_dispatch(monkeypatch)

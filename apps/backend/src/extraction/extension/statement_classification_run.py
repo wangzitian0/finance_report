@@ -4,7 +4,9 @@ The final transaction of an extract run creates the `classify` run (`statement_p
 here. While it is active the statement is PARSED and the approve answers 409. The run works in short phases, each in its
 own session that commits and closes: the plan (reads only), the keyword-rule answers, one write for each batch of model
 answers, and the finish. The model call has no session. A timeout, an error or the reaper fails the run and keeps the
-batches already written; the next run asks only the rows without an answer. A statement that the extract run marked
+batches already written. An automatic run, or a user run with no hints, asks only the rows without an answer. A user
+run with hints asks again for the rows with a model answer, and skips a row that a run of this statement with the same
+prompt already answered, so a run that timed out resumes. A statement that the extract run marked
 (`AUTO_APPROVE_CANDIDATE`) keeps its run active until the auto-approve ends it, in one transaction.
 """
 
@@ -13,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import Counter
+from collections.abc import Sequence
 from enum import StrEnum
 from uuid import UUID
 
@@ -26,7 +29,7 @@ from src.extraction.base.types import RunHints
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     auto_approve_parsed_candidate,
-    posted_entry_txn_ids,
+    ledger_covered_txn_ids,
 )
 from src.extraction.extension.statement_runs import StaleRun, claim_run, fail_run, finish_run, heartbeat_run
 from src.extraction.extension.statement_validation import resolve_statement_transactions
@@ -35,6 +38,7 @@ from src.extraction.extension.transaction_classification import (
     CLASSIFICATION_PHASE_DEADLINE_SECONDS,
     ClassificationOutcome,
     ClassificationPlan,
+    RunAsk,
     ask_model,
     model_batches,
     plan_classification,
@@ -93,7 +97,6 @@ async def execute_classify_run(
         async with session_maker() as session:
             run = await claim_run(session, run_id)
             statement_id, user_id = run.statement_id, run.user_id
-            reask = run.trigger is RunTrigger.RERUN  # a user run asks again for the rows that have a model answer
             candidate = await _parent_marked_candidate(session, run.parent_run_id)
             await session.commit()
     except StaleRun:
@@ -108,8 +111,16 @@ async def execute_classify_run(
     deadline = asyncio.timeout(deadline_seconds)
     try:
         hints = RunHints.model_validate(run.hints)  # after the claim committed; the run row is immutable
+
+        async def covered_by(db: AsyncSession, txn_ids: Sequence[UUID]) -> set[UUID]:
+            return await ledger_covered_txn_ids(db, user_id, txn_ids, posting_dependencies)
+
+        # A user run with hints asks again for the rows with a model answer. With no hints the prompt equals the
+        # prompt of the automatic run, so it asks only the rows without an answer.
+        reask = run.trigger is RunTrigger.RERUN and not hints.is_empty
+        ask = RunAsk(run_id, statement_id, run.prompt_digest, reask, covered_by)
         async with deadline:
-            outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id, hints, reask)
+            outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id, hints, ask)
         # A candidate keeps its run active: the run ends in the transaction of the auto-approve.
         if candidate:
             posted = await _approve_and_finish(
@@ -171,7 +182,7 @@ async def _beat(session: AsyncSession, run_id: UUID, progress: dict | None = Non
 
 
 async def _plan(
-    session: AsyncSession, statement_id: UUID, user_id: UUID, run_id: UUID, reask: bool
+    session: AsyncSession, statement_id: UUID, user_id: UUID, ask: RunAsk
 ) -> tuple[ClassifyOutcome | None, list[ClassificationPlan]]:
     """Phase a, reads only: the plan of each policy bucket. The outcome is set when there is nothing to plan."""
     statement = await session.get(StatementSummary, statement_id)
@@ -181,16 +192,13 @@ async def _plan(
         transactions = await resolve_statement_transactions(session, statement)
     except ValueError:  # the approval raises the same error, and the user sees it there
         return ClassifyOutcome.SKIPPED_STATE, []
-    covered = await posted_entry_txn_ids(session, user_id, [txn.id for txn in transactions])
+    covered = await ask.covered_by(session, [txn.id for txn in transactions])
     # A row with an unresolved currency waits: the account of an answer follows the currency.
     rows = [txn for txn in transactions if txn.id not in covered and not txn.currency_unresolved]
     if not rows:
         return ClassifyOutcome.NOTHING_TO_CLASSIFY, []
     buckets = await policy_buckets(session, user_id, rows, tolerate_pre_policy=True)
-    plans = [
-        await plan_classification(session, user_id, rows_, policy, reask=reask, run_id=run_id)
-        for policy, rows_ in buckets
-    ]
+    plans = [await plan_classification(session, user_id, rows_, policy, run=ask) for policy, rows_ in buckets]
     return None, plans
 
 
@@ -200,12 +208,12 @@ async def _classify_in_phases(
     statement_id: UUID,
     user_id: UUID,
     hints: RunHints,
-    reask: bool,
+    ask: RunAsk,
 ) -> tuple[ClassifyOutcome, dict]:
     """Run the phases. Return the outcome and the summary, which holds counts only. The run itself is still running."""
     started = time.perf_counter()
     async with session_maker() as session:
-        skipped, plans = await _plan(session, statement_id, user_id, run_id, reask)
+        skipped, plans = await _plan(session, statement_id, user_id, ask)
     batches = [(plan, batch) for plan in plans for batch in model_batches(plan.to_propose, plan.policy)]
     _log(
         "plan",
@@ -228,12 +236,12 @@ async def _classify_in_phases(
 
     slots = asyncio.Semaphore(transaction_classification.CLASSIFICATION_PARALLEL_BATCHES)
 
-    async def ask(index: int, plan: ClassificationPlan, batch):
+    async def ask_batch(index: int, plan: ClassificationPlan, batch):
         async with slots:
             began = time.perf_counter()
             return index, plan, batch, await ask_model(user_id, batch, plan.policy, hints=hints), _ms(began)
 
-    tasks = [asyncio.ensure_future(ask(index, plan, batch)) for index, (plan, batch) in enumerate(batches)]
+    tasks = [asyncio.ensure_future(ask_batch(index, plan, batch)) for index, (plan, batch) in enumerate(batches)]
     try:
         for finished in asyncio.as_completed(tasks):  # phase c: write each batch when its answer arrives
             index, plan, batch, proposals, model_ms = await finished

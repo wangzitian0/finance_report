@@ -155,6 +155,35 @@ async def posted_entry_txn_ids(db: AsyncSession, user_id: UUID, txn_ids: Sequenc
     return {entry.source_id for entry in result.scalars().all() if entry.source_id in wanted}
 
 
+async def legacy_entry_txn_ids(db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID]) -> set[UUID]:
+    """The rows of a non-void entry that has no anchor of its own (the legacy kind)."""
+    result = await db.execute(
+        select(JournalEntry.source_id).where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
+            JournalEntry.source_id.in_(list(txn_ids)),
+            JournalEntry.decision_authority_state == JournalEntryAuthorityState.LEGACY_UNPROVEN,
+            JournalEntry.status != JournalEntryStatus.VOID,
+        )
+    )
+    return {source_id for source_id in result.scalars() if source_id is not None}
+
+
+async def ledger_covered_txn_ids(
+    db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID], dependencies: StatementPostingDependencies
+) -> set[UUID]:
+    """The rows that the ledger covers: an anchored entry, a legacy entry, or an accepted transfer match.
+
+    The posting skips these rows, so no run writes an answer for them (#2994).
+    """
+    anchored = await posted_entry_txn_ids(db, user_id, txn_ids)
+    return (
+        anchored
+        | await legacy_entry_txn_ids(db, user_id, txn_ids)
+        | await dependencies.transfer_exclusions(db, txn_ids)
+    )
+
+
 async def auto_create_posted_entries_for_statement(
     db: AsyncSession,
     statement: StatementSummary,
@@ -173,18 +202,7 @@ async def auto_create_posted_entries_for_statement(
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
     existing_entry_txn_ids = await posted_entry_txn_ids(db, user_id, txn_ids)
-    legacy_result = await db.execute(
-        select(JournalEntry.id)
-        .where(
-            JournalEntry.user_id == user_id,
-            JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
-            JournalEntry.source_id.in_(txn_ids),
-            JournalEntry.decision_authority_state == JournalEntryAuthorityState.LEGACY_UNPROVEN,
-            JournalEntry.status != JournalEntryStatus.VOID,
-        )
-        .limit(1)
-    )
-    if legacy_result.scalar_one_or_none() is not None:
+    if await legacy_entry_txn_ids(db, user_id, txn_ids):
         statement.status = BankStatementStatus.PARSED
         statement.stage1_status = Stage1Status.PENDING_REVIEW
         statement.validation_error = f"{ECONOMIC_REVIEW_NOTICE} legacy_unanchored_source_entry"

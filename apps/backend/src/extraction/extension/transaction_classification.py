@@ -17,7 +17,8 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import cast, func, or_, select, update
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -637,13 +638,15 @@ async def _supersede_older_model_rows(
     )
 
 
+# The tags that record a decision of the user. A row with one of them is never asked again.
+DECISION_MARKERS = ("corrected_by_user", "rejected_by_user", "accepted_by_user")
+LIVE_STATUSES = (ClassificationStatus.DRAFT, ClassificationStatus.APPLIED)
+
+
 async def _user_decided_txn_ids(db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID]) -> set[UUID]:
     if not txn_ids:
         return set()
-    decided = or_(
-        TransactionClassification.tags["corrected_by_user"].astext == "true",
-        TransactionClassification.tags["rejected_by_user"].astext == "true",
-    )
+    decided = or_(*(TransactionClassification.tags[marker].astext == "true" for marker in DECISION_MARKERS))
     rows = await db.execute(
         select(TransactionClassification.atomic_txn_id)
         .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
@@ -680,27 +683,63 @@ async def _already_classified_ids(
     return classified | await _user_decided_txn_ids(db, user_id, txn_ids)
 
 
-async def _answered_ids(
-    db: AsyncSession, user_id: UUID, policy: ClassificationPolicy, txn_ids: Sequence[UUID], reask: bool
+CoverageCheck = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
+
+
+@dataclass(frozen=True)
+class RunAsk:
+    """What a classify run tells the phases about itself (#2994)."""
+
+    run_id: UUID
+    statement_id: UUID
+    prompt_digest: str | None
+    reask: bool  # a user run with hints asks again for every row that has a model answer
+    covered_by: CoverageCheck  # the rows that the ledger covers: a run never writes an answer for them
+
+
+async def _same_digest_ids(
+    db: AsyncSession, user_id: UUID, policy: ClassificationPolicy, txn_ids, run: RunAsk
 ) -> set[UUID]:
-    """The rows that the model is not asked for: a decision of the user, and for an automatic pass any answer."""
-    if reask:
-        return await _user_decided_txn_ids(db, user_id, txn_ids)
-    return await _already_classified_ids(db, user_id, policy.version, txn_ids)
-
-
-async def _model_rows(
-    db: AsyncSession, user_id: UUID, policy: ClassificationPolicy, txn_ids: Sequence[UUID]
-) -> dict[UUID, TransactionClassification]:
-    """The answers of this policy version that rows have: the unique key allows one, so a re-ask changes it in place."""
+    """The rows whose live answer came from a run of this statement with the same prompt digest: same inputs, no new answer."""
     rows = await db.execute(
-        select(TransactionClassification)
+        select(TransactionClassification.atomic_txn_id)
         .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
+        .join(
+            StatementRun, StatementRun.id == cast(TransactionClassification.tags["run_id"].astext, PGUUID(as_uuid=True))
+        )
         .where(ClassificationRule.user_id == user_id, ClassificationRule.rule_name == POLICY_RULE_NAME)
         .where(ClassificationRule.version_number == policy.version)
+        .where(TransactionClassification.status.in_(LIVE_STATUSES))
         .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
+        .where(StatementRun.statement_id == run.statement_id, StatementRun.prompt_digest == run.prompt_digest)
     )
-    return {row.atomic_txn_id: row for row in rows.scalars()}
+    return set(rows.scalars())
+
+
+async def _answered_ids(
+    db: AsyncSession, user_id: UUID, policy: ClassificationPolicy, txn_ids: Sequence[UUID], run: RunAsk | None
+) -> set[UUID]:
+    """The rows that the model is not asked for: any answer for an automatic pass. A re-ask skips a decision of the
+    user and a row that an earlier run of this statement answered with the same prompt digest."""
+    if run is None or not run.reask:
+        return await _already_classified_ids(db, user_id, policy.version, txn_ids)
+    return await _user_decided_txn_ids(db, user_id, txn_ids) | await _same_digest_ids(db, user_id, policy, txn_ids, run)
+
+
+async def _policy_rows(
+    db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID]
+) -> list[tuple[TransactionClassification, int]]:
+    """The answers of every policy version for these rows, locked in id order. Call it after the policy-rule lock."""
+    result = await db.execute(
+        select(TransactionClassification, ClassificationRule.version_number)
+        .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
+        .where(ClassificationRule.user_id == user_id, ClassificationRule.rule_name == POLICY_RULE_NAME)
+        .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
+        .order_by(TransactionClassification.id)
+        .with_for_update(of=TransactionClassification)
+        .execution_options(populate_existing=True)
+    )
+    return [(row, version) for row, version in result.all()]
 
 
 @dataclass(frozen=True)
@@ -715,8 +754,15 @@ class ClassificationPlan:
     to_propose: list[AtomicTransaction]  # the rows that the model answers
     auto_accept: bool
     commit_basis: bool
-    reask: bool = False  # a user run asks again for every row that has only a model answer
-    run_id: UUID | None = None  # the run whose answers these are: it goes into the tags of each answer it writes
+    run: RunAsk | None = None  # the run whose answers these are: its id goes into the tags of each answer it writes
+
+    @property
+    def reask(self) -> bool:
+        return self.run is not None and self.run.reask
+
+    @property
+    def run_id(self) -> UUID | None:
+        return self.run.run_id if self.run is not None else None
 
     @property
     def version(self) -> int | None:
@@ -747,12 +793,11 @@ async def plan_classification(
     policy: ClassificationPolicy | None,
     *,
     commit_basis: bool = True,
-    reask: bool = False,
-    run_id: UUID | None = None,
+    run: RunAsk | None = None,
 ) -> ClassificationPlan:
     """Read what one policy bucket needs: the keyword rules and matches, the two flags, the rows with an answer.
 
-    An automatic pass skips every row that has an answer. A `reask` pass skips only the rows that the user decided.
+    An automatic pass skips every row that has an answer. A re-ask skips the rows that the user decided.
     """
     service = ClassificationService()
     rules = [r for r in await service.get_active_rules(db, user_id) if r.rule_name != POLICY_RULE_NAME]
@@ -767,12 +812,10 @@ async def plan_classification(
     policy = policy if enabled else None
     already: frozenset[UUID] = frozenset()
     if policy is not None and commit_basis:
-        already = frozenset(await _answered_ids(db, user_id, policy, [txn.id for txn in rows], reask))
+        already = frozenset(await _answered_ids(db, user_id, policy, [txn.id for txn in rows], run))
     to_propose = [txn for txn in rows if policy is not None and txn.id not in ruled and txn.id not in already]
     auto_accept = policy is not None and await auto_accept_enabled(db, user_id)
-    return ClassificationPlan(
-        user_id, policy, rows, ruled, already, to_propose, auto_accept, commit_basis, reask, run_id
-    )
+    return ClassificationPlan(user_id, policy, rows, ruled, already, to_propose, auto_accept, commit_basis, run)
 
 
 async def write_rule_answers(db: AsyncSession, plan: ClassificationPlan) -> None:
@@ -804,12 +847,21 @@ async def write_answers(
     proposal_by_txn = dict(zip(rows, proposals))
     late: set[UUID] = set()
     existing: dict[UUID, TransactionClassification] = {}
-    changed: set[UUID] = set()
     if commit_basis and any(proposal is not None for proposal in proposals):
         await _lock_policy_rule(db, user_id, policy)
-        late = await _answered_ids(db, user_id, policy, [txn.id for txn in rows], plan.reask)
-        if plan.reask:
-            existing = await _model_rows(db, user_id, policy, [txn.id for txn in rows if txn.id not in late])
+        ids = [txn.id for txn in rows]
+        if plan.reask:  # the decisions and the live answers come from the rows that this transaction locks
+            locked = await _policy_rows(db, user_id, ids)
+            late = {r.atomic_txn_id for r, _ in locked if any((r.tags or {}).get(m) is True for m in DECISION_MARKERS)}
+            existing = {
+                r.atomic_txn_id: r
+                for r, version in locked
+                if version == policy.version and r.status in LIVE_STATUSES and r.atomic_txn_id not in late
+            }
+        else:
+            late = await _already_classified_ids(db, user_id, policy.version, ids)
+        if plan.run is not None:  # a row can be posted while the model runs, also from another statement
+            late |= await plan.run.covered_by(db, ids)
 
     policy_rule: ClassificationRule | None = None
     category_account_cache: dict[tuple[TransactionCategory, str], Account] = {}
@@ -820,11 +872,6 @@ async def write_answers(
         nonlocal policy_rule
         if plan.run_id is not None:
             tags = {**tags, "run_id": str(plan.run_id)}
-        if (row := existing.get(txn.id)) is not None:  # a re-ask changes the answer in place
-            row.account_id, row.tags, row.confidence_score = account_id, tags, score
-            row.status, row.superseded_by_id = status, None
-            changed.add(txn.id)
-            return
         if policy_rule is None:
             policy_rule = await _ensure_policy_rule(db, user_id, policy)
         new_rows.append(
@@ -922,8 +969,16 @@ async def write_answers(
         outcomes.append(outcome(txn, disposition, proposal))
 
     if commit_basis:
+        replaced = {txn_id: existing[txn_id] for txn_id in {row.atomic_txn_id for row in new_rows} & existing.keys()}
+        for old_row in replaced.values():  # a re-ask appends: the old answer stays as history, not as a live row
+            old_row.status = ClassificationStatus.SUPERSEDED
+        await db.flush()  # frees the live key before the new rows take it
         db.add_all(new_rows)
-        wrote = {row.atomic_txn_id for row in new_rows} | changed
+        await db.flush()
+        for row in new_rows:
+            if row.atomic_txn_id in replaced:
+                replaced[row.atomic_txn_id].superseded_by_id = row.id
+        wrote = {row.atomic_txn_id for row in new_rows}
         await _supersede_older_model_rows(db, user_id, sorted(wrote | late), policy.version)
         await db.flush()
         outcomes = [o.model_copy(update={"wrote_row": True}) if o.atomic_txn_id in wrote else o for o in outcomes]
@@ -1093,16 +1148,19 @@ async def apply_suggestion_feedback(
     action: str,
     corrected_value: dict | None,
 ) -> FeedbackEffect:
-    row = (
-        await db.execute(
-            select(TransactionClassification, AtomicTransaction)
-            .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
-            .where(TransactionClassification.id == suggestion_id)
-            .where(AtomicTransaction.user_id == user_id)
-            .where(TransactionClassification.status == ClassificationStatus.DRAFT)
-            .with_for_update(of=TransactionClassification)
-        )
-    ).first()
+    pending = (
+        select(TransactionClassification, AtomicTransaction)
+        .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
+        .where(TransactionClassification.id == suggestion_id)
+        .where(AtomicTransaction.user_id == user_id)
+        .where(TransactionClassification.status == ClassificationStatus.DRAFT)
+    )
+    row = (await db.execute(pending)).first()
+    if row is None:
+        return "recorded"
+    # The lock order of a correction and of a re-ask: the policy-rule lock, then the row (#2994).
+    await _lock_policy_rule(db, user_id, policy_for(row[1].txn_date))
+    row = (await db.execute(pending.with_for_update(of=TransactionClassification))).first()
     if row is None:
         return "recorded"
     classification, txn = row
@@ -1164,6 +1222,10 @@ async def apply_user_transaction_correction(
             select(TransactionClassification)
             .where(TransactionClassification.atomic_txn_id == txn.id)
             .where(TransactionClassification.rule_version_id == rule.id)
+            .order_by(
+                TransactionClassification.status.in_(LIVE_STATUSES).desc(), TransactionClassification.created_at.desc()
+            )
+            .limit(1)  # a re-ask leaves history rows: take the live answer, else the latest
             .with_for_update(of=TransactionClassification)
         )
     ).scalar_one_or_none()
