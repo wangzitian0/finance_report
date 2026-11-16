@@ -329,7 +329,7 @@ named-transfer-legs.5||test_AC_reconciliation_named_transfer_legs_5_a_long_descr
 candidate-policy.1||test_live_and_audit_choose_the_same_evidence
 @$t/test_reconciliation_config_boundary.py|P0|done|property
 config-boundary.1||test_configuration_ownership_is_explicit
-@$be/reconciliation/test_reconciliation_router_additional.py|P1
+@$be/api/test_reconciliation_router.py|P1
 review-queue.2||test_accept_reject_batch_accept
 @$be/reconciliation/test_source_type.py|P1
 source-type-transfer.4||test_manual_wins_conflict_resolution
@@ -355,7 +355,7 @@ fe-ia-reconciliation.1||AC22.4.3 links to the AI suggestion review surface so it
 fe-ia-reconciliation.2||${label}: both Stage 1 and Stage 2 attention surface in the upload workflow notices with deep links
 @apps/frontend/playwright/attention-surface.spec.ts|P1
 fe-ia-reconciliation.5||${label} renders the attention queue ranked by confidence without overflow
-@$fe/__tests__/stage2ReviewQueueParts.test.tsx|P1
+@$fe/__tests__/stage2ReviewQueueCoverage99.test.tsx|P1
 fe-ia-reconciliation.9||AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks
 @$be/reconciliation/test_keyword_leg_base_currency.py|P0|done|property
 named-transfer-legs.6||test_AC_reconciliation_named_transfer_legs_6_a_foreign_row_posts_no_leg_and_creates_no_account

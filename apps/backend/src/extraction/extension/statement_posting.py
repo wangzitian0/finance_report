@@ -205,7 +205,15 @@ async def auto_create_posted_entries_for_statement(
         _clear_economic_review_notice(statement)
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
-    preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
+    cached_posting = db.info.pop("_stage1_resolved_posting_account", None)
+    if (
+        cached_posting is not None
+        and cached_posting[0] == statement.id
+        and cached_posting[1] == statement.account_id
+    ):
+        preloaded_bank_account = cached_posting[2]
+    else:
+        preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
 
     legs_posted = 0
@@ -515,7 +523,9 @@ async def resolve_statement_posting_account(
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
 
-    source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
+    source = await get_current_statement_extraction_result(
+        db, user_id=user_id, statement_id=statement.id, statement=statement
+    )
     document = (
         await db.get(UploadedDocument, statement.uploaded_document_id) if statement.uploaded_document_id else None
     )
@@ -984,7 +994,9 @@ async def reconcile_account_statement_chain(
         except ValidationError as exc:
             raise ValueError(str(exc)) from exc
 
-    updated_positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
+    updated_positions = (
+        await list_opening_positions(db, user_id=user_id, as_of=date.max) if need_opening_post else positions
+    )
     opening_entry_ids = {p.journal_entry_id for p in updated_positions if p.journal_entry_id is not None}
 
     desired_plugs: dict[tuple[str, str], tuple[StatementSummary, StatementSummary, date, Decimal]] = {}

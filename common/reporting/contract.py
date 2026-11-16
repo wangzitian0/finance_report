@@ -438,10 +438,9 @@ balance-sheet.7||test_balance_sheet_cta_and_aggregation_falsifiability
 balance-sheet.8||test_case_4_shape_balance_sheet_equation_delta_is_exactly_zero
 @$be/reporting/test_reporting_fx_fallbacks.py
 fx.4||test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning
-@$be/reporting/test_reports_errors.py|P1
-errors.1||test_reports_router_errors_extended
-@$be/reporting/test_reports_router_errors.py|P1
-errors.2||test_balance_sheet_report_error
+@$be/reporting/test_reports_router.py|P1
+errors.1||test_reports_router_handles_report_error
+errors.2||test_export_balance_sheet_report_error
 @$be/reporting/test_reporting_fx_revaluation_integration.py|P1
 kpis.3||test_income_statement_includes_average_rate_fallback_warning
 @$t/test_investment_performance_report_contract.py
@@ -496,7 +495,7 @@ fe-period-cockpit.11||AC-reporting.fe-period-cockpit.11 marks the coverage start
 fe-fetch-budget.3||AC-reporting.fe-fetch-budget.3 the upload page polls every three seconds while a statement parses and stops when none parses
 @$fe/__tests__/queryClient.test.ts|P1
 fe-fetch-budget.4||AC-reporting.fe-fetch-budget.4 marks every ledger-derived read stale after a successful mutation
-@$fe/__tests__/workflowStatusPolling.test.tsx|P1
+@$fe/__tests__/workflowSurfaces.test.tsx|P1
 fe-fetch-budget.6||AC-reporting.fe-fetch-budget.6 polls every 120 s while nothing is pending
 @$be/reporting/test_balance_sheet_provenance.py|P1
 2654.1||test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_it

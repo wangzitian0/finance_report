@@ -1,58 +1,650 @@
-'AC5.5.1 AC5.5.4'; from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from sqlalchemy import select; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker; from src.audit import JournalEntrySourceType; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.pricing.orm.market_data import StockPrice; from src.reporting import ReportError; from src.routers import reports as reports_router
+"AC5.5.1 AC5.5.4"
+
+from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.pricing.orm.market_data import FxRate, StockPrice
+from src.reporting import ReportError
+from src.routers import reports as reports_router
+
+
 @pytest.fixture
 def test_data_setup_reports(db: AsyncSession, test_user):
-    async def _setup(): asset = Account(user_id=test_user.id, name='Cash Test', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=test_user.id, name='Salary Test', type=AccountType.INCOME, currency='SGD'); db.add_all([asset, income]); await db.commit(); await db.refresh(asset); await db.refresh(income); entry = JournalEntry(user_id=test_user.id, entry_date=date.today(), memo='Test Income', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=asset.id, direction=Direction.DEBIT, amount=Decimal('1000.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=income.id, direction=Direction.CREDIT, amount=Decimal('1000.00'), currency='SGD')]); await db.commit(); return (asset, income)
+    async def _setup():
+        asset = Account(user_id=test_user.id, name="Cash Test", type=AccountType.ASSET, currency="SGD")
+        income = Account(user_id=test_user.id, name="Salary Test", type=AccountType.INCOME, currency="SGD")
+        db.add_all([asset, income])
+        await db.commit()
+        await db.refresh(asset)
+        await db.refresh(income)
+        entry = JournalEntry(
+            user_id=test_user.id,
+            entry_date=date.today(),
+            memo="Test Income",
+            source_type=JournalEntrySourceType.MANUAL,
+            status=JournalEntryStatus.POSTED,
+        )
+        db.add(entry)
+        await db.flush()
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=asset.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("1000.00"),
+                    currency="SGD",
+                ),
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=income.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("1000.00"),
+                    currency="SGD",
+                ),
+            ]
+        )
+        await db.commit()
+        return (asset, income)
+
     return _setup
-async def test_balance_sheet_endpoint(client, test_data_setup_reports): 'AC-reporting.balance-sheet.4 AC5.1.4'; await test_data_setup_reports(); response = await client.get('/reports/balance-sheet', params={'currency': 'SGD'}); assert response.status_code == 200; data = response.json(); assert data['total_assets'] == '1000.00'; assert data['currency'] == 'SGD'
+
+
+async def test_balance_sheet_endpoint(client, test_data_setup_reports):
+    "AC-reporting.balance-sheet.4 AC5.1.4"
+    await test_data_setup_reports()
+    response = await client.get("/reports/balance-sheet", params={"currency": "SGD"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_assets"] == "1000.00"
+    assert data["currency"] == "SGD"
+
+
 async def test_AC5_16_1_balance_sheet_defaults_to_the_full_scope(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.trust-signals.1 AC5.16.1'; received: list[bool] = []
-    async def fake_generate_balance_sheet(*_args, **kwargs): received.append(kwargs['include_restricted']); return {'as_of_date': date(2026, 1, 31), 'currency': 'SGD', 'assets': [], 'liabilities': [], 'equity': [], 'total_assets': Decimal('0.00'), 'total_liabilities': Decimal('0.00'), 'total_equity': Decimal('0.00'), 'net_income': Decimal('0.00'), 'unrealized_fx_gain_loss': Decimal('0.00'), 'net_worth_adjustment_gain_loss': Decimal('0.00'), 'fx_warnings': [], 'equation_delta': Decimal('0.00'), 'is_balanced': True}
-    monkeypatch.setattr(reports_router, 'generate_balance_sheet', fake_generate_balance_sheet); response = await client.get('/reports/balance-sheet', params={'as_of_date': '2026-01-31', 'currency': 'SGD'}); assert response.status_code == 200; excluded = await client.get('/reports/balance-sheet', params={'as_of_date': '2026-01-31', 'currency': 'SGD', 'include_restricted': 'false'}); assert excluded.status_code == 200; assert received == [True, False]
-async def test_income_statement_endpoint(client, test_data_setup_reports): 'AC-reporting.errors.4'; await test_data_setup_reports(); today = date.today(); params = {'start_date': today.isoformat(), 'end_date': today.isoformat(), 'currency': 'SGD'}; response = await client.get('/reports/income-statement', params=params); assert response.status_code == 200; data = response.json(); assert data['total_income'] == '1000.00'
-async def test_cash_flow_endpoint(client, test_data_setup_reports): await test_data_setup_reports(); today = date.today(); params = {'start_date': today.isoformat(), 'end_date': today.isoformat()}; response = await client.get('/reports/cash-flow', params=params); assert response.status_code == 200; data = response.json(); assert 'summary' in data; assert 'operating' in data; assert 'investing' in data; assert 'financing' in data
+    "AC-reporting.trust-signals.1 AC5.16.1"
+    received: list[bool] = []
+
+    async def fake_generate_balance_sheet(*_args, **kwargs):
+        received.append(kwargs["include_restricted"])
+        return {
+            "as_of_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "assets": [],
+            "liabilities": [],
+            "equity": [],
+            "total_assets": Decimal("0.00"),
+            "total_liabilities": Decimal("0.00"),
+            "total_equity": Decimal("0.00"),
+            "net_income": Decimal("0.00"),
+            "unrealized_fx_gain_loss": Decimal("0.00"),
+            "net_worth_adjustment_gain_loss": Decimal("0.00"),
+            "fx_warnings": [],
+            "equation_delta": Decimal("0.00"),
+            "is_balanced": True,
+        }
+
+    monkeypatch.setattr(reports_router, "generate_balance_sheet", fake_generate_balance_sheet)
+    response = await client.get("/reports/balance-sheet", params={"as_of_date": "2026-01-31", "currency": "SGD"})
+    assert response.status_code == 200
+    excluded = await client.get(
+        "/reports/balance-sheet", params={"as_of_date": "2026-01-31", "currency": "SGD", "include_restricted": "false"}
+    )
+    assert excluded.status_code == 200
+    assert received == [True, False]
+
+
+async def test_income_statement_endpoint(client, test_data_setup_reports):
+    "AC-reporting.errors.4"
+    await test_data_setup_reports()
+    today = date.today()
+    params = {"start_date": today.isoformat(), "end_date": today.isoformat(), "currency": "SGD"}
+    response = await client.get("/reports/income-statement", params=params)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_income"] == "1000.00"
+
+
+async def test_cash_flow_endpoint(client, test_data_setup_reports):
+    await test_data_setup_reports()
+    today = date.today()
+    params = {"start_date": today.isoformat(), "end_date": today.isoformat()}
+    response = await client.get("/reports/cash-flow", params=params)
+    assert response.status_code == 200
+    data = response.json()
+    assert "summary" in data
+    assert "operating" in data
+    assert "investing" in data
+    assert "financing" in data
+
+
 async def test_AC5_16_2_cash_flow_response_preserves_fx_warnings(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.trust-signals.2 AC5.16.2'
-    async def fake_generate_cash_flow(*_args, **_kwargs): return {'start_date': date(2026, 1, 1), 'end_date': date(2026, 1, 31), 'currency': 'SGD', 'operating': [], 'investing': [], 'financing': [], 'proof_state': 'unproven', 'proof_reasons': ['fx_rate_missing'], 'summary': {'operating_activities': Decimal('0.00'), 'investing_activities': Decimal('0.00'), 'financing_activities': Decimal('0.00'), 'net_cash_flow': Decimal('0.00'), 'beginning_cash': Decimal('0.00'), 'ending_cash': Decimal('0.00')}, 'fx_warnings': [{'type': 'spot_rate_fallback', 'from_currency': 'USD', 'to_currency': 'SGD', 'date': '2026-01-31'}]}
-    monkeypatch.setattr(reports_router, 'generate_cash_flow', fake_generate_cash_flow); response = await client.get('/reports/cash-flow', params={'start_date': '2026-01-01', 'end_date': '2026-01-31', 'currency': 'SGD'}); assert response.status_code == 200; assert response.json()['fx_warnings'] == [{'type': 'spot_rate_fallback', 'from_currency': 'USD', 'to_currency': 'SGD', 'date': '2026-01-31'}]
-async def test_net_worth_timeseries_endpoint_commits_boundary(client, db_engine, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC12.26.2'
-    async def fake_timeseries(db: AsyncSession, *_args, **_kwargs): db.add(StockPrice(symbol='REPORT', price=Decimal('42.000000'), currency='USD', price_date=date(2026, 1, 31), source='test')); await db.flush(); return {'currency': 'SGD', 'granularity': 'daily', 'points': []}
-    monkeypatch.setattr(reports_router, 'get_net_worth_timeseries', fake_timeseries); response = await client.get('/reports/net-worth/timeseries', params={'from': '2026-01-01', 'to': '2026-01-31', 'granularity': 'daily', 'currency': 'SGD'}); assert response.status_code == 200; assert response.json()['points'] == []; sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
-    async with sessionmaker() as session: persisted = await session.scalar(select(StockPrice).where(StockPrice.symbol == 'REPORT').where(StockPrice.price_date == date(2026, 1, 31)))
+    "AC-reporting.trust-signals.2 AC5.16.2"
+
+    async def fake_generate_cash_flow(*_args, **_kwargs):
+        return {
+            "start_date": date(2026, 1, 1),
+            "end_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "operating": [],
+            "investing": [],
+            "financing": [],
+            "proof_state": "unproven",
+            "proof_reasons": ["fx_rate_missing"],
+            "summary": {
+                "operating_activities": Decimal("0.00"),
+                "investing_activities": Decimal("0.00"),
+                "financing_activities": Decimal("0.00"),
+                "net_cash_flow": Decimal("0.00"),
+                "beginning_cash": Decimal("0.00"),
+                "ending_cash": Decimal("0.00"),
+            },
+            "fx_warnings": [
+                {"type": "spot_rate_fallback", "from_currency": "USD", "to_currency": "SGD", "date": "2026-01-31"}
+            ],
+        }
+
+    monkeypatch.setattr(reports_router, "generate_cash_flow", fake_generate_cash_flow)
+    response = await client.get(
+        "/reports/cash-flow", params={"start_date": "2026-01-01", "end_date": "2026-01-31", "currency": "SGD"}
+    )
+    assert response.status_code == 200
+    assert response.json()["fx_warnings"] == [
+        {"type": "spot_rate_fallback", "from_currency": "USD", "to_currency": "SGD", "date": "2026-01-31"}
+    ]
+
+
+async def test_net_worth_timeseries_endpoint_commits_boundary(
+    client, db_engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    "AC12.26.2"
+
+    async def fake_timeseries(db: AsyncSession, *_args, **_kwargs):
+        db.add(
+            StockPrice(
+                symbol="REPORT", price=Decimal("42.000000"), currency="USD", price_date=date(2026, 1, 31), source="test"
+            )
+        )
+        await db.flush()
+        return {"currency": "SGD", "granularity": "daily", "points": []}
+
+    monkeypatch.setattr(reports_router, "get_net_worth_timeseries", fake_timeseries)
+    response = await client.get(
+        "/reports/net-worth/timeseries",
+        params={"from": "2026-01-01", "to": "2026-01-31", "granularity": "daily", "currency": "SGD"},
+    )
+    assert response.status_code == 200
+    assert response.json()["points"] == []
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        persisted = await session.scalar(
+            select(StockPrice).where(StockPrice.symbol == "REPORT").where(StockPrice.price_date == date(2026, 1, 31))
+        )
     assert persisted is not None
-async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC17.14.2'
-    async def fake_allocation_schedule(*_args, **kwargs): assert kwargs['as_of_date'] == date(2026, 1, 31); assert kwargs['currency'] == 'SGD'; assert kwargs['include_restricted'] is True; return {'as_of_date': date(2026, 1, 31), 'currency': 'SGD', 'include_restricted': True, 'total_assets': Decimal('1500.00'), 'total_liabilities': Decimal('500.00'), 'net_worth': Decimal('1000.00'), 'rows': [{'asset_class': 'cash', 'liquidity_class': 'liquid', 'source_currency': 'SGD', 'value': Decimal('1500.00'), 'percentage_of_net_worth': Decimal('150.00'), 'source_line_count': 1, 'source_lines': [{'source_type': 'ledger_account', 'source_id': None, 'label': 'Main Bank', 'value': Decimal('1500.00')}]}, {'asset_class': 'liability', 'liquidity_class': 'liability', 'source_currency': 'SGD', 'value': Decimal('-500.00'), 'percentage_of_net_worth': Decimal('-50.00'), 'source_line_count': 1, 'source_lines': [{'source_type': 'ledger_account', 'source_id': None, 'label': 'Credit Card', 'value': Decimal('-500.00')}]}]}
-    monkeypatch.setattr(reports_router, 'get_net_worth_allocation_schedule', fake_allocation_schedule); response = await client.get('/reports/net-worth/allocation', params={'as_of_date': '2026-01-31', 'currency': 'SGD', 'include_restricted': 'true'}); assert response.status_code == 200; data = response.json(); assert data['net_worth'] == '1000.00'; assert data['rows'][0]['source_currency'] == 'SGD'; assert data['rows'][1]['value'] == '-500.00'
-async def test_breakdown_endpoint(client, test_data_setup_reports): _, income = await test_data_setup_reports(); params = {'type': 'income', 'period': 'monthly', 'currency': 'SGD'}; response = await client.get('/reports/breakdown', params=params); assert response.status_code == 200
-async def test_export_endpoint(client, test_data_setup_reports): await test_data_setup_reports(); params = {'report_type': 'balance-sheet', 'format': 'csv', 'currency': 'SGD'}; response = await client.get('/reports/export', params=params); assert response.status_code == 200; assert 'text/csv' in response.headers['content-type']; assert 'attachment' in response.headers['content-disposition']; today = date.today(); params_is = {'report_type': 'income-statement', 'format': 'csv', 'start_date': today.isoformat(), 'end_date': today.isoformat(), 'currency': 'SGD'}; response_is = await client.get('/reports/export', params=params_is); assert response_is.status_code == 200; assert 'text/csv' in response_is.headers['content-type']
-async def test_AC6_33_8_export_response_matches_typed_envelope(client, test_data_setup_reports): 'AC-reporting.export-envelope.3 AC6.33.8'; from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType; await test_data_setup_reports(); params = {'report_type': 'balance-sheet', 'format': 'csv', 'currency': 'SGD'}; response = await client.get('/reports/export', params=params); assert response.status_code == 200; assert 'text/csv' in response.headers['content-type']; disposition = response.headers['content-disposition']; assert disposition.startswith('attachment; filename='); filename = disposition.split('filename=', 1)[1]; envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=filename); assert envelope.to_headers()['Content-Disposition'] == disposition
+
+
+async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    "AC17.14.2"
+
+    async def fake_allocation_schedule(*_args, **kwargs):
+        assert kwargs["as_of_date"] == date(2026, 1, 31)
+        assert kwargs["currency"] == "SGD"
+        assert kwargs["include_restricted"] is True
+        return {
+            "as_of_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "include_restricted": True,
+            "total_assets": Decimal("1500.00"),
+            "total_liabilities": Decimal("500.00"),
+            "net_worth": Decimal("1000.00"),
+            "rows": [
+                {
+                    "asset_class": "cash",
+                    "liquidity_class": "liquid",
+                    "source_currency": "SGD",
+                    "value": Decimal("1500.00"),
+                    "percentage_of_net_worth": Decimal("150.00"),
+                    "source_line_count": 1,
+                    "source_lines": [
+                        {
+                            "source_type": "ledger_account",
+                            "source_id": None,
+                            "label": "Main Bank",
+                            "value": Decimal("1500.00"),
+                        }
+                    ],
+                },
+                {
+                    "asset_class": "liability",
+                    "liquidity_class": "liability",
+                    "source_currency": "SGD",
+                    "value": Decimal("-500.00"),
+                    "percentage_of_net_worth": Decimal("-50.00"),
+                    "source_line_count": 1,
+                    "source_lines": [
+                        {
+                            "source_type": "ledger_account",
+                            "source_id": None,
+                            "label": "Credit Card",
+                            "value": Decimal("-500.00"),
+                        }
+                    ],
+                },
+            ],
+        }
+
+    monkeypatch.setattr(reports_router, "get_net_worth_allocation_schedule", fake_allocation_schedule)
+    response = await client.get(
+        "/reports/net-worth/allocation",
+        params={"as_of_date": "2026-01-31", "currency": "SGD", "include_restricted": "true"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["net_worth"] == "1000.00"
+    assert data["rows"][0]["source_currency"] == "SGD"
+    assert data["rows"][1]["value"] == "-500.00"
+
+
+async def test_breakdown_endpoint(client, test_data_setup_reports):
+    _, income = await test_data_setup_reports()
+    params = {"type": "income", "period": "monthly", "currency": "SGD"}
+    response = await client.get("/reports/breakdown", params=params)
+    assert response.status_code == 200
+
+
+async def test_export_endpoint(client, test_data_setup_reports):
+    await test_data_setup_reports()
+    params = {"report_type": "balance-sheet", "format": "csv", "currency": "SGD"}
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    assert "attachment" in response.headers["content-disposition"]
+    today = date.today()
+    params_is = {
+        "report_type": "income-statement",
+        "format": "csv",
+        "start_date": today.isoformat(),
+        "end_date": today.isoformat(),
+        "currency": "SGD",
+    }
+    response_is = await client.get("/reports/export", params=params_is)
+    assert response_is.status_code == 200
+    assert "text/csv" in response_is.headers["content-type"]
+
+
+async def test_AC6_33_8_export_response_matches_typed_envelope(client, test_data_setup_reports):
+    "AC-reporting.export-envelope.3 AC6.33.8"
+    from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
+
+    await test_data_setup_reports()
+    params = {"report_type": "balance-sheet", "format": "csv", "currency": "SGD"}
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith("attachment; filename=")
+    filename = disposition.split("filename=", 1)[1]
+    envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=filename)
+    assert envelope.to_headers()["Content-Disposition"] == disposition
+
+
 async def test_AC5_16_1_balance_sheet_export_honors_restricted_query(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC5.16.1'
-    async def fake_generate_balance_sheet(*_args, **kwargs): assert kwargs['include_restricted'] is True; return {'as_of_date': date(2026, 1, 31), 'currency': 'SGD', 'assets': [], 'liabilities': [], 'equity': [], 'total_assets': Decimal('0.00'), 'total_liabilities': Decimal('0.00'), 'total_equity': Decimal('0.00'), 'equation_delta': Decimal('0.00'), 'is_balanced': True}
-    monkeypatch.setattr(reports_router, 'generate_balance_sheet', fake_generate_balance_sheet); response = await client.get('/reports/export', params={'report_type': 'balance-sheet', 'format': 'csv', 'as_of_date': '2026-01-31', 'currency': 'SGD', 'include_restricted': 'true'}); assert response.status_code == 200
+    "AC5.16.1"
+
+    async def fake_generate_balance_sheet(*_args, **kwargs):
+        assert kwargs["include_restricted"] is True
+        return {
+            "as_of_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "assets": [],
+            "liabilities": [],
+            "equity": [],
+            "total_assets": Decimal("0.00"),
+            "total_liabilities": Decimal("0.00"),
+            "total_equity": Decimal("0.00"),
+            "equation_delta": Decimal("0.00"),
+            "is_balanced": True,
+        }
+
+    monkeypatch.setattr(reports_router, "generate_balance_sheet", fake_generate_balance_sheet)
+    response = await client.get(
+        "/reports/export",
+        params={
+            "report_type": "balance-sheet",
+            "format": "csv",
+            "as_of_date": "2026-01-31",
+            "currency": "SGD",
+            "include_restricted": "true",
+        },
+    )
+    assert response.status_code == 200
+
+
 async def test_AC5_17_1_cash_flow_export_returns_csv(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.csv-export.1 AC5.17.1'
-    async def fake_generate_cash_flow(*_args, **kwargs): assert kwargs['start_date'] == date(2026, 1, 1); assert kwargs['end_date'] == date(2026, 1, 31); assert kwargs['currency'] == 'SGD'; return {'start_date': date(2026, 1, 1), 'end_date': date(2026, 1, 31), 'currency': 'SGD', 'operating': [{'category': 'operating', 'subcategory': 'Salary', 'amount': Decimal('1000.00'), 'description': 'January salary'}], 'investing': [], 'financing': [], 'summary': {'operating_activities': Decimal('1000.00'), 'investing_activities': Decimal('0.00'), 'financing_activities': Decimal('0.00'), 'net_cash_flow': Decimal('1000.00'), 'beginning_cash': Decimal('500.00'), 'ending_cash': Decimal('1500.00')}, 'fx_warnings': []}
-    monkeypatch.setattr(reports_router, 'generate_cash_flow', fake_generate_cash_flow); response = await client.get('/reports/export', params={'report_type': 'cash-flow', 'format': 'csv', 'start_date': '2026-01-01', 'end_date': '2026-01-31', 'currency': 'SGD'}); assert response.status_code == 200; assert 'text/csv' in response.headers['content-type']; assert 'cash-flow-2026-01-01-to-2026-01-31.csv' in response.headers['content-disposition']; assert 'Operating,Salary,1000.00,SGD,January salary' in response.text; assert 'Net Cash Flow,,1000.00,SGD,' in response.text
-@pytest.mark.parametrize(('path', 'attr', 'params'), [('/reports/balance-sheet', 'generate_balance_sheet', {'currency': 'SGD'}), ('/reports/income-statement', 'generate_income_statement', {'start_date': date.today().isoformat(), 'end_date': date.today().isoformat()}), ('/reports/cash-flow', 'generate_cash_flow', {'start_date': date.today().isoformat(), 'end_date': date.today().isoformat()}), ('/reports/breakdown', 'get_category_breakdown', {'type': 'income'})])
-async def test_reports_router_handles_report_error(client, monkeypatch: pytest.MonkeyPatch, path: str, attr: str, params: dict[str, str]) -> None:
-    async def raise_error(*_args, **_kwargs): raise ReportError('boom')
-    monkeypatch.setattr(reports_router, attr, raise_error); response = await client.get(path, params=params); assert response.status_code == 400; assert response.json()['detail'] == 'boom'
-async def test_export_report_invalid_format(client, test_data_setup_reports) -> None: await test_data_setup_reports(); params = {'report_type': 'balance-sheet', 'format': 'json', 'currency': 'SGD'}; response = await client.get('/reports/export', params=params); assert response.status_code == 422
-async def test_export_report_missing_income_dates(client, test_data_setup_reports) -> None: await test_data_setup_reports(); params = {'report_type': 'income-statement', 'format': 'csv', 'currency': 'SGD'}; response = await client.get('/reports/export', params=params); assert response.status_code == 400; assert 'start_date and end_date are required' in response.json()['detail']
-async def test_export_report_unsupported_type(client, test_data_setup_reports) -> None: await test_data_setup_reports(); params = {'report_type': 'unsupported', 'format': 'csv', 'currency': 'SGD'}; response = await client.get('/reports/export', params=params); assert response.status_code == 422
-async def test_cash_flow_endpoints_include_statement_custody_accounts_without_keyword_name(client, db: AsyncSession, test_user) -> None: from datetime import UTC, datetime; from hashlib import sha256; from src.extraction import BankStatementStatus, StatementSourceType, StatementSummary; from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord; custody = Account(user_id=test_user.id, name='DBS Multiplier', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=test_user.id, name='Bonus Income', type=AccountType.INCOME, currency='SGD'); db.add_all([custody, income]); await db.flush(); statement = StatementSummary(user_id=test_user.id, file_hash=sha256(f'{test_user.id}:{custody.id}:2026-01'.encode()).hexdigest(), institution='DBS', account_id=custody.id, currency='SGD', period_start=date(2026, 1, 1), period_end=date(2026, 1, 31), opening_balance=Decimal('0.00'), closing_balance=Decimal('1500.00'), status=BankStatementStatus.APPROVED); db.add(statement); await db.flush(); record = StatementExtractionResultRecord(user_id=test_user.id, statement_id=statement.id, content_digest=sha256(f'result:{statement.id}'.encode()).hexdigest(), source_content_digest=sha256(f'source:{statement.id}'.encode()).hexdigest(), schema_version='2', producer_version='test-2765', payload={'source_type': StatementSourceType.BANK.value, 'period_start': '2026-01-01'}, source_trace_record_id=uuid4(), created_at=datetime.now(UTC)); db.add(record); await db.flush(); statement.current_extraction_result_id = record.id; entry = JournalEntry(user_id=test_user.id, entry_date=date(2026, 1, 15), memo='Multiplier Bonus', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=custody.id, direction=Direction.DEBIT, amount=Decimal('1500.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=income.id, direction=Direction.CREDIT, amount=Decimal('1500.00'), currency='SGD')]); await db.commit(); params = {'start_date': '2026-01-01', 'end_date': '2026-01-31', 'currency': 'SGD'}; preview_resp = await client.get('/reports/cash-flow', params=params); assert preview_resp.status_code == 200; preview = preview_resp.json(); assert preview['summary']['operating_activities'] == '1500.00'; assert preview['summary']['net_cash_flow'] == '1500.00'; assert preview['summary']['ending_cash'] == '1500.00'; assert 'cash_identity_compatibility_fallback' not in preview['proof_reasons']; assert len(preview['operating']) == 1; line_id = preview['operating'][0]['line_id']; events_resp = await client.get('/reports/cash-flow/line-events', params={**params, 'line_id': line_id}); assert events_resp.status_code == 200; events_page = events_resp.json(); assert events_page['total'] == 1; assert events_page['events'][0]['memo'] == 'Multiplier Bonus'; assert events_page['events'][0]['amount'] == '1500.00'; export_resp = await client.get('/reports/export', params={**params, 'report_type': 'cash-flow', 'format': 'csv'}); assert export_resp.status_code == 200; assert 'Operating,Bonus Income,1500.00,SGD,Inflow - Bonus Income' in export_resp.text
+    "AC-reporting.csv-export.1 AC5.17.1"
+
+    async def fake_generate_cash_flow(*_args, **kwargs):
+        assert kwargs["start_date"] == date(2026, 1, 1)
+        assert kwargs["end_date"] == date(2026, 1, 31)
+        assert kwargs["currency"] == "SGD"
+        return {
+            "start_date": date(2026, 1, 1),
+            "end_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "operating": [
+                {
+                    "category": "operating",
+                    "subcategory": "Salary",
+                    "amount": Decimal("1000.00"),
+                    "description": "January salary",
+                }
+            ],
+            "investing": [],
+            "financing": [],
+            "summary": {
+                "operating_activities": Decimal("1000.00"),
+                "investing_activities": Decimal("0.00"),
+                "financing_activities": Decimal("0.00"),
+                "net_cash_flow": Decimal("1000.00"),
+                "beginning_cash": Decimal("500.00"),
+                "ending_cash": Decimal("1500.00"),
+            },
+            "fx_warnings": [],
+        }
+
+    monkeypatch.setattr(reports_router, "generate_cash_flow", fake_generate_cash_flow)
+    response = await client.get(
+        "/reports/export",
+        params={
+            "report_type": "cash-flow",
+            "format": "csv",
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-31",
+            "currency": "SGD",
+        },
+    )
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    assert "cash-flow-2026-01-01-to-2026-01-31.csv" in response.headers["content-disposition"]
+    assert "Operating,Salary,1000.00,SGD,January salary" in response.text
+    assert "Net Cash Flow,,1000.00,SGD," in response.text
+
+
+@pytest.mark.parametrize(
+    ("path", "attr", "params"),
+    [
+        ("/reports/balance-sheet", "generate_balance_sheet", {"currency": "SGD"}),
+        (
+            "/reports/income-statement",
+            "generate_income_statement",
+            {"start_date": date.today().isoformat(), "end_date": date.today().isoformat()},
+        ),
+        (
+            "/reports/cash-flow",
+            "generate_cash_flow",
+            {"start_date": date.today().isoformat(), "end_date": date.today().isoformat()},
+        ),
+        ("/reports/breakdown", "get_category_breakdown", {"type": "income"}),
+    ],
+)
+async def test_reports_router_handles_report_error(
+    client, monkeypatch: pytest.MonkeyPatch, path: str, attr: str, params: dict[str, str]
+) -> None:
+    "AC-reporting.errors.1 AC5.5.2"
+
+    async def raise_error(*_args, **_kwargs):
+        raise ReportError("boom")
+
+    monkeypatch.setattr(reports_router, attr, raise_error)
+    response = await client.get(path, params=params)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "boom"
+
+
+async def test_export_balance_sheet_report_error(client, db, test_user) -> None:
+    "AC-reporting.errors.2 AC5.5.1"
+    with patch("src.routers.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_gen:
+        mock_gen.side_effect = ReportError("Export failed")
+        response = await client.get("/reports/export", params={"report_type": "balance-sheet", "format": "csv"})
+        assert response.status_code == 400
+        assert "export" in response.json()["detail"].lower()
+
+
+async def test_export_csv_rows_coverage(client) -> None:
+    mock_bs = {
+        "as_of_date": date(2026, 1, 31),
+        "currency": "SGD",
+        "assets": [{"name": "Cash", "amount": Decimal("100.00")}],
+        "liabilities": [{"name": "Loan", "amount": Decimal("50.00")}],
+        "equity": [{"name": "Earnings", "amount": Decimal("50.00")}],
+        "total_assets": Decimal("100.00"),
+        "total_liabilities": Decimal("50.00"),
+        "total_equity": Decimal("50.00"),
+    }
+    mock_is = {
+        "start_date": date(2026, 1, 1),
+        "end_date": date(2026, 1, 31),
+        "currency": "SGD",
+        "income": [{"name": "Sales", "amount": Decimal("200.00")}],
+        "expenses": [{"name": "Rent", "amount": Decimal("100.00")}],
+        "total_income": Decimal("200.00"),
+        "total_expenses": Decimal("100.00"),
+        "net_income": Decimal("100.00"),
+    }
+    with patch("src.routers.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_func:
+        mock_func.return_value = mock_bs
+        resp = await client.get("/reports/export", params={"report_type": "balance-sheet"})
+        assert resp.status_code == 200
+        assert "Cash,100.0" in resp.text
+        assert "Total Assets,,100.0" in resp.text
+    with patch("src.routers.reports.generate_income_statement", new_callable=AsyncMock) as mock_func:
+        mock_func.return_value = mock_is
+        resp = await client.get(
+            "/reports/export",
+            params={"report_type": "income-statement", "start_date": "2026-01-01", "end_date": "2026-01-31"},
+        )
+        assert resp.status_code == 200
+        assert "Sales,200.0" in resp.text
+        assert "Total Income,,200.0" in resp.text
+
+
+async def test_currencies_endpoint(client, db: AsyncSession, test_user) -> None:
+    empty_resp = await client.get("/reports/currencies")
+    assert empty_resp.status_code == 200
+    assert empty_resp.json()[0] == "SGD"
+    db.add_all(
+        [
+            FxRate(
+                base_currency="EUR",
+                quote_currency="GBP",
+                rate=Decimal("0.86"),
+                rate_date=date(2024, 6, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="SGD",
+                quote_currency="USD",
+                rate=Decimal("0.74"),
+                rate_date=date(2024, 6, 1),
+                source="test",
+            ),
+        ]
+    )
+    await db.commit()
+    fx_resp = await client.get("/reports/currencies")
+    assert fx_resp.status_code == 200
+    assert {"SGD", "USD", "EUR", "GBP"}.issubset(fx_resp.json())
+
+
+async def test_export_report_invalid_format(client, test_data_setup_reports) -> None:
+    await test_data_setup_reports()
+    params = {"report_type": "balance-sheet", "format": "json", "currency": "SGD"}
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 422
+
+
+async def test_export_report_missing_income_dates(client, test_data_setup_reports) -> None:
+    await test_data_setup_reports()
+    params = {"report_type": "income-statement", "format": "csv", "currency": "SGD"}
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 400
+    assert "start_date and end_date are required" in response.json()["detail"]
+
+
+async def test_export_report_unsupported_type(client, test_data_setup_reports) -> None:
+    await test_data_setup_reports()
+    params = {"report_type": "unsupported", "format": "csv", "currency": "SGD"}
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 422
+
+
+async def test_cash_flow_endpoints_include_statement_custody_accounts_without_keyword_name(
+    client, db: AsyncSession, test_user
+) -> None:
+    from datetime import UTC, datetime
+    from hashlib import sha256
+    from src.extraction import BankStatementStatus, StatementSourceType, StatementSummary
+    from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
+
+    custody = Account(user_id=test_user.id, name="DBS Multiplier", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=test_user.id, name="Bonus Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([custody, income])
+    await db.flush()
+    statement = StatementSummary(
+        user_id=test_user.id,
+        file_hash=sha256(f"{test_user.id}:{custody.id}:2026-01".encode()).hexdigest(),
+        institution="DBS",
+        account_id=custody.id,
+        currency="SGD",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("1500.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(statement)
+    await db.flush()
+    record = StatementExtractionResultRecord(
+        user_id=test_user.id,
+        statement_id=statement.id,
+        content_digest=sha256(f"result:{statement.id}".encode()).hexdigest(),
+        source_content_digest=sha256(f"source:{statement.id}".encode()).hexdigest(),
+        schema_version="2",
+        producer_version="test-2765",
+        payload={"source_type": StatementSourceType.BANK.value, "period_start": "2026-01-01"},
+        source_trace_record_id=uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    db.add(record)
+    await db.flush()
+    statement.current_extraction_result_id = record.id
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 1, 15),
+        memo="Multiplier Bonus",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=custody.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1500.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1500.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+    params = {"start_date": "2026-01-01", "end_date": "2026-01-31", "currency": "SGD"}
+    preview_resp = await client.get("/reports/cash-flow", params=params)
+    assert preview_resp.status_code == 200
+    preview = preview_resp.json()
+    assert preview["summary"]["operating_activities"] == "1500.00"
+    assert preview["summary"]["net_cash_flow"] == "1500.00"
+    assert preview["summary"]["ending_cash"] == "1500.00"
+    assert "cash_identity_compatibility_fallback" not in preview["proof_reasons"]
+    assert len(preview["operating"]) == 1
+    line_id = preview["operating"][0]["line_id"]
+    events_resp = await client.get("/reports/cash-flow/line-events", params={**params, "line_id": line_id})
+    assert events_resp.status_code == 200
+    events_page = events_resp.json()
+    assert events_page["total"] == 1
+    assert events_page["events"][0]["memo"] == "Multiplier Bonus"
+    assert events_page["events"][0]["amount"] == "1500.00"
+    export_resp = await client.get("/reports/export", params={**params, "report_type": "cash-flow", "format": "csv"})
+    assert export_resp.status_code == 200
+    assert "Operating,Bonus Income,1500.00,SGD,Inflow - Bonus Income" in export_resp.text
+
+
 def test_benchmark_runner_adjudicate_unmatched_items_reuses_counter_accounts() -> None:
-    from unittest.mock import MagicMock; from common.testing.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner; runner = ScenarioBenchmarkRunner(base_url='http://localhost:8000'); mock_client = MagicMock(); created_accounts: list[dict[str, str]] = []
+    from unittest.mock import MagicMock
+    from common.testing.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
+
+    runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    mock_client = MagicMock()
+    created_accounts: list[dict[str, str]] = []
+
     def fake_get(url: str):
-        resp = MagicMock(); resp.status_code = 200
-        if url.startswith('/api/reconciliation/unmatched?statement_id='): stmt_id = url.split('statement_id=', 1)[1]; resp.json.return_value = {'items': [{'id': f'txn-{stmt_id}', 'direction': 'OUT', 'description': f'Expense on {stmt_id}', 'currency': 'SGD'}]}
-        else: resp.json.return_value = {'items': list(created_accounts)} if url == '/api/accounts' else {'currency': 'SGD'}
+        resp = MagicMock()
+        resp.status_code = 200
+        if url.startswith("/api/reconciliation/unmatched?statement_id="):
+            stmt_id = url.split("statement_id=", 1)[1]
+            resp.json.return_value = {
+                "items": [
+                    {
+                        "id": f"txn-{stmt_id}",
+                        "direction": "OUT",
+                        "description": f"Expense on {stmt_id}",
+                        "currency": "SGD",
+                    }
+                ]
+            }
+        else:
+            resp.json.return_value = (
+                {"items": list(created_accounts)} if url == "/api/accounts" else {"currency": "SGD"}
+            )
         return resp
-    def fake_post(url: str, json: dict | None=None):
-        resp = MagicMock(); resp.status_code = 200
-        if url == '/api/accounts': new_acc = {'id': f'acc-{len(created_accounts) + 1}', 'name': json['name'], 'type': json['type'], 'currency': json['currency']}; created_accounts.append(new_acc); resp.json.return_value = new_acc
-        else: resp.json.return_value = {'status': 'ok'}
+
+    def fake_post(url: str, json: dict | None = None):
+        resp = MagicMock()
+        resp.status_code = 200
+        if url == "/api/accounts":
+            new_acc = {
+                "id": f"acc-{len(created_accounts) + 1}",
+                "name": json["name"],
+                "type": json["type"],
+                "currency": json["currency"],
+            }
+            created_accounts.append(new_acc)
+            resp.json.return_value = new_acc
+        else:
+            resp.json.return_value = {"status": "ok"}
         return resp
-    mock_client.get.side_effect = fake_get; mock_client.post.side_effect = fake_post; assert runner.adjudicate_unmatched_items(mock_client, 'stmt-1', currency='SGD') == 1; assert runner.adjudicate_unmatched_items(mock_client, 'stmt-2', currency='SGD') == 1; assert len(created_accounts) == 1; assert created_accounts[0]['name'] == 'Expense - Other SGD'; runner_2 = ScenarioBenchmarkRunner(base_url='http://localhost:8000'); assert runner_2.adjudicate_unmatched_items(mock_client, 'stmt-3', currency='SGD') == 1; assert len(created_accounts) == 1
+
+    mock_client.get.side_effect = fake_get
+    mock_client.post.side_effect = fake_post
+    assert runner.adjudicate_unmatched_items(mock_client, "stmt-1", currency="SGD") == 1
+    assert runner.adjudicate_unmatched_items(mock_client, "stmt-2", currency="SGD") == 1
+    assert len(created_accounts) == 1
+    assert created_accounts[0]["name"] == "Expense - Other SGD"
+    runner_2 = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    assert runner_2.adjudicate_unmatched_items(mock_client, "stmt-3", currency="SGD") == 1
+    assert len(created_accounts) == 1

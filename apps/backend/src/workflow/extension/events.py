@@ -201,7 +201,9 @@ async def get_or_create_active_workflow_session(db: AsyncSession, *, user_id: UU
     return session
 
 
-def _apply_workflow_event_payload(event: WorkflowEvent, payload: WorkflowEventCreate, session_id: UUID | None = None) -> None:
+def _apply_workflow_event_payload(
+    event: WorkflowEvent, payload: WorkflowEventCreate, session_id: UUID | None = None
+) -> None:
     for field in _EVENT_PAYLOAD_FIELDS:
         setattr(event, field, getattr(payload, field))
     if session_id is not None and event.session_id is None:
@@ -466,9 +468,7 @@ async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID) -> d
     return package_readiness
 
 
-async def refresh_workflow_session_summary(
-    db: AsyncSession, *, user_id: UUID, session_id: UUID | None
-) -> None:
+async def refresh_workflow_session_summary(db: AsyncSession, *, user_id: UUID, session_id: UUID | None) -> None:
     """Refresh denormalized session counts from its event timeline."""
     if session_id is None:
         return
@@ -540,20 +540,48 @@ async def list_workflow_events_response(
             )
         ).all()
         active_session = workflow_status.active_session
+        remaining_ids = [s.id for s in session_rows if active_session is None or active_session.id != s.id]
+        counts_by_session: dict[UUID, WorkflowEventCountsResponse] = {}
+        if remaining_ids:
+            agg_rows = (
+                await db.execute(
+                    select(
+                        WorkflowEvent.session_id,
+                        func.count(WorkflowEvent.id)
+                        .filter(WorkflowEvent.status == WorkflowEventStatus.UNREAD)
+                        .label("unread"),
+                        func.count(WorkflowEvent.id)
+                        .filter(WorkflowEvent.severity == WorkflowEventSeverity.ACTION_REQUIRED)
+                        .label("action_required"),
+                        func.count(WorkflowEvent.id)
+                        .filter(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
+                        .label("blocked"),
+                    )
+                    .where(
+                        WorkflowEvent.user_id == user_id,
+                        WorkflowEvent.session_id.in_(remaining_ids),
+                        WorkflowEvent.status != WorkflowEventStatus.ARCHIVED,
+                    )
+                    .group_by(WorkflowEvent.session_id)
+                )
+            ).all()
+            counts_by_session = {
+                row.session_id: WorkflowEventCountsResponse(
+                    unread=int(row.unread or 0),
+                    action_required=int(row.action_required or 0),
+                    blocked=int(row.blocked or 0),
+                )
+                for row in agg_rows
+            }
         sessions = [
-            await build_workflow_session_summary(
-                db,
-                workflow_session=s,
-                primary_state=(
-                    active_session.primary_state
-                    if active_session is not None and active_session.id == s.id
-                    else WorkflowPrimaryState.READY
-                ),
-                report_readiness=(
-                    active_session.report_readiness
-                    if active_session is not None and active_session.id == s.id
-                    else None
-                ),
+            active_session
+            if active_session is not None and active_session.id == s.id
+            else _session_summary_model(
+                s,
+                primary_state=WorkflowPrimaryState.READY,
+                report_readiness=None,
+                counts=counts_by_session.get(s.id)
+                or WorkflowEventCountsResponse(unread=0, action_required=0, blocked=0),
             )
             for s in session_rows
         ]
@@ -729,9 +757,7 @@ async def update_workflow_event_status(
     db: AsyncSession, *, event_id: UUID, user_id: UUID, status: WorkflowEventStatus
 ) -> WorkflowEvent | None:
     """Update read/archive lifecycle state for one user-scoped event."""
-    event = await db.scalar(
-        select(WorkflowEvent).where(WorkflowEvent.id == event_id, WorkflowEvent.user_id == user_id)
-    )
+    event = await db.scalar(select(WorkflowEvent).where(WorkflowEvent.id == event_id, WorkflowEvent.user_id == user_id))
     if event is None:
         return None
     event.status = status

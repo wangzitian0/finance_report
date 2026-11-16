@@ -137,6 +137,45 @@ async def _ensure_in_own_transaction(
         return True
 
 
+async def _get_or_create_system_equity_account(
+    db: AsyncSession,
+    user_id: UUID,
+    currency: str,
+    *,
+    name: str,
+    code: str,
+    description: str,
+    match_currency: bool = True,
+) -> Account:
+    normalized_currency = Currency.of(currency).code
+
+    async def find(session: AsyncSession) -> Account | None:
+        stmt = select(Account).where(
+            Account.user_id == user_id,
+            Account.is_system == True,  # noqa: E712
+            Account.code == code,
+        )
+        if match_currency:
+            stmt = stmt.where(Account.currency == normalized_currency)
+        result = await session.execute(stmt.order_by(Account.created_at, Account.id).limit(1))
+        return result.scalars().first()
+
+    return await find_or_create_account(
+        db,
+        user_id=user_id,
+        find=find,
+        build=lambda: Account(
+            user_id=user_id,
+            name=name,
+            code=code,
+            type=AccountType.EQUITY,
+            currency=normalized_currency,
+            is_system=True,
+            description=description,
+        ),
+    )
+
+
 async def get_or_create_opening_balance_equity_account(
     db: AsyncSession,
     user_id: UUID,
@@ -144,38 +183,16 @@ async def get_or_create_opening_balance_equity_account(
     *,
     match_currency: bool = False,
 ) -> Account:
-    """Get or create the Opening Balance Equity account for a user (#949, #2851).
-
-    Guided opening balances offset into this system-managed equity account so a
-    user's starting position is captured as a balanced journal entry and the
-    accounting equation holds (Assets = Liabilities + Equity) from day one.
-    """
+    """Get or create the Opening Balance Equity account for a user (#949, #2851)."""
     normalized_currency = Currency.of(currency).code
-
-    async def find(session: AsyncSession) -> Account | None:
-        stmt = select(Account).where(
-            Account.user_id == user_id,
-            Account.is_system == True,  # noqa: E712
-            Account.code == OPENING_BALANCE_EQUITY_CODE,
-        )
-        if match_currency:
-            stmt = stmt.where(Account.currency == normalized_currency)
-        result = await session.execute(stmt.order_by(Account.created_at, Account.id).limit(1))
-        return result.scalars().first()
-
-    account = await find_or_create_account(
+    account = await _get_or_create_system_equity_account(
         db,
-        user_id=user_id,
-        find=find,
-        build=lambda: Account(
-            user_id=user_id,
-            name="Opening Balance Equity",
-            code=OPENING_BALANCE_EQUITY_CODE,
-            type=AccountType.EQUITY,
-            currency=normalized_currency,
-            is_system=True,
-            description="System-managed equity account for year-start opening balance entries",
-        ),
+        user_id,
+        normalized_currency,
+        name="Opening Balance Equity",
+        code=OPENING_BALANCE_EQUITY_CODE,
+        description="System-managed equity account for year-start opening balance entries",
+        match_currency=match_currency,
     )
     if Currency.of(account.currency).code != normalized_currency:
         raise ValidationError(
@@ -189,42 +206,15 @@ async def get_or_create_unexplained_gap_equity_account(
     user_id: UUID,
     currency: str,
 ) -> Account:
-    """Get or create the Unexplained Statement Gap Equity account for a user (#2832).
-
-    Cross-period statement gap plugs offset into this system-managed equity account
-    so every approved statement's opening and closing balances tie out on the
-    Balance Sheet while unexplained inter-statement movement is isolated and
-    automatically shrinks as intermediate statements are uploaded.
-    """
-    normalized_currency = Currency.of(currency).code
-
-    async def find(session: AsyncSession) -> Account | None:
-        result = await session.execute(
-            select(Account)
-            .where(
-                Account.user_id == user_id,
-                Account.is_system == True,  # noqa: E712
-                Account.code == UNEXPLAINED_GAP_EQUITY_CODE,
-                Account.currency == normalized_currency,
-            )
-            .order_by(Account.created_at, Account.id)
-            .limit(1)
-        )
-        return result.scalars().first()
-
-    return await find_or_create_account(
+    """Get or create the Unexplained Statement Gap Equity account for a user (#2832)."""
+    return await _get_or_create_system_equity_account(
         db,
-        user_id=user_id,
-        find=find,
-        build=lambda: Account(
-            user_id=user_id,
-            name="Unexplained Statement Gap Equity",
-            code=UNEXPLAINED_GAP_EQUITY_CODE,
-            type=AccountType.EQUITY,
-            currency=normalized_currency,
-            is_system=True,
-            description="System-managed equity account for cross-period statement balance gap calibration",
-        ),
+        user_id,
+        currency,
+        name="Unexplained Statement Gap Equity",
+        code=UNEXPLAINED_GAP_EQUITY_CODE,
+        description="System-managed equity account for cross-period statement balance gap calibration",
+        match_currency=True,
     )
 
 
