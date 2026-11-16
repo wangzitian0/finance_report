@@ -509,9 +509,7 @@ def _classification_proposal_origin(rule_type: RuleType) -> IntentProposalOrigin
     raise StatementIngestionConfigurationError(f"Unsupported classification rule type: {rule_type}")
 
 
-async def resolve_statement_posting_account(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID
-) -> Account:
+async def resolve_statement_posting_account(db: AsyncSession, statement: StatementSummary, user_id: UUID) -> Account:
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
@@ -814,8 +812,8 @@ async def reconcile_account_statement_chain(
     from src.audit.money import to_money
     from src.extraction.extension.statement_contribution import resolve_statement_contribution
 
-    account = await db.scalar(select(Account).where(Account.id == account_id, Account.user_id == user_id))
-    if account is None:
+    account = await db.get(Account, account_id)
+    if account is None or account.user_id != user_id:
         return False
 
     approved_rows = list(

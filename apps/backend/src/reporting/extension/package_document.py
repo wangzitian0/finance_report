@@ -314,7 +314,10 @@ def _journal_section_contribution(c: Any, *, start_date: date, end_date: date) -
 
 def _opening_section_contribution(p: Any) -> PackageSectionContribution[Any]:
     return _section_contribution(
-        "opening_position", ("balance_sheet", "cash_flow", "traceability_appendix"), p, (f"opening_position:{p.account_id}",)
+        "opening_position",
+        ("balance_sheet", "cash_flow", "traceability_appendix"),
+        p,
+        (f"opening_position:{p.account_id}",),
     )
 
 
@@ -1168,15 +1171,16 @@ async def current_package_readiness(
 ) -> PersonalReportPackageReadinessResponse:
     report_end = as_of_date or date.today()
     report_start = report_end - timedelta(days=365)
-    coverage_start = (await report_coverage(db, user_id=user_id, as_of=report_end)).start
-    if coverage_start is not None and report_start < coverage_start <= report_end:
-        report_start = coverage_start
-    return await PackageAssembler().evaluate_readiness(
-        db,
-        user_id=user_id,
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=report_start,
-        end_date=report_end,
-        as_of_date=report_end,
-        currency=await get_effective_base_currency(db, user_id=user_id),
-    )
+    async with shared_current_authority(db, TraceScope.tenant(user_id)):
+        coverage_start = (await report_coverage(db, user_id=user_id, as_of=report_end)).start
+        if coverage_start is not None and report_start < coverage_start <= report_end:
+            report_start = coverage_start
+        return await PackageAssembler().evaluate_readiness(
+            db,
+            user_id=user_id,
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            start_date=report_start,
+            end_date=report_end,
+            as_of_date=report_end,
+            currency=await get_effective_base_currency(db, user_id=user_id),
+        )

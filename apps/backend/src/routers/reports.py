@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import zipfile
@@ -18,15 +17,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, union
 
-from src.composition import observed_fx_pairs
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction import coverage_bank_custody_account_ids
-from src.ledger import Account, AccountType
+from src.ledger import AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
-from src.portfolio import active_stock_symbols
-from src.pricing import FxRate, ensure_market_data_fresh
+from src.pricing import FxRate
 from src.reporting import (
     DEFAULT_INCLUDE_RESTRICTED,
     PACKAGE_INCLUDE_RESTRICTED,
@@ -85,60 +82,21 @@ from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
 
-
-def _target_currency_pair(currency: str | None, *, base_currency: str = "SGD") -> list[str]:
-    base = base_currency.strip().upper()
-    target = (currency if isinstance(currency, str) and currency else base).strip().upper()
-    return [] if target == base else [f"{target}/{base}"]
-
-
-async def _ensure_report_market_data_fresh(
-    db: DbSession, user_id: CurrentUserId, *, currency: str | None, end_date: date
-) -> None:
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
-    target_pairs = _target_currency_pair(currency, base_currency=base_currency)
-    has_subjects = (
-        await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1)) if target_pairs else None
-    )
-    try:
-        fx_pairs = set(await observed_fx_pairs(db, user_id, include_default=False, base_currency=base_currency))
-        fx_pairs.update(target_pairs if has_subjects is not None else [])
-        stock_symbols = await active_stock_symbols(db, user_id)
-        await ensure_market_data_fresh(db, fx_pairs=list(fx_pairs), stock_symbols=stock_symbols, end_date=end_date)
-    except asyncio.CancelledError:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "Market-data freshness sync failed; rendering report with stored data",
-            error=str(exc),
-            user_id=str(user_id),
-            end_date=str(end_date),
-            exc_info=True,
-        )
-
-
 _ReportT = TypeVar("_ReportT")
 
 
-async def _run_fresh_report(  # noqa: UP047
-    db: DbSession,
-    user_id: CurrentUserId,
+async def _run_report(  # noqa: UP047
     *,
     currency: str | None,
     end_date: date,
     label: str,
     build: Callable[[], Awaitable[_ReportT]],
-    commit: bool = True,
 ) -> _ReportT:
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
-        result = await build()
+        return await build()
     except ReportError as exc:
         logger.warning(f"{label} failed", end_date=str(end_date), currency=currency, error=str(exc))
         raise_bad_request(str(exc), cause=exc)
-    if commit:
-        await db.commit()
-    return result
 
 
 def _zip_streaming_response(zip_bytes: bytes, filename: str) -> StreamingResponse:
@@ -212,7 +170,6 @@ async def _package_period(
     if report_start > report_end:
         raise_bad_request("start_date must be before end_date")
     target_currency = _package_currency(currency or await get_effective_base_currency(db, user_id=user_id))
-    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
     return report_start, report_end, report_as_of, target_currency
 
 
@@ -242,7 +199,6 @@ async def preview_personal_report_package(
         currency=target_currency,
         include_restricted=include_restricted,
     )
-    await db.commit()
     return package_preview(document)
 
 
@@ -277,7 +233,6 @@ async def list_personal_report_package_line_details(
     )
     if details is None:
         raise_not_found("Traceability line")
-    await db.commit()
     return PersonalReportPackageLineDetailsPage(**_page_fields(details, pagination, "details", line_id=line_id, anchor=anchor))
 
 
@@ -299,7 +254,6 @@ async def list_personal_report_package_manifest_entries(
     entries = await PackageAssembler().manifest_entries(
         db, user_id=user_id, start_date=report_start, end_date=report_end, as_of_date=report_as_of, currency=target_currency
     )
-    await db.commit()
     return PersonalReportPackageManifestEntriesPage(**_page_fields(entries, pagination, "entries"))
 
 
@@ -321,7 +275,6 @@ async def list_personal_report_package_policy_decisions(
     decisions = await PackageAssembler().policy_decisions(
         db, user_id=user_id, framework_id=framework_id, start_date=report_start, end_date=report_end, as_of_date=report_as_of
     )
-    await db.commit()
     return PersonalReportPackagePolicyDecisionsPage(**_page_fields(decisions, pagination, "decisions"))
 
 
@@ -338,7 +291,6 @@ async def generate_personal_report_package_snapshot(
     target_currency = _package_currency(request.currency or await get_effective_base_currency(db, user_id=user_id))
     snapshot_id = uuid4()
     frozen_at = datetime.now(UTC)
-    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
     document = await PackageAssembler().assemble(
         db=db,
         user_id=user_id,
@@ -458,7 +410,6 @@ async def export_annual_tax_archive(
     """Generate and stream an annual tax & audit package archive ZIP."""
     start_date, end_date = date(request.year, 1, 1), date(request.year, 12, 31)
     target_currency = _package_currency(request.currency)
-    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=end_date)
     snapshot = await generate_personal_report_package_snapshot(
         db=db,
         user_id=user_id,
@@ -502,9 +453,7 @@ async def balance_sheet(
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     report_date = as_of_date or date.today()
-    report = await _run_fresh_report(
-        db,
-        user_id,
+    report = await _run_report(
         currency=currency,
         end_date=report_date,
         label="Balance sheet generation",
@@ -526,16 +475,13 @@ async def balance_sheet_diagnostics(
 ) -> EquationDiagnosticResult:
     """Diagnose accounting equation out-of-balance root cause."""
     report_date = as_of_date or date.today()
-    return await _run_fresh_report(
-        db,
-        user_id,
+    return await _run_report(
         currency=currency,
         end_date=report_date,
         label="Balance sheet diagnostics",
         build=lambda: run_balance_sheet_diagnostics(
             db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
         ),
-        commit=False,
     )
 
 
@@ -549,14 +495,11 @@ async def get_data_quality_health(
 ) -> PersonalDataQualityHealthResponse:
     """Return personal financial data quality, invariants, timeline, and action items."""
     report_date = as_of_date or date.today()
-    return await _run_fresh_report(
-        db,
-        user_id,
+    return await _run_report(
         currency=currency,
         end_date=report_date,
         label="Data quality evaluation",
         build=lambda: compute_personal_data_quality(db, user_id, as_of_date=report_date, currency=currency),
-        commit=False,
     )
 
 
@@ -595,9 +538,7 @@ async def income_statement(
     """Get income statement for a period with optional filtering."""
     resolved_end = end_date or date.today()
     resolved_start = start_date or date(resolved_end.year, 1, 1)
-    report = await _run_fresh_report(
-        db,
-        user_id,
+    report = await _run_report(
         currency=currency,
         end_date=resolved_end,
         label="Income statement generation",
@@ -632,7 +573,7 @@ async def cash_flow(
             db, user_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
         )
 
-    report = await _run_fresh_report(db, user_id, currency=currency, end_date=end, label="Cash flow generation", build=_build)
+    report = await _run_report(currency=currency, end_date=end, label="Cash flow generation", build=_build)
     return CashFlowPreview.model_validate(cash_flow_preview(report))
 
 
@@ -656,9 +597,7 @@ async def list_cash_flow_line_events(
             db, user_id, line_id=line_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
         )
 
-    events = await _run_fresh_report(
-        db, user_id, currency=currency, end_date=end, label="Cash flow line events", build=_build
-    )
+    events = await _run_report(currency=currency, end_date=end, label="Cash flow line events", build=_build)
     if events is None:
         raise_not_found("Cash-flow line")
     return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
@@ -676,9 +615,7 @@ async def net_worth_timeseries(
     user_id: CurrentUserId,
 ) -> NetWorthTimeSeriesResponse:
     """Get daily or monthly net worth time-series."""
-    report = await _run_fresh_report(
-        db,
-        user_id,
+    report = await _run_report(
         currency=currency,
         end_date=to_date,
         label="Net worth time-series generation",
@@ -706,9 +643,7 @@ async def net_worth_allocation(
 ) -> NetWorthAllocationResponse:
     """Get signed net-worth allocation grouped by asset class, liquidity, and source currency."""
     report_date = as_of_date or date.today()
-    report = await _run_fresh_report(
-        db,
-        user_id,
+    report = await _run_report(
         currency=currency,
         end_date=report_date,
         label="Net worth allocation generation",
@@ -738,7 +673,6 @@ async def export_report(
     try:
         if report_type == ExportReportType.BALANCE_SHEET:
             report_date = as_of_date or date.today()
-            await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
             bs = cast(
                 dict[str, Any],
                 await generate_balance_sheet(
@@ -749,7 +683,6 @@ async def export_report(
         elif report_type == ExportReportType.INCOME_STATEMENT:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for income statement export")
-            await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
             inc = cast(
                 dict[str, Any],
                 await generate_income_statement(db, user_id, start_date=start_date, end_date=end_date, currency=currency),
@@ -758,7 +691,6 @@ async def export_report(
         elif report_type == ExportReportType.CASH_FLOW:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for cash flow export")
-            await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
             custody_ids = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end_date)
             cf = cast(
                 dict[str, Any],
@@ -773,5 +705,4 @@ async def export_report(
         logger.warning("Report export failed", report_type=report_type.value, error=str(exc))
         raise_bad_request(str(exc), cause=exc)
 
-    await db.commit()
     return _stream_envelope_text(csv_text, ExportStreamMediaType.CSV, filename)

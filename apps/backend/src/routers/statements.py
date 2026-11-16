@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.composition import (
     auto_fill_default_statement_dispositions,
     compose_statement_posting_dependencies,
+    refresh_market_data_for_brokerage_import,
 )
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
@@ -343,27 +344,23 @@ async def _queue_statement_reparse(
 async def _create_statement_account_from_confirmation(
     db: DbSession, statement: StatementSummary, user_id: UUID
 ) -> Account:
-    source = await get_current_statement_extraction_result(
-        db, user_id=user_id, statement_id=statement.id, statement=statement
-    )
     document = await _resolve_uploaded_document(db, statement, user_id)
-    if (
-        is_bank_custody_source(source, document)
-        and statement.institution
-        and statement.account_last4
-        and statement.currency
-    ):
-        resolved = await resolve_bank_custody_account(
-            db,
-            user_id=user_id,
-            institution=statement.institution,
-            account_last4=statement.account_last4,
-            currency=statement.currency,
-            account_id=statement.account_id,
+    if statement.institution and statement.account_last4 and statement.currency:
+        source = await get_current_statement_extraction_result(
+            db, user_id=user_id, statement_id=statement.id, statement=statement
         )
-        statement.account_id = resolved.id
-        await db.flush()
-        return resolved
+        if is_bank_custody_source(source, document):
+            resolved = await resolve_bank_custody_account(
+                db,
+                user_id=user_id,
+                institution=statement.institution,
+                account_last4=statement.account_last4,
+                currency=statement.currency,
+                account_id=statement.account_id,
+            )
+            statement.account_id = resolved.id
+            await db.flush()
+            return resolved
     if statement.account_id:
         account = (
             await db.execute(select(Account).where(Account.id == statement.account_id, Account.user_id == user_id))
@@ -607,9 +604,7 @@ async def create_statement_run(
 
 
 @router.get("/{statement_id}/runs", response_model=StatementRunListResponse)
-async def list_statement_runs(
-    statement_id: UUID, db: DbSession, user_id: CurrentUserId
-) -> StatementRunListResponse:
+async def list_statement_runs(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> StatementRunListResponse:
     """List the runs of a statement by attempt number, with their hints, actor, state and error."""
     await _get_statement_or_404(db, statement_id, user_id)
     runs = await list_runs(db, statement_id, user_id)
@@ -710,6 +705,7 @@ async def import_brokerage_statement_positions(
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
         await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
+        await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=payload)
         await db.commit()
     except Exception as exc:
         is_rejected = isinstance(exc, BrokerageImportRejectedError | PositionServiceError)
@@ -932,8 +928,6 @@ async def reject_statement_stage1(
         await db.rollback()
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
-
-
 
 
 async def wait_for_parse_tasks() -> None:

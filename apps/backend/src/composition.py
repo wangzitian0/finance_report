@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import asyncio
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal
@@ -54,8 +55,9 @@ from src.ledger import (
     ledger_trace_policy_registry,
     used_currencies,
 )
+from src.observability import get_logger
 from src.portfolio import InvestmentTransaction, InvestmentTransactionType, active_stock_symbols, position_currencies
-from src.pricing import MarketDataScopes, PricingError, get_exchange_rate
+from src.pricing import MarketDataScopes, PricingError, ensure_market_data_fresh, get_exchange_rate
 from src.reconciliation import (
     NamedTransfer,
     ReconciliationMatch,
@@ -70,6 +72,8 @@ from src.reconciliation import (
     supersede_transaction_transfer_legs,
 )
 from src.runtime import StorageService
+
+logger = get_logger(__name__)
 
 _DEFAULT_BALANCE_SHEET_CODES: dict[AccountType, tuple[str, str]] = {
     AccountType.ASSET: ("Investments (", "1310"),
@@ -452,6 +456,45 @@ async def market_data_scopes(db: AsyncSession) -> MarketDataScopes:
         fx_pairs=await observed_fx_pairs(db, None),
         stock_symbols=await active_stock_symbols(db, None),
     )
+
+
+def _brokerage_import_end_date(payload: Mapping[str, Any] | None) -> date:
+    if isinstance(payload, Mapping):
+        statement = payload.get("statement")
+        stmt_end = statement.get("period_end") if isinstance(statement, Mapping) else None
+        raw_date = stmt_end or payload.get("period_end") or payload.get("snapshot_date")
+        if isinstance(raw_date, date):
+            return raw_date
+        if isinstance(raw_date, str) and raw_date.strip():
+            try:
+                return date.fromisoformat(raw_date.strip()[:10])
+            except ValueError:
+                pass
+    return date.today()
+
+
+async def refresh_market_data_for_brokerage_import(
+    db: AsyncSession, *, user_id: UUID, payload: Mapping[str, Any] | None = None
+) -> None:
+    """Trigger best-effort market-data freshness sync after a brokerage import write."""
+    if not settings.market_data_lazy_fetch_enabled:
+        return
+    end_date = _brokerage_import_end_date(payload)
+    try:
+        async with db.begin_nested():
+            fx_pairs = await observed_fx_pairs(db, user_id)
+            stock_symbols = await active_stock_symbols(db, user_id)
+            await ensure_market_data_fresh(db, fx_pairs=fx_pairs, stock_symbols=stock_symbols, end_date=end_date)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Market-data freshness sync failed during brokerage import; keeping imported positions",
+            error=str(exc),
+            user_id=str(user_id),
+            end_date=str(end_date),
+            exc_info=True,
+        )
 
 
 async def _repost_approved_statement_for_correction(

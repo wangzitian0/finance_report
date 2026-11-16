@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from src.audit import to_money
+from src.composition import refresh_market_data_for_brokerage_import
 from src.deps import CurrentUserId, DbSession
 from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
 from src.observability import get_logger
@@ -107,6 +108,7 @@ async def import_brokerage_positions(
             filename=request.filename,
             source_document_id=request.source_document_id,
         )
+        await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=request.payload)
         await db.commit()
     except PositionServiceError as exc:
         await db.rollback()
