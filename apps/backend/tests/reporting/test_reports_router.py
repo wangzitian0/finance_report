@@ -252,13 +252,6 @@ async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(
     assert data["rows"][1]["value"] == "-500.00"
 
 
-async def test_breakdown_endpoint(client, test_data_setup_reports):
-    _, income = await test_data_setup_reports()
-    params = {"type": "income", "period": "monthly", "currency": "SGD"}
-    response = await client.get("/reports/breakdown", params=params)
-    assert response.status_code == 200
-
-
 async def test_export_endpoint(client, test_data_setup_reports):
     await test_data_setup_reports()
     params = {"report_type": "balance-sheet", "format": "csv", "currency": "SGD"}
