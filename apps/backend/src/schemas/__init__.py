@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.reporting import CashFlowItem, CashFlowResponse, CashFlowSummary
     from src.schemas.account import AccountCoverageCadence, AccountCoverageIssue, AccountCoverageIssueType, AccountCoverageListResponse, AccountCoverageResponse, AccountCreate, AccountListResponse, AccountResponse, AccountUpdate, ProcessingPendingItem, ProcessingPendingListResponse, ProcessingSummaryResponse
-    from src.schemas.assets import ManagedPositionListResponse, ManagedPositionResponse, ReconcilePositionsResponse
     from src.schemas.chat import ChatHistoryResponse, ChatMessageResponse, ChatRequest, ChatSessionResponse, ChatSuggestionsResponse
     from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, ErrorResponse, error_code_for_status
     from src.schemas.extraction import AtomicTransactionResponse, BankStatementListItemResponse, BankStatementListResponse, BankStatementResponse, BankStatementStatusEnum, BankStatementUploadRequest, ParsedStatementPreview, StatementDecisionRequest, StatementRunListResponse, StatementRunRequest, compose_statement_list_item_response, compose_statement_response
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
     from src.schemas.reconciliation import AnomalyResponse, BankTransactionSummary, BatchAcceptRequest, JournalEntrySummary, ReconciliationMatchListResponse, ReconciliationMatchResponse, ReconciliationRunRequest, ReconciliationRunResponse, ReconciliationStatsResponse, ReconciliationStatusEnum, UnmatchedTransactionsResponse
     from src.schemas.reporting import AccountLineageLine, AccountLineageResponse, AnnualizedIncomeScheduleHolding, AnnualizedIncomeScheduleIncome, AnnualizedIncomeScheduleNetWorthTreatment, AnnualizedIncomeScheduleResponse, BalanceSheetResponse, BreakdownPeriod, BreakdownType, CategoryBreakdownResponse, FrameworkPolicyDecision, FrameworkPolicyEvidenceAnchor, FrameworkPolicyFact, FrameworkPolicyGap, FrameworkPolicyMatrix, FrameworkPolicyMatrixRule, FrameworkPolicyResult, IncomeStatementResponse, InvariantStatus, MonthContinuityBucket, NetWorthAllocationResponse, NetWorthAllocationRow, NetWorthAllocationSourceLine, NetWorthGranularity, NetWorthTimeSeriesResponse, PersonalDataQualityHealthResponse, PersonalReportingFrameworkId, PersonalReportPackageCompletenessWarning, PersonalReportPackageContractResponse, PersonalReportPackageDocument, PersonalReportPackageDocumentLifecycle, PersonalReportPackageExportContract, PersonalReportPackageGenerateRequest, PersonalReportPackageInputCoverage, PersonalReportPackageLineDetailsPage, PersonalReportPackageManifestEntriesPage, PersonalReportPackageNote, PersonalReportPackageNotesResponse, PersonalReportPackagePreview, PersonalReportPackageReadinessBlocker, PersonalReportPackageReadinessResponse, PersonalReportPackageReadinessState, PersonalReportPackageSectionContract, PersonalReportPackageSections, PersonalReportPackageSnapshotResponse, PersonalReportPackageSnapshotStatus, PersonalReportPackageSnapshotSummary, PersonalReportPackageStatementDispositionPolicy, PersonalReportPackageTraceabilityAnchor, PersonalReportPackageTraceabilityAnchorName, PersonalReportPackageTraceabilityLine, PersonalReportPackageTraceabilityResponse, PersonalReportPackageTraceManifestEntry, PolicyDimension, PolicyFactDomain, PolicyProvenance, PolicyReviewState, QualityActionItem, QualityGrade
     from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ConsistencyCheckListResponse, ConsistencyCheckResponse, ResolveCheckRequest, Stage2ReviewQueueResponse
-    from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate, UserListResponse, UserResponse, UserUpdate
+    from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate, UserResponse, UserUpdate
     from src.schemas.workflow import WorkflowEventCountsResponse, WorkflowEventCreate, WorkflowEventListResponse, WorkflowEventResponse, WorkflowEventStatusUpdate, WorkflowNextActionResponse, WorkflowNextActionType, WorkflowPrimaryState, WorkflowReportImpact, WorkflowReportReadinessResponse, WorkflowReportReadinessState, WorkflowStatusResponse
 
 _GROUPS: dict[str, tuple[str, ...]] = {
@@ -34,11 +33,6 @@ _GROUPS: dict[str, tuple[str, ...]] = {
         "ProcessingPendingItem",
         "ProcessingPendingListResponse",
         "ProcessingSummaryResponse",
-    ),
-    "src.schemas.assets": (
-        "ManagedPositionListResponse",
-        "ManagedPositionResponse",
-        "ReconcilePositionsResponse",
     ),
     "src.schemas.chat": (
         "ChatHistoryResponse",
@@ -160,7 +154,6 @@ _GROUPS: dict[str, tuple[str, ...]] = {
     "src.schemas.user": (
         "UserAiSettingsResponse",
         "UserAiSettingsUpdate",
-        "UserListResponse",
         "UserResponse",
         "UserUpdate",
     ),
@@ -240,8 +233,6 @@ __all__ = [
     "JournalEntrySummary",
     "JournalLineCreate",
     "JournalLineResponse",
-    "ManagedPositionListResponse",
-    "ManagedPositionResponse",
     "MonthContinuityBucket",
     "NetWorthAllocationResponse",
     "NetWorthAllocationRow",
@@ -286,7 +277,6 @@ __all__ = [
     "ProcessingSummaryResponse",
     "QualityActionItem",
     "QualityGrade",
-    "ReconcilePositionsResponse",
     "ReconciliationMatchListResponse",
     "ReconciliationMatchResponse",
     "ReconciliationRunRequest",
@@ -301,7 +291,6 @@ __all__ = [
     "UnmatchedTransactionsResponse",
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
-    "UserListResponse",
     "UserResponse",
     "UserUpdate",
     "VoidJournalEntryRequest",

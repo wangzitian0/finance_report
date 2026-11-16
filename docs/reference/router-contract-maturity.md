@@ -8,8 +8,8 @@ The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=
 
 | Method | Route (router-relative) | Handler | File:line |
 |--------|-------------------------|---------|-----------|
-| `DELETE` | `/{account_id}` | `delete_account` | apps/backend/src/routers/accounts.py:282 |
-| `DELETE` | `/valuation-snapshots/{snapshot_id}` | `delete_valuation_snapshot` | apps/backend/src/routers/assets.py:232 |
+| `DELETE` | `/{account_id}` | `delete_account` | apps/backend/src/routers/accounts.py:262 |
+| `DELETE` | `/valuation-snapshots/{snapshot_id}` | `delete_valuation_snapshot` | apps/backend/src/routers/assets.py:147 |
 | `POST` | `` | `chat_message` | apps/backend/src/routers/chat.py:94 |
 | `DELETE` | `/session/{session_id}` | `delete_session` | apps/backend/src/routers/chat.py:234 |
 | `DELETE` | `/{entry_id}` | `delete_journal_entry` | apps/backend/src/routers/journal.py:182 |

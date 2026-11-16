@@ -334,7 +334,7 @@ review-queue.2||test_accept_reject_batch_accept
 @$be/reconciliation/test_source_type.py|P1
 source-type-transfer.4||test_manual_wins_conflict_resolution
 @$be/api/test_corrections_router.py|P1
-recovered-coverage.1||test_post_create_correction_and_stats
+recovered-coverage.1||test_post_create_correction
 @$be/reconciliation/test_reconciliation_financial_logic.py
 bank-side-amount.1||test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow
 @$be/reconciliation/test_confidence_tier.py|P1

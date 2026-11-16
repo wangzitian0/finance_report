@@ -4,9 +4,8 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field
 
-from src.extraction import PositionStatus
 from src.pricing import (
     ManualValuationBasis,
     ManualValuationComponentType,
@@ -18,52 +17,12 @@ from src.schemas.base import (
     ListResponse,
     MoneyAmount,
     NonNegativeMoneyAmount,
-    Quantity,
     default_list,
 )
 from src.schemas.provenance import DataProvenance
 
-NonNegInt = Annotated[int, Field(ge=0)]
 SourceStr = Annotated[str, Field(min_length=1, max_length=120)]
 RecurrenceDays = Annotated[int, Field(ge=1, le=3660)]
-
-
-class ManagedPositionResponse(BaseResponse):
-    id: UUID
-    user_id: UUID
-    account_id: UUID
-    asset_identifier: str
-    quantity: Quantity
-    cost_basis: MoneyAmount
-    acquisition_date: date
-    disposal_date: date | None = None
-    status: PositionStatus
-    currency: CurrencyCode
-    position_metadata: dict | None = None
-    created_at: datetime
-    updated_at: datetime
-    reporting_cost_basis: MoneyAmount | None = None
-    reporting_currency: CurrencyCode | None = None
-    account_name: str | None = None
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def native_currency(self) -> str:
-        return self.currency
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def native_cost_basis(self) -> MoneyAmount:
-        return self.cost_basis
-
-
-class ReconcilePositionsResponse(BaseModel):
-    message: str
-    created: NonNegInt
-    updated: NonNegInt
-    disposed: NonNegInt
-    skipped: NonNegInt = 0
-    skipped_assets: list[str] = default_list()
 
 
 class DepreciationResponse(BaseModel):
@@ -140,5 +99,4 @@ class ValuationComponentsResponse(BaseModel):
     warnings: list[dict[str, str]] = default_list()
 
 
-ManagedPositionListResponse = ListResponse[ManagedPositionResponse]
 ManualValuationSnapshotListResponse = ListResponse[ManualValuationSnapshotResponse]

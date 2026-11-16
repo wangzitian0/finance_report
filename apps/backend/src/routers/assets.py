@@ -5,34 +5,24 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, Query, status
 
-from src.audit import Currency, Money
-from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
-from src.extraction import ManagedPosition, PositionStatus
-from src.ledger import Account
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found
 from src.portfolio import PositionService, PositionServiceError
 from src.pricing import (
     ManualValuationComponentType,
-    PricingError,
     ValuationService,
     ValuationServiceError,
-    convert_money,
 )
 from src.reporting import DEFAULT_INCLUDE_RESTRICTED
 from src.schemas.assets import (
     DepreciationResponse,
-    ManagedPositionListResponse,
-    ManagedPositionResponse,
     ManualValuationSnapshotCreate,
     ManualValuationSnapshotListResponse,
     ManualValuationSnapshotResponse,
     ManualValuationSnapshotUpdate,
-    ReconcilePositionsResponse,
     ValuationComponentResponse,
     ValuationComponentsResponse,
 )
@@ -42,81 +32,6 @@ logger = get_logger(__name__)
 
 _positions = PositionService()
 _valuations = ValuationService()
-
-
-async def _apply_reporting_valuation(
-    db: DbSession,
-    position: ManagedPosition,
-    response: ManagedPositionResponse,
-    *,
-    base_currency: str | None = None,
-) -> None:
-    """Attach the base/reporting-currency cost basis to a position response (#1098)."""
-    resolved_base = base_currency or await get_effective_base_currency(db, user_id=position.user_id)
-    try:
-        converted = await convert_money(
-            db,
-            Money(position.cost_basis, Currency.of(position.currency)),
-            resolved_base,
-            rate_date=position.acquisition_date,
-            lazy_load=True,
-        )
-    except PricingError as exc:
-        logger.warning(
-            "Reporting-currency conversion unavailable for position; returning native only",
-            position_id=str(position.id),
-            native_currency=position.currency,
-            base_currency=resolved_base,
-            error=str(exc),
-        )
-        response.reporting_cost_basis = None
-        response.reporting_currency = None
-        return
-
-    response.reporting_cost_basis = converted.amount
-    response.reporting_currency = converted.currency.code
-
-
-@router.get("/positions", response_model=ManagedPositionListResponse)
-async def list_positions(
-    db: DbSession,
-    user_id: CurrentUserId,
-    status_filter: PositionStatus | None = None,
-    limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
-    offset: int = Query(0, ge=0, description="Number of items to skip"),
-) -> ManagedPositionListResponse:
-    """List all managed positions for the current user with pagination."""
-    logger.info(
-        "Listing positions",
-        user_id=str(user_id),
-        status_filter=status_filter.value if status_filter else None,
-        limit=limit,
-        offset=offset,
-    )
-
-    positions, total = await _positions.get_positions(
-        db, user_id, status_filter=status_filter, limit=limit, offset=offset
-    )
-
-    account_names: dict[UUID, str] = {}
-    if positions:
-        rows = await db.execute(
-            select(Account.id, Account.name)
-            .where(Account.user_id == user_id)
-            .where(Account.id.in_({pos.account_id for pos in positions}))
-        )
-        account_names = dict(rows.tuples().all())
-
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
-    items = []
-    for pos in positions:
-        response = ManagedPositionResponse.model_validate(pos)
-        response.account_name = account_names.get(pos.account_id)
-        await _apply_reporting_valuation(db, pos, response, base_currency=base_currency)
-        items.append(response)
-
-    logger.info("Listed positions", count=len(items), total=total)
-    return ManagedPositionListResponse(items=items, total=total)
 
 
 @router.post(
@@ -264,75 +179,6 @@ async def list_valuation_components(
         total_liabilities=result.total_liabilities,
         net_worth_delta=result.net_worth_delta,
         warnings=result.warnings,
-    )
-
-
-@router.get("/positions/{position_id}", response_model=ManagedPositionResponse)
-async def get_position(
-    position_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> ManagedPositionResponse:
-    """Get a single managed position by ID."""
-    logger.info("Getting position", position_id=str(position_id), user_id=str(user_id))
-
-    position = await _positions.get_position(db, user_id, position_id)
-    if not position:
-        raise_not_found("Position")
-
-    response = ManagedPositionResponse.model_validate(position)
-    # Bare FK id column, resolved explicitly (#1675 D4) — no ORM navigation.
-    response.account_name = await db.scalar(
-        select(Account.name).where(Account.user_id == user_id).where(Account.id == position.account_id)
-    )
-    await _apply_reporting_valuation(db, position, response)
-    return response
-
-
-@router.post("/reconcile", response_model=ReconcilePositionsResponse, status_code=status.HTTP_200_OK)
-async def reconcile_positions(
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> ReconcilePositionsResponse:
-    """Reconcile managed positions from atomic snapshots."""
-    logger.info("Starting reconciliation", user_id=str(user_id))
-
-    try:
-        result = await _positions.reconcile_positions(db, user_id)
-        await db.commit()
-    except PositionServiceError as e:
-        await db.rollback()
-        if "unsupported currency" in str(e).lower():
-            logger.warning("Reconciliation rejected", error=str(e), user_id=str(user_id))
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(e),
-            ) from e
-        logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
-        raise_internal_error(str(e), cause=e)
-    except ValuationServiceError as e:
-        logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
-        await db.rollback()
-        raise_internal_error(str(e), cause=e)
-    except Exception as e:
-        logger.error("Unexpected error during reconciliation", error=str(e), user_id=str(user_id))
-        await db.rollback()
-        raise_internal_error("Reconciliation failed unexpectedly", cause=e)
-
-    logger.info(
-        "Reconciliation completed",
-        created=result.created,
-        updated=result.updated,
-        disposed=result.disposed,
-        skipped=result.skipped,
-    )
-    return ReconcilePositionsResponse(
-        message="Positions reconciled successfully",
-        created=result.created,
-        updated=result.updated,
-        disposed=result.disposed,
-        skipped=result.skipped,
-        skipped_assets=result.skipped_assets,
     )
 
 

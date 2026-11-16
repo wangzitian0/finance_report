@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from src.composition import compose_correction_callbacks
 from src.deps import CurrentUserId, DbSession
-from src.extraction import SuggestionCorrectionError, get_correction_stats, record_correction
+from src.extraction import SuggestionCorrectionError, record_correction
 from src.observability import get_logger
 
 router = APIRouter(prefix="/corrections", tags=["corrections"])
@@ -29,26 +29,6 @@ class CorrectionResponse(BaseModel):
     transaction_id: UUID
     original_category: str | None
     corrected_category: str
-
-
-class TopCorrection(BaseModel):
-    """A single aggregated correction pattern (original → corrected category).
-
-    Mirrors the dict shape emitted by ``get_correction_stats`` so the stats
-    response carries a typed schema instead of an opaque ``dict``.
-    """
-
-    count: int
-    original_category: str | None
-    corrected_category: str
-
-
-class CorrectionStatsResponse(BaseModel):
-    """Correction statistics response."""
-
-    total_corrections: int
-    top_corrections: list[TopCorrection]
-    correction_rate_by_category: dict[str, float]
 
 
 @router.post("", response_model=CorrectionResponse, status_code=status.HTTP_201_CREATED)
@@ -82,13 +62,3 @@ async def create_correction(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-
-
-@router.get("/stats", response_model=CorrectionStatsResponse)
-async def correction_stats(*, db: DbSession, user_id: CurrentUserId) -> CorrectionStatsResponse:
-    """Get correction statistics for the current user.
-
-    AC18.2.2: Corrections API returns aggregated correction statistics.
-    """
-    stats = await get_correction_stats(db, user_id=user_id)
-    return CorrectionStatsResponse(**stats)

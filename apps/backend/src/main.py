@@ -25,13 +25,12 @@ from src.config import settings
 from src.database import async_session_maker, engine, init_db
 from src.extraction import (
     ActiveRunExists,
-    find_in_flight_parse_id,
     get_known_storage_paths,
     get_statement_coverage_rows,
     register_position_reconciler,
     run_parsing_supervisor,
 )
-from src.identity import auth_router, register_in_flight_parse_checker, users_router
+from src.identity import auth_router
 from src.ledger import register_statement_coverage_reader
 from src.observability import (
     ErrorIds,
@@ -97,7 +96,6 @@ register_manual_valuation_lines_provider(
 )
 register_known_storage_paths_provider(get_known_storage_paths)
 register_statement_coverage_reader(get_statement_coverage_rows)
-register_in_flight_parse_checker(find_in_flight_parse_id)
 register_position_reconciler(PositionService().reconcile_positions)
 
 outbox_subscribers = SubscriberRegistry()
@@ -362,7 +360,6 @@ for _router in (
     review.router,
     review.conflicts_router,
     reconciliation_router,
-    users_router,
     user_settings.router,
     llm.router,
     portfolio.router,

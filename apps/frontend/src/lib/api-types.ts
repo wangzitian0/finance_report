@@ -40,14 +40,11 @@ export interface paths {
   "/accounts/opening-balances": _P<{ post: _O["post_opening_balances_accounts_opening_balances_post"] }>;
   "/accounts/processing/pending": _P<{ get: _O["list_processing_pending_accounts_processing_pending_get"] }>;
   "/accounts/processing/summary": _P<{ get: _O["get_processing_summary_accounts_processing_summary_get"] }>;
-  "/accounts/{account_id}": _P<{ get: _O["get_account_accounts__account_id__get"]; put: _O["update_account_accounts__account_id__put"]; delete: _O["delete_account_accounts__account_id__delete"] }>;
+  "/accounts/{account_id}": _P<{ put: _O["update_account_accounts__account_id__put"]; delete: _O["delete_account_accounts__account_id__delete"] }>;
   "/ai/feedback": _P<{ post: _O["create_ai_feedback_ai_feedback_post"] }>;
   "/ai/suggestions": _P<{ get: _O["list_ai_suggestions_ai_suggestions_get"] }>;
   "/app-config/base-currency": _P<{ get: _O["get_base_currency_app_config_base_currency_get"]; put: _O["update_base_currency_app_config_base_currency_put"] }>;
-  "/assets/positions": _P<{ get: _O["list_positions_assets_positions_get"] }>;
-  "/assets/positions/{position_id}": _P<{ get: _O["get_position_assets_positions__position_id__get"] }>;
   "/assets/positions/{position_id}/depreciation": _P<{ get: _O["get_position_depreciation_assets_positions__position_id__depreciation_get"] }>;
-  "/assets/reconcile": _P<{ post: _O["reconcile_positions_assets_reconcile_post"] }>;
   "/assets/valuation-components": _P<{ get: _O["list_valuation_components_assets_valuation_components_get"] }>;
   "/assets/valuation-snapshots": _P<{ get: _O["list_valuation_snapshots_assets_valuation_snapshots_get"]; post: _O["create_valuation_snapshot_assets_valuation_snapshots_post"] }>;
   "/assets/valuation-snapshots/{snapshot_id}": _P<{ get: _O["get_valuation_snapshot_assets_valuation_snapshots__snapshot_id__get"]; delete: _O["delete_valuation_snapshot_assets_valuation_snapshots__snapshot_id__delete"]; patch: _O["update_valuation_snapshot_assets_valuation_snapshots__snapshot_id__patch"] }>;
@@ -61,7 +58,6 @@ export interface paths {
   "/chat/suggestions": _P<{ get: _O["suggestions_chat_suggestions_get"] }>;
   "/classifications/backfill": _P<{ post: _O["backfill_transaction_classifications_classifications_backfill_post"] }>;
   "/corrections": _P<{ post: _O["create_correction_corrections_post"] }>;
-  "/corrections/stats": _P<{ get: _O["correction_stats_corrections_stats_get"] }>;
   "/evidence/lineage": _P<{ get: _O["get_evidence_lineage_evidence_lineage_get"] }>;
   "/health": _P<{ get: _O["health_check_health_get"] }>;
   "/journal-entries": _P<{ get: _O["list_journal_entries_journal_entries_get"]; post: _O["create_entry_journal_entries_post"] }>;
@@ -140,9 +136,7 @@ export interface paths {
   "/statements/{statement_id}/runs": _P<{ get: _O["list_statement_runs_statements__statement_id__runs_get"]; post: _O["create_statement_run_statements__statement_id__runs_post"] }>;
   "/statements/{statement_id}/stage2/run-checks": _P<{ post: _O["run_stage2_checks_statements__statement_id__stage2_run_checks_post"] }>;
   "/transactions/{transaction_id}/audit": _P<{ get: _O["get_transaction_audit_transactions__transaction_id__audit_get"] }>;
-  "/users": _P<{ get: _O["list_users_users_get"] }>;
   "/users/me/settings": _P<{ get: _O["get_current_user_settings_users_me_settings_get"]; patch: _O["patch_current_user_settings_users_me_settings_patch"] }>;
-  "/users/{user_id}": _P<{ get: _O["get_user_users__user_id__get"]; put: _O["update_user_users__user_id__put"]; delete: _O["delete_user_users__user_id__delete"] }>;
   "/workflow/events": _P<{ get: _O["list_workflow_events_endpoint_workflow_events_get"] }>;
   "/workflow/events/{event_id}": _P<{ patch: _O["update_workflow_event_status_endpoint_workflow_events__event_id__patch"] }>;
   "/workflow/status": _P<{ get: _O["get_workflow_status_endpoint_workflow_status_get"] }>;
@@ -706,13 +700,6 @@ export interface components {
       original_category: string | null;
       transaction_id: string;
     };
-    CorrectionStatsResponse: {
-      correction_rate_by_category: {
-        [key: string]: number;
-      };
-      top_corrections: _S["TopCorrection"][];
-      total_corrections: number;
-    };
     CostBasisMethod: "FIFO" | "LIFO" | "AvgCost";
     CostBasisMethodUpdateRequest: {
       cost_basis_method: _S["CostBasisMethod"];
@@ -1048,12 +1035,10 @@ export interface components {
     ListResponse_BankStatementListItemResponse_: _LR<_S["BankStatementListItemResponse"]>;
     ListResponse_BankTransactionSummary_: _LR<_S["BankTransactionSummary"]>;
     ListResponse_JournalEntryResponse_: _LR<_S["JournalEntryResponse"]>;
-    ListResponse_ManagedPositionResponse_: _LR<_S["ManagedPositionResponse"]>;
     ListResponse_ManualValuationSnapshotResponse_: _LR<_S["ManualValuationSnapshotResponse"]>;
     ListResponse_ProcessingPendingItem_: _LR<_S["ProcessingPendingItem"]>;
     ListResponse_ReconciliationMatchResponse_: _LR<_S["ReconciliationMatchResponse"]>;
     ListResponse_StatementRunRecord_: _LR<_S["StatementRunRecord"]>;
-    ListResponse_UserResponse_: _LR<_S["UserResponse"]>;
     LlmCatalogResponse: {
       models: _S["LlmModelResponse"][];
     };
@@ -1107,28 +1092,6 @@ export interface components {
     LoginRequest: {
       email: string;
       password: string;
-    };
-    ManagedPositionResponse: {
-      account_id: string;
-      account_name?: string | null;
-      acquisition_date: string;
-      asset_identifier: string;
-      cost_basis: string;
-      created_at: string;
-      currency: string;
-      disposal_date?: string | null;
-      id: string;
-      readonly native_cost_basis: string;
-      readonly native_currency: string;
-      position_metadata?: {
-        [key: string]: unknown;
-      } | null;
-      quantity: string;
-      reporting_cost_basis?: string | null;
-      reporting_currency?: string | null;
-      status: _S["PositionStatus"];
-      updated_at: string;
-      user_id: string;
     };
     ManualValuationBasis: "market_appraisal" | "broker_statement" | "employer_grant_document" | "bank_statement" | "government_statement" | "insurer_statement" | "self_estimate";
     ManualValuationComponentType: "property_value" | "mortgage_balance" | "cpf_balance" | "retirement_account" | "social_security_personal_account" | "long_term_benefit_asset" | "long_term_savings" | "tax_payable" | "tax_refund" | "insurance_cash_value" | "esop" | "rsu" | "stock_options" | "other_asset" | "other_liability";
@@ -1641,14 +1604,6 @@ export interface components {
       sold_date: string;
     };
     ReasoningEffort: "none" | "low" | "medium" | "high";
-    ReconcilePositionsResponse: {
-      created: number;
-      disposed: number;
-      message: string;
-      skipped: number;
-      skipped_assets?: string[];
-      updated: number;
-    };
     ReconciliationAdjustmentRequest: {
       account_id: string;
       bank_balance: number | string;
@@ -1879,11 +1834,6 @@ export interface components {
       kind: "extract";
       model?: string | null;
     };
-    TopCorrection: {
-      corrected_category: string;
-      count: number;
-      original_category: string | null;
-    };
     TransactionCategory: "SALARY" | "INTEREST" | "INVESTMENT_INCOME" | "REFUND" | "OTHER_INCOME" | "DINING" | "GROCERIES" | "TRANSPORT" | "HOUSING" | "UTILITIES" | "SHOPPING" | "HEALTHCARE" | "ENTERTAINMENT" | "TRAVEL" | "EDUCATION" | "INSURANCE" | "FEES" | "OTHER_EXPENSE" | "TRANSFER" | "CARD_REPAYMENT" | "LOAN_PRINCIPAL" | "INVESTMENT_TRADE";
     UserAiSettingsResponse: {
       auto_accept_ai_suggestions: boolean;
@@ -1895,15 +1845,6 @@ export interface components {
       auto_accept_ai_suggestions?: boolean | null;
       enable_ai_classification?: boolean | null;
       enable_ai_reconciliation?: boolean | null;
-    };
-    UserResponse: {
-      created_at: string;
-      email: string;
-      id: string;
-      updated_at: string;
-    };
-    UserUpdate: {
-      email?: string | null;
     };
     ValidationError: {
       ctx?: Record<string, never>;
@@ -2038,13 +1979,6 @@ export interface operations {
   post_opening_balances_accounts_opening_balances_post: _Op<_S["JournalEntryResponse"], _NP, _S["OpeningBalanceRequest"], 201>;
   list_processing_pending_accounts_processing_pending_get: _OpN<_S["ListResponse_ProcessingPendingItem_"]>;
   get_processing_summary_accounts_processing_summary_get: _OpN<_S["ProcessingSummaryResponse"]>;
-  get_account_accounts__account_id__get: {
-    parameters: _PP<{
-        account_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["AccountResponse"]>;
-  };
   update_account_accounts__account_id__put: {
     parameters: _PP<{
         account_id: string;
@@ -2071,22 +2005,6 @@ export interface operations {
   };
   get_base_currency_app_config_base_currency_get: _OpN<_S["BaseCurrencyResponse"]>;
   update_base_currency_app_config_base_currency_put: _Op<_S["BaseCurrencyResponse"], _NP, _S["BaseCurrencyUpdate"]>;
-  list_positions_assets_positions_get: {
-    parameters: _QP<{
-        status_filter?: _S["PositionStatus"] | null;
-        limit?: number;
-        offset?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ListResponse_ManagedPositionResponse_"]>;
-  };
-  get_position_assets_positions__position_id__get: {
-    parameters: _PP<{
-        position_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ManagedPositionResponse"]>;
-  };
   get_position_depreciation_assets_positions__position_id__depreciation_get: {
     parameters: _PQP<{
         position_id: string;
@@ -2099,7 +2017,6 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["DepreciationResponse"]>;
   };
-  reconcile_positions_assets_reconcile_post: _OpN<_S["ReconcilePositionsResponse"]>;
   list_valuation_components_assets_valuation_components_get: {
     parameters: _QP<{
         as_of_date?: string | null;
@@ -2198,7 +2115,6 @@ export interface operations {
   };
   backfill_transaction_classifications_classifications_backfill_post: _OpN<_S["BackfillClassificationsResponse"]>;
   create_correction_corrections_post: _Op<_S["CorrectionResponse"], _NP, _S["CorrectionRequest"], 201>;
-  correction_stats_corrections_stats_get: _OpN<_S["CorrectionStatsResponse"]>;
   get_evidence_lineage_evidence_lineage_get: {
     parameters: _QPR<{
         entity_type: string;
@@ -2762,37 +2678,8 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["AuditTrailResponse"]>;
   };
-  list_users_users_get: {
-    parameters: _QP<{
-        limit?: number;
-        offset?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ListResponse_UserResponse_"]>;
-  };
   get_current_user_settings_users_me_settings_get: _OpN<_S["UserAiSettingsResponse"]>;
   patch_current_user_settings_users_me_settings_patch: _Op<_S["UserAiSettingsResponse"], _NP, _S["UserAiSettingsUpdate"]>;
-  get_user_users__user_id__get: {
-    parameters: _PP<{
-        user_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["UserResponse"]>;
-  };
-  update_user_users__user_id__put: {
-    parameters: _PP<{
-        user_id: string;
-      }>;
-    requestBody: _B<_S["UserUpdate"]>;
-    responses: _R<_S["UserResponse"]>;
-  };
-  delete_user_users__user_id__delete: {
-    parameters: _PP<{
-        user_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R204;
-  };
   list_workflow_events_endpoint_workflow_events_get: {
     parameters: _QP<{
         status?: _S["WorkflowEventStatus"] | null;

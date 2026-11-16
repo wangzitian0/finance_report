@@ -39,9 +39,7 @@ _EXTENSION_EXPORTS = {
     "oauth2_scheme",
     "purge_test_accounts",
     "register",
-    "register_in_flight_parse_checker",
     "register_rate_limiter",
-    "users_router",
     "verify_password",
 }
 
@@ -78,9 +76,7 @@ __all__ = [
     "oauth2_scheme",
     "purge_test_accounts",
     "register",
-    "register_in_flight_parse_checker",
     "register_rate_limiter",
-    "users_router",
     "verify_password",
 ]
 
@@ -134,8 +130,6 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
         oauth2_scheme,
         purge_test_accounts,
         register,
-        register_in_flight_parse_checker,
         register_rate_limiter,
-        users_router,
         verify_password,
     )
