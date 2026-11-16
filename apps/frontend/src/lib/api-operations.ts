@@ -10,7 +10,6 @@ export const API_OPERATIONS = {
   "accept_match_reconciliation_matches__match_id__accept_post": { method: "POST", path: "/api/reconciliation/matches/{match_id}/accept" },
   "account_lineage_reports_account_lineage_get": { method: "GET", path: "/api/reports/account-lineage" },
   "approve_statement_stage1_statements__statement_id__review_approve_post": { method: "POST", path: "/api/statements/{statement_id}/review/approve" },
-  "backfill_transaction_classifications_classifications_backfill_post": { method: "POST", path: "/api/classifications/backfill" },
   "balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get": { method: "GET", path: "/api/reports/balance-sheet/diagnostics" },
   "balance_sheet_reports_balance_sheet_get": { method: "GET", path: "/api/reports/balance-sheet" },
   "batch_update_matches_reconciliation_matches_post": { method: "POST", path: "/api/reconciliation/matches" },

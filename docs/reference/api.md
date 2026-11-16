@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `contract`
-- Endpoint count: `118`
-- Schema count: `261`
+- Endpoint count: `117`
+- Schema count: `260`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -22,7 +22,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `audit` | 1 |
 | `auth` | 4 |
 | `chat` | 4 |
-| `classifications` | 1 |
 | `corrections` | 1 |
 | `evidence` | 1 |
 | `journal-entries` | 6 |
@@ -103,12 +102,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/chat/history` | yes | `session_id` (query), `limit` (query) | - | `200` `ChatHistoryResponse` | Chat History |
 | `DELETE` | `/chat/session/{session_id}` | yes | `session_id`* (path) | - | `204` - | Delete Session |
 | `GET` | `/chat/suggestions` | yes | `language` (query), `message` (query), `include_structured` (query) | - | `200` `ChatSuggestionsResponse` | Suggestions |
-
-### classifications
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `POST` | `/classifications/backfill` | yes | - | - | `200` `BackfillClassificationsResponse` | Backfill Transaction Classifications |
 
 ### corrections
 

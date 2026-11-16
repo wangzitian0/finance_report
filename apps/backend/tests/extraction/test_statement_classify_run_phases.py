@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.composition import compose_statement_posting_dependencies
 from src.database import create_app_engine, create_session_maker_from_db
-from src.extraction import BankStatementStatus, ClassificationStatus, RuleType, RunState, reap_stale_runs
+from src.extraction import BankStatementStatus, RunState, reap_stale_runs
 from src.extraction.extension import statement_classification_run
 from src.extraction.extension import statement_runs, transaction_classification
 from src.extraction.extension.statement_classification_run import execute_classify_run
@@ -29,11 +29,10 @@ from src.extraction.extension.transaction_classification import (
     POLICY_RULE_NAME,
     CategoryProposal,
     ClassificationPolicy,
-    classify_by_effective_policy,
 )
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
-from src.ledger import Account, AccountType, JournalEntry
+from src.extraction.orm.layer3 import TransactionClassification
+from src.ledger import JournalEntry
 from tests.extraction.test_statement_classify_run import (
     ANSWERS,
     _add_coffee_rule,
@@ -46,7 +45,7 @@ from tests.extraction.test_statement_classify_run import (
     _seed,
 )
 from tests.extraction.test_statement_run_wiring import _statement
-from tests.statement_ingestion import classify_run_for, classify_statement
+from tests.statement_ingestion import classify_rows, classify_run_for, classify_statement, earlier_policy
 
 WAIT_SECONDS = 20
 SECRET = "PAYNOW TO JOHN TAN 2500.00"
@@ -135,7 +134,9 @@ async def _written_rows(db, user, count: int) -> bool:
 @pytest_asyncio.fixture
 async def blocked(db, db_engine, test_user, test_database_url, monkeypatch):
     """A run whose second model call waits. The first call answered the four rows of policy 1 and was written."""
-    first, second = transaction_classification.POLICY_VERSIONS
+    second = transaction_classification.POLICY_VERSIONS[-1]
+    first = earlier_policy()
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_BATCH_SIZE", 4)  # one call for each policy bucket
     monkeypatch.setattr(
         transaction_classification,
         "POLICY_VERSIONS",
@@ -382,38 +383,7 @@ def test_AC_extraction_2994_96_the_deadline_of_the_run_is_shorter_than_the_stale
     assert CLASSIFICATION_PHASE_DEADLINE_SECONDS < statement_runs.DEFAULT_STALE_AFTER.total_seconds()
 
 
-# --- Two classification paths on the same rows ----------------------------------------------------------
-
-
-async def test_AC_extraction_2994_119_an_inline_classification_and_a_run_of_the_same_rows_write_one_answer_each(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.119: The inline path commits while the run waits for the model. Neither fails, no row has two answers."""
-    seeded = await _seed(db, test_user)
-    await _add_coffee_rule(db, test_user)
-    gate = asyncio.Event()
-    model = _install(monkeypatch, ScriptedModel(gate))
-    run_id = await classify_run_for(db, seeded.id)
-    maker = create_session_maker_from_db(db)
-    worker = asyncio.create_task(_worker(maker, run_id))
-    try:
-        await asyncio.wait_for(model.reached(0).wait(), timeout=WAIT_SECONDS)
-        async with maker() as inline:
-            await asyncio.wait_for(classify_by_effective_policy(inline, test_user.id, seeded.transactions), timeout=10)
-            await inline.commit()
-    finally:
-        gate.set()
-    posted = await asyncio.wait_for(worker, timeout=WAIT_SECONDS)
-
-    run = await _run(db, run_id)
-    assert posted == 0 and run.state is RunState.SUCCEEDED
-    rows = await db.execute(
-        select(TransactionClassification.atomic_txn_id, func.count())
-        .join(AtomicTransaction, AtomicTransaction.id == TransactionClassification.atomic_txn_id)
-        .where(AtomicTransaction.user_id == test_user.id)
-        .group_by(TransactionClassification.atomic_txn_id)
-    )
-    assert sorted(count for _txn, count in rows) == [1, 1, 1, 1, 1], "one answer for each row"
+# --- A writer that skipped the policy-rule lock --------------------------------------------------------
 
 
 async def test_AC_extraction_2994_119_a_unique_key_collision_counts_as_already_answered(
@@ -423,7 +393,7 @@ async def test_AC_extraction_2994_119_a_unique_key_collision_counts_as_already_a
     caplog.set_level(logging.DEBUG)
     seeded = await _seed(db, test_user, _rows(3))
     _install(monkeypatch, ScriptedModel())
-    await classify_by_effective_policy(db, test_user.id, seeded.transactions[:1])
+    await classify_rows(db, test_user.id, seeded.transactions[:1])
     await db.commit()
     assert await _answers(db, test_user) == 1
     real, reads = transaction_classification._already_classified_ids, []
@@ -502,77 +472,6 @@ async def test_AC_extraction_2994_123_a_stale_batch_write_cancels_the_calls_in_f
     assert posted == 0 and (run.state, run.error_code) == (RunState.FAILED, "heartbeat_lost")
     assert model.cancelled == {1, 2}, "a call in flight kept running after the run was stale"
     assert await _answers(db, test_user) == 0
-
-
-# --- An inline classification holds no draft or sweep lock while its model call runs ----------------------
-
-
-async def test_AC_extraction_2994_121_an_inline_call_holds_no_draft_or_sweep_lock_during_its_model_call(
-    db, db_engine, test_user, monkeypatch
-):
-    """AC-extraction.2994.121: A correction takes the policy-rule lock, then locks the draft. The inline call must not hold the draft."""
-    seeded = await _seed(db, test_user, _rows(3))
-    unanswered, drafted, older = seeded.transactions[0], seeded.transactions[1], seeded.transactions[2]
-    account = Account(user_id=test_user.id, name="Expense - Dining", type=AccountType.EXPENSE, currency="SGD")
-    db.add(account)
-    await db.flush()
-    rules = {
-        version: ClassificationRule(
-            user_id=test_user.id,
-            created_by=test_user.id,
-            rule_name=POLICY_RULE_NAME,
-            version_number=version,
-            effective_date=date(2020, 1, 1),
-            is_active=False,
-            rule_type=RuleType.ML_MODEL,
-            rule_config={"policy_version": version},
-        )
-        for version in (1, 2)
-    }
-    db.add_all(rules.values())
-    await db.flush()
-
-    def answer(txn, version, status):
-        return TransactionClassification(
-            atomic_txn_id=txn.id,
-            rule_version_id=rules[version].id,
-            account_id=account.id,
-            tags={"category": "DINING"},
-            confidence_score=90,
-            status=status,
-        )
-
-    draft = answer(drafted, 2, ClassificationStatus.DRAFT)  # the promotion changes it
-    old_row = answer(older, 1, ClassificationStatus.APPLIED)  # the sweep supersedes it: older has a version 2 answer
-    db.add_all([draft, old_row, answer(older, 2, ClassificationStatus.APPLIED)])
-    await db.commit()
-    gate = asyncio.Event()
-    model = _install(monkeypatch, ScriptedModel(gate))
-
-    async def inline_call():
-        async with AsyncSession(db_engine) as inline:
-            await classify_by_effective_policy(inline, test_user.id, [unanswered, drafted, older])
-            await inline.commit()
-
-    task = asyncio.create_task(inline_call())
-    try:
-        await asyncio.wait_for(model.reached(0).wait(), timeout=WAIT_SECONDS)
-        assert model.calls[0] == [unanswered.description], "only the unanswered row goes to the model"
-        for row_id, name in ((draft.id, "the draft"), (old_row.id, "the older row")):
-            async with AsyncSession(db_engine) as other:
-                try:
-                    await other.execute(
-                        select(TransactionClassification.id)
-                        .where(TransactionClassification.id == row_id)
-                        .with_for_update(nowait=True)
-                    )
-                except Exception as error:  # noqa: BLE001 - the driver raises LockNotAvailableError
-                    raise AssertionError(f"{name} is locked during the model call") from error
-    finally:
-        gate.set()
-        await asyncio.wait_for(task, timeout=WAIT_SECONDS)
-    await db.refresh(draft)
-    assert draft.status is ClassificationStatus.APPLIED, "the promotion still happens, after the call"
 
 
 # --- Only the unique collision of the answers is retried ----------------------------------------------------

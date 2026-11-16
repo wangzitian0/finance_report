@@ -197,7 +197,7 @@ async def _plan(
     rows = [txn for txn in transactions if txn.id not in covered and not txn.currency_unresolved]
     if not rows:
         return ClassifyOutcome.NOTHING_TO_CLASSIFY, []
-    buckets = await policy_buckets(session, user_id, rows, tolerate_pre_policy=True)
+    buckets = await policy_buckets(session, user_id, rows)
     plans = [await plan_classification(session, user_id, rows_, policy, run=ask) for policy, rows_ in buckets]
     return None, plans
 
@@ -214,7 +214,7 @@ async def _classify_in_phases(
     started = time.perf_counter()
     async with session_maker() as session:
         skipped, plans = await _plan(session, statement_id, user_id, ask)
-    batches = [(plan, batch) for plan in plans for batch in model_batches(plan.to_propose, plan.policy)]
+    batches = [(plan, batch) for plan in plans for batch in model_batches(plan.to_propose)]
     _log(
         "plan",
         run_id,

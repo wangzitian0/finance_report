@@ -93,12 +93,6 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     reason: "Manual replay endpoint paired with scheduled stock market-data sync.",
     proofPaths: ["common/pricing/readme.md"],
   },
-  backfill_transaction_classifications_classifications_backfill_post: {
-    category: "manual_replay",
-    methodPath: "POST /classifications/backfill",
-    reason: "Manual replay endpoint for scheduled/background classification backfill.",
-    proofPaths: ["apps/backend/tests/api/test_classifications_router.py"],
-  },
 
   // Set C (#3009): package-documented contracts pending FE wiring
   list_account_statement_coverage_accounts_coverage_get: {

@@ -36,7 +36,6 @@ from src.extraction import (
     balance_sheet_booking,
     build_statement_ingestion_use_case,
     classification_suggestions,
-    classify_by_effective_policy,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
     general_account_name,
@@ -330,10 +329,8 @@ async def _accepted_suggestion_for(
     return intent, account, suggestion.category, _suggestion_rationale(suggestion)
 
 
-async def auto_fill_default_statement_dispositions(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID
-) -> int:
-    """Accept draft AI suggestions and fill general counter accounts for remaining rows. An active run refuses (#2994).
+async def auto_fill_default_statement_dispositions(db: AsyncSession, statement: StatementSummary, user_id: UUID) -> int:
+    """Accept draft AI suggestions and fill general counter accounts for the rest. No model call; an active run refuses.
 
     The statement lock comes first: a run start takes it before it inserts its run, so it waits for this approve, and
     the check below sees every run that committed before the lock. The approve upgrades the lock later in the same
@@ -351,7 +348,6 @@ async def auto_fill_default_statement_dispositions(
     dependencies = compose_reviewed_disposition_dependencies(db)
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
-    await classify_by_effective_policy(db, user_id, unmatched_txns)
     suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
     left_to_posting = await applied_rows_the_policy_accepts(
         db,
@@ -510,9 +506,7 @@ async def _repost_approved_statement_for_correction(
     db: AsyncSession, statement: StatementSummary, user_id: UUID, transactions: list[AtomicTransaction]
 ) -> None:
     deps = replace(compose_statement_posting_dependencies(), disposition_mode=DispositionMode.ENFORCE)
-    await auto_create_posted_entries_for_statement(
-        db, statement, user_id, dependencies=deps, transactions=transactions
-    )
+    await auto_create_posted_entries_for_statement(db, statement, user_id, dependencies=deps, transactions=transactions)
 
 
 async def _supersede_transfer_legs_for_correction(
