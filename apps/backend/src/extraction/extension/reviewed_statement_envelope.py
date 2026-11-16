@@ -215,9 +215,14 @@ async def current_reviewed_statement_envelope(
 
 
 async def get_current_statement_extraction_result(
-    db: AsyncSession, *, user_id: UUID, statement_id: UUID
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    statement_id: UUID,
+    statement: StatementSummary | None = None,
 ) -> StatementExtractionResult | None:
-    statement = await db.get(StatementSummary, statement_id)
+    if statement is None:
+        statement = await db.get(StatementSummary, statement_id)
     if statement is None or statement.user_id != user_id:
         return None
     source_record = await _load_owned_source_record(db, statement)

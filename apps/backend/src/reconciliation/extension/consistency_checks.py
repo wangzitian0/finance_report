@@ -492,5 +492,7 @@ async def list_checks(
             db, base_query, limit=limit, offset=offset, order_by=(desc(ConsistencyCheck.created_at),)
         )
     checks = list((await db.execute(base_query.order_by(desc(ConsistencyCheck.created_at)).offset(offset))).scalars())
+    if offset == 0:
+        return checks, len(checks)
     total = (await db.scalar(select(func.count()).select_from(ConsistencyCheck).where(*clauses))) or 0
     return checks, int(total)

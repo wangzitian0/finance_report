@@ -59,7 +59,7 @@ async def resolve_statement_transactions(
     payload = metadata.get("statement_extraction_result") if isinstance(metadata, dict) else None
     if statement.current_extraction_result_id is not None:
         current_result = await get_current_statement_extraction_result(
-            db, user_id=statement.user_id, statement_id=statement.id
+            db, user_id=statement.user_id, statement_id=statement.id, statement=statement
         )
         if current_result is None:
             raise ValueError("Current source result is unavailable for transaction resolution")
@@ -205,6 +205,7 @@ async def validate_balance_chain(
     *,
     statement: StatementSummary | None = None,
     transactions: list[AtomicTransaction] | None = None,
+    include_previous_statement: bool = True,
 ) -> dict:
     if statement is None:
         statement = await db.get(StatementSummary, statement_id)
@@ -287,7 +288,7 @@ async def validate_balance_chain(
         calculated_closing = opening_balance + txn_sum
         closing_delta = abs(statement.closing_balance - calculated_closing)
 
-    prev_statement = await _get_previous_approved_statement(db, statement)
+    prev_statement = await _get_previous_approved_statement(db, statement) if include_previous_statement else None
     result: dict = {
         "opening_balance": str(opening_balance),
         "closing_balance": str(statement.closing_balance) if closing_known else None,
@@ -472,7 +473,13 @@ async def approve_statement_with_transactions(
     await require_current_statement_envelope_trust(db, statement=statement)
     _raise_if_approved_envelope_incomplete(statement)
     transactions = await resolve_statement_transactions(db, statement)
-    validation_result = await validate_balance_chain(db, statement_id, statement=statement, transactions=transactions)
+    validation_result = await validate_balance_chain(
+        db,
+        statement_id,
+        statement=statement,
+        transactions=transactions,
+        include_previous_statement=False,
+    )
 
     _raise_if_balance_chain_invalid(validation_result)
     _raise_if_statement_conflicts_unresolved(statement, transactions)

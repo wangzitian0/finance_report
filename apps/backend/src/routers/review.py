@@ -190,10 +190,11 @@ async def get_stage2_review_queue(
         for m in matches
     ]
     checks, _ = await list_checks(db, user_id, status=CheckStatus.PENDING, run_id=run_id, limit=None)
+    unresolved = any(c.severity is None or c.severity != "low" for c in checks)
     return Stage2ReviewQueueResponse(
         pending_matches=pending_matches,
         consistency_checks=[ConsistencyCheckResponse.model_validate(c) for c in checks],
-        has_unresolved_checks=await has_unresolved_checks(db, user_id, run_id=run_id),
+        has_unresolved_checks=unresolved,
     )
 
 
