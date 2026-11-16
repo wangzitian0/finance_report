@@ -314,16 +314,11 @@ def _proposal_from_item(item: object) -> CategoryProposal | None:
 
 
 def model_batches(
-    rows: Sequence[AtomicTransaction], policy: ClassificationPolicy
+    rows: Sequence[AtomicTransaction], policy: ClassificationPolicy | None
 ) -> list[Sequence[AtomicTransaction]]:
     """Split rows into the groups that one model call answers: policy 1 sends one call, a later policy sends batches."""
-    size = max(1, len(rows)) if policy.version == 1 else CLASSIFICATION_BATCH_SIZE
+    size = max(1, len(rows)) if policy is None or policy.version == 1 else CLASSIFICATION_BATCH_SIZE
     return [rows[start : start + size] for start in range(0, len(rows), size)]
-
-
-def batch_slots() -> asyncio.Semaphore:
-    """The limit of model calls that run at the same time."""
-    return asyncio.Semaphore(CLASSIFICATION_PARALLEL_BATCHES)
 
 
 async def propose_categories(
@@ -333,7 +328,7 @@ async def propose_categories(
     if not transactions:
         return []
     owner = user_id if user_id is not None else _CLASSIFICATION_USER.get()
-    slots = batch_slots()
+    slots = asyncio.Semaphore(CLASSIFICATION_PARALLEL_BATCHES)
 
     async def run(batch: Sequence[AtomicTransaction]) -> list[CategoryProposal | None]:
         async with slots:
@@ -349,7 +344,11 @@ async def ask_model(
     policy: ClassificationPolicy | None,
     proposer: Proposer | None = None,
 ) -> list[CategoryProposal | None]:
-    """Ask the model for one group of rows. The call takes no session, so no connection is held while it runs (#3028)."""
+    """Ask the model for one group of rows. The caller passes no session (#3028).
+
+    `propose_categories` resolves the provider in short sessions of the global pool (up to 4 at once) that close
+    before the stream starts. "No connection during the call" means none of the run's sessions, none during the stream.
+    """
     assert policy is not None, "the model is off: no plan asks it"
     token = _CLASSIFICATION_USER.set(user_id)
     try:
@@ -698,7 +697,7 @@ async def plan_classification(
     *,
     commit_basis: bool = True,
 ) -> ClassificationPlan:
-    """Read what one policy bucket needs: the keyword rules and their matches, the two flags, the rows with an answer."""
+    """Read what one policy bucket needs: the keyword rules and matches, the two flags, the rows with an answer."""
     service = ClassificationService()
     rules = [r for r in await service.get_active_rules(db, user_id) if r.rule_name != POLICY_RULE_NAME]
     ruled: dict[UUID, int] = {}
@@ -713,29 +712,23 @@ async def plan_classification(
     already: frozenset[UUID] = frozenset()
     if policy is not None and commit_basis:
         already = frozenset(await _already_classified_ids(db, user_id, policy.version, [txn.id for txn in rows]))
-    return ClassificationPlan(
-        user_id=user_id,
-        policy=policy,
-        rows=rows,
-        ruled=ruled,
-        already=already,
-        to_propose=[txn for txn in rows if policy is not None and txn.id not in ruled and txn.id not in already],
-        auto_accept=policy is not None and await auto_accept_enabled(db, user_id),
-        commit_basis=commit_basis,
-    )
+    to_propose = [txn for txn in rows if policy is not None and txn.id not in ruled and txn.id not in already]
+    auto_accept = policy is not None and await auto_accept_enabled(db, user_id)
+    return ClassificationPlan(user_id, policy, rows, ruled, already, to_propose, auto_accept, commit_basis)
 
 
-async def write_before_model(db: AsyncSession, plan: ClassificationPlan) -> None:
-    """Write what needs no model call: the keyword-rule answers, the promotion of drafts, the sweep of older versions."""
-    if not plan.commit_basis:
-        return
-    if plan.ruled:
+async def write_rule_answers(db: AsyncSession, plan: ClassificationPlan) -> None:
+    """Write the answers of the keyword rules. They need no model call."""
+    if plan.commit_basis and plan.ruled:
         await ClassificationService().apply_rules(db, plan.user_id, [txn for txn in plan.rows if txn.id in plan.ruled])
-    if plan.policy is not None:
+
+
+async def settle_drafts(db: AsyncSession, plan: ClassificationPlan) -> None:
+    """Promote the drafts of the plan, then sweep the older versions of the rows that already have an answer."""
+    if plan.commit_basis and plan.policy is not None:
         if plan.auto_accept:
             await _promote_drafts(db, plan.user_id, plan.policy, plan.rows)
         await _supersede_older_model_rows(db, plan.user_id, sorted(plan.already), plan.policy.version)
-    await db.flush()
 
 
 async def write_answers(
@@ -744,10 +737,7 @@ async def write_answers(
     rows: Sequence[AtomicTransaction],
     proposals: Sequence[CategoryProposal | None],
 ) -> list[ClassificationOutcome]:
-    """Decide the answer of each row from its proposal and write it: the one write phase of the model's answers.
-
-    Under the policy-rule lock, a row that another writer answered after the plan is skipped (#3028).
-    """
+    """Decide and write the answer of each row: the one write phase. Rows answered since the plan are skipped."""
     policy, user_id, auto_accept, commit_basis = plan.policy, plan.user_id, plan.auto_accept, plan.commit_basis
     assert policy is not None, "the model is off: no plan asks it"
     tags: dict[str, Any]
@@ -882,16 +872,17 @@ async def classify_transactions(
     """Classify transactions under deterministic user rules first, then optional LLM policy.
 
     The inline path: every phase runs in the one session of the caller. A classify run composes the same phase
-    functions with a session for each phase and none for the model call (#3028).
+    functions with a session for each phase and none for its model calls (#3028).
     """
     if not transactions:
         return []
     plan = await plan_classification(db, user_id, transactions, policy, commit_basis=commit_basis)
-    await write_before_model(db, plan)
+    await write_rule_answers(db, plan)
     answered: list[ClassificationOutcome] = []
     if plan.to_propose:
         proposals = await ask_model(user_id, plan.to_propose, plan.policy, proposer)
         answered = await write_answers(db, plan, plan.to_propose, proposals)
+    await settle_drafts(db, plan)  # after the model call: no row lock is held while it runs, and the key comes first
     by_txn = {outcome.atomic_txn_id: outcome for outcome in [*plan.base_outcomes(), *answered]}
     outcomes = [by_txn[txn.id] for txn in transactions]
     logger.info(

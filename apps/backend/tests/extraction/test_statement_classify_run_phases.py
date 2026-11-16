@@ -15,12 +15,13 @@ from uuid import UUID
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.composition import compose_statement_posting_dependencies
 from src.database import create_app_engine, create_session_maker_from_db
-from src.extraction import BankStatementStatus, RunState, reap_stale_runs
+from src.extraction import BankStatementStatus, ClassificationStatus, RuleType, RunState, reap_stale_runs
+from src.extraction.extension import statement_classification_run
 from src.extraction.extension import statement_runs, transaction_classification
 from src.extraction.extension.statement_classification_run import execute_classify_run
 from src.extraction.extension.transaction_classification import (
@@ -31,8 +32,8 @@ from src.extraction.extension.transaction_classification import (
     classify_by_effective_policy,
 )
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.layer3 import TransactionClassification
-from src.ledger import JournalEntry
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
+from src.ledger import Account, AccountType, JournalEntry
 from tests.extraction.test_statement_classify_run import (
     ANSWERS,
     _add_coffee_rule,
@@ -61,6 +62,7 @@ class ScriptedModel:
     def __init__(self, *steps) -> None:
         self.steps = steps
         self.calls: list[list[str]] = []
+        self.cancelled: set[int] = set()
         self._reached: dict[int, asyncio.Event] = {}
 
     def reached(self, number: int) -> asyncio.Event:
@@ -72,7 +74,11 @@ class ScriptedModel:
         self.reached(number).set()
         step = self.steps[number] if number < len(self.steps) else None
         if isinstance(step, asyncio.Event):
-            await asyncio.wait_for(step.wait(), timeout=WAIT_SECONDS)
+            try:
+                await asyncio.wait_for(step.wait(), timeout=WAIT_SECONDS)
+            except asyncio.CancelledError:
+                self.cancelled.add(number)
+                raise
         elif isinstance(step, BaseException):
             raise step
         elif step is not None:
@@ -149,15 +155,16 @@ async def blocked(db, db_engine, test_user, test_database_url, monkeypatch):
         await asyncio.wait_for(model.reached(1).wait(), timeout=WAIT_SECONDS)
 
         async def written() -> bool:
-            return await _answers(db, test_user) == 5
+            return await _answers(db, test_user) == 6
 
         async def idle() -> bool:
             return engine.pool.checkedout() == 0
 
-        # The answers of call 0 and the keyword-rule answer are written. A held connection never becomes idle.
-        await _wait_until(written)
-        await _wait_until(idle)
+        # Written: the 4 answers of call 0 and the 2 keyword-rule answers (Coffee 001 and Coffee 006). A held connection never idles.
+        # The tests assert both results after their own check, so an unmet wait fails them.
         yield SimpleNamespace(
+            written=await _wait_until(written),
+            idle=await _wait_until(idle),
             engine=engine,
             db_engine=db_engine,
             user_id=test_user.id,
@@ -173,7 +180,9 @@ async def blocked(db, db_engine, test_user, test_database_url, monkeypatch):
 async def _row_is_free(engine, txn_id) -> bool:
     async with AsyncSession(engine) as other:
         try:
-            await other.execute(select(AtomicTransaction.id).where(AtomicTransaction.id == txn_id).with_for_update(nowait=True))
+            await other.execute(
+                select(AtomicTransaction.id).where(AtomicTransaction.id == txn_id).with_for_update(nowait=True)
+            )
         except Exception:  # noqa: BLE001 - the driver raises LockNotAvailableError for a held row
             return False
         return True
@@ -195,9 +204,12 @@ async def test_AC_extraction_2994_117_a_second_connection_can_lock_the_rows_of_t
     """AC-extraction.2994.117: The rows that the keyword rule and the first batch answered are free during call 2."""
     assert await _row_is_free(blocked.db_engine, blocked.rule_answered_id), "the keyword-rule row is locked"
     assert await _row_is_free(blocked.db_engine, blocked.model_answered_id), "the row of the first batch is locked"
+    assert blocked.written, "the answers of call 0 are not committed while call 1 waits"
 
 
-async def test_AC_extraction_2994_117_the_key_of_the_lock_probe_is_the_key_of_the_policy_rule_lock(db, db_engine, test_user):
+async def test_AC_extraction_2994_117_the_key_of_the_lock_probe_is_the_key_of_the_policy_rule_lock(
+    db, db_engine, test_user
+):
     """AC-extraction.2994.117: Control of the probe: a lock that the product takes is not free for the probe."""
     policy = transaction_classification.policy_for(date(2026, 1, 1))
     async with AsyncSession(db_engine) as holder:
@@ -209,7 +221,7 @@ async def test_AC_extraction_2994_117_the_key_of_the_lock_probe_is_the_key_of_th
 async def test_AC_extraction_2994_117_a_second_connection_can_take_the_policy_rule_lock_during_the_model_call(blocked):
     """AC-extraction.2994.117: The lock of the older policy version is free while the model call of the newer one runs."""
     assert await _lock_is_free(blocked.db_engine, blocked.user_id, 1), "the lock of policy 1 is held"
-    assert await _lock_is_free(blocked.db_engine, blocked.user_id, 2), "the lock of policy 2 is held"
+    assert blocked.written, "the answers of call 0 are not committed while call 1 waits"
 
 
 async def test_AC_extraction_2994_117_the_pool_of_the_run_has_no_checked_out_connection_during_the_model_call(blocked):
@@ -217,6 +229,7 @@ async def test_AC_extraction_2994_117_the_pool_of_the_run_has_no_checked_out_con
     for _sample in range(4):
         assert blocked.engine.pool.checkedout() == 0, "the run holds a pooled connection during the model call"
         await asyncio.sleep(0.05)
+    assert blocked.written and blocked.idle, "the run never reached the second call, or never released its connection"
 
 
 # --- The keyword-rule answers are committed before the first model call ----------------------------------
@@ -298,7 +311,9 @@ async def test_AC_extraction_2994_116_a_failed_batch_keeps_the_earlier_batches_a
     assert await _answered_descriptions(db, test_user) == every_row
 
 
-async def test_AC_extraction_2994_116_a_run_past_its_deadline_keeps_the_batches_that_it_wrote(db, test_user, monkeypatch):
+async def test_AC_extraction_2994_116_a_run_past_its_deadline_keeps_the_batches_that_it_wrote(
+    db, test_user, monkeypatch
+):
     """AC-extraction.2994.116: Batch 2 hangs past the deadline. The run fails with the timeout code. Batch 1 stays."""
     seeded = await _seed(db, test_user)
 
@@ -384,9 +399,7 @@ async def test_AC_extraction_2994_119_an_inline_classification_and_a_run_of_the_
     try:
         await asyncio.wait_for(model.reached(0).wait(), timeout=WAIT_SECONDS)
         async with maker() as inline:
-            await asyncio.wait_for(
-                classify_by_effective_policy(inline, test_user.id, seeded.transactions), timeout=10
-            )
+            await asyncio.wait_for(classify_by_effective_policy(inline, test_user.id, seeded.transactions), timeout=10)
             await inline.commit()
     finally:
         gate.set()
@@ -403,8 +416,11 @@ async def test_AC_extraction_2994_119_an_inline_classification_and_a_run_of_the_
     assert sorted(count for _txn, count in rows) == [1, 1, 1, 1, 1], "one answer for each row"
 
 
-async def test_AC_extraction_2994_119_a_unique_key_collision_counts_as_already_answered(db, test_user, monkeypatch):
+async def test_AC_extraction_2994_119_a_unique_key_collision_counts_as_already_answered(
+    db, test_user, monkeypatch, caplog
+):
     """AC-extraction.2994.119: A writer that skipped the lock took a row. The second pass of the batch skips it."""
+    caplog.set_level(logging.DEBUG)
     seeded = await _seed(db, test_user, _rows(3))
     _install(monkeypatch, ScriptedModel())
     await classify_by_effective_policy(db, test_user.id, seeded.transactions[:1])
@@ -426,6 +442,167 @@ async def test_AC_extraction_2994_119_a_unique_key_collision_counts_as_already_a
     assert (await _run(db, run_id)).state is RunState.SUCCEEDED
     assert len(model.calls) == 2
     assert await _answers(db, test_user) == 3
+    retries = _events(caplog, "statement.classification.batch_retry")
+    assert [(e["error_type"], e["constraint"]) for e in retries] == [
+        ("IntegrityError", "uq_txn_classification_version")
+    ]
+
+
+# --- Batches that return out of order are written as they return; a stale write cancels the calls in flight --
+
+
+async def test_AC_extraction_2994_123_batches_that_return_out_of_order_are_written_when_each_call_returns(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2994.123: Three calls run at once. The last one returns first, then the second, then the first."""
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_PARALLEL_BATCHES", 3)
+    seeded = await _seed(db, test_user, _rows(6))
+    first, second = asyncio.Event(), asyncio.Event()
+    model = _install(monkeypatch, ScriptedModel(first, second, None))
+    run_id = await classify_run_for(db, seeded.id)
+    worker = asyncio.create_task(_worker(create_session_maker_from_db(db), run_id))
+    try:
+        for number in range(3):
+            await asyncio.wait_for(model.reached(number).wait(), timeout=WAIT_SECONDS)
+        for released, expected_calls in ((None, [2]), (second, [2, 1]), (first, [2, 1, 0])):
+            if released is not None:
+                released.set()
+            expected = {row for number in expected_calls for row in model.calls[number]}
+            assert await _wait_until(lambda: _written_rows(db, test_user, len(expected)), 5), "a returned batch waits"
+            assert await _answered_descriptions(db, test_user) == expected
+    finally:
+        first.set()
+        second.set()
+        await asyncio.wait_for(worker, timeout=WAIT_SECONDS)
+
+    run = await _run(db, run_id)
+    assert run.state is RunState.SUCCEEDED
+    assert (run.result_summary["batches_done"], run.result_summary["answers_written"]) == (3, 6)
+
+
+async def test_AC_extraction_2994_123_a_stale_batch_write_cancels_the_calls_in_flight_and_they_write_nothing(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2994.123: The reaper fails the run during call 0. Calls 1 and 2 are cancelled and write nothing."""
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_PARALLEL_BATCHES", 3)
+    seeded = await _seed(db, test_user, _rows(6))
+    run_id = await classify_run_for(db, seeded.id)
+    maker = create_session_maker_from_db(db)
+
+    async def reaped_during_the_call():
+        async with maker() as other_session:
+            assert await reap_stale_runs(other_session, now=datetime.now(UTC) + timedelta(minutes=10)) == [run_id]
+            await other_session.commit()
+
+    model = _install(monkeypatch, ScriptedModel(reaped_during_the_call, asyncio.Event(), asyncio.Event()))
+
+    posted = await asyncio.wait_for(_worker(maker, run_id), timeout=WAIT_SECONDS)
+
+    run = await _run(db, run_id)
+    assert posted == 0 and (run.state, run.error_code) == (RunState.FAILED, "heartbeat_lost")
+    assert model.cancelled == {1, 2}, "a call in flight kept running after the run was stale"
+    assert await _answers(db, test_user) == 0
+
+
+# --- An inline classification holds no draft or sweep lock while its model call runs ----------------------
+
+
+async def test_AC_extraction_2994_121_an_inline_call_holds_no_draft_or_sweep_lock_during_its_model_call(
+    db, db_engine, test_user, monkeypatch
+):
+    """AC-extraction.2994.121: A correction takes the policy-rule lock, then locks the draft. The inline call must not hold the draft."""
+    seeded = await _seed(db, test_user, _rows(3))
+    unanswered, drafted, older = seeded.transactions[0], seeded.transactions[1], seeded.transactions[2]
+    account = Account(user_id=test_user.id, name="Expense - Dining", type=AccountType.EXPENSE, currency="SGD")
+    db.add(account)
+    await db.flush()
+    rules = {
+        version: ClassificationRule(
+            user_id=test_user.id,
+            created_by=test_user.id,
+            rule_name=POLICY_RULE_NAME,
+            version_number=version,
+            effective_date=date(2020, 1, 1),
+            is_active=False,
+            rule_type=RuleType.ML_MODEL,
+            rule_config={"policy_version": version},
+        )
+        for version in (1, 2)
+    }
+    db.add_all(rules.values())
+    await db.flush()
+
+    def answer(txn, version, status):
+        return TransactionClassification(
+            atomic_txn_id=txn.id,
+            rule_version_id=rules[version].id,
+            account_id=account.id,
+            tags={"category": "DINING"},
+            confidence_score=90,
+            status=status,
+        )
+
+    draft = answer(drafted, 2, ClassificationStatus.DRAFT)  # the promotion changes it
+    old_row = answer(older, 1, ClassificationStatus.APPLIED)  # the sweep supersedes it: older has a version 2 answer
+    db.add_all([draft, old_row, answer(older, 2, ClassificationStatus.APPLIED)])
+    await db.commit()
+    gate = asyncio.Event()
+    model = _install(monkeypatch, ScriptedModel(gate))
+
+    async def inline_call():
+        async with AsyncSession(db_engine) as inline:
+            await classify_by_effective_policy(inline, test_user.id, [unanswered, drafted, older])
+            await inline.commit()
+
+    task = asyncio.create_task(inline_call())
+    try:
+        await asyncio.wait_for(model.reached(0).wait(), timeout=WAIT_SECONDS)
+        assert model.calls[0] == [unanswered.description], "only the unanswered row goes to the model"
+        for row_id, name in ((draft.id, "the draft"), (old_row.id, "the older row")):
+            async with AsyncSession(db_engine) as other:
+                try:
+                    await other.execute(
+                        select(TransactionClassification.id)
+                        .where(TransactionClassification.id == row_id)
+                        .with_for_update(nowait=True)
+                    )
+                except Exception as error:  # noqa: BLE001 - the driver raises LockNotAvailableError
+                    raise AssertionError(f"{name} is locked during the model call") from error
+    finally:
+        gate.set()
+        await asyncio.wait_for(task, timeout=WAIT_SECONDS)
+    await db.refresh(draft)
+    assert draft.status is ClassificationStatus.APPLIED, "the promotion still happens, after the call"
+
+
+# --- Only the unique collision of the answers is retried ----------------------------------------------------
+
+
+async def test_AC_extraction_2994_122_a_foreign_key_violation_in_a_batch_write_is_not_retried(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2994.122: A row that vanished after the plan breaks a foreign key. The run fails on the first pass."""
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_BATCH_SIZE", 5)
+    seeded = await _seed(db, test_user, _rows(3))
+    vanished = seeded.transactions[0].id
+
+    async def deletes_a_row():
+        await db.execute(delete(AtomicTransaction).where(AtomicTransaction.id == vanished))
+        await db.commit()
+
+    _install(monkeypatch, ScriptedModel(deletes_a_row))
+    real, passes = statement_classification_run.write_answers, []
+
+    async def counting(*args, **kwargs):
+        passes.append(1)
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(statement_classification_run, "write_answers", counting)
+
+    run = await _run(db, await classify_statement(db, seeded.id))
+
+    assert (run.state, run.error_code) == (RunState.FAILED, "classification_failed")
+    assert len(passes) == 1, "a foreign-key violation was retried"
 
 
 # --- The log lines of the phases and the batches -------------------------------------------------------
@@ -446,7 +623,10 @@ async def test_AC_extraction_2994_120_each_phase_and_each_batch_writes_one_log_l
 
     run_id = await classify_statement(db, seeded.id)
 
-    plan, rules = _events(caplog, "statement.classification.plan"), _events(caplog, "statement.classification.rule_answers")
+    plan, rules = (
+        _events(caplog, "statement.classification.plan"),
+        _events(caplog, "statement.classification.rule_answers"),
+    )
     batches = sorted(_events(caplog, "statement.classification.batch"), key=lambda event: event["batch_index"])
     assert len(plan) == len(rules) == 1 and len(batches) == 2
     assert plan[0]["run_id"] == rules[0]["run_id"] == str(run_id) and plan[0]["rows"] == 5
