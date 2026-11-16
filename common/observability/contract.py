@@ -142,7 +142,7 @@ safe-error-ssot.2||test_AC_safe_error_ssot_2_handle_parse_failure_redacts_pii
     concepts=concepts(
         """
 observability_logging|common/observability/observability.md|Structured logging, OTLP export configuration.|common/meta/development.md|-|observability|concept
-statement_parsing_model_selection_logging|common/observability/observability-logging.md|Statement parsing model-selection and staging audit replay logging contract.|common/observability/observability.md,common/extraction/readme.md,common/llm/ai.md,docs/project/EPIC-010.observability-logging.md,apps/backend/tests/api/test_statements_router.py,apps/backend/tests/extraction/test_statement_parsing_audit_logging.py,apps/backend/tests/reconciliation/test_reconciliation_router_additional.py,tests/tooling/test_post_merge_e2e_gates.py,runtime-hooks.manifest.json|-|observability|playbook|documented_contract|observability_logging
+statement_parsing_model_selection_logging|common/observability/observability-logging.md|Statement parsing model-selection and staging audit replay logging contract.|common/observability/observability.md,common/extraction/readme.md,common/llm/ai.md,docs/project/EPIC-010.observability-logging.md,apps/backend/tests/api/test_statements_router.py,apps/backend/tests/extraction/test_statement_parsing_audit_logging.py,apps/backend/tests/api/test_reconciliation_router.py,tests/tooling/test_post_merge_e2e_gates.py,runtime-hooks.manifest.json|-|observability|playbook|documented_contract|observability_logging
 """
     ),
 )

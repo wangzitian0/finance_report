@@ -438,10 +438,9 @@ balance-sheet.7||test_balance_sheet_cta_and_aggregation_falsifiability
 balance-sheet.8||test_case_4_shape_balance_sheet_equation_delta_is_exactly_zero
 @$be/reporting/test_reporting_fx_fallbacks.py
 fx.4||test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning
-@$be/reporting/test_reports_errors.py|P1
-errors.1||test_reports_router_errors_extended
-@$be/reporting/test_reports_router_errors.py|P1
-errors.2||test_balance_sheet_report_error
+@$be/reporting/test_reports_router.py|P1
+errors.1||test_reports_router_handles_report_error
+errors.2||test_export_balance_sheet_report_error
 @$be/reporting/test_reporting_fx_revaluation_integration.py|P1
 kpis.3||test_income_statement_includes_average_rate_fallback_warning
 @$t/test_investment_performance_report_contract.py

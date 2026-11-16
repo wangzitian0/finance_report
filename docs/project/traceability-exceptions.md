@@ -110,7 +110,6 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/reporting/test_reporting_helpers.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reporting_layer3.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reporting_snapshot.py` | `common/reporting/reporting.md` |
-| `apps/backend/tests/reporting/test_reports_currencies_and_paths.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reports_router_additional.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_balance_sheet_provenance.py` | Support regression for the reporting provenance display boundary; package authority is covered by `AC-reporting.package-document.7`. |
 | `apps/backend/tests/api/test_data_quality_router.py` | `common/reporting/contract.py` (#2294 Personal Data Quality Observatory API) |

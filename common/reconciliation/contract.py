@@ -329,7 +329,7 @@ named-transfer-legs.5||test_AC_reconciliation_named_transfer_legs_5_a_long_descr
 candidate-policy.1||test_live_and_audit_choose_the_same_evidence
 @$t/test_reconciliation_config_boundary.py|P0|done|property
 config-boundary.1||test_configuration_ownership_is_explicit
-@$be/reconciliation/test_reconciliation_router_additional.py|P1
+@$be/api/test_reconciliation_router.py|P1
 review-queue.2||test_accept_reject_batch_accept
 @$be/reconciliation/test_source_type.py|P1
 source-type-transfer.4||test_manual_wins_conflict_resolution
