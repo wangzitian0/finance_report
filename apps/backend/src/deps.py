@@ -18,7 +18,7 @@ from uuid import UUID
 from fastapi import Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database import get_db
+from src.database import get_db, get_db_readonly
 
 # Import the auth dependency from identity's submodule (not the package root) to
 # avoid an import cycle: the identity router (src.identity.extension.api.auth)
@@ -30,6 +30,7 @@ from src.database import get_db
 from src.identity.extension.auth import get_current_user_id
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+ReadDbSession = Annotated[AsyncSession, Depends(get_db_readonly)]
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
 
 # Pagination convention for list endpoints (#1099 AC-platform.29.2/.3).
@@ -70,4 +71,5 @@ __all__ = [
     "DbSession",
     "Pagination",
     "PaginationParams",
+    "ReadDbSession",
 ]

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from src.audit import to_money
 from src.composition import post_guided_opening_balances
 from src.config_app import get_effective_base_currency
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.ledger import (
     DEFAULT_STALE_AFTER_DAYS,
     AccountNotFoundError,
@@ -70,17 +70,16 @@ async def post_opening_balances(
             currency=payload.currency,
             memo=payload.memo,
         )
-        await db.commit()
+        await db.flush()
         await db.refresh(entry, ["lines"])
     except (ValidationError, PricingError) as exc:
-        await db.rollback()
         raise_bad_request(str(exc), cause=exc)
     return JournalEntryResponse.model_validate(entry)
 
 
 @router.get("/opening-balance-readiness", response_model=OpeningBalanceReadinessResponse)
 async def get_opening_balance_readiness_status(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> OpeningBalanceReadinessResponse:
     """Readiness nudge (#949): is the balance sheet at risk of being incomplete?
@@ -101,7 +100,6 @@ async def create_account(
 ) -> AccountResponse:
     """Create a new account.."""
     account = await account_service.create_account(db, user_id, account_data)
-    await db.commit()
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
@@ -112,7 +110,7 @@ async def create_account(
 
 @router.get("", response_model=AccountListResponse)
 async def list_accounts(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     account_type: AccountType | None = None,
     is_active: bool | None = None,
@@ -144,7 +142,7 @@ async def list_accounts(
 
 @router.get("/processing/summary", response_model=ProcessingSummaryResponse)
 async def get_processing_summary(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> ProcessingSummaryResponse:
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
@@ -185,7 +183,7 @@ async def get_processing_summary(
 
 @router.get("/processing/pending", response_model=ProcessingPendingListResponse)
 async def list_processing_pending(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> ProcessingPendingListResponse:
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
@@ -215,7 +213,7 @@ async def list_processing_pending(
 
 @router.get("/coverage", response_model=AccountCoverageListResponse)
 async def list_account_statement_coverage(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of: date | None = Query(None, description="Date used for stale-account evaluation"),
     stale_after_days: int = Query(
@@ -244,7 +242,6 @@ async def update_account(
     """Update an account's mutable fields.."""
     try:
         account = await account_service.update_account(db, user_id, account_id, account_data)
-        await db.commit()
     except AccountNotFoundError as e:
         logger.debug("Account not found for update", account_id=str(account_id))
         raise_not_found("Account", cause=e)
@@ -279,4 +276,4 @@ async def delete_account(
         raise_bad_request("Cannot delete account with existing transactions. Archive it instead.")
 
     await db.delete(account)
-    await db.commit()
+    await db.flush()
