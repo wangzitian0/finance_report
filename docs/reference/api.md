@@ -5,7 +5,7 @@
 > For the 30 core wealth and accounting flows SSOT, see [30 Core Wealth Flows Reference](thirty-wealth-flows.md).
 
 - API title: `Finance Report API`
-- API version: `0.1.0`
+- API version: `0.2.72`
 - Endpoint count: `118`
 - Schema count: `261`
 
