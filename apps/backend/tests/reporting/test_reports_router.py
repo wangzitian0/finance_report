@@ -252,13 +252,6 @@ async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(
     assert data["rows"][1]["value"] == "-500.00"
 
 
-async def test_breakdown_endpoint(client, test_data_setup_reports):
-    _, income = await test_data_setup_reports()
-    params = {"type": "income", "period": "monthly", "currency": "SGD"}
-    response = await client.get("/reports/breakdown", params=params)
-    assert response.status_code == 200
-
-
 async def test_export_endpoint(client, test_data_setup_reports):
     await test_data_setup_reports()
     params = {"report_type": "balance-sheet", "format": "csv", "currency": "SGD"}
@@ -391,7 +384,6 @@ async def test_AC5_17_1_cash_flow_export_returns_csv(client, monkeypatch: pytest
             "generate_cash_flow",
             {"start_date": date.today().isoformat(), "end_date": date.today().isoformat()},
         ),
-        ("/reports/breakdown", "get_category_breakdown", {"type": "income"}),
     ],
 )
 async def test_reports_router_handles_report_error(

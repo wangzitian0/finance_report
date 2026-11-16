@@ -459,7 +459,6 @@ export type CorrectionLoopReplayResponse = Schemas["CorrectionLoopReplayResponse
 export type UserAiSettings = Schemas["UserAiSettingsResponse"];
 export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];
 export type BaseCurrency = Schemas["BaseCurrencyResponse"];
-export type PingStateResponse = Schemas["PingStateResponse"];
 export type LlmProtocolFamily = Schemas["ProtocolFamily"];
 export type LlmReasoningEffort = Schemas["ReasoningEffort"];
 export type LlmScene = Schemas["Scene"];

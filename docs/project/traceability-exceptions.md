@@ -114,6 +114,8 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/reporting/test_balance_sheet_provenance.py` | Support regression for the reporting provenance display boundary; package authority is covered by `AC-reporting.package-document.7`. |
 | `apps/backend/tests/api/test_data_quality_router.py` | `common/reporting/contract.py` (#2294 Personal Data Quality Observatory API) |
 | `apps/backend/tests/reporting/test_data_quality_service.py` | `common/reporting/contract.py` (#2294 Personal Data Quality Observatory Domain Service) |
+| `apps/backend/tests/reporting/test_reports_errors.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_reports_currencies_and_paths.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `common/llm/ai.md` |
 | `apps/backend/tests/schemas/test_audit_schema.py` | `common/meta/schema.md` |
 | `apps/backend/tests/schemas/test_user_schema.py` | `common/identity/readme.md` |

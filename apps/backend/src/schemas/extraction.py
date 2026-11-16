@@ -216,7 +216,6 @@ def compose_statement_response(
 
 BankStatementListResponse = ListResponse[BankStatementListItemResponse]
 StatementRunListResponse = ListResponse[StatementRunRecord]
-BankStatementTransactionListResponse = ListResponse[AtomicTransactionResponse]
 
 
 class ParsedStatementPreview(BaseModel):

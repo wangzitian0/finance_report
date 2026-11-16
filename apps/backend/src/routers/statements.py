@@ -60,7 +60,6 @@ from src.extraction import (
     resolve_statement_posting_account,
     resolve_statement_transactions,
     retire_statement,
-    set_opening_balance,
     start_user_extract_run,
     submit_parse_pipeline,
     supports_reviewed_statement_envelope,
@@ -80,10 +79,8 @@ from src.platform import (
 from src.portfolio import PositionServiceError
 from src.runtime import StorageError, StorageService
 from src.schemas import (
-    AtomicTransactionResponse,
     BankStatementListResponse,
     BankStatementResponse,
-    BankStatementTransactionListResponse,
     StatementDecisionRequest,
     StatementRunListResponse,
     StatementRunRequest,
@@ -94,7 +91,6 @@ from src.schemas.review import (
     BalanceValidationResult,
     ReviewedStatementEnvelopeRequest,
     ReviewedStatementEnvelopeResponse,
-    SetOpeningBalanceRequest,
     Stage1ApprovalRequest,
     Stage1ApprovalResponse,
     StatementReviewResponse,
@@ -672,23 +668,6 @@ async def get_statement_document(statement_id: UUID, db: DbSession, user_id: Cur
     )
 
 
-@router.get("/{statement_id}/transactions", response_model=BankStatementTransactionListResponse)
-async def list_statement_transactions(
-    statement_id: UUID, db: DbSession, user_id: CurrentUserId
-) -> BankStatementTransactionListResponse:
-    """List transactions for a statement."""
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    transactions = await resolve_statement_transactions(db, statement)
-    suggestions = await classification_suggestions(db, [t.id for t in transactions])
-    items = [
-        AtomicTransactionResponse.from_atomic(
-            t, statement.id, suggestion=suggestions.get(t.id), source_row=getattr(t, "source_row", idx + 1)
-        )
-        for idx, t in enumerate(transactions)
-    ]
-    return BankStatementTransactionListResponse(items=items, total=len(items))
-
-
 @router.post(
     "/{statement_id}/brokerage/import",
     response_model=BrokerageImportResponse,
@@ -957,20 +936,6 @@ async def reject_statement_stage1(
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
-@router.post("/{statement_id}/review/opening-balance", response_model=BankStatementResponse)
-async def set_statement_opening_balance(
-    statement_id: UUID,
-    request: SetOpeningBalanceRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> BankStatementResponse:
-    """Set manual opening balance override."""
-    try:
-        await set_opening_balance(db, statement_id, user_id, request.opening_balance)
-        await db.commit()
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 
 async def wait_for_parse_tasks() -> None:

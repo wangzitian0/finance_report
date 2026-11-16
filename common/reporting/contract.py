@@ -164,8 +164,6 @@ layer3.1|The income statement's classification coverage reads Layer 3 APPLIED Tr
 layer3.3|Income statement payloads include the applied Layer 3 classification coverage breakdown.|^
 net-worth-components.3||test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources
 @$be/api/test_reports_router.py|P1
-cash-flow.4||test_category_breakdown_success
-cash-flow.5||test_category_breakdown_with_period
 errors.3||test_unauthenticated_access
 @$be/reporting/test_cash_flow_preview_payload.py|P1|done|property
 cash-flow.6||test_AC_reporting_cash_flow_6_year_scale_preview_is_bounded
@@ -209,7 +207,6 @@ package-traceability.8||test_AC_reporting_package_traceability_8_evidence_pages_
 @$be/reporting/test_package_preview_policy_and_cash_flow.py|P1
 package-traceability.9||test_AC_reporting_package_traceability_9_year_scale_preview_with_categories_is_bounded|:property
 package-traceability.10||test_AC_reporting_package_traceability_10_policy_decision_pages_equal_snapshot
-package-traceability.11||test_AC_reporting_package_traceability_11_cash_flow_event_pages_equal_snapshot
 @$be/reporting/test_package_document.py
 package-document.1||test_AC_reporting_package_document_1_requires_typed_delivery_sections
 package-document.2||test_AC_reporting_package_document_2_has_one_assembler_and_no_live_package_export

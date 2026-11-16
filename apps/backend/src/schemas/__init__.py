@@ -11,9 +11,8 @@ if TYPE_CHECKING:
     from src.schemas.assets import ManagedPositionListResponse, ManagedPositionResponse, ReconcilePositionsResponse
     from src.schemas.chat import ChatHistoryResponse, ChatMessageResponse, ChatRequest, ChatSessionResponse, ChatSuggestionsResponse
     from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, ErrorResponse, error_code_for_status
-    from src.schemas.extraction import AtomicTransactionResponse, BankStatementListItemResponse, BankStatementListResponse, BankStatementResponse, BankStatementStatusEnum, BankStatementTransactionListResponse, BankStatementUploadRequest, ParsedStatementPreview, StatementDecisionRequest, StatementRunListResponse, StatementRunRequest, compose_statement_list_item_response, compose_statement_response
+    from src.schemas.extraction import AtomicTransactionResponse, BankStatementListItemResponse, BankStatementListResponse, BankStatementResponse, BankStatementStatusEnum, BankStatementUploadRequest, ParsedStatementPreview, StatementDecisionRequest, StatementRunListResponse, StatementRunRequest, compose_statement_list_item_response, compose_statement_response
     from src.schemas.journal import JournalEntryCreate, JournalEntryListResponse, JournalEntryResponse, JournalLineCreate, JournalLineResponse, VoidJournalEntryRequest
-    from src.schemas.ping import PingStateResponse
     from src.schemas.reconciliation import AnomalyResponse, BankTransactionSummary, BatchAcceptRequest, JournalEntrySummary, ReconciliationMatchListResponse, ReconciliationMatchResponse, ReconciliationRunRequest, ReconciliationRunResponse, ReconciliationStatsResponse, ReconciliationStatusEnum, UnmatchedTransactionsResponse
     from src.schemas.reporting import AccountLineageLine, AccountLineageResponse, AnnualizedIncomeScheduleHolding, AnnualizedIncomeScheduleIncome, AnnualizedIncomeScheduleNetWorthTreatment, AnnualizedIncomeScheduleResponse, BalanceSheetResponse, BreakdownPeriod, BreakdownType, CategoryBreakdownResponse, FrameworkPolicyDecision, FrameworkPolicyEvidenceAnchor, FrameworkPolicyFact, FrameworkPolicyGap, FrameworkPolicyMatrix, FrameworkPolicyMatrixRule, FrameworkPolicyResult, IncomeStatementResponse, InvariantStatus, MonthContinuityBucket, NetWorthAllocationResponse, NetWorthAllocationRow, NetWorthAllocationSourceLine, NetWorthGranularity, NetWorthTimeSeriesResponse, PersonalDataQualityHealthResponse, PersonalReportingFrameworkId, PersonalReportPackageCompletenessWarning, PersonalReportPackageContractResponse, PersonalReportPackageDocument, PersonalReportPackageDocumentLifecycle, PersonalReportPackageExportContract, PersonalReportPackageGenerateRequest, PersonalReportPackageInputCoverage, PersonalReportPackageLineDetailsPage, PersonalReportPackageManifestEntriesPage, PersonalReportPackageNote, PersonalReportPackageNotesResponse, PersonalReportPackagePreview, PersonalReportPackageReadinessBlocker, PersonalReportPackageReadinessResponse, PersonalReportPackageReadinessState, PersonalReportPackageSectionContract, PersonalReportPackageSections, PersonalReportPackageSnapshotResponse, PersonalReportPackageSnapshotStatus, PersonalReportPackageSnapshotSummary, PersonalReportPackageStatementDispositionPolicy, PersonalReportPackageTraceabilityAnchor, PersonalReportPackageTraceabilityAnchorName, PersonalReportPackageTraceabilityLine, PersonalReportPackageTraceabilityResponse, PersonalReportPackageTraceManifestEntry, PolicyDimension, PolicyFactDomain, PolicyProvenance, PolicyReviewState, QualityActionItem, QualityGrade
     from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ConsistencyCheckListResponse, ConsistencyCheckResponse, ResolveCheckRequest, Stage2ReviewQueueResponse
@@ -60,7 +59,6 @@ _GROUPS: dict[str, tuple[str, ...]] = {
         "BankStatementListResponse",
         "BankStatementResponse",
         "BankStatementStatusEnum",
-        "BankStatementTransactionListResponse",
         "BankStatementUploadRequest",
         "ParsedStatementPreview",
         "StatementDecisionRequest",
@@ -77,7 +75,6 @@ _GROUPS: dict[str, tuple[str, ...]] = {
         "JournalLineResponse",
         "VoidJournalEntryRequest",
     ),
-    "src.schemas.ping": ("PingStateResponse",),
     "src.schemas.reconciliation": (
         "AnomalyResponse",
         "BankTransactionSummary",
@@ -207,7 +204,6 @@ __all__ = [
     "BankStatementListResponse",
     "BankStatementResponse",
     "BankStatementStatusEnum",
-    "BankStatementTransactionListResponse",
     "BankStatementUploadRequest",
     "BankTransactionSummary",
     "BatchAcceptRequest",
@@ -281,7 +277,6 @@ __all__ = [
     "PersonalReportPackageTraceabilityLine",
     "PersonalReportPackageTraceabilityResponse",
     "PersonalReportingFrameworkId",
-    "PingStateResponse",
     "PolicyDimension",
     "PolicyFactDomain",
     "PolicyProvenance",

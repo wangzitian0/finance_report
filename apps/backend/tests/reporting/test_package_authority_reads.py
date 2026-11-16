@@ -7,7 +7,7 @@ def _projection_reads(db_engine) -> Iterator[list[int]]:
     try: yield rows
     finally: event.remove(db_engine.sync_engine, 'after_cursor_execute', _record)
 async def test_AC_reporting_package_document_15_one_evaluation_reads_the_authority_projection_at_most_twice(client, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.package-document.15'; await _seed_reviewed_statement(db, test_user.id, monkeypatch); evaluations = {'GET /reports/package': lambda: client.get('/reports/package', params=JUNE), 'GET /reports/package/line-details': lambda: client.get('/reports/package/line-details', params={**JUNE, 'line_id': 'balance_sheet.total_assets', 'anchor': 'ledger_anchor'}), 'GET /reports/package/manifest-entries': lambda: client.get('/reports/package/manifest-entries', params=JUNE), 'GET /reports/package/cash-flow-events': lambda: client.get('/reports/package/cash-flow-events', params={**JUNE, 'line_id': 'unclassified'})}; reads: dict[str, list[int]] = {}
+    'AC-reporting.package-document.15'; await _seed_reviewed_statement(db, test_user.id, monkeypatch); evaluations = {'GET /reports/package': lambda: client.get('/reports/package', params=JUNE), 'GET /reports/package/line-details': lambda: client.get('/reports/package/line-details', params={**JUNE, 'line_id': 'balance_sheet.total_assets', 'anchor': 'ledger_anchor'}), 'GET /reports/package/manifest-entries': lambda: client.get('/reports/package/manifest-entries', params=JUNE)}; reads: dict[str, list[int]] = {}
     for (label, request) in evaluations.items():
         with _projection_reads(db_engine) as rows: response = await request()
         assert response.status_code == 200, (label, response.text); reads[label] = rows

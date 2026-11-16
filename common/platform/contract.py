@@ -37,13 +37,13 @@ OutboxRepository|repo|base/outbox.py|extension/sql.py
 """
     ),
     interface="""
-AppConfig BASE_CURRENCY_KEY BaseAppException DomainEvent EventBus Outbox OutboxEventBus
-OutboxRelay PingStateResponse OutboxRepository PingState RateLimitConfig RateLimitState
-RateLimiter RecordingEventBus SubscriberRegistry TimestampMixin UUIDMixin UserOwnedMixin
-get_client_ip get_owned_or_404 paginate raise_bad_request raise_conflict
-raise_gateway_timeout raise_internal_error raise_not_found raise_service_unavailable
-raise_too_large raise_too_many_requests raise_unauthorized platform_system_router
-validate_internal_action_href
+AppConfig BASE_CURRENCY_KEY BaseAppException DomainEvent EventBus Outbox
+OutboxEventBus OutboxRelay OutboxRepository RateLimitConfig RateLimitState
+RateLimiter RecordingEventBus SubscriberRegistry TimestampMixin UUIDMixin
+UserOwnedMixin get_client_ip get_owned_or_404 paginate raise_bad_request
+raise_conflict raise_gateway_timeout raise_internal_error raise_not_found
+raise_service_unavailable raise_too_large raise_too_many_requests
+raise_unauthorized validate_internal_action_href
 """.split(),
     events=[],
     invariants=invs(

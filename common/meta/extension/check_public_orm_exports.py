@@ -44,7 +44,6 @@ BASELINE_PUBLIC_ORM_EXPORTS: frozenset[str] = frozenset(
         "llm::LlmSceneBinding",
         "platform::AppConfig",
         "platform::BASE_CURRENCY_KEY",
-        "platform::PingState",
         "platform::TimestampMixin",
         "platform::UUIDMixin",
         "platform::UserOwnedMixin",

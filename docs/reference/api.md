@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `135`
-- Schema count: `281`
+- Endpoint count: `129`
+- Schema count: `272`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -31,10 +31,10 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `metrics` | 1 |
 | `portfolio` | 12 |
 | `reconciliation` | 11 |
-| `reports` | 23 |
-| `review` | 9 |
-| `statements` | 15 |
-| `untagged` | 2 |
+| `reports` | 21 |
+| `review` | 8 |
+| `statements` | 13 |
+| `untagged` | 1 |
 | `user-settings` | 2 |
 | `users` | 4 |
 | `workflow` | 3 |
@@ -205,7 +205,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/account-lineage` | yes | `account_id`* (query), `as_of_date` (query), `start_date` (query), `currency` (query) | - | `200` `AccountLineageResponse` | Account Lineage |
 | `GET` | `/reports/balance-sheet` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `BalanceSheetResponse` | Balance Sheet |
 | `GET` | `/reports/balance-sheet/diagnostics` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `EquationDiagnosticResult` | Balance Sheet Diagnostics |
-| `GET` | `/reports/breakdown` | yes | `type`* (query), `period` (query), `currency` (query) | - | `200` `CategoryBreakdownResponse` | Category Breakdown |
 | `GET` | `/reports/cash-flow` | yes | `start_date` (query), `end_date` (query), `currency` (query) | - | `200` `CashFlowPreview` | Cash Flow |
 | `GET` | `/reports/cash-flow/line-events` | yes | `line_id`* (query), `start_date` (query), `end_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `CashFlowLineEventsPage` | List Cash Flow Line Events |
 | `GET` | `/reports/coverage` | yes | `as_of_date` (query) | - | `200` `ReportCoverageResponse` | Report Coverage |
@@ -217,7 +216,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `PersonalReportPackagePreview` | Preview Personal Report Package |
 | `POST` | `/reports/package/annual-archive` | yes | - | `AnnualTaxArchiveRequest` | `200` - | Export Annual Tax Archive |
-| `GET` | `/reports/package/cash-flow-events` | yes | `line_id`* (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `CashFlowLineEventsPage` | List Personal Report Package Cash Flow Events |
 | `POST` | `/reports/package/generate` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
 | `GET` | `/reports/package/line-details` | yes | `line_id`* (query), `anchor`* (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageLineDetailsPage` | List Personal Report Package Line Details |
 | `GET` | `/reports/package/manifest-entries` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageManifestEntriesPage` | List Personal Report Package Manifest Entries |
@@ -232,7 +230,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `GET` | `/review/conflicts/{statement_id}` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
 | `POST` | `/review/conflicts/{statement_id}/resolve` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
-| `POST` | `/review/transactions/{transaction_id}/currency` | yes | `transaction_id`* (path) | `ResolveCurrencyRequest` | `200` `ResolveCurrencyResponse` | Resolve Transaction Currency Endpoint |
 | `POST` | `/statements/batch-approve-matches` | yes | - | `BatchApproveRequest` | `200` `BatchApproveResponse` | Batch Approve Matches |
 | `POST` | `/statements/batch-reject-matches` | yes | - | `BatchRejectRequest` | `200` `BatchRejectResponse` | Batch Reject Matches |
 | `GET` | `/statements/consistency-checks/list` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
@@ -254,18 +251,15 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |
 | `POST` | `/statements/{statement_id}/review/approve` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
 | `POST` | `/statements/{statement_id}/review/envelope` | yes | `statement_id`* (path) | `ReviewedStatementEnvelopeRequest` | `200` `ReviewedStatementEnvelopeResponse` | Confirm Statement Review Envelope |
-| `POST` | `/statements/{statement_id}/review/opening-balance` | yes | `statement_id`* (path) | `SetOpeningBalanceRequest` | `200` `BankStatementResponse` | Set Statement Opening Balance |
 | `POST` | `/statements/{statement_id}/review/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
 | `GET` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | - | `200` `ListResponse_StatementRunRecord_` | List Statement Runs |
 | `POST` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | `StatementRunRequest` | `202` `StatementRunRecord` | Create Statement Run |
-| `GET` | `/statements/{statement_id}/transactions` | yes | `statement_id`* (path) | - | `200` `ListResponse_AtomicTransactionResponse_` | List Statement Transactions |
 
 ### untagged
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/health` | no | `full` (query) | - | `200` - | Health Check |
-| `GET` | `/ping` | no | - | - | `200` `PingStateResponse` | Get Ping State |
 
 ### user-settings
 

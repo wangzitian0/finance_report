@@ -14,7 +14,6 @@ satisfy.
 
 from __future__ import annotations
 
-from src.platform.extension.api import PingStateResponse, router as platform_system_router
 from src.platform.extension.bus import OutboxEventBus, RecordingEventBus
 from src.platform.extension.http_errors import (
     BaseAppException,
@@ -46,7 +45,6 @@ __all__ = [
     "BaseAppException",
     "OutboxEventBus",
     "OutboxRelay",
-    "PingStateResponse",
     "RateLimitConfig",
     "RateLimitState",
     "RateLimiter",
@@ -66,5 +64,4 @@ __all__ = [
     "raise_too_large",
     "raise_too_many_requests",
     "raise_unauthorized",
-    "platform_system_router",
 ]

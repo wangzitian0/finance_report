@@ -47,7 +47,6 @@ from src.reporting import (
     generate_cash_flow,
     generate_income_statement,
     get_account_lineage,
-    get_category_breakdown,
     get_net_worth_allocation_schedule,
     get_net_worth_timeseries,
     package_currency as _package_currency,
@@ -65,9 +64,6 @@ from src.reporting import (
 from src.schemas import (
     AccountLineageResponse,
     BalanceSheetResponse,
-    BreakdownPeriod,
-    BreakdownType,
-    CategoryBreakdownResponse,
     IncomeStatementResponse,
     NetWorthAllocationResponse,
     NetWorthGranularity,
@@ -327,37 +323,6 @@ async def list_personal_report_package_policy_decisions(
     )
     await db.commit()
     return PersonalReportPackagePolicyDecisionsPage(**_page_fields(decisions, pagination, "decisions"))
-
-
-@router.get("/package/cash-flow-events", response_model=CashFlowLineEventsPage)
-async def list_personal_report_package_cash_flow_events(
-    line_id: str = Query(min_length=1, max_length=64, description="A cash-flow line_id of GET /reports/package"),
-    start_date: date | None = Query(default=None),
-    end_date: date | None = Query(default=None),
-    as_of_date: date | None = Query(default=None),
-    currency: str | None = Query(default=None, min_length=3, max_length=3),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-    pagination: Pagination,
-) -> CashFlowLineEventsPage:
-    """Return one page of lineage records for a package cash-flow line."""
-    report_start, report_end, report_as_of, target_currency = await _package_period(
-        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
-    )
-    events = await PackageAssembler().cash_flow_events(
-        db,
-        user_id=user_id,
-        start_date=report_start,
-        end_date=report_end,
-        as_of_date=report_as_of,
-        currency=target_currency,
-        line_id=line_id,
-    )
-    await db.commit()
-    if events is None:
-        raise_not_found("Cash-flow line")
-    return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
 
 
 @router.post("/package/generate", response_model=PersonalReportPackageSnapshotResponse)
@@ -752,30 +717,6 @@ async def net_worth_allocation(
         ),
     )
     return NetWorthAllocationResponse.model_validate(report)
-
-
-@router.get("/breakdown", response_model=CategoryBreakdownResponse)
-async def category_breakdown(
-    breakdown_type: BreakdownType = Query(..., alias="type"),
-    period: BreakdownPeriod = Query(default=BreakdownPeriod.MONTHLY),
-    currency: str | None = Query(default=None, min_length=3, max_length=3),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> CategoryBreakdownResponse:
-    """Get income or expense category breakdown."""
-    account_type = AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
-    report = await _run_fresh_report(
-        db,
-        user_id,
-        currency=currency,
-        end_date=date.today(),
-        label="Category breakdown generation",
-        build=lambda: get_category_breakdown(
-            db, user_id, breakdown_type=account_type, period=period.value, currency=currency
-        ),
-    )
-    return CategoryBreakdownResponse.model_validate(report)
 
 
 @router.get("/export")
