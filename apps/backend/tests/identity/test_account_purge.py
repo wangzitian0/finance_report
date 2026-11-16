@@ -144,10 +144,10 @@ class TestStagingTenantRotation:
         assert "workflow_sync_states" in owned
         assert {"atomic_transaction_source_documents", "atomic_position_source_documents", "journal_lines"} <= children
 
-    async def test_staging_selection_respects_disposable_prefixes_age_and_allowlist(self, db):
+    async def test_selection_respects_disposable_prefixes_age_and_allowlist(self, db):
         """AC-identity.purge.7"""
         from datetime import UTC, datetime, timedelta
-        from src.identity import PERSISTENT_TEST_EMAILS, STAGING_DISPOSABLE_EMAIL_PATTERN
+        from src.identity import DEFAULT_TEST_EMAIL_PATTERN, PERSISTENT_TEST_EMAILS
 
         old_ts = datetime.now(UTC) - timedelta(days=20)
         fresh_ts = datetime.now(UTC) - timedelta(days=3)
@@ -180,7 +180,7 @@ class TestStagingTenantRotation:
 
         selected = await select_test_user_ids(
             db,
-            STAGING_DISPOSABLE_EMAIL_PATTERN,
+            DEFAULT_TEST_EMAIL_PATTERN,
             older_than_days=14,
             exclude_emails=PERSISTENT_TEST_EMAILS,
         )
@@ -190,7 +190,7 @@ class TestStagingTenantRotation:
         for user in protected:
             assert user.email not in selected_emails
 
-    async def test_purge_staging_tenant_data_refuses_non_staging_and_cleans_trigger_tables(self, db):
+    async def test_purge_test_accounts_rotates_trigger_tables_and_refuses_production(self, db):
         """AC-identity.purge.8"""
         from datetime import UTC, datetime, timedelta
         import pytest
@@ -210,7 +210,7 @@ class TestStagingTenantRotation:
         )
         from src.extraction.orm.statement_summary import StatementSummary
         from src.extraction import BankStatementStatus, Stage1Status
-        from src.identity import purge_staging_tenant_data
+        from src.identity import purge_test_accounts
         from src.ledger import JournalEntry, JournalLine
         from src.workflow.orm.models import WorkflowSyncState
         from tests.factories import AtomicTransactionFactory, StatementSummaryFactory, UploadedDocumentFactory
@@ -379,16 +379,22 @@ class TestStagingTenantRotation:
 
         # 1. Fail closed outside safe staging/dev environments
         with pytest.raises(PermissionError):
-            await purge_staging_tenant_data(db, environment="production", apply=True)
+            await purge_test_accounts(
+                db, environment="production", rotate_append_only=True, older_than_days=14, apply=True
+            )
 
         # 2. Dry run persists nothing
-        dry_report = await purge_staging_tenant_data(db, environment="staging", older_than_days=14, apply=False)
+        dry_report = await purge_test_accounts(
+            db, environment="staging", rotate_append_only=True, older_than_days=14, apply=False
+        )
         assert dry_report.applied is False
         assert victim_email in dry_report.purged
         assert await _user_exists(db, victim_id)
 
         # 3. Apply removes victim + every trigger/FK-protected row cleanly, sparing bystander
-        apply_report = await purge_staging_tenant_data(db, environment="staging", older_than_days=14, apply=True)
+        apply_report = await purge_test_accounts(
+            db, environment="staging", rotate_append_only=True, older_than_days=14, apply=True
+        )
         await db.commit()
         assert apply_report.applied is True
         assert victim_email in apply_report.purged

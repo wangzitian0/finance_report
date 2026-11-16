@@ -51,7 +51,6 @@ get_current_user_id|svc|extension/auth.py
 @svc|extension/api/auth.py|register login
 bind_authenticated_user_context|svc|extension/observability.py
 purge_test_accounts|svc|extension/account_purge.py
-purge_staging_tenant_data|svc|extension/account_purge.py
 PurgeReport|vo
 UserRepository|repo|base/repository.py|extension/sql.py
 """
@@ -59,13 +58,12 @@ UserRepository|repo|base/repository.py|extension/sql.py
     interface="""
 AUTH_COOKIE_NAME AiFeedback AiFeedbackRequest AiFeedbackResponse
 AiSuggestionListResponse AiSuggestionResponse AuthResponse DEFAULT_TEST_EMAIL_PATTERN
-LoginRequest PERSISTENT_TEST_EMAILS PurgeReport RegisterRequest
-STAGING_DISPOSABLE_EMAIL_PATTERN User UserAiSettingsResponse UserAiSettingsUpdate
-UserBase UserRepository UserResponse UserUpdate auth_rate_limiter
-auth_router bind_authenticated_user_context create_access_token decode_access_token
-get_current_user_id get_me hash_password is_safe_purge_environment login normalize_email
-oauth2_scheme purge_staging_tenant_data purge_test_accounts register
-register_rate_limiter verify_password
+LoginRequest PERSISTENT_TEST_EMAILS PurgeReport RegisterRequest User
+UserAiSettingsResponse UserAiSettingsUpdate UserBase UserRepository UserResponse
+UserUpdate auth_rate_limiter auth_router bind_authenticated_user_context
+create_access_token decode_access_token get_current_user_id get_me hash_password
+is_safe_purge_environment login normalize_email oauth2_scheme purge_test_accounts
+register register_rate_limiter verify_password
 """.split(),
     events=[],
     invariants=invs(
@@ -107,8 +105,8 @@ purge.3||test_account_with_posted_ledger_entry_is_blocked_not_deleted
 purge.4||test_dry_run_reports_but_persists_nothing
 purge.5||test_environment_guard_allows_dev_staging_and_refuses_production
 purge.6||test_owned_tables_loads_workflow_sync_states_and_child_fk_tables|P1
-purge.7||test_staging_selection_respects_disposable_prefixes_age_and_allowlist|P1
-purge.8||test_purge_staging_tenant_data_refuses_non_staging_and_cleans_trigger_tables|P1
+purge.7||test_selection_respects_disposable_prefixes_age_and_allowlist|P1
+purge.8||test_purge_test_accounts_rotates_trigger_tables_and_refuses_production|P1
 @$fe/__tests__/auth.test.ts|P2
 fe-auth.1||AC16.5.1/AC16.5.2 returns null when key is not set
 fe-auth.2||AC16.5.2 returns stored userId from localStorage

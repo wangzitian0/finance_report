@@ -20,8 +20,7 @@ from src.observability import get_logger
 
 logger = get_logger(__name__)
 
-DEFAULT_TEST_EMAIL_PATTERN = r"^(qa[._].*|e2e[-_].*|load-test[-_].*)@(test\.)?example\.com$"
-STAGING_DISPOSABLE_EMAIL_PATTERN = (
+DEFAULT_TEST_EMAIL_PATTERN = (
     r"^(?:"
     r"qa[._].*|qa-(?!staging-verify$)[^@]*|"
     r"e2e[-_].*|load-test[-_].*|agent[-_](?:random|acceptance)[-_].*|"
@@ -184,44 +183,6 @@ async def _delete_tenant_batch(
     await session.execute(delete(User).where(User.id.in_(id_list)))
 
 
-async def purge_test_accounts(
-    session: AsyncSession,
-    *,
-    pattern: str = DEFAULT_TEST_EMAIL_PATTERN,
-    apply: bool = False,
-) -> PurgeReport:
-    report = PurgeReport(applied=apply)
-    users = await select_test_user_ids(session, pattern)
-    report.matched = [email for _, email in users]
-    if not users:
-        return report
-
-    owned_tables = owned_tables_in_delete_order()
-    child_links = _child_fk_links()
-    for user_id, email in users:
-        try:
-            async with session.begin_nested():
-                await _delete_tenant_batch(
-                    session,
-                    [user_id],
-                    owned_tables,
-                    child_links,
-                    include_tenant_traces=False,
-                )
-                if not apply:
-                    raise _DryRunRollback
-        except _DryRunRollback:
-            report.purged.append(email)
-        except (IntegrityError, DBAPIError) as exc:
-            reason = _block_reason(exc)
-            report.blocked.append((email, reason))
-            logger.warning("test-account purge blocked", email=email, reason=reason)
-        else:
-            report.purged.append(email)
-            logger.info("test-account purged", email=email)
-    return report
-
-
 async def _set_postgresql_replication_role(session: AsyncSession, role: str) -> bool:
     conn = await session.connection()
     if conn.dialect.name != "postgresql":
@@ -230,23 +191,19 @@ async def _set_postgresql_replication_role(session: AsyncSession, role: str) -> 
     return True
 
 
-async def purge_staging_tenant_data(
+async def purge_test_accounts(
     session: AsyncSession,
     *,
-    environment: str | None,
-    pattern: str = STAGING_DISPOSABLE_EMAIL_PATTERN,
-    older_than_days: int = 14,
+    pattern: str = DEFAULT_TEST_EMAIL_PATTERN,
+    older_than_days: int | None = None,
     exclude_emails: Iterable[str] = PERSISTENT_TEST_EMAILS,
+    rotate_append_only: bool = False,
+    environment: str | None = None,
     apply: bool = False,
 ) -> PurgeReport:
-    """Reclaim aged disposable staging tenants including append-only ledger/trace/envelope rows.
-
-    Refuses non-staging/production environments before executing any statement. Runs inside a
-    savepoint with ``SET LOCAL session_replication_role = 'replica'`` so production DDL triggers
-    remain untouched while leaf-to-root deletes leave zero orphan rows.
-    """
-    if not is_safe_purge_environment(environment):
-        raise PermissionError(f"Refusing staging tenant rotation in unsafe environment {environment!r}")
+    """Purge matching test accounts cleanly, or rotate aged staging tenants past append-only triggers."""
+    if rotate_append_only and not is_safe_purge_environment(environment):
+        raise PermissionError(f"Refusing append-only tenant rotation in unsafe environment {environment!r}")
 
     report = PurgeReport(applied=apply)
     users = await select_test_user_ids(
@@ -261,13 +218,37 @@ async def purge_staging_tenant_data(
 
     owned_tables = owned_tables_in_delete_order()
     child_links = _child_fk_links()
+
+    if not rotate_append_only:
+        for user_id, email in users:
+            try:
+                async with session.begin_nested():
+                    await _delete_tenant_batch(
+                        session,
+                        [user_id],
+                        owned_tables,
+                        child_links,
+                        include_tenant_traces=False,
+                    )
+                    if not apply:
+                        raise _DryRunRollback
+            except _DryRunRollback:
+                report.purged.append(email)
+            except (IntegrityError, DBAPIError) as exc:
+                reason = _block_reason(exc)
+                report.blocked.append((email, reason))
+                logger.warning("test-account purge blocked", email=email, reason=reason)
+            else:
+                report.purged.append(email)
+                logger.info("test-account purged", email=email)
+        return report
+
     try:
         async with session.begin_nested():
             switched = await _set_postgresql_replication_role(session, "replica")
             try:
                 for start in range(0, len(users), _PURGE_BATCH_SIZE):
-                    batch = users[start : start + _PURGE_BATCH_SIZE]
-                    batch_ids = [uid for uid, _ in batch]
+                    batch_ids = [uid for uid, _ in users[start : start + _PURGE_BATCH_SIZE]]
                     await _delete_tenant_batch(
                         session,
                         batch_ids,
@@ -279,7 +260,6 @@ async def purge_staging_tenant_data(
                 if switched:
                     await _set_postgresql_replication_role(session, "origin")
 
-            # Verify zero remaining trace or user rows for deleted tenants before committing.
             trace_table = Base.metadata.tables.get("trace_records")
             if trace_table is not None:
                 scope_val = _tenant_scope_value(trace_table)
