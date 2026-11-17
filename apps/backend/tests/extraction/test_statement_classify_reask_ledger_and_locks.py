@@ -14,15 +14,22 @@ import contextlib
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from src.audit import JournalEntrySourceType
+from src.composition import compose_reviewed_disposition_dependencies
 from src.config import settings
 from src.database import create_session_maker_from_db
-from src.extraction import ClassificationStatus, RunState, apply_suggestion_feedback, settle_drafts_after_posting
+from src.extraction import (
+    ClassificationStatus,
+    EconomicIntent,
+    RunState,
+    apply_suggestion_feedback,
+    settle_drafts_after_posting,
+)
 from src.extraction.extension import transaction_classification as tc
-from src.ledger import JournalEntry
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, void_journal_entry
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus, ReviewedDispositionCommand, submit_reviewed_disposition
 from tests.extraction.test_statement_classify_reask import (
     ANSWERS,
     ReaskModel,
@@ -274,3 +281,44 @@ async def test_AC_extraction_2994_148_a_feedback_that_arrives_while_the_batch_ho
     old, new = await _history(db, test_user, "Grab")
     assert (old.status, new.status) == (ClassificationStatus.SUPERSEDED, ClassificationStatus.APPLIED)
     assert "corrected_by_user" not in new.tags and "corrected_by_user" not in old.tags
+
+
+async def test_AC_extraction_3057_void_journal_entry_does_not_block_reask(db, test_user, monkeypatch):
+    """#3057 Case 4: A VOID journal entry is not covered by the ledger, so re-ask still classifies the row."""
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", False)
+    seeded, _auto_run_id, _automatic = await _classified_statement(
+        db, test_user, monkeypatch, model=ReaskModel(confidence=DRAFT_CONFIDENCE)
+    )
+    grab_txn = _txn(seeded, "Grab")
+    draft = await _answer(db, test_user, "Grab")
+    bank = Account(user_id=test_user.id, name="Bank of void test", type=AccountType.ASSET, currency="SGD")
+    db.add(bank)
+    await db.flush()
+    seeded.statement.account_id = bank.id
+    await db.flush()
+    await submit_reviewed_disposition(
+        db,
+        transaction_id=grab_txn.id,
+        user_id=test_user.id,
+        command=ReviewedDispositionCommand(
+            intent=EconomicIntent.EXPENSE,
+            counter_account_id=draft.account_id,
+            category="GENERAL",
+            rationale="Posted before voiding.",
+        ),
+        dependencies=compose_reviewed_disposition_dependencies(db),
+    )
+    posted_entry = await db.scalar(select(JournalEntry).where(JournalEntry.source_id == grab_txn.id))
+    assert posted_entry is not None
+    await void_journal_entry(db, posted_entry.id, "Voided before re-ask", test_user.id)
+    await db.commit()
+    assert posted_entry.status is JournalEntryStatus.VOID
+
+    reasked = _install(monkeypatch, ReaskModel())
+    run_id = await _user_run(db, seeded.id, test_user)
+
+    await _worker(create_session_maker_from_db(db), run_id)
+
+    assert (await _run(db, run_id)).state is RunState.SUCCEEDED
+    assert "Grab" in reasked.asked_kinds
+    assert len(await _history(db, test_user, "Grab")) == 2

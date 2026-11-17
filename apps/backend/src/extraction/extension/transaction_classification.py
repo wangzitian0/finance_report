@@ -629,6 +629,7 @@ async def _already_classified_ids(
                 select(TransactionClassification.atomic_txn_id)
                 .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
                 .where(TransactionClassification.rule_version_id.in_(current_rules))
+                .where(TransactionClassification.status.in_(LIVE_STATUSES))
             )
         )
         .scalars()

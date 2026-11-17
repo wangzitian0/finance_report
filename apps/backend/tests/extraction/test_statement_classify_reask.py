@@ -354,3 +354,22 @@ async def test_AC_extraction_2994_150_a_run_that_failed_resumes_and_skips_the_ro
     await _worker(create_session_maker_from_db(db), other_id)
 
     assert other.asked_kinds == set(ANSWERS), "other hints ask every row"
+
+
+async def test_AC_extraction_3057_superseded_row_for_current_policy_does_not_block_classify(
+    db, test_user, monkeypatch
+):
+    """#3057: An orphaned SUPERSEDED row under the current policy version must not skip automatic classification."""
+    seeded, _auto_run_id, _automatic = await _classified_statement(db, test_user, monkeypatch)
+    grab_answer = await _answer(db, test_user, "Grab")
+    grab_answer.status = ClassificationStatus.SUPERSEDED
+    await db.commit()
+
+    rerun = _install(monkeypatch, ReaskModel())
+    second_run_id = await classify_statement(db, seeded.id)
+
+    assert (await _run(db, second_run_id)).state is RunState.SUCCEEDED
+    assert rerun.asked_kinds == {"Grab"}, "the superseded row has no live answer and must be classified"
+    live_grab = await _answer(db, test_user, "Grab")
+    assert live_grab.status in (ClassificationStatus.APPLIED, ClassificationStatus.DRAFT)
+    assert live_grab.tags["run_id"] == str(second_run_id)
