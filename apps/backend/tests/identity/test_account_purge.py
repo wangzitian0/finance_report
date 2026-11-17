@@ -142,7 +142,13 @@ class TestStagingTenantRotation:
         owned = {t.name for t in owned_tables_in_delete_order()}
         children = {t.name for t in non_user_child_tables_in_delete_order()}
         assert "workflow_sync_states" in owned
-        assert {"atomic_transaction_source_documents", "atomic_position_source_documents", "journal_lines"} <= children
+        assert {
+            "atomic_transaction_source_documents",
+            "atomic_position_source_documents",
+            "journal_lines",
+            "reconciliation_matches",
+            "reconciliation_transfer_pair_legs",
+        } <= children
 
     async def test_selection_respects_disposable_prefixes_age_and_allowlist(self, db):
         """AC-identity.purge.7"""
@@ -427,5 +433,159 @@ class TestStagingTenantRotation:
         assert (
             await db.execute(
                 select(func.count()).select_from(TraceRecordRow).where(TraceRecordRow.scope_id == str(bystander_id))
+            )
+        ).scalar_one() == 1
+
+    async def test_purge_test_accounts_cleans_2hop_transfer_pair_legs_and_pairs(self, db):
+        from datetime import UTC, datetime, timedelta
+        from src.reconciliation.orm.reconciliation import (
+            DispositionKind,
+            ReconciliationMatch,
+            ReconciliationStatus,
+            ReconciliationTransferPair,
+            ReconciliationTransferPairLeg,
+            TransferPairDecision,
+            TransferPairLegRole,
+            TransferPairReviewState,
+        )
+
+        old_ts = datetime.now(UTC) - timedelta(days=20)
+        victim_normal = await UserFactory.create_async(
+            db, email="qa.transfer-normal@example.com", created_at=old_ts, updated_at=old_ts
+        )
+        victim_rotate = await UserFactory.create_async(
+            db, email="qa.transfer-rotate@example.com", created_at=old_ts, updated_at=old_ts
+        )
+        bystander = await UserFactory.create_async(
+            db, email="real.transfer-keep@gmail.com", created_at=old_ts, updated_at=old_ts
+        )
+        await db.flush()
+
+        async def _seed_pair(user_id: UUID) -> tuple[UUID, tuple[UUID, UUID]]:
+            t_out = AtomicTransaction(
+                user_id=user_id,
+                txn_date=date(2026, 2, 1),
+                amount=Decimal("200.00"),
+                direction=TransactionDirection.OUT,
+                description="transfer out",
+                currency="SGD",
+                dedup_hash=uuid4().hex,
+                source_documents=[],
+            )
+            t_in = AtomicTransaction(
+                user_id=user_id,
+                txn_date=date(2026, 2, 1),
+                amount=Decimal("200.00"),
+                direction=TransactionDirection.IN,
+                description="transfer in",
+                currency="SGD",
+                dedup_hash=uuid4().hex,
+                source_documents=[],
+            )
+            db.add_all([t_out, t_in])
+            await db.flush()
+            m_out = ReconciliationMatch(
+                atomic_txn_id=t_out.id,
+                disposition_kind=DispositionKind.TRANSFER_LEG,
+                status=ReconciliationStatus.ACCEPTED,
+                match_score=95,
+            )
+            m_in = ReconciliationMatch(
+                atomic_txn_id=t_in.id,
+                disposition_kind=DispositionKind.TRANSFER_LEG,
+                status=ReconciliationStatus.ACCEPTED,
+                match_score=95,
+            )
+            pair = ReconciliationTransferPair(
+                decision=TransferPairDecision.REVIEWER_PAIRED,
+                review_state=TransferPairReviewState.PAIRED,
+                confidence=95,
+            )
+            db.add_all([m_out, m_in, pair])
+            await db.flush()
+            db.add_all(
+                [
+                    ReconciliationTransferPairLeg(
+                        pair_id=pair.id, role=TransferPairLegRole.OUT, disposition_id=m_out.id
+                    ),
+                    ReconciliationTransferPairLeg(
+                        pair_id=pair.id, role=TransferPairLegRole.IN, disposition_id=m_in.id
+                    ),
+                ]
+            )
+            await db.flush()
+            return pair.id, (m_out.id, m_in.id)
+
+        normal_pair_id, _ = await _seed_pair(victim_normal.id)
+        rotate_pair_id, _ = await _seed_pair(victim_rotate.id)
+        keep_pair_id, _ = await _seed_pair(bystander.id)
+        normal_uid = victim_normal.id
+        rotate_uid = victim_rotate.id
+        keep_uid = bystander.id
+        await db.commit()
+
+        # 1. Normal mode: fails with IntegrityError if 2-hop legs aren't removed before reconciliation_matches
+        normal_report = await purge_test_accounts(
+            db, pattern=r"^qa\.transfer-normal@", rotate_append_only=False, apply=True
+        )
+        await db.commit()
+        assert "qa.transfer-normal@example.com" in normal_report.purged
+        assert not normal_report.blocked
+        assert not await _user_exists(db, normal_uid)
+        assert (
+            await db.execute(
+                select(func.count())
+                .select_from(ReconciliationTransferPairLeg)
+                .where(ReconciliationTransferPairLeg.pair_id == normal_pair_id)
+            )
+        ).scalar_one() == 0
+        assert (
+            await db.execute(
+                select(func.count())
+                .select_from(ReconciliationTransferPair)
+                .where(ReconciliationTransferPair.id == normal_pair_id)
+            )
+        ).scalar_one() == 0
+
+        # 2. Rotation mode: leaves zero orphan legs or pairs for victim while sparing bystander
+        rotate_report = await purge_test_accounts(
+            db,
+            pattern=r"^qa\.transfer-rotate@",
+            environment="staging",
+            rotate_append_only=True,
+            older_than_days=14,
+            apply=True,
+        )
+        await db.commit()
+        assert "qa.transfer-rotate@example.com" in rotate_report.purged
+        assert not rotate_report.blocked
+        assert not await _user_exists(db, rotate_uid)
+        assert (
+            await db.execute(
+                select(func.count())
+                .select_from(ReconciliationTransferPairLeg)
+                .where(ReconciliationTransferPairLeg.pair_id == rotate_pair_id)
+            )
+        ).scalar_one() == 0
+        assert (
+            await db.execute(
+                select(func.count())
+                .select_from(ReconciliationTransferPair)
+                .where(ReconciliationTransferPair.id == rotate_pair_id)
+            )
+        ).scalar_one() == 0
+        assert await _user_exists(db, keep_uid)
+        assert (
+            await db.execute(
+                select(func.count())
+                .select_from(ReconciliationTransferPairLeg)
+                .where(ReconciliationTransferPairLeg.pair_id == keep_pair_id)
+            )
+        ).scalar_one() == 2
+        assert (
+            await db.execute(
+                select(func.count())
+                .select_from(ReconciliationTransferPair)
+                .where(ReconciliationTransferPair.id == keep_pair_id)
             )
         ).scalar_one() == 1
