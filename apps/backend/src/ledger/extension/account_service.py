@@ -11,6 +11,7 @@ from src.audit.money import Currency
 from src.database import create_session_maker_from_db
 from src.ledger.base.validators import ValidationError
 from src.ledger.orm.account import Account, AccountType
+from src.platform.base.errors import DomainError, ResourceNotFoundError
 from src.schemas.account import AccountCreate, AccountUpdate
 
 #: Returns the account that a lookup names, or ``None``. It runs on the session that it gets.
@@ -32,11 +33,11 @@ CROSS_PERIOD_GAP_PLUG_TOLERANCE = Decimal("0.10")
 CROSS_PERIOD_GAP_PLUG_EVENT_TYPE = "cross_period_gap_plug"
 
 
-class AccountServiceError(Exception):
+class AccountServiceError(DomainError):
     """Base exception for account service errors."""
 
 
-class AccountNotFoundError(AccountServiceError):
+class AccountNotFoundError(ResourceNotFoundError, AccountServiceError):
     """Account not found error."""
 
 

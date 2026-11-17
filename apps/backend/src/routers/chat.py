@@ -22,7 +22,12 @@ from src.advisor import (
 from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.llm import LitellmCatalog, LLMError
 from src.observability import get_logger
-from src.platform import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable
+from src.platform import (
+    ResourceNotFoundError,
+    ServiceUnavailableError,
+    ValidationFailedError,
+    get_owned_or_raise,
+)
 from src.schemas.chat import (
     ChatHistoryResponse,
     ChatMessagePreview,
@@ -85,9 +90,9 @@ async def _validate_requested_model(service: AIAdvisorService, model: str | None
         allowed = await LitellmCatalog().get(model) is not None
     except Exception as exc:
         logger.error("Failed to validate model", model=model, error=str(exc))
-        raise_service_unavailable("Unable to validate requested model at this time.", cause=exc)
+        raise ServiceUnavailableError("Unable to validate requested model at this time.") from exc
     if not allowed:
-        raise_bad_request("Invalid model selection.")
+        raise ValidationFailedError("Invalid model selection.")
 
 
 @router.post("", response_class=StreamingResponse)
@@ -95,26 +100,19 @@ async def chat_message(payload: ChatRequest, *, db: DbSession, user_id: CurrentU
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
     await _validate_requested_model(service, payload.model)
-    stream_iter = None
+    stream = await service.chat_stream(db, user_id, payload.message, payload.session_id, payload.model)
+    stream_iter = aiter(stream.stream)
     try:
-        stream = await service.chat_stream(db, user_id, payload.message, payload.session_id, payload.model)
-        stream_iter = aiter(stream.stream)
         first_chunk = await anext(stream_iter, None)
-    except AIAdvisorError as exc:
-        if stream_iter is not None and hasattr(stream_iter, "aclose"):
+    except Exception:
+        if hasattr(stream_iter, "aclose"):
             await stream_iter.aclose()
-        detail = str(exc)
-        low = detail.lower()
-        if "not found" in low:
-            raise_not_found("Chat session", cause=exc)
-        if any(k in low for k in ("api key", "aistreamerror", "llmerror")) or isinstance(exc.__cause__, LLMError):
-            raise_service_unavailable("AI service temporarily unavailable.", cause=exc)
-        raise_bad_request(detail, cause=exc)
+        raise
 
     if first_chunk is None or not str(first_chunk).strip():
-        if stream_iter is not None and hasattr(stream_iter, "aclose"):
+        if hasattr(stream_iter, "aclose"):
             await stream_iter.aclose()
-        raise_service_unavailable("AI service temporarily unavailable.")
+        raise ServiceUnavailableError("AI service temporarily unavailable.")
 
     await db.flush()
 
@@ -166,7 +164,7 @@ async def chat_history(
             )
         ).scalar_one_or_none()
         if not session:
-            raise_not_found("Chat session")
+            raise ResourceNotFoundError("Chat session not found")
         messages = (
             (
                 await db.execute(
@@ -233,7 +231,7 @@ async def chat_history(
 @router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(session_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> None:
     """Soft-delete a chat session."""
-    session = await get_owned_or_404(db, ChatSession, session_id, user_id, name="Chat session")
+    session = await get_owned_or_raise(db, ChatSession, session_id, user_id, name="Chat session")
     session.status = ChatSessionStatus.DELETED
     await db.flush()
 

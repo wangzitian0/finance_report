@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from src.platform.base.errors import DomainError
 
-class LedgerError(Exception):
+
+class LedgerError(DomainError):
     """Base class for every ledger-domain error."""
 
 
-class UnbalancedEntryError(LedgerError, ValueError):
+class UnbalancedEntryError(LedgerError):
     """An entry's debits and credits do not net to zero per currency.
 
     This is the system's central invariant: a double-entry posting must balance.
@@ -16,7 +18,7 @@ class UnbalancedEntryError(LedgerError, ValueError):
     """
 
 
-class DegenerateEntryError(LedgerError, ValueError):
+class DegenerateEntryError(LedgerError):
     """An entry was constructed with fewer than two legs.
 
     A double-entry posting needs at least one debit and one credit; an empty or

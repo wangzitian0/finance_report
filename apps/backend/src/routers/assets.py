@@ -9,12 +9,11 @@ from fastapi import APIRouter, Query, status
 
 from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.observability import get_logger
-from src.platform import ValidationFailedError, raise_bad_request, raise_internal_error, raise_not_found
-from src.portfolio import PositionService, PositionServiceError
+from src.platform import DomainError, InternalServiceError, ResourceNotFoundError, ValidationFailedError
+from src.portfolio import PositionService
 from src.pricing import (
     ManualValuationComponentType,
     ValuationService,
-    ValuationServiceError,
 )
 from src.reporting import DEFAULT_INCLUDE_RESTRICTED
 from src.schemas.assets import (
@@ -62,9 +61,11 @@ async def create_valuation_snapshot(
         )
         await db.flush()
         await db.refresh(snapshot)
+    except DomainError:
+        raise
     except Exception as e:
         logger.error("Manual valuation snapshot create failed", error=str(e), user_id=str(user_id))
-        raise_internal_error("Manual valuation snapshot create failed", cause=e)
+        raise InternalServiceError("Manual valuation snapshot create failed") from e
 
     return ManualValuationSnapshotResponse.model_validate(snapshot)
 
@@ -113,7 +114,7 @@ async def get_valuation_snapshot(
     """Get a manual valuation snapshot."""
     snapshot = await _valuations.get_valuation_snapshot(db, user_id, snapshot_id)
     if not snapshot:
-        raise_not_found("Manual valuation snapshot")
+        raise ResourceNotFoundError("Manual valuation snapshot not found")
     return ManualValuationSnapshotResponse.model_validate(snapshot)
 
 
@@ -133,13 +134,13 @@ async def update_valuation_snapshot(
             values=payload.model_dump(exclude_unset=True),
         )
         await db.flush()
-    except (PositionServiceError, ValuationServiceError) as e:
-        raise_bad_request(str(e), cause=e)
+    except DomainError:
+        raise
     except Exception as e:
         logger.error("Manual valuation snapshot update failed", error=str(e), user_id=str(user_id))
-        raise_internal_error("Manual valuation snapshot update failed", cause=e)
+        raise InternalServiceError("Manual valuation snapshot update failed") from e
     if not snapshot:
-        raise_not_found("Manual valuation snapshot")
+        raise ResourceNotFoundError("Manual valuation snapshot not found")
     await db.refresh(snapshot)
     return ManualValuationSnapshotResponse.model_validate(snapshot)
 
@@ -151,12 +152,9 @@ async def delete_valuation_snapshot(
     user_id: CurrentUserId,
 ) -> None:
     """Reject destructive deletion of an immutable manual valuation snapshot."""
-    try:
-        deleted = await _valuations.delete_valuation_snapshot(db, user_id, snapshot_id)
-    except ValuationServiceError as exc:
-        raise_bad_request(str(exc), cause=exc)
+    deleted = await _valuations.delete_valuation_snapshot(db, user_id, snapshot_id)
     if not deleted:
-        raise_not_found("Manual valuation snapshot")
+        raise ResourceNotFoundError("Manual valuation snapshot not found")
 
 
 @router.get("/valuation-components", response_model=ValuationComponentsResponse)
@@ -202,19 +200,15 @@ async def get_position_depreciation(
         useful_life_years=useful_life_years,
     )
 
-    try:
-        result = await _positions.get_depreciation_schedule(
-            db=db,
-            user_id=user_id,
-            position_id=position_id,
-            method=method,
-            useful_life_years=useful_life_years,
-            salvage_value=salvage_value,
-            as_of_date=as_of_date,
-        )
-    except (PositionServiceError, ValuationServiceError) as e:
-        logger.warning("Depreciation calculation failed", error=str(e))
-        raise_bad_request(str(e))
+    result = await _positions.get_depreciation_schedule(
+        db=db,
+        user_id=user_id,
+        position_id=position_id,
+        method=method,
+        useful_life_years=useful_life_years,
+        salvage_value=salvage_value,
+        as_of_date=as_of_date,
+    )
 
     return DepreciationResponse(
         position_id=result.position_id,

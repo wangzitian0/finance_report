@@ -5,34 +5,15 @@ Depends on ``src.database`` (the shared ORM Base/session) and on the package's o
 table + its :class:`SqlOutboxRepository` adapter (``sql.py``), the
 :class:`OutboxEventBus`/:class:`RecordingEventBus` bus adapters (``bus.py``), the
 :class:`OutboxRelay` post-commit dispatcher (``relay.py``), the cross-cutting
-request :class:`RateLimiter` middleware (``rate_limit.py``), the shared HTTP
-error vocabulary (``http_errors.py``: the ``raise_*`` helpers +
-:class:`BaseAppException`), and the shared owned-row/pagination query helpers
-(``queries.py``). The ``base`` layer stays pure behind the ports these adapters
-satisfy.
+request :class:`RateLimiter` middleware (``rate_limit.py``), and the shared
+owned-row/pagination query helpers (``queries.py``). The ``base`` layer stays
+pure behind the ports these adapters satisfy.
 """
 
 from __future__ import annotations
 
 from src.platform.extension.bus import OutboxEventBus, RecordingEventBus
-from src.platform.extension.http_errors import (
-    BaseAppException,
-    ConflictError,
-    DomainError,
-    PreconditionFailedError,
-    ResourceNotFoundError,
-    ValidationFailedError,
-    raise_bad_request,
-    raise_conflict,
-    raise_gateway_timeout,
-    raise_internal_error,
-    raise_not_found,
-    raise_service_unavailable,
-    raise_too_large,
-    raise_too_many_requests,
-    raise_unauthorized,
-)
-from src.platform.extension.queries import get_owned_or_404, paginate
+from src.platform.extension.queries import get_owned_or_raise, paginate
 from src.platform.extension.rate_limit import (
     RateLimitConfig,
     RateLimiter,
@@ -47,31 +28,16 @@ from src.platform.extension.sql import (
 )
 
 __all__ = [
-    "BaseAppException",
-    "ConflictError",
-    "DomainError",
     "OutboxEventBus",
     "OutboxRelay",
-    "PreconditionFailedError",
     "RateLimitConfig",
     "RateLimitState",
     "RateLimiter",
     "RecordingEventBus",
-    "ResourceNotFoundError",
     "STATUS_PENDING",
     "STATUS_PUBLISHED",
     "SqlOutboxRepository",
-    "ValidationFailedError",
     "get_client_ip",
-    "get_owned_or_404",
+    "get_owned_or_raise",
     "paginate",
-    "raise_bad_request",
-    "raise_conflict",
-    "raise_gateway_timeout",
-    "raise_internal_error",
-    "raise_not_found",
-    "raise_service_unavailable",
-    "raise_too_large",
-    "raise_too_many_requests",
-    "raise_unauthorized",
 ]

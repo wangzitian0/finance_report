@@ -18,18 +18,15 @@ from src.platform import PreconditionFailedError, ResourceNotFoundError
 from src.portfolio import (
     AssetNotFoundError,
     InvestmentAccountingService,
-    InvestmentAccountingValidationError,
     InvestmentTransaction,
     InvestmentTransactionType,
     PortfolioNotFoundError,
-    PositionServiceError,
     build_investment_performance_report_schedule,
     get_asset_class_allocation as asset_class_allocation_breakdowns,
     get_geography_allocation as geography_allocation_breakdowns,
     get_sector_allocation as sector_allocation_breakdowns,
     portfolio_service,
 )
-from src.pricing import PricingError
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -102,17 +99,14 @@ async def import_brokerage_positions(
     request: BrokerageImportRequest, db: DbSession, user_id: CurrentUserId
 ) -> BrokerageImportResponse:
     """Import parsed brokerage holdings into AtomicPosition and reconcile ManagedPosition."""
-    try:
-        result = await _brokerage_import_service.import_positions(
-            db,
-            user_id=user_id,
-            payload=request.payload,
-            filename=request.filename,
-            source_document_id=request.source_document_id,
-        )
-        await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=request.payload)
-    except PositionServiceError as exc:
-        raise PreconditionFailedError(str(exc)) from exc
+    result = await _brokerage_import_service.import_positions(
+        db,
+        user_id=user_id,
+        payload=request.payload,
+        filename=request.filename,
+        source_document_id=request.source_document_id,
+    )
+    await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=request.payload)
     return BrokerageImportResponse(**result.__dict__)
 
 
@@ -145,10 +139,7 @@ async def get_portfolio_summary(
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
 ) -> PortfolioSummaryDashboardResponse:
     """Get portfolio summary with YTD realized P&L and dividend income."""
-    try:
-        return await _portfolio_service.get_portfolio_summary_dashboard(db=db, user_id=user_id, as_of_date=as_of_date)
-    except PricingError as exc:
-        raise PreconditionFailedError(str(exc)) from exc
+    return await _portfolio_service.get_portfolio_summary_dashboard(db=db, user_id=user_id, as_of_date=as_of_date)
 
 
 @router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
@@ -174,24 +165,19 @@ async def create_holding_dividend(
     user_id: CurrentUserId,
 ) -> DividendEventResponse:
     """Record dividend income for an existing current-user holding."""
-    try:
-        dividend = await _investment_accounting_service.record_holding_dividend(
-            db,
-            user_id=user_id,
-            ticker=ticker,
-            payment_date=request.payment_date,
-            amount=request.amount,
-            currency=request.currency,
-            dividend_type=request.dividend_type,
-            withholding_tax=request.withholding_tax,
-            cash_account_id=request.cash_account_id,
-            dividend_income_account_id=request.dividend_income_account_id,
-            withholding_tax_account_id=request.withholding_tax_account_id,
-        )
-    except PortfolioNotFoundError as exc:
-        raise ResourceNotFoundError(str(exc)) from exc
-    except (InvestmentAccountingValidationError, PricingError) as exc:
-        raise PreconditionFailedError(str(exc)) from exc
+    dividend = await _investment_accounting_service.record_holding_dividend(
+        db,
+        user_id=user_id,
+        ticker=ticker,
+        payment_date=request.payment_date,
+        amount=request.amount,
+        currency=request.currency,
+        dividend_type=request.dividend_type,
+        withholding_tax=request.withholding_tax,
+        cash_account_id=request.cash_account_id,
+        dividend_income_account_id=request.dividend_income_account_id,
+        withholding_tax_account_id=request.withholding_tax_account_id,
+    )
 
     entry_id = getattr(dividend, "journal_entry_id", None)
     await db.flush()
@@ -287,12 +273,9 @@ async def get_investment_performance_report_schedule(
     currency = currency.strip().upper()
     if currency != "SGD":
         raise PreconditionFailedError("Investment performance report schedule currently supports SGD presentation currency")
-    try:
-        return await build_investment_performance_report_schedule(
-            db, user_id, period_start=period_start, period_end=period_end, as_of_date=as_of_date, currency=currency
-        )
-    except PricingError as exc:
-        raise PreconditionFailedError(str(exc)) from exc
+    return await build_investment_performance_report_schedule(
+        db, user_id, period_start=period_start, period_end=period_end, as_of_date=as_of_date, currency=currency
+    )
 
 
 @router.get("/allocation/sector", response_model=list[AllocationBreakdownResponse])

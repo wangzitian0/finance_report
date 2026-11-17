@@ -27,6 +27,7 @@ from src.extraction import (
     emit_disposition_trace_records,
 )
 from src.extraction.orm.layer2 import AtomicTransaction
+from src.platform import ResourceNotFoundError
 from src.ledger import (
     PROCESSING_ACCOUNT_CODE,
     Account,
@@ -191,7 +192,7 @@ async def submit_reviewed_disposition(
     )
     txn = transaction_result.scalar_one_or_none()
     if txn is None:
-        raise LookupError("Transaction not found")
+        raise ResourceNotFoundError("Transaction not found")
 
     # Rejected history remains evidence, but cannot block an explicit new human
     # decision. Only a current non-rejected match owns the active review workflow.

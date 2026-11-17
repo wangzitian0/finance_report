@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import normalize_currency_code
 from src.audit.money import to_money
 from src.observability import get_logger
+from src.platform.base.errors import DomainError
 from src.pricing.base.errors import NoObservationError, PricingError
 from src.pricing.base.manual_valuation import (
     ManualValuationBasis,
@@ -38,7 +39,7 @@ _LIABILITY_AFFIXES = ("mortgage", "loan", "balance", "liability", "payable", "de
 _ASSET_PREFIXES = ("property", "real estate", "home", "house", "residence")
 
 
-class ValuationServiceError(Exception):
+class ValuationServiceError(DomainError):
     """Valuation service failure."""
 
 

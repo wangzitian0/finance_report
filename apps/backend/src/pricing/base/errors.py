@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from src.platform.base.errors import DomainError
 
-class PricingError(Exception):
+
+class PricingError(DomainError):
     """Base error for the pricing package."""
 
 

@@ -20,7 +20,6 @@ from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.llm import (
     EnvConfigSource,
     LitellmCatalog,
-    LLMConfigError,
     LlmProvider,
     LlmSceneBinding,
     Modality,
@@ -31,9 +30,8 @@ from src.observability import get_logger
 from src.platform import (
     ConflictError,
     ResourceNotFoundError,
-    get_owned_or_404,
-    raise_bad_request,
-    raise_service_unavailable,
+    ValidationFailedError,
+    get_owned_or_raise,
 )
 from src.schemas.llm import (
     LlmCatalogResponse,
@@ -87,11 +85,7 @@ async def create_provider(
     Fails closed when secret encryption is not configured (``LLM_ENCRYPTION_KEYS``
     unset) — a DB-stored key must never be persisted in plaintext.
     """
-    try:
-        cipher = build_cipher()
-    except LLMConfigError as exc:
-        # Never store a plaintext key: refuse the write rather than degrade.
-        raise_service_unavailable("LLM secret encryption is not configured.", cause=exc)
+    cipher = build_cipher()
 
     count = (
         await db.execute(select(func.count()).select_from(LlmProvider).where(LlmProvider.user_id == user_id))
@@ -129,7 +123,7 @@ def _parse_provider_uuid(provider_id: str) -> UUID:
 async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserId) -> LlmProviderDeleteResponse:
     """Delete one of the current user's providers (cascades to its bindings)."""
     pid = _parse_provider_uuid(provider_id)
-    row = await get_owned_or_404(db, LlmProvider, pid, user_id, name="Provider")
+    row = await get_owned_or_raise(db, LlmProvider, pid, user_id, name="Provider")
     deleted_id = row.id
     await db.delete(row)
     await db.flush()
@@ -188,14 +182,14 @@ async def put_scenes(
     """
     scenes = [b.scene for b in payload.bindings]
     if len(scenes) != len(set(scenes)):
-        raise_bad_request("Duplicate scene in bindings.")
+        raise ValidationFailedError("Duplicate scene in bindings.")
 
     owned = set((await db.execute(select(LlmProvider.id).where(LlmProvider.user_id == user_id))).scalars().all())
     for b in payload.bindings:
         if b.provider_id not in owned:
-            raise_bad_request(f"Provider {b.provider_id} is not owned by the current user.")
+            raise ValidationFailedError(f"Provider {b.provider_id} is not owned by the current user.")
         if EnvConfigSource.is_retired_scene_model(b.model):
-            raise_bad_request(
+            raise ValidationFailedError(
                 f"Model {b.model} is retired; bind one of the three roles (large, small, multimodal) or a current model."
             )
 

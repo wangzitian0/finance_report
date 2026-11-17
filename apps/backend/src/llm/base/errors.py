@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from src.platform.base.errors import DomainError, ServiceUnavailableError
 
-class LLMError(Exception):
+
+class LLMError(DomainError):
     """Base class for all LLM-layer failures.
 
     ``retryable`` flags transient conditions (HTTP 429/5xx, mid-stream server
@@ -12,12 +14,19 @@ class LLMError(Exception):
     when they delegate into this layer.
     """
 
-    def __init__(self, message: str, *, retryable: bool = False) -> None:
-        super().__init__(message)
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        status_code: int | None = None,
+        error_id: str | None = None,
+    ) -> None:
+        super().__init__(message, status_code=status_code, error_id=error_id)
         self.retryable = retryable
 
 
-class LLMConfigError(LLMError):
+class LLMConfigError(ServiceUnavailableError, LLMError):
     """Configuration is missing or invalid (no provider, bad/absent encryption key).
 
     Never retryable.

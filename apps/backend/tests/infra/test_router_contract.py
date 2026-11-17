@@ -1,4 +1,4 @@
-"""Structural contract ratchet for FastAPI routers under apps/backend/src/routers/."""
+"""Structural contract ratchet for FastAPI API route modules."""
 
 from __future__ import annotations
 
@@ -7,19 +7,55 @@ from pathlib import Path
 
 import pytest
 
-ROUTER_DIR = Path(__file__).resolve().parents[2] / "src" / "routers"
+_SRC_DIR = Path(__file__).resolve().parents[2] / "src"
+ROUTER_DIR = _SRC_DIR / "routers"
+API_ROUTER_DIRS = (
+    ROUTER_DIR,
+    _SRC_DIR / "identity" / "extension" / "api",
+    _SRC_DIR / "runtime" / "extension" / "api",
+)
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete"})
 _RW_SESSIONS = frozenset({"DbSession", "Ctx"})
-_DISALLOWED_HTTP_STATUS_TOKENS = (
-    "400",
-    "404",
-    "409",
-    "HTTP_400_BAD_REQUEST",
-    "HTTP_404_NOT_FOUND",
-    "HTTP_409_CONFLICT",
+_FORBIDDEN_HELPER_CALLS = frozenset(
+    {
+        "get_owned_or_404",
+        "raise_bad_request",
+        "raise_conflict",
+        "raise_gateway_timeout",
+        "raise_internal_error",
+        "raise_not_found",
+        "raise_service_unavailable",
+        "raise_too_large",
+        "raise_too_many_requests",
+        "raise_unauthorized",
+    }
+)
+_TRANSLATED_DOMAIN_EXCEPTIONS = frozenset(
+    {
+        "AccountingError",
+        "AccountNotFoundError",
+        "AccountServiceError",
+        "AIAdvisorError",
+        "DecisionAnchorError",
+        "HintsNotApplicable",
+        "InvestmentAccountingError",
+        "InvestmentAccountingValidationError",
+        "LLMConfigError",
+        "PackageDocumentVersionError",
+        "PortfolioError",
+        "PositionServiceError",
+        "PricingError",
+        "ReconciliationError",
+        "ReportError",
+        "ReviewedDispositionError",
+        "StatementStatusChanged",
+        "SuggestionCorrectionError",
+        "ValuationServiceError",
+    }
 )
 _ALLOWED_TX_ROUTER_FUNCTIONS: frozenset[tuple[str, str]] = frozenset(
     {
+        ("auth.py", "register"),
         ("statements.py", "_queue_statement_reparse"),
         ("statements.py", "_queue_classify_run"),
         ("statements.py", "upload_statement"),
@@ -39,6 +75,10 @@ def _route_methods(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
     return methods
 
 
+def _handler_re_raises_only(handler: ast.ExceptHandler) -> bool:
+    return any(isinstance(stmt, ast.Raise) and stmt.exc is None for stmt in ast.walk(handler))
+
+
 def _scan_router_violations(path: Path) -> set[str]:
     name = path.name
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -53,12 +93,16 @@ def _scan_router_violations(path: Path) -> set[str]:
                         violations.add("get_dbsession")
             if methods:
                 for sub in ast.walk(node):
-                    if (
-                        isinstance(sub, ast.ExceptHandler)
-                        and sub.type is not None
-                        and "ValueError" in ast.unparse(sub.type)
-                    ):
-                        violations.add("except_value_error")
+                    if isinstance(sub, ast.ExceptHandler) and sub.type is not None:
+                        exc_src = ast.unparse(sub.type)
+                        if "ValueError" in exc_src:
+                            violations.add("except_value_error")
+                        if any(tok in exc_src for tok in _TRANSLATED_DOMAIN_EXCEPTIONS) and not _handler_re_raises_only(
+                            sub
+                        ):
+                            for inner in ast.walk(sub):
+                                if isinstance(inner, ast.Raise) and inner.exc is not None:
+                                    violations.add("except_domain_translation")
             if (name, node.name) not in _ALLOWED_TX_ROUTER_FUNCTIONS:
                 for sub in ast.walk(node):
                     if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute):
@@ -68,24 +112,30 @@ def _scan_router_violations(path: Path) -> set[str]:
                             and sub.func.value.id == "db"
                         ):
                             violations.add("manual_tx")
-        if isinstance(node, ast.Call) and (
-            (isinstance(node.func, ast.Name) and node.func.id == "HTTPException")
-            or (isinstance(node.func, ast.Attribute) and node.func.attr == "HTTPException")
-        ):
-            call_src = ast.unparse(node)
-            if any(tok in call_src for tok in _DISALLOWED_HTTP_STATUS_TOKENS):
+        if isinstance(node, ast.Call):
+            if (isinstance(node.func, ast.Name) and node.func.id == "HTTPException") or (
+                isinstance(node.func, ast.Attribute) and node.func.attr == "HTTPException"
+            ):
                 violations.add("http_exception")
+            func_name = (
+                node.func.id
+                if isinstance(node.func, ast.Name)
+                else (node.func.attr if isinstance(node.func, ast.Attribute) else None)
+            )
+            if func_name in _FORBIDDEN_HELPER_CALLS:
+                violations.add("legacy_http_helper")
     return violations
 
 
 def _all_router_violations() -> dict[str, set[str]]:
     result: dict[str, set[str]] = {}
-    for path in sorted(ROUTER_DIR.glob("*.py")):
-        if path.name == "__init__.py":
-            continue
-        found = _scan_router_violations(path)
-        if found:
-            result[path.name] = found
+    for directory in API_ROUTER_DIRS:
+        for path in sorted(directory.glob("*.py")):
+            if path.name == "__init__.py":
+                continue
+            found = _scan_router_violations(path)
+            if found:
+                result[path.name] = found
     return result
 
 

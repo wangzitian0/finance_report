@@ -14,7 +14,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ## 📁 Affected Components
 | Component | File(s) | Changes |
 |-----------|---------|---------|
-| Logging | `src/observability/logger.py` | Add tracing, trace_id processor | | Database | `src/database.py`, `src/config.py` | Pool config, transaction patterns | | Exceptions | `src/platform/extension/http_errors.py` | BaseAppException class | | Rate Limiting | `src/platform` (generic limiter) · `src/identity/extension/rate_limit.py` (auth-endpoint limiters) | Generic limiter in the platform package; auth-specific limiters in the identity package (#1428) |
+| Logging | `src/observability/logger.py` | Add tracing, trace_id processor | | Database | `src/database.py`, `src/config.py` | Pool config, transaction patterns | | Exceptions | `src/platform/base/errors.py` | BaseAppException and DomainError hierarchy | | Rate Limiting | `src/platform` (generic limiter) · `src/identity/extension/rate_limit.py` (auth-endpoint limiters) | Generic limiter in the platform package; auth-specific limiters in the identity package (#1428) |
 | Debugging | `tools/debug.py` | vendor-neutral OTEL resource-filter pointer | | Schemas | `src/schemas/*.py` | Consistent BaseResponse inheritance |
 ## 🔴 High Priority Issues
 ### H1: Distributed Tracing Missing

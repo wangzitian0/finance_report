@@ -1,24 +1,24 @@
-from uuid import uuid4; import pytest; from fastapi import HTTPException, Response; from sqlalchemy.ext.asyncio import AsyncSession; from starlette.requests import Request; from src.identity import LoginRequest, RegisterRequest, User, get_me, hash_password, login, register; from src.identity.extension.api.auth import _check_rate_limit, _get_client_ip; from src.platform import RateLimitConfig, RateLimiter
+from uuid import uuid4; import pytest; from fastapi import Response; from sqlalchemy.ext.asyncio import AsyncSession; from starlette.requests import Request; from src.identity import LoginRequest, RegisterRequest, User, get_me, hash_password, login, register; from src.identity.extension.api.auth import _check_rate_limit, _get_client_ip; from src.platform import RateLimitConfig, RateLimiter, ResourceNotFoundError, TooManyRequestsError, UnauthorizedError, ValidationFailedError
 def _mock_request(client_ip: str='127.0.0.1', x_forwarded_for: str | None=None) -> Request: headers: list[tuple[bytes, bytes]] = []; headers.append((b'x-forwarded-for', x_forwarded_for.encode())) if x_forwarded_for else None; scope = {'type': 'http', 'method': 'POST', 'path': '/auth/test', 'headers': headers, 'client': (client_ip, 12345)}; return Request(scope=scope)
 async def test_register_creates_user(db: AsyncSession) -> None: payload = RegisterRequest(email='direct@example.com', password='secret123', name='Direct'); mock_request = _mock_request('192.168.1.100'); response = await register(mock_request, Response(), payload, db=db); assert response.email == 'direct@example.com'; assert response.name == 'Direct'
 async def test_login_rejects_invalid_password(db: AsyncSession) -> None:
     user = User(email='login-direct@example.com', hashed_password=hash_password('correct')); db.add(user); await db.commit(); payload = LoginRequest(email='login-direct@example.com', password='wrong'); mock_request = _mock_request('192.168.1.101')
-    with pytest.raises(HTTPException, match='Invalid email or password'): await login(mock_request, Response(), payload, db=db)
+    with pytest.raises(UnauthorizedError, match='Invalid email or password'): await login(mock_request, Response(), payload, db=db)
 async def test_get_me_returns_user(db: AsyncSession) -> None: user = User(email='me-direct@example.com', hashed_password=hash_password('secret')); db.add(user); await db.commit(); await db.refresh(user); response = await get_me(user_id=user.id, token='dummy-token', db=db); assert response.id == user.id; assert response.email == user.email; assert response.access_token == 'dummy-token'
 async def test_get_me_missing_user_raises(db: AsyncSession) -> None:
-    with pytest.raises(HTTPException, match='User not found'): await get_me(user_id=uuid4(), token='dummy-token', db=db)
+    with pytest.raises(ResourceNotFoundError, match='User not found'): await get_me(user_id=uuid4(), token='dummy-token', db=db)
 async def test_register_duplicate_email_fails(db: AsyncSession) -> None:
     user = User(email='duplicate@example.com', hashed_password=hash_password('secret')); db.add(user); await db.commit(); payload = RegisterRequest(email='duplicate@example.com', password='secret123', name='Second'); mock_request = _mock_request('192.168.1.102')
-    with pytest.raises(HTTPException, match='Email already registered'): await register(mock_request, Response(), payload, db=db)
+    with pytest.raises(ValidationFailedError, match='Email already registered'): await register(mock_request, Response(), payload, db=db)
 def test_get_client_ip_with_x_forwarded_for_trusted(monkeypatch) -> None: import src.config; import src.identity.extension.api.auth as auth_module; monkeypatch.setattr(src.config.settings, 'trust_proxy', True); request = _mock_request(client_ip='10.0.0.1', x_forwarded_for='203.0.113.50, 198.51.100.1'); ip = auth_module._get_client_ip(request); assert ip == '198.51.100.1'
 def test_get_client_ip_ignores_x_forwarded_for_untrusted() -> None:
     request = _mock_request(client_ip='192.168.1.99', x_forwarded_for='203.0.113.50'); ip = _get_client_ip(request); assert ip == '192.168.1.99'; _m1_request = _mock_request(client_ip='192.168.1.99'); _m1_ip = _get_client_ip(_m1_request); assert _m1_ip == '192.168.1.99'; _m2_limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300)); _m2_request = _mock_request('10.0.0.100'); _check_rate_limit(_m2_request, _m2_limiter, 'Rate limited')
-    with pytest.raises(HTTPException) as _m2_exc_info: _check_rate_limit(_m2_request, _m2_limiter, 'Rate limited')
+    with pytest.raises(TooManyRequestsError) as _m2_exc_info: _check_rate_limit(_m2_request, _m2_limiter, 'Rate limited')
     assert _m2_exc_info.value.status_code == 429; assert 'Rate limited' in str(_m2_exc_info.value.detail); assert 'Retry-After' in _m2_exc_info.value.headers
 def test_check_rate_limit_logs_route_path(monkeypatch) -> None:
     import src.identity.extension.api.auth as auth_module; limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300)); request = _mock_request('10.0.0.101'); calls: list[dict[str, object]] = []
     def capture_warning(*args, **kwargs) -> None: calls.append(kwargs)
     monkeypatch.setattr(auth_module, 'log_security_warning', capture_warning); _check_rate_limit(request, limiter, 'Rate limited')
-    with pytest.raises(HTTPException): _check_rate_limit(request, limiter, 'Rate limited')
+    with pytest.raises(TooManyRequestsError): _check_rate_limit(request, limiter, 'Rate limited')
     assert calls[-1]['path'] == '/auth/test'
 async def test_successful_login_resets_rate_limit(db: AsyncSession) -> None: user = User(email='resettest@example.com', hashed_password=hash_password('correct123')); db.add(user); await db.commit(); payload = LoginRequest(email='resettest@example.com', password='correct123'); mock_request = _mock_request('192.168.1.200'); response = await login(mock_request, Response(), payload, db=db); assert response.email == 'resettest@example.com'

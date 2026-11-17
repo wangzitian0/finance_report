@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 import src.config
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.identity.base.types import (
     AUTH_COOKIE_NAME,
     AuthResponse,
@@ -31,11 +31,11 @@ from src.identity.extension.sql import SqlUserRepository, User
 from src.observability import get_logger, log_security_warning, record_rate_limit_rejected
 from src.platform import (
     RateLimiter,
+    ResourceNotFoundError,
+    TooManyRequestsError,
+    UnauthorizedError,
+    ValidationFailedError,
     get_client_ip,
-    raise_bad_request,
-    raise_not_found,
-    raise_too_many_requests,
-    raise_unauthorized,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -47,7 +47,7 @@ _get_client_ip = get_client_ip
 
 
 def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) -> None:
-    """Check rate limit and raise HTTPException if exceeded."""
+    """Check rate limit and raise TooManyRequestsError if exceeded."""
     client_ip = _get_client_ip(request)
     allowed, retry_after = limiter.is_allowed(client_ip)
     if not allowed:
@@ -60,7 +60,8 @@ def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) ->
             path=request.url.path,
             retry_after=retry_after,
         )
-        raise_too_many_requests(error_msg, retry_after=retry_after)
+        headers = {"Retry-After": str(retry_after)} if retry_after else None
+        raise TooManyRequestsError(error_msg, headers=headers)
 
 
 def _set_auth_cookie(response: Response, access_token: str) -> None:
@@ -113,7 +114,7 @@ async def register(
     existing = await repo.get_by_normalized_email(normalized_email)
 
     if existing:
-        raise_bad_request("Email already registered")
+        raise ValidationFailedError("Email already registered")
 
     user = User(
         email=normalized_email,
@@ -126,7 +127,7 @@ async def register(
     except IntegrityError as e:
         # Handle race condition: another request created user with same email
         await db.rollback()
-        raise_bad_request("Email already registered", cause=e)
+        raise ValidationFailedError("Email already registered") from e
     await db.refresh(user)
 
     # Reset registration rate limit on success
@@ -169,7 +170,7 @@ async def login(
             reason="invalid_login",
             client_ip=_get_client_ip(request),
         )
-        raise_unauthorized("Invalid email or password")
+        raise UnauthorizedError("Invalid email or password")
 
     bind_authenticated_user_context(user.id)
     logger.info(
@@ -198,14 +199,14 @@ async def get_me(
     token: str | None = Depends(oauth2_scheme),
     *,
     user_id: CurrentUserId,
-    db: DbSession,
+    db: ReadDbSession,
 ) -> AuthResponse:
     """Get current authenticated user."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
-        raise_not_found("User")
+        raise ResourceNotFoundError("User not found")
 
     return AuthResponse(
         id=user.id,

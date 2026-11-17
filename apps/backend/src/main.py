@@ -356,7 +356,7 @@ def _error_json(
     content: dict[str, Any] = {"error_id": error_id, "detail": detail, "request_id": rid}
     if extra:
         content.update(extra)
-    return JSONResponse(status_code=status_code, content=content, headers=headers)
+    return JSONResponse(status_code=status_code, content=jsonable_encoder(content), headers=headers)
 
 
 api_rate_limiter = RateLimiter(
@@ -407,7 +407,14 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
         message=exc.message,
         request_id=request_id,
     )
-    return _error_json(exc.status_code, exc.error_id, exc.detail, request_id=request_id, extra=exc.extra)
+    return _error_json(
+        exc.status_code,
+        exc.error_id,
+        exc.detail,
+        request_id=request_id,
+        headers=exc.headers,
+        extra=exc.extra,
+    )
 
 
 @app.exception_handler(StarletteHTTPException)

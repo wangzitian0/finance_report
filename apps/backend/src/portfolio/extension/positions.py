@@ -21,6 +21,7 @@ from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, account_service
 from src.observability import get_logger
+from src.platform.base.errors import DomainError
 
 logger = get_logger(__name__)
 
@@ -37,10 +38,13 @@ def _resolve_snapshot_currency(raw_currency: str | None, *, asset_identifier: st
     try:
         return Currency(canonical)
     except InvalidCurrencyError as exc:
-        raise PositionServiceError(f"Position {asset_identifier!r} has unsupported currency {raw_currency!r}") from exc
+        raise PositionServiceError(
+            f"Position {asset_identifier!r} has unsupported currency {raw_currency!r}",
+            status_code=422,
+        ) from exc
 
 
-class PositionServiceError(Exception):
+class PositionServiceError(DomainError):
     """Position service failure (was PositionServiceError, #1677)."""
 
 

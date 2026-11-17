@@ -1,4 +1,4 @@
-'AC-identity.2.1'; from uuid import uuid4; import pytest; import structlog; from fastapi import HTTPException; from httpx import ASGITransport, AsyncClient; from src.identity import get_current_user_id
+'AC-identity.2.1'; from uuid import uuid4; import pytest; import structlog; from httpx import ASGITransport, AsyncClient; from src.identity import get_current_user_id; from src.platform import UnauthorizedError
 async def test_auth_missing_header(db_engine):
     'AC8.2.4'; from src.main import app; transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url='http://test') as ac: response = await ac.get('/accounts')
@@ -16,4 +16,4 @@ async def test_get_current_user_id_direct(db, test_user): from src.identity impo
 async def test_AC10_11_1_get_current_user_id_binds_user_context(db, test_user): 'AC-observability.11.1'; from src.identity import create_access_token; structlog.contextvars.clear_contextvars(); token = create_access_token(data={'sub': str(test_user.id)}); user_id = await get_current_user_id(token=token, db=db); assert user_id == test_user.id; assert structlog.contextvars.get_contextvars()['user_id'] == str(test_user.id)
 async def test_get_current_user_id_invalid_user_db(db):
     from src.identity import create_access_token; token = create_access_token(data={'sub': str(uuid4())})
-    with pytest.raises(HTTPException, match='User not found'): await get_current_user_id(token=token, db=db)
+    with pytest.raises(UnauthorizedError, match='User not found'): await get_current_user_id(token=token, db=db)

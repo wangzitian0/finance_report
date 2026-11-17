@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from src.platform.base.errors import DomainError, ResourceNotFoundError
 
-class ReconciliationError(Exception):
+
+class ReconciliationError(DomainError):
     """Base class for expected reconciliation failures."""
 
 
-class MatchNotFoundError(ReconciliationError):
+class MatchNotFoundError(ResourceNotFoundError, ReconciliationError):
     """The requested reconciliation match is not visible to the caller."""
 
 
@@ -25,7 +27,7 @@ class ReviewedDispositionError(ReconciliationError):
     """A reviewed source-posting command fails policy or posting validation."""
 
 
-class ConsistencyCheckNotFoundError(ReconciliationError):
+class ConsistencyCheckNotFoundError(ResourceNotFoundError, ReconciliationError):
     """The requested consistency check is not visible to the caller."""
 
 
