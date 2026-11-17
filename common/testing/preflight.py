@@ -276,6 +276,8 @@ CHECKS: tuple[Check, ...] = (
             "tools/*",
             "common/*",
             "tests/tooling/*",
+            "tests/benchmarks/*",
+            "tests/fixtures/*",
             "tests/e2e/*",
             "apps/backend/src/*",
             "apps/backend/tests/*",

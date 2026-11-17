@@ -47,16 +47,10 @@ python tools/generate_pdf_fixtures.py --source dbs
 
 Supported `--source` values: `dbs`, `cmb`, `mari`, `moomoo`, `futu`, `pingan`, `all` (templates in `templates/*.yaml`, synthetic rows in `data/fake_data.py`).
 
-### Analyze Real PDFs
-
-```bash
-python tools/analyze_pdf_fixture.py --input tests/fixtures/pdf/input/real.pdf --output tests/fixtures/pdf/templates/dbs_template.yaml --source dbs
-```
-
 ### Commit Policy
 
-Commit `templates/*.yaml`, analyzers, generators, `fake_data.py`, and wrappers; never commit `input/` or `output/` PDFs or real PII.
+Commit `templates/*.yaml`, generators, `fake_data.py`, and wrappers; never commit `input/` or `output/` PDFs or real PII.
 
 ### Font Fallback
 
-`tests/fixtures/pdf/generators/font_utils.py` exposes `register_chinese_fonts()` and `get_safe_font()` (Helvetica fallback). Proven by `tests/tooling/test_pdf_fixture_*.py`.
+`tests/fixtures/pdf/generators/font_utils.py` exposes `register_chinese_fonts()` and `get_safe_font()` (Helvetica fallback).
