@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { DetailDialog } from "@/components/ui/Overlay";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { compareAmounts } from "@/lib/audit/money";
 import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
 import { Account } from "@/lib/types";

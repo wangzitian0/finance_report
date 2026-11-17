@@ -11,7 +11,7 @@
 
 import { infiniteQueryOptions, type QueryClient } from "@tanstack/react-query";
 
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { anchorFromIdentifiers, type LineageAnchor } from "@/lib/lineage";
 import { SHARED_STALE_MS } from "@/lib/sharedQueries";
 import type {

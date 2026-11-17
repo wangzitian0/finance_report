@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
 import type { components } from "@/lib/api-types";

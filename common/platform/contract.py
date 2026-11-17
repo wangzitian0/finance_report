@@ -154,7 +154,7 @@ fe-ia-inbox.1||AC22.2.1 surfaces Stage 1 review and Stage 2 reconciliation atten
 @apps/frontend/playwright/unified-inbox.spec.ts|P1
 fe-ia-inbox.3||${label} surfaces review attention in the upload workflow notices with deep links
 @$fe/__tests__/workflowApi.test.ts
-fe-workflow.1||AC19.3.3 fetches typed workflow status through lib/api-client.ts
+fe-workflow.1||AC19.3.3 fetches typed workflow status through lib/api.ts
 @apps/frontend/playwright/workflow-notifications.spec.ts
 fe-workflow.4||${scenario.name} shows workflow badge, inbox, and the Home action banner
 @$fe/__tests__/homeActionBanner.test.tsx

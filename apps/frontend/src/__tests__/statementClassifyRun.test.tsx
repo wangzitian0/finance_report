@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
-import { ApiError, apiOperation } from "@/lib/api-client";
+import { ApiError, apiOperation } from "@/lib/api";
 import type { StatementRun } from "@/lib/types";
 
 vi.mock("next/navigation", () => ({
@@ -11,8 +11,8 @@ vi.mock("next/navigation", () => ({
 }));
 const showToastMock = vi.fn();
 vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: showToastMock }) }));
-vi.mock("@/lib/api-client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api-client")>()),
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
   apiOperation: vi.fn(),
 }));
 

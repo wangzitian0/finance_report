@@ -10,7 +10,7 @@ import {
 } from "@/components/review/Stage2ReviewQueue";
 import { checkSeverityColor, checkTypeLabel } from "@/lib/statusLabels";
 import type { ConsistencyCheck, PendingMatch } from "@/lib/types";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 const GET_QUEUE_OP = "get_stage2_review_queue_statements_stage2_queue_get";
@@ -27,7 +27,7 @@ const navState = vi.hoisted(() => ({
   push: vi.fn(),
   searchParams: new URLSearchParams(),
 }));
-vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
+vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: navState.replace, push: navState.push }),
   useSearchParams: () => navState.searchParams,

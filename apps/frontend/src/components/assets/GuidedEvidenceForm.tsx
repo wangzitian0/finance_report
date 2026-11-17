@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatDateDisplay, formatDateInput } from "@/lib/date";
 import type {

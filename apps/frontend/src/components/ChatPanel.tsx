@@ -4,7 +4,7 @@ import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Bot, Loader2, MessageSquareText, PanelLeft } from "lucide-react";
 
-import { apiOperation, apiOperationStream } from "@/lib/api-client";
+import { apiOperation, apiOperationStream } from "@/lib/api";
 import { fetchAiModels } from "@/lib/aiModels";
 import type { Schemas } from "@/lib/api-schema";
 import { normalizeAdvisorSuggestions } from "@/lib/types";

@@ -16,7 +16,7 @@ import {
   type UseReportFiltersResult,
 } from "@/hooks/useReportFilters";
 import { useStatementCockpit } from "@/hooks/useStatementCockpit";
-import { apiOperationDownload, type ApiOperationRequest } from "@/lib/api-client";
+import { apiOperationDownload, type ApiOperationRequest } from "@/lib/api";
 import { compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal, type MonetaryInput } from "@/lib/audit/money";
 import { formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/audit/ratio/format";
 import { formatDateDisplay } from "@/lib/date";

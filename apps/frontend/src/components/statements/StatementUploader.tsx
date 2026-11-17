@@ -161,7 +161,7 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
     setError(null);
 
     try {
-      const { apiOperationUpload } = await import("@/lib/api-client");
+      const { apiOperationUpload } = await import("@/lib/api");
       for (const currentFile of files) {
         const currentIsCsv = getFileExtension(currentFile.name) === "csv";
         const formData = new FormData();

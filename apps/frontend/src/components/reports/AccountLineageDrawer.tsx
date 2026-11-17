@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Sheet } from "@/components/ui/Overlay";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { formatCurrencyLocale, toDecimal, type MonetaryInput } from "@/lib/audit/money";
 import {
   anchorFromTypedIdentifier,

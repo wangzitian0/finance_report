@@ -30,7 +30,7 @@ import { humanizeWorkflowText } from "@/components/workflow/workflowFormat";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAttentionQueue } from "@/hooks/useAttentionQueue";
 import { getGradeColor, getGradeLabel } from "@/hooks/useDataQualityHealth";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { type AttentionKind } from "@/lib/attention";
 import { withAttentionSource } from "@/lib/attentionNavigation";
 import { getCategoriesForDirection } from "@/lib/categories";

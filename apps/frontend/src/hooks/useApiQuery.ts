@@ -8,7 +8,7 @@ import {
   apiOperation,
   type ApiOperationRequest,
   type ApiOperationResponse,
-} from "@/lib/api-client";
+} from "@/lib/api";
 import type { ApiOperationId } from "@/lib/api-operations";
 
 type ApiQueryOptions<TQueryData, TData = TQueryData> = Omit<

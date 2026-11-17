@@ -6,7 +6,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { DetailDialog } from "@/components/ui/Overlay";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { useToast } from "@/components/ui/Toast";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import type { Schemas } from "@/lib/api-schema";
 import { formatAmount } from "@/lib/audit/money";
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";

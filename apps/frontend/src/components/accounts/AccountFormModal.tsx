@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { DetailDialog, Sheet } from "@/components/ui/Overlay";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { Account } from "@/lib/types";
 
