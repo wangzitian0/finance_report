@@ -179,7 +179,7 @@ async def test_resolve_consistency_check_not_found(db, test_user):
             db=db,
             user_id=test_user.id,
         )
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == 404
 
 
 async def test_list_consistency_checks_with_filters(db, test_user):

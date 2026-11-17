@@ -2,8 +2,8 @@
 
 Two patterns were re-implemented inline across the routers:
 
-- "load a user-owned row by id, or 404" — ``select(...).where(id).where(user_id)``
-  → ``scalar_one_or_none()`` → ``raise_not_found(...)``;
+- "load a user-owned row by id, or raise 404" — ``select(...).where(id).where(user_id)``
+  → ``scalar_one_or_none()`` → ``ResourceNotFoundError``;
 - "paginate a filtered query" — count the full set via a ``func.count`` subquery,
   then apply eager-load options / ordering / offset / limit and materialise rows.
 
@@ -14,36 +14,40 @@ place so they cannot drift between endpoints.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.base import ExecutableOption
 
-from src.platform.extension.http_errors import raise_not_found
+from src.platform.base.errors import ResourceNotFoundError
 
 
-async def get_owned_or_404[M](
+class _UserOwnedModel(Protocol):
+    id: Any
+    user_id: Any
+
+
+_M = TypeVar("_M", bound=_UserOwnedModel)
+
+
+async def get_owned_or_raise(  # noqa: UP047
     db: AsyncSession,
-    model: type[M],
+    model: type[_M],
     entity_id: Any,
     user_id: Any,
     *,
     name: str,
     options: Sequence[ExecutableOption] = (),
-) -> M:
-    """Return the ``model`` row owned by ``user_id`` with ``entity_id``, or raise 404.
-
-    ``name`` is the human resource label passed to :func:`raise_not_found`.
-    ``options`` are eager-load options (e.g. ``selectinload(...)``).
-    """
+) -> _M:
+    """Return the ``model`` row owned by ``user_id`` with ``entity_id``, or raise ``ResourceNotFoundError``."""
     stmt = select(model).where(model.id == entity_id).where(model.user_id == user_id)
     if options:
         stmt = stmt.options(*options)
     obj = (await db.execute(stmt)).scalar_one_or_none()
     if obj is None:
-        raise_not_found(name)
+        raise ResourceNotFoundError(f"{name} not found")
     return obj
 
 

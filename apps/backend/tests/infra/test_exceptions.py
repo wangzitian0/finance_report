@@ -1,10 +1,18 @@
 import pytest
 from src.platform import (
+    BadGatewayError,
     BaseAppException,
     ConflictError,
+    ContentTooLargeError,
     DomainError,
+    ForbiddenError,
+    GatewayTimeoutError,
+    InternalServiceError,
     PreconditionFailedError,
     ResourceNotFoundError,
+    ServiceUnavailableError,
+    TooManyRequestsError,
+    UnauthorizedError,
     ValidationFailedError,
 )
 
@@ -56,9 +64,17 @@ class TestBaseAppException:
         [
             (DomainError, 400, "bad_request"),
             (ValidationFailedError, 400, "bad_request"),
+            (UnauthorizedError, 401, "unauthorized"),
+            (ForbiddenError, 403, "forbidden"),
             (ResourceNotFoundError, 404, "not_found"),
             (ConflictError, 409, "conflict"),
+            (ContentTooLargeError, 413, "content_too_large"),
             (PreconditionFailedError, 422, "unprocessable_entity"),
+            (TooManyRequestsError, 429, "too_many_requests"),
+            (InternalServiceError, 500, "internal_error"),
+            (BadGatewayError, 502, "internal_error"),
+            (ServiceUnavailableError, 503, "service_unavailable"),
+            (GatewayTimeoutError, 504, "gateway_timeout"),
         ],
     )
     def test_domain_error_subclasses_bridge_value_error_and_base_app_exception(
@@ -88,3 +104,36 @@ class TestBaseAppException:
         body = json.loads(response.body)
         assert body["error_id"] == "conflict"
         assert body["detail"] == payload
+
+    async def test_base_app_exception_handler_forwards_headers(self):
+        "AC-platform.21.5"
+        from unittest.mock import MagicMock
+        from src.main import base_app_exception_handler
+
+        exc = UnauthorizedError("Not authenticated", headers={"WWW-Authenticate": "Bearer"})
+        response = await base_app_exception_handler(MagicMock(), exc)
+        assert response.status_code == 401
+        assert response.headers.get("www-authenticate") == "Bearer"
+
+        rate_exc = TooManyRequestsError("Slow down", headers={"Retry-After": "42"})
+        rate_resp = await base_app_exception_handler(MagicMock(), rate_exc)
+        assert rate_resp.status_code == 429
+        assert rate_resp.headers.get("retry-after") == "42"
+
+    def test_legacy_procedural_http_helpers_removed_from_platform(self):
+        "AC-platform.21.5"
+        import src.platform as platform_pkg
+
+        for obsolete in (
+            "raise_bad_request",
+            "raise_not_found",
+            "raise_conflict",
+            "raise_too_large",
+            "raise_service_unavailable",
+            "raise_internal_error",
+            "raise_unauthorized",
+            "raise_too_many_requests",
+            "raise_gateway_timeout",
+            "get_owned_or_404",
+        ):
+            assert not hasattr(platform_pkg, obsolete), f"Obsolete helper still exported: {obsolete}"

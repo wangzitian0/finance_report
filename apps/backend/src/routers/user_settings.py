@@ -11,7 +11,7 @@ from src.extraction import (
     effective_reconciliation,
 )
 from src.identity import User, UserAiSettingsResponse, UserAiSettingsUpdate
-from src.platform import raise_not_found
+from src.platform import ResourceNotFoundError
 
 router = APIRouter(prefix="/users/me/settings", tags=["user-settings"])
 
@@ -37,7 +37,7 @@ async def get_current_user_settings(
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise_not_found("User")
+        raise ResourceNotFoundError("User not found")
     return _effective_settings(user.ai_settings)
 
 
@@ -51,7 +51,7 @@ async def patch_current_user_settings(
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise_not_found("User")
+        raise ResourceNotFoundError("User not found")
 
     updates = payload.model_dump(exclude_unset=True, exclude_none=True)
     user.ai_settings = {**(user.ai_settings or {}), **updates}

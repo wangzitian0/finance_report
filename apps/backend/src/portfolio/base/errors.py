@@ -12,12 +12,14 @@ unifying them.
 
 from __future__ import annotations
 
+from src.platform.base.errors import DomainError, PreconditionFailedError, ResourceNotFoundError
 
-class PortfolioError(Exception):
+
+class PortfolioError(DomainError):
     """Base exception for portfolio service errors."""
 
 
-class PortfolioNotFoundError(PortfolioError):
+class PortfolioNotFoundError(ResourceNotFoundError, PortfolioError):
     """Raised when portfolio positions are not found for a user."""
 
 
@@ -25,11 +27,11 @@ class InvalidDateRangeError(PortfolioError):
     """Raised when date range is invalid."""
 
 
-class AssetNotFoundError(PortfolioError):
+class AssetNotFoundError(ResourceNotFoundError, PortfolioError):
     """Raised when asset is not found."""
 
 
-class PerformanceError(Exception):
+class PerformanceError(DomainError):
     """Base exception for performance calculation errors."""
 
 
@@ -41,9 +43,9 @@ class XIRRCalculationError(PerformanceError):
     """Raised when XIRR calculation fails to converge."""
 
 
-class InvestmentAccountingError(Exception):
+class InvestmentAccountingError(DomainError):
     """Base exception for investment accounting errors."""
 
 
-class InvestmentAccountingValidationError(InvestmentAccountingError):
+class InvestmentAccountingValidationError(PreconditionFailedError, InvestmentAccountingError):
     """Raised when an investment transaction cannot be posted."""

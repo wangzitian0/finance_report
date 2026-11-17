@@ -26,6 +26,7 @@ from typing import Any, Protocol, runtime_checkable
 from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
 from src.ledger.base.vocabulary import DEFAULT_BASE_CURRENCY, Direction
+from src.platform.base.errors import DomainError
 
 MAX_JOURNAL_LINE_AMOUNT = Decimal("10000000000000000")
 MAX_JOURNAL_LINE_FX_RATE = Decimal("1000000000000")
@@ -81,7 +82,7 @@ def validate_journal_line_tags(value: dict[str, Any] | None) -> dict[str, Any] |
     return value
 
 
-class AccountingError(Exception):
+class AccountingError(DomainError):
     """Base exception for accounting errors."""
 
 

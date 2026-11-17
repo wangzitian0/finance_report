@@ -12,17 +12,47 @@ adapters.
 from __future__ import annotations
 
 from src.platform.base.bus import EventBus, EventHandler, SubscriberRegistry
+from src.platform.base.errors import (
+    BadGatewayError,
+    BaseAppException,
+    ConflictError,
+    ContentTooLargeError,
+    DomainError,
+    ForbiddenError,
+    GatewayTimeoutError,
+    InternalServiceError,
+    PreconditionFailedError,
+    ResourceNotFoundError,
+    ServiceUnavailableError,
+    TooManyRequestsError,
+    UnauthorizedError,
+    ValidationFailedError,
+)
 from src.platform.base.event import DomainEvent
 from src.platform.base.href import validate_internal_action_href
 from src.platform.base.outbox import Outbox, OutboxRepository, OutboxRow
 
 __all__ = [
+    "BadGatewayError",
+    "BaseAppException",
+    "ConflictError",
+    "ContentTooLargeError",
+    "DomainError",
     "DomainEvent",
     "EventBus",
     "EventHandler",
+    "ForbiddenError",
+    "GatewayTimeoutError",
+    "InternalServiceError",
     "Outbox",
     "OutboxRepository",
     "OutboxRow",
+    "PreconditionFailedError",
+    "ResourceNotFoundError",
+    "ServiceUnavailableError",
     "SubscriberRegistry",
+    "TooManyRequestsError",
+    "UnauthorizedError",
+    "ValidationFailedError",
     "validate_internal_action_href",
 ]

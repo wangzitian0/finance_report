@@ -16,11 +16,10 @@ from src.extraction import (
     resolve_statement_transactions,
 )
 from src.observability import get_logger
-from src.platform import ResourceNotFoundError, ValidationFailedError, get_owned_or_404
+from src.platform import ResourceNotFoundError, get_owned_or_raise
 from src.reconciliation import (
     CheckStatus,
     CheckType,
-    ReconciliationError,
     derive_reconciliation_score_tier,
     get_stage2_queue,
     list_checks,
@@ -46,7 +45,7 @@ router = APIRouter(prefix="/statements", tags=["review"])
 
 
 async def _active_statement_or_404(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
-    stmt = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
+    stmt = await get_owned_or_raise(db, StatementSummary, statement_id, user_id, name="Statement")
     if stmt.status is BankStatementStatus.RETIRED:
         raise ResourceNotFoundError("Statement not found")
     return stmt
@@ -173,12 +172,9 @@ async def resolve_consistency_check(
     check_id: UUID, request: ResolveCheckRequest, db: DbSession, user_id: CurrentUserId
 ) -> ConsistencyCheckResponse:
     """Resolve a consistency check."""
-    try:
-        check = await resolve_check(
-            db, check_id, parse_check_resolution_action(request.action), user_id, request.note
-        )
-    except ReconciliationError as e:
-        raise ValidationFailedError(str(e)) from e
+    check = await resolve_check(
+        db, check_id, parse_check_resolution_action(request.action), user_id, request.note
+    )
     await db.flush()
     return ConsistencyCheckResponse.model_validate(check)
 

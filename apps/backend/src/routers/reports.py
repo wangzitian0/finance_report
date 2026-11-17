@@ -22,7 +22,7 @@ from src.deps import CurrentUserId, DbSession, Pagination, ReadDbSession
 from src.extraction import coverage_bank_custody_account_ids
 from src.ledger import AccountType
 from src.observability import get_logger, track as _track_analytics
-from src.platform import raise_bad_request, raise_not_found
+from src.platform import ResourceNotFoundError, ValidationFailedError
 from src.pricing import FxRate
 from src.reporting import (
     DEFAULT_INCLUDE_RESTRICTED,
@@ -31,7 +31,6 @@ from src.reporting import (
     CashFlowPreview,
     EquationDiagnosticResult,
     PackageAssembler,
-    PackageDocumentVersionError,
     ReportError,
     ReportingSnapshotService,
     ReportSnapshot,
@@ -96,7 +95,7 @@ async def _run_report(  # noqa: UP047
         return await build()
     except ReportError as exc:
         logger.warning(f"{label} failed", end_date=str(end_date), currency=currency, error=str(exc))
-        raise_bad_request(str(exc), cause=exc)
+        raise
 
 
 def _zip_streaming_response(zip_bytes: bytes, filename: str) -> StreamingResponse:
@@ -169,7 +168,7 @@ async def _package_period(
         start_date=start_date, end_date=end_date, as_of_date=as_of_date
     )
     if report_start > report_end:
-        raise_bad_request("start_date must be before end_date")
+        raise ValidationFailedError("start_date must be before end_date")
     target_currency = _package_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     return report_start, report_end, report_as_of, target_currency
 
@@ -233,7 +232,7 @@ async def list_personal_report_package_line_details(
         anchor=anchor,
     )
     if details is None:
-        raise_not_found("Traceability line")
+        raise ResourceNotFoundError("Traceability line not found")
     return PersonalReportPackageLineDetailsPage(
         **_page_fields(details, pagination, "details", line_id=line_id, anchor=anchor)
     )
@@ -329,10 +328,7 @@ async def generate_personal_report_package_snapshot(
         snapshot_id=snapshot_id,
     )
     _track_analytics("report_generated", {"framework_id": request.framework_id.value, "currency": target_currency})
-    try:
-        return _package_snapshot_response(snapshot)
-    except PackageDocumentVersionError as exc:
-        raise_bad_request(str(exc), cause=exc)
+    return _package_snapshot_response(snapshot)
 
 
 @router.get("/package/snapshots", response_model=list[PersonalReportPackageSnapshotSummary])
@@ -370,11 +366,8 @@ async def get_personal_report_package_snapshot(
         )
     )
     if snapshot is None:
-        raise_not_found("Package snapshot")
-    try:
-        return _package_snapshot_response(snapshot)
-    except PackageDocumentVersionError as exc:
-        raise_bad_request(str(exc), cause=exc)
+        raise ResourceNotFoundError("Package snapshot not found")
+    return _package_snapshot_response(snapshot)
 
 
 def _package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> bytes:
@@ -535,12 +528,9 @@ async def account_lineage(
 ) -> AccountLineageResponse:
     """List the journal lines contributing to one account's report balance."""
     report_date = as_of_date or date.today()
-    try:
-        report = await get_account_lineage(
-            db, user_id, account_id, as_of_date=report_date, start_date=start_date, currency=currency
-        )
-    except ReportError as exc:
-        raise_not_found(f"Account {account_id}", cause=exc)
+    report = await get_account_lineage(
+        db, user_id, account_id, as_of_date=report_date, start_date=start_date, currency=currency
+    )
     return AccountLineageResponse.model_validate(report)
 
 
@@ -619,7 +609,7 @@ async def list_cash_flow_line_events(
 
     events = await _run_report(currency=currency, end_date=end, label="Cash flow line events", build=_build)
     if events is None:
-        raise_not_found("Cash-flow line")
+        raise ResourceNotFoundError("Cash-flow line not found")
     return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
 
 
@@ -690,46 +680,42 @@ async def export_report(
 ) -> StreamingResponse:
     """Export reports in CSV format."""
     _ = (format, framework_id)
-    try:
-        if report_type == ExportReportType.BALANCE_SHEET:
-            report_date = as_of_date or date.today()
-            bs = cast(
-                dict[str, Any],
-                await generate_balance_sheet(
-                    db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
-                ),
-            )
-            csv_text, filename = render_balance_sheet_csv(bs), f"balance-sheet-{bs['as_of_date']}.csv"
-        elif report_type == ExportReportType.INCOME_STATEMENT:
-            if not start_date or not end_date:
-                raise_bad_request("start_date and end_date are required for income statement export")
-            inc = cast(
-                dict[str, Any],
-                await generate_income_statement(
-                    db, user_id, start_date=start_date, end_date=end_date, currency=currency
-                ),
-            )
-            csv_text, filename = render_income_statement_csv(inc), f"income-statement-{start_date}-to-{end_date}.csv"
-        elif report_type == ExportReportType.CASH_FLOW:
-            if not start_date or not end_date:
-                raise_bad_request("start_date and end_date are required for cash flow export")
-            custody_ids = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end_date)
-            cf = cast(
-                dict[str, Any],
-                await generate_cash_flow(
-                    db,
-                    user_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    currency=currency,
-                    cash_account_ids=custody_ids or None,
-                ),
-            )
-            csv_text, filename = render_cash_flow_csv(cf), f"cash-flow-{start_date}-to-{end_date}.csv"
-        else:
-            raise_bad_request("Unsupported report type")
-    except ReportError as exc:
-        logger.warning("Report export failed", report_type=report_type.value, error=str(exc))
-        raise_bad_request(str(exc), cause=exc)
+    if report_type == ExportReportType.BALANCE_SHEET:
+        report_date = as_of_date or date.today()
+        bs = cast(
+            dict[str, Any],
+            await generate_balance_sheet(
+                db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+            ),
+        )
+        csv_text, filename = render_balance_sheet_csv(bs), f"balance-sheet-{bs['as_of_date']}.csv"
+    elif report_type == ExportReportType.INCOME_STATEMENT:
+        if not start_date or not end_date:
+            raise ValidationFailedError("start_date and end_date are required for income statement export")
+        inc = cast(
+            dict[str, Any],
+            await generate_income_statement(
+                db, user_id, start_date=start_date, end_date=end_date, currency=currency
+            ),
+        )
+        csv_text, filename = render_income_statement_csv(inc), f"income-statement-{start_date}-to-{end_date}.csv"
+    elif report_type == ExportReportType.CASH_FLOW:
+        if not start_date or not end_date:
+            raise ValidationFailedError("start_date and end_date are required for cash flow export")
+        custody_ids = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end_date)
+        cf = cast(
+            dict[str, Any],
+            await generate_cash_flow(
+                db,
+                user_id,
+                start_date=start_date,
+                end_date=end_date,
+                currency=currency,
+                cash_account_ids=custody_ids or None,
+            ),
+        )
+        csv_text, filename = render_cash_flow_csv(cf), f"cash-flow-{start_date}-to-{end_date}.csv"
+    else:
+        raise ValidationFailedError("Unsupported report type")
 
     return _stream_envelope_text(csv_text, ExportStreamMediaType.CSV, filename)

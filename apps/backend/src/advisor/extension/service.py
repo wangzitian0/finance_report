@@ -47,6 +47,7 @@ from src.ledger import (
     worst_confidence_tier,
 )
 from src.llm import (
+    LLMError,
     ReasoningEffort,
     Scene,
     SceneBinding,
@@ -55,6 +56,7 @@ from src.llm import (
     get_llm_client,
     stream_ai_chat,
 )
+from src.platform.base.errors import DomainError
 from src.observability import get_logger
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
 from src.pricing import MarketDataScopeStatus, get_market_data_status
@@ -83,7 +85,7 @@ _BALANCE_TOKENS = ("net worth", "assets", "asset", "liabilities", "liability", "
 _CASH_FLOW_TOKENS = ("expense", "expenses", "spending", "income", "cash flow", "cash-flow", "cashflow", "month")
 
 
-class AIAdvisorError(Exception):
+class AIAdvisorError(DomainError):
     """Raised when AI advisor fails."""
 
 
@@ -171,7 +173,7 @@ class AIAdvisorService:
             {"role": "user", "content": message},
         ]
         if not self.api_key and not await get_config_source(user_id).is_configured():
-            raise AIAdvisorError("AI provider API key not configured")
+            raise AIAdvisorError("AI provider API key not configured", status_code=503)
 
         return ChatStream(
             session_id=session.id,
@@ -642,7 +644,7 @@ class AIAdvisorService:
                 )
             )
             if not session:
-                raise AIAdvisorError("Chat session not found")
+                raise AIAdvisorError("Chat session not found", status_code=404)
             session.last_active_at = datetime.now(UTC)
         else:
             session = ChatSession(
@@ -717,7 +719,15 @@ class AIAdvisorService:
                     chunks.append(safe_chunk)
                     yield safe_chunk
         except Exception as exc:
-            raise AIAdvisorError(str(exc)) from exc
+            detail = str(exc)
+            low = detail.lower()
+            is_unavailable = isinstance(exc, LLMError) or any(
+                token in low for token in ("api key", "aistreamerror", "llmerror")
+            )
+            raise AIAdvisorError(
+                "AI service temporarily unavailable." if is_unavailable else detail,
+                status_code=503 if is_unavailable else 400,
+            ) from exc
 
         if tail := redactor.flush():
             chunks.append(tail)
@@ -725,7 +735,7 @@ class AIAdvisorService:
 
         raw_response = "".join(chunks)
         if not raw_response.strip():
-            raise AIAdvisorError("AIStreamError: provider returned empty response")
+            raise AIAdvisorError("AIStreamError: provider returned empty response", status_code=503)
 
         response_text = ensure_disclaimer(raw_response, language)
         if extra := response_text[len(raw_response) :]:

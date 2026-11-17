@@ -59,7 +59,7 @@ async def test_AC_extraction_source_lifecycle_6_failure_and_retry_converge(db: A
     storage = FailingThenRecoveringStorage(); monkeypatch.setattr(statements_router, 'StorageService', lambda: storage); original_commit = db.commit
     async def fail_commit() -> None: raise RuntimeError('database commit unavailable')
     monkeypatch.setattr(db, 'commit', fail_commit); upload = UploadFile(filename='failure-convergence.pdf', file=BytesIO(b'source bytes'))
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload, institution='Example Bank', model=None, db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload, institution='Example Bank', model=None, db=db, user_id=test_user.id)
     await upload.close(); assert exc.value.status_code == 500; assert storage.delete_attempts == 1; assert len(storage.keys) == 1; orphan_key = next(iter(storage.keys)); monkeypatch.setattr(db, 'commit', original_commit); assert await db.scalar(select(func.count()).select_from(UploadedDocument).where(UploadedDocument.file_path == orphan_key)) == 0
     class SessionContext:
         async def __aenter__(self): return db

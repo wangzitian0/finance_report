@@ -28,7 +28,7 @@ from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.platform import ConflictError
+from src.platform import ConflictError, ValidationFailedError
 from src.audit import (
     SqlTraceRecordRepository,
     TraceAuthorityProfile,
@@ -99,15 +99,15 @@ class ActiveRunExists(ConflictError, RuntimeError):
         self.active_run_id = active_run_id
 
 
-class HintsNotApplicable(RuntimeError):
+class HintsNotApplicable(ValidationFailedError, RuntimeError):
     """The hints cannot reach a model: a CSV parse sends no prompt."""
 
 
-class StatementStatusChanged(RuntimeError):
+class StatementStatusChanged(ConflictError, RuntimeError):
     """The status of the statement is not one that the caller allows. Another transaction changed it."""
 
 
-class StaleRun(RuntimeError):
+class StaleRun(ConflictError, RuntimeError):
     """The run is not in a state that allows the transition. The call changed nothing."""
 
     def __init__(self, run_id: UUID, to_state: RunState) -> None:

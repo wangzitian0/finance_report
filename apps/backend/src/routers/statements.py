@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, File, Form, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -25,7 +25,6 @@ from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
     BrokeragePositionImportService,
-    HintsNotApplicable,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
@@ -36,7 +35,6 @@ from src.extraction import (
     StatementPostingOutcome,
     StatementPostingStatus,
     StatementRunRecord,
-    StatementStatusChanged,
     StatementSummary,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
@@ -69,15 +67,14 @@ from src.ledger import Account, AccountType, account_service
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
+    BadGatewayError,
     ConflictError,
+    ContentTooLargeError,
+    DomainError,
+    InternalServiceError,
     ResourceNotFoundError,
+    ServiceUnavailableError,
     ValidationFailedError,
-    raise_bad_request,
-    raise_conflict,
-    raise_internal_error,
-    raise_not_found,
-    raise_service_unavailable,
-    raise_too_large,
 )
 from src.runtime import StorageError, StorageService
 from src.schemas import (
@@ -128,9 +125,9 @@ async def _validate_vision_model(model: str | None) -> None:
         return
     spec = await LitellmCatalog().get(model)
     if spec is None:
-        raise_bad_request("Invalid model selection. Choose a model from /llm/catalog.")
+        raise ValidationFailedError("Invalid model selection. Choose a model from /llm/catalog.")
     if not spec.accepts(Modality.IMAGE):
-        raise_bad_request("Selected model does not support image/PDF inputs.")
+        raise ValidationFailedError("Selected model does not support image/PDF inputs.")
 
 
 async def _resolve_uploaded_document(
@@ -301,24 +298,18 @@ async def _queue_statement_reparse(
     file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     request_id = ensure_request_id()
     model_to_use = None if model == settings.multimodal_model else model
-    try:
-        started = await start_user_extract_run(
-            db,
-            statement_id=statement.id,
-            user_id=user_id,
-            file_type=file_type,
-            hints=hints or RunHints(),
-            model=model_to_use,
-            allowed_statuses=allowed_statuses,
-            strict_hints=strict_hints,
-            load_content=lambda: run_in_threadpool(StorageService().get_object, storage_key),
-            while_pending=while_pending,
-        )
-    except HintsNotApplicable as exc:
-        raise_bad_request(str(exc), cause=exc)
-    except StatementStatusChanged:
-        await db.rollback()
-        raise_conflict("The statement changed while the run started. Reload the page and try again.")
+    started = await start_user_extract_run(
+        db,
+        statement_id=statement.id,
+        user_id=user_id,
+        file_type=file_type,
+        hints=hints or RunHints(),
+        model=model_to_use,
+        allowed_statuses=allowed_statuses,
+        strict_hints=strict_hints,
+        load_content=lambda: run_in_threadpool(StorageService().get_object, storage_key),
+        while_pending=while_pending,
+    )
     await db.commit()
     statement = started.statement
     await db.refresh(statement)
@@ -344,18 +335,14 @@ async def _queue_statement_reparse(
 
 async def _queue_classify_run(db: DbSession, statement_id: UUID, user_id: UUID, hints: RunHints) -> UUID:
     """Start a user classify run, commit it, then run it as a task of this process."""
-    try:
-        run_id = await start_user_classify_run(db, statement_id=statement_id, user_id=user_id, hints=hints)
-    except StatementStatusChanged:
-        await db.rollback()
-        raise_conflict("The statement changed while the run started. Reload the page and try again.")
+    run_id = await start_user_classify_run(db, statement_id=statement_id, user_id=user_id, hints=hints)
     await db.commit()
     try:
         _track_task(submit_classify_run(run_id, db=db))
     except Exception as exc:  # noqa: BLE001 - a run that no task owns would stay requested until the reaper
         await fail_run(db, run_id, error_code="dispatch_failed", error_message="The run could not start.")
         await db.commit()
-        raise_service_unavailable("The classification could not start. Try again.", cause=exc)
+        raise ServiceUnavailableError("The classification could not start. Try again.") from exc
     return run_id
 
 
@@ -450,21 +437,21 @@ async def upload_statement(
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     if extension not in _ALLOWED_EXTENSIONS:
-        raise_bad_request(f"Unsupported file type: {extension}")
+        raise ValidationFailedError(f"Unsupported file type: {extension}")
 
     institution = institution.strip() if institution else None
     if extension == "csv" and not institution:
-        raise_bad_request("Institution is required for CSV uploads. Please select an institution and retry.")
+        raise ValidationFailedError("Institution is required for CSV uploads. Please select an institution and retry.")
 
     if account_id is not None:
         if (
             await db.execute(select(Account.id).where(Account.id == account_id, Account.user_id == user_id))
         ).scalar_one_or_none() is None:
-            raise_not_found("Account")
+            raise ResourceNotFoundError("Account not found")
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
-        raise_too_large("File exceeds 10MB limit")
+        raise ContentTooLargeError("File exceeds 10MB limit")
 
     file_hash = hashlib.sha256(content).hexdigest()
     if (
@@ -523,7 +510,7 @@ async def upload_statement(
             error_type=type(exc).__name__,
             safe_error_message=safe_error_message(str(exc)),
         )
-        raise_service_unavailable(str(exc), cause=exc)
+        raise ServiceUnavailableError(str(exc)) from exc
 
     logger.info(
         "statement.upload.storage_saved",
@@ -569,7 +556,9 @@ async def upload_statement(
                 error=str(store_exc),
                 error_id=ErrorIds.STORAGE_DELETE_FAILED,
             )
-        raise_internal_error("Failed to persist statement metadata", cause=exc)
+        if isinstance(exc, DomainError):
+            raise
+        raise InternalServiceError("Failed to persist statement metadata") from exc
 
     await _enqueue_parse_job(
         db,
@@ -607,11 +596,11 @@ async def create_statement_run(
     statement = await _get_statement_or_404(db, statement_id, user_id)
     if request.kind == "classify":
         if statement.status is not BankStatementStatus.PARSED:
-            raise_bad_request("Can only classify again for a parsed statement")
+            raise ValidationFailedError("Can only classify again for a parsed statement")
         run_id = await _queue_classify_run(db, statement_id, user_id, request.hints)
         return next(run for run in await list_runs(db, statement_id, user_id) if run.id == run_id)
     if statement.status not in _RERUN_STATUSES:
-        raise_bad_request("Can only run again for parsed, rejected, or stuck parsing statements")
+        raise ValidationFailedError("Can only run again for parsed, rejected, or stuck parsing statements")
     await _validate_vision_model(request.model)
     try:
         run_id = await _queue_statement_reparse(
@@ -624,7 +613,7 @@ async def create_statement_run(
             strict_hints=True,
         )
     except StorageError as exc:
-        raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
+        raise ServiceUnavailableError(f"Failed to fetch file from storage: {exc}") from exc
     runs = await list_runs(db, statement_id, user_id)
     return next(run for run in runs if run.id == run_id)
 
@@ -676,10 +665,7 @@ async def get_statement_document(statement_id: UUID, db: ReadDbSession, user_id:
         content = await asyncio.to_thread(StorageService().get_object, uploaded_document.file_path)
     except StorageError as exc:
         logger.warning("Could not fetch statement document", error=str(exc), statement_id=str(statement_id))
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Statement document is temporarily unavailable",
-        ) from exc
+        raise BadGatewayError("Statement document is temporarily unavailable") from exc
     media_type = mimetypes.guess_type(uploaded_document.original_filename)[0] or "application/pdf"
     return Response(
         content=content,
@@ -700,7 +686,7 @@ async def import_brokerage_statement_positions(
     statement = await _get_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
     if statement.status not in BROKERAGE_IMPORTABLE_STATUSES:
-        raise_bad_request(_brokerage_import_not_ready_reason(statement, len(transactions)))
+        raise ValidationFailedError(_brokerage_import_not_ready_reason(statement, len(transactions)))
 
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
@@ -889,7 +875,7 @@ async def reject_statement_stage1(
             ),
         )
     except StorageError as exc:
-        raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
+        raise ServiceUnavailableError(f"Failed to fetch file from storage: {exc}") from exc
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 
 

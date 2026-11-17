@@ -1,4 +1,4 @@
-"""``platform`` — transactional outbox EventBus, rate limiting, and shared middleware."""
+"""``platform`` — transactional outbox EventBus, rate limiting, and shared domain errors."""
 
 from __future__ import annotations
 
@@ -6,11 +6,25 @@ from importlib import import_module
 from typing import TYPE_CHECKING
 
 from src.platform.base import (
+    BadGatewayError,
+    BaseAppException,
+    ConflictError,
+    ContentTooLargeError,
+    DomainError,
     DomainEvent,
     EventBus,
+    ForbiddenError,
+    GatewayTimeoutError,
+    InternalServiceError,
     Outbox,
     OutboxRepository,
+    PreconditionFailedError,
+    ResourceNotFoundError,
+    ServiceUnavailableError,
     SubscriberRegistry,
+    TooManyRequestsError,
+    UnauthorizedError,
+    ValidationFailedError,
     validate_internal_action_href,
 )
 
@@ -20,40 +34,30 @@ from src.platform.orm.app_config import BASE_CURRENCY_KEY, AppConfig
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 _EXTENSION_EXPORTS = {
-    "BaseAppException",
-    "ConflictError",
-    "DomainError",
     "OutboxEventBus",
     "OutboxRelay",
-    "PreconditionFailedError",
     "RateLimitConfig",
     "RateLimiter",
     "RateLimitState",
     "RecordingEventBus",
-    "ResourceNotFoundError",
-    "ValidationFailedError",
     "get_client_ip",
-    "get_owned_or_404",
+    "get_owned_or_raise",
     "paginate",
-    "raise_bad_request",
-    "raise_conflict",
-    "raise_gateway_timeout",
-    "raise_internal_error",
-    "raise_not_found",
-    "raise_service_unavailable",
-    "raise_too_large",
-    "raise_too_many_requests",
-    "raise_unauthorized",
 }
 
 __all__ = [
     "AppConfig",
     "BASE_CURRENCY_KEY",
+    "BadGatewayError",
     "BaseAppException",
     "ConflictError",
+    "ContentTooLargeError",
     "DomainError",
     "DomainEvent",
     "EventBus",
+    "ForbiddenError",
+    "GatewayTimeoutError",
+    "InternalServiceError",
     "Outbox",
     "OutboxEventBus",
     "OutboxRelay",
@@ -64,23 +68,17 @@ __all__ = [
     "RateLimiter",
     "RecordingEventBus",
     "ResourceNotFoundError",
+    "ServiceUnavailableError",
     "SubscriberRegistry",
     "TimestampMixin",
+    "TooManyRequestsError",
     "UUIDMixin",
+    "UnauthorizedError",
     "UserOwnedMixin",
     "ValidationFailedError",
     "get_client_ip",
-    "get_owned_or_404",
+    "get_owned_or_raise",
     "paginate",
-    "raise_bad_request",
-    "raise_conflict",
-    "raise_gateway_timeout",
-    "raise_internal_error",
-    "raise_not_found",
-    "raise_service_unavailable",
-    "raise_too_large",
-    "raise_too_many_requests",
-    "raise_unauthorized",
     "validate_internal_action_href",
 ]
 
@@ -96,28 +94,13 @@ def __getattr__(name: str) -> object:
 
 if TYPE_CHECKING:
     from src.platform.extension import (
-        BaseAppException,
-        ConflictError,
-        DomainError,
         OutboxEventBus,
         OutboxRelay,
-        PreconditionFailedError,
         RateLimitConfig,
         RateLimiter,
         RateLimitState,
         RecordingEventBus,
-        ResourceNotFoundError,
-        ValidationFailedError,
         get_client_ip,
-        get_owned_or_404,
+        get_owned_or_raise,
         paginate,
-        raise_bad_request,
-        raise_conflict,
-        raise_gateway_timeout,
-        raise_internal_error,
-        raise_not_found,
-        raise_service_unavailable,
-        raise_too_large,
-        raise_too_many_requests,
-        raise_unauthorized,
     )

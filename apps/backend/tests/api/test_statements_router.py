@@ -34,7 +34,7 @@ async def test_upload_storage_failure(db, monkeypatch, model_catalog_stub, test_
 
     'AC-extraction.5.5'; content = b'content'; mock_storage = MagicMock(); mock_storage.upload_bytes.side_effect = statements_router.StorageError('S3 Down'); mock_storage_cls = MagicMock(return_value=mock_storage); monkeypatch.setattr(statements_router, 'StorageService', mock_storage_cls); upload_file = make_upload_file('statement.pdf', content)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE; assert 'S3 Down' in exc.value.detail
 
@@ -42,7 +42,7 @@ async def test_upload_invalid_extension(db, test_user):
 
     'AC-extraction.5.6'; content = b'content'; upload_file = make_upload_file('statement.exe', content)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model=None, db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model=None, db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'Unsupported file type' in exc.value.detail
 
@@ -50,7 +50,7 @@ async def test_AC3_5_upload_rejects_cross_user_account_id(db, monkeypatch, test_
 
     other_user = await UserFactory.create_async(db); other_account = await AccountFactory.create_async(db, user_id=other_user.id, name='Other User Cash'); await db.commit(); mock_storage = MagicMock(); monkeypatch.setattr(statements_router, 'StorageService', MagicMock(return_value=mock_storage)); upload_file = make_upload_file('statement.pdf', b'content')
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=other_account.id, model=None, db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=other_account.id, model=None, db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_404_NOT_FOUND; assert exc.value.detail == 'Account not found'; assert mock_storage.upload_bytes.call_count == 0
 
@@ -70,7 +70,7 @@ async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(db, monke
 
     monkeypatch.setattr(statements_router, 'StorageService', FailingStorage); upload_file = make_upload_file('staging-failure.pdf', content)
 
-    with pytest.raises(HTTPException) as exc_info: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model=None, db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc_info: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model=None, db=db, user_id=test_user.id)
 
     await upload_file.close(); failed = next((call.kwargs for call in mock_error.call_args_list if call.args[0] == 'statement.upload.storage_failed')); assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE; assert failed['audit_event'] == 'statement.upload.storage_failed'; assert failed['request_id']; assert failed['statement_id']; assert failed['phase'] == 'storage_upload_failed'; assert failed['progress'] is None; assert failed['model_to_use'] is None; assert failed['filename'] == 'staging-failure.pdf'; assert failed['file_type'] == 'pdf'; assert failed['file_size_bytes'] == len(content); assert failed['file_hash_prefix'] == hashlib.sha256(content).hexdigest()[:12]; assert failed['error_type'] == 'StorageError'; assert failed['safe_error_message'] == 'object store rejected upload without source bytes'; assert 'content' not in failed
 
@@ -90,7 +90,7 @@ async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
 
     monkeypatch.setattr('src.routers.statements.LitellmCatalog.get', fake_catalog_get); upload_file = make_upload_file('statement.pdf', b'content')
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='text-only/model', db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='text-only/model', db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'does not support image/PDF inputs' in exc.value.detail
 
@@ -122,7 +122,7 @@ async def test_upload_file_too_large(db, model_catalog_stub, test_user):
 
     'AC-extraction.5.12'; content = b'x' * (10 * 1024 * 1024 + 1); upload_file = make_upload_file('large-statement.pdf', content)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE; assert '10MB' in exc.value.detail
 
@@ -150,7 +150,7 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
 
     monkeypatch.setattr('src.routers.statements.LitellmCatalog.get', fake_catalog_get)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model='text-only/model'), db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model='text-only/model'), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'does not support image/PDF inputs' in exc.value.detail
 
@@ -162,7 +162,7 @@ async def test_retry_statement_storage_failure(db, monkeypatch, test_user, prior
 
     'AC-extraction.5.16'; from src.schemas import StatementRunRequest; statement = build_statement(test_user.id, 'hash', 80); statement.status = prior_status; statement.validation_error = 'Original review failure'; db.add(statement); await db.flush(); await seed_uploaded_document(db, statement, file_path='path/to/file.pdf') if source_available else None; await db.commit(); mock_storage = MagicMock(); mock_storage.get_object.side_effect = statements_router.StorageError('S3 Down'); monkeypatch.setattr(statements_router, 'StorageService', MagicMock(return_value=mock_storage)); submit = AsyncMock(); monkeypatch.setattr(statements_router, 'submit_parse_pipeline', submit)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model=None), db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model=None), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE; assert 'Failed to fetch file from storage' in exc.value.detail; await db.refresh(statement); assert statement.status == prior_status; assert statement.validation_error == 'Original review failure'; submit.assert_not_awaited()
 
@@ -170,7 +170,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
 
     'AC-extraction.5.17'; from src.schemas import StatementRunRequest; content = b'statement'; _patch_parse_document(monkeypatch, test_user.id, status=BankStatementStatus.PARSING); upload_file = make_upload_file('statement.pdf', content); created = await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=test_user.id); await upload_file.close(); await wait_for_background_tasks(); statement = await db.get(StatementSummary, created.id); statement.status = BankStatementStatus.UPLOADED; await db.commit()
 
-    with pytest.raises(HTTPException) as exc: await statements_router.create_statement_run(statement_id=created.id, request=StatementRunRequest(model=None), db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.create_statement_run(statement_id=created.id, request=StatementRunRequest(model=None), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'stuck parsing statements' in exc.value.detail
 
@@ -190,7 +190,7 @@ async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub,
 
     'AC-extraction.121.6'; upload_file = make_upload_file('statement.csv', b'date,amount\n2025-01-01,10.00\n')
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution=None, account_id=None, model=None, db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution=None, account_id=None, model=None, db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'institution' in exc.value.detail.lower()
 
@@ -212,7 +212,7 @@ async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stu
 
     monkeypatch.setattr('src.routers.statements.LitellmCatalog.get', fake_catalog_get)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', model='unknown/model', db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', model='unknown/model', db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'Invalid model selection' in exc.value.detail
 
@@ -224,7 +224,7 @@ async def test_upload_statement_rejects_model_without_image_modality(db, test_us
 
     monkeypatch.setattr('src.routers.statements.LitellmCatalog.get', fake_catalog_get)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', model='google/gemini-flash', db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.upload_statement(file=upload_file, institution='DBS', model='google/gemini-flash', db=db, user_id=test_user.id)
 
     await upload_file.close(); assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'does not support image' in exc.value.detail
 
@@ -236,7 +236,7 @@ async def test_retry_statement_rejects_invalid_model(db, test_user, monkeypatch,
 
     monkeypatch.setattr('src.routers.statements.LitellmCatalog.get', fake_catalog_get); from src.schemas import StatementRunRequest
 
-    with pytest.raises(HTTPException) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model='google/gemini-flash'), db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model='google/gemini-flash'), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'Invalid model selection' in exc.value.detail
 
@@ -288,7 +288,7 @@ async def test_AC16_33_5_get_statement_document_storage_error_maps_to_502(db, te
 
     'AC16.33.5'; statement = build_statement(test_user.id, 'hash_doc_storage_err', 75); db.add(statement); await db.flush(); await seed_uploaded_document(db, statement, file_path='statements/doc/err.pdf'); await db.commit(); await db.refresh(statement); mock_storage = MagicMock(); mock_storage.get_object.side_effect = statements_router.StorageError('S3 Down'); monkeypatch.setattr(statements_router, 'StorageService', MagicMock(return_value=mock_storage))
 
-    with pytest.raises(HTTPException) as exc: await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_502_BAD_GATEWAY
 
@@ -310,7 +310,7 @@ async def test_retry_statement_invalid_model(db, monkeypatch, storage_stub, test
 
     monkeypatch.setattr('src.routers.statements.LitellmCatalog.get', fake_catalog_get)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model='unknown/model'), db=db, user_id=test_user.id)
+    with pytest.raises(DomainError) as exc: await statements_router.create_statement_run(statement_id=statement.id, request=StatementRunRequest(model='unknown/model'), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST; assert 'Invalid model selection' in exc.value.detail
 

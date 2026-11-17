@@ -21,23 +21,18 @@ from src.extraction import (
 )
 from src.ledger import (
     Account,
-    AccountingError,
     AccountType,
     JournalEntry,
-    ValidationError,
     account_service,
     calculate_reconciliation_adjustment,
     submit_system_journal_entry,
 )
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
-from src.platform import ConflictError, ResourceNotFoundError, ValidationFailedError, get_owned_or_404, paginate
+from src.platform import ConflictError, ResourceNotFoundError, ValidationFailedError, get_owned_or_raise, paginate
 from src.reconciliation import (
-    MatchNotFoundError,
-    ReconciliationError,
     ReconciliationMatch,
     ReconciliationStatus,
     ReviewedDispositionCommand,
-    ReviewedDispositionError,
     accept_match as accept_match_service,
     accept_pending_matches,
     count_pending_review_items,
@@ -220,8 +215,6 @@ async def run_reconciliation(
     try:
         currency = await get_effective_base_currency(db, user_id=user_id)
         matches = await execute_matching(db, limit=payload.limit, user_id=user_id, currency=currency)
-    except ValidationError as exc:
-        raise ValidationFailedError(str(exc)) from exc
     except Exception as exc:
         logger.exception(
             "reconciliation.run.failed",
@@ -308,12 +301,7 @@ async def pending_review_queue(
 @router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
 async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
     """Accept one reconciliation match."""
-    try:
-        match = await accept_match_service(db, match_id, user_id=user_id)
-    except MatchNotFoundError as exc:
-        raise ResourceNotFoundError("Match not found") from exc
-    except ReconciliationError as exc:
-        raise ValidationFailedError(str(exc)) from exc
+    match = await accept_match_service(db, match_id, user_id=user_id)
     await db.flush()
     log_financial_mutation(
         logger,
@@ -330,12 +318,7 @@ async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId)
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
 async def reject_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
     """Reject one reconciliation match."""
-    try:
-        match = await reject_match_service(db, str(match_id), user_id=user_id)
-    except MatchNotFoundError as exc:
-        raise ResourceNotFoundError("Match not found") from exc
-    except ReconciliationError as exc:
-        raise ValidationFailedError(str(exc)) from exc
+    match = await reject_match_service(db, str(match_id), user_id=user_id)
     await db.flush()
     return (await _load_match_responses(db, [match], user_id))[0]
 
@@ -366,10 +349,7 @@ async def batch_update_matches(
         if payload.min_score is not None:
             query = query.where(ReconciliationMatch.match_score >= payload.min_score)
         matches = list((await db.execute(query)).scalars().all())
-        try:
-            reconciled = await accept_pending_matches(db, matches, user_id=user_id)
-        except ReconciliationError as exc:
-            raise ValidationFailedError(str(exc)) from exc
+        reconciled = await accept_pending_matches(db, matches, user_id=user_id)
         await db.flush()
         log_financial_mutation(
             logger,
@@ -451,7 +431,7 @@ async def list_unmatched(
     """Return unmatched transactions."""
     query = _unmatched_atomic_txn_query(user_id, include_pending_stage1=statement_id is not None)
     if statement_id is not None:
-        statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
+        statement = await get_owned_or_raise(db, StatementSummary, statement_id, user_id, name="Statement")
         query = query.where(AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement)))
     rows, total = await paginate(
         db, query, limit=limit, offset=offset, order_by=(AtomicTransaction.txn_date.desc(),)
@@ -468,29 +448,24 @@ async def submit_unmatched_reviewed_disposition(
     user_id: CurrentUserId,
 ) -> JournalEntrySummary:
     """Post one unmatched source transaction from explicit reviewed economic meaning."""
-    try:
-        entry = await submit_reviewed_disposition(
-            db,
-            transaction_id=txn_id,
-            user_id=user_id,
-            command=ReviewedDispositionCommand(
-                intent=payload.intent,
-                counter_account_id=payload.counter_account_id,
-                category=payload.category,
-                rationale=payload.rationale,
-            ),
-            dependencies=compose_reviewed_disposition_dependencies(db),
+    entry = await submit_reviewed_disposition(
+        db,
+        transaction_id=txn_id,
+        user_id=user_id,
+        command=ReviewedDispositionCommand(
+            intent=payload.intent,
+            counter_account_id=payload.counter_account_id,
+            category=payload.category,
+            rationale=payload.rationale,
+        ),
+        dependencies=compose_reviewed_disposition_dependencies(db),
+    )
+    entry_with_lines = (
+        await db.execute(
+            select(JournalEntry).options(selectinload(JournalEntry.lines)).where(JournalEntry.id == entry.id)
         )
-        entry_with_lines = (
-            await db.execute(
-                select(JournalEntry).options(selectinload(JournalEntry.lines)).where(JournalEntry.id == entry.id)
-            )
-        ).scalar_one()
-        response = _build_entry_summary(entry_with_lines)
-    except LookupError as exc:
-        raise ResourceNotFoundError("Transaction not found") from exc
-    except ReviewedDispositionError as exc:
-        raise ValidationFailedError(str(exc)) from exc
+    ).scalar_one()
+    response = _build_entry_summary(entry_with_lines)
     await db.flush()
     return response
 
@@ -500,7 +475,7 @@ async def list_anomalies(
     txn_id: UUID, *, db: ReadDbSession, user_id: CurrentUserId, pagination: Pagination
 ) -> list[AnomalyResponse]:
     """Return reconciliation anomalies."""
-    txn = await get_owned_or_404(db, AtomicTransaction, txn_id, user_id, name="Transaction")
+    txn = await get_owned_or_raise(db, AtomicTransaction, txn_id, user_id, name="Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
     return [AnomalyResponse(**a.__dict__) for a in anomalies[pagination.offset : pagination.offset + pagination.limit]]
 
@@ -510,7 +485,7 @@ async def post_reconciliation_adjustment(
     payload: ReconciliationAdjustmentRequest, *, db: DbSession, user_id: CurrentUserId
 ) -> ReconciliationAdjustmentResponse:
     """Post an immaterial penny rounding adjustment."""
-    account = await get_owned_or_404(db, Account, payload.account_id, user_id, name="Account")
+    account = await get_owned_or_raise(db, Account, payload.account_id, user_id, name="Account")
     diff = abs(payload.bank_balance - payload.book_balance)
     if diff > payload.threshold:
         raise ValidationFailedError(f"difference {diff} exceeds immaterial threshold {payload.threshold}")
@@ -586,21 +561,18 @@ async def post_reconciliation_adjustment(
         }
         for sl in adj.lines
     ]
-    try:
-        entry = await submit_system_journal_entry(
-            db,
-            user_id=user_id,
-            entry_date=payload.entry_date or date.today(),
-            memo=f"Reconciliation rounding adjustment for {account.name}",
-            lines_data=lines_data,
-            base_currency=base_currency,
-            operation="reconciliation_adjustment",
-            source_id=uuid4(),
-            post_immediately=True,
-        )
-        await db.refresh(entry, ["lines"])
-    except (ValidationError, AccountingError) as exc:
-        raise ValidationFailedError(safe_error_message(exc)) from exc
+    entry = await submit_system_journal_entry(
+        db,
+        user_id=user_id,
+        entry_date=payload.entry_date or date.today(),
+        memo=f"Reconciliation rounding adjustment for {account.name}",
+        lines_data=lines_data,
+        base_currency=base_currency,
+        operation="reconciliation_adjustment",
+        source_id=uuid4(),
+        post_immediately=True,
+    )
+    await db.refresh(entry, ["lines"])
     await db.flush()
 
     log_financial_mutation(

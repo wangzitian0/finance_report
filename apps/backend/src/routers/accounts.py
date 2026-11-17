@@ -12,10 +12,8 @@ from src.composition import post_guided_opening_balances
 from src.deps import CurrentUserId, DbSession, ReadCtx, ReadDbSession
 from src.ledger import (
     DEFAULT_STALE_AFTER_DAYS,
-    AccountNotFoundError,
     AccountType,
     JournalLine,
-    ValidationError,
     account_service,
     calculate_account_balance,
     calculate_account_balances,
@@ -28,8 +26,7 @@ from src.ledger import (
     list_processing_transfer_legs,
 )
 from src.observability import get_logger
-from src.platform import raise_bad_request, raise_not_found
-from src.pricing import PricingError
+from src.platform import ValidationFailedError
 from src.reconciliation import paired_transfer_entry_ids, score_description
 from src.schemas import (
     AccountCoverageListResponse,
@@ -60,19 +57,16 @@ async def post_opening_balances(
     opening balance and offsets the net into the system Opening Balance Equity
     account, so a cross-year balance sheet is complete from the start.
     """
-    try:
-        entry = await post_guided_opening_balances(
-            db,
-            user_id,
-            entry_date=payload.entry_date,
-            balances=payload.balances,
-            currency=payload.currency,
-            memo=payload.memo,
-        )
-        await db.flush()
-        await db.refresh(entry, ["lines"])
-    except (ValidationError, PricingError) as exc:
-        raise_bad_request(str(exc), cause=exc)
+    entry = await post_guided_opening_balances(
+        db,
+        user_id,
+        entry_date=payload.entry_date,
+        balances=payload.balances,
+        currency=payload.currency,
+        memo=payload.memo,
+    )
+    await db.flush()
+    await db.refresh(entry, ["lines"])
     return JournalEntryResponse.model_validate(entry)
 
 
@@ -235,13 +229,7 @@ async def update_account(
     user_id: CurrentUserId,
 ) -> AccountResponse:
     """Update an account's mutable fields."""
-    try:
-        account = await account_service.update_account(db, user_id, account_id, account_data)
-    except AccountNotFoundError as e:
-        logger.debug("Account not found for update", account_id=str(account_id))
-        raise_not_found("Account", cause=e)
-    except ValidationError as e:
-        raise_bad_request(str(e), cause=e)
+    account = await account_service.update_account(db, user_id, account_id, account_data)
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
@@ -257,18 +245,14 @@ async def delete_account(
     user_id: CurrentUserId,
 ) -> None:
     """Delete an account by id."""
-    try:
-        account = await account_service.get_account(db, user_id, account_id)
-    except AccountNotFoundError as e:
-        logger.debug("Account not found for deletion", account_id=str(account_id))
-        raise_not_found("Account", cause=e)
+    account = await account_service.get_account(db, user_id, account_id)
 
     if account.is_system:
-        raise_bad_request("System accounts cannot be modified or deleted")
+        raise ValidationFailedError("System accounts cannot be modified or deleted")
 
     result = await db.execute(select(JournalLine).where(JournalLine.account_id == account_id).limit(1))
     if result.scalar_one_or_none():
-        raise_bad_request("Cannot delete account with existing transactions. Archive it instead.")
+        raise ValidationFailedError("Cannot delete account with existing transactions. Archive it instead.")
 
     await db.delete(account)
     await db.flush()

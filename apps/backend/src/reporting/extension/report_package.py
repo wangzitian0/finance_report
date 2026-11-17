@@ -13,6 +13,7 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from src.audit.money.currency import normalize_currency_code
+from src.platform.base.errors import DomainError
 from src.reporting.orm import ReportSnapshot
 from src.schemas import (
     PersonalReportingFrameworkId,
@@ -24,7 +25,7 @@ from src.schemas import (
 )
 
 
-class PackageDocumentVersionError(ValueError):
+class PackageDocumentVersionError(DomainError):
     """A persisted snapshot cannot be reopened through the current document contract."""
 
 

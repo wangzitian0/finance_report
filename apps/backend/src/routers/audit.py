@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from src.deps import CurrentUserId, ReadDbSession
 from src.ledger import JournalAuditLog, JournalEntry
-from src.platform import raise_not_found
+from src.platform import ResourceNotFoundError
 from src.schemas.audit import AuditTrailItem, AuditTrailResponse
 
 router = APIRouter(prefix="/journal-entries", tags=["audit"])
@@ -24,7 +24,7 @@ async def get_journal_entry_audit(
         select(JournalEntry.id).where(JournalEntry.id == entry_id).where(JournalEntry.user_id == user_id)
     )
     if entry_result.scalar_one_or_none() is None:
-        raise_not_found("Journal entry")
+        raise ResourceNotFoundError("Journal entry not found")
 
     result = await db.execute(
         select(JournalAuditLog)

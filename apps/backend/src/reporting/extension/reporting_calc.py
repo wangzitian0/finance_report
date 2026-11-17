@@ -21,6 +21,7 @@ from typing import ClassVar
 from src.audit import JournalEntrySourceType, normalize_source_type
 from src.audit.money import to_money
 from src.ledger import Account, AccountType, Direction, JournalLine
+from src.platform.base.errors import DomainError
 from src.schemas.base import normalize_currency_code
 from src.schemas.provenance import DataProvenance
 
@@ -37,10 +38,8 @@ MAX_NET_WORTH_DAILY_POINTS = 366
 MAX_NET_WORTH_MONTHLY_POINTS = 366
 
 
-class ReportError(Exception):
+class ReportError(DomainError):
     """Raised when report generation fails or input is invalid."""
-
-    pass
 
 
 @dataclass

@@ -9,8 +9,9 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import func, select
+
+from src.platform import DomainError
 
 from src.database import create_session_maker_from_db
 from src.extraction import (
@@ -115,7 +116,7 @@ async def test_AC_extraction_2994_17_a_failed_run_insert_leaves_no_statement(
     upload = make_upload_file("july.pdf", b"upload-run-failure-content")
     user_id = test_user.id
 
-    with pytest.raises(HTTPException) as caught:
+    with pytest.raises(DomainError) as caught:
         await statements_router.upload_statement(
             file=upload, institution="DBS", account_id=None, model=None, db=db, user_id=test_user.id
         )

@@ -10,7 +10,6 @@ from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import (
     AtomicTransaction,
     ClassificationStatus,
-    SuggestionCorrectionError,
     TransactionClassification,
     apply_suggestion_feedback,
     effective_statement_transaction_filter,
@@ -22,9 +21,7 @@ from src.identity import (
     AiSuggestionListResponse,
     AiSuggestionResponse,
 )
-from src.platform import raise_bad_request
 from src.reconciliation import (
-    ReconciliationError,
     ReconciliationMatch,
     ReconciliationStatus,
     apply_reconciliation_feedback,
@@ -52,14 +49,11 @@ async def _count_suggestions(
 @router.post("/feedback", response_model=AiFeedbackResponse, status_code=status.HTTP_201_CREATED)
 async def create_ai_feedback(payload: AiFeedbackRequest, db: DbSession, user_id: CurrentUserId) -> AiFeedbackResponse:
     """Persist user feedback for an AI suggestion and apply it to the draft classification."""
-    try:
-        effect = await apply_suggestion_feedback(
-            db, user_id, payload.suggestion_id, payload.action, payload.corrected_value
-        )
-        if effect == "recorded":
-            effect = await apply_reconciliation_feedback(db, user_id, payload.suggestion_id, payload.action)
-    except (SuggestionCorrectionError, ReconciliationError) as exc:
-        raise_bad_request(str(exc), cause=exc)
+    effect = await apply_suggestion_feedback(
+        db, user_id, payload.suggestion_id, payload.action, payload.corrected_value
+    )
+    if effect == "recorded":
+        effect = await apply_reconciliation_feedback(db, user_id, payload.suggestion_id, payload.action)
     feedback = AiFeedback(
         suggestion_id=payload.suggestion_id,
         user_id=user_id,

@@ -42,7 +42,7 @@ async def get_account_lineage(
     """
     account = await db.scalar(select(Account).where(Account.id == account_id).where(Account.user_id == user_id))
     if account is None:
-        raise ReportError(f"Account {account_id} not found")
+        raise ReportError(f"Account {account_id} not found", status_code=404)
 
     target_currency = _normalize_currency(currency or account.currency)
 
