@@ -10,7 +10,6 @@ generated AC-to-EPIC mismatch output.
 ## Historical Audits
 | Report | Date | Scope | Status |
 |---|---|---|---|
-| [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | 2026-05-04 | Vision -> EPIC -> AC consistency | Historical; superseded for current metrics by generated AC tooling and CI artifacts |
 | [Issue #548](https://github.com/wangzitian0/finance_report/issues/548) | 2026-02 era | Removed archive inventory | Retention index only; active truth lives in EPICs, README, registries, generated reports, and CI artifacts |
 ## Audit Rules
 1. Current counts should come from generated tooling, not hand-maintained prose. 2. New project audits should explain what was checked and link to generated evidence. 3. When an audit finds work that belongs in code or tests, create an issue and reference it instead of encoding future behavior in prose.
