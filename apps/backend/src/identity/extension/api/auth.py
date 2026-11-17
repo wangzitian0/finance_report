@@ -12,10 +12,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 import src.config
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import DbSession, ReadCtx, ReadDbSession
 from src.identity.base.types import (
     AUTH_COOKIE_NAME,
     AuthResponse,
@@ -26,6 +25,7 @@ from src.identity.base.types import (
 from src.identity.extension.auth import oauth2_scheme
 from src.identity.extension.observability import bind_authenticated_user_context
 from src.identity.extension.rate_limit import auth_rate_limiter, register_rate_limiter
+from src.identity.extension.registration import register_user
 from src.identity.extension.security import create_access_token, hash_password, verify_password
 from src.identity.extension.sql import SqlUserRepository, User
 from src.observability import get_logger, log_security_warning, record_rate_limit_rejected
@@ -34,7 +34,6 @@ from src.platform import (
     ResourceNotFoundError,
     TooManyRequestsError,
     UnauthorizedError,
-    ValidationFailedError,
     get_client_ip,
 )
 
@@ -107,28 +106,13 @@ async def register(
         "Too many registration attempts. Please try again later.",
     )
 
-    repo = SqlUserRepository(db)
-
-    # Check if email already exists
-    normalized_email = normalize_email(str(data.email))
-    existing = await repo.get_by_normalized_email(normalized_email)
-
-    if existing:
-        raise ValidationFailedError("Email already registered")
-
-    user = User(
-        email=normalized_email,
+    user = await register_user(
+        db,
+        email=str(data.email),
         name=data.name,
-        hashed_password=hash_password(data.password),
+        password=data.password,
+        password_hasher=hash_password,
     )
-    await repo.add(user)
-    try:
-        await db.commit()
-    except IntegrityError as e:
-        # Handle race condition: another request created user with same email
-        await db.rollback()
-        raise ValidationFailedError("Email already registered") from e
-    await db.refresh(user)
 
     # Reset registration rate limit on success
     register_rate_limiter.reset(_get_client_ip(request))
@@ -150,7 +134,7 @@ async def login(
     request: Request,
     response: Response,
     data: LoginRequest,
-    db: DbSession,
+    db: ReadDbSession,
 ) -> AuthResponse:
     """Login with email and password."""
     # SECURITY: Rate limit login attempts to prevent brute-force attacks
@@ -198,11 +182,10 @@ async def login(
 async def get_me(
     token: str | None = Depends(oauth2_scheme),
     *,
-    user_id: CurrentUserId,
-    db: ReadDbSession,
+    ctx: ReadCtx,
 ) -> AuthResponse:
     """Get current authenticated user."""
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await ctx.db.execute(select(User).where(User.id == ctx.user_id))
     user = result.scalar_one_or_none()
 
     if not user:

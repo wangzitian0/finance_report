@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from src.deps import Ctx, CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
@@ -56,11 +56,10 @@ async def list_journal_entries(
     limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> JournalEntryListResponse:
     """List journal entries with pagination and filters."""
-    query = select(JournalEntry).where(JournalEntry.user_id == user_id)
+    query = select(JournalEntry).where(JournalEntry.user_id == ctx.user_id)
 
     if status_filter:
         query = query.where(JournalEntry.status == status_filter)
@@ -70,7 +69,7 @@ async def list_journal_entries(
         query = query.where(JournalEntry.entry_date <= end_date)
 
     entries, total = await paginate(
-        db,
+        ctx.db,
         query,
         limit=limit,
         offset=offset,
@@ -86,15 +85,14 @@ async def list_journal_entries(
 async def get_journal_entry(
     entry_id: UUID,
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> JournalEntryResponse:
     """Return one journal entry by id with its lines."""
     entry = await get_owned_or_raise(
-        db,
+        ctx.db,
         JournalEntry,
         entry_id,
-        user_id,
+        ctx.user_id,
         name="Journal entry",
         options=[selectinload(JournalEntry.lines)],
     )
@@ -167,13 +165,12 @@ async def void_entry(
 async def delete_journal_entry(
     entry_id: UUID,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> None:
     """Delete a draft journal entry."""
-    entry = await get_owned_or_raise(db, JournalEntry, entry_id, user_id, name="Journal entry")
+    entry = await get_owned_or_raise(ctx.db, JournalEntry, entry_id, ctx.user_id, name="Journal entry")
 
     if entry.status != JournalEntryStatus.DRAFT:
         raise ValidationFailedError("Only draft entries can be deleted")
 
-    await db.delete(entry)
+    await ctx.db.delete(entry)

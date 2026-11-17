@@ -64,7 +64,7 @@ def test_AC_workflow_sync_3_workflow_reads_use_readonly_session_without_table_sc
     events_src = (backend_src / 'workflow/extension/events.py').read_text(encoding='utf-8')
     assert 'Base.metadata.tables' not in events_src; assert 'source_fingerprint' in events_src
     for endpoint in (workflow_router.get_workflow_status_endpoint, workflow_router.list_workflow_events_endpoint):
-        assert 'ReadDbSession' in inspect.getsource(endpoint)
+        assert 'ReadCtx' in inspect.getsource(endpoint)
 async def test_AC_workflow_sync_4_input_stamp_changes_only_with_relevant_inputs(db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch) -> None:
     'AC-workflow.sync.4'
     async def stamp() -> str: await db.commit(); return await workflow_input_stamp(db, user_id=test_user.id)

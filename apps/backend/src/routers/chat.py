@@ -19,7 +19,7 @@ from src.advisor import (
     ChatSessionStatus,
     detect_language,
 )
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.llm import LitellmCatalog, LLMError
 from src.observability import get_logger
 from src.platform import (
@@ -95,9 +95,14 @@ async def _validate_requested_model(service: AIAdvisorService, model: str | None
         raise ValidationFailedError("Invalid model selection.")
 
 
-@router.post("", response_class=StreamingResponse)
-async def chat_message(payload: ChatRequest, *, db: DbSession, user_id: CurrentUserId) -> StreamingResponse:
+@router.post(
+    "",
+    response_class=StreamingResponse,
+    responses={200: {"description": "SSE stream of assistant response chunks.", "content": {"text/event-stream": {}}}},
+)
+async def chat_message(payload: ChatRequest, *, ctx: Ctx) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
+    db, user_id = ctx.db, ctx.user_id
     service = AIAdvisorService()
     await _validate_requested_model(service, payload.model)
     stream = await service.chat_stream(db, user_id, payload.message, payload.session_id, payload.model)
@@ -149,10 +154,10 @@ async def chat_history(
     session_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ChatHistoryResponse:
     """Retrieve chat session history."""
+    db, user_id = ctx.db, ctx.user_id
     if session_id:
         session = (
             await db.execute(
@@ -229,11 +234,11 @@ async def chat_history(
 
 
 @router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_session(session_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> None:
+async def delete_session(session_id: UUID, *, ctx: Ctx) -> None:
     """Soft-delete a chat session."""
-    session = await get_owned_or_raise(db, ChatSession, session_id, user_id, name="Chat session")
+    session = await get_owned_or_raise(ctx.db, ChatSession, session_id, ctx.user_id, name="Chat session")
     session.status = ChatSessionStatus.DELETED
-    await db.flush()
+    await ctx.db.flush()
 
 
 @router.get("/suggestions", response_model=ChatSuggestionsResponse)
@@ -250,16 +255,15 @@ async def suggestions(
         ),
     ] = False,
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ChatSuggestionsResponse:
     """Return a suggested question list for the chat UI."""
     resolved = language or (detect_language(message) if message else "en")
     structured: list[Any] = []
-    if include_structured and db is not None and user_id is not None:
+    if include_structured and ctx.db is not None and ctx.user_id is not None:
         try:
             structured = await asyncio.wait_for(
-                AIAdvisorService().get_advisor_suggestions(db, user_id),
+                AIAdvisorService().get_advisor_suggestions(ctx.db, ctx.user_id),
                 timeout=SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS,
             )
         except TimeoutError as exc:

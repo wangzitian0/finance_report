@@ -50,6 +50,7 @@ from tests.api._statement_router_fixtures import (
 )
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 from tests.statement_ingestion import posting_dependencies
+from src.request_context import RequestContext
 
 pytestmark = pytest.mark.asyncio
 
@@ -79,7 +80,7 @@ async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_d
     txn_id = txn_out.id
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+    result = await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, test_user.id))
     assert result.journal_entries_created == 1
     assert result.status == BankStatementStatus.APPROVED
     entries = (
@@ -114,7 +115,7 @@ async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, t
     await db.commit()
 
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, test_user.id))
     assert exc.value.status_code == status.HTTP_409_CONFLICT
     assert exc.value.detail == "Economic review required: intent_missing"
     await db.refresh(statement)
@@ -186,27 +187,13 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
     account = await create_statement_account(db, user_id, "Reviewed CSV Custody")
     await db.commit()
 
-    envelope = await statements_router.confirm_statement_review_envelope(
-        statement_id=statement.id,
-        request=ReviewedStatementEnvelopeRequest(
-            source_result_digest=source_result.content_digest,
-            account_id=account.id,
-            currency="SGD",
-            period_start=date(2025, 1, 1),
-            period_end=date(2025, 1, 31),
-            opening_balance=Decimal("100.00"),
-            closing_balance=Decimal("110.00"),
-            rationale="The CSV export omits source header and balance facts.",
-        ),
-        db=db,
-        user_id=user_id,
-    )
+    envelope = await statements_router.confirm_statement_review_envelope(statement_id=statement.id, request=ReviewedStatementEnvelopeRequest(source_result_digest=source_result.content_digest, account_id=account.id, currency='SGD', period_start=date(2025, 1, 1), period_end=date(2025, 1, 31), opening_balance=Decimal('100.00'), closing_balance=Decimal('110.00'), rationale='The CSV export omits source header and balance facts.'), ctx=RequestContext(db, user_id))
     assert envelope.source_result_digest == source_result.content_digest
     await db.commit()
     statement.closing_balance = Decimal("999.00")
 
     with pytest.raises((HTTPException, DomainError), match="diverges from its current reviewed envelope") as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
 
     await db.rollback()
@@ -215,7 +202,7 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
         db, user_id=user_id, keyword="salary", account_type=AccountType.INCOME, category="SALARY"
     )
     await db.commit()
-    approved = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+    approved = await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
     assert approved.status is BankStatementStatus.APPROVED
     assert approved.journal_entries_created == 1
     entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
@@ -255,7 +242,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     txn_id = txn.id
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+    result = await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, test_user.id))
     assert result.journal_entries_created == 1
     await db.refresh(statement)
     assert statement.account_id == bank_account_id
@@ -405,7 +392,7 @@ async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correct
     )
 
     with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert "legacy_unanchored_source_entry" in exc_info.value.detail
     await db.refresh(existing_entry)
@@ -444,7 +431,7 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
     await db.commit()
 
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Historical custody source needs review" in str(exc.value.detail)
 
@@ -475,7 +462,7 @@ async def test_approve_statement_stage1_blocks_overlapping_statement_period_befo
     await db.commit()
 
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Statement period overlaps" in str(exc.value.detail)
     entry_result = await db.execute(
@@ -516,7 +503,7 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     await db.commit()
 
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, user_id))
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Account mapping required" in str(exc.value.detail)
     entry_result = await db.execute(
@@ -567,7 +554,7 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     await db.commit()
 
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, user_id))
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert expected_detail == str(exc.value.detail)
 
@@ -594,12 +581,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     txn_id = txn.id
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(
-        statement_id=statement_id,
-        db=db,
-        user_id=user_id,
-        request=Stage1ApprovalRequest(create_account_if_missing=True),
-    )
+    result = await statements_router.approve_statement_stage1(statement_id=statement_id, request=Stage1ApprovalRequest(create_account_if_missing=True), ctx=RequestContext(db, user_id))
     assert result.journal_entries_created == 1
     await db.refresh(statement)
     assert statement.account_id is not None
@@ -654,7 +636,7 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
     await db.commit()
 
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, user_id))
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Ambiguous historical custody accounts" in str(exc.value.detail)
 
@@ -673,7 +655,7 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(db,
     monkeypatch.setattr(statement_validation_mod, "validate_balance_chain", validation)
 
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, test_user.id))
     assert exc.value.status_code == 404
     assert "Statement not found" in exc.value.detail
     validation.assert_not_awaited()
@@ -694,12 +676,7 @@ async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(db, test_u
     )
     await db.commit()
 
-    approved = await statements_router.approve_statement_stage1(
-        statement_id=statement.id,
-        request=Stage1ApprovalRequest(account_id=selected_account.id, auto_fill_default_categories=True),
-        db=db,
-        user_id=test_user.id,
-    )
+    approved = await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(account_id=selected_account.id, auto_fill_default_categories=True), ctx=RequestContext(db, test_user.id))
     assert approved.status == BankStatementStatus.APPROVED
     assert approved.account_id == selected_account.id
     assert approved.journal_entries_created == 1
@@ -722,6 +699,6 @@ async def test_AC_extraction_2826_1_review_response_inherits_bank_statement_resp
     db.add(statement)
     await db.commit()
 
-    review = await statements_router.get_statement_for_review(statement_id=statement.id, db=db, user_id=test_user.id)
+    review = await statements_router.get_statement_for_review(statement_id=statement.id, ctx=RequestContext(db, test_user.id))
     assert review.brokerage_import_failed is True
     assert review.brokerage_import_failure_reason == "Brokerage import failed: missing instrument symbol"

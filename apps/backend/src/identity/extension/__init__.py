@@ -33,6 +33,7 @@ _LAZY = {
     "bind_authenticated_user_context": "src.identity.extension.observability",
     "auth_rate_limiter": "src.identity.extension.rate_limit",
     "register_rate_limiter": "src.identity.extension.rate_limit",
+    "register_user": "src.identity.extension.registration",
     "create_access_token": "src.identity.extension.security",
     "decode_access_token": "src.identity.extension.security",
     "hash_password": "src.identity.extension.security",
@@ -63,6 +64,7 @@ __all__ = [
     "purge_test_accounts",
     "register",
     "register_rate_limiter",
+    "register_user",
     "verify_password",
 ]
 
@@ -94,6 +96,7 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
     from src.identity.extension.auth import get_current_user_id, oauth2_scheme
     from src.identity.extension.observability import bind_authenticated_user_context
     from src.identity.extension.rate_limit import auth_rate_limiter, register_rate_limiter
+    from src.identity.extension.registration import register_user
     from src.identity.extension.security import (
         create_access_token,
         decode_access_token,

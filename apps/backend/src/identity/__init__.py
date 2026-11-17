@@ -38,6 +38,7 @@ _EXTENSION_EXPORTS = {
     "purge_test_accounts",
     "register",
     "register_rate_limiter",
+    "register_user",
     "verify_password",
 }
 
@@ -73,6 +74,7 @@ __all__ = [
     "purge_test_accounts",
     "register",
     "register_rate_limiter",
+    "register_user",
     "verify_password",
 ]
 
@@ -125,5 +127,6 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
         purge_test_accounts,
         register,
         register_rate_limiter,
+        register_user,
         verify_password,
     )

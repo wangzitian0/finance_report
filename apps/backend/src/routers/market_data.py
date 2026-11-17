@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
 
 from src.composition import observed_fx_pairs
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.portfolio import active_stock_symbols
 from src.pricing import (
     MarketDataScopeStatus,
@@ -73,13 +73,13 @@ def _status_response(status_result: MarketDataScopeStatus) -> MarketDataStatusRe
 
 @router.get("/status", response_model=list[MarketDataStatusResponse], status_code=status.HTTP_200_OK)
 async def market_data_status_endpoint(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     pairs: list[str] | None = Query(default=None, description="FX pairs in BASE/QUOTE format"),
     symbols: list[str] | None = Query(default=None, description="Stock symbols"),
     include_default_fx: bool = Query(default=False),
 ) -> list[MarketDataStatusResponse]:
     """Return read-only market data freshness status for observed or explicit scopes."""
+    db, user_id = ctx.db, ctx.user_id
     sync_pairs = (
         pairs if pairs is not None else await observed_fx_pairs(db, user_id, include_default=include_default_fx)
     )
@@ -91,10 +91,10 @@ async def market_data_status_endpoint(
 @router.post("/fx/syncs", response_model=MarketDataSyncResponse, status_code=status.HTTP_200_OK)
 async def sync_fx_endpoint(
     request: MarketDataSyncRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> MarketDataSyncResponse:
     """Incrementally fill FX rows for explicit or observed pairs."""
+    db, user_id = ctx.db, ctx.user_id
     sync_pairs = request.pairs if request.pairs is not None else await observed_fx_pairs(db, user_id)
     result = await sync_fx_rates(
         db,
@@ -108,10 +108,10 @@ async def sync_fx_endpoint(
 @router.post("/stocks/syncs", response_model=MarketDataSyncResponse, status_code=status.HTTP_200_OK)
 async def sync_stocks_endpoint(
     request: MarketDataSyncRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> MarketDataSyncResponse:
     """Incrementally fill stock prices for explicit symbols or active holdings."""
+    db, user_id = ctx.db, ctx.user_id
     sync_symbols = request.symbols if request.symbols is not None else await active_stock_symbols(db, user_id)
     result = await sync_stock_prices(
         db,

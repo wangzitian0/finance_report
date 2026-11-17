@@ -29,6 +29,7 @@ from tests.api._statement_router_fixtures import (
     create_statement_account,
 )
 from tests.statement_ingestion import anchored_reviewed_posting_inputs
+from src.request_context import RequestContext
 
 
 async def _seed_approved_statement_with_txn(
@@ -89,7 +90,7 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     "AC-reconciliation.bank-side-amount.4 AC4.9.4"
     from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
-    empty_result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
+    empty_result = await review_router.get_stage2_review_queue(RequestContext(db, test_user.id))
     assert empty_result.pending_matches == []
     assert empty_result.consistency_checks == []
     assert empty_result.has_unresolved_checks is False
@@ -99,7 +100,7 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     )
     db.add(match)
     await db.commit()
-    result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
+    result = await review_router.get_stage2_review_queue(RequestContext(db, test_user.id))
     assert len(result.pending_matches) == 1
     assert result.pending_matches[0].status == "pending_review"
     assert result.pending_matches[0].match_score == 75
@@ -114,16 +115,14 @@ async def test_run_stage2_checks_success(db, test_user):
     db.add(statement)
     await db.commit()
     statement_id = statement.id
-    result = await review_router.run_stage2_checks(statement_id=statement_id, db=db, user_id=test_user.id)
+    result = await review_router.run_stage2_checks(statement_id=statement_id, ctx=RequestContext(db, test_user.id))
     assert result.total >= 0
     assert isinstance(result.items, list)
 
 
 async def test_run_stage2_checks_not_found(db, test_user):
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await review_router.run_stage2_checks(
-            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"), db=db, user_id=test_user.id
-        )
+        await review_router.run_stage2_checks(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), ctx=RequestContext(db, test_user.id))
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -142,9 +141,7 @@ async def test_resolve_consistency_check_success(db, test_user):
     await db.commit()
     await db.refresh(check)
     check_id = check.id
-    result = await review_router.resolve_consistency_check(
-        check_id=check_id, request=ResolveCheckRequest(action="approve", note="Looks fine"), db=db, user_id=test_user.id
-    )
+    result = await review_router.resolve_consistency_check(check_id=check_id, request=ResolveCheckRequest(action='approve', note='Looks fine'), ctx=RequestContext(db, test_user.id))
     assert result.status == CheckStatus.APPROVED
     assert result.resolution_note == "Looks fine"
 
@@ -165,27 +162,20 @@ async def test_resolve_consistency_check_invalid_action(db, test_user):
     await db.refresh(check)
     check_id = check.id
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await review_router.resolve_consistency_check(
-            check_id=check_id, request=ResolveCheckRequest(action="invalid"), db=db, user_id=test_user.id
-        )
+        await review_router.resolve_consistency_check(check_id=check_id, request=ResolveCheckRequest(action='invalid'), ctx=RequestContext(db, test_user.id))
     assert exc.value.status_code == 400
 
 
 async def test_resolve_consistency_check_not_found(db, test_user):
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await review_router.resolve_consistency_check(
-            check_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            request=ResolveCheckRequest(action="approve"),
-            db=db,
-            user_id=test_user.id,
-        )
+        await review_router.resolve_consistency_check(check_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), request=ResolveCheckRequest(action='approve'), ctx=RequestContext(db, test_user.id))
     assert exc.value.status_code == 404
 
 
 async def test_list_consistency_checks_with_filters(db, test_user):
     from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
-    empty = await review_router.list_consistency_checks(db=db, user_id=test_user.id)
+    empty = await review_router.list_consistency_checks(RequestContext(db, test_user.id))
     assert empty.total == 0
     assert empty.items == []
     check1 = ConsistencyCheck(
@@ -207,12 +197,10 @@ async def test_list_consistency_checks_with_filters(db, test_user):
     db.add(check1)
     db.add(check2)
     await db.commit()
-    result = await review_router.list_consistency_checks(db=db, user_id=test_user.id, status=CheckStatus.PENDING)
+    result = await review_router.list_consistency_checks(RequestContext(db, test_user.id), status=CheckStatus.PENDING)
     assert result.total == 1
     assert result.items[0].check_type == CheckType.DUPLICATE
-    result2 = await review_router.list_consistency_checks(
-        db=db, user_id=test_user.id, check_type=CheckType.TRANSFER_PAIR
-    )
+    result2 = await review_router.list_consistency_checks(RequestContext(db, test_user.id), check_type=CheckType.TRANSFER_PAIR)
     assert result2.total == 1
     assert result2.items[0].status == CheckStatus.APPROVED
 
@@ -232,9 +220,7 @@ async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user)
     db.add(check)
     await db.commit()
     with pytest.raises((HTTPException, DomainError)) as exc:
-        await reconciliation_router.batch_update_matches(
-            payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[]), db=db, user_id=test_user.id
-        )
+        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[]), ctx=RequestContext(db, test_user.id))
     assert exc.value.status_code == status.HTTP_409_CONFLICT
     assert "unresolved" in exc.value.detail
 
@@ -261,9 +247,7 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_us
         )
     await db.commit()
     with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
 
@@ -285,9 +269,7 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, te
     )
     await db.commit()
     with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
 
@@ -319,20 +301,14 @@ async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
     )
     await db.commit()
     with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement_id, request=Stage1ApprovalRequest(), db=db, user_id=user_id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement_id, request=Stage1ApprovalRequest(), ctx=RequestContext(db, user_id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-    resolve_response = await review_router.resolve_review_conflicts(
-        statement_id=statement_id, request=ResolveConflictsRequest(action="confirm_distinct"), db=db, user_id=user_id
-    )
+    resolve_response = await review_router.resolve_review_conflicts(statement_id=statement_id, request=ResolveConflictsRequest(action='confirm_distinct'), ctx=RequestContext(db, user_id))
     assert resolve_response.resolved is True
     assert resolve_response.resolved_at is not None
-    conflicts_after = await review_router.get_review_conflicts(statement_id=statement_id, db=db, user_id=user_id)
+    conflicts_after = await review_router.get_review_conflicts(statement_id=statement_id, ctx=RequestContext(db, user_id))
     assert conflicts_after.resolved is True
-    approved = await statements_router.approve_statement_stage1(
-        statement_id=statement_id, request=Stage1ApprovalRequest(), db=db, user_id=user_id
-    )
+    approved = await statements_router.approve_statement_stage1(statement_id=statement_id, request=Stage1ApprovalRequest(), ctx=RequestContext(db, user_id))
     assert approved.id == statement_id
     assert approved.status == BankStatementStatus.APPROVED
 
@@ -340,12 +316,7 @@ async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
 async def test_AC16_34_1_resolve_conflicts_404_for_unknown_statement(db, test_user):
     "AC16.34.1"
     with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await review_router.resolve_review_conflicts(
-            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            request=ResolveConflictsRequest(action="confirm_distinct"),
-            db=db,
-            user_id=test_user.id,
-        )
+        await review_router.resolve_review_conflicts(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), request=ResolveConflictsRequest(action='confirm_distinct'), ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -356,12 +327,7 @@ async def test_AC16_34_2_reject_clears_conflict_resolution(db, test_user):
     db.add(statement)
     await db.commit()
     statement_id = statement.id
-    await review_router.resolve_review_conflicts(
-        statement_id=statement_id,
-        request=ResolveConflictsRequest(action="confirm_distinct"),
-        db=db,
-        user_id=test_user.id,
-    )
+    await review_router.resolve_review_conflicts(statement_id=statement_id, request=ResolveConflictsRequest(action='confirm_distinct'), ctx=RequestContext(db, test_user.id))
     await db.refresh(statement)
     assert statement.stage1_conflicts_resolved_at is not None
     await statement_validation_mod.reject_statement(db, statement_id, test_user.id, reason="reparse")
@@ -386,7 +352,7 @@ async def test_AC16_32_3_stage2_queue_returns_all_pending_checks(db, test_user):
         ]
     )
     await db.commit()
-    result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
+    result = await review_router.get_stage2_review_queue(RequestContext(db, test_user.id))
     assert len(result.consistency_checks) == 55
 
 
@@ -415,7 +381,7 @@ async def test_AC19_11_1_consistency_check_list_filters_by_run_id(db, test_user)
         ]
     )
     await db.commit()
-    result = await review_router.list_consistency_checks(db=db, user_id=test_user.id, run_id="run-123")
+    result = await review_router.list_consistency_checks(RequestContext(db, test_user.id), run_id='run-123')
     assert result.total == 1
     assert result.items[0].related_txn_ids == ["txn-in-run"]
 
@@ -477,15 +443,9 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
     )
     db.add_all([in_run_match, other_run_match])
     await db.commit()
-    queue = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id, run_id="run-123")
+    queue = await review_router.get_stage2_review_queue(RequestContext(db, test_user.id), run_id='run-123')
     assert [str(match.id) for match in queue.pending_matches] == [str(in_run_match.id)]
-    result = await reconciliation_router.batch_update_matches(
-        payload=ReconciliationMatchBatchRequest(
-            action="accept", match_ids=[in_run_match.id, other_run_match.id], run_id="run-123"
-        ),
-        db=db,
-        user_id=test_user.id,
-    )
+    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[in_run_match.id, other_run_match.id], run_id='run-123'), ctx=RequestContext(db, test_user.id))
     assert result.approved_count == 1
     await db.refresh(in_run_match)
     await db.refresh(other_run_match)
@@ -507,9 +467,7 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     )
     db.add(match)
     await db.commit()
-    result = await reconciliation_router.batch_update_matches(
-        payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[match.id]), db=db, user_id=test_user.id
-    )
+    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, test_user.id))
     assert result.approved_count == 1
     assert result.journal_entries_reconciled == 1
     await db.refresh(match)
@@ -536,9 +494,7 @@ async def test_batch_approve_matches_without_entry_requires_review(db, test_user
     db.add(match)
     await db.commit()
     with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await reconciliation_router.batch_update_matches(
-            payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[match.id]), db=db, user_id=user_id
-        )
+        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, user_id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Authoritative economic disposition" in str(exc_info.value.detail)
     await db.rollback()
@@ -604,9 +560,7 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
     )
     db.add(match)
     await db.commit()
-    result = await reconciliation_router.batch_update_matches(
-        payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[match.id]), db=db, user_id=test_user.id
-    )
+    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, test_user.id))
     assert result.approved_count == 1
     assert result.journal_entries_reconciled == 1
     await db.refresh(match)
@@ -749,9 +703,7 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
     db.add(match)
     await db.commit()
     with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await reconciliation_router.batch_update_matches(
-            payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[match.id]), db=db, user_id=test_user.id
-        )
+        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == 400
     assert "Amount mismatch" in exc_info.value.detail
 
@@ -759,9 +711,7 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
 async def test_batch_reject_matches_success(db, test_user):
     from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
-    empty_res = await reconciliation_router.batch_update_matches(
-        payload=ReconciliationMatchBatchRequest(action="reject", match_ids=[]), db=db, user_id=test_user.id
-    )
+    empty_res = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='reject', match_ids=[]), ctx=RequestContext(db, test_user.id))
     assert empty_res.rejected_count == 0
     _, _, txn = await _seed_approved_statement_with_txn(db, test_user.id, "DBS Batch Reject")
     match = ReconciliationMatch(
@@ -771,7 +721,5 @@ async def test_batch_reject_matches_success(db, test_user):
     await db.commit()
     await db.refresh(match)
     match_id = match.id
-    result = await reconciliation_router.batch_update_matches(
-        payload=ReconciliationMatchBatchRequest(action="reject", match_ids=[match_id]), db=db, user_id=test_user.id
-    )
+    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='reject', match_ids=[match_id]), ctx=RequestContext(db, test_user.id))
     assert result.rejected_count == 1

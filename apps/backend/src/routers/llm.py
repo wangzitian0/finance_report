@@ -15,8 +15,9 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, CurrentUserId, ReadCtx
 from src.llm import (
     EnvConfigSource,
     LitellmCatalog,
@@ -64,10 +65,14 @@ async def get_config_status(user_id: CurrentUserId) -> LlmConfigStatusResponse:
 
 
 @router.get("/providers", response_model=LlmProviderListResponse)
-async def list_providers(db: ReadDbSession, user_id: CurrentUserId) -> LlmProviderListResponse:
+async def list_providers(ctx: ReadCtx) -> LlmProviderListResponse:
     """List the current user's provider instances (keys never returned)."""
     rows = (
-        (await db.execute(select(LlmProvider).where(LlmProvider.user_id == user_id).order_by(LlmProvider.created_at)))
+        (
+            await ctx.db.execute(
+                select(LlmProvider).where(LlmProvider.user_id == ctx.user_id).order_by(LlmProvider.created_at)
+            )
+        )
         .scalars()
         .all()
     )
@@ -77,14 +82,14 @@ async def list_providers(db: ReadDbSession, user_id: CurrentUserId) -> LlmProvid
 @router.post("/providers", response_model=LlmProviderResponse, status_code=status.HTTP_201_CREATED)
 async def create_provider(
     payload: LlmProviderCreate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> LlmProviderResponse:
     """Create a provider for the current user, encrypting the API key at rest.
 
     Fails closed when secret encryption is not configured (``LLM_ENCRYPTION_KEYS``
     unset) — a DB-stored key must never be persisted in plaintext.
     """
+    db, user_id = ctx.db, ctx.user_id
     cipher = build_cipher()
 
     count = (
@@ -120,13 +125,13 @@ def _parse_provider_uuid(provider_id: str) -> UUID:
 
 
 @router.delete("/providers/{provider_id}", response_model=LlmProviderDeleteResponse)
-async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserId) -> LlmProviderDeleteResponse:
+async def delete_provider(provider_id: str, ctx: Ctx) -> LlmProviderDeleteResponse:
     """Delete one of the current user's providers (cascades to its bindings)."""
     pid = _parse_provider_uuid(provider_id)
-    row = await get_owned_or_raise(db, LlmProvider, pid, user_id, name="Provider")
+    row = await get_owned_or_raise(ctx.db, LlmProvider, pid, ctx.user_id, name="Provider")
     deleted_id = row.id
-    await db.delete(row)
-    await db.flush()
+    await ctx.db.delete(row)
+    await ctx.db.flush()
     return LlmProviderDeleteResponse(id=deleted_id, deleted=True)
 
 
@@ -152,9 +157,7 @@ async def get_catalog(
     return LlmCatalogResponse(models=models)
 
 
-@router.get("/scenes", response_model=LlmScenesResponse)
-async def get_scenes(db: ReadDbSession, user_id: CurrentUserId) -> LlmScenesResponse:
-    """The current user's scene→model bindings."""
+async def _read_scenes(db: AsyncSession, user_id: UUID) -> LlmScenesResponse:
     rows = (await db.execute(select(LlmSceneBinding).where(LlmSceneBinding.user_id == user_id))).scalars().all()
     bindings = [
         LlmSceneBindingItem(
@@ -169,17 +172,23 @@ async def get_scenes(db: ReadDbSession, user_id: CurrentUserId) -> LlmScenesResp
     return LlmScenesResponse(bindings=bindings)
 
 
+@router.get("/scenes", response_model=LlmScenesResponse)
+async def get_scenes(ctx: ReadCtx) -> LlmScenesResponse:
+    """The current user's scene→model bindings."""
+    return await _read_scenes(ctx.db, ctx.user_id)
+
+
 @router.put("/scenes", response_model=LlmScenesResponse)
 async def put_scenes(
     payload: LlmScenesUpdate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> LlmScenesResponse:
     """Replace the current user's scene bindings (PUT semantics).
 
     Validates that each binding references one of the user's own providers and
     that no scene appears twice, then atomically swaps the binding set.
     """
+    db, user_id = ctx.db, ctx.user_id
     scenes = [b.scene for b in payload.bindings]
     if len(scenes) != len(set(scenes)):
         raise ValidationFailedError("Duplicate scene in bindings.")
@@ -211,4 +220,4 @@ async def put_scenes(
         # Concurrent writes for the same user can collide on the per-scope unique
         # index; surface a retryable conflict rather than a 500.
         raise ConflictError("Scene bindings could not be saved due to a concurrent update; retry.") from exc
-    return await get_scenes(db, user_id)
+    return await _read_scenes(db, user_id)

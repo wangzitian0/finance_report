@@ -25,12 +25,10 @@ from common.meta.extension.generate_api_operations import HTTP_METHODS
 
 DEFAULT_ROUTER_DIR = Path("apps/backend/src/routers")
 
-# Non-growth ceiling. Lower this as endpoints gain a response_model; never raise it.
-# The remaining 10 are legitimately-bodiless handlers (204 DELETEs, file/stream
-# exports) — see the generated findings doc. #1008 typed the last two real gaps
-# (list_report_snapshots, update_prices), ratcheting this from 12 down to 10.
-# The gate stops the count growing; it ratchets down as gaps close.
-DEFAULT_MAX_UNTYPED_ENDPOINTS = 10
+# Non-growth ceiling ratcheted down to 0: every endpoint must declare a non-None
+# ``response_model``, an explicit ``204 -> None`` bodiless contract, or an explicit
+# binary/stream ``responses`` contract alongside ``-> Response`` / ``-> StreamingResponse``.
+DEFAULT_MAX_UNTYPED_ENDPOINTS = 0
 
 
 @dataclass(frozen=True, order=True)
@@ -80,15 +78,47 @@ def _route_decorators(
             yield deco.func.attr, deco
 
 
-def _has_response_model(call: ast.Call) -> bool:
-    """True only if a *non-None* response_model is declared.
+def _is_none_annotation(node: ast.AST | None) -> bool:
+    return isinstance(node, ast.Constant) and node.value is None
 
-    ``response_model=None`` is an untyped/undocumented contract — counting it as
-    typed would let the gate be silenced without actually adding a schema.
+
+def _is_no_content_status(expr: ast.AST) -> bool:
+    if isinstance(expr, ast.Constant) and expr.value == 204:
+        return True
+    return isinstance(expr, ast.Attribute) and expr.attr == "HTTP_204_NO_CONTENT"
+
+
+def _is_raw_response_annotation(node: ast.AST | None) -> bool:
+    if node is None:
+        return False
+    name = node.id if isinstance(node, ast.Name) else (node.attr if isinstance(node, ast.Attribute) else None)
+    return name in {"Response", "StreamingResponse"}
+
+
+def _has_declared_contract(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, call: ast.Call
+) -> bool:
+    """True if the endpoint declares an explicit OpenAPI contract.
+
+    Accepted forms:
+    - non-``None`` ``response_model=...``
+    - status-only 204 handler with ``status_code=204`` / ``HTTP_204_NO_CONTENT`` and ``-> None``
+    - binary/stream handler with ``-> Response | StreamingResponse`` and explicit ``responses={...}``
     """
-    for kw in call.keywords:
-        if kw.arg == "response_model":
-            return not (isinstance(kw.value, ast.Constant) and kw.value.value is None)
+    keywords = {kw.arg: kw.value for kw in call.keywords if kw.arg}
+    if "response_model" in keywords:
+        val = keywords["response_model"]
+        return not (isinstance(val, ast.Constant) and val.value is None)
+    if (
+        "status_code" in keywords
+        and _is_no_content_status(keywords["status_code"])
+        and _is_none_annotation(node.returns)
+    ):
+        return True
+    if "responses" in keywords and _is_raw_response_annotation(node.returns):
+        return isinstance(keywords["responses"], ast.Dict) and bool(
+            keywords["responses"].keys
+        )
     return False
 
 
@@ -109,10 +139,10 @@ def scan_file(path: Path, *, repo_root: Path) -> list[UntypedEndpoint]:
     router_names = _router_names(tree)
     findings: list[UntypedEndpoint] = []
     for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
         for method, call in _route_decorators(node, router_names):
-            if not _has_response_model(call):
-                # Status-only / 204 handlers are legitimately bodiless, but they should
-                # still be explicit; we surface them so the decision is recorded, not hidden.
+            if not _has_declared_contract(node, call):
                 findings.append(
                     UntypedEndpoint(
                         relative_path=rel,

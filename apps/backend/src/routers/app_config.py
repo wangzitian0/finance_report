@@ -10,7 +10,7 @@ an invalid code returns HTTP 422 and is never persisted.
 from fastapi import APIRouter
 
 from src.config_app import set_base_currency
-from src.deps import CurrentUserId, DbSession, ReadCtx
+from src.deps import Ctx, ReadCtx
 from src.schemas.app_config import BaseCurrencyResponse, BaseCurrencyUpdate
 
 router = APIRouter(prefix="/app-config", tags=["app-config"])
@@ -27,9 +27,8 @@ async def get_base_currency(
 @router.put("/base-currency", response_model=BaseCurrencyResponse)
 async def update_base_currency(
     payload: BaseCurrencyUpdate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> BaseCurrencyResponse:
     """Persist the caller's own base currency. Invalid ISO 4217 code -> HTTP 422."""
-    stored = await set_base_currency(db, payload.base_currency, user_id=user_id)
+    stored = await set_base_currency(ctx.db, payload.base_currency, user_id=ctx.user_id)
     return BaseCurrencyResponse(base_currency=stored)

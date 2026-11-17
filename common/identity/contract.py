@@ -48,6 +48,7 @@ User|agg
 AiFeedback|ent
 @svc|extension/security.py|create_access_token decode_access_token hash_password verify_password
 get_current_user_id|svc|extension/auth.py
+register_user|svc|extension/registration.py
 @svc|extension/api/auth.py|register login
 bind_authenticated_user_context|svc|extension/observability.py
 purge_test_accounts|svc|extension/account_purge.py
@@ -63,7 +64,7 @@ UserAiSettingsResponse UserAiSettingsUpdate UserRepository
 auth_rate_limiter auth_router bind_authenticated_user_context
 create_access_token decode_access_token get_current_user_id get_me hash_password
 is_safe_purge_environment login normalize_email oauth2_scheme purge_test_accounts
-register register_rate_limiter verify_password
+register register_rate_limiter register_user verify_password
 """.split(),
     events=[],
     invariants=invs(

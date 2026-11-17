@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from src.deps import CurrentUserId, ReadDbSession
+from src.deps import ReadCtx
 from src.ledger import JournalAuditLog, JournalEntry
 from src.platform import ResourceNotFoundError
 from src.schemas.audit import AuditTrailItem, AuditTrailResponse
@@ -16,10 +16,10 @@ router = APIRouter(prefix="/journal-entries", tags=["audit"])
 @router.get("/{entry_id}/audit", response_model=AuditTrailResponse)
 async def get_journal_entry_audit(
     entry_id: UUID,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> AuditTrailResponse:
     """Return chronological audit records for a user-owned journal entry."""
+    db, user_id = ctx.db, ctx.user_id
     entry_result = await db.execute(
         select(JournalEntry.id).where(JournalEntry.id == entry_id).where(JournalEntry.user_id == user_id)
     )

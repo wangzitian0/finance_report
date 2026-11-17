@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from src.audit import to_money
 from src.composition import post_guided_opening_balances
-from src.deps import CurrentUserId, DbSession, ReadCtx, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.ledger import (
     DEFAULT_STALE_AFTER_DAYS,
     AccountType,
@@ -48,8 +48,7 @@ logger = get_logger(__name__)
 @router.post("/opening-balances", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
 async def post_opening_balances(
     payload: OpeningBalanceRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> JournalEntryResponse:
     """Guided opening-balance flow (#949): establish year-start account balances.
 
@@ -57,6 +56,7 @@ async def post_opening_balances(
     opening balance and offsets the net into the system Opening Balance Equity
     account, so a cross-year balance sheet is complete from the start.
     """
+    db, user_id = ctx.db, ctx.user_id
     entry = await post_guided_opening_balances(
         db,
         user_id,
@@ -72,8 +72,7 @@ async def post_opening_balances(
 
 @router.get("/opening-balance-readiness", response_model=OpeningBalanceReadinessResponse)
 async def get_opening_balance_readiness_status(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> OpeningBalanceReadinessResponse:
     """Readiness nudge (#949): is the balance sheet at risk of being incomplete?
 
@@ -81,17 +80,17 @@ async def get_opening_balance_readiness_status(
     opening-balance entry on or before its earliest date, so the UI can warn before
     they ship a silently-incomplete balance sheet.
     """
-    readiness = await get_opening_balance_readiness(db, user_id)
+    readiness = await get_opening_balance_readiness(ctx.db, ctx.user_id)
     return OpeningBalanceReadinessResponse.model_validate(readiness)
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_account(
     account_data: AccountCreate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> AccountResponse:
     """Create a new account."""
+    db, user_id = ctx.db, ctx.user_id
     account = await account_service.create_account(db, user_id, account_data)
 
     balance = await calculate_account_balance(db, account.id, user_id)
@@ -103,8 +102,7 @@ async def create_account(
 
 @router.get("", response_model=AccountListResponse)
 async def list_accounts(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     account_type: AccountType | None = None,
     is_active: bool | None = None,
     include_balance: bool = Query(False, description="Include balance (slower)"),
@@ -115,6 +113,7 @@ async def list_accounts(
 
     Set include_balance=true to calculate balances (may be slower with many accounts).
     """
+    db, user_id = ctx.db, ctx.user_id
     accounts, total = await account_service.list_accounts(
         db, user_id, account_type=account_type, is_active=is_active, limit=limit, offset=offset
     )
@@ -202,8 +201,7 @@ async def list_processing_pending(
 
 @router.get("/coverage", response_model=AccountCoverageListResponse)
 async def list_account_statement_coverage(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of: date | None = Query(None, description="Date used for stale-account evaluation"),
     stale_after_days: int = Query(
         DEFAULT_STALE_AFTER_DAYS,
@@ -214,8 +212,8 @@ async def list_account_statement_coverage(
 ) -> AccountCoverageListResponse:
     """List statement coverage status for active accounts."""
     return await get_account_statement_coverage(
-        db,
-        user_id,
+        ctx.db,
+        ctx.user_id,
         as_of=as_of,
         stale_after_days=stale_after_days,
     )
@@ -225,10 +223,10 @@ async def list_account_statement_coverage(
 async def update_account(
     account_id: UUID,
     account_data: AccountUpdate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> AccountResponse:
     """Update an account's mutable fields."""
+    db, user_id = ctx.db, ctx.user_id
     account = await account_service.update_account(db, user_id, account_id, account_data)
 
     balance = await calculate_account_balance(db, account.id, user_id)
@@ -241,10 +239,10 @@ async def update_account(
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(
     account_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> None:
     """Delete an account by id."""
+    db, user_id = ctx.db, ctx.user_id
     account = await account_service.get_account(db, user_id, account_id)
 
     if account.is_system:

@@ -92,6 +92,7 @@ from src.schemas import (
 )
 from tests.statement_ingestion import execute_statement_ingestion, posting_dependencies
 from tests.statement_ingestion import run_for
+from src.request_context import RequestContext
 
 
 class _FrozenTraceRepository:
@@ -261,7 +262,7 @@ async def _import_brokerage_position(db, *, user_id) -> None:
         db, statement=statement, result=result, source_trace_record_id=traces[0].record_id
     )
     await db.commit()
-    imported = await import_brokerage_statement_positions(statement.id, db, user_id)
+    imported = await import_brokerage_statement_positions(statement.id, RequestContext(db, user_id))
     assert (imported.parsed_positions, imported.created_atomic_positions) == (1, 1)
 
 
@@ -410,18 +411,7 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
         source=valuation.source,
     )
     await db.commit()
-    snapshot = await generate_personal_report_package_snapshot(
-        db,
-        user_id=test_user.id,
-        request=PersonalReportPackageGenerateRequest(
-            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-            start_date=date(2026, 1, 1),
-            end_date=date(2026, 12, 31),
-            as_of_date=date(2026, 12, 31),
-            currency="SGD",
-            include_restricted=True,
-        ),
-    )
+    snapshot = await generate_personal_report_package_snapshot(RequestContext(db, test_user.id), request=PersonalReportPackageGenerateRequest(framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE, start_date=date(2026, 1, 1), end_date=date(2026, 12, 31), as_of_date=date(2026, 12, 31), currency='SGD', include_restricted=True))
     await db.commit()
     document = snapshot.document
     expected = scenario.expected
@@ -541,16 +531,12 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
 
         register_executed_proof_consumer(request.node, emit_terminal_trace)
     frozen = document.model_dump(mode="json")
-    listed = await list_personal_report_package_snapshots(db, test_user.id, pagination=PaginationParams())
+    listed = await list_personal_report_package_snapshots(RequestContext(db, test_user.id), pagination=PaginationParams())
     assert [item.id for item in listed] == [snapshot.id]
-    reopened = await get_personal_report_package_snapshot(snapshot.id, db, test_user.id)
+    reopened = await get_personal_report_package_snapshot(snapshot.id, RequestContext(db, test_user.id))
     assert reopened.document.model_dump(mode="json") == frozen
-    json_export = await export_personal_report_package_snapshot(
-        snapshot.id, db, test_user.id, format=PackageSnapshotExportFormat.JSON
-    )
-    csv_export = await export_personal_report_package_snapshot(
-        snapshot.id, db, test_user.id, format=PackageSnapshotExportFormat.CSV
-    )
+    json_export = await export_personal_report_package_snapshot(snapshot.id, RequestContext(db, test_user.id), format=PackageSnapshotExportFormat.JSON)
+    csv_export = await export_personal_report_package_snapshot(snapshot.id, RequestContext(db, test_user.id), format=PackageSnapshotExportFormat.CSV)
     json_body = await _stream_body(json_export)
     assert str(snapshot.id) in json_body
     assert "115250.00" in json_body
@@ -593,9 +579,7 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
         source=valuation.source,
     )
     await db.commit()
-    reopened_after_mutation = await get_personal_report_package_snapshot(snapshot.id, db, test_user.id)
+    reopened_after_mutation = await get_personal_report_package_snapshot(snapshot.id, RequestContext(db, test_user.id))
     assert reopened_after_mutation.document.model_dump(mode="json") == frozen
-    export_after_mutation = await export_personal_report_package_snapshot(
-        snapshot.id, db, test_user.id, format=PackageSnapshotExportFormat.JSON
-    )
+    export_after_mutation = await export_personal_report_package_snapshot(snapshot.id, RequestContext(db, test_user.id), format=PackageSnapshotExportFormat.JSON)
     assert await _stream_body(export_after_mutation) == json_body
