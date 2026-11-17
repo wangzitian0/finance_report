@@ -407,7 +407,7 @@ CHECKS: tuple[Check, ...] = (
             "README.md",
             "docs/project/EPIC*.md",
             "tools/generate_epic_status.py",
-            "common/meta/extension/epic_status.py",
+            "common/testing/generate_epic_status.py",
         ),
         "tools/generate_epic_status.py",
         "--check",
@@ -438,7 +438,7 @@ CHECKS: tuple[Check, ...] = (
         (
             "apps/backend/src/*.py",
             "tools/check_tier_imports.py",
-            "common/meta/extension/tier_imports.py",
+            "common/meta/extension/check_tier_imports.py",
         ),
         "tools/check_tier_imports.py",
         why="CODE-ONLY financial core must not import LLM layer",

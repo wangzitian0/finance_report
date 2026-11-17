@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from common.meta.base.gate_cli import REPO_ROOT, run_gate
+from common.meta.base.gate_cli import run_gate
 from common.meta.extension import (
     check_authority_reconcile,
     check_draft_packages,
@@ -25,12 +25,7 @@ def violations(repo_root: Path) -> list[str]:
     findings.extend(check_draft_packages.violations(repo_root, None))
     reconcile_violations, _ = check_authority_reconcile.reconcile(repo_root)
     findings.extend(reconcile_violations)
-    tool_baseline = repo_root / tool_shim_contract.DEFAULT_BASELINE.relative_to(
-        REPO_ROOT
-    )
-    new_fat, stale_fat = tool_shim_contract.findings(repo_root, tool_baseline)
-    findings.extend(new_fat)
-    findings.extend(stale_fat)
+    findings.extend(tool_shim_contract.findings(repo_root))
     return findings
 
 
