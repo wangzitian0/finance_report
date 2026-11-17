@@ -35,7 +35,7 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     category: "non_ui_caller",
     methodPath: "GET /readyz",
     reason: "SDK dependency readiness probe.",
-    proofPaths: ["apps/backend/src/main.py"],
+    proofPaths: ["docs/reference/api.md"],
   },
   run_stage2_checks_statements__statement_id__stage2_run_checks_post: {
     category: "non_ui_caller",

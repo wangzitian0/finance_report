@@ -68,6 +68,8 @@ def test_sdk_json_formatter_emits_structured_json_and_trace_context(monkeypatch)
 
 def test_configure_logging_installs_sdk_json_handler(monkeypatch) -> None:
     "AC-observability.1.5 AC-observability.1.6 AC-observability.4.6 AC-observability.4.8"
+    import structlog
+
     root = logging.getLogger()
     saved_handlers, saved_level = list(root.handlers), root.level
     stream = io.StringIO()
@@ -75,7 +77,8 @@ def test_configure_logging_installs_sdk_json_handler(monkeypatch) -> None:
     monkeypatch.setattr(observability.settings, "debug", False)
     try:
         configure_logging(take_over_root=True)
-        get_logger("test.sdk.logging").info("statement.logged", amount_count=2)
+        with patch.object(structlog, "is_configured", return_value=False):
+            get_logger("test.sdk.logging").info("statement.logged", amount_count=2)
         payload = json.loads(stream.getvalue().strip().splitlines()[-1])
         assert payload["message"] == "statement.logged"
         assert payload["amount_count"] == 2
@@ -141,7 +144,8 @@ def test_structured_logger_propagates_contextvars_to_otel_records_and_redacts_ca
     root.setLevel(logging.INFO)
     structlog.contextvars.bind_contextvars(user_id="user-42", authorization="Bearer secret-token")
     try:
-        get_logger("test.ctx").info("Contact S1234567A")
+        with patch.object(structlog, "is_configured", return_value=False):
+            get_logger("test.ctx").info("Contact S1234567A")
         assert captured
         rec = captured[-1]
         assert rec.user_id == "user-42"

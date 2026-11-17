@@ -92,7 +92,7 @@ class _StructuredLogger:
     def bind(self, **kwargs: Any) -> _StructuredLogger:
         return _StructuredLogger(self._name, {**self._bound, **kwargs})
 
-    def _emit(self, level: int, method: str, event: str, *args: Any, **kwargs: Any) -> None:
+    def _emit(self, level: int, method: str, event: str, /, *args: Any, **kwargs: Any) -> None:
         exc_info = kwargs.pop("exc_info", None)
         stack_info = kwargs.pop("stack_info", False)
         stacklevel = kwargs.pop("stacklevel", 1) + 1
@@ -102,14 +102,11 @@ class _StructuredLogger:
         safe = _sanitize_fields(merged)
         msg = _redact_detected_pii(event) if isinstance(event, str) else event
         if structlog.is_configured():
-            from structlog.testing import LogCapture
-
-            if any(isinstance(p, LogCapture) for p in structlog.get_config().get("processors", ())):
-                sl = structlog.get_logger(self._name)
-                if exc_info is not None:
-                    safe["exc_info"] = exc_info
-                getattr(sl, method)(msg, *args, **safe)
-                return
+            sl = structlog.get_logger(self._name)
+            if exc_info is not None:
+                safe["exc_info"] = exc_info
+            getattr(sl, method)(msg, *args, **safe)
+            return
         safe_extra = {k if k not in _RESERVED_RECORD_ATTRS else f"field_{k}": v for k, v in safe.items()}
         self._std.log(
             level,
