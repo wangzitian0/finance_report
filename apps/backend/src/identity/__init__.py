@@ -15,10 +15,7 @@ _BASE_EXPORTS = {
     "RegisterRequest",
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
-    "UserBase",
     "UserRepository",
-    "UserResponse",
-    "UserUpdate",
     "normalize_email",
 }
 _EXTENSION_EXPORTS = {
@@ -60,10 +57,7 @@ __all__ = [
     "User",
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
-    "UserBase",
     "UserRepository",
-    "UserResponse",
-    "UserUpdate",
     "auth_rate_limiter",
     "auth_router",
     "bind_authenticated_user_context",
@@ -108,10 +102,7 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
         RegisterRequest,
         UserAiSettingsResponse,
         UserAiSettingsUpdate,
-        UserBase,
         UserRepository,
-        UserResponse,
-        UserUpdate,
         normalize_email,
     )
     from src.identity.extension import (

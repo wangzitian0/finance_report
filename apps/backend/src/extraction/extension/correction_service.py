@@ -228,65 +228,6 @@ async def record_correction(
     return correction
 
 
-async def get_correction_stats(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-) -> dict:
-    """Get correction statistics for a user.
-
-    Returns top corrected categories, accuracy rate, and total corrections.
-    """
-    # Total corrections
-    total_result = await db.execute(select(func.count(CorrectionLog.id)).where(CorrectionLog.user_id == user_id))
-    total = total_result.scalar() or 0
-
-    if total == 0:
-        return {
-            "total_corrections": 0,
-            "top_corrections": [],
-            "correction_rate_by_category": {},
-        }
-
-    # Top corrected patterns (original → corrected)
-    pattern_query = (
-        select(
-            CorrectionLog.original_category,
-            CorrectionLog.corrected_category,
-            func.count(CorrectionLog.id).label("count"),
-        )
-        .where(CorrectionLog.user_id == user_id)
-        .group_by(CorrectionLog.original_category, CorrectionLog.corrected_category)
-        .order_by(func.count(CorrectionLog.id).desc())
-        .limit(20)
-    )
-    pattern_result = await db.execute(pattern_query)
-    patterns = pattern_result.all()
-
-    top_corrections = [
-        {
-            "original_category": orig_cat,
-            "corrected_category": corr_cat,
-            "count": int(row_count),
-        }
-        for orig_cat, corr_cat, row_count in patterns
-    ]
-
-    # Correction rate by original category: how many times each category was corrected
-    category_totals: dict[str, int] = {}
-    for orig_cat, _corr_cat, row_count in patterns:
-        cat = orig_cat or "None"
-        category_totals[cat] = category_totals.get(cat, 0) + int(row_count)
-
-    correction_rate_by_category = {cat: round(count / total * 100, 1) for cat, count in category_totals.items()}
-
-    return {
-        "total_corrections": total,
-        "top_corrections": top_corrections,
-        "correction_rate_by_category": correction_rate_by_category,
-    }
-
-
 async def get_few_shot_examples(
     db: AsyncSession,
     *,

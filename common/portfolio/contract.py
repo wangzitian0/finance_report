@@ -105,7 +105,6 @@ reconcile.5||test_reconcile_multiple_assets
 reconcile.6||test_reconcile_multiple_brokers_same_asset
 reconcile.7||test_reconcile_with_null_broker|P1
 reconcile.8||test_reconcile_reactivates_disposed_position
-reconcile.9||test_get_positions_empty
 reconcile.10||test_reconcile_no_snapshots
 reconcile.11||test_reconcile_negative_quantity_short_position|P1
 reconcile.12||test_reconcile_result_counts_are_mutually_exclusive

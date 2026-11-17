@@ -48,7 +48,8 @@ async def test_AC_observability_19_3_path_next_to_a_probe_path_keeps_its_request
     async def call_next(_request): return Response(status_code=200)
     await main_module.logging_middleware(_request(path), call_next); assert [(line['event'], line['path'], line['status_code']) for line in request_log] == [('HTTP Request', path, 200)]
 def test_AC_observability_19_1_probe_paths_are_routes_the_app_serves() -> None:
-    """AC-observability.19.1: probe paths must be served routes."""
+    """AC-observability.19.1: probe and rate-limit exempt paths must be served routes."""
     served_paths = {getattr(context.route, "path", None) for context in iter_route_contexts(main_module.app.routes)}
     assert main_module._PROBE_PATHS
     assert main_module._PROBE_PATHS <= served_paths
+    assert main_module._RATE_LIMIT_EXEMPT_PATHS <= served_paths

@@ -5,7 +5,6 @@ depreciation schedules are portfolio-owned; the valuation-snapshot half
 lives in ``src.pricing.extension.valuation``.
 """
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -85,34 +84,6 @@ class PositionService:
         )
         result = await db.execute(query)
         return result.scalar_one_or_none()
-
-    async def get_positions(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        status_filter: PositionStatus | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> tuple[Sequence[ManagedPosition], int]:
-        """Get managed positions for a user with optional filtering and pagination."""
-        query = (
-            select(ManagedPosition).where(ManagedPosition.user_id == user_id).order_by(ManagedPosition.asset_identifier)
-        )
-
-        if status_filter:
-            query = query.where(ManagedPosition.status == status_filter)
-
-        # Get total count
-        count_query = select(func.count()).select_from(ManagedPosition).where(ManagedPosition.user_id == user_id)
-        if status_filter:
-            count_query = count_query.where(ManagedPosition.status == status_filter)
-        count_result = await db.execute(count_query)
-        total = count_result.scalar() or 0
-
-        # Apply pagination
-        query = query.limit(limit).offset(offset)
-        result = await db.execute(query)
-        return result.scalars().all(), total
 
     async def reconcile_positions(self, db: AsyncSession, user_id: UUID) -> ReconcileResult:
         """Reconcile managed positions from latest atomic snapshots.

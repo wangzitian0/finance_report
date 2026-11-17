@@ -1,4 +1,4 @@
-"""Reconciliation-match review queue: accept/reject/batch-accept + Stage 2 listing."""
+"""Reconciliation-match review queue: accept/reject/batch decisions + Stage 2 listing."""
 
 from collections.abc import Sequence
 from decimal import Decimal
@@ -319,44 +319,6 @@ async def apply_reconciliation_feedback(
         match.version += 1
         await db.flush()
     return "accepted"
-
-
-async def batch_accept(
-    db: AsyncSession,
-    match_ids: list[str],
-    *,
-    user_id: UUID,
-    min_score: int = 80,
-) -> list[ReconciliationMatch]:
-    """Batch accept high-score matches."""
-    if not match_ids:
-        return []
-
-    # Join atomic transaction to authorize by user_id (#1675 D4: no relationship()
-    # eager-load — accept_match() below re-fetches the transaction by id itself).
-    result = await db.execute(
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(ReconciliationMatch.id.in_(match_ids))
-        .where(AtomicTransaction.user_id == user_id)
-        .where(ReconciliationMatch.match_score >= min_score)
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-        .with_for_update(of=ReconciliationMatch)
-    )
-    matches = list(result.scalars().all())
-    matched_ids = {str(m.id) for m in matches}
-    skipped_ids = set(match_ids) - matched_ids
-    if skipped_ids:
-        logger.info(
-            "batch_accept: %d of %d matches skipped (score < %d or not pending): %s",
-            len(skipped_ids),
-            len(match_ids),
-            min_score,
-            list(skipped_ids),
-        )
-
-    await accept_pending_matches(db, matches, user_id=user_id)
-    return matches
 
 
 async def get_stage2_queue(

@@ -42,7 +42,7 @@ observability|published-language|Uses published safe logging and security-warnin
     units=units(
         """
 @vo|base/types/auth.py|RegisterRequest LoginRequest AuthResponse
-@vo|base/types/user.py|UserBase UserUpdate UserResponse UserAiSettingsUpdate UserAiSettingsResponse
+@vo|base/types/user.py|UserAiSettingsUpdate UserAiSettingsResponse
 @vo|base/types/ai_feedback.py|AiFeedbackRequest AiFeedbackResponse
 User|agg
 AiFeedback|ent
@@ -59,8 +59,8 @@ UserRepository|repo|base/repository.py|extension/sql.py
 AUTH_COOKIE_NAME AiFeedback AiFeedbackRequest AiFeedbackResponse
 AiSuggestionListResponse AiSuggestionResponse AuthResponse DEFAULT_TEST_EMAIL_PATTERN
 LoginRequest PERSISTENT_TEST_EMAILS PurgeReport RegisterRequest User
-UserAiSettingsResponse UserAiSettingsUpdate UserBase UserRepository UserResponse
-UserUpdate auth_rate_limiter auth_router bind_authenticated_user_context
+UserAiSettingsResponse UserAiSettingsUpdate UserRepository
+auth_rate_limiter auth_router bind_authenticated_user_context
 create_access_token decode_access_token get_current_user_id get_me hash_password
 is_safe_purge_environment login normalize_email oauth2_scheme purge_test_accounts
 register register_rate_limiter verify_password
@@ -134,8 +134,6 @@ vocabulary-ownership.1||test_AC_identity_vocabulary_ownership_1_identity_owns_us
 2.4||test_auth_valid_user
 @$fe/__tests__/sidebarAndTabs.test.tsx
 fe-auth.15||waits for cookie logout before clearing desktop identity
-@$be/identity/test_user_schemas.py|P1
-1.3||test_user_update_schema_optional_email
 @$fe/__tests__/apiFunctions.test.ts|P2
 fe-auth2.1||AC1.10.3 sends HttpOnly auth cookies by default
 @$be/api/test_ai_feedback_router.py|P1

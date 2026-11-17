@@ -22,9 +22,6 @@ from src.identity.base.types import (
     RegisterRequest,
     UserAiSettingsResponse,
     UserAiSettingsUpdate,
-    UserBase,
-    UserResponse,
-    UserUpdate,
     normalize_email,
 )
 
@@ -39,9 +36,6 @@ __all__ = [
     "RegisterRequest",
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
-    "UserBase",
     "UserRepository",
-    "UserResponse",
-    "UserUpdate",
     "normalize_email",
 ]

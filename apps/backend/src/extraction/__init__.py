@@ -100,7 +100,6 @@ from src.extraction.extension.brokerage_statement_payload import (
 )
 from src.extraction.extension.correction_loop import CorrectionLoopService
 from src.extraction.extension.correction_service import (
-    get_correction_stats,
     record_correction,
 )
 from src.extraction.extension.currencies import snapshot_currencies
@@ -369,7 +368,6 @@ __all__ = [
     "fail_run",
     "finish_run",
     "find_in_flight_parse_id",
-    "get_correction_stats",
     "get_active_run",
     "get_known_storage_paths",
     "get_latest_run",
