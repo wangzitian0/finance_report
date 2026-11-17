@@ -25,7 +25,12 @@ class TestBootloader:
     async def test_full_check_runs_all(self, mock_db_check, mock_minio_check, mock_settings): mock_db_check.return_value = ServiceStatus(service='database', status='ok', message='OK'); mock_minio_check.return_value = ServiceStatus(service='minio', status='ok', message='OK'); await Bootloader.validate(BootMode.FULL); mock_db_check.assert_called_once(); mock_minio_check.assert_called_once()
     async def test_full_check_warns_but_proceeds(self, mock_db_check, mock_minio_check): mock_db_check.return_value = ServiceStatus(service='database', status='ok', message='OK'); mock_minio_check.return_value = ServiceStatus(service='minio', status='ok', message='OK'); await Bootloader.validate(BootMode.FULL)
     async def test_check_s3_handles_client_error(self):
-        with patch('aioboto3.Session') as mock_session: mock_client_ctx = AsyncMock(); mock_client = AsyncMock(); mock_session.return_value.client.return_value = mock_client_ctx; mock_client_ctx.__aenter__.return_value = mock_client; mock_client.head_bucket.side_effect = Exception('S3 Down'); status = await Bootloader._check_s3(); assert status.status == 'error'; assert 'S3 Down' in str(status.message)
+        mock_client = MagicMock()
+        mock_client.head_bucket.side_effect = Exception('S3 Down')
+        with patch('infra2_sdk.runtime.s3.create_s3_client', return_value=mock_client):
+            status = await Bootloader._check_s3()
+            assert status.status == 'error'
+            assert 'S3 Down' in str(status.message)
 class TestBootloaderStaticConfig:
     def test_import_boot_succeeds_without_env(self, monkeypatch):
         monkeypatch.delenv('APP_ENV', raising=False); monkeypatch.setenv('ENVIRONMENT', 'development'); from src.config import Settings; local_settings = Settings(_env_file=None)
@@ -94,7 +99,12 @@ class TestBootloaderDatabase:
         with patch('src.runtime.extension.adapters.create_async_engine') as mock_engine: mock_engine.side_effect = Exception('Connection refused'); status = await Bootloader._check_database(); assert status.status == 'error'; assert 'Connection refused' in status.message
 class TestBootloaderS3:
     async def test_check_s3_success(self, mock_settings):
-        with patch('aioboto3.Session') as mock_session: mock_client_ctx = AsyncMock(); mock_client = AsyncMock(); mock_session.return_value.client.return_value = mock_client_ctx; mock_client_ctx.__aenter__.return_value = mock_client; mock_client.head_bucket = AsyncMock(); status = await Bootloader._check_s3(); assert status.status == 'ok'; assert status.service == 'minio'
+        mock_client = MagicMock()
+        with patch('infra2_sdk.runtime.s3.create_s3_client', return_value=mock_client):
+            status = await Bootloader._check_s3()
+            assert status.status == 'ok'
+            assert status.service == 'minio'
+            mock_client.head_bucket.assert_called_once_with(Bucket=mock_settings.s3_bucket)
 class TestBootloaderOpenrouter:
     async def test_check_openrouter_absent_is_error_not_skipped(self, mock_settings): mock_settings.ai_api_key = None; status = await Bootloader._check_openrouter(); assert status.status == 'error'; assert status.service == 'ai_provider'
     async def test_check_openrouter_success(self, mock_settings): mock_settings.ai_api_key = 'test-key'; mock_settings.ai_base_url = ZAI_CODING_BASE_URL; status = await Bootloader._check_openrouter(); assert status.status == 'ok'; assert status.service == 'ai_provider'; assert 'Configured provider=' in status.message

@@ -11,7 +11,6 @@ from src.observability.audit import safe_error_message
 from src.observability.logger import get_logger
 
 settings = src.config.settings
-parse_key_value_pairs = src.config.parse_key_value_pairs
 
 _metrics_export_active = False
 _meter: Any | None = None

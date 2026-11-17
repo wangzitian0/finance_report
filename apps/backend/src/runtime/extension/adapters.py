@@ -9,8 +9,10 @@ from urllib.parse import urlparse
 from infra2_sdk.runtime import (
     HttpClientSettings,
     PostgresSettings,
+    S3Settings,
     probe_http,
     probe_orchestrator,
+    probe_s3,
     redact_postgres_error,
 )
 from infra2_sdk.runtime.health import DependencyStatus, ProbeResult
@@ -78,21 +80,16 @@ class ObjectStorageCheck:
         self._bucket = bucket
 
     async def probe(self) -> ProbeResult:
-        import aioboto3
-        from botocore.config import Config
-
         start = time.perf_counter()
         try:
-            async with aioboto3.Session().client(
-                "s3",
+            s3_settings = S3Settings(
+                bucket=self._bucket,
                 endpoint_url=self._endpoint,
-                aws_access_key_id=self._access_key,
-                aws_secret_access_key=self._secret_key,
+                access_key_id=self._access_key,
+                secret_access_key=self._secret_key,
                 region_name=self._region,
-                config=Config(connect_timeout=5, read_timeout=5),
-            ) as s3:
-                await s3.head_bucket(Bucket=self._bucket)
-            return _ok(self.name, "Bucket accessible", start)
+            )
+            return await asyncio.to_thread(probe_s3, s3_settings)
         except Exception as exc:  # noqa: BLE001
             return _absent(self.name, str(exc), start)
 
