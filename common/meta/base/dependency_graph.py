@@ -12,7 +12,31 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from infra2_sdk.rules.imports import find_dependency_cycle
+
+def _find_cycle(providers: dict[str, tuple[str, ...]]) -> tuple[str, ...] | None:
+    visited: set[str] = set()
+    active: list[str] = []
+    active_set: set[str] = set()
+
+    def visit(pkg: str) -> tuple[str, ...] | None:
+        if pkg in active_set:
+            return (*active[active.index(pkg) :], pkg)
+        if pkg in visited:
+            return None
+        active.append(pkg)
+        active_set.add(pkg)
+        for dep in providers[pkg]:
+            if (cycle := visit(dep)) is not None:
+                return cycle
+        active.pop()
+        active_set.remove(pkg)
+        visited.add(pkg)
+        return None
+
+    for pkg in sorted(providers):
+        if (cycle := visit(pkg)) is not None:
+            return cycle
+    return None
 
 
 class DependencyDeclaration(Protocol):
@@ -101,7 +125,7 @@ def build_dependency_graph(
             )
         providers[name] = tuple(sorted(dependencies))
 
-    cycle = find_dependency_cycle({k: set(v) for k, v in providers.items()})
+    cycle = _find_cycle(providers)
     if cycle is not None:
         raise ValueError(f"dependency cycle: {' -> '.join(cycle)}")
 
