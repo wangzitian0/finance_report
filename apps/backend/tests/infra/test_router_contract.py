@@ -12,7 +12,6 @@ ROUTER_DIR = _SRC_DIR / "routers"
 API_ROUTER_DIRS = (
     ROUTER_DIR,
     _SRC_DIR / "identity" / "extension" / "api",
-    _SRC_DIR / "runtime" / "extension" / "api",
 )
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete"})
 _RW_SESSIONS = frozenset({"DbSession", "Ctx"})
