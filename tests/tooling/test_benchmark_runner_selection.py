@@ -1,4 +1,4 @@
-'AC-testing.benchmarks.1 AC-testing.benchmarks.2 AC-testing.benchmarks.5'; from __future__ import annotations; import csv; import io; import json; from decimal import Decimal; from pathlib import Path; from types import SimpleNamespace; import pytest; from common.testing.benchmarks import run_financial_scenario_benchmark as rb; from common.testing.benchmarks.case_types import DOMAIN_TO_CASES, FLOW_TO_CASES, CaseResult
+'AC-testing.benchmarks.1 AC-testing.benchmarks.2 AC-testing.benchmarks.5'; from __future__ import annotations; import csv; import io; import json; from decimal import Decimal; from pathlib import Path; from types import SimpleNamespace; import pytest; from tests.benchmarks import run_financial_scenario_benchmark as rb; from tests.benchmarks.case_types import DOMAIN_TO_CASES, FLOW_TO_CASES, CaseResult
 @pytest.fixture
 def dispatched(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     ran: list[str] = []; statuses: dict[str, str] = {}
@@ -35,4 +35,60 @@ class _FakeRunner:
         rows = list(csv.DictReader(io.StringIO(self._last.decode('utf-8')))); return {'opening_balance': rows[0]['Statement Opening Balance'], 'closing_balance': rows[0]['Statement Closing Balance'], 'balance_validated': True, 'transactions': rows}
     def adjudicate_unmatched_items(self, client, statement_id): return 0
     def approve_statement(self, client, statement_id): return {'status': 'approved'}
-def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months() -> None: from common.testing.benchmarks.cases import case_1; runner, client = (_FakeRunner('replay'), _FakeClient()); _, m1, account_id, institution = case_1._upload_month1_statement(runner, client); case_1._ingest_chained_months(runner, client, Decimal(m1['closing_balance']), account_id, institution); assert runner.uploads == ['scb_month1_replay.csv', 'scb_month2_replay.csv', 'scb_month3_replay.csv', 'scb_month4_replay.csv']; from common.testing.benchmarks.cases import case_1; _m3_runner, _m3_client = (_FakeRunner('off'), _FakeClient()); case_1._upload_month1_statement(_m3_runner, _m3_client); assert _m3_runner.uploads == ['scb_month1_replay.csv']
+def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months() -> None: from tests.benchmarks.cases import case_1; runner, client = (_FakeRunner('replay'), _FakeClient()); _, m1, account_id, institution = case_1._upload_month1_statement(runner, client); case_1._ingest_chained_months(runner, client, Decimal(m1['closing_balance']), account_id, institution); assert runner.uploads == ['scb_month1_replay.csv', 'scb_month2_replay.csv', 'scb_month3_replay.csv', 'scb_month4_replay.csv']; from tests.benchmarks.cases import case_1; _m3_runner, _m3_client = (_FakeRunner('off'), _FakeClient()); case_1._upload_month1_statement(_m3_runner, _m3_client); assert _m3_runner.uploads == ['scb_month1_replay.csv']
+
+
+def test_benchmark_runner_adjudicate_unmatched_items_reuses_counter_accounts() -> None:
+    from unittest.mock import MagicMock
+    from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
+
+    runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    mock_client = MagicMock()
+    created_accounts: list[dict[str, str]] = []
+
+    def fake_get(url: str):
+        resp = MagicMock()
+        resp.status_code = 200
+        if url.startswith("/api/reconciliation/unmatched?statement_id="):
+            stmt_id = url.split("statement_id=", 1)[1]
+            resp.json.return_value = {
+                "items": [
+                    {
+                        "id": f"txn-{stmt_id}",
+                        "direction": "OUT",
+                        "description": f"Expense on {stmt_id}",
+                        "currency": "SGD",
+                    }
+                ]
+            }
+        else:
+            resp.json.return_value = (
+                {"items": list(created_accounts)} if url == "/api/accounts" else {"currency": "SGD"}
+            )
+        return resp
+
+    def fake_post(url: str, json: dict | None = None):
+        resp = MagicMock()
+        resp.status_code = 200
+        if url == "/api/accounts":
+            new_acc = {
+                "id": f"acc-{len(created_accounts) + 1}",
+                "name": json["name"],
+                "type": json["type"],
+                "currency": json["currency"],
+            }
+            created_accounts.append(new_acc)
+            resp.json.return_value = new_acc
+        else:
+            resp.json.return_value = {"status": "ok"}
+        return resp
+
+    mock_client.get.side_effect = fake_get
+    mock_client.post.side_effect = fake_post
+    assert runner.adjudicate_unmatched_items(mock_client, "stmt-1", currency="SGD") == 1
+    assert runner.adjudicate_unmatched_items(mock_client, "stmt-2", currency="SGD") == 1
+    assert len(created_accounts) == 1
+    assert created_accounts[0]["name"] == "Expense - Other SGD"
+    runner_2 = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    assert runner_2.adjudicate_unmatched_items(mock_client, "stmt-3", currency="SGD") == 1
+    assert len(created_accounts) == 1

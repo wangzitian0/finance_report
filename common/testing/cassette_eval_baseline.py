@@ -24,12 +24,11 @@ from common.testing import jsonl_baseline
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BASELINE = (
-    REPO_ROOT / "common" / "testing" / "fixtures" / "cassette-eval-baseline.jsonl"
+    REPO_ROOT / "tests" / "fixtures" / "cassette-eval-baseline.jsonl"
 )
 CORPUS_COUNT_BASELINE = (
     REPO_ROOT
-    / "common"
-    / "testing"
+    / "tests"
     / "fixtures"
     / "cassette-corpus-count-baseline.json"
 )

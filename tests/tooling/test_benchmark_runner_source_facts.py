@@ -1,4 +1,4 @@
-'AC-testing.benchmarks.11 AC-testing.benchmarks.12'; from __future__ import annotations; from pathlib import Path; from typing import Any; import pytest; from common.testing.benchmarks import sync_benchmark_fixtures as sync; from common.testing.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
+'AC-testing.benchmarks.11'; from __future__ import annotations; from typing import Any; import pytest; from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
 class _Resp:
     def __init__(self, status_code: int, body: Any=None, text: str='') -> None: self.status_code = status_code; self._body = body if body is not None else {}; self.text = text
     def json(self) -> Any: return self._body
@@ -31,11 +31,3 @@ def test_AC_testing_benchmarks_11_a_missing_statement_fact_is_never_replaced_by_
     client = _ApprovalClient(_statement(**{key: empty}))
     with pytest.raises(RuntimeError, match=f'has no .*{key}'): _runner().approve_statement(client, 's-1')
     assert _envelope_posts(client) == []
-class _Download:
-    def __init__(self, content: bytes, status_code: int=200) -> None: self.content = content; self.status_code = status_code
-class _DownloadClient:
-    def __init__(self, content: bytes) -> None: self.content = content; self.urls: list[str] = []
-    def get(self, url: str) -> _Download: self.urls.append(url); return _Download(self.content)
-_fixture = lambda **overrides: {'id': 'a', 'local_path': 'a.csv', 'download_url': 'https://example.invalid/a.csv', **overrides}
-def test_AC_testing_benchmarks_12_a_manifest_entry_without_a_hash_fails_verification(tmp_path: Path) -> None: (tmp_path / 'a.csv').write_bytes(b'data'); ok, message = sync.verify_fixture({'local_path': 'a.csv'}, tmp_path); assert ok is False; assert message == 'Manifest has no sha256 for a.csv'; _m7_tmp = tmp_path / '_m7'; _m7_tmp.mkdir(exist_ok=True); (_m7_tmp / 'a.csv').write_bytes(b'data'); _m7_good = sync.compute_sha256(b'data'); assert sync.verify_fixture({'local_path': 'a.csv', 'sha256': _m7_good}, _m7_tmp)[0]; _m7_ok, _m7_message = sync.verify_fixture({'local_path': 'a.csv', 'sha256': '0' * 64}, _m7_tmp); assert _m7_ok is False; assert 'SHA-256 mismatch' in _m7_message; _m8_tmp = tmp_path / '_m8'; _m8_tmp.mkdir(exist_ok=True); _m8_client = _DownloadClient(b'data'); _m8_saved = sync.download_fixture(_m8_client, _fixture(sha256='0' * 64), _m8_tmp); assert _m8_saved is False; assert not (_m8_tmp / 'a.csv').exists(); _m9_tmp = tmp_path / '_m9'; _m9_tmp.mkdir(exist_ok=True); _m9_client = _DownloadClient(b'data'); _m9_saved = sync.download_fixture(_m9_client, _fixture(sha256=sync.compute_sha256(b'data')), _m9_tmp); assert _m9_saved is True; assert (_m9_tmp / 'a.csv').read_bytes() == b'data'
-def test_AC_testing_benchmarks_12_the_download_of_a_fixture_without_a_hash_writes_nothing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None: client = _DownloadClient(b'data'); saved = sync.download_fixture(client, _fixture(), tmp_path); out = capsys.readouterr().out; assert saved is False; assert not (tmp_path / 'a.csv').exists(); assert client.urls == []; assert 'Manifest has no sha256 for a.csv' in out; assert 'Verified' not in out

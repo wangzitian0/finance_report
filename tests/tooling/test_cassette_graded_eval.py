@@ -27,7 +27,7 @@ def test_AC23_8_6_runs_on_committed_cassettes_without_network_or_key() -> None:
     baseline = load_jsonl(DEFAULT_BASELINE)
     for case in cases: assert case.case_id in baseline['cases'], f'no persisted floor for {case.case_id}'
 def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
-    'AC-llm.8.6'; import re; from common.testing.cassette_graded_eval import CASSETTE_DIR, _parse_extraction; from common.testing.fixtures.extraction_pii_mask import _DESC_KEYS; pseudonym = re.compile('[0-9a-f]{2}\\*+[0-9a-f]{2}|\\*+'); safe_string_keys = {'institution', 'currency', 'period_start', 'period_end', 'opening_balance', 'closing_balance', 'opening', 'closing', 'date', 'amount', 'direction', 'balance_after', 'suggested_category', 'symbol', 'ticker', 'isin', 'asset_identifier', 'asset_type', 'quantity', 'market_value', 'price'}; cjk = re.compile('[\u3040-ヿ㐀-䶿一-鿿가-\ud7af豈-\ufaff]')
+    'AC-llm.8.6'; import re; from common.testing.cassette_graded_eval import CASSETTE_DIR, _parse_extraction; from tests.fixtures.extraction_pii_mask import _DESC_KEYS; pseudonym = re.compile('[0-9a-f]{2}\\*+[0-9a-f]{2}|\\*+'); safe_string_keys = {'institution', 'currency', 'period_start', 'period_end', 'opening_balance', 'closing_balance', 'opening', 'closing', 'date', 'amount', 'direction', 'balance_after', 'suggested_category', 'symbol', 'ticker', 'isin', 'asset_identifier', 'asset_type', 'quantity', 'market_value', 'price'}; cjk = re.compile('[\u3040-ヿ㐀-䶿一-鿿가-\ud7af豈-\ufaff]')
     def _assert_pii_free(name: str, obj: object) -> None:
         if isinstance(obj, dict):
             for (key, value) in obj.items():

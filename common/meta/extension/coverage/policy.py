@@ -157,7 +157,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "tools/tests/**",
             "tools/wait_for_cheap_ci.py",
             "tools/run_financial_scenario_benchmark.py",
-            "tools/sync_benchmark_fixtures.py",
         ),
         # tools/ is largely one-off governance / CI glue (thin shims over
         # common/). Best-effort tier (#923): its LCOV is merged when present and
@@ -179,7 +178,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "common/tests/**",
             # Long-poll CI waiter: no meaningful unit coverage.
             "common/testing/wait_for_cheap_ci.py",
-            "common/testing/benchmarks/**",
         ),
     ),
 )

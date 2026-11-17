@@ -56,12 +56,12 @@ from src.llm.extension.cassette import fingerprint  # noqa: E402
 
 from infra2_sdk.runtime.llm import LlmSettings  # noqa: E402
 
-from common.testing.fixtures.extraction_pii_mask import (  # noqa: E402
+from tests.fixtures.extraction_pii_mask import (  # noqa: E402
     mask_extraction,
     source_ref,
 )
 
-CASSETTE_DIR = ROOT / "common/testing/fixtures/llm_cassettes"
+CASSETTE_DIR = ROOT / "tests/fixtures/llm_cassettes"
 TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 INPUT_ROOT = ROOT / "tmp/input/hf_oracle"
 MANIFEST = ROOT / "tmp/hf_cassette_manifest.json"

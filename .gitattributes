@@ -3,11 +3,11 @@
 # frontend modules import it and the build expects it present.
 apps/frontend/src/lib/api-types.ts linguist-generated=true
 
-# common/testing/fixtures/cassette-eval-baseline.jsonl is the cassette graded-eval
+# tests/fixtures/cassette-eval-baseline.jsonl is the cassette graded-eval
 # ratchet floor (EPIC-023 AC23.8), stored as sorted JSONL (one case per line).
 # PRs ratcheting DIFFERENT cases auto-merge by union; only same-case
 # edits conflict.
-common/testing/fixtures/cassette-eval-baseline.jsonl merge=union
+tests/fixtures/cassette-eval-baseline.jsonl merge=union
 
 # Treat PDF fixtures as binary in git diff so binary header bytes (%PDF-1.4\n%\x93\x8c\x8b\x9e)
 # are never decoded as text diffs.

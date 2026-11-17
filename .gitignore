@@ -44,8 +44,8 @@ coverage-tools.lcov
 /artifacts/
 
 # PDF Fixtures: Input and Output directories
-common/testing/fixtures/pdf/input/
-common/testing/fixtures/pdf/output/
+tests/fixtures/pdf/input/
+tests/fixtures/pdf/output/
 .sisyphus/
 
 # Benchmark local run report

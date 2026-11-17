@@ -276,6 +276,8 @@ CHECKS: tuple[Check, ...] = (
             "tools/*",
             "common/*",
             "tests/tooling/*",
+            "tests/benchmarks/*",
+            "tests/fixtures/*",
             "tests/e2e/*",
             "apps/backend/src/*",
             "apps/backend/tests/*",
@@ -389,7 +391,7 @@ CHECKS: tuple[Check, ...] = (
     _py_check(
         "llm-cassettes",
         (
-            "common/testing/fixtures/llm_cassettes/**.json",
+            "tests/fixtures/llm_cassettes/**.json",
             "tools/check_llm_cassettes.py",
             "common/testing/check_llm_cassettes.py",
             "apps/backend/src/extraction/base/validation.py",
@@ -400,7 +402,7 @@ CHECKS: tuple[Check, ...] = (
     _py_check(
         "cassette-graded-eval",
         (
-            "common/testing/fixtures/llm_cassettes/**.json",
+            "tests/fixtures/llm_cassettes/**.json",
             "tools/check_cassette_graded_eval.py",
             "common/testing/check_cassette_graded_eval.py",
         ),

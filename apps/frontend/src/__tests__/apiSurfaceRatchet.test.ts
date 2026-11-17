@@ -42,7 +42,7 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     methodPath: "POST /statements/{statement_id}/stage2/run-checks",
     reason: "Financial scenario benchmark runner and SSOT flow 8 trigger.",
     proofPaths: [
-      "common/testing/benchmarks/run_financial_scenario_benchmark.py",
+      "tests/benchmarks/run_financial_scenario_benchmark.py",
       "common/meta/flows/thirty_flows_ssot.json",
     ],
   },
@@ -51,7 +51,7 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     methodPath: "POST /reconciliation/adjustment",
     reason: "Scenario benchmark and reporting E2E reconciliation adjustment flow 18.",
     proofPaths: [
-      "common/testing/benchmarks/run_financial_scenario_benchmark.py",
+      "tests/benchmarks/run_financial_scenario_benchmark.py",
       "common/meta/flows/thirty_flows_ssot.json",
     ],
   },
@@ -59,26 +59,26 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     category: "non_ui_caller",
     methodPath: "GET /reconciliation/matches",
     reason: "Scenario benchmark runner listing accepted/pending matches.",
-    proofPaths: ["common/testing/benchmarks/run_financial_scenario_benchmark.py"],
+    proofPaths: ["tests/benchmarks/run_financial_scenario_benchmark.py"],
   },
   get_journal_entry_journal_entries__entry_id__get: {
     category: "non_ui_caller",
     methodPath: "GET /journal-entries/{entry_id}",
     reason: "Scenario benchmark runner fetching single journal entry lineage.",
-    proofPaths: ["common/testing/benchmarks/run_financial_scenario_benchmark.py"],
+    proofPaths: ["tests/benchmarks/run_financial_scenario_benchmark.py"],
   },
   import_brokerage_positions_portfolio_brokerage_import_post: {
     category: "non_ui_caller",
     methodPath: "POST /portfolio/brokerage/import",
     reason: "Scenario benchmark brokerage import step (FE upload UI not yet wired).",
-    proofPaths: ["common/testing/benchmarks/run_financial_scenario_benchmark.py"],
+    proofPaths: ["tests/benchmarks/run_financial_scenario_benchmark.py"],
   },
   export_annual_tax_archive_reports_package_annual_archive_post: {
     category: "non_ui_caller",
     methodPath: "POST /reports/package/annual-archive",
     reason: "Scenario benchmark and SSOT flow 28 annual tax archive export.",
     proofPaths: [
-      "common/testing/benchmarks/run_financial_scenario_benchmark.py",
+      "tests/benchmarks/run_financial_scenario_benchmark.py",
       "common/meta/flows/thirty_flows_ssot.json",
     ],
   },
@@ -87,7 +87,7 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     methodPath: "GET /reports/balance-sheet/diagnostics",
     reason: "Scenario benchmark and SSOT flow 24 balance-sheet diagnostics.",
     proofPaths: [
-      "common/testing/benchmarks/run_financial_scenario_benchmark.py",
+      "tests/benchmarks/run_financial_scenario_benchmark.py",
       "common/meta/flows/thirty_flows_ssot.json",
     ],
   },
@@ -144,7 +144,7 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     methodPath: "GET /assets/valuation-components",
     reason: "Called by benchmark case_5 and golden E2E test pinned by AC8.13.42.",
     proofPaths: [
-      "common/testing/benchmarks/cases/case_5.py",
+      "tests/benchmarks/cases/case_5.py",
       "tests/e2e/test_four_asset_net_worth_golden_path.py",
       "tests/tooling/test_post_merge_e2e_gates.py",
     ],

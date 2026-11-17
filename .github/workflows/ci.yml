@@ -960,7 +960,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          cassette_dir = Path("common/testing/fixtures/llm_cassettes")
+          cassette_dir = Path("tests/fixtures/llm_cassettes")
           committed = {p.stem for p in cassette_dir.glob("*.json")}
           truth_paired = {
               p.name.removesuffix(".truth.json")
@@ -977,7 +977,7 @@ jobs:
           if orphans:
               print("ORPHANED cassettes (no backend job served them — changed-prompt leftovers):")
               for o in orphans:
-                  print(f"  common/testing/fixtures/llm_cassettes/{o}.json")
+                  print(f"  tests/fixtures/llm_cassettes/{o}.json")
               raise SystemExit(1)
           PY
 

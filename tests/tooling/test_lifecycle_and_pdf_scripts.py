@@ -1,115 +1,16 @@
-"""AC16.13.1 AC16.13.2 AC16.13.3 AC16.13.4 AC16.13.5 AC16.13.6 AC16.13.7 AC16.13.8 AC16.13.9 AC16.13.10 AC16.13.11 AC16.13.12"""
+"""AC16.13.1 AC16.13.2 AC16.13.3 AC16.13.4 AC16.13.5 AC16.13.6 AC16.13.7 AC16.13.8 AC16.13.9 AC16.13.10 AC16.13.11"""
 
 import hashlib
-import importlib
 import json
 import sys
 from contextlib import contextmanager
-from decimal import Decimal
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
 
 from common.runtime.dev import test_lifecycle as tl
 from common.runtime.dev import toolchain
-
-GENERATE_TEST_PDFS_MODULE = "common.testing.fixtures.generate_test_pdfs"
-
-
-@pytest.fixture
-def fake_reportlab(monkeypatch):
-    fake_colors = ModuleType("reportlab.lib.colors")
-    for color in ("grey", "whitesmoke", "beige", "black"):
-        setattr(fake_colors, color, object())
-    fake_pagesizes = ModuleType("reportlab.lib.pagesizes")
-    fake_pagesizes.A4 = (595.27, 841.89)
-    fake_styles = ModuleType("reportlab.lib.styles")
-    fake_styles.getSampleStyleSheet = lambda: {"Heading1": object(), "Normal": object()}
-    fake_platypus = ModuleType("reportlab.platypus")
-    for cls_name in ("SimpleDocTemplate", "Table"):
-        setattr(fake_platypus, cls_name, object)
-    for fn_name in ("TableStyle", "Paragraph", "Spacer"):
-        setattr(fake_platypus, fn_name, lambda *a, **k: object())
-    fake_pdfmetrics = ModuleType("reportlab.pdfbase.pdfmetrics")
-    fake_pdfmetrics.registerFont = lambda font: None
-    fake_cidfonts = ModuleType("reportlab.pdfbase.cidfonts")
-    fake_cidfonts.UnicodeCIDFont = lambda name: object()
-    fake_pdfbase = ModuleType("reportlab.pdfbase")
-    fake_pdfbase.pdfmetrics = fake_pdfmetrics
-    fake_pdfbase.cidfonts = fake_cidfonts
-    captured = {"strings": [], "saved": False}
-
-    class FakeCanvas:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def setTitle(self, *a):
-            pass
-
-        def setAuthor(self, *a):
-            pass
-
-        def setCreator(self, *a):
-            pass
-
-        def setSubject(self, *a):
-            pass
-
-        def setFont(self, *a):
-            pass
-
-        def drawString(self, x, y, text):
-            captured["strings"].append(text)
-
-        def drawRightString(self, x, y, text):
-            captured["strings"].append(text)
-
-        def line(self, *a):
-            pass
-
-        def showPage(self):
-            pass
-
-        def save(self):
-            captured["saved"] = True
-
-    fake_canvas_mod = ModuleType("reportlab.pdfgen.canvas")
-    fake_canvas_mod.Canvas = FakeCanvas
-    fake_pdfgen = ModuleType("reportlab.pdfgen")
-    fake_pdfgen.canvas = fake_canvas_mod
-    reportlab_pkg = ModuleType("reportlab")
-    reportlab_lib_pkg = ModuleType("reportlab.lib")
-    reportlab_pkg.lib = reportlab_lib_pkg
-    reportlab_pkg.pdfbase = fake_pdfbase
-    reportlab_pkg.pdfgen = fake_pdfgen
-    reportlab_lib_pkg.colors = fake_colors
-    reportlab_lib_pkg.pagesizes = fake_pagesizes
-    reportlab_lib_pkg.styles = fake_styles
-
-    for mod_name, mod_obj in (
-        ("reportlab", reportlab_pkg),
-        ("reportlab.lib", reportlab_lib_pkg),
-        ("reportlab.lib.colors", fake_colors),
-        ("reportlab.lib.pagesizes", fake_pagesizes),
-        ("reportlab.lib.styles", fake_styles),
-        ("reportlab.platypus", fake_platypus),
-        ("reportlab.pdfbase", fake_pdfbase),
-        ("reportlab.pdfbase.pdfmetrics", fake_pdfmetrics),
-        ("reportlab.pdfbase.cidfonts", fake_cidfonts),
-        ("reportlab.pdfgen", fake_pdfgen),
-        ("reportlab.pdfgen.canvas", fake_canvas_mod),
-    ):
-        monkeypatch.setitem(sys.modules, mod_name, mod_obj)
-    yield captured
-
-
-def import_gtp_with_mocks(monkeypatch, tmp_path, captured):
-    sys.modules.pop(GENERATE_TEST_PDFS_MODULE, None)
-    gtp = importlib.import_module(GENERATE_TEST_PDFS_MODULE)
-    monkeypatch.setattr(gtp, "OUTPUT_DIR", tmp_path)
-    monkeypatch.setattr(gtp, "ROOT_DIR", tmp_path.parent)
-    return gtp
 
 
 def _setup_ns_files(monkeypatch, tmp_path, *, active=None, branch=None):
@@ -147,18 +48,6 @@ def _setup_main_mocks(monkeypatch, tmp_path, argv, *, returncode=0, changed=None
     monkeypatch.setattr(tl.signal, "signal", lambda *a: None)
     monkeypatch.setattr(tl.sys, "argv", argv)
     return captured_cmd
-
-
-def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():
-    """AC8.13.15"""
-    modules = [
-        "common.testing.fixtures.pdf.analyzers.analyze_pdf",
-        "common.testing.fixtures.pdf.analyzers.pdf_analyzer",
-        "common.testing.fixtures.pdf.generate_pdf_fixtures",
-        "common.testing.fixtures.pdf.generators.moomoo_generator",
-        "common.testing.fixtures.pdf.generators.pingan_generator",
-    ]
-    assert all(importlib.import_module(m) for m in modules)
 
 
 def test_AC16_13_1_sanitize_namespace_normalization():
@@ -326,30 +215,6 @@ def test_AC16_13_11_get_changed_files_maps_backend_modules(monkeypatch):
     )
     modules = tl._get_changed_files()
     assert "src.config" in modules and "src.ledger.extension.accounting" in modules
-
-
-def test_AC16_13_12_generate_statement_builds_pdf_rows(
-    monkeypatch, tmp_path, fake_reportlab
-):
-    """AC-testing.lifecycle.13"""
-    captured = fake_reportlab
-    gtp = import_gtp_with_mocks(monkeypatch, tmp_path, captured)
-    dbs_fixture = gtp.get_fixtures()[0]
-    balances = gtp.compute_balances(Decimal("12000.00"), dbs_fixture.transactions)
-    assert balances[:3] == [
-        Decimal("17200.00"),
-        Decimal("15000.00"),
-        Decimal("14913.60"),
-    ]
-    gtp.write_fixture_pdf_and_json(dbs_fixture)
-    assert captured["saved"] is True
-    assert any("DBS BANK" in s for s in captured["strings"])
-    assert any("3456" in s for s in captured["strings"])
-    data = json.loads((tmp_path / dbs_fixture.json_name).read_text())
-    assert data["institution"] == "DBS" and data["success"] is True
-    assert (
-        len(data["events"]) == 7 and data["statement"]["opening_balance"] == "12000.00"
-    )
 
 
 class TestGetNamespaceEdgeCases:
@@ -702,71 +567,3 @@ class TestGetChangedFilesEdgeCases:
             changed=[f"src.mod{i}" for i in range(8)],
         )
         assert tl.main() == 0
-
-
-def test_money_helpers_and_dd_and_ensure_output_dir(
-    tmp_path, fake_reportlab, monkeypatch
-):
-    gtp = import_gtp_with_mocks(monkeypatch, tmp_path, fake_reportlab)
-    assert gtp.money_str(Decimal("1234.5")) == "1234.50"
-    assert gtp.money_with_commas(Decimal("1234567.89")) == "1,234,567.89"
-    assert gtp.dd_mmm_yyyy("2025-01-05") == "05 Jan 2025"
-    gtp.ensure_output_dir()
-    assert (tmp_path / ".gitkeep").exists()
-
-
-def test_dbs_raw_text_and_get_fixtures_and_build_expected_json(
-    tmp_path, fake_reportlab, monkeypatch
-):
-    gtp = import_gtp_with_mocks(monkeypatch, tmp_path, fake_reportlab)
-    fixtures = gtp.get_fixtures()
-    assert len(fixtures) == 14
-    assert {
-        "DBS",
-        "CMB",
-        "GXS",
-        "MariBank",
-        "ICBC",
-        "HSBC HK",
-        "Sparkasse",
-        "Barclays",
-        "Chase",
-        "Citi SG Card",
-        "Moomoo",
-        "Futu",
-    } <= {f.institution for f in fixtures}
-    txt = gtp.dbs_raw_text(fixtures[0].transactions[0])
-    assert "Jan" in txt and "CR" in txt
-    for fixture in fixtures:
-        balances = gtp.compute_balances(fixture.opening_balance, fixture.transactions)
-        payload = gtp.build_expected_json(fixture, balances)
-        assert payload["institution"] == fixture.institution
-        assert payload["file"] == fixture.pdf_name
-        assert len(payload["events"]) == len(fixture.transactions)
-
-
-def test_write_fixture_pdf_and_json_for_all_institutions(
-    tmp_path, fake_reportlab, monkeypatch
-):
-    captured = fake_reportlab
-    gtp = import_gtp_with_mocks(monkeypatch, tmp_path, captured)
-    for fixture in gtp.get_fixtures():
-        gtp.write_fixture_pdf_and_json(fixture)
-        assert (tmp_path / fixture.json_name).exists()
-        assert captured["saved"] is True
-        assert any(
-            fixture.institution.split()[0] in s for s in captured["strings"]
-        ) or any(fixture.account_last4 in s for s in captured["strings"])
-
-
-def test_main_success_and_font_failure(tmp_path, fake_reportlab, monkeypatch):
-    gtp = import_gtp_with_mocks(monkeypatch, tmp_path, fake_reportlab)
-    assert gtp.main() == 0
-    sys.modules.pop(GENERATE_TEST_PDFS_MODULE, None)
-    fake_pdfmetrics = sys.modules["reportlab.pdfbase.pdfmetrics"]
-    monkeypatch.setattr(
-        fake_pdfmetrics,
-        "registerFont",
-        lambda f: (_ for _ in ()).throw(Exception("fail")),
-    )
-    assert importlib.import_module(GENERATE_TEST_PDFS_MODULE).main() == 1

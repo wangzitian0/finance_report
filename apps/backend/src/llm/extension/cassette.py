@@ -18,9 +18,9 @@ logger = get_logger(__name__)
 
 
 def _find_cassette_dir() -> Path:
-    """Locate ``common/testing/fixtures/llm_cassettes`` or fall back to an image-local sentinel."""
+    """Locate ``tests/fixtures/llm_cassettes`` or fall back to an image-local sentinel."""
     for ancestor in Path(__file__).resolve().parents:
-        candidate = ancestor / "common" / "testing" / "fixtures" / "llm_cassettes"
+        candidate = ancestor / "tests" / "fixtures" / "llm_cassettes"
         if candidate.is_dir():
             return candidate
     return Path(__file__).resolve().parent / "_no_cassettes_in_this_image"
@@ -219,9 +219,7 @@ CorrectnessValidator = Callable[[dict[str, Any]], bool]
 
 def require_correctness_validator(tag: CassetteTag, validator: Any, *, role: str) -> None:
     if tag is CassetteTag.CORRECTNESS and validator is None:
-        raise CassetteValidationError(
-            f"correctness cassette (role={role}) requires a ground-truth validator to record"
-        )
+        raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
 
 
 def persist_recorded_cassette(

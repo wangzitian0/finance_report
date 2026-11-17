@@ -24,8 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 JOURNEYS = REPO_ROOT / "tests" / "e2e" / "test_institution_statement_journeys.py"
 PINGAN_FIXTURE = (
     REPO_ROOT
-    / "common"
-    / "testing"
+    / "tests"
     / "fixtures"
     / "pdf"
     / "generated"

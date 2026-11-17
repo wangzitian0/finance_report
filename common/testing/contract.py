@@ -53,46 +53,6 @@ passes-own-governance-gate|check_package_contract validates testing with no viol
     roadmap=acs(
         "testing",
         """
-@$t/test_pdf_fixture_tooling_coverage.py|P2
-1.1||test_AC9_1_1_analyzer_extracts_page_table_and_text_positions
-1.3||test_AC9_1_3_template_extractor_emits_source_table_schema
-2.5||test_AC9_2_5_font_helpers_choose_safe_fonts
-2.6||test_AC9_2_6_fake_data_generators_keep_running_balances
-7.1||test_AC9_7_1_AC9_7_2_main_generates_selected_source
-7.2||test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output
-7.3||test_AC9_1_3_analyzer_cli_writes_template_yaml
-@$t/test_pdf_fixture_epic009_behavior.py|P2
-1.2||test_AC9_1_2_template_extractor_writes_sanitized_format_yaml
-1.4|DBS template exists.|test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas
-1.5|CMB template exists.|^
-1.6|Mari Bank template exists.|^
-2.1||test_AC9_2_1_base_generator_loads_template_and_applies_layout
-2.2|DBS generator exists.|test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates
-2.3|CMB generator exists.|^
-2.4|Mari Bank generator exists.|^
-2.7||test_AC9_2_7_main_script_registers_all_supported_generators
-4.1|Format analysis README.|test_AC9_4_readmes_document_analysis_generation_templates_and_examples
-4.2|Generation README.|^
-4.3|Template format specification.|^
-4.4|Usage examples.|^
-5.1|.gitignore excludes real PDFs.|test_AC9_5_git_contract_tracks_safe_sources_only
-5.2|Format templates committed.|^
-5.3|Generators committed.|^
-5.4|Analyzers committed.|^
-6.1|DBS generator loads template.|test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity
-6.2|CMB generator loads template.|^
-6.3||test_AC9_6_3_cmb_generator_uses_registered_chinese_font
-6.4||test_AC9_6_4_mari_generator_renders_interest_details_section
-6.5||test_AC9_6_5_generators_use_masked_accounts_and_fictional_data
-@$t/test_pdf_fixture_parseable.py|P2
-3.2||test_ac9_3_2_dbs_generated_pdf_parseable
-3.3||test_ac9_3_3_cmb_generated_pdf_parseable
-3.4||test_ac9_3_4_mari_generated_pdf_parseable
-3.5||test_ac9_3_5_balance_calculations_correct
-3.6||test_ac9_3_6_date_formats_correct_per_source
-@$t/test_pdf_fixture_real_format_contract.py|P2
-8.1||test_AC9_8_1_templates_define_sanitized_real_format_contract
-8.3||test_AC9_8_3_generated_dbs_pdf_matches_template_real_format_contract
 @$be/runtime/test_runtime_and_ci_contracts.py
 journeys.1|API health check.|test_api_health_endpoint_contract
 must-have.1|Health endpoint reachable.|^
@@ -122,11 +82,6 @@ seeded-journey.3||test_seeded_statement_transactions_and_reconciliation
 @$be/identity/test_auth_shift_left.py
 must-have.8||test_password_hashing_and_verification
 must-have.9||test_invalid_token_rejected_with_401
-@$t/test_personal_report_package_fixture_contract.py
-product-gates.8||test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs
-product-gates.9||test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract
-product-gates.11||test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs
-product-gates.12||test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs
 @$be/integration/test_reporting_e2e.py
 trust-mirrors.4||test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf
 @$t/test_tier2_http_e2e.py
@@ -309,7 +264,6 @@ lifecycle.9||test_AC16_13_8_is_db_ready_handles_failure
 lifecycle.10||test_AC16_13_9_cleanup_worker_databases_skips_invalid_namespace
 lifecycle.11||test_AC16_13_10_cleanup_worker_databases_drops_valid_and_skips_invalid
 lifecycle.12||test_AC16_13_11_get_changed_files_maps_backend_modules
-lifecycle.13||test_AC16_13_12_generate_statement_builds_pdf_rows
 @$t/test_worktree_doctor.py|P1
 preflight.4||test_AC_testing_preflight_4_worktree_doctor_audit_and_prune
 preflight.5||test_AC_testing_preflight_5_worktree_doctor_recognizes_squash_merged_prs
@@ -353,8 +307,6 @@ benchmarks.2||test_a_run_with_only_skipped_cases_never_succeeds
 benchmarks.5||test_case_1_replay_mode_uploads_generated_csv_for_all_four_months
 @$t/test_benchmark_browser_oracle.py|P1
 benchmarks.3||test_every_route_failing_to_load_fails_the_check
-@$t/test_benchmark_flow_registry.py|P1
-benchmarks.4||test_benchmark_mapping_ssot_bijection_and_coverage
 @$t/test_benchmark_scenario_suite.py|P1
 benchmarks.6||test_benchmark_oracle_triple_accounting_articulation_pass_and_fail
 benchmarks.7||test_benchmark_manifest_v2_fixtures_verified
@@ -365,7 +317,6 @@ benchmarks.9||test_AC_testing_benchmarks_9_ephemeral_user_pins_explicit_review_p
 benchmarks.10||test_AC_testing_benchmarks_10_a_heading_that_reports_a_finding_fails
 @$t/test_benchmark_runner_source_facts.py|P1
 benchmarks.11||test_AC_testing_benchmarks_11_a_missing_statement_fact_is_never_replaced_by_a_default
-benchmarks.12||test_AC_testing_benchmarks_12_a_manifest_entry_without_a_hash_fails_verification
 @$t/test_benchmark_runner_upload.py|P2
 benchmarks.16||test_AC_testing_benchmarks_16_a_csv_without_an_institution_gets_the_default_institution
 @$t/test_backend_test_timeout.py|P1|done|property
@@ -402,7 +353,7 @@ developer_toolchain|common/runtime/dev/toolchain.py|Shared runtime-version, uv c
 gate_cli|common/meta/base/gate_cli.py|Shared policy-gate command boundary for repository-root parsing, workflow-command-safe annotations, summaries, and integer status codes.|common/testing/readme.md|tests/tooling/test_s4_testing_gate_infrastructure.py|delivery|concept
 ci_workflow|common/testing/ci-cd.md#ci-job-structure|CI job structure (lint → backend shards → frontend → coverage) and the local guardrail tiers (pre-commit → pre-push → CI) that left-move its cheap drift gates.|common/meta/development.md,common/testing/coverage.md,.github/workflows/ci.yml,.pre-commit-config.yaml|-|tdd|playbook
 github_action_runtime|common/testing/data/github-action-runtime.yaml|External GitHub JavaScript action runtime inventory.|common/testing/ci-cd.md,.github/workflows/ci.yml|tests/tooling/test_workflow_contract.py,tests/tooling/test_post_merge_e2e_gates.py|delivery|matrix|human_curated|ci_workflow
-pdf_fixtures|common/testing/readme.md#pdf-fixtures|Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback.|common/testing/fixtures/pdf/README.md,common/testing/fixtures/pdf/FONT_HANDLING.md,common/testing/fixtures/pdf/analyzers/README.md,tests/tooling/test_pdf_fixture_epic009_behavior.py,tests/tooling/test_pdf_fixture_parseable.py|-|pdf|concept
+pdf_fixtures|common/testing/readme.md#pdf-fixtures|Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback.|tests/fixtures/pdf/README.md,tests/fixtures/pdf/FONT_HANDLING.md|-|pdf|concept
 pr_review_thread_merge_gate|common/testing/ci-cd.md#pr-review-thread-merge-gate|Merge-time gate that blocks unresolved P0/P1 (and Copilot-authored) PR review threads, and the documented severity classification rule.|docs/project/EPIC-008.testing-strategy.md,.github/workflows/ci.yml|tests/tooling/test_check_pr_review_threads.py|delivery|concept|documented_contract
 tdd_workflow|common/testing/tdd.md|EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.|AGENTS.md,docs/agents/orchestration.md,.github/workflows/ci.yml|-|tdd|playbook
 test_coverage|common/testing/coverage.md|Unified coverage system (backend + frontend + common + tools).|common/testing/tdd.md,common/testing/ci-cd.md|tests/tooling/test_ci_metrics_contract.py|tdd|baseline

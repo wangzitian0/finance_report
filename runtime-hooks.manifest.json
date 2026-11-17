@@ -51,8 +51,8 @@
       "checks": [
         {"id": "audit_replay", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "staging_ai_ocr", "--corpus", "audit_replay", "--run"]},
         {"id": "core_journey", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "staging_ai_ocr", "--corpus", "core_journey", "--run"]},
-        {"id": "pdf_corpus_oracle", "argv": ["sh", "-c", "python -m common.testing.benchmarks.pdf_corpus_oracle --app-url \"$INFRA2_HOOK_APP_URL\" --max-workers 1"]},
-        {"id": "financial_scenario_benchmark", "argv": ["sh", "-c", "python -m common.testing.benchmarks.run_financial_scenario_benchmark --app-url \"$INFRA2_HOOK_APP_URL\" --case 1,2,3,4,5,6"]}
+        {"id": "pdf_corpus_oracle", "argv": ["sh", "-c", "python -m tests.benchmarks.pdf_corpus_oracle --app-url \"$INFRA2_HOOK_APP_URL\" --max-workers 1"]},
+        {"id": "financial_scenario_benchmark", "argv": ["sh", "-c", "python -m tests.benchmarks.run_financial_scenario_benchmark --app-url \"$INFRA2_HOOK_APP_URL\" --case 1,2,3,4,5,6"]}
       ],
       "timeout_seconds": 3600,
       "optional_env": [

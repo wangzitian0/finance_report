@@ -17,8 +17,8 @@ Owns the `LLMClient` protocol (`LitellmClient`, `DecodeParams`, `estimate_tokens
 - `record` (`make llm-record` / `pytest --llm-record`),
 - `off` (live execution for dev/staging `-m llm` gates).
 
-Fingerprints hash normalized `(role, messages, decode_params, image_sha256)`, independent of exact model ID. Cassettes live under `common/testing/fixtures/llm_cassettes/` and are tagged `correctness` (`CassetteTag.CORRECTNESS` + validator) or `flow-only`. Never hand-author cassettes.
+Fingerprints hash normalized `(role, messages, decode_params, image_sha256)`, independent of exact model ID. Cassettes live under `tests/fixtures/llm_cassettes/` and are tagged `correctness` (`CassetteTag.CORRECTNESS` + validator) or `flow-only`. Never hand-author cassettes.
 
 ## <a id="cassette-graded-eval"></a>Cassette Graded Field-Accuracy Eval + Drift Ratchet
 
-`tools/check_cassette_graded_eval.py` scores cassettes against synthetic/strictly-redacted ground truth (`common/testing/fixtures/llm_cassettes/ground_truth/<fingerprint>.truth.json`, Decimal-exact amounts) and enforces raise-only per-case floors in `cassette-eval-baseline.jsonl` plus `cassette-corpus-count-baseline.json` (minimum matrix across `text` and `vision`). Drift detection is bounded to the covered matrix, a single sample is only a point estimate, and live provider accuracy on unseen PDFs stays verified on Staging (`staging_gate` and `scheduled_audit`).
+`tools/check_cassette_graded_eval.py` scores cassettes against synthetic/strictly-redacted ground truth (`tests/fixtures/llm_cassettes/ground_truth/<fingerprint>.truth.json`, Decimal-exact amounts) and enforces raise-only per-case floors in `cassette-eval-baseline.jsonl` plus `cassette-corpus-count-baseline.json` (minimum matrix across `text` and `vision`). Drift detection is bounded to the covered matrix, a single sample is only a point estimate, and live provider accuracy on unseen PDFs stays verified on Staging (`staging_gate` and `scheduled_audit`).
