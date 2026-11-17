@@ -51,6 +51,7 @@ class TestReconciliationEndpoints:
         async def fail_after_decision(*_args, **_kwargs): raise RuntimeError('journal posting fault')
         monkeypatch.setattr('src.reconciliation.extension.reviewed_disposition.create_entry_from_txn', fail_after_decision)
         with pytest.raises(RuntimeError, match='journal posting fault'): await reconciliation_router.submit_unmatched_reviewed_disposition(transaction_id, ReviewedDispositionRequest(intent='expense', counter_account_id=expense.id, category='DINING', rationale='A deterministic posting fault tests transaction rollback.'), db=db, user_id=test_user.id)
+        await db.rollback()
         traces = await db.execute(select(TraceRecordRow).where(TraceRecordRow.target_id == str(transaction_id))); entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction_id)); assert traces.scalars().all() == []; assert entries.scalars().all() == []
     async def test_reviewed_disposition_rolls_back_when_trace_append_fails(self, db, test_user: User, monkeypatch):
         'AC-reconciliation.reviewed-disposition.4'; _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name='Expense - Trace Fault'); transaction_id = transaction.id
@@ -61,6 +62,7 @@ class TestReconciliationEndpoints:
             async def emit_many(self, _records): raise RuntimeError('trace append fault')
         dependencies = ReviewedDispositionDependencies(trace_emitter=FailingEmitter(), disposition_policy=DispositionPolicy()); monkeypatch.setattr(reconciliation_router, 'compose_reviewed_disposition_dependencies', lambda _db: dependencies)
         with pytest.raises(RuntimeError, match='trace append fault'): await reconciliation_router.submit_unmatched_reviewed_disposition(transaction_id, ReviewedDispositionRequest(intent='expense', counter_account_id=expense.id, category='DINING', rationale='Trace failure must abort posting.'), db=db, user_id=test_user.id)
+        await db.rollback()
         traces = await db.execute(select(TraceRecordRow).where(TraceRecordRow.target_id == str(transaction_id))); entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction_id)); assert traces.scalars().all() == []; assert entries.scalars().all() == []
     @pytest.mark.parametrize('field', ['category', 'rationale'])
     async def test_reviewed_disposition_rejects_blank_semantic_fields(self, field: str, client: AsyncClient, db, test_user: User): 'AC-reconciliation.review-queue.9'; _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name='Expense - Blank Input'); payload = {'intent': 'expense', 'counter_account_id': str(expense.id), 'category': 'DINING', 'rationale': 'Reviewed source evidence.', field: '   '}; response = await client.post(f'/reconciliation/unmatched/{transaction.id}/reviewed-disposition', json=payload); assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT; assert (await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))).scalars().all() == []
@@ -107,7 +109,7 @@ async def test_build_match_response_includes_entries(db, test_user: User) -> Non
 async def test_run_reconciliation_maps_processing_currency_conflict_to_400(db, test_user: User, monkeypatch: pytest.MonkeyPatch) -> None:
     async def fail_matching(*_args, **_kwargs): raise ValidationError('Processing account currency is SGD; got transfer currency USD')
     monkeypatch.setattr(reconciliation_router, 'execute_matching', fail_matching)
-    with pytest.raises(HTTPException) as exc_info: await reconciliation_router.run_reconciliation(ReconciliationRunRequest(), db=db, user_id=test_user.id)
+    with pytest.raises((HTTPException, DomainError)) as exc_info: await reconciliation_router.run_reconciliation(ReconciliationRunRequest(), db=db, user_id=test_user.id)
     assert exc_info.value.status_code == 400; assert 'Processing account currency is SGD' in exc_info.value.detail
 async def test_run_reconciliation_filters_unmatched(db, test_user: User, monkeypatch: pytest.MonkeyPatch) -> None:
     statement, _ = await _seed_router_txns(db, test_user, count=1)

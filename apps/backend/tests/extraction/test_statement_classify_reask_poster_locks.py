@@ -264,7 +264,6 @@ async def test_AC_extraction_2994_154_a_run_start_waits_for_the_approve_and_the_
             await approve_statement_workflow(
                 approver, statement_id, test_user.id, dependencies=compose_statement_posting_dependencies()
             )
-            await approver.commit()
         with pytest.raises(StatementStatusChanged):
             await asyncio.wait_for(start, timeout=WAIT_SECONDS)
     finally:

@@ -148,7 +148,7 @@ async def approve_statement_workflow(
             dependencies=dependencies,
             base_currency=resolved_base_currency,
         )
-    await db.flush()
+    await db.commit()
     request_tenant_statistics_refresh(db)
     return outcome
 
