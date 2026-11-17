@@ -16,6 +16,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.database import async_session_maker, get_test_session_maker
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import StatementPostingOutcome, StatementPostingStatus
@@ -118,6 +119,7 @@ async def approve_statement_workflow(
     *,
     dependencies: StatementPostingDependencies,
     preloaded_bank_account: Account | None = None,
+    base_currency: str | None = None,
 ) -> StatementPostingOutcome:
     """Approve a PARSED statement and post its journal entries as one committed unit.
 
@@ -130,6 +132,7 @@ async def approve_statement_workflow(
     pending review and returns ``REVIEW_REQUIRED``.
     """
     statement, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
+    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
     outcome = await auto_create_posted_entries_for_statement(
         db,
         statement,
@@ -137,9 +140,16 @@ async def approve_statement_workflow(
         dependencies=dependencies,
         transactions=transactions,
         preloaded_bank_account=preloaded_bank_account,
+        base_currency=resolved_base_currency,
     )
     if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
-        await try_auto_post_statement_opening_balance(db, statement, user_id, dependencies=dependencies)
+        await try_auto_post_statement_opening_balance(
+            db,
+            statement,
+            user_id,
+            dependencies=dependencies,
+            base_currency=resolved_base_currency,
+        )
     await db.commit()
     request_tenant_statistics_refresh(db)
     return outcome
@@ -173,6 +183,7 @@ async def reject_statement_workflow(
     statement = await reject_statement(db, statement_id, user_id, reason=reason)
     # A reject of an APPROVED statement keeps a row only for another APPROVED statement.
     # Any other reject keeps a row for every statement that is not RETIRED and not REJECTED (#2888).
+    resolved_base_currency = await get_effective_base_currency(db, user_id=user_id)
     await release_statement_ledger_effects(
         db,
         statement,
@@ -180,10 +191,17 @@ async def reject_statement_workflow(
         was_approved=status_before == BankStatementStatus.APPROVED,
         reason=reason or "Statement rejected",
         dependencies=dependencies,
+        base_currency=resolved_base_currency,
     )
     account_id = getattr(statement, "account_id", None)
     if account_id is not None:
-        await reconcile_account_statement_chain(db, user_id=user_id, account_id=account_id, dependencies=dependencies)
+        await reconcile_account_statement_chain(
+            db,
+            user_id=user_id,
+            account_id=account_id,
+            dependencies=dependencies,
+            base_currency=resolved_base_currency,
+        )
     if commit:
         await db.commit()
         await db.refresh(statement)

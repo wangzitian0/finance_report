@@ -624,6 +624,7 @@ class PackageAssembler:
         include_restricted: bool,
     ) -> _PackageEvaluation:
         async with shared_current_authority(db, TraceScope.tenant(user_id)):
+            resolved_base_currency = await get_effective_base_currency(db, user_id=user_id)
             policy = await derive_user_framework_policy_result(
                 db,
                 user_id,
@@ -644,6 +645,7 @@ class PackageAssembler:
                 end_date=end_date,
                 as_of_date=as_of_date,
                 currency=currency,
+                base_currency=resolved_base_currency,
                 include_restricted=include_restricted,
                 decisions_by_source_id=_policy_decisions_by_source_id(policy),
                 contributions=base_contributions,
@@ -794,6 +796,7 @@ class PackageAssembler:
         end_date: date,
         as_of_date: date,
         currency: str,
+        base_currency: str | None = None,
         include_restricted: bool,
         decisions_by_source_id: dict[str, Any],
         contributions: tuple[PackageSectionContribution[Any], ...],
@@ -806,6 +809,7 @@ class PackageAssembler:
             framework_id=framework_id,
             as_of_date=as_of_date,
             currency=currency,
+            base_currency=base_currency,
             include_restricted=include_restricted,
             decisions_by_source_id=decisions_by_source_id,
         )
@@ -828,7 +832,13 @@ class PackageAssembler:
             cash_account_ids=cash_inputs.account_ids,
         )
         inv = await self._investment_performance(
-            db, user_id=user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            base_currency=base_currency,
         )
         ann = await generate_annualized_income_schedule(db, user_id, as_of_date=as_of_date, currency=currency)
         return PersonalReportPackageSections(
@@ -880,11 +890,24 @@ class PackageAssembler:
 
     @staticmethod
     async def _investment_performance(
-        db: AsyncSession, *, user_id: UUID, start_date: date, end_date: date, as_of_date: date, currency: str
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        base_currency: str | None = None,
     ) -> InvestmentPerformanceReportScheduleResponse:
         return InvestmentPerformanceReportScheduleResponse.model_validate(
             await build_investment_performance_report_schedule(
-                db, user_id, period_start=start_date, period_end=end_date, as_of_date=as_of_date, currency=currency
+                db,
+                user_id,
+                period_start=start_date,
+                period_end=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+                base_currency=base_currency,
             )
         )
 

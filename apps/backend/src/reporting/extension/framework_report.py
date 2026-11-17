@@ -163,6 +163,7 @@ async def assemble_framework_balance_sheet(
     framework_id: PersonalReportingFrameworkId,
     as_of_date: date,
     currency: str | None = None,
+    base_currency: str | None = None,
     include_restricted: bool = PACKAGE_INCLUDE_RESTRICTED,
     decisions_by_source_id: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -182,6 +183,7 @@ async def assemble_framework_balance_sheet(
             user_id,
             as_of_date=as_of_date,
             currency=currency,
+            base_currency=base_currency,
             include_restricted=include_restricted,
             include_trust_signals=True,
         ),

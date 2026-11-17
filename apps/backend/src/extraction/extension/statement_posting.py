@@ -192,6 +192,7 @@ async def auto_create_posted_entries_for_statement(
     dependencies: StatementPostingDependencies,
     transactions: list[AtomicTransaction] | None = None,
     preloaded_bank_account: Account | None = None,
+    base_currency: str | None = None,
 ) -> StatementPostingOutcome:
     """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
     if transactions is None:
@@ -243,7 +244,8 @@ async def auto_create_posted_entries_for_statement(
                 legs_posted = await dependencies.post_named_transfers(db, user_id, user_transfer_txns)
                 transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
 
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    base_currency = resolved_base_currency
     policy = await statement_disposition_policy_for_user(db, user_id)
     policy_snapshot = current_statement_disposition_policy_snapshot(mode=dependencies.disposition_mode, policy=policy)
     planned: list[
@@ -687,11 +689,16 @@ async def _void_reconciled_entry(
 
 
 async def _void_entries_of_transactions(
-    db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID], *, reason: str
+    db: AsyncSession,
+    user_id: UUID,
+    txn_ids: Sequence[UUID],
+    *,
+    reason: str,
+    base_currency: str | None = None,
 ) -> int:
     if not txn_ids:
         return 0
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
     active_entries = (
         (
             await db.execute(
@@ -710,7 +717,7 @@ async def _void_entries_of_transactions(
         .all()
     )
     for entry in active_entries:
-        await _void_reconciled_entry(db, entry.id, user_id=user_id, base_currency=base_currency, reason=reason)
+        await _void_reconciled_entry(db, entry.id, user_id=user_id, base_currency=resolved_base_currency, reason=reason)
     return len(active_entries)
 
 
@@ -723,6 +730,7 @@ async def release_statement_ledger_effects(
     reason: str,
     dependencies: StatementPostingDependencies | None,
     tolerate_unresolved_rows: bool = False,
+    base_currency: str | None = None,
 ) -> int:
     await db.execute(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": f"statement-release:{user_id}"}
@@ -734,7 +742,7 @@ async def release_statement_ledger_effects(
         return 0
     if dependencies is not None and dependencies.release_reconciliation is not None:
         await dependencies.release_reconciliation(db, user_id, owned, reason)
-    return await _void_entries_of_transactions(db, user_id, owned, reason=reason)
+    return await _void_entries_of_transactions(db, user_id, owned, reason=reason, base_currency=base_currency)
 
 
 async def _active_gap_plug_entries_for_account(
@@ -825,6 +833,7 @@ async def reconcile_account_statement_chain(
     *,
     dependencies: StatementPostingDependencies | None = None,
     candidate_statement: StatementSummary | None = None,
+    base_currency: str | None = None,
 ) -> bool:
     """Idempotently anchor S_0 to 3199 and calibrate inter-statement gaps to 3198."""
     from src.audit.money import to_money
@@ -863,7 +872,8 @@ async def reconcile_account_statement_chain(
         approved_rows.append(candidate_statement)
         approved_rows.sort(key=StatementSummary.chain_sort_key)
 
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    base_currency = resolved_base_currency
     existing_plugs = await _active_gap_plug_entries_for_account(db, user_id, account_id)
     positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
     existing_opening = next((p for p in positions if p.account_id == account_id), None)
@@ -1116,6 +1126,7 @@ async def _reconcile_secondary_currency_opening_balance(
     currency: str,
     opening_amount: Decimal,
     dependencies: StatementPostingDependencies | None = None,
+    base_currency: str | None = None,
 ) -> bool:
     secondary_account = await resolve_secondary_currency_custody_account(
         db, statement=statement, user_id=user_id, currency=currency
@@ -1141,6 +1152,7 @@ async def _reconcile_secondary_currency_opening_balance(
         account_id=secondary_account.id,
         dependencies=dependencies,
         candidate_statement=secondary_candidate,
+        base_currency=base_currency,
     )
 
 
@@ -1150,15 +1162,18 @@ async def try_auto_post_statement_opening_balance(
     user_id: UUID,
     *,
     dependencies: StatementPostingDependencies | None = None,
+    base_currency: str | None = None,
 ) -> bool:
     if statement.effective_opening_balance() is None or statement.period_start is None or statement.account_id is None:
         raise ValueError("Statement opening balance, date, and account are required before posting")
+    resolved_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
     changed = await reconcile_account_statement_chain(
         db,
         user_id=user_id,
         account_id=statement.account_id,
         dependencies=dependencies,
         candidate_statement=statement,
+        base_currency=resolved_base,
     )
     typed_balances = statement.typed_currency_balances()
     if len(typed_balances) > 1:
@@ -1177,6 +1192,7 @@ async def try_auto_post_statement_opening_balance(
                 currency=bucket_currency,
                 opening_amount=balance.opening.amount,
                 dependencies=dependencies,
+                base_currency=resolved_base,
             )
             changed = changed or bucket_changed
     return changed
