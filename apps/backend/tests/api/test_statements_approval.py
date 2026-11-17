@@ -209,6 +209,7 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
 
+    await db.rollback()
     await db.refresh(statement)
     await add_reviewed_disposition_rule(
         db, user_id=user_id, keyword="salary", account_type=AccountType.INCOME, category="SALARY"
