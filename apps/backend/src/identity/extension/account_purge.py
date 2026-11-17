@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Column, Table, delete, func, select, text
+from sqlalchemy import Column, Table, delete, exists, func, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -93,21 +93,37 @@ def owned_tables_in_delete_order() -> list[Table]:
 
 
 def _child_fk_links() -> list[tuple[Table, list[tuple[Column[Any], Column[Any]]]]]:
-    """Return non-user_id child tables paired with FK links pointing into user-owned tables."""
+    """Return non-user_id child tables paired with transitive FK hop chains into user-owned tables."""
     _ensure_orm_registry()
-    owned_names = {t.name for t in Base.metadata.sorted_tables if t.name != User.__tablename__ and "user_id" in t.c}
-    result: list[tuple[Table, list[tuple[Column[Any], Column[Any]]]]] = []
-    for table in reversed(Base.metadata.sorted_tables):
-        if table.name == User.__tablename__ or "user_id" in table.c:
-            continue
-        links = [
-            (fk.parent, fk.column)
-            for fk in table.foreign_keys
-            if fk.column.table.name in owned_names and "user_id" in fk.column.table.c
-        ]
-        if links:
-            result.append((table, links))
-    return result
+    tables = Base.metadata.sorted_tables
+    chains: dict[str, list[tuple[Column[Any], Column[Any]]]] = {
+        t.name: [] for t in tables if t.name != User.__tablename__ and "user_id" in t.c
+    }
+    changed = True
+    while changed:
+        changed = False
+        for table in tables:
+            if table.name == User.__tablename__ or "user_id" in table.c or table.name in chains:
+                continue
+            for fk in table.foreign_keys:
+                target = fk.column.table.name
+                if target != table.name and target in chains:
+                    chains[table.name] = [(fk.parent, fk.column), *chains[target]]
+                    changed = True
+                    break
+    return [
+        (table, chains[table.name])
+        for table in reversed(tables)
+        if table.name in chains and chains[table.name]
+    ]
+
+
+def _owned_target_subquery(chain: Sequence[tuple[Column[Any], Column[Any]]], id_list: Sequence[UUID]):
+    """Build nested IN subquery traversing a transitive FK hop chain down from user_id-owned tables."""
+    target_ids = select(chain[-1][1]).where(chain[-1][1].table.c.user_id.in_(id_list))
+    for i in range(len(chain) - 2, -1, -1):
+        target_ids = select(chain[i][1]).where(chain[i + 1][0].in_(target_ids))
+    return target_ids
 
 
 def non_user_child_tables_in_delete_order() -> list[Table]:
@@ -161,11 +177,37 @@ async def _delete_tenant_batch(
     if not user_ids:
         return
     id_list = list(user_ids)
-    for child_table, links in child_links:
-        local_col, target_col = links[0]
-        await session.execute(
-            delete(child_table).where(local_col.in_(select(target_col).where(target_col.table.c.user_id.in_(id_list))))
-        )
+    owned_chain_names = {t.name for t in owned_tables} | {t.name for t, _ in child_links}
+    for child_table, chain in child_links:
+        local_col = chain[0][0]
+        target_ids = _owned_target_subquery(chain, id_list)
+        unowned_parents = [
+            (fk.parent, fk.column)
+            for fk in child_table.foreign_keys
+            if fk.column.table.name != User.__tablename__
+            and "user_id" not in fk.column.table.c
+            and fk.column.table.name not in owned_chain_names
+            and fk.column.table.name not in _TENANT_TRACE_TABLES
+        ]
+        parent_candidates: list[tuple[Column[Any], Column[Any], list[Any]]] = []
+        for parent_fk_col, parent_pk_col in unowned_parents:
+            rows = (
+                (await session.execute(select(parent_fk_col).where(local_col.in_(target_ids)).distinct()))
+                .scalars()
+                .all()
+            )
+            if rows:
+                parent_candidates.append((parent_fk_col, parent_pk_col, list(rows)))
+        await session.execute(delete(child_table).where(local_col.in_(target_ids)))
+        for parent_fk_col, parent_pk_col, candidate_ids in parent_candidates:
+            for offset in range(0, len(candidate_ids), 1000):
+                chunk = candidate_ids[offset : offset + 1000]
+                await session.execute(
+                    delete(parent_pk_col.table).where(
+                        parent_pk_col.in_(chunk),
+                        ~exists(select(1).where(parent_fk_col == parent_pk_col)),
+                    )
+                )
     if include_tenant_traces:
         id_strs = [str(uid) for uid in id_list]
         for trace_table_name in _TENANT_TRACE_TABLES:
