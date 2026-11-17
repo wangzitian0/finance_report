@@ -399,6 +399,14 @@ async def _persist_approved_transfer_pair_check(
     await persist_transfer_pairs(db, [matched_pair], decision=TransferPairDecision.REVIEWER_PAIRED)
 
 
+def parse_check_resolution_action(raw: str) -> CheckResolutionAction:
+    """Convert raw action text into a typed CheckResolutionAction or raise InvalidCheckActionError."""
+    try:
+        return CheckResolutionAction(raw)
+    except ValueError as exc:
+        raise InvalidCheckActionError(f"Invalid action: {raw}") from exc
+
+
 async def resolve_check(
     db: AsyncSession,
     check_id: UUID,

@@ -28,7 +28,13 @@ from src.llm import (
     get_config_source,
 )
 from src.observability import get_logger
-from src.platform import get_owned_or_404, raise_bad_request, raise_conflict, raise_not_found, raise_service_unavailable
+from src.platform import (
+    ResourceNotFoundError,
+    get_owned_or_404,
+    raise_bad_request,
+    raise_conflict,
+    raise_service_unavailable,
+)
 from src.schemas.llm import (
     LlmCatalogResponse,
     LlmConfigStatusResponse,
@@ -112,14 +118,18 @@ async def create_provider(
     return LlmProviderResponse.model_validate(provider)
 
 
+def _parse_provider_uuid(provider_id: str) -> UUID:
+    try:
+        return UUID(provider_id)
+    except (ValueError, TypeError) as exc:
+        # A non-UUID path param is a not-found, not a 500 from the UUID column cast.
+        raise ResourceNotFoundError("Provider not found") from exc
+
+
 @router.delete("/providers/{provider_id}", response_model=LlmProviderDeleteResponse)
 async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserId) -> LlmProviderDeleteResponse:
     """Delete one of the current user's providers (cascades to its bindings)."""
-    try:
-        pid = UUID(provider_id)
-    except (ValueError, TypeError):
-        # A non-UUID path param is a not-found, not a 500 from the UUID column cast.
-        raise_not_found("Provider")
+    pid = _parse_provider_uuid(provider_id)
     row = await get_owned_or_404(db, LlmProvider, pid, user_id, name="Provider")
     deleted_id = row.id
     await db.delete(row)

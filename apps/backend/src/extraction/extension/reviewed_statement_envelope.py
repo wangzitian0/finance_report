@@ -41,9 +41,10 @@ from src.extraction.orm.reviewed_statement_envelope import (
 )
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
+from src.platform import ConflictError, ResourceNotFoundError, ValidationFailedError
 
 
-class ReviewedStatementEnvelopeConflict(ValueError):
+class ReviewedStatementEnvelopeConflict(ConflictError):
     """A different review command targets an already-confirmed source version."""
 
 
@@ -132,7 +133,7 @@ async def persist_statement_extraction_result(
 ) -> StatementExtractionResultRecord:
     payload = result.to_payload()
     if StatementExtractionResult.from_payload(payload) != result:
-        raise ValueError("statement extraction result failed typed persistence validation")
+        raise ValidationFailedError("statement extraction result failed typed persistence validation")
 
     candidate = StatementExtractionResultRecord(
         user_id=statement.user_id,
@@ -164,7 +165,7 @@ async def persist_statement_extraction_result(
             raise RuntimeError("source-result conflict did not expose a canonical winner") from None
         source_record = found
     if source_record.payload != payload:
-        raise ValueError("statement extraction result digest collision")
+        raise ValidationFailedError("statement extraction result digest collision")
 
     previous_id = statement.current_extraction_result_id
     if previous_id != source_record.id:
@@ -234,35 +235,35 @@ async def require_current_statement_envelope_trust(db: AsyncSession, *, statemen
         return
     source_record = await _load_owned_source_record(db, statement)
     if source_record is None:
-        raise ValueError("Statement current source result is unavailable")
+        raise ValidationFailedError("Statement current source result is unavailable")
     source_result = StatementExtractionResult.from_payload(source_record.payload)
     envelope = await current_reviewed_statement_envelope(db, user_id=statement.user_id, statement_id=statement.id)
 
     if not source_result.requires_review and envelope is None:
         _require_projection_matches_source(statement, source_result)
         if supports_reviewed_statement_envelope(source_result):
-            raise ValueError("Current source requires explicit human confirmation before posting")
+            raise ValidationFailedError("Current source requires explicit human confirmation before posting")
         return
     if not supports_reviewed_statement_envelope(source_result):
-        raise ValueError(
+        raise ValidationFailedError(
             "Current source result has facts that this statement-envelope review cannot confirm: "
             + ", ".join(source_result.missing_required_facts)
         )
     if envelope is None:
-        raise ValueError(
+        raise ValidationFailedError(
             "Current source facts require an explicit reviewed envelope before posting: "
             + ", ".join(source_result.missing_required_facts)
         )
     if statement.manual_opening_balance is not None:
-        raise ValueError("Manual opening-balance override cannot replace a reviewed statement envelope")
+        raise ValidationFailedError("Manual opening-balance override cannot replace a reviewed statement envelope")
     attrs = ("account_id", "currency", "period_start", "period_end", "opening_balance", "closing_balance")
     if tuple(getattr(statement, a) for a in attrs) != tuple(getattr(envelope, a) for a in attrs):
-        raise ValueError("Statement projection diverges from its current reviewed envelope")
+        raise ValidationFailedError("Statement projection diverges from its current reviewed envelope")
     from src.extraction.extension.statement_contribution import resolve_statement_contribution
 
     contribution = await resolve_statement_contribution(db, user_id=statement.user_id, statement_id=statement.id)
     if contribution.state != "authoritative" or contribution.decision is None:
-        raise ValueError("Current human source confirmation is no longer authoritative")
+        raise ValidationFailedError("Current human source confirmation is no longer authoritative")
 
 
 def _require_projection_matches_source(statement: StatementSummary, source_result: StatementExtractionResult) -> None:
@@ -284,7 +285,7 @@ def _require_projection_matches_source(statement: StatementSummary, source_resul
         statement.closing_balance,
     )
     if proj != src:
-        raise ValueError("Statement projection diverges from its current source result")
+        raise ValidationFailedError("Statement projection diverges from its current source result")
 
 
 def _apply_envelope_to_statement(statement: StatementSummary, envelope: ReviewedStatementEnvelope) -> None:
@@ -316,9 +317,9 @@ async def confirm_reviewed_statement_envelope(
         )
     ).scalar_one_or_none()
     if statement is None:
-        raise ValueError("Statement not found or access denied")
+        raise ResourceNotFoundError("Statement not found or access denied")
     if statement.status is BankStatementStatus.RETIRED:
-        raise ValueError("Retired statement cannot receive a new source confirmation")
+        raise ValidationFailedError("Retired statement cannot receive a new source confirmation")
     # One guard before both branches below, the first confirmation and the replay of the same command: each
     # writes PARSED. A rerun leaves the current extraction result in place, so the old digest still matches.
     # A confirmation that wrote PARSED over an extract run would let an approve post entries that the finalize of
@@ -328,29 +329,29 @@ async def confirm_reviewed_statement_envelope(
     if active_run is not None and active_run.kind is RunKind.EXTRACT:
         raise ActiveRunExists(active_run.id)
     if statement.status is BankStatementStatus.PARSING:
-        raise ValueError("Statement is parsing again. Reload the statement before confirming its envelope.")
+        raise ValidationFailedError("Statement is parsing again. Reload the statement before confirming its envelope.")
     if statement.current_extraction_result_id is None:
-        raise ValueError("Statement has no current source result; reparse before confirming its envelope")
+        raise ValidationFailedError("Statement has no current source result; reparse before confirming its envelope")
 
     source_record = await _load_owned_source_record(db, statement)
     if source_record is None:
-        raise ValueError("Statement current source result is unavailable")
+        raise ValidationFailedError("Statement current source result is unavailable")
     if command.source_result_digest != source_record.content_digest:
-        raise ValueError("Command does not match the current source result digest")
+        raise ValidationFailedError("Command does not match the current source result digest")
     source_result = StatementExtractionResult.from_payload(source_record.payload)
     if source_result.content_digest != command.source_result_digest:
-        raise ValueError("Current source result identity is invalid")
+        raise ValidationFailedError("Current source result identity is invalid")
     if not supports_reviewed_statement_envelope(source_result):
-        raise ValueError("Current source result cannot be confirmed with a cash statement envelope")
+        raise ValidationFailedError("Current source result cannot be confirmed with a cash statement envelope")
     _validate_command_against_source(command, source_result)
 
     account = (
         await db.execute(select(Account).where(Account.id == command.account_id, Account.user_id == user_id))
     ).scalar_one_or_none()
     if account is None or not account.is_active or account.type is not AccountType.ASSET:
-        raise ValueError("A user-owned active asset custody account is required")
+        raise ValidationFailedError("A user-owned active asset custody account is required")
     if account.currency.strip().upper() != command.currency:
-        raise ValueError("Custody account currency must match the confirmed statement currency")
+        raise ValidationFailedError("Custody account currency must match the confirmed statement currency")
     if (
         source_result.source_type is StatementSourceType.BANK
         and source_result.institution
@@ -394,7 +395,7 @@ async def confirm_reviewed_statement_envelope(
 
     source_parent = await trace_emitter.repository.get(TraceScope.tenant(user_id), source_record.source_trace_record_id)
     if source_parent is None:
-        raise ValueError("Current source result audit anchor is unavailable")
+        raise ValidationFailedError("Current source result audit anchor is unavailable")
     trace_records = _build_review_trace_records(
         user_id=user_id,
         statement_id=statement.id,
@@ -430,7 +431,7 @@ def _validate_command_against_source(
     command: ReviewedStatementEnvelopeCommand, source_result: StatementExtractionResult
 ) -> None:
     if source_result.evidence_type is not StatementEvidenceType.TRANSACTION_LEDGER:
-        raise ValueError("Only transaction-ledger sources accept a cash statement envelope confirmation")
+        raise ValidationFailedError("Only transaction-ledger sources accept a cash statement envelope confirmation")
     declared: dict[str, object] = {
         "currency": source_result.statement_currency,
         "period_start": source_result.period_start,
@@ -445,16 +446,16 @@ def _validate_command_against_source(
         )
     for name, value in declared.items():
         if value is not None and getattr(command, name) != value:
-            raise ValueError(f"Confirmed {name} must match the declared source fact")
+            raise ValidationFailedError(f"Confirmed {name} must match the declared source fact")
     currencies = {txn.currency for txn in source_result.transactions}
     if None in currencies or any(c != command.currency for c in currencies):
-        raise ValueError("Every transaction currency must match the confirmed statement currency")
+        raise ValidationFailedError("Every transaction currency must match the confirmed statement currency")
     net = sum(
         (txn.amount if txn.direction == "IN" else -txn.amount for txn in source_result.transactions),
         start=Decimal("0"),
     )
     if command.opening_balance + net != command.closing_balance:
-        raise ValueError("Confirmed opening balance plus source transactions must equal closing balance")
+        raise ValidationFailedError("Confirmed opening balance plus source transactions must equal closing balance")
 
 
 def _build_review_trace_records(

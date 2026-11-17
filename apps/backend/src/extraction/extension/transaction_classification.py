@@ -33,6 +33,7 @@ from src.extraction.extension.correction_service import invalidate_correction_ca
 from src.extraction.extension.prompts import classification as templates
 from src.extraction.extension.prompts.hints import hints_block
 from src.extraction.orm.correction import CorrectionLog
+from src.platform import ValidationFailedError
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_run import StatementRun
@@ -999,7 +1000,7 @@ def category_fits_direction(category: TransactionCategory, direction: Transactio
     )
 
 
-class SuggestionCorrectionError(ValueError):
+class SuggestionCorrectionError(ValidationFailedError):
     """Raised when a user correction cannot be applied to a classification."""
 
 

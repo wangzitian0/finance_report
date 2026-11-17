@@ -7,6 +7,8 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
+from src.platform import PreconditionFailedError
+
 from src.pricing.extension.market_data._base import (
     _DEFAULT_INCREMENTAL_LOOKBACK_DAYS,
     _PRICE_QUANT,
@@ -69,7 +71,7 @@ def _iter_dates(start_date: date, end_date: date) -> Sequence[date]:
 def _parse_fx_pair(pair: str) -> tuple[str, str]:
     parts = [item.strip() for item in pair.split("/", maxsplit=1)]
     if len(parts) != 2 or not parts[0] or not parts[1]:
-        raise ValueError(f"Invalid FX pair '{pair}', expected BASE/QUOTE")
+        raise PreconditionFailedError(f"Invalid FX pair '{pair}', expected BASE/QUOTE")
     return _normalize_currency(parts[0]), _normalize_currency(parts[1])
 
 

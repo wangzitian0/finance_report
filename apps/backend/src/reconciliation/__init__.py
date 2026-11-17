@@ -33,6 +33,7 @@ from src.reconciliation.extension.config import load_reconciliation_config
 from src.reconciliation.extension.consistency_checks import (
     has_unresolved_checks,
     list_checks,
+    parse_check_resolution_action,
     resolve_check,
     run_all_consistency_checks,
 )
@@ -163,6 +164,7 @@ __all__ = [
     "normalize_text",
     "pair_fx_legs",
     "paired_transfer_entry_ids",
+    "parse_check_resolution_action",
     "post_named_transfer_legs",
     "prune_candidates",
     "reject_match",

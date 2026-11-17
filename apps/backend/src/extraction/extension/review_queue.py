@@ -38,6 +38,7 @@ from src.ledger import (
     submit_anchored_journal_entry,
 )
 from src.observability import get_logger
+from src.platform import ValidationFailedError
 from src.pricing import ExchangeRateLookup, PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
@@ -153,7 +154,7 @@ async def _plan_entry_command(
     counter_account: Account | None = None,
 ) -> PlannedEntryCommand:
     if txn.user_id != user_id:
-        raise ValueError("Transaction does not belong to user")
+        raise ValidationFailedError("Transaction does not belong to user")
     if getattr(txn, "currency_unresolved", False):
         raise CurrencyUnresolvedError(
             f"Transaction {txn.id} has an unresolved currency and cannot be promoted to a "
@@ -163,7 +164,7 @@ async def _plan_entry_command(
     statement = preloaded_statement
     if statement is not None:
         if statement.user_id != user_id:
-            raise ValueError("Preloaded statement does not match transaction or user")
+            raise ValidationFailedError("Preloaded statement does not match transaction or user")
     else:
         statement = await _resolve_statement_summary(db, txn, user_id=user_id)
 
@@ -175,32 +176,32 @@ async def _plan_entry_command(
             provider = fx_rate_provider or get_exchange_rate
             line_fx_rate = await provider(db, currency, base_currency, txn.txn_date, lazy_load=True)
         except fx_rate_error or PricingError as exc:
-            raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
+            raise ValidationFailedError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
     statement_account_id = statement.account_id if statement else None
     bank_account: Account | None = preloaded_bank_account
     if bank_account is not None:
         if bank_account.user_id != user_id:
-            raise ValueError("Bank account does not belong to user")
+            raise ValidationFailedError("Bank account does not belong to user")
         if statement_account_id and bank_account.id != statement_account_id:
-            raise ValueError("Preloaded bank account does not match statement")
+            raise ValidationFailedError("Preloaded bank account does not match statement")
     elif statement_account_id:
         bank_account = (
             await db.execute(select(Account).where(Account.id == statement_account_id, Account.user_id == user_id))
         ).scalar_one_or_none()
 
     if not bank_account:
-        raise ValueError("Account mapping required before statement posting")
+        raise ValidationFailedError("Account mapping required before statement posting")
     if bank_account.type is not AccountType.ASSET or not bank_account.is_active:
-        raise ValueError("Statement posting account must be an active asset account")
+        raise ValidationFailedError("Statement posting account must be an active asset account")
     if bank_account.currency != currency and statement is not None and len(statement.typed_currency_balances()) > 1:
         bank_account = await resolve_secondary_currency_custody_account(
             db, statement=statement, user_id=user_id, currency=currency
         )
     if bank_account.currency != currency:
-        raise ValueError("Statement posting account currency must match the transaction currency")
+        raise ValidationFailedError("Statement posting account currency must match the transaction currency")
     if bank_account.code == PROCESSING_ACCOUNT_CODE:
-        raise ValueError(
+        raise ValidationFailedError(
             f"Statement posting cannot use Processing account ({PROCESSING_ACCOUNT_CODE}) as bank account; "
             "external transactions must stage via AtomicTransaction"
         )
@@ -210,28 +211,28 @@ async def _plan_entry_command(
         or disposition.command is None
         or disposition.transaction_id != txn.id
     ):
-        raise ValueError("Authoritative economic disposition is required before statement posting")
+        raise ValidationFailedError("Authoritative economic disposition is required before statement posting")
     if counter_account is None or counter_account.id != disposition.command.counter_account_id:
-        raise ValueError("Disposition counter-account context is missing or mismatched")
+        raise ValidationFailedError("Disposition counter-account context is missing or mismatched")
     if counter_account.user_id != user_id or not counter_account.is_active:
-        raise ValueError("Disposition counter-account must be an active account owned by the user")
+        raise ValidationFailedError("Disposition counter-account must be an active account owned by the user")
     if counter_account.currency != currency:
-        raise ValueError("Disposition counter-account currency must match the transaction currency")
+        raise ValidationFailedError("Disposition counter-account currency must match the transaction currency")
     if counter_account.code == PROCESSING_ACCOUNT_CODE:
-        raise ValueError(
+        raise ValidationFailedError(
             f"Statement posting cannot use Processing account ({PROCESSING_ACCOUNT_CODE}) as counter account; "
             "external transactions must stage via AtomicTransaction"
         )
     if not intent_matches_counter_account(disposition.intent, counter_account.type.value):
-        raise ValueError("Disposition intent is incompatible with the counter-account type")
+        raise ValidationFailedError("Disposition intent is incompatible with the counter-account type")
 
     if txn.direction == TransactionDirection.IN:
         if disposition.command.debit_role != "custody" or disposition.command.credit_role != "counter":
-            raise ValueError("Disposition command conflicts with incoming transaction flow")
+            raise ValidationFailedError("Disposition command conflicts with incoming transaction flow")
         debit_account, credit_account = bank_account, counter_account
     else:
         if disposition.command.debit_role != "counter" or disposition.command.credit_role != "custody":
-            raise ValueError("Disposition command conflicts with outgoing transaction flow")
+            raise ValidationFailedError("Disposition command conflicts with outgoing transaction flow")
         debit_account, credit_account = counter_account, bank_account
 
     lines_data = [
@@ -320,7 +321,7 @@ async def _create_entry_from_txn(
     )
     try:
         if source_decision is None or trace_emitter is None:
-            raise ValueError("Statement posting requires a source-owned authoritative decision")
+            raise ValidationFailedError("Statement posting requires a source-owned authoritative decision")
         decision_anchor = await authorize_financial_command(
             emitter=trace_emitter,
             user_id=user_id,

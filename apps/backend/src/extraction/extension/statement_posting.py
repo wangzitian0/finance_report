@@ -64,6 +64,7 @@ from src.extraction.extension.statement_validation import (
     approve_statement_with_transactions,
     resolve_statement_transactions,
 )
+from src.platform import ValidationFailedError
 from src.extraction.extension.statement_runs import lock_statement_for_run
 from src.extraction.extension.transaction_classification import classification_suggestions
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
@@ -261,7 +262,7 @@ async def auto_create_posted_entries_for_statement(
         if classification is not None and classification.account_id is not None and classification_rule is not None:
             counter_account = accounts_by_id.get(classification.account_id)
             if counter_account is None:
-                raise ValueError("Applied classification references a missing account")
+                raise ValidationFailedError("Applied classification references a missing account")
             proposal = _applied_proposal(
                 classification, classification_rule, counter_account, covered_by_match=txn.id in transfer_txn_ids
             )
@@ -532,7 +533,7 @@ def _classification_proposal_origin(rule_type: RuleType) -> IntentProposalOrigin
 async def resolve_statement_posting_account(db: AsyncSession, statement: StatementSummary, user_id: UUID) -> Account:
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
-        raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
+        raise ValidationFailedError("Statement currency required before posting. Confirm the source currency before posting.")
 
     source = await get_current_statement_extraction_result(
         db, user_id=user_id, statement_id=statement.id, statement=statement
@@ -559,38 +560,38 @@ async def resolve_statement_posting_account(db: AsyncSession, statement: Stateme
             await db.execute(select(Account).where(Account.id == statement.account_id, Account.user_id == user_id))
         ).scalar_one_or_none()
         if account is None:
-            raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
+            raise ValidationFailedError("Statement account mapping is invalid. Confirm the target account before posting.")
         if account.type != AccountType.ASSET or not account.is_active:
-            raise ValueError(
+            raise ValidationFailedError(
                 "Statement account mapping must reference an active asset account. "
                 "Confirm the target account before posting."
             )
         if account.currency != currency:
-            raise ValueError(
+            raise ValidationFailedError(
                 "Statement account mapping must match the statement currency. "
                 "Confirm the target account before posting."
             )
         return account
 
     if not (statement.institution or "").strip() or not (statement.account_last4 or "").strip():
-        raise ValueError(
+        raise ValidationFailedError(
             "Account mapping required before posting. Confirm the statement account because institution, "
             "account_last4, or currency metadata is missing."
         )
-    raise ValueError("Account mapping required before posting. Confirm the statement custody identity.")
+    raise ValidationFailedError("Account mapping required before posting. Confirm the statement custody identity.")
 
 
 async def validate_statement_period_unique(
     db: AsyncSession, statement: StatementSummary, user_id: UUID, account_id: UUID
 ) -> None:
     if statement.period_start is None or statement.period_end is None:
-        raise ValueError("Statement period required before posting. Confirm the source date range before posting.")
+        raise ValidationFailedError("Statement period required before posting. Confirm the source date range before posting.")
     if statement.period_start > statement.period_end:
-        raise ValueError("Statement period is invalid. Confirm the source date range before posting.")
+        raise ValidationFailedError("Statement period is invalid. Confirm the source date range before posting.")
 
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
-        raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
+        raise ValidationFailedError("Statement currency required before posting. Confirm the source currency before posting.")
 
     overlapping = (
         await db.execute(
@@ -610,7 +611,7 @@ async def validate_statement_period_unique(
         )
     ).scalar_one_or_none()
     if overlapping:
-        raise ValueError(
+        raise ValidationFailedError(
             "Statement period overlaps an approved statement for this account and currency. "
             "Resolve the duplicate source date range before posting."
         )
@@ -815,15 +816,15 @@ async def _lookup_fx_rate(
         try:
             return await dependencies.fx_rate_provider(db, currency, base_currency, as_of, lazy_load=True)
         except dependencies.fx_rate_error as exc:
-            raise ValueError(error_message) from exc
+            raise ValidationFailedError(error_message) from exc
     if require_provider:
-        raise ValueError("FX rate provider required for statement opening balance")
+        raise ValidationFailedError("FX rate provider required for statement opening balance")
     from src.pricing import PricingError, get_exchange_rate
 
     try:
         return await get_exchange_rate(db, currency, base_currency, as_of, lazy_load=True)
     except PricingError as exc:
-        raise ValueError(error_message) from exc
+        raise ValidationFailedError(error_message) from exc
 
 
 async def reconcile_account_statement_chain(
@@ -907,7 +908,7 @@ async def reconcile_account_statement_chain(
     earliest = approved_rows[0]
     earliest_opening = earliest.effective_opening_balance()
     if earliest_opening is None or earliest.period_start is None:
-        raise ValueError("Statement opening balance, date, and account are required before posting")
+        raise ValidationFailedError("Statement opening balance, date, and account are required before posting")
 
     currency = normalize_currency_code(earliest.currency or account.currency or "")
     changed = False
@@ -916,7 +917,7 @@ async def reconcile_account_statement_chain(
     allow_supersede = False
     if existing_opening is not None:
         if existing_opening.state != "authoritative":
-            raise ValueError("Opening balance authority needs review")
+            raise ValidationFailedError("Opening balance authority needs review")
         if existing_opening.effective_date < earliest.period_start:
             existing_entry_obj = (
                 await db.get(JournalEntry, existing_opening.journal_entry_id)
@@ -946,7 +947,7 @@ async def reconcile_account_statement_chain(
             elif earliest.manual_opening_balance is not None:
                 allow_supersede = True
             else:
-                raise ValueError("Opening balance conflicts with existing opening position for the same date")
+                raise ValidationFailedError("Opening balance conflicts with existing opening position for the same date")
 
     if need_opening_post:
         remaining_plugs: list[tuple[JournalEntry, JournalLine]] = []
@@ -967,7 +968,7 @@ async def reconcile_account_statement_chain(
         if earliest.current_extraction_result_id is not None:
             contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=earliest.id)
             if contribution.state != "authoritative" or contribution.decision is None:
-                raise ValueError("Statement opening balance requires current source authority")
+                raise ValidationFailedError("Statement opening balance requires current source authority")
             source_decision_id = contribution.decision.decision_id
         fx_rates: dict[str, Decimal] = {}
         if currency != base_currency and earliest_opening != 0:
@@ -1011,7 +1012,7 @@ async def reconcile_account_statement_chain(
             )
             changed = True
         except ValidationError as exc:
-            raise ValueError(str(exc)) from exc
+            raise ValidationFailedError(str(exc)) from exc
 
     updated_positions = (
         await list_opening_positions(db, user_id=user_id, as_of=date.max) if need_opening_post else positions
@@ -1165,7 +1166,7 @@ async def try_auto_post_statement_opening_balance(
     base_currency: str | None = None,
 ) -> bool:
     if statement.effective_opening_balance() is None or statement.period_start is None or statement.account_id is None:
-        raise ValueError("Statement opening balance, date, and account are required before posting")
+        raise ValidationFailedError("Statement opening balance, date, and account are required before posting")
     resolved_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
     changed = await reconcile_account_statement_chain(
         db,

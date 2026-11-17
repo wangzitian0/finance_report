@@ -2,12 +2,12 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from src.composition import compose_correction_callbacks
 from src.deps import CurrentUserId, DbSession
-from src.extraction import SuggestionCorrectionError, record_correction
+from src.extraction import record_correction
 from src.observability import get_logger
 
 router = APIRouter(prefix="/corrections", tags=["corrections"])
@@ -42,23 +42,18 @@ async def create_correction(
 
     AC18.2.2: Corrections API records corrections.
     """
-    try:
-        correction = await record_correction(
-            db,
-            user_id=user_id,
-            transaction_id=body.transaction_id,
-            corrected_category=body.corrected_category,
-            corrected_account_id=body.corrected_account_id,
-            **compose_correction_callbacks(),
-        )
-        await db.commit()
-        return CorrectionResponse(
-            id=correction.id,
-            transaction_id=correction.transaction_id,
-            original_category=correction.original_category,
-            corrected_category=correction.corrected_category,
-        )
-    except SuggestionCorrectionError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    correction = await record_correction(
+        db,
+        user_id=user_id,
+        transaction_id=body.transaction_id,
+        corrected_category=body.corrected_category,
+        corrected_account_id=body.corrected_account_id,
+        **compose_correction_callbacks(),
+    )
+    await db.commit()
+    return CorrectionResponse(
+        id=correction.id,
+        transaction_id=correction.transaction_id,
+        original_category=correction.original_category,
+        corrected_category=correction.corrected_category,
+    )
