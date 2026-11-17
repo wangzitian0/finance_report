@@ -118,7 +118,6 @@ STRING_KEEP_COLUMNS: frozenset[str] = _expand(
         "market_data_sync_state": "kind scope",
         "opening_position_records": "currency",
         "outbox": "aggregate_id event_type source_pkg status",
-        "ping_state": "state",
         "reconciliation_matches": "run_id status",
         "report_snapshots": "report_type",
         "reviewed_statement_envelopes": "currency",

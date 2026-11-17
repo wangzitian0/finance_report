@@ -16,7 +16,6 @@ baseline by exactly one entry.
 from __future__ import annotations
 
 import ast
-import json
 from pathlib import Path
 
 from common.meta.base.gate_util import parse_ast_cached
@@ -192,14 +191,3 @@ def discover_and_compute_edges(repo_root: Path) -> list[str]:
         published=published,
         repo_root=repo_root.resolve(),
     )
-
-
-def load_baseline(path: Path) -> set[str]:
-    """The frozen allowed-edge set. Missing file → empty (a fresh, zero-debt repo)."""
-    if not path.exists():
-        return set()
-    return set(json.loads(path.read_text(encoding="utf-8")))
-
-
-def dump_baseline(path: Path, edges: list[str]) -> None:
-    path.write_text(json.dumps(sorted(set(edges)), indent=2) + "\n", encoding="utf-8")

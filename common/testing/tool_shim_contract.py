@@ -1,17 +1,14 @@
-"""Shrink-only line-count contract for top-level Python tool entry points."""
+"""Zero-debt line-count and alias contract for top-level Python tool entry points."""
 
 from __future__ import annotations
 
 import argparse
 import ast
-import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_BASELINE = REPO_ROOT / "common/testing/data/fat-tool-baseline.json"
-BASELINE_UPDATE_MODE = "shrink-only"
 MAX_TOOL_LINES = 40
 
 
@@ -36,53 +33,19 @@ def _scan_tools(repo_root: Path) -> tuple[dict[str, int], list[str]]:
     return fat_tools, alias_findings
 
 
-def _fat_tools(repo_root: Path) -> dict[str, int]:
-    fat_tools, _ = _scan_tools(repo_root)
-    return fat_tools
-
-
-def _load_baseline(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    values = payload.get("legacy_fat_tools") if isinstance(payload, dict) else None
-    if not isinstance(values, list) or not all(
-        isinstance(value, str) for value in values
-    ):
-        raise ValueError(f"{path}: legacy_fat_tools must be a list of paths")
-    return set(values)
-
-
-def _write_baseline(path: Path, paths: set[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"legacy_fat_tools": sorted(paths)}
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-
-def findings(repo_root: Path, baseline_path: Path) -> tuple[list[str], list[str]]:
-    """Return newly fat/re-exporting and resolved-but-still-baselined tool paths."""
+def findings(repo_root: Path) -> list[str]:
+    """Return every tool entry point over MAX_TOOL_LINES or using pass-through aliases."""
     current, alias_findings = _scan_tools(repo_root)
-    baseline = _load_baseline(baseline_path)
-    new = [
-        f"new fat tool: {path} ({current[path]} lines; maximum {MAX_TOOL_LINES})"
-        for path in sorted(current.keys() - baseline)
-    ] + alias_findings
-    stale = [
-        f"resolved fat tool still baselined: {path}"
-        for path in sorted(baseline - current.keys())
+    fat_findings = [
+        f"fat tool: {path} ({current[path]} lines; maximum {MAX_TOOL_LINES})"
+        for path in sorted(current)
     ]
-    return new, stale
+    return fat_findings + alias_findings
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--baseline", type=Path, default=None)
-    parser.add_argument(
-        "--update",
-        action="store_true",
-        help="Drop resolved fat-tool paths; refuses to adopt new debt.",
-    )
     return parser.parse_args(argv)
 
 
@@ -91,29 +54,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = parse_args(argv)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 1
-    repo_root = args.repo_root.resolve()
-    baseline_path = args.baseline or (
-        repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)
-    )
-    new, stale = findings(repo_root, baseline_path)
-    if new:
-        for finding in new:
+    found = findings(args.repo_root.resolve())
+    if found:
+        for finding in found:
             print(f"::error title=Tool shim contract::{finding}", file=sys.stderr)
-        print(f"[TOOL-SHIM] FAILED: {len(new)} new fat tool(s).", file=sys.stderr)
+        print(f"[TOOL-SHIM] FAILED: {len(found)} violation(s).", file=sys.stderr)
         return 1
-    if args.update:
-        _write_baseline(baseline_path, set(_fat_tools(repo_root)))
-        print("[TOOL-SHIM] baseline tightened.")
-        return 0
-    if stale:
-        for finding in stale:
-            print(f"::error title=Tool shim contract::{finding}", file=sys.stderr)
-        print(
-            f"[TOOL-SHIM] FAILED: remove {len(stale)} resolved baseline path(s).",
-            file=sys.stderr,
-        )
-        return 1
-    print(
-        f"[TOOL-SHIM] PASS: top-level tools are <= {MAX_TOOL_LINES} lines or baselined."
-    )
+    print(f"[TOOL-SHIM] PASS: top-level tools are <= {MAX_TOOL_LINES} lines.")
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

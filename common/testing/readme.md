@@ -168,9 +168,9 @@ composable `main(argv: Sequence[str] | None = None) -> int` contract; only the
 `__main__` boundary raises `SystemExit(main())`.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
-`tool_shim_contract.py` rejects a new entry point over 40 lines, rejects
-pass-through `import X as X` re-exports in `tools/*.py`, and requires
-`data/fat-tool-baseline.json` to shrink whenever historical debt is re-homed.
+`tool_shim_contract.py` rejects any entry point over 40 lines and rejects
+pass-through `import X as X` re-exports in `tools/*.py` (zero-debt after
+retiring `data/fat-tool-baseline.json`).
 
 ### Package-governance observation adapter
 
