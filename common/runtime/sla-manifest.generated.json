@@ -80,7 +80,7 @@
       "tier": "staging",
       "dependency": "llm",
       "kind": "model_dominant",
-      "summary": "The AI provider used for statement extraction (AI_*); recorded (cassette substitute) in CI/preview, real on staging/prod."
+      "summary": "The AI provider used for statement extraction (LLM_*); recorded (cassette substitute) in CI/preview, real on staging/prod."
     },
     {
       "tier": "staging",
@@ -122,7 +122,7 @@
       "tier": "production",
       "dependency": "llm",
       "kind": "model_dominant",
-      "summary": "The AI provider used for statement extraction (AI_*); recorded (cassette substitute) in CI/preview, real on staging/prod."
+      "summary": "The AI provider used for statement extraction (LLM_*); recorded (cassette substitute) in CI/preview, real on staging/prod."
     },
     {
       "tier": "production",
