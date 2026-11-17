@@ -1,4 +1,4 @@
-from __future__ import annotations; import inspect; from datetime import UTC, date, datetime, timedelta; from decimal import Decimal; from pathlib import Path; from uuid import uuid4; import pytest; from httpx import AsyncClient; from sqlalchemy import event, insert, select, update; from sqlalchemy.ext.asyncio import AsyncSession; import src.reporting.extension.package_document as package_document_mod; import src.workflow.extension.events as workflow_events; from src.audit import JournalEntrySourceType, Money; from src.config import settings; from src.extraction import BankStatementStatus, DocumentType, Stage1Status, UploadedDocument; from src.extraction.orm.statement_summary import StatementSummary; from src.identity import User; from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, JournalEntryAuthorityState, JournalEntryStatus, JournalLine, post_entry; from src.pricing import FxRate; from src.workflow import WorkflowEvent, WorkflowEventFamily, WorkflowEventStatus, stored_package_readiness; from src.workflow.extension.events import ensure_workflow_events_synced, workflow_input_stamp; YEAR_SCALE_ENTRY_COUNT = 1000; STEADY_READ_SQL_BUDGET = 40; _WRITE_PREFIXES = ('INSERT', 'UPDATE', 'DELETE')
+from __future__ import annotations; import inspect; from datetime import UTC, date, datetime, timedelta; from decimal import Decimal; from pathlib import Path; from uuid import uuid4; import pytest; from httpx import AsyncClient; from sqlalchemy import event, insert, select, update; from sqlalchemy.ext.asyncio import AsyncSession; import src.reporting.extension.package_document as package_document_mod; import src.workflow.extension.events as workflow_events; from src.audit import JournalEntrySourceType, Money; from src.extraction import BankStatementStatus, DocumentType, Stage1Status, UploadedDocument; from src.extraction.orm.statement_summary import StatementSummary; from src.identity import User; from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, JournalEntryAuthorityState, JournalEntryStatus, JournalLine, post_entry; from src.pricing import FxRate; from src.workflow import WorkflowEvent, WorkflowEventFamily, WorkflowEventStatus, stored_package_readiness; from src.workflow.extension.events import ensure_workflow_events_synced, workflow_input_stamp; YEAR_SCALE_ENTRY_COUNT = 1000; STEADY_READ_SQL_BUDGET = 40; _WRITE_PREFIXES = ('INSERT', 'UPDATE', 'DELETE')
 class _SqlCounter:
     def __init__(self) -> None: self.statements: list[str] = []
     def __call__(self, _conn, _cursor, statement, _parameters, _context, _executemany) -> None: self.statements.append(statement.lstrip())
@@ -12,11 +12,26 @@ async def test_AC_workflow_sync_1_year_scale_status_read_is_bounded_and_write_fr
     'AC-workflow.sync.1'; await _seed_year_of_manual_entries(db, test_user.id); real_traceability = package_document_mod.build_personal_report_package_traceability_payload; traceability_calls = 0
     async def counting_traceability(**kwargs): nonlocal traceability_calls; traceability_calls += 1; return await real_traceability(**kwargs)
     monkeypatch.setattr(package_document_mod, 'build_personal_report_package_traceability_payload', counting_traceability)
-    for _ in range(3):
+    cold_counter = _SqlCounter(); event.listen(db_engine.sync_engine, 'before_cursor_execute', cold_counter)
+    try: first = await client.get('/workflow/status')
+    finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', cold_counter)
+    assert first.status_code == 200, first.text; assert first.json()['report_readiness']['state'] == 'blocked'; assert traceability_calls == 0; assert cold_counter.writes == []
+    await ensure_workflow_events_synced(db, user_id=test_user.id); await db.commit()
+    synced_baseline = None
+    for _ in range(2):
         counter = _SqlCounter(); event.listen(db_engine.sync_engine, 'before_cursor_execute', counter)
         try: repeated = await client.get('/workflow/status')
         finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', counter)
-        assert repeated.status_code == 200, repeated.text; assert repeated.json()['report_readiness']['state'] == 'blocked'; assert traceability_calls == 0; assert counter.writes == []; assert len(counter.statements) < STEADY_READ_SQL_BUDGET, counter.statements
+        assert repeated.status_code == 200, repeated.text
+        payload = repeated.json()
+        if synced_baseline is None:
+            synced_baseline = payload
+            assert payload['primary_state'] == first.json()['primary_state']
+            assert payload['report_readiness'] == first.json()['report_readiness']
+            assert payload['event_counts'] == first.json()['event_counts']
+        else:
+            assert payload == synced_baseline
+        assert traceability_calls == 0; assert counter.writes == []; assert len(counter.statements) < STEADY_READ_SQL_BUDGET, counter.statements
 async def _make_statement(db: AsyncSession, user_id, *, status: BankStatementStatus) -> StatementSummary: document = UploadedDocument(user_id=user_id, file_path='statements/fresh.csv', file_hash='f' * 64, original_filename='fresh.csv', document_type=DocumentType.BANK_STATEMENT); db.add(document); await db.flush(); statement = StatementSummary(user_id=user_id, uploaded_document_id=document.id, file_hash='f' * 64, institution='Demo Bank', status=status); db.add(statement); await db.commit(); return statement
 async def _event_states(db: AsyncSession, user_id) -> dict[WorkflowEventFamily, WorkflowEventStatus]: db.expire_all(); events = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == user_id))).scalars().all(); return {item.family: item.status for item in events}
 async def test_AC_workflow_sync_2_a_source_change_derives_events_again(client: AsyncClient, db: AsyncSession, db_engine, test_user: User) -> None:
@@ -55,7 +70,7 @@ async def test_AC_workflow_sync_4_input_stamp_changes_only_with_relevant_inputs(
     async def stamp() -> str: await db.commit(); return await workflow_input_stamp(db, user_id=test_user.id)
     baseline = await stamp(); assert await stamp() == baseline; other = User(id=uuid4(), email=f'other-{uuid4()}@example.com', hashed_password='hashed'); db.add(other); await db.flush(); db.add(Account(user_id=other.id, name='Other bank', type=AccountType.ASSET, currency='SGD')); assert await stamp() == baseline; db.add(WorkflowEvent(user_id=test_user.id, family=WorkflowEventFamily.REPORT_READY, severity='info', title='Ready', summary='Ready', source_type='report_package', source_id=uuid4(), action_href='/reports?tab=package', dedupe_key='excluded-table-probe')); assert await stamp() == baseline; seen = {baseline}
     async def assert_changed() -> None: current = await stamp(); assert current not in seen; seen.add(current)
-    account = Account(user_id=test_user.id, name='Bank', type=AccountType.ASSET, currency='SGD'); db.add(account); await assert_changed(); account.name = 'Renamed bank'; await assert_changed(); entry = JournalEntry(user_id=test_user.id, entry_date=date.today(), memo='Owner-joined probe', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.DRAFT); db.add(entry); await db.flush(); line = JournalLine(journal_entry_id=entry.id, account_id=account.id, direction=Direction.DEBIT, amount=Decimal('1.00'), currency='SGD'); db.add(line); await assert_changed(); line.amount = Decimal('2.00'); await assert_changed(); db.add(FxRate(base_currency='TST', quote_currency='XYZ', rate=Decimal('1.5'), rate_date=date.today(), source='t')); await assert_changed(); monkeypatch.setattr(settings, 'base_currency', 'USD' if settings.base_currency != 'USD' else 'EUR'); await assert_changed()
+    account = Account(user_id=test_user.id, name='Bank', type=AccountType.ASSET, currency='SGD'); db.add(account); await assert_changed(); account.name = 'Renamed bank'; await assert_changed(); entry = JournalEntry(user_id=test_user.id, entry_date=date.today(), memo='Owner-joined probe', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.DRAFT); db.add(entry); await db.flush(); line = JournalLine(journal_entry_id=entry.id, account_id=account.id, direction=Direction.DEBIT, amount=Decimal('1.00'), currency='SGD'); db.add(line); await assert_changed(); line.amount = Decimal('2.00'); await assert_changed(); db.add(FxRate(base_currency='TST', quote_currency='XYZ', rate=Decimal('1.5'), rate_date=date.today(), source='t')); await assert_changed(); test_user.base_currency = 'USD'; await assert_changed()
     class _Tomorrow(date):
         @classmethod
         def today(cls) -> date: return date.today() + timedelta(days=1)

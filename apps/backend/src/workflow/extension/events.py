@@ -13,7 +13,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
-from src.config import settings
 from src.extraction import get_statement_event_sources, get_uploaded_document_filenames
 from src.reconciliation import count_pending_review_items
 from src.reporting import ReportError, current_package_readiness
@@ -191,6 +190,8 @@ _DOMAIN_STAMP_SQL = text(
         || '|' || coalesce((SELECT count(*)::text || ':' || coalesce(max(occurred_at)::text, '') FROM trace_records WHERE scope_kind::text IN ('tenant', 'TENANT') AND scope_id = :user_id_str), '')
         || '|' || coalesce((SELECT count(*)::text || ':' || coalesce(max(created_at)::text, '') FROM fx_rates), '')
         || '|' || coalesce((SELECT count(*)::text || ':' || coalesce(max(created_at)::text, '') FROM stock_prices), '')
+        || '|' || coalesce((SELECT coalesce(base_currency, '') FROM users WHERE id = :user_id), '')
+        || '|' || coalesce((SELECT coalesce(value, '') FROM app_config WHERE key = 'base_currency' LIMIT 1), '')
     """
 )
 
@@ -198,7 +199,7 @@ _DOMAIN_STAMP_SQL = text(
 async def workflow_input_stamp(db: AsyncSession, *, user_id: UUID) -> str:
     """Compute a 1-query stamp over explicit domain inputs for cache invalidation."""
     row_stamp = str(await db.scalar(_DOMAIN_STAMP_SQL, {"user_id": user_id, "user_id_str": str(user_id)}) or "")
-    raw = f"{row_stamp}|{settings.base_currency}|{date.today().isoformat()}"
+    raw = f"{row_stamp}|{date.today().isoformat()}"
     return hashlib.blake2b(raw.encode("utf-8"), digest_size=32).hexdigest()
 
 

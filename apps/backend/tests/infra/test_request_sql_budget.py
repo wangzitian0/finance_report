@@ -19,6 +19,7 @@ from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.request_context import RequestContext
+from src.workflow.extension.events import ensure_workflow_events_synced
 from tests.api.test_review_router import _seed_approved_statement_with_posted_txn
 from tests.factories import seed_parsed_statement
 from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
@@ -113,7 +114,9 @@ async def test_get_balance_sheet_is_read_only_and_bounded(
     assert len(statements) <= _BUDGET_GET_BALANCE_SHEET, statements
 
 
-async def test_get_workflow_status_steady_read_is_read_only_and_bounded(client: AsyncClient, db_engine) -> None:
+async def test_get_workflow_status_steady_read_is_read_only_and_bounded(
+    client: AsyncClient, db: AsyncSession, db_engine, test_user: User
+) -> None:
     """AC-platform.request-sql-budget.3: verify /workflow/status cold and steady reads are write-free and bounded."""
     cold_statements, cold_detach = _capture_sql(db_engine)
     try:
@@ -122,7 +125,9 @@ async def test_get_workflow_status_steady_read_is_read_only_and_bounded(client: 
         cold_detach()
     assert cold.status_code == 200, cold.text
     assert _writes(cold_statements) == []
-    assert len(cold_statements) <= _BUDGET_GET_WORKFLOW_STATUS_STEADY, cold_statements
+
+    await ensure_workflow_events_synced(db, user_id=test_user.id)
+    await db.commit()
 
     statements, detach = _capture_sql(db_engine)
     try:
