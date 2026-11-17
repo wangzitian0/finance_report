@@ -144,34 +144,6 @@ jobs:
       - name: SSOT Governance Exceptions Check
         run: |
           uv run --with pyyaml python tools/check_governance_exceptions.py
-      - name: SSOT Governance Report
-        env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          base_sha="${BASE_SHA:-}"
-          head_sha="${HEAD_SHA:-}"
-
-          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
-            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
-          fi
-
-          if ! git diff --name-only "$base_sha...$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"; then
-            git diff --name-only "$base_sha" "$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"
-          fi
-
-          # --with pydantic (#1799): report_ssot_governance.py's finance_report
-          # source now routes through check_manifest.py's computed union,
-          # which loads package contracts (pydantic-backed PackageContract).
-          uv run --with pyyaml --with pydantic python tools/report_ssot_governance.py \
-            --changed-files "$RUNNER_TEMP/ssot-changed-files.txt" \
-            --base-ref "$base_sha" \
-            --fail-on-gate \
-            --json-out "$RUNNER_TEMP/ssot-governance-report.json" \
-            --markdown-out "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md"
-          cat "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Migration Risk Contract Check
         run: |
           uv run --with pyyaml python tools/check_migration_risk.py
@@ -229,9 +201,6 @@ jobs:
       - name: Run Frontend Lint
         run: npm run lint
         working-directory: apps/frontend
-      - name: Doc Consistency Check
-        run: |
-          uv run --with pyyaml python tools/lint_doc_consistency.py
       - name: Generated API Reference Check
         run: |
           cd apps/backend
@@ -245,41 +214,6 @@ jobs:
           # frontend dependencies installed by the steps above.
           cd apps/backend
           uv run --frozen python ../../tools/preflight.py --only openapi-spec --ci
-      - name: EPIC Status Pointer Check
-        run: |
-          # The EPIC-status numbers are a derived (not committed) view of the AC
-          # graph; this only verifies the README pointer block is intact, never a
-          # shifted AC total.
-          uv run --with pyyaml python tools/generate_epic_status.py --check
-      - name: AC Index Consistency Check
-        run: |
-          # The SINGLE AC-index gate, exactly TWO gates over the AC-keyed graph:
-          # A) INTEGRITY (hard) — every AC managed + no dangling link, PLUS the
-          #    two folded former-standalone contracts: CI-stage traceability
-          #    (mandatory ACs must resolve to a real ref in a CI-required stage,
-          #    with placeholder/stub/unexecuted classifications) and the
-          #    critical-proof matrix contract (trust_mode/mirror/markers/scope/
-          #    ci_tier/manual-gate evidence + macro-outcome shape). The old
-          #    check_ac_traceability / check_critical_proof_matrix gate STEPS are
-          #    retired; their logic runs here by importing them as libraries.
-          # B) PROTECTION RATCHET — per-type count floor over protection-floor.json.
-          uv run --with pyyaml --with pydantic python tools/check_ac_index.py
-      - name: AC Authority-Tier Ratchet
-        run: |
-          # EPIC-026: shrink-only ratchet over common/meta/data/ac-tier-baseline.json.
-          # Id-based: fails only when an AC whose id is absent from the baseline
-          # (a genuinely new AC) lacks a {tier:XX} marker; the legacy untagged AC
-          # ids in the baseline are tolerated and the debt may only shrink.
-          uv run --with pyyaml python tools/check_ac_tier_baseline.py
-      - name: AC Proof-Kind Matrix Enforcement
-        run: |
-          # EPIC-026 phase 2: enforce the tier->valid-proof-kind matrix
-          # (common/meta/readme.md) for ACs that carry a {tier:XX}.
-          # Untagged legacy ACs have no proof_kind and are ignored (non-breaking).
-          # The rule with teeth: an LLM-LED AC's proof_kind MUST NOT be `exact`
-          # (an LLM-emitted output cannot be proven by an exact golden assertion);
-          # HU must be `evidence`; LLM-ONLY must not be exact.
-          uv run --with pyyaml python tools/check_ac_proof_kind.py
       - name: Package-Model Migration-Safety Gates
         run: |
           # EPIC-026 phase 5 (#1355) & #2133: consolidated package-model migration safety

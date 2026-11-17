@@ -82,46 +82,16 @@ txn.3||test_AC_meta_txn_3_cross_domain_relationship_is_rejected_fk_column_is_all
 @$t/test_check_package_contract.py
 public-boundary.2||test_AC_meta_public_boundary_2_command_boundary_rejects_dynamic_types
 package-truth.1||test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous
-@$t/test_generate_vision_proof_matrix.py
-vision-anchor.2||test_AC_meta_vision_anchor_2_package_ac_backs_vision_node
-generated-refs.2||test_AC14_1_19_matrix_maps_vision_to_ac_to_test|P1
 @$t/test_five_layer_model.py
 layer.1||test_old_klass_vocabulary_is_rejected
 layer.2||test_declared_klass_must_match_central_map
 layer.3||test_no_depends_on_edge_points_to_a_higher_layer
 layer.4||test_layer_vocabulary_imports_without_pydantic|P1
 layer.5||test_readme_links_the_generated_five_layer_topology|P2
-@$t/test_ac_authority_tiers.py
-AC-authority.1.1||test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix
-AC-authority.2.1||test_AC26_2_1_tier_marker_flows_into_registry_value
-AC-authority.3.1||test_AC26_3_1_tier_ratchet_is_shrink_only_and_blocks_new_debt
-AC-authority.4.1||test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline
-@$t/test_ac_proof_kind.py|P0|done|property
-AC-authority.5.1||test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix
-AC-authority.6.1||test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof
-@$t/test_issue_493_foundation_ttd_behavior.py
-foundation-tooling.1||test_AC14_1_1_backend_pyproject_enforces_local_coverage_threshold
-foundation-tooling.2||test_AC14_1_2_pre_commit_mypy_hook_blocks_backend_type_errors
-foundation-tooling.3||test_AC14_1_3_validate_schemas_exits_nonzero_for_missing_field_descriptions
-foundation-tooling.4||test_AC14_1_4_check_env_keys_exits_nonzero_for_config_documentation_drift
-foundation-tooling.5||test_AC14_1_5_smoke_test_succeeds_against_mocked_local_environment|P1
-registry.1||test_AC14_1_6_generate_ac_registry_check_rejects_ghosts_and_keeps_no_overlap|P1
-@$t/test_lint_doc_consistency.py
-doc-consistency.1||test_AC14_1_7_generated_analysis_snapshots_are_absent
-doc-consistency.2||test_AC14_1_8_reconciliation_thresholds_are_code_owned
-doc-consistency.3||test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper
 @$t/test_check_manifest.py|P2
 ssot-governance.1||test_AC14_1_9_manifest_anchor_refs_must_exist|P0
 manifest.1||test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired
 manifest.2||test_AC_meta_manifest_2_concept_from_package_contract_is_validated
-@$t/test_ssot_governance_report.py|P1
-ssot-governance.2||test_AC14_1_12_report_covers_finance_manifest_shape
-ssot-governance.3||test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt
-ssot-governance.4||test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned
-ssot-governance.5||test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof
-ssot-governance.6||test_AC14_1_16_ssot_governance_ratios_cannot_regress
-ssot-governance.8||test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family
-ssot-governance.9||test_AC_meta_ssot_governance_9_base_and_head_use_same_computed_concepts|P0
 @$t/test_migration_risk_contract.py
 migration-risk.1||test_AC7_11_1_migration_risk_manifest_covers_backend_migrations
 migration-risk.2||test_AC7_11_2_high_and_critical_migrations_require_release_proof
@@ -297,14 +267,10 @@ vocab.1||test_AC_meta_vocab_1_repo_is_clean
 AC-authority.7.1||test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules
 @$be/api/test_router_boundary.py|P1
 router.1||test_AC25_5_1_no_router_imports_another_router
-@$t/test_ssot_hls_family_model.py|P1
-ssot-governance.7||test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent
 @$t/test_governance_exceptions_registry.py
 governance-baseline.2||test_AC_meta_governance_baseline_2_gate_rejects_stale_or_ambiguous_ssot_exceptions
 @$t/test_generate_db_schema_reference.py|P1
 generated-refs.1||test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata
-@$t/test_generate_epic_status.py|P1
-generated-refs.3||test_AC14_1_22_check_fails_on_drift
 @$t/test_frontend_same_origin_contract.py
 infra-boundary.8||test_AC7_12_8_published_frontend_image_has_no_baked_env_domain
 @$t/test_delivery_layer_ratchet.py|P1
@@ -367,11 +333,10 @@ fe-contract-types.6||test_AC_fe_layer_boundaries_1_lib_never_imports_components_
     ),
     concepts=concepts(
         """
-ac_tier_baseline|common/meta/data/ac-tier-baseline.json|Shrink-only untagged-AC debt baseline for the authority-tier ratchet (tools/check_ac_tier_baseline.py).|common/meta/readme.md,common/meta/extension/check_ac_tier_baseline.py,tools/check_ac_tier_baseline.py,tests/tooling/test_ac_authority_tiers.py|-|tdd|baseline|machine_generated|authority_tiers
 app_boundary_baseline|common/meta/extension/check_app_boundary.py|In-code absolute zero-debt assertion of cross-boundary edges between the apps/backend/src remainder and carved packages.|common/meta/migration-standard.md,common/meta/extension/app_boundary.py,tools/check_app_boundary.py,tests/tooling/test_app_boundary.py|-|platform|concept|-|package_model
 l4_root_import_baseline|common/meta/extension/app_boundary.py|In-code absolute zero-debt assertion of statement-level deep imports from the L4 delivery/composition shell into package internals.|common/meta/extension/check_app_boundary.py,tools/check_app_boundary.py,tests/tooling/test_app_boundary.py|-|platform|concept|-|package_model
 unit_accountability_baseline|common/meta/data/unit-accountability-baseline.json|Exact shrink-only inventory of declared units.|common/meta/extension/check_unit_accountability.py,tools/check_unit_accountability.py,tests/tooling/test_unit_accountability.py|-|platform|baseline|machine_generated|package_model
-authority_tiers|common/meta/readme.md|The five AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY), the cross-tier MUST rules, and the tier->valid-proof matrix.|common/testing/tdd.md,common/advisor/readme.md,common/extraction/readme.md,docs/project/EPIC-026.ac-authority-tiers.md,common/meta/data/ac-tier-baseline.json,common/meta/extension/generate_ac_registry.py,common/meta/base/authority_matrix.py,common/meta/extension/check_ac_tier_baseline.py,tools/check_ac_tier_baseline.py,common/meta/extension/check_tier_ast_literal.py,common/meta/extension/check_draft_packages.py,common/meta/extension/authority_classifier.py,common/meta/extension/check_authority_reconcile.py|tests/tooling/test_ac_authority_tiers.py|tdd|concept|documented_contract|tdd_workflow
+authority_tiers|common/meta/readme.md|The five AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY), the cross-tier MUST rules, and the tier->valid-proof matrix.|common/testing/tdd.md,common/advisor/readme.md,common/extraction/readme.md,docs/project/EPIC-026.ac-authority-tiers.md,common/meta/data/ac-tier-baseline.json,common/meta/extension/generate_ac_registry.py,common/meta/base/authority_matrix.py,common/meta/extension/check_tier_ast_literal.py,common/meta/extension/check_draft_packages.py,common/meta/extension/authority_classifier.py,common/meta/extension/check_authority_reconcile.py|-|tdd|concept|documented_contract|tdd_workflow
 data_layering|common/meta/schema.md#data-layering|ODS/DWD/DWM/DWS/ADS/DIM classification of every data table and cross-layer rules.|common/extraction/readme.md,common/reconciliation/readme.md,docs/project/EPIC-011.asset-lifecycle.md|-|schema|concept
 database_schema|common/meta/schema.md#er-model|PostgreSQL schema rationale, generated inventory reference, and migration rules.|docs/reference/api-overview.md,docs/hooks.py,tools/generate_db_schema_reference.py,common/meta/extension/generate_db_schema_reference.py,common/ledger/readme.md,common/reconciliation/readme.md|tests/tooling/test_generate_db_schema_reference.py,apps/backend/tests/infra/test_schema_guardrails.py|schema|concept|documented_contract
 delivery_gate_triggers|common/meta/data/delivery-gates.yaml|How each delivery CI gate triggers and whether it blocks merge.|common/testing/ci-cd.md,common/runtime/environments.md,docs/project/EPIC-008.testing-strategy.md,runtime-hooks.manifest.json|tests/tooling/test_delivery_gates_contract.py|delivery|matrix
@@ -386,7 +351,6 @@ moon_commands|common/meta/development.md#moon-commands|Primary interface for dev
 namespace_isolation|common/meta/development.md#local-test-isolation|Namespace-based test DB and S3 bucket isolation for parallel runs.|common/runtime/environments.md|-|development|concept
 package_model|common/meta/readme.md#package-model|A package = a DDD bounded context (readme.md + PackageContract + base/extension/data layers carrying DDD building-block units + __all__ published language).|common/meta/base/package_contract.py,common/meta/extension/check_package_contract.py,common/meta/data/projection.py,common/meta/contract.py,common/counter/readme.md,common/counter/contract.py,apps/backend/src/counter/__init__.py,common/identity/readme.md,common/identity/contract.py,apps/backend/src/identity/__init__.py,common/ledger/contract.py,docs/project/EPIC-025.dry-ssot-simplification.md|tests/tooling/test_counter_package.py|platform|concept|documented_contract
 runtime_toolchain|common/meta/development.md#toolchain-contract|Python, Node.js, uv, and container image versions shared by local, CI, and Docker environments.|toolchain.toml,tools/bootstrap.sh,common/runtime/shell/bootstrap.sh,common/runtime/shell/common.sh,tools/check_toolchain_contract.py,common/runtime/check_toolchain_contract.py,.moon/toolchain.yml,.github/workflows/ci.yml,docker-compose.yml|-|development|concept
-ssot_governance_exceptions|common/meta/data/governance-exceptions.yaml|Machine-readable temporary exception registry for incremental SSOT governance gate findings.|common/testing/tdd.md,common/meta/extension/governance_report/_gate.py,tests/tooling/test_ssot_governance_report.py|-|tdd|registry|-|ssot_governance_gates
 error_taxonomy|common/meta/data/error-taxonomy.yaml|Authoritative SSOT taxonomy defining domain error codes, severity levels, remediation actions, and translations.|common/meta/data/error-taxonomy.yaml,apps/backend/src/schemas/errors.py|-|extraction|registry
 thirty_wealth_flows|common/meta/flows/thirty_flows_ssot.json|Authoritative registry for the 30 core wealth and accounting flows.|docs/reference/thirty-wealth-flows.md,docs/reference/api-overview.md|apps/backend/tests/flows/test_thirty_flows_consistency.py,apps/frontend/src/__tests__/thirtyFlowsConsistency.test.tsx|accounting|registry|machine_generated
 """

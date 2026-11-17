@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import functools
 import json
 import re
 import shlex
@@ -51,12 +50,7 @@ REPLAY_COUNTERS: dict[str, dict[str, int]] = json.loads(
 )
 
 
-@functools.lru_cache(maxsize=1)
-def _load_matrix() -> dict[str, Any]:
-    from common.testing.ac_graph import build_proofs_only
-    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
-
-    return build_matrix_from_graph(build_proofs_only(REPO_ROOT))
+_CONNECTIVITY_FILE = "tests/e2e/test_ai_provider_connectivity.py"
 
 
 def _require_counters(
@@ -75,11 +69,12 @@ def _require_counters(
 
 
 def gate_files() -> list[str]:
+    from common.testing import matrix
+
     proof_files = {
-        proof["file"]
-        for proof in _load_matrix().get("proofs", [])
-        if proof.get("ci_tier") == "post_merge_environment"
-        and "llm" in proof.get("required_markers", [])
+        row.file
+        for row in matrix.E2E_ROWS
+        if matrix.NEEDS_LLM_PROVIDER in row.needs and row.file != _CONNECTIVITY_FILE
     }
     files = sorted(proof_files | set(SUPPLEMENTAL_LLM_FILES))
     _require_counters(files)

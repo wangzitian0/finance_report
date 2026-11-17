@@ -137,15 +137,10 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "tools/check_toolchain_contract.py",
             "tools/ci_change_classifier.py",
             "tools/github_workflow_timing_summary.py",
-            "tools/lint_doc_consistency.py",
             "tools/check_ssot_ownership.py",
             "tools/check_manifest.py",
             "uv run --frozen ruff check src tests",
             "uv run --frozen ruff format src tests --check",
-            # The AC-index gate is the single index gate; its INTEGRITY gate folds
-            # in the former standalone check_ac_traceability + check_critical_proof_matrix
-            # contracts (those are no longer separate CI steps).
-            "tools/check_ac_index.py",
             "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml",
             "backend-shard-${{ matrix.shard }}-test-context",
             "backend-integration-test-context",

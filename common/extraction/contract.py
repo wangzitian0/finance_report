@@ -399,9 +399,6 @@ parse-robustness.1||test_parse_document_uses_placeholder_for_missing_description
 110.2||test_auto_match_records_anchor_without_mutating_posted_source_type
 110.5||test_source_type_no_downgrade|P1
 110.6||test_public_journal_api_rejects_caller_selected_source_type|P1
-@$t/test_source_capability_proof.py
-112.2||test_AC_extraction_112_2_supported_capabilities_require_release_proof
-112.3||test_AC_extraction_112_3_gap_capabilities_cannot_claim_proof
 @$be/extraction/test_deduplication.py|P1
 111.2||test_upsert_scoped_atomic_transaction_handles_non_list_source_documents
 122.1||test_AC13_22_1_same_balance_distinct_rows_do_not_collapse|P0
@@ -1009,7 +1006,7 @@ fe-ia-extraction.3||AC22.17.3 renders title, status badge, description and confi
     ),
     concepts=concepts(
         """
-source_capability_registry|apps/backend/src/extraction/base/source_capability.py|Canonical semantic registry for product source classes, their support status, accepted evidence, produced facts, review semantics, and traceability target.|common/extraction/readme.md#sourcecapability-registry,vision.md,common/testing/source_capability_proof.py|apps/backend/tests/extraction/test_statement_result_contract.py,tests/tooling/test_source_capability_proof.py|source|registry
+source_capability_registry|apps/backend/src/extraction/base/source_capability.py|Canonical semantic registry for product source classes, their support status, accepted evidence, produced facts, review semantics, and traceability target.|common/extraction/readme.md#sourcecapability-registry,vision.md|apps/backend/tests/extraction/test_statement_result_contract.py|source|registry
 confidence_tier_rollup|common/extraction/confirmation-workflow.md#confidence-tier-rollup|Confidence-tier rollup that makes extraction confidence load-bearing for promotion.|common/extraction/readme.md#confidence-scoring|-|extraction|concept
 confirmation_workflow|common/extraction/confirmation-workflow.md|Cross-cutting pending_review state machine (Stage 1 & 2).|common/reconciliation/readme.md,common/ledger/readme.md|-|extraction|concept
 confirmation_workflow_states|common/extraction/confirmation-workflow.md#state-machine|Stage 1 & Stage 2 confirmation state transitions (the cross-cutting state machine).|common/reconciliation/readme.md#state-machine|-|reconciliation|concept

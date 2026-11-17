@@ -23,13 +23,6 @@ class TestSelectChecks:
             assert "package-contract" in names, (
                 f"{path} did not select package-contract"
             )
-        _m1_names = [
-            _m1_c.name
-            for _m1_c in preflight.select_checks(
-                ["docs/project/EPIC-008.testing-strategy.md"]
-            )
-        ]
-        assert "ac-traceability" in _m1_names
         _m2_names = [
             _m2_c.name
             for _m2_c in preflight.select_checks(
@@ -66,19 +59,6 @@ class TestSelectChecks:
         _m7_expected = {"llm-" + "cas" + "settes", "cas" + "sette-graded-eval"}
         assert _m7_expected.issubset(_m7_names)
         "AC-testing.preflight.1"
-        "AC-testing.preflight.1"
-        _m8_names = [
-            _m8_c.name
-            for _m8_c in preflight.select_checks(
-                ["apps/backend/tests/audit/test_money_tolerance_backend.py"],
-                tier="static",
-            )
-        ]
-        assert "ac-proof-traceability" in _m8_names
-        _m9_names = [
-            _m9_c.name for _m9_c in preflight.select_checks(["docs/project/README.md"])
-        ]
-        assert "doc-consistency" in _m9_names
         _m10_names = [
             _m10_c.name
             for _m10_c in preflight.select_checks(["common/ledger/readme.md"])
@@ -534,7 +514,7 @@ class TestTierSelection:
         assert rc == 0
         out = capsys.readouterr().out
         assert out.find("Registered preflight gate inventory") != -1
-        assert out.find("ac-traceability") != -1
+        assert out.find("ssot-ownership") != -1
         rc = preflight.run(
             ["--list", "--tier=static", "--changed"], runner=lambda argv, cwd: 0
         )

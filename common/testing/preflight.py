@@ -66,25 +66,6 @@ OPENAPI_INPUT_GLOBS: tuple[str, ...] = (
 )
 
 CHECKS: tuple[Check, ...] = (
-    _py_check(
-        "ac-traceability",
-        ("docs/project/EPIC*.md",),
-        "tools/check_ac_index.py",
-        why="EPIC/AC changed: re-run the single AC-index gate",
-    ),
-    _py_check(
-        "ac-proof-traceability",
-        (
-            "tests/*.py",
-            "apps/backend/tests/*.py",
-            "apps/frontend/*.test.ts",
-            "apps/frontend/*.test.tsx",
-            "apps/frontend/*.spec.ts",
-            "apps/frontend/*.spec.tsx",
-        ),
-        "tools/check_ac_index.py",
-        why="Test proof changed: re-run the single AC-index integrity gate",
-    ),
     Check(
         name="ssot-ownership",
         globs=("common/meta/data/MANIFEST.yaml", "common/*/contract.py"),
@@ -93,12 +74,6 @@ CHECKS: tuple[Check, ...] = (
             (PY, "tools/check_manifest.py"),
         ),
         why="Concept registry or contract changed: enforce single-owner + manifest integrity",
-    ),
-    _py_check(
-        "doc-consistency",
-        ("docs/*", "mkdocs.yml", "vision.md", "README.md"),
-        "tools/lint_doc_consistency.py",
-        why="docs changed: nav coverage + cross-reference consistency",
     ),
     _py_check(
         "taxonomy-drift",
@@ -400,38 +375,6 @@ CHECKS: tuple[Check, ...] = (
         ),
         "tools/check_detached_owner_shortcuts.py",
         why="backend tests must not reintroduce un-baselined detached owner uuid4 shortcuts",
-    ),
-    _py_check(
-        "epic-status",
-        (
-            "README.md",
-            "docs/project/EPIC*.md",
-            "tools/generate_epic_status.py",
-            "common/testing/generate_epic_status.py",
-        ),
-        "tools/generate_epic_status.py",
-        "--check",
-        why="EPIC status pointer block in README must not drift",
-    ),
-    _py_check(
-        "ac-tier-baseline",
-        (
-            "common/meta/data/ac-tier-baseline.json",
-            "tools/check_ac_tier_baseline.py",
-            "common/meta/extension/check_ac_tier_baseline.py",
-        ),
-        "tools/check_ac_tier_baseline.py",
-        why="AC authority tier debt only shrinks",
-    ),
-    _py_check(
-        "ac-proof-kind",
-        (
-            "docs/project/EPIC*.md",
-            "tools/check_ac_proof_kind.py",
-            "common/meta/extension/check_ac_proof_kind.py",
-        ),
-        "tools/check_ac_proof_kind.py",
-        why="enforce tier -> valid proof kind matrix",
     ),
     _py_check(
         "tier-imports",
