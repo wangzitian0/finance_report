@@ -44,7 +44,6 @@ Closes #<!-- issue number -->
 - [ ] Separate infra2 PR linked for production Vault/Compose changes (if applicable)
 - [ ] `tools/check_env_keys.py` passes (if env vars changed)
 - [ ] `tools/check_manifest.py` passes (if SSOT files changed)
-- [ ] `tools/lint_doc_consistency.py` passes
 - [ ] No real financial data — amounts, balances, account numbers, holder names, local paths, or real statement filenames are redacted or generated/anonymized.
 
 ### CI/CD, Runtime, and VPS Infra Audit

@@ -78,7 +78,6 @@ nav:
       - AI Advisor: user-guide/ai-advisor.md
   - Generated References:
       - Overview: reference/api-overview.md
-      - Benchmark Observatory: reference/benchmarks.md
       - Generated API Reference: reference/api.md
       - Generated DB Schema Reference: reference/db-schema.md
       - Router Contract Maturity: reference/router-contract-maturity.md
@@ -97,9 +96,7 @@ nav:
       - Staging Test-Account Cleanup: contributing/staging-test-account-cleanup.md
   - Development:
       - Project Overview: project/README.md
-      - Design Decisions: project/DECISIONS.md
       - Audits: project/AUDITS.md
-      - AC Audit 2026-05-04: project/AC-AUDIT-2026-05-04.md
       - Delivery Engine Recommendations: project/DELIVERY_ENGINE_RECOMMENDATIONS.md
       - Traceability Exceptions: project/traceability-exceptions.md
       - EPICs:
@@ -124,7 +121,6 @@ nav:
           - "EPIC-020: Framework-Aware Personal Reporting": project/EPIC-020.framework-aware-personal-reporting.md
           - "EPIC-021: Application-Layer AI Advisor": project/EPIC-021.application-ai-advisor.md
           - "EPIC-022: Everyday-User IA": project/EPIC-022.everyday-user-ia.md
-          - "EPIC-022: PWA Bottom-Tab IA (design)": project/EPIC-022.pwa-bottom-tab-ia.design.md
           - "EPIC-023: LLM Provider Abstraction": project/EPIC-023.llm-provider-abstraction.md
           - "EPIC-024: Frontend Browser Observability": project/EPIC-024.frontend-observability.md
           - "EPIC-025: DRY/SSOT Simplification": project/EPIC-025.dry-ssot-simplification.md
