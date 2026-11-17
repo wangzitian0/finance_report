@@ -1,6 +1,7 @@
 """Reconciliation-match review queue: accept/reject/batch decisions + Stage 2 listing."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal, cast
 from uuid import UUID
@@ -12,7 +13,13 @@ from sqlalchemy.orm import selectinload
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine, current_anchored_journal_entries
 from src.observability import get_logger
-from src.reconciliation.base.errors import AmountMismatchError, EntryCreationError, MatchNotFoundError
+from src.reconciliation.base.errors import (
+    AmountMismatchError,
+    EntryCreationError,
+    MatchNotFoundError,
+    UnresolvedConsistencyChecksError,
+)
+from src.reconciliation.extension.consistency_checks import has_unresolved_checks
 from src.reconciliation.extension.entry_reads import entry_total_amount
 from src.reconciliation.extension.matching import sync_reconciliation_matches_journal_entry_links_batch
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
@@ -198,7 +205,7 @@ async def accept_match(
 
 async def reject_match(
     db: AsyncSession,
-    match_id: str,
+    match_id: UUID | str,
     *,
     user_id: UUID,
 ) -> ReconciliationMatch:
@@ -221,8 +228,7 @@ async def supersede_transaction_transfer_legs(
     reason: str,
 ) -> None:
     """Find and supersede any active ReconciliationMatch and void any Processing transfer leg for transaction_id."""
-    from src.ledger.extension.processing import find_processing_account
-    from src.ledger.extension.repository import void_journal_entry
+    from src.ledger import find_processing_account, void_journal_entry
 
     matches_result = await db.execute(
         select(ReconciliationMatch)
@@ -307,40 +313,77 @@ async def release_transaction_dispositions(
     return len(matches)
 
 
-async def apply_reconciliation_feedback(
-    db: AsyncSession,
-    user_id: UUID,
-    suggestion_id: UUID,
-    action: str,
-) -> Literal["accepted", "rejected", "recorded"]:
-    """Apply user feedback from /ai/feedback to a pending reconciliation match (#2419).
+@dataclass(frozen=True, slots=True)
+class BatchMatchDecisionResult:
+    """Result counts for a batch reconciliation match decision."""
 
-    Delegates to ``reject_match`` for rejections and ``accept_match`` for acceptances when
-    journal entries are linked; if the pending match has no linked journal entries yet,
-    transitions the match directly to ``ACCEPTED`` so the review-band suggestion leaves
-    the pending queue. Unknown, foreign, or already-decided ids return ``"recorded"``.
-    """
-    result = await db.execute(
+    approved_count: int = 0
+    rejected_count: int = 0
+    journal_entries_reconciled: int = 0
+
+
+async def batch_decide_matches(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    action: Literal["accept", "reject"],
+    match_ids: Sequence[UUID],
+    run_id: UUID | None = None,
+    min_score: float | None = None,
+) -> BatchMatchDecisionResult:
+    """Apply a batch accept or reject decision to pending reconciliation matches."""
+    if action == "accept":
+        if await has_unresolved_checks(db, user_id, run_id=run_id):
+            raise UnresolvedConsistencyChecksError("Cannot batch approve while there are unresolved consistency checks")
+        if not match_ids:
+            return BatchMatchDecisionResult()
+        query = (
+            select(ReconciliationMatch)
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(
+                ReconciliationMatch.id.in_(match_ids),
+                ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+                AtomicTransaction.user_id == user_id,
+            )
+            .order_by(ReconciliationMatch.id)
+            .with_for_update(of=ReconciliationMatch)
+        )
+        if run_id:
+            query = query.where(ReconciliationMatch.run_id == run_id)
+        if min_score is not None:
+            query = query.where(ReconciliationMatch.match_score >= min_score)
+        matches = list((await db.execute(query)).scalars().all())
+        reconciled = await accept_pending_matches(db, matches, user_id=user_id)
+        return BatchMatchDecisionResult(
+            approved_count=len(matches),
+            rejected_count=0,
+            journal_entries_reconciled=reconciled,
+        )
+
+    if not match_ids:
+        return BatchMatchDecisionResult()
+    reject_query = (
         select(ReconciliationMatch)
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(ReconciliationMatch.id == suggestion_id)
-        .where(AtomicTransaction.user_id == user_id)
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        .where(
+            ReconciliationMatch.id.in_(match_ids),
+            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+            AtomicTransaction.user_id == user_id,
+        )
+        .order_by(ReconciliationMatch.id)
         .with_for_update(of=ReconciliationMatch)
     )
-    match = result.scalar_one_or_none()
-    if match is None:
-        return "recorded"
-    if action == "reject":
-        await reject_match(db, str(match.id), user_id=user_id)
-        return "rejected"
-    try:
-        await accept_match(db, match.id, user_id=user_id)
-    except EntryCreationError:
-        match.status = ReconciliationStatus.ACCEPTED
+    if run_id:
+        reject_query = reject_query.where(ReconciliationMatch.run_id == run_id)
+    matches = list((await db.execute(reject_query)).scalars().all())
+    for match in matches:
+        match.status = ReconciliationStatus.REJECTED
         match.version += 1
-        await db.flush()
-    return "accepted"
+    return BatchMatchDecisionResult(
+        approved_count=0,
+        rejected_count=len(matches),
+        journal_entries_reconciled=0,
+    )
 
 
 async def get_stage2_queue(

@@ -99,7 +99,7 @@ async def _confirm_fixture_envelope(
         )
         account_id = account["id"]
     response = await client.post(
-        api_url(f"/statements/{statement_id}/review/envelope"),
+        api_url(f"/statements/{statement_id}/review-envelopes"),
         json={
             "source_result_digest": digest,
             "account_id": account_id,
@@ -178,7 +178,7 @@ async def approve_statement_with_fixture_review(
     await wait_for_statement_runs(
         client, get, api_url(f"/statements/{statement_id}/runs")
     )
-    approval_path = api_url(f"/statements/{statement_id}/review/approve")
+    approval_path = api_url(f"/statements/{statement_id}/approvals")
     approval = await client.post(
         approval_path, json={"create_account_if_missing": True}
     )
@@ -267,7 +267,7 @@ async def approve_statement_with_fixture_review(
             payload["category"] = plan.category
         disposition_response = await client.post(
             api_url(
-                f"/reconciliation/unmatched/{transaction['id']}/reviewed-disposition"
+                f"/reconciliation/unmatched/{transaction['id']}/reviewed-dispositions"
             ),
             json=payload,
         )

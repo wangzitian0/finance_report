@@ -37,7 +37,7 @@ export function useAttentionQueue(): AttentionQueue {
   const stats = useApiQuery(RECONCILIATION_STATS_QUERY_KEY, "reconciliation_stats_reconciliation_stats_get", {}, { staleTime: SHARED_STALE_MS });
   const processing = useApiQuery(
     PROCESSING_PENDING_QUERY_KEY,
-    "list_processing_pending_accounts_processing_pending_get",
+    "list_processing_pending_reconciliation_transfers_pending_get",
     {},
     { staleTime: SHARED_STALE_MS },
   );

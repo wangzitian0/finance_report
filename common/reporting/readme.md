@@ -1,6 +1,6 @@
 # `reporting` — financial report generation over the ledger (domain package)
 
-> Conforming backend implementation: `apps/backend/src/reporting/` (`contract.implementations["be"]`). FX lookup/conversion imports `pricing` (`common/pricing/readme.md`); manual valuation uses `register_manual_valuation_lines_provider` injected at composition root. See also: `common/ledger/readme.md#decimal-rule`, `common/ledger/readme.md#entry-balance`, `common/reconciliation/readme.md#thresholds`.
+> Conforming backend implementation: `apps/backend/src/reporting/` (`contract.implementations["be"]`). FX lookup/conversion and manual valuation lines import `pricing` (`common/pricing/readme.md`). See also: `common/ledger/readme.md#decimal-rule`, `common/ledger/readme.md#entry-balance`, `common/reconciliation/readme.md#thresholds`.
 
 ## Why
 
@@ -16,8 +16,8 @@ Balance sheet, income statement, cash flow, and net worth read posted/reconciled
 
 - `report_snapshots` persists frozen report payloads (`is_latest` unique per point-in-time or range key, `start_date <= as_of_date`).
 - `PersonalReportPackageDocument` uses `report_type = package`, freezing period, framework, readiness, source-trust summary, policy result, traceability appendix, section payloads, and extraction's `StatementDispositionPolicySnapshot`.
-- `POST /api/reports/package/generate` persists a snapshot (`trusted` only when readiness is `ready`/`generated`/`stale` with zero blockers; otherwise `draft`). `GET /api/reports/package/snapshots` and `GET /api/reports/package/snapshots/{snapshot_id}` reopen frozen payloads without recalculation.
-- Exports (`GET /api/reports/export` and `GET /api/reports/package/snapshots/{snapshot_id}/export?format=json|csv`) declare headers through `ExportStreamEnvelope` (`apps/backend/src/schemas/streaming.py`).
+- `POST /api/reports/package/snapshots` persists a snapshot (`trusted` only when readiness is `ready`/`generated`/`stale` with zero blockers; otherwise `draft`). `GET /api/reports/package/snapshots` and `GET /api/reports/package/snapshots/{snapshot_id}` reopen frozen payloads without recalculation.
+- Exports (`GET /api/reports/exports` and `GET /api/reports/package/snapshots/{snapshot_id}/exports?format=json|csv`) declare headers through `ExportStreamEnvelope` (`apps/backend/src/schemas/streaming.py`).
 
 ### Report types
 
@@ -33,7 +33,7 @@ Balance sheet, income statement, cash flow, and net worth read posted/reconciled
 
 ### Personal financial-report package contract
 
-- `GET /api/reports/package` returns bounded `PersonalReportPackagePreview` (keeping every section plus paginated details via `GET /api/reports/package/policy-decisions`, `GET /api/reports/package/cash-flow-events`, `GET /api/reports/package/line-details`, and `GET /api/reports/package/manifest-entries`).
+- `GET /api/reports/package` returns bounded `PersonalReportPackagePreview` (keeping every section plus paginated details via `GET /api/reports/package/policy-decisions`, `GET /api/reports/cash-flow/line-events`, `GET /api/reports/package/line-details`, and `GET /api/reports/package/manifest-entries`).
 - Required sections: `balance_sheet`, `income_statement`, `cash_flow`, `investment_performance`, `annualized_income_long_term`, `notes`, `traceability_appendix`.
 - Required notes: `basis-of-preparation`, `reporting-period-and-currency`, `valuation-basis`, `investment-market-data`, `source-confidence-review`, `restricted-asset-treatment`, plus explicit non-compliance disclosure.
 - Package readiness is produced solely by `PackageAssembler` (`assemble` and `evaluate_readiness` share `shared_current_authority` from `#2602`). Workflow and advisor consume `current_package_readiness`; no secondary readiness derivation is allowed.

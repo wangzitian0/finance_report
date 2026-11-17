@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from src.deps import Ctx, ReadCtx
 from src.ledger import (
+    JournalAuditLog,
     JournalEntry,
     JournalEntryStatus,
     post_journal_entry,
@@ -21,6 +22,7 @@ from src.schemas import (
     JournalEntryResponse,
     VoidJournalEntryRequest,
 )
+from src.schemas.journal import AuditTrailItem, AuditTrailResponse
 
 router = APIRouter(prefix="/journal-entries", tags=["journal-entries"])
 logger = get_logger(__name__)
@@ -174,3 +176,19 @@ async def delete_journal_entry(
         raise ValidationFailedError("Only draft entries can be deleted")
 
     await ctx.db.delete(entry)
+
+
+@router.get("/{entry_id}/audit", response_model=AuditTrailResponse)
+async def get_journal_entry_audit(
+    entry_id: UUID,
+    ctx: ReadCtx,
+) -> AuditTrailResponse:
+    """Return chronological audit trail entries for a journal entry."""
+    await get_owned_or_raise(ctx.db, JournalEntry, entry_id, ctx.user_id, name="Journal entry")
+    result = await ctx.db.execute(
+        select(JournalAuditLog)
+        .where(JournalAuditLog.entry_id == entry_id)
+        .order_by(JournalAuditLog.created_at.asc())
+    )
+    logs = result.scalars().all()
+    return AuditTrailResponse(items=[AuditTrailItem.model_validate(log) for log in logs])

@@ -10,11 +10,11 @@ class _ApprovalClient:
         status = self.statement_statuses.pop(0) if self.statement_statuses else 200; return _Resp(status, self.statement, 'statement text')
     def post(self, url: str, json: dict[str, Any]) -> _Resp:
         self.posts.append((url, json))
-        if url.endswith('/review/envelope'): self.confirmed = self.envelope_status in (200, 201); return _Resp(self.envelope_status, {}, 'envelope text')
+        if url.endswith('/review-envelopes'): self.confirmed = self.envelope_status in (200, 201); return _Resp(self.envelope_status, {}, 'envelope text')
         if self.confirmed or not self.needs_confirmation: return _Resp(200, {'status': 'approved'})
         return _Resp(400, {}, 'Statement requires explicit human confirmation before posting')
 def _statement(**overrides: Any) -> dict[str, Any]: base = {'period_start': '2026-02-01', 'period_end': '2026-02-28', 'opening_balance': '1000.00', 'closing_balance': '1250.50', 'currency': 'SGD'}; return {**base, **overrides}
-_runner = lambda: ScenarioBenchmarkRunner(base_url='http://localhost:1'); _envelope_posts = lambda client: [body for url, body in client.posts if url.endswith('/review/envelope')]; _approve_posts = lambda client: sum((url.endswith('/review/approve') for url, _ in client.posts))
+_runner = lambda: ScenarioBenchmarkRunner(base_url='http://localhost:1'); _envelope_posts = lambda client: [body for url, body in client.posts if url.endswith('/review-envelopes')]; _approve_posts = lambda client: sum((url.endswith('/approvals') for url, _ in client.posts))
 def test_AC_testing_benchmarks_11_the_envelope_states_the_facts_of_the_parsed_statement() -> None:
     client = _ApprovalClient(_statement()); result = _runner().approve_statement(client, 's-1'); assert result == {'status': 'approved'}; assert _envelope_posts(client) == [{'source_result_digest': 'digest-1', 'account_id': 'acc-1', 'currency': 'SGD', 'period_start': '2026-02-01', 'period_end': '2026-02-28', 'opening_balance': '1000.00', 'closing_balance': '1250.50', 'rationale': 'Benchmark automated review envelope confirmation'}]; assert _approve_posts(client) == 2; _m1_client = _ApprovalClient(_statement(opening_balance='0.00', closing_balance=0)); _runner().approve_statement(_m1_client, 's-1'); _m1_envelope = _envelope_posts(_m1_client)[0]; assert _m1_envelope['opening_balance'] == '0.00'; assert _m1_envelope['closing_balance'] == '0'; _m2_client = _ApprovalClient(_statement(period_start=None, closing_balance=None))
     with pytest.raises(RuntimeError) as _m2_error: _runner().approve_statement(_m2_client, 's-1')

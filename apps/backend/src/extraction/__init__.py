@@ -90,7 +90,6 @@ from src.extraction.extension.brokerage_positions import (
     looks_like_brokerage_payload,
     parse_brokerage_csv_payload,
     parse_brokerage_positions,
-    register_position_reconciler,
 )
 from src.extraction.extension.brokerage_statement_payload import (
     _brokerage_import_not_ready_reason,
@@ -124,6 +123,9 @@ from src.extraction.extension.evidence_graph_integration import (
 )
 from src.extraction.extension.evidence_graph_materialization import (
     EvidenceGraphMaterializationService,
+    EvidenceLineageBundle,
+    EvidenceLineageQueryError,
+    load_evidence_lineage,
 )
 from src.extraction.extension.evidence_lineage import (
     DEFAULT_MAX_DEPTH,
@@ -163,6 +165,7 @@ from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     applied_rows_the_policy_accepts,
     auto_create_posted_entries_for_statement,
+    create_statement_account_from_confirmation,
     resolve_statement_posting_account,
 )
 from src.extraction.extension.statement_runs import (
@@ -187,12 +190,11 @@ from src.extraction.extension.statement_runs import (
 )
 from src.extraction.extension.statement_summary import (
     StatementEventSource,
-    find_in_flight_parse_id,
-    get_statement_coverage_rows,
     get_statement_event_sources,
     resolve_custody_account_id,
 )
 from src.extraction.extension.statement_validation import (
+    find_statement_review_conflicts,
     pending_stage1_review_filter,
     resolve_statement_conflicts,
     resolve_statement_transactions,
@@ -210,6 +212,7 @@ from src.extraction.extension.transaction_classification import (
     balance_sheet_booking,
     classification_suggestions,
     general_account_name,
+    record_classification_feedback,
     settle_drafts_after_posting,
 )
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
@@ -223,6 +226,7 @@ from src.extraction.extension.uploaded_document_reads import (
 # Downstream domains that read these facts import the published names below
 # (by id-column reference — Decision B); the source-document link tables and
 # rule/report internals stay unpublished.
+from src.extraction.orm.ai_feedback import AiFeedback as _AiFeedback  # noqa: F401  (mapper registration)
 from src.extraction.orm.correction import CorrectionLog  # noqa: F401  (mapper registration)
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer1 import UploadedDocument
@@ -240,6 +244,11 @@ from src.extraction.orm.reviewed_statement_envelope import (  # noqa: F401  (map
 )
 from src.extraction.orm.statement_run import StatementRun as _StatementRun  # noqa: F401  (mapper registration)
 from src.extraction.orm.statement_summary import StatementSummary
+from src.extraction.data import (
+    DEFAULT_STALE_AFTER_DAYS,
+    StatementCoverageRow,
+    get_account_statement_coverage,
+)
 
 __all__ = [
     "ActiveRunExists",
@@ -255,6 +264,7 @@ __all__ = [
     "CostBasisMethod",
     "CurrencyUnresolvedError",
     "DEFAULT_MAX_DEPTH",
+    "DEFAULT_STALE_AFTER_DAYS",
     "DeduplicationService",
     "DispositionCommand",
     "DispositionContext",
@@ -268,6 +278,8 @@ __all__ = [
     "EvidenceEdge",
     "EvidenceGraphIntegrationService",
     "EvidenceGraphMaterializationService",
+    "EvidenceLineageBundle",
+    "EvidenceLineageQueryError",
     "EvidenceLineageService",
     "EvidenceNode",
     "EvidenceTraversalStep",
@@ -311,6 +323,7 @@ __all__ = [
     "StatementDispositionPolicySnapshot",
     "StatementIngestionUseCase",
     "StatementBalanceFact",
+    "StatementCoverageRow",
     "StatementEvidenceType",
     "StatementExtractionResult",
     "StatementPostingDependencies",
@@ -358,6 +371,7 @@ __all__ = [
     "confirm_reviewed_statement_envelope",
     "create_entry_from_txn",
     "create_run",
+    "create_statement_account_from_confirmation",
     "get_or_create_account",
     "current_reviewed_statement_envelope",
     "current_statement_disposition_policy_snapshot",
@@ -366,14 +380,16 @@ __all__ = [
     "emit_disposition_trace_records",
     "extraction_trace_policy_registry",
     "fail_run",
+    "find_statement_review_conflicts",
     "finish_run",
     "find_in_flight_parse_id",
+    "get_account_statement_coverage",
+    "get_correction_stats",
     "get_active_run",
     "get_known_storage_paths",
     "get_latest_run",
     "get_parsing_prompt",
     "get_current_statement_extraction_result",
-    "get_statement_coverage_rows",
     "get_statement_event_sources",
     "get_uploaded_document_filenames",
     "heartbeat_run",
@@ -390,10 +406,11 @@ __all__ = [
     "pending_stage1_review_filter",
     "persist_statement_extraction_result",
     "reap_stale_runs",
+    "record_classification_feedback",
     "record_correction",
     "resolve_statement_contribution",
     "list_statement_contributions",
-    "register_position_reconciler",
+    "load_evidence_lineage",
     "reject_statement_workflow",
     "retire_statement",
     "resolve_custody_account_id",

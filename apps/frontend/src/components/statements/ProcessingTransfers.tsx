@@ -17,7 +17,7 @@ const OVERDUE_DAYS = 7;
 export function ProcessingTransfers() {
   const pending = useApiQuery(
     PROCESSING_PENDING_QUERY_KEY,
-    "list_processing_pending_accounts_processing_pending_get",
+    "list_processing_pending_reconciliation_transfers_pending_get",
     {},
     { staleTime: SHARED_STALE_MS },
   );

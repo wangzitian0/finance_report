@@ -271,7 +271,7 @@ export default function StatementDetailPage() {
 
   const approveMutation = useMutation({
     mutationFn: (variables: { autoFill?: boolean } | void) => apiOperation(
-      "approve_statement_stage1_statements__statement_id__review_approve_post",
+      "approve_statement_stage1_statements__statement_id__approvals_post",
       {
         path: { statement_id: statementId },
         body: {
@@ -308,7 +308,7 @@ export default function StatementDetailPage() {
     mutationFn: () => {
       if (!review?.source_result_digest) return Promise.reject(new Error("The source result is unavailable. Re-parse the statement before confirming it."));
       return apiOperation(
-        "confirm_statement_review_envelope_statements__statement_id__review_envelope_post",
+        "confirm_statement_review_envelope_statements__statement_id__review_envelopes_post",
         {
           path: { statement_id: statementId },
           body: {
@@ -345,7 +345,7 @@ export default function StatementDetailPage() {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (notes?: string) => apiOperation("reject_statement_stage1_statements__statement_id__review_reject_post", { path: { statement_id: statementId }, body: { notes: notes || null } }),
+    mutationFn: (notes?: string) => apiOperation("reject_statement_stage1_statements__statement_id__rejections_post", { path: { statement_id: statementId }, body: { notes: notes || null } }),
     onSuccess: () => {
       showToast("Statement rejected", "success");
       setRejectDialogOpen(false);
@@ -369,7 +369,7 @@ export default function StatementDetailPage() {
   };
 
   const resolveConflictsMutation = useMutation({
-    mutationFn: (action: "confirm_distinct" | "link_transfer") => apiOperation("resolve_review_conflicts_statements__statement_id__conflicts_resolve_post", { path: { statement_id: statementId }, body: { action } }),
+    mutationFn: (action: "confirm_distinct" | "link_transfer") => apiOperation("resolve_review_conflicts_statements__statement_id__conflict_resolutions_post", { path: { statement_id: statementId }, body: { action } }),
     onSuccess: () => {
       showToast("Conflicts resolved", "success");
       setConflictsResolved(true);
@@ -448,7 +448,7 @@ export default function StatementDetailPage() {
     setImportError(null);
     setImportResult(null);
     try {
-      const result = await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_import_post", { path: { statement_id: statementId } });
+      const result = await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post", { path: { statement_id: statementId } });
       setImportResult(result);
       showToast("Brokerage positions imported successfully", "success");
       // The import changed the holdings and cleared a recorded failure: those reads are stale (#2648).

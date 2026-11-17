@@ -32,7 +32,7 @@ from src.portfolio.extension import (
     portfolio_service,
     position_currencies,
 )
-from src.portfolio.extension.positions import DepreciationResult, PositionService, PositionServiceError, ReconcileResult
+from src.portfolio.extension.positions import PositionService, PositionServiceError, ReconcileResult
 
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
@@ -48,7 +48,6 @@ from src.portfolio.orm.portfolio import (
 
 __all__ = [
     "AssetNotFoundError",
-    "DepreciationResult",
     "DividendIncome",
     "DividendEvent",
     "DividendType",

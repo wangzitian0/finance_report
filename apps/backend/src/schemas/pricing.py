@@ -1,4 +1,4 @@
-"""Pydantic schemas for asset management."""
+"""Pydantic schemas for pricing, market data, and manual valuation endpoints."""
 
 from datetime import date, datetime
 from typing import Annotated
@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from src.audit import DataProvenance
 from src.pricing import (
     ManualValuationBasis,
     ManualValuationComponentType,
@@ -19,21 +20,80 @@ from src.schemas.base import (
     NonNegativeMoneyAmount,
     default_list,
 )
-from src.schemas.provenance import DataProvenance
 
 SourceStr = Annotated[str, Field(min_length=1, max_length=120)]
 RecurrenceDays = Annotated[int, Field(ge=1, le=3660)]
 
 
-class DepreciationResponse(BaseModel):
-    position_id: UUID
+class MarketDataSyncRequest(BaseModel):
+    """Market data sync request for scheduler or E2E callers."""
+
+    start_date: date | None = None
+    end_date: date | None = None
+    pairs: list[str] | None = Field(default=None, description="FX pairs in BASE/QUOTE format")
+    symbols: list[str] | None = Field(default=None, description="Stock symbols")
+
+
+class ProviderDisagreementResponse(BaseModel):
+    """Provider disagreement payload."""
+
+    asset: str
+    observed_date: date
+    primary_source: str
+    secondary_source: str
+    primary_value: str
+    secondary_value: str
+    relative_difference: str
+    threshold: str
+
+
+class MarketDataSyncResponse(BaseModel):
+    """Scheduler-friendly market data sync counters."""
+
+    kind: str
+    requested: int
+    inserted: int
+    skipped: int
+    missing: int
+    disagreements: list[ProviderDisagreementResponse]
+
+
+class MarketDataStatusResponse(BaseModel):
+    """Read-only market data freshness status for authenticated users."""
+
+    kind: str
+    scope: str
+    fresh: bool
+    last_success_at: str | None
+    last_success_date: str | None
+    last_observation_date: str | None
+
+
+class PriceUpdateRequest(BaseModel):
+    asset_identifier: Annotated[str, Field(min_length=1, max_length=100)]
+    price_date: date
+    price: NonNegativeMoneyAmount
+    currency: CurrencyCode
+
+
+class PriceUpdateBatchRequest(BaseModel):
+    updates: list[PriceUpdateRequest]
+
+
+class PriceUpdateResponse(BaseModel):
+    success: bool
+    message: str
     asset_identifier: str
-    period_depreciation: MoneyAmount
-    accumulated_depreciation: MoneyAmount
-    book_value: MoneyAmount
-    method: str
-    useful_life_years: int
-    salvage_value: MoneyAmount
+    price_date: date
+    price: MoneyAmount
+    currency: str
+    source: str
+    created_at: datetime | None = None
+
+
+class PriceUpdateBatchResponse(BaseModel):
+    updated_count: int
+    results: list[PriceUpdateResponse] = default_list()
 
 
 class ManualValuationSnapshotCreate(BaseModel):
@@ -42,19 +102,6 @@ class ManualValuationSnapshotCreate(BaseModel):
     value: NonNegativeMoneyAmount
     currency: CurrencyCode
     source: SourceStr
-    valuation_basis: ManualValuationBasis | None = None
-    notes: str | None = None
-    liquidity_class: ManualValuationLiquidityClass | None = None
-    recurrence_days: RecurrenceDays | None = None
-    reminder_date: date | None = None
-
-
-class ManualValuationSnapshotUpdate(BaseModel):
-    component_type: ManualValuationComponentType | None = None
-    as_of_date: date | None = None
-    value: NonNegativeMoneyAmount | None = None
-    currency: CurrencyCode | None = None
-    source: SourceStr | None = None
     valuation_basis: ManualValuationBasis | None = None
     notes: str | None = None
     liquidity_class: ManualValuationLiquidityClass | None = None

@@ -21,6 +21,7 @@ from src.reporting.base.l1_registry import economic_category_line
 from src.reporting.extension._core import _build_account_lines, _load_accounts, _prefetch_fx_rates
 from src.reporting.extension.balance_sheet import _compute_unrealized_fx_gain_loss
 from src.reporting.extension.internal_transfer import _internal_transfer_adjustment
+from src.audit import DataProvenance
 from src.reporting.extension.reporting_calc import (
     ReportError,
     _add_months,
@@ -32,7 +33,6 @@ from src.reporting.extension.reporting_calc import (
     _quantize_money,
     _signed_amount,
 )
-from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 

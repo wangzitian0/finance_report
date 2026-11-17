@@ -19,9 +19,9 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 const REVIEW_GET = "get_statement_for_review_statements__statement_id__review_get";
 const STATEMENT_GET = "get_statement_statements__statement_id__get";
 const RUNS_GET = "list_statement_runs_statements__statement_id__runs_get";
-const APPROVE_POST = "approve_statement_stage1_statements__statement_id__review_approve_post";
-const REJECT_POST = "reject_statement_stage1_statements__statement_id__review_reject_post";
-const CONFIRM_POST = "confirm_statement_review_envelope_statements__statement_id__review_envelope_post";
+const APPROVE_POST = "approve_statement_stage1_statements__statement_id__approvals_post";
+const REJECT_POST = "reject_statement_stage1_statements__statement_id__rejections_post";
+const CONFIRM_POST = "confirm_statement_review_envelope_statements__statement_id__review_envelopes_post";
 const NOTICE = "Classifying transactions…";
 const BLOCKED = "Wait for the active run to end before approving this statement.";
 

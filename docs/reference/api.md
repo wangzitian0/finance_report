@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `contract`
-- Endpoint count: `119`
-- Schema count: `263`
+- Endpoint count: `113`
+- Schema count: `262`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -16,24 +16,18 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Group | Endpoints |
 |---|---:|
 | `Observability` | 3 |
-| `accounts` | 9 |
-| `ai-feedback` | 2 |
+| `accounts` | 6 |
 | `app-config` | 2 |
-| `assets` | 7 |
-| `audit` | 1 |
 | `auth` | 4 |
 | `chat` | 4 |
-| `corrections` | 1 |
 | `evidence` | 1 |
-| `journal-entries` | 6 |
+| `journal-entries` | 7 |
 | `llm` | 7 |
-| `market-data` | 3 |
-| `metrics` | 1 |
-| `portfolio` | 12 |
-| `reconciliation` | 11 |
-| `reports` | 21 |
-| `review` | 6 |
-| `statements` | 13 |
+| `portfolio` | 11 |
+| `pricing` | 7 |
+| `reconciliation` | 16 |
+| `reports` | 20 |
+| `statements` | 20 |
 | `user-settings` | 2 |
 | `workflow` | 3 |
 
@@ -53,20 +47,10 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `GET` | `/accounts` | yes | `account_type` (query), `is_active` (query), `include_balance` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_AccountResponse_` | List Accounts |
 | `POST` | `/accounts` | yes | - | `AccountCreate` | `201` `AccountResponse` | Create Account |
-| `GET` | `/accounts/coverage` | yes | `as_of` (query), `stale_after_days` (query) | - | `200` `AccountCoverageListResponse` | List Account Statement Coverage |
 | `GET` | `/accounts/opening-balance-readiness` | yes | - | - | `200` `OpeningBalanceReadinessResponse` | Get Opening Balance Readiness Status |
 | `POST` | `/accounts/opening-balances` | yes | - | `OpeningBalanceRequest` | `201` `JournalEntryResponse` | Post Opening Balances |
-| `GET` | `/accounts/processing/pending` | yes | - | - | `200` `ListResponse_ProcessingPendingItem_` | List Processing Pending |
-| `GET` | `/accounts/processing/summary` | yes | - | - | `200` `ProcessingSummaryResponse` | Get Processing Summary |
 | `PUT` | `/accounts/{account_id}` | yes | `account_id`* (path) | `AccountUpdate` | `200` `AccountResponse` | Update Account |
 | `DELETE` | `/accounts/{account_id}` | yes | `account_id`* (path) | - | `204` - | Delete Account |
-
-### ai-feedback
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `POST` | `/ai/feedback` | yes | - | `AiFeedbackRequest` | `201` `AiFeedbackResponse` | Create Ai Feedback |
-| `GET` | `/ai/suggestions` | yes | `limit` (query), `offset` (query), `statement_id` (query) | - | `200` `AiSuggestionListResponse` | List Ai Suggestions |
 
 ### app-config
 
@@ -74,24 +58,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `GET` | `/app-config/base-currency` | yes | - | - | `200` `BaseCurrencyResponse` | Get Base Currency |
 | `PUT` | `/app-config/base-currency` | yes | - | `BaseCurrencyUpdate` | `200` `BaseCurrencyResponse` | Update Base Currency |
-
-### assets
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/assets/positions/{position_id}/depreciation` | yes | `position_id`* (path), `method` (query), `useful_life_years` (query), `salvage_value` (query), `as_of_date` (query) | - | `200` `DepreciationResponse` | Get Position Depreciation |
-| `GET` | `/assets/valuation-components` | yes | `as_of_date` (query), `include_restricted` (query) | - | `200` `ValuationComponentsResponse` | List Valuation Components |
-| `GET` | `/assets/valuation-snapshots` | yes | `as_of_date` (query), `component_type` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ManualValuationSnapshotResponse_` | List Valuation Snapshots |
-| `POST` | `/assets/valuation-snapshots` | yes | - | `ManualValuationSnapshotCreate` | `201` `ManualValuationSnapshotResponse` | Create Valuation Snapshot |
-| `GET` | `/assets/valuation-snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `ManualValuationSnapshotResponse` | Get Valuation Snapshot |
-| `PATCH` | `/assets/valuation-snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | `ManualValuationSnapshotUpdate` | `200` `ManualValuationSnapshotResponse` | Update Valuation Snapshot |
-| `DELETE` | `/assets/valuation-snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `204` - | Delete Valuation Snapshot |
-
-### audit
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/journal-entries/{entry_id}/audit` | yes | `entry_id`* (path) | - | `200` `AuditTrailResponse` | Get Journal Entry Audit |
 
 ### auth
 
@@ -108,14 +74,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `POST` | `/chat` | yes | - | `ChatRequest` | `200` - | Chat Message |
 | `GET` | `/chat/history` | yes | `session_id` (query), `limit` (query) | - | `200` `ChatHistoryResponse` | Chat History |
-| `DELETE` | `/chat/session/{session_id}` | yes | `session_id`* (path) | - | `204` - | Delete Session |
+| `DELETE` | `/chat/sessions/{session_id}` | yes | `session_id`* (path) | - | `204` - | Delete Session |
 | `GET` | `/chat/suggestions` | yes | `language` (query), `message` (query), `include_structured` (query) | - | `200` `ChatSuggestionsResponse` | Suggestions |
-
-### corrections
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `POST` | `/corrections` | yes | - | `CorrectionRequest` | `201` `CorrectionResponse` | Create Correction |
 
 ### evidence
 
@@ -131,6 +91,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/journal-entries` | yes | - | `JournalEntryCreate` | `201` `JournalEntryResponse` | Create Entry |
 | `GET` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Get Journal Entry |
 | `DELETE` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `204` - | Delete Journal Entry |
+| `GET` | `/journal-entries/{entry_id}/audit` | yes | `entry_id`* (path) | - | `200` `AuditTrailResponse` | Get Journal Entry Audit |
 | `POST` | `/journal-entries/{entry_id}/postings` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
 | `POST` | `/journal-entries/{entry_id}/voidings` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
 
@@ -146,20 +107,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/llm/scenes` | yes | - | - | `200` `LlmScenesResponse` | Get Scenes |
 | `PUT` | `/llm/scenes` | yes | - | `LlmScenesUpdate` | `200` `LlmScenesResponse` | Put Scenes |
 
-### market-data
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `POST` | `/market-data/fx/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Fx Endpoint |
-| `GET` | `/market-data/status` | yes | `pairs` (query), `symbols` (query), `include_default_fx` (query) | - | `200` array[`MarketDataStatusResponse`] | Market Data Status Endpoint |
-| `POST` | `/market-data/stocks/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Stocks Endpoint |
-
-### metrics
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/metrics/correction-loop/replay` | yes | - | - | `200` `CorrectionLoopReplayResponse` | Get Correction Loop Replay |
-
 ### portfolio
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
@@ -167,31 +114,47 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/portfolio/allocation/asset-class` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Asset Class Allocation |
 | `GET` | `/portfolio/allocation/geography` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Geography Allocation |
 | `GET` | `/portfolio/allocation/sector` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Sector Allocation |
-| `POST` | `/portfolio/brokerage/import` | yes | - | `BrokerageImportRequest` | `200` `BrokerageImportResponse` | Import Brokerage Positions |
+| `POST` | `/portfolio/brokerage-imports` | yes | - | `BrokerageImportRequest` | `200` `BrokerageImportResponse` | Import Brokerage Positions |
 | `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query), `limit` (query), `offset` (query) | - | `200` `HoldingsListResponse` | Get Holdings |
 | `GET` | `/portfolio/performance/report-schedule` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query), `currency` (query) | - | `200` `InvestmentPerformanceReportScheduleResponse` | Get Investment Performance Report Schedule |
-| `POST` | `/portfolio/prices/update` | yes | - | `PriceUpdateBatchRequest` | `200` `PriceUpdateBatchResponse` | Update Prices |
 | `GET` | `/portfolio/summary` | yes | `as_of_date` (query) | - | `200` `PortfolioSummaryDashboardResponse` | Get Portfolio Summary |
 | `PATCH` | `/portfolio/{ticker}` | yes | `ticker`* (path) | `CostBasisMethodUpdateRequest` | `200` `CostBasisMethodUpdateResponse` | Update Holding Cost Basis Method |
 | `GET` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path), `limit` (query), `offset` (query) | - | `200` array[`DividendEventResponse`] | Get Holding Dividends |
 | `POST` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path) | `DividendCreateRequest` | `201` `DividendEventResponse` | Create Holding Dividend |
 | `GET` | `/portfolio/{ticker}/realized` | yes | `ticker`* (path), `limit` (query), `offset` (query) | - | `200` array[`RealizedLotResponse`] | Get Holding Realized Lots |
 
+### pricing
+
+| Method | Path | Auth | Params | Request | Success responses | Summary |
+|---|---|---|---|---|---|---|
+| `POST` | `/pricing/fx/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Fx Endpoint |
+| `GET` | `/pricing/manual-valuations` | yes | `as_of_date` (query), `component_type` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ManualValuationSnapshotResponse_` | List Manual Valuations |
+| `POST` | `/pricing/manual-valuations` | yes | - | `ManualValuationSnapshotCreate` | `201` `ManualValuationSnapshotResponse` | Create Manual Valuation |
+| `GET` | `/pricing/market-data/status` | yes | `pairs` (query), `symbols` (query), `include_default_fx` (query) | - | `200` array[`MarketDataStatusResponse`] | Market Data Status Endpoint |
+| `POST` | `/pricing/price-overrides` | yes | - | `PriceUpdateBatchRequest` | `200` `PriceUpdateBatchResponse` | Create Price Overrides |
+| `POST` | `/pricing/stocks/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Stocks Endpoint |
+| `GET` | `/pricing/valuation-components` | yes | `as_of_date` (query), `include_restricted` (query) | - | `200` `ValuationComponentsResponse` | List Valuation Components |
+
 ### reconciliation
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `POST` | `/reconciliation/adjustment` | yes | - | `ReconciliationAdjustmentRequest` | `200` `ReconciliationAdjustmentResponse` | Post Reconciliation Adjustment |
+| `POST` | `/reconciliation/adjustments` | yes | - | `ReconciliationAdjustmentRequest` | `200` `ReconciliationAdjustmentResponse` | Post Reconciliation Adjustment |
+| `GET` | `/reconciliation/consistency-checks` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
+| `POST` | `/reconciliation/consistency-checks/runs` | yes | - | `ConsistencyCheckRunRequest` | `200` `ConsistencyCheckListResponse` | Run Stage2 Checks |
+| `POST` | `/reconciliation/consistency-checks/{check_id}/resolutions` | yes | `check_id`* (path) | `ResolveCheckRequest` | `200` `ConsistencyCheckResponse` | Resolve Consistency Check |
 | `GET` | `/reconciliation/matches` | yes | `status` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ReconciliationMatchResponse_` | List Matches |
 | `POST` | `/reconciliation/matches` | yes | - | `ReconciliationMatchBatchRequest` | `200` `ReconciliationMatchBatchResponse` | Batch Update Matches |
-| `POST` | `/reconciliation/matches/{match_id}/accept` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Accept Match |
-| `POST` | `/reconciliation/matches/{match_id}/reject` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Reject Match |
+| `PATCH` | `/reconciliation/matches/{match_id}` | yes | `match_id`* (path) | `ReconciliationMatchDecisionRequest` | `200` `ReconciliationMatchResponse` | Update Match Decision |
 | `GET` | `/reconciliation/pending` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_ReconciliationMatchResponse_` | Pending Review Queue |
+| `GET` | `/reconciliation/review-queue` | yes | `run_id` (query) | - | `200` `Stage2ReviewQueueResponse` | Get Stage2 Review Queue |
 | `POST` | `/reconciliation/runs` | yes | - | `ReconciliationRunRequest` | `200` `ReconciliationRunResponse` | Run Reconciliation |
 | `GET` | `/reconciliation/stats` | yes | - | - | `200` `ReconciliationStatsResponse` | Reconciliation Stats |
 | `GET` | `/reconciliation/transactions/{txn_id}/anomalies` | yes | `txn_id`* (path), `limit` (query), `offset` (query) | - | `200` array[`AnomalyResponse`] | List Anomalies |
+| `GET` | `/reconciliation/transfers/pending` | yes | - | - | `200` `ListResponse_ProcessingPendingItem_` | List Processing Pending |
+| `GET` | `/reconciliation/transfers/summary` | yes | - | - | `200` `ProcessingSummaryResponse` | Get Processing Summary |
 | `GET` | `/reconciliation/unmatched` | yes | `statement_id` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_BankTransactionSummary_` | List Unmatched |
-| `POST` | `/reconciliation/unmatched/{txn_id}/reviewed-disposition` | yes | `txn_id`* (path) | `ReviewedDispositionRequest` | `200` `JournalEntrySummary` | Submit Unmatched Reviewed Disposition |
+| `POST` | `/reconciliation/unmatched/{txn_id}/reviewed-dispositions` | yes | `txn_id`* (path) | `ReviewedDispositionRequest` | `200` `JournalEntrySummary` | Submit Unmatched Reviewed Disposition |
 
 ### reports
 
@@ -205,46 +168,41 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/coverage` | yes | `as_of_date` (query) | - | `200` `ReportCoverageResponse` | Report Coverage |
 | `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
 | `GET` | `/reports/data-quality` | yes | `as_of_date` (query), `currency` (query) | - | `200` `PersonalDataQualityHealthResponse` | Get Data Quality Health |
-| `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
+| `GET` | `/reports/exports` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
 | `GET` | `/reports/income-statement` | yes | `start_date` (query), `end_date` (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
 | `GET` | `/reports/net-worth/allocation` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthAllocationResponse` | Net Worth Allocation |
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `PersonalReportPackagePreview` | Preview Personal Report Package |
-| `POST` | `/reports/package/annual-archive` | yes | - | `AnnualTaxArchiveRequest` | `200` - | Export Annual Tax Archive |
-| `POST` | `/reports/package/generate` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
 | `GET` | `/reports/package/line-details` | yes | `line_id`* (query), `anchor`* (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageLineDetailsPage` | List Personal Report Package Line Details |
 | `GET` | `/reports/package/manifest-entries` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageManifestEntriesPage` | List Personal Report Package Manifest Entries |
 | `GET` | `/reports/package/policy-decisions` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackagePolicyDecisionsPage` | List Personal Report Package Policy Decisions |
 | `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
+| `POST` | `/reports/package/snapshots` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
 | `GET` | `/reports/package/snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `PersonalReportPackageSnapshotResponse` | Get Personal Report Package Snapshot |
-| `GET` | `/reports/package/snapshots/{snapshot_id}/export` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |
-
-### review
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/statements/consistency-checks` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
-| `POST` | `/statements/consistency-checks/{check_id}/resolve` | yes | `check_id`* (path) | `ResolveCheckRequest` | `200` `ConsistencyCheckResponse` | Resolve Consistency Check |
-| `GET` | `/statements/stage2/queue` | yes | `run_id` (query) | - | `200` `Stage2ReviewQueueResponse` | Get Stage2 Review Queue |
-| `GET` | `/statements/{statement_id}/conflicts` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
-| `POST` | `/statements/{statement_id}/conflicts/resolve` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
-| `POST` | `/statements/{statement_id}/stage2/run-checks` | yes | `statement_id`* (path) | - | `200` `ConsistencyCheckListResponse` | Run Stage2 Checks |
+| `GET` | `/reports/package/snapshots/{snapshot_id}/exports` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |
 
 ### statements
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/statements` | yes | - | - | `200` `ListResponse_BankStatementListItemResponse_` | List Statements |
+| `POST` | `/statements` | yes | - | `Body_upload_statement_statements_post` | `202` `BankStatementResponse` | Upload Statement |
+| `POST` | `/statements/classification-feedback` | yes | - | `AiFeedbackRequest` | `201` `AiFeedbackResponse` | Create Classification Feedback |
+| `GET` | `/statements/classification-suggestions` | yes | `limit` (query), `offset` (query), `statement_id` (query) | - | `200` `AiSuggestionListResponse` | List Classification Suggestions |
+| `GET` | `/statements/correction-loop/replay` | yes | - | - | `200` `CorrectionLoopReplayResponse` | Get Correction Loop Replay |
+| `POST` | `/statements/corrections` | yes | - | `CorrectionRequest` | `201` `CorrectionResponse` | Create Correction |
+| `GET` | `/statements/coverage` | yes | `as_of` (query), `stale_after_days` (query) | - | `200` `AccountCoverageListResponse` | List Statement Coverage |
 | `GET` | `/statements/pending-review` | yes | - | - | `200` `ListResponse_BankStatementListItemResponse_` | List Pending Review |
-| `POST` | `/statements/upload` | yes | - | `Body_upload_statement_statements_upload_post` | `202` `BankStatementResponse` | Upload Statement |
 | `GET` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `200` `BankStatementResponse` | Get Statement |
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |
-| `POST` | `/statements/{statement_id}/brokerage/import` | yes | `statement_id`* (path) | - | `200` `BrokerageImportResponse` | Import Brokerage Statement Positions |
+| `POST` | `/statements/{statement_id}/approvals` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
+| `POST` | `/statements/{statement_id}/brokerage-imports` | yes | `statement_id`* (path) | - | `200` `BrokerageImportResponse` | Import Brokerage Statement Positions |
+| `POST` | `/statements/{statement_id}/conflict-resolutions` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
+| `GET` | `/statements/{statement_id}/conflicts` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
 | `GET` | `/statements/{statement_id}/document` | yes | `statement_id`* (path) | - | `200` - | Get Statement Document |
+| `POST` | `/statements/{statement_id}/rejections` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |
-| `POST` | `/statements/{statement_id}/review/approve` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
-| `POST` | `/statements/{statement_id}/review/envelope` | yes | `statement_id`* (path) | `ReviewedStatementEnvelopeRequest` | `200` `ReviewedStatementEnvelopeResponse` | Confirm Statement Review Envelope |
-| `POST` | `/statements/{statement_id}/review/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
+| `POST` | `/statements/{statement_id}/review-envelopes` | yes | `statement_id`* (path) | `ReviewedStatementEnvelopeRequest` | `200` `ReviewedStatementEnvelopeResponse` | Confirm Statement Review Envelope |
 | `GET` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | - | `200` `ListResponse_StatementRunRecord_` | List Statement Runs |
 | `POST` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | `StatementRunRequest` | `202` `StatementRunRecord` | Create Statement Run |
 

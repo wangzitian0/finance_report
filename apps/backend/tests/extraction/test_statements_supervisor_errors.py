@@ -53,7 +53,7 @@ async def test_create_statement_run_error_paths(db, test_user):
         assert exc.value.status_code == 503
     with patch('src.routers.statements.StorageService') as mock_storage_cls: mock_storage = mock_storage_cls.return_value; mock_storage.get_object.return_value = b'content'; resp = await create_statement_run(sid, StatementRunRequest(model=None), ctx=RequestContext(db, uid)); await db.refresh(statement); assert resp.state in ('requested', 'running'); assert statement.status == BankStatementStatus.PARSING
 async def test_report_router_error_handlers(db, test_user, monkeypatch):
-    from src.reporting import ReportError; from src.routers.reports import balance_sheet, cash_flow, income_statement; from src.schemas.reporting import BreakdownPeriod, BreakdownType; uid = test_user.id
+    from src.reporting import ReportError; from src.routers.reports import balance_sheet, cash_flow, income_statement; uid = test_user.id
     async def mock_fail(*args, **kwargs): raise ReportError('Report Fail')
     monkeypatch.setattr('src.routers.reports.generate_balance_sheet', mock_fail); monkeypatch.setattr('src.routers.reports.generate_income_statement', mock_fail); monkeypatch.setattr('src.routers.reports.generate_cash_flow', mock_fail)
     with pytest.raises(DomainError) as exc: await balance_sheet(ctx=RequestContext(db, uid))

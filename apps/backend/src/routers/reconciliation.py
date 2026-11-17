@@ -1,9 +1,8 @@
 """Reconciliation API router."""
 
 from collections.abc import Sequence
-from datetime import date
-from decimal import Decimal
-from uuid import UUID, uuid4
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import Select, func, select
@@ -18,48 +17,61 @@ from src.extraction import (
     StatementSummary,
     effective_statement_transaction_filter,
 )
-from src.ledger import (
-    Account,
-    AccountType,
-    JournalEntry,
-    account_service,
-    calculate_reconciliation_adjustment,
-    submit_system_journal_entry,
-)
+from src.ledger import Account, JournalEntry
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
-from src.platform import ConflictError, ResourceNotFoundError, ValidationFailedError, get_owned_or_raise, paginate
+from src.platform import ResourceNotFoundError, get_owned_or_raise, paginate
 from src.reconciliation import (
+    CheckStatus,
+    CheckType,
     ReconciliationMatch,
     ReconciliationStatus,
     ReviewedDispositionCommand,
     accept_match as accept_match_service,
-    accept_pending_matches,
+    apply_reconciliation_adjustment,
+    batch_decide_matches,
     count_pending_review_items,
+    derive_reconciliation_score_tier,
     detect_anomalies,
     entry_total_amount,
     execute_matching,
     get_pending_items,
+    get_processing_transfer_summary,
     get_reconciliation_stats,
-    has_unresolved_checks,
+    get_stage2_queue,
+    list_checks,
+    list_pending_processing_transfers,
+    parse_check_resolution_action,
     posted_statement_source_ids,
     reject_match as reject_match_service,
+    resolve_check,
+    run_all_consistency_checks,
     submit_reviewed_disposition,
 )
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BankTransactionSummary,
+    ConsistencyCheckListResponse,
+    ConsistencyCheckResponse,
+    ConsistencyCheckRunRequest,
     JournalEntrySummary,
+    ProcessingPendingItem,
+    ProcessingPendingListResponse,
+    ProcessingSummaryResponse,
     ReconciliationAdjustmentRequest,
     ReconciliationAdjustmentResponse,
     ReconciliationMatchBatchRequest,
     ReconciliationMatchBatchResponse,
+    ReconciliationMatchDecisionRequest,
     ReconciliationMatchListResponse,
     ReconciliationMatchResponse,
     ReconciliationRunRequest,
     ReconciliationRunResponse,
     ReconciliationStatsResponse,
     ReconciliationStatusEnum,
+    ResolveCheckRequest,
     ReviewedDispositionRequest,
+    Stage2PendingMatch,
+    Stage2ReviewQueueResponse,
     UnmatchedTransactionsResponse,
 )
 
@@ -297,30 +309,30 @@ async def pending_review_queue(
     return ReconciliationMatchListResponse(items=await _load_match_responses(db, matches, user_id), total=total)
 
 
-@router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
-async def accept_match(match_id: UUID, *, ctx: Ctx) -> ReconciliationMatchResponse:
-    """Accept one reconciliation match."""
+@router.patch("/matches/{match_id}", response_model=ReconciliationMatchResponse)
+async def update_match_decision(
+    match_id: UUID,
+    payload: ReconciliationMatchDecisionRequest,
+    *,
+    ctx: Ctx,
+) -> ReconciliationMatchResponse:
+    """Accept or reject one reconciliation match."""
     db, user_id = ctx.db, ctx.user_id
-    match = await accept_match_service(db, match_id, user_id=user_id)
+    if payload.action == "accept":
+        match = await accept_match_service(db, match_id, user_id=user_id)
+    else:
+        match = await reject_match_service(db, match_id, user_id=user_id)
     await db.flush()
-    log_financial_mutation(
-        logger,
-        "reconciliation.match.accepted",
-        user_id=user_id,
-        action="accept",
-        resource_type="reconciliation_match",
-        resource_id=match.id,
-        status=match.status.value,
-    )
-    return (await _load_match_responses(db, [match], user_id))[0]
-
-
-@router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
-async def reject_match(match_id: UUID, *, ctx: Ctx) -> ReconciliationMatchResponse:
-    """Reject one reconciliation match."""
-    db, user_id = ctx.db, ctx.user_id
-    match = await reject_match_service(db, str(match_id), user_id=user_id)
-    await db.flush()
+    if payload.action == "accept":
+        log_financial_mutation(
+            logger,
+            "reconciliation.match.accepted",
+            user_id=user_id,
+            action="accept",
+            resource_type="reconciliation_match",
+            resource_id=match.id,
+            status=match.status.value,
+        )
     return (await _load_match_responses(db, [match], user_id))[0]
 
 
@@ -330,79 +342,43 @@ async def batch_update_matches(
 ) -> ReconciliationMatchBatchResponse:
     """Apply a batch accept or reject decision to pending reconciliation matches."""
     db, user_id = ctx.db, ctx.user_id
-    if payload.action == "accept":
-        if await has_unresolved_checks(db, user_id, run_id=payload.run_id):
-            raise ConflictError("Cannot batch approve while there are unresolved consistency checks")
-        if not payload.match_ids:
-            return ReconciliationMatchBatchResponse()
-        query = (
-            select(ReconciliationMatch)
-            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-            .where(
-                ReconciliationMatch.id.in_(payload.match_ids),
-                ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-                AtomicTransaction.user_id == user_id,
-            )
-            .order_by(ReconciliationMatch.id)
-            .with_for_update(of=ReconciliationMatch)
-        )
-        if payload.run_id:
-            query = query.where(ReconciliationMatch.run_id == payload.run_id)
-        if payload.min_score is not None:
-            query = query.where(ReconciliationMatch.match_score >= payload.min_score)
-        matches = list((await db.execute(query)).scalars().all())
-        reconciled = await accept_pending_matches(db, matches, user_id=user_id)
-        await db.flush()
-        log_financial_mutation(
-            logger,
-            "reconciliation.match.batch_accepted",
-            user_id=user_id,
-            action="batch_accept",
-            resource_type="reconciliation_match",
-            resource_id="batch",
-            requested_count=len(payload.match_ids),
-            accepted_count=len(matches),
-        )
-        return ReconciliationMatchBatchResponse(
-            approved_count=len(matches),
-            rejected_count=0,
-            journal_entries_reconciled=reconciled,
-        )
-
-    if not payload.match_ids:
-        return ReconciliationMatchBatchResponse()
-    reject_query = (
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(
-            ReconciliationMatch.id.in_(payload.match_ids),
-            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-            AtomicTransaction.user_id == user_id,
-        )
-        .order_by(ReconciliationMatch.id)
-        .with_for_update(of=ReconciliationMatch)
-    )
-    if payload.run_id:
-        reject_query = reject_query.where(ReconciliationMatch.run_id == payload.run_id)
-    matches = list((await db.execute(reject_query)).scalars().all())
-    for match in matches:
-        match.status = ReconciliationStatus.REJECTED
-        match.version += 1
-    await db.flush()
-    log_financial_mutation(
-        logger,
-        "reconciliation.match.batch_rejected",
+    result = await batch_decide_matches(
+        db,
         user_id=user_id,
-        action="batch_reject",
-        resource_type="reconciliation_match",
-        resource_id="batch",
-        requested_count=len(payload.match_ids),
-        rejected_count=len(matches),
+        action=payload.action,
+        match_ids=payload.match_ids,
+        run_id=payload.run_id,
+        min_score=payload.min_score,
     )
+
+    if payload.match_ids:
+        await db.flush()
+        if payload.action == "accept":
+            log_financial_mutation(
+                logger,
+                "reconciliation.match.batch_accepted",
+                user_id=user_id,
+                action="batch_accept",
+                resource_type="reconciliation_match",
+                resource_id="batch",
+                requested_count=len(payload.match_ids),
+                accepted_count=result.approved_count,
+            )
+        else:
+            log_financial_mutation(
+                logger,
+                "reconciliation.match.batch_rejected",
+                user_id=user_id,
+                action="batch_reject",
+                resource_type="reconciliation_match",
+                resource_id="batch",
+                requested_count=len(payload.match_ids),
+                rejected_count=result.rejected_count,
+            )
     return ReconciliationMatchBatchResponse(
-        approved_count=0,
-        rejected_count=len(matches),
-        journal_entries_reconciled=0,
+        approved_count=result.approved_count,
+        rejected_count=result.rejected_count,
+        journal_entries_reconciled=result.journal_entries_reconciled,
     )
 
 
@@ -441,7 +417,7 @@ async def list_unmatched(
     return UnmatchedTransactionsResponse(items=[BankTransactionSummary.model_validate(r) for r in rows], total=total)
 
 
-@router.post("/unmatched/{txn_id}/reviewed-disposition", response_model=JournalEntrySummary)
+@router.post("/unmatched/{txn_id}/reviewed-dispositions", response_model=JournalEntrySummary)
 async def submit_unmatched_reviewed_disposition(
     txn_id: UUID,
     payload: ReviewedDispositionRequest,
@@ -483,117 +459,158 @@ async def list_anomalies(
     return [AnomalyResponse(**a.__dict__) for a in anomalies[pagination.offset : pagination.offset + pagination.limit]]
 
 
-@router.post("/adjustment", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_200_OK)
+@router.post("/adjustments", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_200_OK)
 async def post_reconciliation_adjustment(
     payload: ReconciliationAdjustmentRequest, *, ctx: Ctx
 ) -> ReconciliationAdjustmentResponse:
     """Post an immaterial penny rounding adjustment."""
     db, user_id = ctx.db, ctx.user_id
     account = await get_owned_or_raise(db, Account, payload.account_id, user_id, name="Account")
-    diff = abs(payload.bank_balance - payload.book_balance)
-    if diff > payload.threshold:
-        raise ValidationFailedError(f"difference {diff} exceeds immaterial threshold {payload.threshold}")
-
-    adj = calculate_reconciliation_adjustment(
-        bank_balance=payload.bank_balance, book_balance=payload.book_balance, threshold=payload.threshold
-    )
-    if adj.difference == Decimal("0"):
-        return ReconciliationAdjustmentResponse(
-            account_id=account.id,
-            bank_balance=adj.bank_balance,
-            book_balance=adj.book_balance,
-            difference=adj.difference,
-            is_gain=adj.is_gain,
-            journal_entry_id=None,
-            entry=None,
-        )
-
-    preferred_type = AccountType.INCOME if adj.is_gain else AccountType.EXPENSE
-
-    async def _find_rounding_account(session: AsyncSession) -> Account | None:
-        base_where = (
-            Account.user_id == user_id,
-            Account.name == "BankRoundingDifference",
-            Account.currency == account.currency,
-        )
-        for type_clause in (
-            Account.type == preferred_type,
-            Account.type.in_([AccountType.INCOME, AccountType.EXPENSE]),
-        ):
-            found = (
-                (
-                    await session.execute(
-                        select(Account)
-                        .where(*base_where, type_clause)
-                        .order_by(Account.created_at, Account.id)
-                        .limit(1)
-                    )
-                )
-                .scalars()
-                .first()
-            )
-            if found is not None:
-                return found
-        return None
-
-    rounding_account = await account_service.find_or_create_account(
-        db,
-        user_id=user_id,
-        find=_find_rounding_account,
-        build=lambda: Account(
-            user_id=user_id,
-            name="BankRoundingDifference",
-            type=preferred_type,
-            currency=account.currency,
-            is_active=True,
-        ),
-    )
-
     base_currency = await ctx.get_base_currency()
-    if account.currency != base_currency and payload.fx_rate is None:
-        raise ValidationFailedError(
-            f"fx_rate is required for non-base currency account {account.currency} (base currency {base_currency})"
-        )
-
-    lines_data = [
-        {
-            "account_id": account.id if sl.role == "bank_adjustment" else rounding_account.id,
-            "direction": sl.direction,
-            "amount": sl.amount,
-            "currency": account.currency,
-            "fx_rate": payload.fx_rate if account.currency != base_currency else None,
-        }
-        for sl in adj.lines
-    ]
-    entry = await submit_system_journal_entry(
+    result = await apply_reconciliation_adjustment(
         db,
-        user_id=user_id,
-        entry_date=payload.entry_date or date.today(),
-        memo=f"Reconciliation rounding adjustment for {account.name}",
-        lines_data=lines_data,
+        account=account,
         base_currency=base_currency,
-        operation="reconciliation_adjustment",
-        source_id=uuid4(),
-        post_immediately=True,
+        bank_balance=payload.bank_balance,
+        book_balance=payload.book_balance,
+        threshold=payload.threshold,
+        fx_rate=payload.fx_rate,
+        entry_date=payload.entry_date,
     )
-    await db.refresh(entry, ["lines"])
+    if result.entry is not None:
+        await db.refresh(result.entry, ["lines"])
     await db.flush()
 
-    log_financial_mutation(
-        logger,
-        "reconciliation.adjustment.posted",
-        user_id=user_id,
-        action="adjustment",
-        resource_type="journal_entry",
-        resource_id=entry.id,
-        difference=str(adj.difference),
-    )
+    if result.entry is not None:
+        log_financial_mutation(
+            logger,
+            "reconciliation.adjustment.posted",
+            user_id=user_id,
+            action="adjustment",
+            resource_type="journal_entry",
+            resource_id=result.entry.id,
+            difference=str(result.difference),
+        )
     return ReconciliationAdjustmentResponse(
-        account_id=account.id,
-        bank_balance=adj.bank_balance,
-        book_balance=adj.book_balance,
-        difference=adj.difference,
-        is_gain=adj.is_gain,
-        journal_entry_id=entry.id,
-        entry=_build_entry_summary(entry),
+        account_id=result.account_id,
+        bank_balance=result.bank_balance,
+        book_balance=result.book_balance,
+        difference=result.difference,
+        is_gain=result.is_gain,
+        journal_entry_id=result.journal_entry_id,
+        entry=_build_entry_summary(result.entry) if result.entry is not None else None,
     )
+
+
+@router.get("/transfers/summary", response_model=ProcessingSummaryResponse)
+async def get_processing_summary(
+    ctx: ReadCtx,
+) -> ProcessingSummaryResponse:
+    """Return the processing-account in-transit transfer summary."""
+    default_currency = await ctx.get_base_currency()
+    summary = await get_processing_transfer_summary(ctx.db, ctx.user_id, default_currency=default_currency)
+    return ProcessingSummaryResponse(
+        pending_count=summary.pending_count,
+        pending_total=summary.pending_total,
+        current_balance=summary.current_balance,
+        currency=summary.currency,
+        oldest_pending_date=summary.oldest_pending_date,
+    )
+
+
+@router.get("/transfers/pending", response_model=ProcessingPendingListResponse)
+async def list_processing_pending(
+    ctx: ReadCtx,
+) -> ProcessingPendingListResponse:
+    """Return pending unpaired transfer legs in the processing pipeline."""
+    default_currency = await ctx.get_base_currency()
+    legs = await list_pending_processing_transfers(ctx.db, ctx.user_id, default_currency=default_currency)
+    items = [ProcessingPendingItem(**leg) for leg in legs]
+    return ProcessingPendingListResponse(items=items, total=len(items))
+
+
+@router.get("/review-queue", response_model=Stage2ReviewQueueResponse)
+async def get_stage2_review_queue(
+    ctx: ReadCtx, run_id: str | None = None
+) -> Stage2ReviewQueueResponse:
+    """Return the Stage-2 review queue (pending matches + consistency checks)."""
+    db, user_id = ctx.db, ctx.user_id
+    matches = await get_stage2_queue(db, user_id, run_id=run_id)
+    txn_ids = {m.atomic_txn_id for m in matches}
+    txn_map = (
+        {
+            t.id: t
+            for t in (await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids)))).scalars().all()
+        }
+        if txn_ids
+        else {}
+    )
+    pending_matches = [
+        Stage2PendingMatch(
+            id=m.id,
+            match_score=m.match_score,
+            status=m.status.value,
+            created_at=m.created_at,
+            description=txn.description if (txn := txn_map.get(m.atomic_txn_id)) else None,
+            amount=txn.amount if txn else None,
+            txn_date=txn.txn_date if txn else None,
+            confidence_tier=derive_reconciliation_score_tier(m.match_score),
+        )
+        for m in matches
+    ]
+    checks, _ = await list_checks(db, user_id, status=CheckStatus.PENDING, run_id=run_id, limit=None)
+    unresolved = any(c.severity is None or c.severity != "low" for c in checks)
+    return Stage2ReviewQueueResponse(
+        pending_matches=pending_matches,
+        consistency_checks=[ConsistencyCheckResponse.model_validate(c) for c in checks],
+        has_unresolved_checks=unresolved,
+    )
+
+
+@router.post("/consistency-checks/runs", response_model=ConsistencyCheckListResponse)
+async def run_stage2_checks(
+    request: ConsistencyCheckRunRequest, ctx: Ctx
+) -> ConsistencyCheckListResponse:
+    """Run consistency checks for a statement."""
+    db, user_id = ctx.db, ctx.user_id
+    stmt = await get_owned_or_raise(db, StatementSummary, request.statement_id, user_id, name="Statement")
+    if stmt.status is BankStatementStatus.RETIRED:
+        raise ResourceNotFoundError("Statement not found")
+    checks = await run_all_consistency_checks(db, user_id, request.statement_id)
+    await db.flush()
+    return ConsistencyCheckListResponse(
+        items=[ConsistencyCheckResponse.model_validate(c) for c in checks],
+        total=len(checks),
+    )
+
+
+@router.get("/consistency-checks", response_model=ConsistencyCheckListResponse)
+async def list_consistency_checks(
+    ctx: ReadCtx,
+    status: CheckStatus | None = None,
+    check_type: CheckType | None = None,
+    run_id: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=500, description="Maximum items to return")] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ConsistencyCheckListResponse:
+    """List consistency checks for the current user."""
+    checks, total = await list_checks(
+        ctx.db, ctx.user_id, status=status, check_type=check_type, run_id=run_id, limit=limit, offset=offset
+    )
+    return ConsistencyCheckListResponse(
+        items=[ConsistencyCheckResponse.model_validate(c) for c in checks],
+        total=total,
+    )
+
+
+@router.post("/consistency-checks/{check_id}/resolutions", response_model=ConsistencyCheckResponse)
+async def resolve_consistency_check(
+    check_id: UUID, request: ResolveCheckRequest, ctx: Ctx
+) -> ConsistencyCheckResponse:
+    """Resolve a consistency check."""
+    db, user_id = ctx.db, ctx.user_id
+    check = await resolve_check(
+        db, check_id, parse_check_resolution_action(request.action), user_id, request.note
+    )
+    await db.flush()
+    return ConsistencyCheckResponse.model_validate(check)

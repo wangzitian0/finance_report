@@ -17,9 +17,8 @@ from common.meta.base.gate_util import (
 
 DEFAULT_TEST_ROOTS = (Path("apps/backend/tests"),)
 # Counts only persisted (session-written) detached owners — the real foreign-key risk.
-# The two remaining are intentional cross-user isolation tests that must own a
-# different user's row; transient in-memory / service-argument uses do not count.
-DEFAULT_MAX_DETACHED_OWNER_SHORTCUTS = 2
+# Burned down to 0; keep ceiling at 0 so detached shortcuts never return.
+DEFAULT_MAX_DETACHED_OWNER_SHORTCUTS = 0
 OWNER_KEYWORD = "user_id"
 PATTERN = "user_id=uuid4()"
 

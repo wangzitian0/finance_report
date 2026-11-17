@@ -24,16 +24,14 @@ from src.portfolio.base.errors import (
 )
 from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_amount, convert_money
+from src.audit import DataProvenance
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryDashboardResponse,
     PortfolioSummaryResponse,
-    PriceUpdateRequest,
-    PriceUpdateResponse,
     RealizedPnLResponse,
     UnrealizedPnLResponse,
 )
-from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 
@@ -452,62 +450,6 @@ class PortfolioService:
             holdings_count=len(positions),
             details=details,
         )
-
-    async def update_market_prices(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        updates: list[PriceUpdateRequest],
-    ) -> list[PriceUpdateResponse]:
-        """Insert manual MarketDataOverride records for user holdings."""
-        responses: list[PriceUpdateResponse] = []
-        for update in updates:
-            position = await db.scalar(
-                select(ManagedPosition).where(
-                    ManagedPosition.user_id == user_id,
-                    ManagedPosition.asset_identifier == update.asset_identifier,
-                )
-            )
-            if not position:
-                responses.append(
-                    PriceUpdateResponse(
-                        success=False,
-                        message=f"Asset {update.asset_identifier} not found for user",
-                        asset_identifier=update.asset_identifier,
-                        price_date=update.price_date,
-                        price=update.price,
-                        currency=update.currency,
-                        source="",
-                        created_at=None,
-                    )
-                )
-                continue
-
-            override = MarketDataOverride(
-                user_id=user_id,
-                asset_identifier=update.asset_identifier,
-                price_date=update.price_date,
-                price=update.price,
-                currency=update.currency,
-                source=PriceSource.MANUAL,
-            )
-            db.add(override)
-            await db.flush()
-            responses.append(
-                PriceUpdateResponse(
-                    success=True,
-                    message="Price updated successfully",
-                    asset_identifier=update.asset_identifier,
-                    price_date=update.price_date,
-                    price=update.price,
-                    currency=update.currency,
-                    source="manual",
-                    created_at=override.created_at,
-                )
-            )
-
-        await db.flush()
-        return responses
 
     async def get_portfolio_summary(
         self,

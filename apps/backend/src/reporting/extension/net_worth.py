@@ -15,10 +15,16 @@ from src.audit.ratio import Ratio
 from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
-from src.pricing import ManualValuationLiquidityClass, PrefetchedFxRates, PricingError, get_exchange_rate_series
+from src.pricing import (
+    ManualValuationLiquidityClass,
+    PrefetchedFxRates,
+    PricingError,
+    build_manual_valuation_lines_series,
+    get_exchange_rate_series,
+)
 from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
 from src.reporting.extension._core import _load_accounts, _prefetch_fx_rates, _single_source_currency
-from src.reporting.extension.balance_sheet import _build_manual_valuation_lines_series, generate_balance_sheet
+from src.reporting.extension.balance_sheet import generate_balance_sheet
 from src.reporting.extension.portfolio_market import (
     _held_on,
     _load_portfolio_positions,
@@ -498,7 +504,7 @@ async def get_net_worth_timeseries(
     portfolio_totals = await _portfolio_adjustment_totals(db, user_id, point_dates, ledger_assets, target_currency)
     excluded_ledger_ids_by_date: dict[date, set[UUID]] = {}
     try:
-        valuation_lines = await _build_manual_valuation_lines_series(
+        valuation_lines = await build_manual_valuation_lines_series(
             db,
             user_id,
             as_of_dates=point_dates,

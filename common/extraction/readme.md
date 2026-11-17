@@ -32,7 +32,7 @@
 
 - **Vocabulary** (`src/extraction/base/source_vocabulary.py`): `DocumentType`, `DocumentStatus`, `TransactionDirection`, `RuleType`, `ClassificationStatus`, `BankStatementStatus`, `Stage1Status`.
 - **ODS (`UploadedDocument`) & DWD (`AtomicTransaction`, `AtomicPosition`, `StatementSummary`)**: immutable atomic facts keyed by custody scope (`AtomicTransactionIdentity`) and per-currency balance containers (`currency_balances` reconciled independently via [per-currency balance reconciliation](../reconciliation/readme.md#per-currency-balance-reconciliation)).
-- **Reviewed envelope (`ReviewedStatementEnvelope`)**: append-only `POST /api/statements/{id}/review/envelope` decision filling absent custody/currency/period/balance facts without mutating source extractions.
+- **Reviewed envelope (`ReviewedStatementEnvelope`)**: append-only `POST /api/statements/{id}/review-envelopes` decision filling absent custody/currency/period/balance facts without mutating source extractions.
 - **Package interface**: `resolve_statement_contribution()` and `list_statement_contributions()` publish `ResolvedStatementContribution` with `TraceDecisionRef` (`authoritative` vs `unproven`) for reporting.
 
 ## <a id="confidence-scoring"></a>Confidence Scoring
@@ -55,16 +55,20 @@
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/statements/upload` | Upload document and enqueue extract run (`202`) |
+| `POST` | `/api/statements` | Upload document and enqueue extract run (`202`) |
 | `GET` | `/api/statements` | List statements with fixed SQL budget (empty nested transactions) |
 | `GET` | `/api/statements/{id}` | Statement detail with transactions |
 | `GET` | `/api/statements/pending-review` | Statements awaiting Stage 1 review |
-| `GET` | `/api/accounts/coverage` | Per-account confirmed source date and continuity issues |
-| `POST` | `/api/statements/{id}/review/envelope` | Version-pinned reviewer envelope confirmation |
-| `POST` | `/api/statements/{id}/review/approve` | Stage 1 approve + balance-chain check + posting |
-| `POST` | `/api/statements/{id}/review/reject` | Stage 1 reject (optionally triggers extract rerun) |
+| `GET` | `/api/statements/coverage` | Per-account confirmed source date and continuity issues |
+| `GET` | `/api/statements/classification-suggestions` | Pending classification suggestions in 60-84 review band |
+| `POST` | `/api/statements/classification-feedback` | Submit accept/reject/edit feedback on a classification suggestion |
+| `POST` | `/api/statements/corrections` | Record user transaction category correction for feedback learning |
+| `GET` | `/api/statements/correction-loop/replay` | Replay held-out correction corpus effect on confidence metric |
+| `POST` | `/api/statements/{id}/review-envelopes` | Version-pinned reviewer envelope confirmation |
+| `POST` | `/api/statements/{id}/approvals` | Stage 1 approve + balance-chain check + posting |
+| `POST` | `/api/statements/{id}/rejections` | Stage 1 reject (optionally triggers extract rerun) |
 | `POST`/`GET` | `/api/statements/{id}/runs` | Start or list `StatementRun` attempts (`extract` / `classify`) |
-| `POST` | `/api/statements/{id}/brokerage/import` | Manual statement-scoped brokerage position import |
+| `POST` | `/api/statements/{id}/brokerage-imports` | Manual statement-scoped brokerage position import |
 | `GET` | `/api/llm/catalog` | Configured provider model catalog (supersedes retired `/api/ai/models`) |
 
 ## Brokerage Position Import
@@ -92,4 +96,4 @@
 
 ## Account Coverage Contract
 
-- `GET /api/accounts/coverage` checks adjacent approved statements per account/currency against `BALANCE_TOLERANCE` (`0.001`) and `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`), surfacing `GAP`, `OVERLAP`, or `DUPLICATE` issues while exempting zero-change gaps (`|delta| <= 0.10`) and daily broker snapshots.
+- `GET /api/statements/coverage` checks adjacent approved statements per account/currency against `BALANCE_TOLERANCE` (`0.001`) and `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`), surfacing `GAP`, `OVERLAP`, or `DUPLICATE` issues while exempting zero-change gaps (`|delta| <= 0.10`) and daily broker snapshots.

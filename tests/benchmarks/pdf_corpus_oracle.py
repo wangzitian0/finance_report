@@ -789,7 +789,7 @@ def run_live_pdf_statement_verification(
         raise FileNotFoundError(f"Missing PDF file for {spec.fixture_id}: {pdf_path}")
 
     up = client.post(
-        "/api/statements/upload",
+        "/api/statements",
         data={"institution": spec.institution},
         files={"file": (pdf_path.name, pdf_path.read_bytes(), "application/pdf")},
     )
@@ -836,7 +836,7 @@ def run_live_pdf_statement_verification(
                 ):
                     acc_id = aj.get("id")
             er = client.post(
-                f"/api/statements/{stmt_id}/review/envelope",
+                f"/api/statements/{stmt_id}/review-envelopes",
                 json={
                     "source_result_digest": rev.get("source_result_digest"),
                     "account_id": acc_id,
@@ -861,7 +861,7 @@ def run_live_pdf_statement_verification(
                     f"Envelope confirmation failed for {spec.fixture_id}: {er.status_code} {er.text}"
                 )
         ap = client.post(
-            f"/api/statements/{stmt_id}/review/approve",
+            f"/api/statements/{stmt_id}/approvals",
             json={
                 "account_id": acc_id,
                 "create_account_if_missing": True,

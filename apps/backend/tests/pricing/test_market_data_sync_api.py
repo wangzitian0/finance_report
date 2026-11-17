@@ -9,7 +9,7 @@ from src import composition
 from src.platform import PreconditionFailedError
 from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
-from src.routers import market_data as market_data_router, reports as reports_router
+from src.routers import pricing as pricing_router, reports as reports_router
 
 
 async def test_market_data_sync_endpoints_return_counts(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -41,13 +41,13 @@ async def test_market_data_sync_endpoints_return_counts(client: AsyncClient, mon
             ],
         )
 
-    monkeypatch.setattr(market_data_router, "sync_stock_prices", fake_stock_sync)
-    monkeypatch.setattr(market_data_router, "sync_fx_rates", fake_fx_sync)
+    monkeypatch.setattr(pricing_router, "sync_stock_prices", fake_stock_sync)
+    monkeypatch.setattr(pricing_router, "sync_fx_rates", fake_fx_sync)
     stock_response = await client.post(
-        "/market-data/stocks/syncs", json={"symbols": ["AAPL"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
+        "/pricing/stocks/syncs", json={"symbols": ["AAPL"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
     )
     fx_response = await client.post(
-        "/market-data/fx/syncs", json={"pairs": ["USD/SGD"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
+        "/pricing/fx/syncs", json={"pairs": ["USD/SGD"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
     )
     assert stock_response.status_code == 200
     assert stock_response.json()["inserted"] == 1
@@ -60,7 +60,7 @@ async def test_market_data_sync_endpoints_return_counts(client: AsyncClient, mon
 async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncClient) -> None:
     "AC11.10.5"
     response = await client.post(
-        "/market-data/fx/syncs", json={"pairs": ["USD-SGD"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
+        "/pricing/fx/syncs", json={"pairs": ["USD-SGD"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
     )
     assert response.status_code == 422
     assert "expected BASE/QUOTE" in response.json()["detail"]
@@ -80,9 +80,9 @@ async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
         await db.flush()
         raise PreconditionFailedError("invalid symbol")
 
-    monkeypatch.setattr(market_data_router, "sync_stock_prices", fake_stock_sync)
+    monkeypatch.setattr(pricing_router, "sync_stock_prices", fake_stock_sync)
     response = await client.post(
-        "/market-data/stocks/syncs", json={"symbols": ["BAD"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
+        "/pricing/stocks/syncs", json={"symbols": ["BAD"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
     )
     assert response.status_code == 422
     assert response.json()["detail"] == "invalid symbol"
@@ -130,7 +130,7 @@ async def test_market_data_status_endpoint_returns_authenticated_scope_freshness
         ]
     )
     await db.commit()
-    response = await client.get("/market-data/status", params=[("pairs", "USD/SGD"), ("symbols", "IBM")])
+    response = await client.get("/pricing/market-data/status", params=[("pairs", "USD/SGD"), ("symbols", "IBM")])
     assert response.status_code == 200
     payload = response.json()
     assert {(item["kind"], item["scope"]) for item in payload} == {("fx", "USD/SGD"), ("stock", "IBM")}
@@ -174,7 +174,7 @@ async def test_brokerage_import_runs_market_data_freshness_check_and_reports_sta
     monkeypatch.setattr(composition, "ensure_market_data_fresh", fake_ensure)
     monkeypatch.setattr(reports_router, "generate_balance_sheet", fake_balance_sheet)
     import_resp = await client.post(
-        "/portfolio/brokerage/import",
+        "/portfolio/brokerage-imports",
         json={
             "filename": "sync-check.json",
             "payload": {
@@ -197,6 +197,6 @@ async def test_brokerage_import_runs_market_data_freshness_check_and_reports_sta
     assert "@pytest.mark.tier3" in _m1_e2e_source
     assert "@pytest.mark.critical" in _m1_e2e_source
     assert "RUN_MARKET_DATA_PROVIDER_E2E" in _m1_e2e_source
-    assert "/market-data/status" in _m1_e2e_source
-    assert "/market-data/stocks/syncs" not in _m1_e2e_source
+    assert "/pricing/market-data/status" in _m1_e2e_source
+    assert "/pricing/stocks/syncs" not in _m1_e2e_source
     assert "/reports/balance-sheet" in _m1_e2e_source

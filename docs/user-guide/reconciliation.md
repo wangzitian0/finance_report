@@ -12,7 +12,7 @@ Bank reconciliation matches your journal entries with bank statement transaction
 ### Via Web Interface
 1. Navigate to **Statements** → **Upload** 2. Select your file 3. Choose the bank account 4. Click **Upload & Parse**
 ### Via API
-```bash curl -X POST https://report.zitian.party/api/statements/upload \  -F "file=@statement.pdf" \  -F "account_id=<bank-account-id>" ```
+```bash curl -X POST https://report.zitian.party/api/statements \  -F "file=@statement.pdf" \  -F "account_id=<bank-account-id>" ```
 ## Step 2: AI Extraction
 The configured AI provider automatically extracts: - Transaction date - Description/Payee - Amount (debit/credit) - Running balance - Reference numbers !!! info "Accuracy" AI extraction typically achieves 95%+ accuracy. Always review the extracted data.
 ### Review Extracted Data
@@ -35,8 +35,8 @@ The reconciliation engine uses multi-dimensional scoring to find matches:
 ```json {  "pending_matches": [  {  "id": "match-123",  "bank_transaction": {  "date": "2026-01-06",  "description": "WHOLE FOODS #1234",  "amount": 87.50  },  "journal_entry": {  "date": "2026-01-06",  "memo": "Groceries - Whole Foods",  "amount": 87.50  },  "score": 78,  "score_breakdown": {  "amount": 100,  "date": 100,  "description": 45,  "business": 80,  "history": 60  }  }  ]  } ```
 ### Accept or Reject
 === "Accept Match"
-```bash curl -X POST https://report.zitian.party/api/reconciliation/matches/{id}/accept ``` === "Reject Match"
-```bash curl -X POST https://report.zitian.party/api/reconciliation/matches/{id}/reject \  -d '{"reason": "Wrong transaction"}' ``` === "Batch Accept (Score ≥ 80)"
+```bash curl -X PATCH https://report.zitian.party/api/reconciliation/matches/{id} \  -H "Content-Type: application/json" \  -d '{"action": "accept"}' ``` === "Reject Match"
+```bash curl -X PATCH https://report.zitian.party/api/reconciliation/matches/{id} \  -H "Content-Type: application/json" \  -d '{"action": "reject", "reason": "Wrong transaction"}' ``` === "Batch Accept (Score ≥ 80)"
 ```bash curl -X POST https://report.zitian.party/api/reconciliation/matches \  -d '{"action": "accept", "match_ids": ["..."], "min_score": 80}' ```
 ## Step 5: Handle Unmatched
 ### View Unmatched Transactions
@@ -46,7 +46,7 @@ The reconciliation engine uses multi-dimensional scoring to find matches:
 |-------|----------|
 | Missing economic meaning | Review intent, counter account, category, and evidence | | Wrong date or amount | Correct the source or investigate before posting | | Fee/interest | Review as an expense or income with the applicable category | | Duplicate | Void duplicate entry |
 ### Review and Post an Unmatched Transaction
-```bash # Confirm economic meaning; the server validates disposition and records its trace.  curl -X POST https://report.zitian.party/api/reconciliation/unmatched/{transaction-id}/reviewed-disposition \  -d '{  "intent": "expense",  "counter_account_id": "<fee-expense-id>",  "category": "BANK_FEES",  "rationale": "Reviewed against the statement fee description"  }' ```
+```bash # Confirm economic meaning; the server validates disposition and records its trace.  curl -X POST https://report.zitian.party/api/reconciliation/unmatched/{transaction-id}/reviewed-dispositions \  -d '{  "intent": "expense",  "counter_account_id": "<fee-expense-id>",  "category": "BANK_FEES",  "rationale": "Reviewed against the statement fee description"  }' ```
 Accepting a proposed match never creates an entry or changes its source provenance. If no reviewed source entry exists, complete this command first.
 ## Match Types
 ### One-to-One Match

@@ -262,8 +262,8 @@ async def test_AC_extraction_2994_110_the_route_answers_200_during_a_classify_ru
     await _commit_active_run(db, test_user, classify_id, RunKind.CLASSIFY)
     extract_run_id = await _commit_active_run(db, test_user, extract_id, RunKind.EXTRACT)
 
-    passed = await client.post(f"/statements/{classify_id}/review/envelope", json=classify_body)
-    refused = await client.post(f"/statements/{extract_id}/review/envelope", json=extract_body)
+    passed = await client.post(f"/statements/{classify_id}/review-envelopes", json=classify_body)
+    refused = await client.post(f"/statements/{extract_id}/review-envelopes", json=extract_body)
 
     assert passed.status_code == 200, passed.text
     assert refused.status_code == 409, refused.text

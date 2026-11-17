@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
@@ -87,3 +87,17 @@ JournalEntryListResponse = ListResponse[JournalEntryResponse]
 
 class VoidJournalEntryRequest(BaseModel):
     reason: Text500
+
+
+class AuditTrailItem(BaseModel):
+    timestamp: datetime = Field(..., validation_alias="created_at", description="Audit timestamp.")
+    actor: str
+    action: str
+    old_value: dict[str, Any] | None = None
+    new_value: dict[str, Any] | None = None
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
+
+
+class AuditTrailResponse(BaseModel):
+    items: list[AuditTrailItem]

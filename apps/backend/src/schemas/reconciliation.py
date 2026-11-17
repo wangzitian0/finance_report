@@ -9,7 +9,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.extraction import EconomicIntent
-from src.schemas.base import ListResponse, default_list
+from src.reconciliation import CheckStatus, CheckType
+from src.schemas.base import BaseResponse, CurrencyCode, ListResponse, MoneyAmount, default_list
 
 
 class ReconciliationStatusEnum(str, Enum):
@@ -151,3 +152,74 @@ class ReconciliationAdjustmentResponse(BaseModel):
     is_gain: bool
     journal_entry_id: UUID | None = None
     entry: JournalEntrySummary | None = None
+
+
+class ReconciliationMatchDecisionRequest(BaseModel):
+    action: Literal["accept", "reject"]
+
+
+class ProcessingSummaryResponse(BaseResponse):
+    pending_count: int
+    pending_total: MoneyAmount
+    current_balance: MoneyAmount
+    currency: CurrencyCode
+    oldest_pending_date: date | None = None
+
+
+class ProcessingPendingItem(BaseResponse):
+    entry_id: UUID
+    from_account: str
+    to_account: str
+    amount: MoneyAmount
+    currency: CurrencyCode
+    initiated_date: date
+    days_outstanding: int
+    description: str
+
+
+ProcessingPendingListResponse = ListResponse[ProcessingPendingItem]
+
+
+class ConsistencyCheckResponse(BaseModel):
+    id: UUID
+    check_type: CheckType
+    status: CheckStatus
+    related_txn_ids: list[str]
+    details: dict
+    severity: str
+    resolved_at: datetime | None = None
+    resolution_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConsistencyCheckListResponse(BaseModel):
+    items: list[ConsistencyCheckResponse]
+    total: int
+
+
+class ConsistencyCheckRunRequest(BaseModel):
+    statement_id: UUID
+
+
+class ResolveCheckRequest(BaseModel):
+    action: str
+    note: str | None = None
+
+
+class Stage2PendingMatch(BaseModel):
+    id: UUID
+    match_score: int
+    status: str
+    created_at: datetime | None = None
+    description: str | None = None
+    amount: Decimal | None = None
+    txn_date: date | None = None
+    confidence_tier: str
+
+
+class Stage2ReviewQueueResponse(BaseModel):
+    pending_matches: list[Stage2PendingMatch]
+    consistency_checks: list[ConsistencyCheckResponse]
+    has_unresolved_checks: bool

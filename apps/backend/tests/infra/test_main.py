@@ -85,7 +85,7 @@ async def test_get_pending_review_empty(client: AsyncClient) -> None:
 
 
 async def test_upload_no_file(client: AsyncClient) -> None:
-    response = await client.post("/statements/upload", data={"institution": "DBS"})
+    response = await client.post("/statements", data={"institution": "DBS"})
     assert response.status_code == 422
 
 
@@ -99,13 +99,11 @@ class TestSchemas:
 
         _m1_decision = StatementDecisionRequest(notes="Incorrect amount")
         assert _m1_decision.notes == "Incorrect amount"
-        from src.schemas.extraction import BankStatementStatusEnum
+        from src.extraction import BankStatementStatus
 
-        assert BankStatementStatusEnum.UPLOADED.value == "uploaded"
-        assert BankStatementStatusEnum.PARSED.value == "parsed"
-        assert BankStatementStatusEnum.APPROVED.value == "approved"
-
-
+        assert BankStatementStatus.UPLOADED.value == "uploaded"
+        assert BankStatementStatus.PARSED.value == "parsed"
+        assert BankStatementStatus.APPROVED.value == "approved"
 class TestDatabase:
     def test_base_metadata(self):
         from src.database import Base

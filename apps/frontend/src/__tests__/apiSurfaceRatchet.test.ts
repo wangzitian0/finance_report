@@ -37,18 +37,18 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     reason: "SDK dependency readiness probe.",
     proofPaths: ["docs/reference/api.md"],
   },
-  run_stage2_checks_statements__statement_id__stage2_run_checks_post: {
+  run_stage2_checks_reconciliation_consistency_checks_runs_post: {
     category: "non_ui_caller",
-    methodPath: "POST /statements/{statement_id}/stage2/run-checks",
+    methodPath: "POST /reconciliation/consistency-checks/runs",
     reason: "Financial scenario benchmark runner and SSOT flow 8 trigger.",
     proofPaths: [
       "tests/benchmarks/run_financial_scenario_benchmark.py",
       "common/meta/flows/thirty_flows_ssot.json",
     ],
   },
-  post_reconciliation_adjustment_reconciliation_adjustment_post: {
+  post_reconciliation_adjustment_reconciliation_adjustments_post: {
     category: "non_ui_caller",
-    methodPath: "POST /reconciliation/adjustment",
+    methodPath: "POST /reconciliation/adjustments",
     reason: "Scenario benchmark and reporting E2E reconciliation adjustment flow 18.",
     proofPaths: [
       "tests/benchmarks/run_financial_scenario_benchmark.py",
@@ -67,20 +67,11 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     reason: "Scenario benchmark runner fetching single journal entry lineage.",
     proofPaths: ["tests/benchmarks/run_financial_scenario_benchmark.py"],
   },
-  import_brokerage_positions_portfolio_brokerage_import_post: {
+  import_brokerage_positions_portfolio_brokerage_imports_post: {
     category: "non_ui_caller",
-    methodPath: "POST /portfolio/brokerage/import",
+    methodPath: "POST /portfolio/brokerage-imports",
     reason: "Scenario benchmark brokerage import step (FE upload UI not yet wired).",
     proofPaths: ["tests/benchmarks/run_financial_scenario_benchmark.py"],
-  },
-  export_annual_tax_archive_reports_package_annual_archive_post: {
-    category: "non_ui_caller",
-    methodPath: "POST /reports/package/annual-archive",
-    reason: "Scenario benchmark and SSOT flow 28 annual tax archive export.",
-    proofPaths: [
-      "tests/benchmarks/run_financial_scenario_benchmark.py",
-      "common/meta/flows/thirty_flows_ssot.json",
-    ],
   },
   balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get: {
     category: "non_ui_caller",
@@ -93,55 +84,23 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
   },
 
   // Set B (#3009): manual replay endpoints for scheduled jobs ("two triggers" invariant)
-  sync_fx_endpoint_market_data_fx_syncs_post: {
+  sync_fx_endpoint_pricing_fx_syncs_post: {
     category: "manual_replay",
-    methodPath: "POST /market-data/fx/syncs",
+    methodPath: "POST /pricing/fx/syncs",
     reason: "Manual replay endpoint paired with scheduled FX market-data sync.",
     proofPaths: ["common/pricing/readme.md"],
   },
-  sync_stocks_endpoint_market_data_stocks_syncs_post: {
+  sync_stocks_endpoint_pricing_stocks_syncs_post: {
     category: "manual_replay",
-    methodPath: "POST /market-data/stocks/syncs",
+    methodPath: "POST /pricing/stocks/syncs",
     reason: "Manual replay endpoint paired with scheduled stock market-data sync.",
     proofPaths: ["common/pricing/readme.md"],
   },
 
-  // Set C (#3009): package-documented contracts pending FE wiring
-  list_account_statement_coverage_accounts_coverage_get: {
-    category: "documented_fe_gap",
-    methodPath: "GET /accounts/coverage",
-    reason: "Documented statement coverage endpoint in extraction README.",
-    proofPaths: ["common/extraction/readme.md"],
-  },
-  get_valuation_snapshot_assets_valuation_snapshots__snapshot_id__get: {
-    category: "documented_fe_gap",
-    methodPath: "GET /assets/valuation-snapshots/{snapshot_id}",
-    reason: "Documented asset valuation snapshot read contract in portfolio/pricing READMEs.",
-    proofPaths: ["common/portfolio/readme.md", "common/pricing/readme.md"],
-  },
-  update_valuation_snapshot_assets_valuation_snapshots__snapshot_id__patch: {
-    category: "documented_fe_gap",
-    methodPath: "PATCH /assets/valuation-snapshots/{snapshot_id}",
-    reason: "Documented asset valuation snapshot update contract in portfolio/pricing READMEs.",
-    proofPaths: ["common/portfolio/readme.md", "common/pricing/readme.md"],
-  },
-  delete_valuation_snapshot_assets_valuation_snapshots__snapshot_id__delete: {
-    category: "documented_fe_gap",
-    methodPath: "DELETE /assets/valuation-snapshots/{snapshot_id}",
-    reason: "Documented asset valuation snapshot delete contract in portfolio/pricing READMEs.",
-    proofPaths: ["common/portfolio/readme.md", "common/pricing/readme.md"],
-  },
-  get_position_depreciation_assets_positions__position_id__depreciation_get: {
-    category: "documented_fe_gap",
-    methodPath: "GET /assets/positions/{position_id}/depreciation",
-    reason: "Documented position depreciation schedule contract in portfolio README.",
-    proofPaths: ["common/portfolio/readme.md"],
-  },
-
   // Retained in #3012 with verified active callers or explicit dependency
-  list_valuation_components_assets_valuation_components_get: {
+  list_valuation_components_pricing_valuation_components_get: {
     category: "kept_deferred",
-    methodPath: "GET /assets/valuation-components",
+    methodPath: "GET /pricing/valuation-components",
     reason: "Called by benchmark case_5 and golden E2E test pinned by AC8.13.42.",
     proofPaths: [
       "tests/benchmarks/cases/case_5.py",
@@ -149,9 +108,9 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
       "tests/tooling/test_post_merge_e2e_gates.py",
     ],
   },
-  market_data_status_endpoint_market_data_status_get: {
+  market_data_status_endpoint_pricing_market_data_status_get: {
     category: "kept_deferred",
-    methodPath: "GET /market-data/status",
+    methodPath: "GET /pricing/market-data/status",
     reason: "Documented in pricing README and called by staging_core_e2e market-data check.",
     proofPaths: [
       "common/pricing/readme.md",
@@ -289,10 +248,21 @@ describe("API surface ratchet", () => {
     ).toEqual([]);
 
     for (const [opId, entry] of Object.entries(NON_UI_ALLOWLIST)) {
+      const pathPart = entry.methodPath.split(" ", 2)[1] ?? "";
+      const segs = pathPart.split("/").filter((s) => s.length > 0 && !s.startsWith("{"));
+      const tail = segs[segs.length - 1] ?? "";
+      const token =
+        tail === "runs" || tail === "syncs" ? segs.slice(-2).join("/") : tail;
       for (const relPath of entry.proofPaths) {
+        const absPath = resolve(repoRoot, relPath);
         expect(
-          existsSync(resolve(repoRoot, relPath)),
+          existsSync(absPath),
           `Allow-list entry ${opId} references missing proof path: ${relPath}`,
+        ).toBe(true);
+        const content = readFileSync(absPath, "utf8");
+        expect(
+          content.includes(token) || content.includes(token.replaceAll("-", "_")),
+          `Allow-list entry ${opId} proof path ${relPath} does not reference ${token}`,
         ).toBe(true);
       }
     }

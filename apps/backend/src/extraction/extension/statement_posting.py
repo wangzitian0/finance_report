@@ -581,6 +581,97 @@ async def resolve_statement_posting_account(db: AsyncSession, statement: Stateme
     raise ValidationFailedError("Account mapping required before posting. Confirm the statement custody identity.")
 
 
+async def _resolve_statement_uploaded_document(
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
+) -> UploadedDocument | None:
+    if statement.uploaded_document_id is not None:
+        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
+        if doc is not None and doc.user_id == user_id:
+            return doc
+    return (
+        await db.execute(
+            select(UploadedDocument).where(
+                UploadedDocument.user_id == user_id, UploadedDocument.file_hash == statement.file_hash
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def create_statement_account_from_confirmation(
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
+) -> Account:
+    """Resolve or auto-create the statement custody/asset account upon user confirmation."""
+    document = await _resolve_statement_uploaded_document(db, statement, user_id)
+    if statement.institution and statement.account_last4 and statement.currency:
+        source = await get_current_statement_extraction_result(
+            db, user_id=user_id, statement_id=statement.id, statement=statement
+        )
+        if is_bank_custody_source(source, document):
+            resolved = await resolve_bank_custody_account(
+                db,
+                user_id=user_id,
+                institution=statement.institution,
+                account_last4=statement.account_last4,
+                currency=statement.currency,
+                account_id=statement.account_id,
+            )
+            statement.account_id = resolved.id
+            await db.flush()
+            return resolved
+    if statement.account_id:
+        account = (
+            await db.execute(select(Account).where(Account.id == statement.account_id, Account.user_id == user_id))
+        ).scalar_one_or_none()
+        if account:
+            return account
+        raise ValidationFailedError(
+            "Statement account mapping is invalid. Confirm the target account before posting."
+        )
+
+    currency = (statement.currency or "").strip().upper()
+    if not currency:
+        raise ValidationFailedError(
+            "Statement currency required before creating an account. Confirm the source currency first."
+        )
+    account_name = (statement.institution or "").strip() or "Statement Account"
+    if statement.account_last4:
+        account_name = f"{account_name} *{statement.account_last4.strip()}"
+    source_filename = document.original_filename if document else statement.file_hash
+
+    async def _find_statement_account(session: AsyncSession) -> Account | None:
+        return (
+            await session.execute(
+                select(Account)
+                .where(
+                    Account.user_id == user_id,
+                    Account.name == account_name,
+                    Account.type == AccountType.ASSET,
+                    Account.currency == currency,
+                    Account.is_active.is_(True),
+                )
+                .order_by(Account.created_at, Account.id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+    created = await account_service.find_or_create_account(
+        db,
+        user_id=user_id,
+        find=_find_statement_account,
+        build=lambda: Account(
+            user_id=user_id,
+            name=account_name,
+            type=AccountType.ASSET,
+            currency=currency,
+            code="AUTO-BANK",
+            description=f"Created from confirmed statement import {source_filename}",
+        ),
+    )
+    statement.account_id = created.id
+    await db.flush()
+    return created
+
+
 async def validate_statement_period_unique(
     db: AsyncSession, statement: StatementSummary, user_id: UUID, account_id: UUID
 ) -> None:

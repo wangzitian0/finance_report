@@ -121,7 +121,7 @@ export default function GuidedEvidenceForm({ initialSourceClass }: { initialSour
 
   const { data: snapshotData } = useQuery({
     queryKey: ["valuation-snapshots", "guided-evidence"],
-    queryFn: () => apiOperation("list_valuation_snapshots_assets_valuation_snapshots_get", { query: { limit: 10 } }),
+    queryFn: () => apiOperation("list_manual_valuations_pricing_manual_valuations_get", { query: { limit: 10 } }),
   });
 
   const recentEvidence: ManualValuationSnapshot[] = snapshotData?.items ?? [];
@@ -131,7 +131,7 @@ export default function GuidedEvidenceForm({ initialSourceClass }: { initialSour
       const sourceLabel = form.source_anchor.trim()
         ? `${form.source_label.trim()} (${form.source_anchor.trim()})`
         : form.source_label.trim();
-      return apiOperation("create_valuation_snapshot_assets_valuation_snapshots_post", {
+      return apiOperation("create_manual_valuation_pricing_manual_valuations_post", {
         body: {
           component_type: activeConfig.componentType,
           as_of_date: form.as_of_date,

@@ -208,7 +208,7 @@ async def test_AC_extraction_2994_19_a_reparse_while_a_run_is_active_returns_409
     await db.commit()
     other_active_id = other_active.id
 
-    rejected = await client.post(f"/statements/{reject_statement_id}/review/reject", json={"notes": "check again"})
+    rejected = await client.post(f"/statements/{reject_statement_id}/rejections", json={"notes": "check again"})
 
     assert rejected.status_code == 409, rejected.text
     assert rejected.json()["active_run_id"] == str(other_active_id)
@@ -268,8 +268,8 @@ async def test_AC_extraction_2994_39_two_concurrent_rejects_give_one_200_and_one
         )
         statement_id = statement.id
         first, second = await asyncio.gather(
-            client.post(f"/statements/{statement_id}/review/reject", json={"notes": "double click"}),
-            client.post(f"/statements/{statement_id}/review/reject", json={"notes": "double click"}),
+            client.post(f"/statements/{statement_id}/rejections", json={"notes": "double click"}),
+            client.post(f"/statements/{statement_id}/rejections", json={"notes": "double click"}),
         )
 
         assert sorted([first.status_code, second.status_code]) == [200, 409], (first.text, second.text)
@@ -296,8 +296,8 @@ async def test_AC_extraction_2994_40_the_reject_notes_become_the_hint_note_of_th
         db, test_user, status=BankStatementStatus.PARSED, file_hash="hash_notes_too_long"
     )
     too_long_id = too_long.id
-    rejected_long = await client.post(f"/statements/{too_long_id}/review/reject", json={"notes": "n" * 501})
-    rejected_control = await client.post(f"/statements/{too_long_id}/review/reject", json={"notes": "bell\x07"})
+    rejected_long = await client.post(f"/statements/{too_long_id}/rejections", json={"notes": "n" * 501})
+    rejected_control = await client.post(f"/statements/{too_long_id}/rejections", json={"notes": "bell\x07"})
     assert rejected_long.status_code == 422, rejected_long.text
     assert rejected_long.json()["detail"][0]["type"] == "string_too_long", "the schema holds the limit"
     assert rejected_control.status_code == 422, rejected_control.text
@@ -309,10 +309,10 @@ async def test_AC_extraction_2994_40_the_reject_notes_become_the_hint_note_of_th
 
     exact = await _statement_with_document(db, test_user, status=BankStatementStatus.PARSED, file_hash="hash_notes_ok")
     exact_id = exact.id
-    accepted = await client.post(f"/statements/{exact_id}/review/reject", json={"notes": "n" * 500})
+    accepted = await client.post(f"/statements/{exact_id}/rejections", json={"notes": "n" * 500})
     plain = await _statement_with_document(db, test_user, status=BankStatementStatus.PARSED, file_hash="hash_notes_none")
     plain_id = plain.id
-    without_notes = await client.post(f"/statements/{plain_id}/review/reject", json={})
+    without_notes = await client.post(f"/statements/{plain_id}/rejections", json={})
     await statements_router.wait_for_parse_tasks()
 
     assert accepted.status_code == 200, accepted.text

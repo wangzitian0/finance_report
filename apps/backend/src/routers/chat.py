@@ -233,7 +233,7 @@ async def chat_history(
     return ChatHistoryResponse(sessions=sessions)
 
 
-@router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(session_id: UUID, *, ctx: Ctx) -> None:
     """Soft-delete a chat session."""
     session = await get_owned_or_raise(ctx.db, ChatSession, session_id, ctx.user_id, name="Chat session")

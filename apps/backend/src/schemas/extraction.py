@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Annotated, Literal
+from enum import Enum
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -13,16 +14,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from src.extraction import (
     BankStatementStatus,
     RunHints,
+    Stage1Status,
     StatementRunRecord,
     TransactionCategory,
     brokerage_import_failure_reason,
 )
-from src.schemas.base import CurrencyCode, ListResponse, default_list
+from src.schemas.base import BaseResponse, CurrencyCode, ListResponse, MoneyAmount, default_list
 
 if TYPE_CHECKING:
     from src.extraction import AtomicTransaction, ClassificationSuggestion, StatementSummary, UploadedDocument
-
-BankStatementStatusEnum = BankStatementStatus
 
 
 class CurrencyBalance(BaseModel):
@@ -30,12 +30,6 @@ class CurrencyBalance(BaseModel):
     opening: Decimal
     closing: Decimal
     model_config = ConfigDict(from_attributes=True)
-
-
-class BankStatementUploadRequest(BaseModel):
-    institution: str | None = None
-    file_type: str
-    account_id: UUID | None = None
 
 
 class StatementDecisionRequest(BaseModel):
@@ -151,7 +145,7 @@ class BankStatementListItemResponse(BaseModel):
     period_end: date | None
     opening_balance: Decimal | None
     closing_balance: Decimal | None
-    status: BankStatementStatusEnum
+    status: BankStatementStatus
     confidence_score: int | None
     balance_validated: bool | None
     validation_error: str | None
@@ -224,15 +218,207 @@ BankStatementListResponse = ListResponse[BankStatementListItemResponse]
 StatementRunListResponse = ListResponse[StatementRunRecord]
 
 
-class ParsedStatementPreview(BaseModel):
-    institution: str
-    account_last4: str | None
+class AccountCoverageCadence(str, Enum):
+    MONTHLY = "monthly"
+    DAILY_SNAPSHOT = "daily_snapshot"
+
+
+class AccountCoverageIssueType(str, Enum):
+    GAP = "gap"
+    OVERLAP = "overlap"
+    DUPLICATE_PERIOD = "duplicate_period"
+    OPENING_BALANCE_MISMATCH = "opening_balance_mismatch"
+
+
+class AccountCoverageIssue(BaseResponse):
+    type: AccountCoverageIssueType
+    severity: str
+    currency: CurrencyCode
+    period_start: date
+    period_end: date
+    statement_id: UUID | None = None
+    previous_statement_id: UUID | None = None
+    expected_opening_balance: MoneyAmount | None = None
+    actual_opening_balance: MoneyAmount | None = None
+    delta: MoneyAmount | None = None
+
+
+class AccountCoverageResponse(BaseResponse):
+    account_id: UUID
+    account_name: str
+    currency: CurrencyCode
+    cadence: AccountCoverageCadence
+    latest_source_date: date | None = None
+    latest_confirmed_balance: MoneyAmount | None = None
+    stale_after_days: int
+    is_stale: bool
+    has_daily_snapshot_override: bool
+    coverage_complete: bool
+    issues: list[AccountCoverageIssue]
+
+
+class AccountCoverageListResponse(BaseResponse):
+    items: list[AccountCoverageResponse]
+    total: int
+    as_of: date
+
+
+class AiFeedbackRequest(BaseModel):
+    suggestion_id: UUID
+    action: Literal["accept", "reject", "edit_accept"]
+    corrected_value: dict[str, Any] | None = None
+
+
+class AiFeedbackResponse(BaseModel):
+    id: UUID
+    suggestion_id: UUID
+    user_id: UUID
+    action: str
+    corrected_value: dict[str, Any] | None = None
+    created_at: datetime
+    effect: str = Field(
+        default="recorded",
+        description=(
+            "What the decision changed: accepted, rejected or corrected for a pending draft; "
+            "recorded when the id is already superseded or applied, so only the feedback is stored."
+        ),
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AiSuggestionResponse(BaseModel):
+    suggestion_id: UUID
+    transaction: str
+    suggested_category_or_match: str
+    ai_score: int = Field(..., ge=60, le=84, description="AI classification confidence score")
+    ai_reasoning: str
+    direction: Literal["IN", "OUT"] | None = None
+
+
+class AiSuggestionListResponse(BaseModel):
+    items: list[AiSuggestionResponse]
+    total: int
+
+
+class CorrectionRequest(BaseModel):
+    """Request to record a user correction."""
+
+    transaction_id: UUID
+    corrected_category: str = Field(..., min_length=1, max_length=100, description="User-corrected transaction category")
+    corrected_account_id: UUID | None = None
+
+
+class CorrectionResponse(BaseModel):
+    """Response after recording a correction."""
+
+    id: UUID
+    transaction_id: UUID
+    original_category: str | None
+    corrected_category: str
+
+
+class CorrectionLoopReplayResponse(BaseModel):
+    holdout_size: int
+    grounded: int
+    proportion_before: Decimal
+    proportion_after: Decimal
+    reduced: bool
+    high_confidence_count: int = 0
+    medium_confidence_count: int = 0
+    low_confidence_count: int = 0
+    low_confidence_proportion: Decimal = Decimal("0")
+
+
+class BalanceValidationResult(BaseModel):
+    opening_balance: str | None = None
+    closing_balance: str | None
+    calculated_closing: str
+    opening_delta: str
+    closing_delta: str
+    opening_match: bool
+    closing_match: bool
+    validated_at: str
+    previous_closing_balance: str | None = None
+    previous_period_end: str | None = None
+    cross_period_delta: str | None = None
+    cross_period_match: bool | None = None
+    has_date_gap: bool | None = None
+
+
+class ReviewedStatementEnvelopeRequest(BaseModel):
+    source_result_digest: Annotated[str, Field(min_length=64, max_length=64)]
+    account_id: UUID
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    period_start: date
+    period_end: date
+    opening_balance: Decimal
+    closing_balance: Decimal
+    rationale: Annotated[str, Field(min_length=1, max_length=2000)]
+
+
+class ReviewedStatementEnvelopeResponse(BaseModel):
+    id: UUID
+    source_result_digest: str
+    account_id: UUID
     currency: str
     period_start: date
     period_end: date
     opening_balance: Decimal
     closing_balance: Decimal
-    transactions_count: int
-    confidence_score: int
-    balance_validated: bool
+    rationale: str
+    review_trace_record_id: UUID
+    created_at: datetime
+
+
+class StatementReviewResponse(BankStatementResponse):
+    stage1_status: Stage1Status | None = None
+    balance_validation_result: BalanceValidationResult | None = None
+    stage1_reviewed_at: datetime | None = None
+    manual_opening_balance: Decimal | None = None
+    source_result_digest: str | None = None
+    source_missing_facts: list[str] = default_list()
+    source_envelope_reviewable: bool = False
+    reviewed_envelope: ReviewedStatementEnvelopeResponse | None = None
+    pdf_url: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Stage1ApprovalRequest(BaseModel):
+    account_id: UUID | None = None
+    create_account_if_missing: bool = False
+    auto_fill_default_categories: bool = False
+
+
+class Stage1ApprovalResponse(BaseModel):
+    """What the approval changed. The page refetches the statement, so this holds no transaction rows."""
+
+    id: UUID
+    account_id: UUID | None
+    status: BankStatementStatus
     validation_error: str | None
+    journal_entries_created: int = 0
+
+
+class ReviewConflictCandidate(BaseModel):
+    id: UUID
+    txn_date: date
+    description: str
+    amount: Decimal
+    direction: str
+
+
+class ReviewConflictsResponse(BaseModel):
+    duplicates: list[ReviewConflictCandidate] = default_list()
+    transfer_pairs: list[ReviewConflictCandidate] = default_list()
+    resolved: bool = False
+
+
+class ResolveConflictsRequest(BaseModel):
+    action: Literal["confirm_distinct", "link_transfer"] = "confirm_distinct"
+    note: Annotated[str, Field(max_length=500)] | None = None
+
+
+class ReviewConflictsResolveResponse(BaseModel):
+    resolved: bool
+    resolved_at: datetime | None = None

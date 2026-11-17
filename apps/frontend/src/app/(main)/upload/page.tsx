@@ -9,6 +9,7 @@ import { Trash2 } from "lucide-react";
 import StatementUploader from "@/components/statements/StatementUploader";
 import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
 import { ProcessingTransfers } from "@/components/statements/ProcessingTransfers";
+import { StatementCoverageCard } from "@/components/statements/StatementCoverageCard";
 import { FlowStepBanner, WorkflowNotices } from "@/components/workflow/WorkflowNotifications";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { AuditBackLink } from "@/components/ui/SmartBackLink";
@@ -88,7 +89,7 @@ export default function UploadPage() {
   const retryBrokerageImport = async (statementId: string) => {
     setRetryingImportId(statementId);
     try {
-      await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_import_post", { path: { statement_id: statementId } });
+      await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post", { path: { statement_id: statementId } });
       showToast("Brokerage positions imported", "success");
       // The import changed the holdings: the portfolio reads are stale (#2648).
       void invalidatePortfolioQueries(queryClient);
@@ -284,6 +285,8 @@ export default function UploadPage() {
       </div>
 
       <ProcessingTransfers />
+
+      <StatementCoverageCard />
 
       <details className="card mb-3 group">
         <summary className="card-header flex items-center justify-between cursor-pointer list-none">

@@ -32,6 +32,7 @@ from src.extraction.extension.classification import ClassificationService
 from src.extraction.extension.correction_service import invalidate_correction_cache
 from src.extraction.extension.prompts import classification as templates
 from src.extraction.extension.prompts.hints import hints_block
+from src.extraction.orm.ai_feedback import AiFeedback
 from src.extraction.orm.correction import CorrectionLog
 from src.platform import ValidationFailedError
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -1117,6 +1118,35 @@ async def apply_suggestion_feedback(
     classification.account_id = account_id
     await db.flush()
     return "corrected"
+
+
+async def record_classification_feedback(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    suggestion_id: UUID,
+    action: str,
+    corrected_value: dict[str, Any] | None,
+) -> tuple[AiFeedback, FeedbackEffect] | None:
+    """Persist AI feedback for an owned classification suggestion and apply its effect."""
+    owned = await db.scalar(
+        select(TransactionClassification.id)
+        .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
+        .where(TransactionClassification.id == suggestion_id)
+        .where(AtomicTransaction.user_id == user_id)
+        .limit(1)
+    )
+    if owned is None:
+        return None
+    effect = await apply_suggestion_feedback(db, user_id, suggestion_id, action, corrected_value)
+    feedback = AiFeedback(
+        suggestion_id=suggestion_id,
+        user_id=user_id,
+        action=action,
+        corrected_value=corrected_value,
+    )
+    db.add(feedback)
+    return feedback, effect
 
 
 async def apply_user_transaction_correction(

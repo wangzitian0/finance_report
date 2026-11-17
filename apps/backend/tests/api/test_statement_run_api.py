@@ -429,7 +429,7 @@ async def test_AC_extraction_2994_69_reject_on_a_csv_statement_records_empty_hin
     statement_id = statement.id
     _capture_dispatch(monkeypatch)
 
-    response = await client.post(f"/statements/{statement_id}/review/reject", json={"notes": "check the dates"})
+    response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check the dates"})
 
     assert response.status_code == 200, response.text
     (run,) = await _runs(db, statement_id)
@@ -444,7 +444,7 @@ async def test_AC_extraction_2994_69_reject_on_a_pdf_statement_still_records_its
     statement_id = statement.id
     _capture_dispatch(monkeypatch)
 
-    response = await client.post(f"/statements/{statement_id}/review/reject", json={"notes": "check the dates"})
+    response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check the dates"})
 
     assert response.status_code == 200, response.text
     (run,) = await _runs(db, statement_id)
@@ -524,7 +524,7 @@ async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_afte
 
     monkeypatch.setattr(statements_router, "_resolve_uploaded_document", resolve_after_a_retirement)
 
-    response = await client.post(f"/statements/{statement_id}/review/reject", json={"notes": "check again"})
+    response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check again"})
 
     assert response.status_code == 409, response.text
     assert await _status(db, statement_id) is BankStatementStatus.RETIRED, "the reject must not revive a retired statement"
@@ -541,9 +541,9 @@ async def test_AC_extraction_2994_78_a_reject_and_a_rerun_at_once_give_one_winne
         statement = await _statement(db, test_user)
         statement_id = statement.id
         first, second = await asyncio.gather(
-            client.post(f"/statements/{statement_id}/review/reject", json={"notes": "again"}),
+            client.post(f"/statements/{statement_id}/rejections", json={"notes": "again"}),
             client.post(f"/statements/{statement_id}/runs", json={}) if round_number % 2 else client.post(
-                f"/statements/{statement_id}/review/reject", json={"notes": "twice"}
+                f"/statements/{statement_id}/rejections", json={"notes": "twice"}
             ),
         )
 

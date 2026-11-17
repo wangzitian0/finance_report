@@ -33,8 +33,10 @@ async def test_AC_extraction_2994_151_a_lookup_by_row_reads_only_the_rows_of_tha
         for txn_id in txn_ids
     )
     await db.commit()
-    async with db_engine.connect() as connection:  # fresh statistics: the plan must not depend on a lucky autovacuum
-        await (await connection.execution_options(isolation_level="AUTOCOMMIT")).execute(text("ANALYZE"))
+    async with db_engine.connect() as connection:  # fresh statistics without polluting unrelated worker tables
+        await (await connection.execution_options(isolation_level="AUTOCOMMIT")).execute(
+            text("ANALYZE transaction_classification, classification_rules, atomic_transactions")
+        )
     stored = await db.scalar(text("SELECT count(*) FROM transaction_classification"))
     own = await db.scalar(
         text("SELECT count(*) FROM transaction_classification WHERE atomic_txn_id = ANY(:ids)"), {"ids": txn_ids}

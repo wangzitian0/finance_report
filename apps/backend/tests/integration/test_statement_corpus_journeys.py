@@ -252,11 +252,11 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
     conflicts = conflicts_resp.json()
     if conflicts["duplicates"] or conflicts["transfer_pairs"]:
         resolve_resp = await client.post(
-            f"/statements/{stmt_id}/conflicts/resolve",
+            f"/statements/{stmt_id}/conflict-resolutions",
             json={"action": "confirm_distinct", "note": f"corpus {case.short_id}: source rows verified"},
         )
         assert resolve_resp.status_code == 200, resolve_resp.text
-    approve_resp = await client.post(f"/statements/{stmt_id}/review/approve", json={"create_account_if_missing": True})
+    approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
     assert approve_resp.status_code == 200, approve_resp.text
     approved = approve_resp.json()
     assert approved["journal_entries_created"] == n
@@ -340,7 +340,7 @@ async def test_corpus_zero_transaction_statement_approves_empty(client, db, test
     review = review_resp.json()
     assert review["transactions"] == []
     assert review["balance_validation_result"]["closing_match"] is True
-    approve_resp = await client.post(f"/statements/{stmt_id}/review/approve", json={"create_account_if_missing": True})
+    approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
     assert approve_resp.status_code == 200, approve_resp.text
     assert approve_resp.json()["journal_entries_created"] == 0
     run_resp = await client.post("/reconciliation/runs", json={"statement_id": stmt_id})
@@ -393,16 +393,14 @@ async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user
         conflicts = conflicts_resp.json()
         if conflicts["duplicates"] or conflicts["transfer_pairs"]:
             resolve_resp = await client.post(
-                f"/statements/{stmt_id}/conflicts/resolve",
+                f"/statements/{stmt_id}/conflict-resolutions",
                 json={
                     "action": "confirm_distinct",
                     "note": f"multi-statement corpus {case.short_id}: source rows verified",
                 },
             )
             assert resolve_resp.status_code == 200, resolve_resp.text
-        approve_resp = await client.post(
-            f"/statements/{stmt_id}/review/approve", json={"create_account_if_missing": True}
-        )
+        approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
         assert approve_resp.status_code == 200, approve_resp.text
         approved = approve_resp.json()
         assert approved["journal_entries_created"] == len(case.rows)

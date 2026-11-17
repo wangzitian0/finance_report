@@ -1,27 +1,26 @@
 """Managed-position service (split from services/assets.py, #1677/#1610).
 
-Manual asset positions, reconciliation from parsed brokerage facts, and
-depreciation schedules are portfolio-owned; the valuation-snapshot half
-lives in ``src.pricing.extension.valuation``.
+Manual asset positions and reconciliation from parsed brokerage facts are
+portfolio-owned; the valuation-snapshot half lives in
+``src.pricing.extension.valuation``.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import date
-from decimal import Decimal
-from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Currency, InvalidCurrencyError, Money, to_money
+from src.audit.money import Currency, InvalidCurrencyError, Money
 from src.audit.money.currency import normalize_currency_code
 from src.audit.quantity import Quantity, Unit
 from src.extraction.orm.layer2 import AtomicPosition
-from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
+from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, account_service
 from src.observability import get_logger
 from src.platform.base.errors import DomainError
+from src.portfolio.orm.portfolio import InvestmentTransaction, InvestmentTransactionType
 
 logger = get_logger(__name__)
 
@@ -57,20 +56,6 @@ class ReconcileResult:
     disposed: int = 0
     skipped: int = 0
     skipped_assets: list[str] = field(default_factory=list)
-
-
-@dataclass
-class DepreciationResult:
-    """Result of depreciation calculation."""
-
-    position_id: UUID
-    asset_identifier: str
-    period_depreciation: Decimal
-    accumulated_depreciation: Decimal
-    book_value: Decimal
-    method: str
-    useful_life_years: int
-    salvage_value: Decimal
 
 
 class PositionService:
@@ -267,96 +252,52 @@ class PositionService:
             ),
         )
 
-    def calculate_depreciation(
-        self,
-        position: ManagedPosition,
-        method: Literal["straight-line", "declining-balance"],
-        useful_life_years: int,
-        salvage_value: Decimal,
-        as_of_date: date,
-    ) -> DepreciationResult:
-        """Calculate depreciation for a position.
-
-        Straight-line: (cost - salvage) / useful_life
-        Declining-balance: 2 * (1/useful_life) * book_value (double declining)
-        """
-        if useful_life_years <= 0:
-            raise PositionServiceError("Useful life must be positive")
-
-        if position.status == PositionStatus.DISPOSED:
-            raise PositionServiceError("Cannot depreciate disposed position")
-
-        # Read cost via the money accessor; the depreciation math below is a
-        # self-contained single-currency calculation (salvage_value carries no
-        # currency), so it operates on the scalar amount.
-        cost_basis = position.cost_basis_money.amount
-        acquisition_date = position.acquisition_date
-
-        years_held = (as_of_date - acquisition_date).days / Decimal("365.25")
-        years_held = min(years_held, Decimal(useful_life_years))
-
-        if years_held < 0:
-            raise PositionServiceError("as_of_date cannot be before acquisition_date")
-
-        depreciable_amount = cost_basis - salvage_value
-        if depreciable_amount < 0:
-            depreciable_amount = Decimal("0")
-
-        if method == "straight-line":
-            annual_depreciation = depreciable_amount / useful_life_years
-            accumulated = annual_depreciation * years_held
-            period_depreciation = annual_depreciation
-
-        else:  # declining-balance (double declining)
-            rate = Decimal("2") / useful_life_years
-            accumulated = Decimal("0")
-            book_value = cost_basis
-
-            full_years = int(years_held)
-            for _ in range(full_years):
-                period_dep = book_value * rate
-                if book_value - period_dep < salvage_value:
-                    period_dep = book_value - salvage_value
-                accumulated += period_dep
-                book_value -= period_dep
-                if book_value <= salvage_value:
-                    break
-
-            period_depreciation = book_value * rate if book_value > salvage_value else Decimal("0")
-
-        accumulated = min(accumulated, depreciable_amount)
-        book_value = cost_basis - accumulated
-
-        return DepreciationResult(
-            position_id=position.id,
-            asset_identifier=position.asset_identifier,
-            period_depreciation=to_money(period_depreciation),
-            accumulated_depreciation=to_money(accumulated),
-            book_value=to_money(book_value),
-            method=method,
-            useful_life_years=useful_life_years,
-            salvage_value=salvage_value,
-        )
-
-    async def get_depreciation_schedule(
+    async def list_realized_lots(
         self,
         db: AsyncSession,
+        *,
         user_id: UUID,
-        position_id: UUID,
-        method: Literal["straight-line", "declining-balance"] = "straight-line",
-        useful_life_years: int = 5,
-        salvage_value: Decimal = Decimal("0"),
-        as_of_date: date | None = None,
-    ) -> DepreciationResult:
-        """Get depreciation schedule for a position."""
-        position = await self.get_position(db, user_id, position_id)
-        if not position:
-            raise PositionServiceError("Position not found")
-
-        return self.calculate_depreciation(
-            position=position,
-            method=method,
-            useful_life_years=useful_life_years,
-            salvage_value=salvage_value,
-            as_of_date=as_of_date or date.today(),
+        ticker: str,
+        limit: int,
+        offset: int,
+    ) -> Sequence[tuple[InvestmentTransaction, ManagedPosition | None]]:
+        """List SELL lot transactions paired with their originating managed position."""
+        result = await db.execute(
+            select(InvestmentTransaction, ManagedPosition)
+            .outerjoin(ManagedPosition, InvestmentTransaction.position_id == ManagedPosition.id)
+            .where(
+                InvestmentTransaction.user_id == user_id,
+                InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL,
+                InvestmentTransaction.asset_identifier == ticker,
+            )
+            .order_by(InvestmentTransaction.transaction_date.desc(), InvestmentTransaction.id.desc())
+            .offset(offset)
+            .limit(limit)
         )
+        return list(result.all())
+
+    async def update_cost_basis_method(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        ticker: str,
+        cost_basis_method: CostBasisMethod,
+    ) -> int:
+        """Update cost_basis_method for all active managed positions matching a ticker."""
+        positions = list(
+            (
+                await db.execute(
+                    select(ManagedPosition).where(
+                        ManagedPosition.user_id == user_id,
+                        ManagedPosition.asset_identifier == ticker,
+                        ManagedPosition.status == PositionStatus.ACTIVE,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for position in positions:
+            position.cost_basis_method = cost_basis_method
+        return len(positions)

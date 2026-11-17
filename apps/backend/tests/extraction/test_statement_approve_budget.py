@@ -8,7 +8,7 @@ async def _approve_and_count(client, db_engine, statement_id: str) -> tuple[dict
     review = await client.get(f'/statements/{statement_id}/review'); assert review.status_code == 200, review.text; statements: list[str] = []
     def capture(_conn, _cursor, statement_text, _parameters, _context, _executemany): statements.append(re.sub('\\s+', ' ', statement_text).strip())
     event.listen(db_engine.sync_engine, 'before_cursor_execute', capture)
-    try: response = await client.post(f'/statements/{statement_id}/review/approve', json={'create_account_if_missing': True})
+    try: response = await client.post(f'/statements/{statement_id}/approvals', json={'create_account_if_missing': True})
     finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', capture)
     assert response.status_code == 200, response.text; assert len(statements) > MIN_CAPTURED_STATEMENTS, f'the listener captured {len(statements)} statements'; return (response.json(), statements)
 def _per_entry_queries(statements: list[str], rows: int) -> int: shapes = Counter(statements); return sum((count for count in shapes.values() if count >= rows))

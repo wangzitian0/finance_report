@@ -70,7 +70,7 @@ async def test_AC_extraction_2994_102_a_reject_during_a_classify_run_gives_409_a
     statement_id, run_id, worker = await _active_classify_run(db, test_user, monkeypatch, proposer)
     try:
         refused = await asyncio.wait_for(
-            client.post(f"/statements/{statement_id}/review/reject", json={"notes": "check the dates"}),
+            client.post(f"/statements/{statement_id}/rejections", json={"notes": "check the dates"}),
             timeout=WAIT_SECONDS,
         )
         assert refused.status_code == 409, refused.text

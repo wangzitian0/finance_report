@@ -154,7 +154,7 @@ async def test_AC_extraction_2994_137_a_row_with_a_keyword_rule_a_decision_or_a_
     seeded.statement.account_id = bank.id
     await db.commit()
     posted = await client.post(
-        f"/reconciliation/unmatched/{seeded.transactions[0].id}/reviewed-disposition",
+        f"/reconciliation/unmatched/{seeded.transactions[0].id}/reviewed-dispositions",
         json={
             "intent": "income",
             "counter_account_id": str(income.id),

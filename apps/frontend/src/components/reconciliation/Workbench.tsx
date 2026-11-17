@@ -95,14 +95,20 @@ export default function ReconciliationWorkbench() {
 
   const acceptMatchMutation = useMutation({
     mutationFn: (matchId: string) =>
-      apiOperation("accept_match_reconciliation_matches__match_id__accept_post", { path: { match_id: matchId } }),
+      apiOperation("update_match_decision_reconciliation_matches__match_id__patch", {
+        path: { match_id: matchId },
+        body: { action: "accept" },
+      }),
     onSuccess,
     onError: (err: Error) => setError(`Failed to accept match: ${err.message}`),
   });
 
   const rejectMatchMutation = useMutation({
     mutationFn: (matchId: string) =>
-      apiOperation("reject_match_reconciliation_matches__match_id__reject_post", { path: { match_id: matchId } }),
+      apiOperation("update_match_decision_reconciliation_matches__match_id__patch", {
+        path: { match_id: matchId },
+        body: { action: "reject" },
+      }),
     onSuccess,
     onError: (err: Error) => setError(`Failed to reject match: ${err.message}`),
   });

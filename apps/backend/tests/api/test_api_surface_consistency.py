@@ -60,8 +60,10 @@ def test_AC12_29_4_no_route_or_tag_collisions() -> None:
         [out.update(route.tags or []) if route.path.startswith(prefix) else None for route in routes]
         return out
 
-    assert {"statements", "review"} <= _tags_under_prefix("/statements")
-    assert {"ai-feedback"} <= _tags_under_prefix("/ai")
+    assert _tags_under_prefix("/statements") == {"statements"}
+    assert _tags_under_prefix("/ai") == set()
+    assert _tags_under_prefix("/reconciliation") == {"reconciliation"}
+    assert _tags_under_prefix("/pricing") == {"pricing"}
 
 
 def test_AC12_29_1_status_codes_use_constants_and_async_uses_202(openapi_schema: dict[str, Any]) -> None:
@@ -75,7 +77,7 @@ def test_AC12_29_1_status_codes_use_constants_and_async_uses_202(openapi_schema:
         for py in sorted(_ROUTER_DIR.glob("*.py"))
     ]
     assert not offenders, f"raw-integer status_code literals (use status.HTTP_*): {offenders}"
-    upload = openapi_schema["paths"]["/statements/upload"]["post"]
+    upload = openapi_schema["paths"]["/statements"]["post"]
     assert "202" in upload["responses"]
 
 
@@ -84,16 +86,33 @@ def test_AC12_29_6_verb_in_path_urls_renamed_to_resources(openapi_schema: dict[s
     paths = set(openapi_schema["paths"])
     renamed = {
         "/reconciliation/run": "/reconciliation/runs",
-        "/market-data/sync/fx": "/market-data/fx/syncs",
-        "/market-data/sync/stocks": "/market-data/stocks/syncs",
+        "/market-data/sync/fx": "/pricing/fx/syncs",
+        "/market-data/sync/stocks": "/pricing/stocks/syncs",
         "/journal-entries/{entry_id}/post": "/journal-entries/{entry_id}/postings",
         "/journal-entries/{entry_id}/void": "/journal-entries/{entry_id}/voidings",
+        "/statements/upload": "/statements",
+        "/statements/{statement_id}/review/approve": "/statements/{statement_id}/approvals",
+        "/statements/{statement_id}/review/reject": "/statements/{statement_id}/rejections",
+        "/statements/{statement_id}/review/envelope": "/statements/{statement_id}/review-envelopes",
+        "/statements/{statement_id}/brokerage/import": "/statements/{statement_id}/brokerage-imports",
+        "/portfolio/brokerage/import": "/portfolio/brokerage-imports",
+        "/portfolio/prices/update": "/pricing/price-overrides",
+        "/reports/package/generate": "/reports/package/snapshots",
+        "/reports/export": "/reports/exports",
+        "/reports/package/snapshots/{snapshot_id}/export": "/reports/package/snapshots/{snapshot_id}/exports",
+        "/reconciliation/matches/{match_id}/accept": "/reconciliation/matches/{match_id}",
+        "/reconciliation/matches/{match_id}/reject": "/reconciliation/matches/{match_id}",
+        "/reconciliation/unmatched/{txn_id}/reviewed-disposition": "/reconciliation/unmatched/{txn_id}/reviewed-dispositions",
+        "/reconciliation/adjustment": "/reconciliation/adjustments",
+        "/chat/session/{session_id}": "/chat/sessions/{session_id}",
+        "/statements/{statement_id}/conflicts/resolve": "/statements/{statement_id}/conflict-resolutions",
+        "/statements/{statement_id}/stage2/run-checks": "/reconciliation/consistency-checks/runs",
+        "/statements/consistency-checks/{check_id}/resolve": "/reconciliation/consistency-checks/{check_id}/resolutions",
     }
+    assert "/reports/package/annual-archive" not in paths, "/reports/package/annual-archive duplicate shortcut should be retired"
     for old, new in renamed.items():
         assert old not in paths, f"{old} should have been renamed to {new}"
         assert new in paths, f"{new} missing from OpenAPI"
-
-
 def test_AC12_29_2_named_unbounded_endpoints_are_bounded(openapi_schema: dict[str, Any]) -> None:
     "AC-platform.29.2"
     paths = openapi_schema["paths"]
@@ -200,7 +219,7 @@ def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(openapi_schema
     assert DEFAULT_INCLUDE_RESTRICTED is True
     assert PACKAGE_INCLUDE_RESTRICTED is False
     paths = openapi_schema["paths"]
-    generation = paths["/reports/package/generate"]["post"]
+    generation = paths["/reports/package/snapshots"]["post"]
     assert generation.get("parameters", []) == []
     assert generation["requestBody"]["required"] is True
     body_ref = generation["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
@@ -213,7 +232,7 @@ def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(openapi_schema
         for path in (
             "/reports/balance-sheet",
             "/reports/balance-sheet/diagnostics",
-            "/reports/export",
+            "/reports/exports",
             "/reports/net-worth/allocation",
             "/reports/net-worth/timeseries",
             "/reports/package",
@@ -222,7 +241,7 @@ def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(openapi_schema
     assert defaults == {
         "/reports/balance-sheet": DEFAULT_INCLUDE_RESTRICTED,
         "/reports/balance-sheet/diagnostics": DEFAULT_INCLUDE_RESTRICTED,
-        "/reports/export": DEFAULT_INCLUDE_RESTRICTED,
+        "/reports/exports": DEFAULT_INCLUDE_RESTRICTED,
         "/reports/net-worth/allocation": DEFAULT_INCLUDE_RESTRICTED,
         "/reports/net-worth/timeseries": DEFAULT_INCLUDE_RESTRICTED,
         "/reports/package": PACKAGE_INCLUDE_RESTRICTED,
@@ -266,8 +285,10 @@ async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(
     paths = set(openapi_schema["paths"])
     assert "/statements/{statement_id}/approve" not in paths
     assert "/statements/{statement_id}/reject" not in paths
-    assert "/statements/{statement_id}/review/approve" in paths
-    assert "/statements/{statement_id}/review/reject" in paths
+    assert "/statements/{statement_id}/review/approve" not in paths
+    assert "/statements/{statement_id}/review/reject" not in paths
+    assert "/statements/{statement_id}/approvals" in paths
+    assert "/statements/{statement_id}/rejections" in paths
 
 
 async def test_issue3012_uncalled_routes_removed(client: AsyncClient, openapi_schema: dict[str, Any]) -> None:
@@ -327,8 +348,8 @@ async def test_issue3013_naming_overlaps_resolved_and_action_url_rule(
     required = (
         ("get", "/journal-entries/{entry_id}/audit"),
         ("get", "/statements/{statement_id}/conflicts"),
-        ("post", "/statements/{statement_id}/conflicts/resolve"),
-        ("get", "/statements/consistency-checks"),
+        ("post", "/statements/{statement_id}/conflict-resolutions"),
+        ("get", "/reconciliation/consistency-checks"),
         ("post", "/reconciliation/matches"),
     )
     missing = [f"{m.upper()} {p}" for m, p in required if m not in paths.get(p, {})]
@@ -336,11 +357,12 @@ async def test_issue3013_naming_overlaps_resolved_and_action_url_rule(
 
     bad_segments = []
     forbidden_prefixes = ("batch-", "get-", "create-", "update-", "delete-")
+    forbidden_exact = frozenset({"list", "session", "adjustment", "reviewed-disposition", "envelope"})
     for path in sorted(paths):
         for seg in path.strip("/").split("/"):
             if seg.startswith("{"):
                 continue
-            if seg == "list" or seg.startswith(forbidden_prefixes):
+            if seg in forbidden_exact or seg.startswith(forbidden_prefixes):
                 bad_segments.append(f"{path} ({seg})")
     assert not bad_segments, f"action/verb URL segments violate REST resource rule (#3013): {bad_segments}"
 
@@ -357,7 +379,7 @@ async def test_issue3013_naming_overlaps_resolved_and_action_url_rule(
         resp = await client.request(method, url)
         assert resp.status_code in allowed, f"{method} {url} -> {resp.status_code}, expected {allowed}"
 
-    checks_resp = await client.get("/statements/consistency-checks")
+    checks_resp = await client.get("/reconciliation/consistency-checks")
     assert checks_resp.status_code == status.HTTP_200_OK, checks_resp.text
     assert "items" in checks_resp.json()
 

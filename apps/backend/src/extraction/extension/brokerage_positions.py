@@ -35,28 +35,6 @@ class PositionReconcileOutcome(Protocol):
     skipped: int
 
 
-# L2 port wired at L4 startup (``main.py``) to avoid a ``portfolio`` <-> ``extraction`` cycle (#1675 D5c).
-_position_reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]] | None = None
-
-
-def register_position_reconciler(
-    reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]],
-) -> None:
-    """Wire the managed-position reconciler."""
-    global _position_reconciler
-    _position_reconciler = reconciler
-
-
-def _get_position_reconciler() -> Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]]:
-    if _position_reconciler is None:
-        raise RuntimeError(
-            "brokerage_positions.register_position_reconciler() was never called — "
-            "main.py wires it at startup (#1675 D5c); a test exercising this path "
-            "must call it too."
-        )
-    return _position_reconciler
-
-
 @dataclass(frozen=True)
 class BrokeragePositionSnapshot:
     """Brokerage position snapshot before persistence."""
@@ -805,6 +783,13 @@ def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
 class BrokeragePositionImportService:
     """Import parsed brokerage positions into AtomicPosition then reconcile."""
 
+    def __init__(
+        self,
+        *,
+        position_reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]] | None = None,
+    ) -> None:
+        self._position_reconciler = position_reconciler
+
     async def import_positions(
         self,
         db: AsyncSession,
@@ -814,6 +799,7 @@ class BrokeragePositionImportService:
         filename: str | None = None,
         source_document_id: str | None = None,
         reconcile: bool = True,
+        position_reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]] | None = None,
     ) -> BrokerageImportResult:
         # Short positions (#1448) carry signed negative quantity and market value.
         snapshots = parse_brokerage_positions(payload, filename=filename)
@@ -837,6 +823,9 @@ class BrokeragePositionImportService:
                 f"{_undated_remedy(filename)}",
             )
         snapshots = _storable_snapshots(snapshots)
+        reconciler = position_reconciler or self._position_reconciler
+        if reconcile and snapshots and reconciler is None:
+            raise RuntimeError("BrokeragePositionImportService requires position_reconciler when reconcile=True.")
         created = 0
         existing = 0
         broker = (
@@ -876,7 +865,7 @@ class BrokeragePositionImportService:
             else:
                 created += 1
 
-        reconcile_result = await _get_position_reconciler()(db, user_id) if reconcile and snapshots else None
+        reconcile_result = await reconciler(db, user_id) if reconcile and snapshots and reconciler is not None else None
 
         account_id: UUID | None = None
         brokers = {snapshot.broker for snapshot in snapshots}

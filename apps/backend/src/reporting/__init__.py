@@ -37,7 +37,7 @@ _MODULES: dict[str, tuple[str, ...]] = {
     ),
     "src.reporting.extension._core": ("_aggregate_balances_sql", "_aggregate_net_income_sql"),
     "src.reporting.extension.annualized_income": ("generate_annualized_income_schedule",),
-    "src.reporting.extension.balance_sheet": ("generate_balance_sheet", "register_manual_valuation_lines_provider"),
+    "src.reporting.extension.balance_sheet": ("generate_balance_sheet",),
     "src.reporting.extension.cash_flow": (
         "cash_flow_line_events",
         "cash_flow_period",
@@ -180,7 +180,6 @@ __all__ = [
     "package_snapshot_document",
     "package_snapshot_response",
     "package_snapshot_summary",
-    "register_manual_valuation_lines_provider",
     "render_balance_sheet_csv",
     "render_cash_flow_csv",
     "render_income_statement_csv",
@@ -233,10 +232,7 @@ if TYPE_CHECKING:
     )
     from src.reporting.extension._core import _aggregate_balances_sql, _aggregate_net_income_sql
     from src.reporting.extension.annualized_income import generate_annualized_income_schedule
-    from src.reporting.extension.balance_sheet import (
-        generate_balance_sheet,
-        register_manual_valuation_lines_provider,
-    )
+    from src.reporting.extension.balance_sheet import generate_balance_sheet
     from src.reporting.extension.cash_flow import (
         cash_flow_line_events,
         cash_flow_period,

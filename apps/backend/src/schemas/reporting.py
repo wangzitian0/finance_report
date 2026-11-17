@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, Field, model_serializer, model_validator
 
+from src.audit import DataProvenance
 from src.ledger import AccountType, Direction
 from src.platform import validate_internal_action_href
 from src.reporting import (
@@ -24,7 +25,6 @@ from src.reporting import (
 )
 from src.schemas.base import CurrencyCode, default_list, default_obj
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
-from src.schemas.provenance import DataProvenance
 
 ActionHref = Annotated[str, AfterValidator(validate_internal_action_href)]
 CurrencyStr = Annotated[str, Field(min_length=3, max_length=3)]
@@ -192,29 +192,20 @@ class NetWorthAllocationResponse(BaseModel):
     excluded_holdings: list[ExcludedHoldingRow] = default_list()
 
 
-class BreakdownPeriod(str, Enum):
-    MONTHLY = "monthly"
-    QUARTERLY = "quarterly"
-    ANNUAL = "annual"
+class ExportFormat(str, Enum):
+    CSV = "csv"
 
 
-class BreakdownType(str, Enum):
-    INCOME = "income"
-    EXPENSE = "expense"
+class PackageSnapshotExportFormat(str, Enum):
+    JSON = "json"
+    CSV = "csv"
+    ZIP = "zip"
 
 
-class CategoryBreakdownItem(BaseModel):
-    category_id: UUID
-    category_name: str
-    total: Decimal
-
-
-class CategoryBreakdownResponse(BaseModel):
-    type: AccountType
-    currency: CurrencyStr
-    period_start: date
-    period_end: date
-    items: list[CategoryBreakdownItem]
+class ExportReportType(str, Enum):
+    BALANCE_SHEET = "balance-sheet"
+    INCOME_STATEMENT = "income-statement"
+    CASH_FLOW = "cash-flow"
 
 
 class PersonalReportPackageSectionContract(BaseModel):

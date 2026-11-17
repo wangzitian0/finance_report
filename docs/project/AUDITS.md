@@ -5,7 +5,7 @@ This file indexes project consistency and traceability audits. Use generated rep
 |---|---|
 | `python tools/check_ac_index.py` | AC integrity and protection ratchet gate |
 | [traceability-exceptions.md](traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
-Current generated AC snapshot values are owned by: - `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` - `python tools/check_ac_index.py` Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced by the AC traceability gate before the generated audit artifact is uploaded. Fixture-only fake AC IDs in tooling tests are classified separately in the
+Current generated AC snapshot values are owned by: - `python tools/check_ac_index.py` Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced by the in-memory AC traceability gate. Fixture-only fake AC IDs in tooling tests are classified separately in the
 generated AC-to-EPIC mismatch output.
 ## Historical Audits
 | Report | Date | Scope | Status |

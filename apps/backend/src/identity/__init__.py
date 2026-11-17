@@ -1,4 +1,4 @@
-"""``identity`` — users, authentication, and AI-feedback domain package."""
+"""``identity`` — users and authentication domain package."""
 
 from __future__ import annotations
 
@@ -6,10 +6,6 @@ from typing import TYPE_CHECKING
 
 _BASE_EXPORTS = {
     "AUTH_COOKIE_NAME",
-    "AiFeedbackRequest",
-    "AiFeedbackResponse",
-    "AiSuggestionListResponse",
-    "AiSuggestionResponse",
     "AuthResponse",
     "LoginRequest",
     "RegisterRequest",
@@ -19,7 +15,6 @@ _BASE_EXPORTS = {
     "normalize_email",
 }
 _EXTENSION_EXPORTS = {
-    "AiFeedback",
     "DEFAULT_TEST_EMAIL_PATTERN",
     "PERSISTENT_TEST_EMAILS",
     "PurgeReport",
@@ -44,11 +39,6 @@ _EXTENSION_EXPORTS = {
 
 __all__ = [
     "AUTH_COOKIE_NAME",
-    "AiFeedback",
-    "AiFeedbackRequest",
-    "AiFeedbackResponse",
-    "AiSuggestionListResponse",
-    "AiSuggestionResponse",
     "AuthResponse",
     "DEFAULT_TEST_EMAIL_PATTERN",
     "LoginRequest",
@@ -95,10 +85,6 @@ def __getattr__(name: str) -> object:
 if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exports
     from src.identity.base import (
         AUTH_COOKIE_NAME,
-        AiFeedbackRequest,
-        AiFeedbackResponse,
-        AiSuggestionListResponse,
-        AiSuggestionResponse,
         AuthResponse,
         LoginRequest,
         RegisterRequest,
@@ -110,7 +96,6 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
     from src.identity.extension import (
         DEFAULT_TEST_EMAIL_PATTERN,
         PERSISTENT_TEST_EMAILS,
-        AiFeedback,
         PurgeReport,
         User,
         auth_rate_limiter,

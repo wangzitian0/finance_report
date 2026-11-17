@@ -16,10 +16,6 @@ def default_list() -> Any:
     return Field(default_factory=lambda: [])
 
 
-def default_dict() -> Any:
-    return Field(default_factory=lambda: {})
-
-
 def default_obj(factory: Callable[[], _V]) -> _V:  # noqa: UP047
     return Field(default_factory=factory)
 

@@ -36,7 +36,7 @@ Amount matching compares `AtomicTransaction.currency` against the same-currency 
 ### <a id="state-machine"></a>State machine
 
 - Lifecycle: `PENDING_REVIEW -> ACCEPTED / AUTO_ACCEPTED / REJECTED -> SUPERSEDED` (`superseded_by_id` + `version`).
-- Rejected suggestions remain historical audit records (`claimed` only by active `PENDING_REVIEW`/`ACCEPTED`/`AUTO_ACCEPTED` rows); transactions reappear in `/reconciliation/unmatched` for manual `POST /reconciliation/unmatched/{txn_id}/reviewed-disposition` adjudication (`ReviewedDispositionCommand`).
+- Rejected suggestions remain historical audit records (`claimed` only by active `PENDING_REVIEW`/`ACCEPTED`/`AUTO_ACCEPTED` rows); transactions reappear in `/reconciliation/unmatched` for manual `POST /reconciliation/unmatched/{txn_id}/reviewed-dispositions` adjudication (`ReviewedDispositionCommand`).
 - Transfer legs (`post_named_transfer_legs`) post through `1199` Processing in effective `base_currency` only, storing the AI/user score (`100` when user-confirmed).
 
 ### Design constraints
@@ -64,20 +64,24 @@ Two `TransferLeg` candidates pair via `pair_fx_legs` / `discover_fx_conversions`
 - Workbench `/reconciliation` tabs (`?tab=matches|unmatched|review-queue`) default to `unmatched` when items exist (`#2646`).
 - `accept_match()` and `POST /reconciliation/matches` share `accept_pending_matches()`: lock matches once, batch-load transactions/entries/anchor links (`~2` SQL per extra match), block if unresolved checks exist in scope (`run_id` when specified), reconcile existing linked journal entries (without fabricating entries/accounts/categories), and return `{approved_count, journal_entries_reconciled}`.
 - `reconciliation_match_journal_entries` is the trusted audit link table alongside compatibility `journal_entry_ids`.
-- `POST /reconciliation/unmatched/{txn_id}/reviewed-disposition` requires explicit non-transfer intent, active counter-account, and rationale; it atomically appends `OBSERVATION` + `DECISION` `TraceRecord` rows and posts one entry under an `AtomicTransaction` lock.
+- `POST /reconciliation/unmatched/{txn_id}/reviewed-dispositions` requires explicit non-transfer intent, active counter-account, and rationale; it atomically appends `OBSERVATION` + `DECISION` `TraceRecord` rows and posts one entry under an `AtomicTransaction` lock.
 
 ## API Endpoints & Key Files
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/statements/{id}/review` | Stage 1 review payload with PDF URL |
-| `POST` | `/statements/{id}/review/approve` | Stage 1 approve with balance validation |
-| `POST` | `/statements/{id}/review/reject` | Stage 1 reject + extract rerun |
+| `POST` | `/statements/{id}/approvals` | Stage 1 approve with balance validation |
+| `POST` | `/statements/{id}/rejections` | Stage 1 reject + extract rerun |
 | `GET` | `/statements/{statement_id}/conflicts` | Duplicate and transfer-pair conflicts |
-| `GET` | `/statements/stage2/queue` | Stage 2 queue (`optional run_id`) |
-| `POST` | `/statements/{id}/stage2/run-checks` | Run consistency checks |
-| `POST` | `/statements/consistency-checks/{id}/resolve` | Resolve consistency check |
-| `GET` | `/statements/consistency-checks` | List/filter consistency checks |
+| `POST` | `/statements/{statement_id}/conflict-resolutions` | Resolve duplicate and transfer-pair conflicts |
+| `GET` | `/reconciliation/review-queue` | Stage 2 queue (`optional run_id`) |
+| `POST` | `/reconciliation/consistency-checks/runs` | Run consistency checks |
+| `POST` | `/reconciliation/consistency-checks/{id}/resolutions` | Resolve consistency check |
+| `GET` | `/reconciliation/consistency-checks` | List/filter consistency checks |
+| `GET` | `/reconciliation/transfers/summary` | In-transit processing transfer summary |
+| `GET` | `/reconciliation/transfers/pending` | Pending unpaired processing transfer legs |
+| `PATCH` | `/reconciliation/matches/{id}` | Accept or reject a single match (`action`) |
 | `POST` | `/reconciliation/matches` | Batch accept or reject matches (`action`, optional `run_id`/`min_score`) |
 
-Key files: `src/reconciliation/extension/{matching,candidate_policy,entry_reads,consistency_checks,review_queue,reviewed_disposition}.py`, `src/routers/{reconciliation,review,statements}.py`, `apps/frontend/src/components/{review/Stage2ReviewQueue,reconciliation/Workbench}.tsx`.
+Key files: `src/reconciliation/extension/{matching,candidate_policy,entry_reads,consistency_checks,processing_transfers,review_queue,reviewed_disposition}.py`, `src/routers/{reconciliation,statements}.py`, `apps/frontend/src/components/{review/Stage2ReviewQueue,reconciliation/Workbench}.tsx`.

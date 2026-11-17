@@ -285,9 +285,7 @@ async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committ
     statement_id = seeded.id
 
     with structlog.testing.capture_logs() as logs:
-        response = await client.post(
-            f"/statements/{statement_id}/review/approve", json={"create_account_if_missing": True}
-        )
+        response = await client.post(f"/statements/{statement_id}/approvals", json={"create_account_if_missing": True})
         await _wait_until_idle()
 
     assert response.status_code == 200, response.text

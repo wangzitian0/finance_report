@@ -4,11 +4,12 @@ import asyncio
 import hashlib
 import mimetypes
 from collections.abc import Awaitable, Callable, Sequence
+from datetime import date
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, File, Form, UploadFile, status
+from fastapi import APIRouter, Body, File, Form, Query, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -16,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.composition import (
     auto_fill_default_statement_dispositions,
+    compose_brokerage_import_service,
+    compose_correction_callbacks,
     compose_statement_posting_dependencies,
     execute_statement_brokerage_import,
 )
@@ -23,8 +26,11 @@ from src.config import settings
 from src.deps import Ctx, ReadCtx
 from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
+    DEFAULT_STALE_AFTER_DAYS,
+    AtomicTransaction,
     BankStatementStatus,
-    BrokeragePositionImportService,
+    ClassificationStatus,
+    CorrectionLoopService,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
@@ -36,6 +42,7 @@ from src.extraction import (
     StatementPostingStatus,
     StatementRunRecord,
     StatementSummary,
+    TransactionClassification,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -44,15 +51,20 @@ from src.extraction import (
     classification_suggestions,
     confirm_reviewed_statement_envelope,
     create_run,
+    create_statement_account_from_confirmation,
     current_reviewed_statement_envelope,
+    effective_statement_transaction_filter,
     fail_run,
+    find_statement_review_conflicts,
+    get_account_statement_coverage,
     get_current_statement_extraction_result,
-    is_bank_custody_source,
     list_runs,
     pending_stage1_review_filter,
+    record_classification_feedback,
+    record_correction,
     register_statement_source,
     reject_statement_workflow,
-    resolve_bank_custody_account,
+    resolve_statement_conflicts,
     resolve_statement_posting_account,
     resolve_statement_transactions,
     retire_statement,
@@ -63,7 +75,7 @@ from src.extraction import (
     supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
-from src.ledger import Account, AccountType, account_service
+from src.ledger import Account
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
@@ -78,22 +90,35 @@ from src.platform import (
 )
 from src.runtime import StorageError, StorageService
 from src.schemas import (
+    AccountCoverageListResponse,
     BankStatementListResponse,
     BankStatementResponse,
     StatementDecisionRequest,
     StatementRunListResponse,
     StatementRunRequest,
 )
-from src.schemas.extraction import compose_statement_list_item_response, compose_statement_response
-from src.schemas.portfolio import BrokerageImportResponse
-from src.schemas.review import (
+from src.schemas.extraction import (
+    AiFeedbackRequest,
+    AiFeedbackResponse,
+    AiSuggestionListResponse,
+    AiSuggestionResponse,
     BalanceValidationResult,
+    CorrectionLoopReplayResponse,
+    CorrectionRequest,
+    CorrectionResponse,
+    ResolveConflictsRequest,
+    ReviewConflictCandidate,
     ReviewedStatementEnvelopeRequest,
     ReviewedStatementEnvelopeResponse,
+    ReviewConflictsResolveResponse,
+    ReviewConflictsResponse,
     Stage1ApprovalRequest,
     Stage1ApprovalResponse,
     StatementReviewResponse,
+    compose_statement_list_item_response,
+    compose_statement_response,
 )
+from src.schemas.portfolio import BrokerageImportResponse
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -106,7 +131,26 @@ _REJECT_STATUSES = _RERUN_STATUSES | {BankStatementStatus.APPROVED}
 logger = get_logger(__name__)
 
 _PENDING_PARSE_TASKS: set[asyncio.Task] = set()
-_BROKERAGE_IMPORT_SERVICE = BrokeragePositionImportService()
+_BROKERAGE_IMPORT_SERVICE = compose_brokerage_import_service()
+_CORRECTION_LOOP = CorrectionLoopService()
+
+
+def _txn_direction(txn: AtomicTransaction) -> Literal["IN", "OUT"] | None:
+    val = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
+    if val == "IN":
+        return "IN"
+    if val == "OUT":
+        return "OUT"
+    return None
+
+
+async def _count_classification_suggestions(db: AsyncSession, scope_filter: Any, filters: tuple[Any, ...]) -> int:
+    stmt = (
+        select(func.count(TransactionClassification.id))
+        .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
+        .where(scope_filter, *filters)
+    )
+    return int((await db.execute(stmt)).scalar_one() or 0)
 
 
 def _track_task(task: asyncio.Task) -> None:
@@ -346,84 +390,12 @@ async def _queue_classify_run(db: AsyncSession, statement_id: UUID, user_id: UUI
     return run_id
 
 
-async def _create_statement_account_from_confirmation(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID
-) -> Account:
-    document = await _resolve_uploaded_document(db, statement, user_id)
-    if statement.institution and statement.account_last4 and statement.currency:
-        source = await get_current_statement_extraction_result(
-            db, user_id=user_id, statement_id=statement.id, statement=statement
-        )
-        if is_bank_custody_source(source, document):
-            resolved = await resolve_bank_custody_account(
-                db,
-                user_id=user_id,
-                institution=statement.institution,
-                account_last4=statement.account_last4,
-                currency=statement.currency,
-                account_id=statement.account_id,
-            )
-            statement.account_id = resolved.id
-            await db.flush()
-            return resolved
-    if statement.account_id:
-        account = (
-            await db.execute(select(Account).where(Account.id == statement.account_id, Account.user_id == user_id))
-        ).scalar_one_or_none()
-        if account:
-            return account
-        raise ValidationFailedError("Statement account mapping is invalid. Confirm the target account before posting.")
-
-    currency = (statement.currency or "").strip().upper()
-    if not currency:
-        raise ValidationFailedError(
-            "Statement currency required before creating an account. Confirm the source currency first."
-        )
-    account_name = (statement.institution or "").strip() or "Statement Account"
-    if statement.account_last4:
-        account_name = f"{account_name} *{statement.account_last4.strip()}"
-    source_filename = document.original_filename if document else statement.file_hash
-
-    async def _find_statement_account(session: AsyncSession) -> Account | None:
-        return (
-            await session.execute(
-                select(Account)
-                .where(
-                    Account.user_id == user_id,
-                    Account.name == account_name,
-                    Account.type == AccountType.ASSET,
-                    Account.currency == currency,
-                    Account.is_active.is_(True),
-                )
-                .order_by(Account.created_at, Account.id)
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-
-    created = await account_service.find_or_create_account(
-        db,
-        user_id=user_id,
-        find=_find_statement_account,
-        build=lambda: Account(
-            user_id=user_id,
-            name=account_name,
-            type=AccountType.ASSET,
-            currency=currency,
-            code="AUTO-BANK",
-            description=f"Created from confirmed statement import {source_filename}",
-        ),
-    )
-    statement.account_id = created.id
-    await db.flush()
-    return created
-
-
 def build_statement_storage_key(*, statement_id: UUID, file_hash: str, extension: str) -> str:
     safe_extension = extension.lower() if extension.lower() in _ALLOWED_EXTENSIONS else "bin"
     return f"statements/{statement_id}/{file_hash[:16]}.{safe_extension}"
 
 
-@router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
     file: UploadFile = File(...),
     institution: Annotated[str | None, Form()] = None,
@@ -649,6 +621,144 @@ async def list_pending_review(ctx: ReadCtx) -> BankStatementListResponse:
     )
 
 
+@router.get("/coverage", response_model=AccountCoverageListResponse)
+async def list_statement_coverage(
+    ctx: ReadCtx,
+    as_of: date | None = Query(None, description="Date used for stale-account evaluation"),
+    stale_after_days: int = Query(
+        DEFAULT_STALE_AFTER_DAYS,
+        ge=1,
+        le=366,
+        description="Number of days after latest confirmed source date before an account is stale",
+    ),
+) -> AccountCoverageListResponse:
+    """List statement coverage status for active accounts."""
+    return await get_account_statement_coverage(
+        ctx.db,
+        ctx.user_id,
+        as_of=as_of,
+        stale_after_days=stale_after_days,
+    )
+
+
+@router.get("/classification-suggestions", response_model=AiSuggestionListResponse)
+async def list_classification_suggestions(
+    ctx: ReadCtx,
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum items to return")] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    statement_id: Annotated[UUID | None, Query(description="Optional statement ID filter")] = None,
+) -> AiSuggestionListResponse:
+    """List pending AI classification suggestions in the 60-84 review band."""
+    db, user_id = ctx.db, ctx.user_id
+    scope_filter = (
+        effective_statement_transaction_filter(user_id, statement_id)
+        if statement_id is not None
+        else (AtomicTransaction.user_id == user_id)
+    )
+    cls_filters = (
+        TransactionClassification.status == ClassificationStatus.DRAFT,
+        TransactionClassification.confidence_score >= 60,
+        TransactionClassification.confidence_score < 85,
+        func.coalesce(TransactionClassification.tags["corrected_by_user"].astext, "false") != "true",
+    )
+    total = await _count_classification_suggestions(db, scope_filter, cls_filters)
+    rows = (
+        await db.execute(
+            select(TransactionClassification, AtomicTransaction)
+            .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
+            .where(scope_filter, *cls_filters)
+            .order_by(TransactionClassification.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    items: list[AiSuggestionResponse] = []
+    for cls, txn in rows:
+        raw_cat = cls.tags.get("category") if isinstance(cls.tags, dict) else None
+        suggested = (
+            raw_cat
+            if isinstance(raw_cat, str) and raw_cat
+            else (str(cls.account_id) if cls.account_id else "AI classification")
+        )
+        items.append(
+            AiSuggestionResponse(
+                suggestion_id=cls.id,
+                transaction=txn.description,
+                suggested_category_or_match=suggested,
+                ai_score=cls.confidence_score or 60,
+                ai_reasoning="Pending AI classification suggestion requires human review.",
+                direction=_txn_direction(txn),
+            )
+        )
+    return AiSuggestionListResponse(items=items, total=total)
+
+
+@router.post("/classification-feedback", response_model=AiFeedbackResponse, status_code=status.HTTP_201_CREATED)
+async def create_classification_feedback(
+    payload: AiFeedbackRequest,
+    ctx: Ctx,
+) -> AiFeedbackResponse:
+    """Persist user feedback for a classification suggestion and apply it to the draft."""
+    db, user_id = ctx.db, ctx.user_id
+    recorded = await record_classification_feedback(
+        db,
+        user_id=user_id,
+        suggestion_id=payload.suggestion_id,
+        action=payload.action,
+        corrected_value=payload.corrected_value,
+    )
+    if recorded is None:
+        raise ResourceNotFoundError("Classification suggestion not found")
+    feedback, effect = recorded
+    await db.flush()
+    await db.refresh(feedback)
+    response = AiFeedbackResponse.model_validate(feedback)
+    response.effect = effect
+    return response
+
+
+@router.post("/corrections", response_model=CorrectionResponse, status_code=status.HTTP_201_CREATED)
+async def create_correction(
+    body: CorrectionRequest,
+    *,
+    ctx: Ctx,
+) -> CorrectionResponse:
+    """Record a user correction to an AI-suggested category."""
+    db, user_id = ctx.db, ctx.user_id
+    correction = await record_correction(
+        db,
+        user_id=user_id,
+        transaction_id=body.transaction_id,
+        corrected_category=body.corrected_category,
+        corrected_account_id=body.corrected_account_id,
+        **compose_correction_callbacks(),
+    )
+    await db.flush()
+    return CorrectionResponse(
+        id=correction.id,
+        transaction_id=correction.transaction_id,
+        original_category=correction.original_category,
+        corrected_category=correction.corrected_category,
+    )
+
+
+@router.get("/correction-loop/replay", response_model=CorrectionLoopReplayResponse)
+async def get_correction_loop_replay(ctx: ReadCtx) -> CorrectionLoopReplayResponse:
+    """Surface the held-out replay of the live correction corpus."""
+    result = await _CORRECTION_LOOP.replay(ctx.db, ctx.user_id)
+    return CorrectionLoopReplayResponse(
+        holdout_size=result.holdout_size,
+        grounded=result.grounded,
+        proportion_before=result.proportion_before,
+        proportion_after=result.proportion_after,
+        reduced=result.reduced,
+        high_confidence_count=result.high_confidence_count,
+        medium_confidence_count=result.medium_confidence_count,
+        low_confidence_count=result.low_confidence_count,
+        low_confidence_proportion=result.low_confidence_proportion,
+    )
+
+
 @router.get("/{statement_id}", response_model=BankStatementResponse)
 async def get_statement(statement_id: UUID, ctx: ReadCtx) -> BankStatementResponse:
     """Get a statement with all its transactions."""
@@ -687,7 +797,7 @@ async def get_statement_document(statement_id: UUID, ctx: ReadCtx) -> Response:
 
 
 @router.post(
-    "/{statement_id}/brokerage/import",
+    "/{statement_id}/brokerage-imports",
     response_model=BrokerageImportResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -809,7 +919,7 @@ async def get_statement_for_review(statement_id: UUID, ctx: ReadCtx) -> Statemen
     )
 
 
-@router.post("/{statement_id}/review/envelope", response_model=ReviewedStatementEnvelopeResponse)
+@router.post("/{statement_id}/review-envelopes", response_model=ReviewedStatementEnvelopeResponse)
 async def confirm_statement_review_envelope(
     statement_id: UUID,
     request: ReviewedStatementEnvelopeRequest,
@@ -828,7 +938,7 @@ async def confirm_statement_review_envelope(
     return _envelope_response(envelope, request.source_result_digest)
 
 
-@router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
+@router.post("/{statement_id}/approvals", response_model=Stage1ApprovalResponse)
 async def approve_statement_stage1(
     statement_id: UUID,
     ctx: Ctx,
@@ -840,9 +950,10 @@ async def approve_statement_stage1(
     preloaded_account: Account | None = None
     if request and request.account_id is not None:
         statement.account_id = request.account_id
+        await db.flush()
         preloaded_account = await resolve_statement_posting_account(db, statement, user_id)
     elif request and request.create_account_if_missing and not statement.account_id:
-        preloaded_account = await _create_statement_account_from_confirmation(db, statement, user_id)
+        preloaded_account = await create_statement_account_from_confirmation(db, statement, user_id)
     elif not statement.account_id:
         preloaded_account = await resolve_statement_posting_account(db, statement, user_id)
     auto_filled = (
@@ -862,7 +973,7 @@ async def approve_statement_stage1(
     return _approval_response(statement, created_count)
 
 
-@router.post("/{statement_id}/review/reject", response_model=BankStatementResponse)
+@router.post("/{statement_id}/rejections", response_model=BankStatementResponse)
 async def reject_statement_stage1(
     statement_id: UUID,
     decision: StatementDecisionRequest,
@@ -889,6 +1000,54 @@ async def reject_statement_stage1(
     except StorageError as exc:
         raise ServiceUnavailableError(f"Failed to fetch file from storage: {exc}") from exc
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
+
+
+@router.get("/{statement_id}/conflicts", response_model=ReviewConflictsResponse)
+async def get_review_conflicts(
+    statement_id: UUID, ctx: ReadCtx
+) -> ReviewConflictsResponse:
+    """Return duplicate and transfer-pair candidates for a statement."""
+    db, user_id = ctx.db, ctx.user_id
+    statement = await _get_statement_or_404(db, statement_id, user_id)
+    transactions = await resolve_statement_transactions(db, statement)
+
+    def _candidate(txn: AtomicTransaction) -> ReviewConflictCandidate:
+        return ReviewConflictCandidate(
+            id=txn.id,
+            txn_date=txn.txn_date,
+            description=txn.description,
+            amount=txn.amount,
+            direction=txn.direction.value if hasattr(txn.direction, "value") else str(txn.direction),
+        )
+
+    duplicates, transfer_pairs = find_statement_review_conflicts(transactions)
+    return ReviewConflictsResponse(
+        duplicates=[_candidate(txn) for txn in duplicates],
+        transfer_pairs=[_candidate(txn) for txn in transfer_pairs],
+        resolved=statement.stage1_conflicts_resolved_at is not None,
+    )
+
+
+@router.post("/{statement_id}/conflict-resolutions", response_model=ReviewConflictsResolveResponse)
+async def resolve_review_conflicts(
+    statement_id: UUID,
+    request: ResolveConflictsRequest,
+    ctx: Ctx,
+) -> ReviewConflictsResolveResponse:
+    """Resolve Stage-1 duplicate/transfer-pair candidates (#962)."""
+    db, user_id = ctx.db, ctx.user_id
+    statement = await resolve_statement_conflicts(db, statement_id, user_id)
+    resolved_at = statement.stage1_conflicts_resolved_at
+    await db.flush()
+
+    logger.info(
+        "stage1.conflicts.resolved",
+        audit_event="stage1.conflicts.resolved",
+        statement_id=str(statement_id),
+        action=request.action,
+        note=request.note,
+    )
+    return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)
 
 
 async def wait_for_parse_tasks() -> None:

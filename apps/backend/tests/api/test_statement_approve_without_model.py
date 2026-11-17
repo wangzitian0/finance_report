@@ -80,7 +80,7 @@ async def test_AC_extraction_2994_100_approve_of_rows_without_an_answer_goes_to_
     """AC-extraction.2994.100: With the model off and no stored answer, approve gives the 409 and posts nothing."""
     seeded = await _seed(db, test_user)
 
-    response = await client.post(f"/statements/{seeded.id}/review/approve", json={"create_account_if_missing": True})
+    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
 
     assert response.status_code == 409, response.text
     assert response.json()["detail"].startswith("Economic review required:"), response.text
@@ -124,10 +124,10 @@ async def test_AC_extraction_2994_100_the_classify_run_applies_the_keyword_rules
     await _add_keyword_rule(db, test_user, "Reviewed")
 
     before_the_run = await client.post(
-        f"/statements/{seeded.id}/review/approve", json={"create_account_if_missing": True}
+        f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True}
     )
     await classify_statement(db, seeded.id)
-    response = await client.post(f"/statements/{seeded.id}/review/approve", json={"create_account_if_missing": True})
+    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
 
     assert before_the_run.status_code == 409, "the approve alone applies no rule any more"
     assert before_the_run.json()["detail"].startswith("Economic review required:")

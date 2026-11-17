@@ -3,29 +3,25 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE
-from src.ledger.extension.account_service import CROSS_PERIOD_GAP_PLUG_TOLERANCE
-from src.ledger.orm.account import Account
-from src.schemas.account import (
-    AccountCoverageCadence,
-    AccountCoverageIssue,
-    AccountCoverageIssueType,
-    AccountCoverageListResponse,
-    AccountCoverageResponse,
-)
+from src.extraction.base.source_vocabulary import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import Account, account_service
 
 if TYPE_CHECKING:
-    pass
+    from src.schemas.extraction import (
+        AccountCoverageIssue,
+        AccountCoverageListResponse,
+    )
 
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
@@ -36,18 +32,7 @@ WARNING_SEVERITY = "warning"
 
 @dataclass(frozen=True)
 class StatementCoverageRow:
-    """The approved-statement fields account coverage needs (#1675 D6).
-
-    ``extraction`` owns ``StatementSummary`` (L3 domain, same rank as
-    ``ledger`` — and extraction already ``depends_on`` ledger, so a direct
-    import here would close a dependency cycle). This module may only depend
-    on this plain read-model shape, registered from above by ``main.py`` at
-    startup — never import the ORM class or its enum types directly (same
-    inversion as ``register_uploaded_document_readers``, #1675 D3). The
-    registered provider is responsible for filtering to APPROVED statements
-    for the given accounts before handing rows across the port — the
-    ``BankStatementStatus`` enum comparison stays with its owner.
-    """
+    """Approved-statement projection fields evaluated by account statement coverage."""
 
     id: UUID
     account_id: UUID
@@ -57,33 +42,6 @@ class StatementCoverageRow:
     opening_balance: Decimal | None
     closing_balance: Decimal | None
     updated_at: datetime
-
-
-# Called as (db, user_id, account_ids) — see get_account_statement_coverage's
-# call site.
-StatementCoverageReader: TypeAlias = (  # noqa: UP040
-    Callable[
-        [AsyncSession, UUID, Collection[UUID]],
-        Awaitable[list[StatementCoverageRow]],
-    ]
-)
-
-_statement_coverage_reader: StatementCoverageReader | None = None
-
-
-def register_statement_coverage_reader(reader: StatementCoverageReader) -> None:
-    """Wire the approved-statement-coverage lookup (see :class:`StatementCoverageRow`)."""
-    global _statement_coverage_reader
-    _statement_coverage_reader = reader
-
-
-def _require_statement_coverage_reader() -> StatementCoverageReader:
-    if _statement_coverage_reader is None:
-        raise RuntimeError(
-            "account_coverage.register_statement_coverage_reader() was never called — "
-            "main.py wires it at startup (#1675 D6); a test exercising this path must call it too."
-        )
-    return _statement_coverage_reader
 
 
 def _statement_currency(statement: StatementCoverageRow, fallback: str) -> str:
@@ -114,6 +72,8 @@ def _latest_statement(statements: list[StatementCoverageRow]) -> StatementCovera
 
 
 def _coverage_issues(statements: list[StatementCoverageRow], currency: str) -> list[AccountCoverageIssue]:
+    from src.schemas.extraction import AccountCoverageIssue, AccountCoverageIssueType
+
     complete_statements = [statement for statement in statements if _is_complete_period(statement)]
     monthly_statements = [statement for statement in complete_statements if not _is_daily_snapshot(statement)]
     monthly_statements.sort(key=lambda statement: (statement.period_start, statement.period_end, str(statement.id)))
@@ -181,7 +141,7 @@ def _coverage_issues(statements: list[StatementCoverageRow], currency: str) -> l
                 if has_both_balances and current.opening_balance is not None and previous.closing_balance is not None
                 else None
             )
-            if gap_delta is not None and gap_delta <= CROSS_PERIOD_GAP_PLUG_TOLERANCE:
+            if gap_delta is not None and gap_delta <= account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE:
                 continue
             issues.append(
                 AccountCoverageIssue(
@@ -230,6 +190,12 @@ async def get_account_statement_coverage(
     stale_after_days: int = DEFAULT_STALE_AFTER_DAYS,
 ) -> AccountCoverageListResponse:
     """Return statement continuity status for every active account/currency pair."""
+    from src.schemas.extraction import (
+        AccountCoverageCadence,
+        AccountCoverageListResponse,
+        AccountCoverageResponse,
+    )
+
     coverage_as_of = as_of or date.today()
 
     account_result = await db.execute(
@@ -242,14 +208,37 @@ async def get_account_statement_coverage(
     account_by_id = {account.id: account for account in accounts}
     account_ids = set(account_by_id)
 
+    statements: list[StatementCoverageRow] = []
     if account_ids:
-        statements = await _require_statement_coverage_reader()(db, user_id, account_ids)
-    else:
-        statements = []
+        statement_result = await db.execute(
+            select(StatementSummary)
+            .where(StatementSummary.user_id == user_id)
+            .where(StatementSummary.status == BankStatementStatus.APPROVED)
+            .where(StatementSummary.account_id.in_(account_ids))
+            .order_by(
+                StatementSummary.account_id,
+                StatementSummary.currency,
+                StatementSummary.period_start,
+                StatementSummary.id,
+            )
+        )
+        statements = [
+            StatementCoverageRow(
+                id=statement.id,
+                # Filtered to account_ids above, so account_id is never NULL here.
+                account_id=statement.account_id,  # type: ignore[arg-type]
+                currency=statement.currency,
+                period_start=statement.period_start,
+                period_end=statement.period_end,
+                opening_balance=statement.effective_opening_balance(),
+                closing_balance=statement.closing_balance,
+                updated_at=statement.updated_at,
+            )
+            for statement in statement_result.scalars().all()
+        ]
 
     grouped: dict[tuple[UUID, str], list[StatementCoverageRow]] = defaultdict(list)
     for statement in statements:
-        assert statement.account_id is not None
         account = account_by_id[statement.account_id]
         grouped[(statement.account_id, _statement_currency(statement, account.currency))].append(statement)
 

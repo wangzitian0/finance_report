@@ -477,7 +477,7 @@ const EFFECT_LABEL: Record<string, string> = {
 export function useAiSuggestions(statementId?: string) {
   return useApiQuery(
     ["ai", "suggestions", statementId ?? null],
-    "list_ai_suggestions_ai_suggestions_get",
+    "list_classification_suggestions_statements_classification_suggestions_get",
     statementId ? { query: { statement_id: statementId } } : {},
     { staleTime: 0 },
   );
@@ -502,7 +502,7 @@ export function AiSuggestionsQueue() {
     const corrected = correctedValues[id]?.trim();
     setSaving((c) => ({ ...c, [id]: true }));
     try {
-      const saved = await apiOperation("create_ai_feedback_ai_feedback_post", {
+      const saved = await apiOperation("create_classification_feedback_statements_classification_feedback_post", {
         body: { suggestion_id: id, action, ...(action === "edit_accept" && corrected ? { corrected_value: { value: corrected } } : {}) },
       });
       setRowErrors(({ [id]: _cleared, ...rest }) => rest);
@@ -626,7 +626,7 @@ export function CorrectionLoopProof() {
     setError(null);
     void (async () => {
       try {
-        const result = await apiOperation("get_correction_loop_replay_metrics_correction_loop_replay_get");
+        const result = await apiOperation("get_correction_loop_replay_statements_correction_loop_replay_get");
         if (active) setReplay(result);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : "Failed to load correction-loop proof");

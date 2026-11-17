@@ -42,12 +42,12 @@ if str(ROOT_DIR) not in sys.path:
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(1, str(BACKEND_ROOT))
 
+from src.extraction import BankStatementStatus  # noqa: E402
 from src.ledger import AccountType  # noqa: E402
 from src.schemas.account import AccountListResponse, AccountResponse  # noqa: E402
 from src.schemas.extraction import (  # noqa: E402
     AtomicTransactionResponse,
     BankStatementResponse,
-    BankStatementStatusEnum,
 )
 from src.schemas.reporting import BalanceSheetResponse, ReportLine  # noqa: E402
 
@@ -194,7 +194,7 @@ def build_accounts_list_vector() -> dict[str, Any]:
 
 
 def build_statement_upload_accepted_vector() -> dict[str, Any]:
-    """POST /api/statements/upload (202) — freshly accepted upload status."""
+    """POST /api/statements (202) — freshly accepted upload status."""
     response = BankStatementResponse(
         id=UUID("00000000-0000-4000-8000-000000000601"),
         user_id=_USER_ID,
@@ -208,7 +208,7 @@ def build_statement_upload_accepted_vector() -> dict[str, Any]:
         period_end=None,
         opening_balance=None,
         closing_balance=None,
-        status=BankStatementStatusEnum.PARSING,
+        status=BankStatementStatus.PARSING,
         confidence_score=None,
         balance_validated=None,
         validation_error=None,
@@ -218,7 +218,7 @@ def build_statement_upload_accepted_vector() -> dict[str, Any]:
     )
     return {
         "method": "POST",
-        "fe_path": "/api/statements/upload",
+        "fe_path": "/api/statements",
         "response_model": "src.schemas.extraction.BankStatementResponse",
         "response": _wire(response),
     }
@@ -240,7 +240,7 @@ def build_statement_parsed_vector() -> dict[str, Any]:
         period_end=date(2026, 1, 31),
         opening_balance=Decimal("1000.00"),
         closing_balance=Decimal("1150.50"),
-        status=BankStatementStatusEnum.PARSED,
+        status=BankStatementStatus.PARSED,
         confidence_score=92,
         balance_validated=True,
         validation_error=None,

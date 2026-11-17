@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import event
 
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-from tests.api.test_review_router import _seed_approved_statement_with_posted_txn
+from tests.reconciliation.test_stage2_review_router import _seed_approved_statement_with_posted_txn
 
 pytestmark = pytest.mark.asyncio
 

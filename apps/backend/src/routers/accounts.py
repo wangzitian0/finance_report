@@ -1,42 +1,27 @@
 """Account management API router."""
 
-from datetime import date
-from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
-from src.audit import to_money
 from src.composition import post_guided_opening_balances
 from src.deps import Ctx, ReadCtx
 from src.ledger import (
-    DEFAULT_STALE_AFTER_DAYS,
     AccountType,
     JournalLine,
     account_service,
     calculate_account_balance,
     calculate_account_balances,
-    find_processing_account,
-    find_transfer_pairs,
-    get_account_statement_coverage,
     get_opening_balance_readiness,
-    get_processing_balance,
-    get_unpaired_transfers,
-    list_processing_transfer_legs,
 )
 from src.observability import get_logger
 from src.platform import ValidationFailedError
-from src.reconciliation import paired_transfer_entry_ids, score_description
 from src.schemas import (
-    AccountCoverageListResponse,
     AccountCreate,
     AccountListResponse,
     AccountResponse,
     AccountUpdate,
-    ProcessingPendingItem,
-    ProcessingPendingListResponse,
-    ProcessingSummaryResponse,
 )
 from src.schemas.account import OpeningBalanceReadinessResponse, OpeningBalanceRequest
 from src.schemas.journal import JournalEntryResponse
@@ -130,93 +115,6 @@ async def list_accounts(
         items.append(response)
 
     return AccountListResponse(items=items, total=total)
-
-
-@router.get("/processing/summary", response_model=ProcessingSummaryResponse)
-async def get_processing_summary(
-    ctx: ReadCtx,
-) -> ProcessingSummaryResponse:
-    # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
-    # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
-    """Return the processing-account pipeline summary."""
-    db, user_id = ctx.db, ctx.user_id
-    processing_account = await find_processing_account(db, user_id)
-    currency = processing_account.currency if processing_account else await ctx.get_base_currency()
-    persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
-    pairs = await find_transfer_pairs(
-        db,
-        user_id,
-        currency=currency,
-        description_scorer=score_description,
-        exclude_entry_ids=persisted_paired_ids,
-    )
-    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs} | persisted_paired_ids
-    unpaired = [
-        item
-        for item in await get_unpaired_transfers(db, user_id, currency=currency)
-        if item["entry_id"] not in paired_ids
-    ]
-    pending_count = len(unpaired)
-    debits = sum((item["amount"] for item in unpaired if item["direction"] == "OUT"), start=Decimal("0"))
-    credits = sum((item["amount"] for item in unpaired if item["direction"] == "IN"), start=Decimal("0"))
-    pending_total = to_money(abs(debits - credits))
-    current_balance = to_money(await get_processing_balance(db, user_id, currency=currency))
-    oldest_pending_date = min((item["date"] for item in unpaired), default=None)
-    return ProcessingSummaryResponse(
-        pending_count=pending_count,
-        pending_total=pending_total,
-        current_balance=current_balance,
-        currency=currency,
-        oldest_pending_date=oldest_pending_date,
-    )
-
-
-@router.get("/processing/pending", response_model=ProcessingPendingListResponse)
-async def list_processing_pending(
-    ctx: ReadCtx,
-) -> ProcessingPendingListResponse:
-    # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
-    # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
-    """Return pending items in the processing pipeline."""
-    db, user_id = ctx.db, ctx.user_id
-    processing_account = await find_processing_account(db, user_id)
-    currency = processing_account.currency if processing_account else await ctx.get_base_currency()
-    persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
-    pairs = await find_transfer_pairs(
-        db,
-        user_id,
-        currency=currency,
-        description_scorer=score_description,
-        exclude_entry_ids=persisted_paired_ids,
-    )
-    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs} | persisted_paired_ids
-    legs = [
-        leg
-        for leg in await list_processing_transfer_legs(db, user_id, currency=currency)
-        if leg["entry_id"] not in paired_ids
-    ]
-    items = [ProcessingPendingItem(**leg) for leg in legs]
-    return ProcessingPendingListResponse(items=items, total=len(items))
-
-
-@router.get("/coverage", response_model=AccountCoverageListResponse)
-async def list_account_statement_coverage(
-    ctx: ReadCtx,
-    as_of: date | None = Query(None, description="Date used for stale-account evaluation"),
-    stale_after_days: int = Query(
-        DEFAULT_STALE_AFTER_DAYS,
-        ge=1,
-        le=366,
-        description="Number of days after latest confirmed source date before an account is stale",
-    ),
-) -> AccountCoverageListResponse:
-    """List statement coverage status for active accounts."""
-    return await get_account_statement_coverage(
-        ctx.db,
-        ctx.user_id,
-        as_of=as_of,
-        stale_after_days=stale_after_days,
-    )
 
 
 @router.put("/{account_id}", response_model=AccountResponse)

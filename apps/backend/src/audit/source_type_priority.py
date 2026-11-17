@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import enum
 from collections.abc import Iterable
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
+
+DataProvenance = Literal["imported", "manual", "derived"]
 
 
 class JournalEntrySourceType(str, enum.Enum):
