@@ -1,7 +1,7 @@
 """Env-backed ``ConfigSource`` (EPIC-023 EPIC A).
 
-Projects the provider-neutral environment settings (``AI_PROVIDER`` /
-``AI_BASE_URL`` / ``AI_API_KEY``) and the three canonical model roles
+Projects the provider-neutral environment settings (``LLM_PROVIDER`` /
+``LLM_BASE_URL`` / ``LLM_API_KEY``) and the three canonical model roles
 (``LARGE_MODEL``, ``SMALL_MODEL``, ``MULTIMODAL_MODEL``) onto the
 scene×model contract.
 """
@@ -18,7 +18,7 @@ settings = src.config.settings
 
 _PROVIDER_ENV_ID = "env"
 
-# Map the loosely-typed AI_PROVIDER value onto a protocol family. Anything that
+# Map the loosely-typed LLM_PROVIDER value onto a protocol family. Anything that
 # is not OpenRouter, Anthropic or Gemini is treated as OpenAI-compatible (Z.AI/GLM,
 # DeepSeek, a local vLLM, …) — they all ride the OpenAI wire format.
 _FAMILY_BY_PROVIDER: dict[str, ProtocolFamily] = {

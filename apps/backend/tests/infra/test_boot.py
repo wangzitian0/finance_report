@@ -33,7 +33,7 @@ class TestBootloader:
             assert 'S3 Down' in str(status.message)
 class TestBootloaderStaticConfig:
     def test_import_boot_succeeds_without_env(self, monkeypatch):
-        monkeypatch.delenv('APP_ENV', raising=False); monkeypatch.setenv('ENVIRONMENT', 'development'); from src.config import Settings; local_settings = Settings(_env_file=None)
+        monkeypatch.setenv('ENVIRONMENT', 'development'); from src.config import Settings; local_settings = Settings(_env_file=None)
         with patch('src.boot.settings', local_settings): assert Bootloader._check_static_config() is True
     def test_check_static_config_success(self, mock_settings): result = Bootloader._check_static_config(); assert result is True
     def test_AC1_10_1_static_config_rejects_default_secret_key_in_production(self, mock_settings): 'AC-runtime.21.1 AC1.10.1'; mock_settings.environment = 'production'; mock_settings.secret_key = 'dev_secret_key_change_in_prod'; result = Bootloader._check_static_config(); assert result is False
@@ -130,7 +130,7 @@ class TestBootloaderNoVaultSecretsResidueAndFailClosedEnv:
         mock_settings.environment = 'production'; mock_settings.secret_key = 'unit-test-' + 'x' * 26; mock_settings.database_url = 'postgresql+asyncpg://finance:placeholder@db.internal:5432/finance_report'; mock_settings.s3_secret_key = 'placeholder-' + 'y' * 12; mock_settings.s3_access_key = ''
         with pytest.raises(SystemExit) as exc_info: await Bootloader.validate(BootMode.CRITICAL)
         assert exc_info.value.code == 1
-    def test_static_config_fails_closed_on_conflicting_alias_env_vars(self, mock_settings, monkeypatch): monkeypatch.setenv('AI_API_KEY', 'key-one'); monkeypatch.setenv('ZAI_API_KEY', 'key-two'); assert Bootloader._check_static_config() is False
+    def test_static_config_fails_closed_on_conflicting_alias_env_vars(self, mock_settings, monkeypatch): monkeypatch.setenv('ENVIRONMENT', 'staging'); monkeypatch.setenv('ENV', 'production'); assert Bootloader._check_static_config() is False
 class TestStaticConfigInjectedValuesScope:
     def _configure_deployed(self, mock_settings, monkeypatch, environment: str, app_url: str) -> None: monkeypatch.delenv('PREFECT_API_URL', raising=False); monkeypatch.delenv('S3_PUBLIC_ENDPOINT', raising=False); [setattr(mock_settings, field, value) for field, value in _GUARD_STRONG_VALUES.items()]; mock_settings.environment = environment; mock_settings.next_public_app_url = app_url; mock_settings.prefect_api_url = None; mock_settings.s3_public_endpoint = None
     def test_static_config_accepts_preview_alias_without_prefect_and_public_s3_endpoint(self, mock_settings, mock_logger, monkeypatch): self._configure_deployed(mock_settings, monkeypatch, 'pr-123', 'https://report-pr-123.zitian.party'); assert Bootloader._is_protected_runtime('pr-123') is True; assert Bootloader._check_static_config() is True; mock_logger.error.assert_not_called()

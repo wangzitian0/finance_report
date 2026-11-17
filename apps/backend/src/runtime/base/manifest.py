@@ -109,8 +109,8 @@ DEPENDENCY_MANIFEST = DependencyManifest(
             "llm",
             DependencyKind.MODEL_DOMINANT,
             _SP,
-            env_vars=("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "AI_PROVIDER", "AI_API_KEY", "ZAI_API_KEY", "AI_BASE_URL"),
-            summary="The AI provider used for statement extraction (AI_*); recorded (cassette substitute) in CI/preview, real on staging/prod.",
+            env_vars=("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "AI_PROVIDER", "AI_BASE_URL"),
+            summary="The AI provider used for statement extraction (LLM_*); recorded (cassette substitute) in CI/preview, real on staging/prod.",
         ),
         _dep(
             "cache",

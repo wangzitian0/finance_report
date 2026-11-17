@@ -5,7 +5,6 @@ class ErrorIds:
     """Centralized error IDs for production monitoring and debugging."""
 
     # OpenRouter Streaming (ERR_OR_xxx)
-    OPENROUTER_API_KEY_MISSING = "ERR_OR_001"
     OPENROUTER_HTTP_ERROR = "ERR_OR_002"
     OPENROUTER_CONSECUTIVE_PARSE_FAIL = "ERR_OR_003"
     OPENROUTER_TIMEOUT = "ERR_OR_004"

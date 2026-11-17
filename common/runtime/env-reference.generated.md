@@ -28,7 +28,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
 | `LARGE_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production. |
-| `LLM_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). Settings reads LLM_API_KEY and legacy AI_API_KEY / ZAI_API_KEY. |
+| `LLM_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). |
 | `LLM_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` |  |  | AI Provider | AI provider base URL (provider-neutral; default targets Z.AI/GLM). |
 | `LLM_CASSETTE_ENGAGE` | `false` |  |  | AI Provider | Engage offline LLM cassette replay layer. |
 | `LLM_CASSETTE_REFRESH` | `false` |  |  | AI Provider | Refresh recorded LLM cassettes in local runs. |
