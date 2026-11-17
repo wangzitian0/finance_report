@@ -16,7 +16,7 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.llm import (
     EnvConfigSource,
     LitellmCatalog,
@@ -66,7 +66,7 @@ async def get_config_status(user_id: CurrentUserId) -> LlmConfigStatusResponse:
 
 
 @router.get("/providers", response_model=LlmProviderListResponse)
-async def list_providers(db: DbSession, user_id: CurrentUserId) -> LlmProviderListResponse:
+async def list_providers(db: ReadDbSession, user_id: CurrentUserId) -> LlmProviderListResponse:
     """List the current user's provider instances (keys never returned)."""
     rows = (
         (await db.execute(select(LlmProvider).where(LlmProvider.user_id == user_id).order_by(LlmProvider.created_at)))
@@ -110,9 +110,8 @@ async def create_provider(
     )
     db.add(provider)
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError as exc:
-        await db.rollback()
         raise_conflict("Provider could not be created due to a conflict.", cause=exc)
     await db.refresh(provider)
     return LlmProviderResponse.model_validate(provider)
@@ -133,7 +132,7 @@ async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserI
     row = await get_owned_or_404(db, LlmProvider, pid, user_id, name="Provider")
     deleted_id = row.id
     await db.delete(row)
-    await db.commit()
+    await db.flush()
     return LlmProviderDeleteResponse(id=deleted_id, deleted=True)
 
 
@@ -160,7 +159,7 @@ async def get_catalog(
 
 
 @router.get("/scenes", response_model=LlmScenesResponse)
-async def get_scenes(db: DbSession, user_id: CurrentUserId) -> LlmScenesResponse:
+async def get_scenes(db: ReadDbSession, user_id: CurrentUserId) -> LlmScenesResponse:
     """The current user's scene→model bindings."""
     rows = (await db.execute(select(LlmSceneBinding).where(LlmSceneBinding.user_id == user_id))).scalars().all()
     bindings = [
@@ -213,10 +212,9 @@ async def put_scenes(
             )
         )
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError as exc:
         # Concurrent writes for the same user can collide on the per-scope unique
         # index; surface a retryable conflict rather than a 500.
-        await db.rollback()
         raise_conflict("Scene bindings could not be saved due to a concurrent update; retry.", cause=exc)
     return await get_scenes(db, user_id)

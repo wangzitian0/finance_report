@@ -19,7 +19,7 @@ from src.advisor import (
     ChatSessionStatus,
     detect_language,
 )
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.llm import LitellmCatalog, LLMError
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable
@@ -151,7 +151,7 @@ async def chat_history(
     session_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
     *,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> ChatHistoryResponse:
     """Retrieve chat session history."""
@@ -235,7 +235,7 @@ async def delete_session(session_id: UUID, *, db: DbSession, user_id: CurrentUse
     """Soft-delete a chat session."""
     session = await get_owned_or_404(db, ChatSession, session_id, user_id, name="Chat session")
     session.status = ChatSessionStatus.DELETED
-    await db.commit()
+    await db.flush()
 
 
 @router.get("/suggestions", response_model=ChatSuggestionsResponse)
@@ -252,7 +252,7 @@ async def suggestions(
         ),
     ] = False,
     *,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> ChatSuggestionsResponse:
     """Return a suggested question list for the chat UI."""
