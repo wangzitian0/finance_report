@@ -72,6 +72,7 @@ from src.ledger import Account, AccountType, account_service
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
+    ValidationFailedError,
     raise_bad_request,
     raise_conflict,
     raise_internal_error,
@@ -386,11 +387,13 @@ async def _create_statement_account_from_confirmation(
         ).scalar_one_or_none()
         if account:
             return account
-        raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
+        raise ValidationFailedError("Statement account mapping is invalid. Confirm the target account before posting.")
 
     currency = (statement.currency or "").strip().upper()
     if not currency:
-        raise ValueError("Statement currency required before creating an account. Confirm the source currency first.")
+        raise ValidationFailedError(
+            "Statement currency required before creating an account. Confirm the source currency first."
+        )
     account_name = (statement.institution or "").strip() or "Statement Account"
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"

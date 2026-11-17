@@ -205,7 +205,7 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
     await db.commit()
     statement.closing_balance = Decimal("999.00")
 
-    with pytest.raises(HTTPException, match="diverges from its current reviewed envelope") as exc:
+    with pytest.raises((HTTPException, DomainError), match="diverges from its current reviewed envelope") as exc:
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
 

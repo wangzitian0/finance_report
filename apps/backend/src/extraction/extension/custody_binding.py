@@ -17,6 +17,7 @@ from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.reviewed_statement_envelope import ReviewedStatementEnvelope, StatementExtractionResultRecord
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalLine
+from src.platform import ValidationFailedError
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,5 +372,5 @@ async def resolve_bank_custody_account(
             create_if_missing=create_if_missing,
         )
     except ExtractionError as exc:
-        raise ValueError(str(exc)) from exc
+        raise ValidationFailedError(str(exc)) from exc
     return allocation.account

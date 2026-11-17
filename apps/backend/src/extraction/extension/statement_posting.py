@@ -64,8 +64,8 @@ from src.extraction.extension.statement_validation import (
     approve_statement_with_transactions,
     resolve_statement_transactions,
 )
+from src.extraction.extension.statement_runs import ActiveRunExists, lock_statement_for_run
 from src.platform import ValidationFailedError
-from src.extraction.extension.statement_runs import lock_statement_for_run
 from src.extraction.extension.transaction_classification import classification_suggestions
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.orm.layer1 import UploadedDocument
@@ -1226,6 +1226,8 @@ async def try_auto_approve_high_confidence_statement(
             if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
                 await try_auto_post_statement_opening_balance(db, approved, user_id, dependencies=dependencies)
             await db.flush()
+    except ActiveRunExists:
+        raise
     except ValueError as exc:
         refreshed = await db.get(StatementSummary, statement_id)
         if refreshed is not None:
