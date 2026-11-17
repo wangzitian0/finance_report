@@ -62,17 +62,19 @@ class BaseAppException(Exception):
         status_code: int = 500,
         *,
         extra: dict[str, Any] | None = None,
+        detail_payload: dict[str, Any] | str | None = None,
     ) -> None:
         super().__init__(message)
         self.error_id = error_id
         self.message = message
         self.status_code = status_code
         self.extra = extra
+        self.detail_payload = detail_payload
 
     @property
-    def detail(self) -> str:
+    def detail(self) -> dict[str, Any] | str:
         """HTTP-compatible detail alias for direct handler callers."""
-        return self.message
+        return self.detail_payload if self.detail_payload is not None else self.message
 
 
 _DOMAIN_ERROR_IDS: dict[int, str] = {
@@ -96,12 +98,19 @@ class DomainError(BaseAppException, ValueError):
         status_code: int | None = None,
         error_id: str | None = None,
         extra: dict[str, Any] | None = None,
+        detail_payload: dict[str, Any] | str | None = None,
     ) -> None:
         resolved_status = self.default_status_code if status_code is None else status_code
         resolved_error_id = (
             error_id or self.default_error_id or _DOMAIN_ERROR_IDS.get(resolved_status, f"HTTP_{resolved_status}")
         )
-        super().__init__(error_id=resolved_error_id, message=message, status_code=resolved_status, extra=extra)
+        super().__init__(
+            error_id=resolved_error_id,
+            message=message,
+            status_code=resolved_status,
+            extra=extra,
+            detail_payload=detail_payload,
+        )
 
 
 class ValidationFailedError(DomainError):

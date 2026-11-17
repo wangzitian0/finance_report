@@ -16,7 +16,7 @@ def test_AC6_33_9_export_envelope_rejects_unsafe_filename(bad_filename: str) -> 
     with pytest.raises(ValidationError): ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=bad_filename)
 @pytest.mark.no_db
 async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> None:
-    'AC-advisor.envelope.5 AC6.33.7'; from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.commit = AsyncMock(); session_id = uuid4()
+    'AC-advisor.envelope.5 AC6.33.7'; from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); session_id = uuid4()
     async def mock_stream(): yield 'Hello'
     metadata = {'grounded': True, 'citations': [{'label': 'Balance Sheet', 'source_ref': 'balance_sheet.total_equity', 'confidence_tier': 'TRUSTED', 'href': '/reports?tab=balance-sheet'}], 'actions': []}
     with patch('src.routers.chat.AIAdvisorService') as MockService: stream_obj = MagicMock(); stream_obj.session_id = session_id; stream_obj.stream = mock_stream(); stream_obj.model_name = 'gpt-4'; stream_obj.metadata = metadata; mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(return_value=stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What is my net worth?'; payload.session_id = None; payload.model = None; response = await chat_message(payload, db=mock_db, user_id=uuid4())

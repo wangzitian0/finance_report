@@ -17,14 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.composition import (
     auto_fill_default_statement_dispositions,
     compose_statement_posting_dependencies,
-    refresh_market_data_for_brokerage_import,
+    execute_statement_brokerage_import,
 )
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
-    BrokerageImportRejectedError,
     BrokeragePositionImportService,
     HintsNotApplicable,
     ParseJob,
@@ -45,7 +44,6 @@ from src.extraction import (
     _brokerage_payload_from_statement,
     approve_statement_workflow,
     classification_suggestions,
-    clear_brokerage_import_failure,
     confirm_reviewed_statement_envelope,
     create_run,
     current_reviewed_statement_envelope,
@@ -54,7 +52,6 @@ from src.extraction import (
     is_bank_custody_source,
     list_runs,
     pending_stage1_review_filter,
-    record_brokerage_import_failure,
     register_statement_source,
     reject_statement_workflow,
     resolve_bank_custody_account,
@@ -82,7 +79,6 @@ from src.platform import (
     raise_service_unavailable,
     raise_too_large,
 )
-from src.portfolio import PositionServiceError
 from src.runtime import StorageError, StorageService
 from src.schemas import (
     BankStatementListResponse,
@@ -478,7 +474,7 @@ async def upload_statement(
             )
         )
     ).scalar_one_or_none():
-        raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
+        raise ConflictError("Duplicate statement upload")
 
     if extension != "csv":
         await _validate_vision_model(model)
@@ -675,10 +671,7 @@ async def get_statement_document(statement_id: UUID, db: ReadDbSession, user_id:
     statement = await _get_statement_or_404(db, statement_id, user_id)
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No uploaded document is associated with this statement",
-        )
+        raise ResourceNotFoundError("No uploaded document is associated with this statement")
     try:
         content = await asyncio.to_thread(StorageService().get_object, uploaded_document.file_path)
     except StorageError as exc:
@@ -726,54 +719,17 @@ async def import_brokerage_statement_positions(
         broker=statement.institution,
         parsed_positions=len(transactions),
     )
-    try:
-        import_result = await _BROKERAGE_IMPORT_SERVICE.import_positions(
-            db,
-            user_id=user_id,
-            payload=payload,
-            filename=source_filename,
-            source_document_id=source_document_id,
-        )
-        if statement.account_id is None and import_result.account_id is not None:
-            statement.account_id = import_result.account_id
-        await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
-        await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=payload)
-        await db.commit()
-    except Exception as exc:
-        is_rejected = isinstance(exc, BrokerageImportRejectedError | PositionServiceError)
-        (logger.warning if is_rejected else logger.exception)(
-            "statement.brokerage_import.failed",
-            audit_event="statement.brokerage_import.failed",
-            request_id=request_id,
-            statement_id=str(statement_id),
-            phase="brokerage_import_failed",
-            model_to_use=None,
-            error_type=type(exc).__name__,
-            safe_error_message=safe_error_message(str(exc)),
-        )
-        await db.rollback()
-        try:
-            await record_brokerage_import_failure(
-                db,
-                statement_id=statement_id,
-                user_id=user_id,
-                request_id=request_id,
-                reason=exc.message
-                if isinstance(exc, BrokerageImportRejectedError)
-                else (str(exc) if is_rejected else None),
-            )
-            await db.commit()
-        except Exception as record_exc:  # noqa: BLE001
-            await db.rollback()
-            logger.warning(
-                "statement.brokerage_import.failure_not_recorded",
-                request_id=request_id,
-                statement_id=str(statement_id),
-                error_type=type(record_exc).__name__,
-            )
-        if isinstance(exc, PositionServiceError):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-        raise
+    import_result = await execute_statement_brokerage_import(
+        db,
+        statement=statement,
+        user_id=user_id,
+        payload=payload,
+        source_filename=source_filename,
+        source_document_id=source_document_id,
+        request_id=request_id,
+        import_service=_BROKERAGE_IMPORT_SERVICE,
+        audit_logger=logger,
+    )
 
     logger.info(
         "statement.brokerage_import.completed",
@@ -933,7 +889,6 @@ async def reject_statement_stage1(
             ),
         )
     except StorageError as exc:
-        await db.rollback()
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
     return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
 

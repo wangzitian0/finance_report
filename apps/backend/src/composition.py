@@ -23,6 +23,7 @@ from src.extraction import (
     ActiveRunExists,
     AtomicTransaction,
     BankStatementStatus,
+    BrokerageImportRejectedError,
     ClassificationSuggestion,
     DispositionMode,
     DispositionPolicy,
@@ -36,12 +37,14 @@ from src.extraction import (
     balance_sheet_booking,
     build_statement_ingestion_use_case,
     classification_suggestions,
+    clear_brokerage_import_failure,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
     general_account_name,
     get_active_run,
     get_or_create_account,
     lock_statement_for_run,
+    record_brokerage_import_failure,
     settle_drafts_after_posting,
     snapshot_currencies,
     statement_disposition_policy_for_user,
@@ -56,8 +59,15 @@ from src.ledger import (
     ledger_trace_policy_registry,
     used_currencies,
 )
-from src.observability import get_logger
-from src.portfolio import InvestmentTransaction, InvestmentTransactionType, active_stock_symbols, position_currencies
+from src.observability import get_logger, safe_error_message
+from src.platform import PreconditionFailedError
+from src.portfolio import (
+    InvestmentTransaction,
+    InvestmentTransactionType,
+    PositionServiceError,
+    active_stock_symbols,
+    position_currencies,
+)
 from src.pricing import MarketDataScopes, PricingError, ensure_market_data_fresh, get_exchange_rate
 from src.reconciliation import (
     NamedTransfer,
@@ -520,3 +530,68 @@ def compose_correction_callbacks() -> dict[str, Any]:
         "supersede_transfer_legs": _supersede_transfer_legs_for_correction,
         "repost_approved_statement": _repost_approved_statement_for_correction,
     }
+
+
+async def execute_statement_brokerage_import(
+    db: AsyncSession,
+    *,
+    statement: StatementSummary,
+    user_id: UUID,
+    payload: Mapping[str, Any],
+    source_filename: str,
+    source_document_id: str,
+    request_id: str,
+    import_service: Any,
+    audit_logger: Any,
+) -> Any:
+    """Import brokerage holdings for a statement, rolling back and persisting failure metadata on error."""
+    statement_id = statement.id
+    try:
+        import_result = await import_service.import_positions(
+            db,
+            user_id=user_id,
+            payload=payload,
+            filename=source_filename,
+            source_document_id=source_document_id,
+        )
+        if statement.account_id is None and import_result.account_id is not None:
+            statement.account_id = import_result.account_id
+        await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
+        await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=payload)
+        await db.commit()
+        return import_result
+    except Exception as exc:
+        is_rejected = isinstance(exc, BrokerageImportRejectedError | PositionServiceError)
+        (audit_logger.warning if is_rejected else audit_logger.exception)(
+            "statement.brokerage_import.failed",
+            audit_event="statement.brokerage_import.failed",
+            request_id=request_id,
+            statement_id=str(statement_id),
+            phase="brokerage_import_failed",
+            model_to_use=None,
+            error_type=type(exc).__name__,
+            safe_error_message=safe_error_message(str(exc)),
+        )
+        await db.rollback()
+        try:
+            await record_brokerage_import_failure(
+                db,
+                statement_id=statement_id,
+                user_id=user_id,
+                request_id=request_id,
+                reason=exc.message
+                if isinstance(exc, BrokerageImportRejectedError)
+                else (str(exc) if is_rejected else None),
+            )
+            await db.commit()
+        except Exception as record_exc:  # noqa: BLE001
+            await db.rollback()
+            audit_logger.warning(
+                "statement.brokerage_import.failure_not_recorded",
+                request_id=request_id,
+                statement_id=str(statement_id),
+                error_type=type(record_exc).__name__,
+            )
+        if isinstance(exc, PositionServiceError):
+            raise PreconditionFailedError(str(exc)) from exc
+        raise

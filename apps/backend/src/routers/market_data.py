@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
 
 from src.composition import observed_fx_pairs
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.portfolio import active_stock_symbols
 from src.pricing import (
     MarketDataScopeStatus,
@@ -73,7 +73,7 @@ def _status_response(status_result: MarketDataScopeStatus) -> MarketDataStatusRe
 
 @router.get("/status", response_model=list[MarketDataStatusResponse], status_code=status.HTTP_200_OK)
 async def market_data_status_endpoint(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     pairs: list[str] | None = Query(default=None, description="FX pairs in BASE/QUOTE format"),
     symbols: list[str] | None = Query(default=None, description="Stock symbols"),
@@ -102,7 +102,6 @@ async def sync_fx_endpoint(
         start_date=request.start_date,
         end_date=request.end_date,
     )
-    await db.commit()
     return _response_from_result(result)
 
 
@@ -120,5 +119,4 @@ async def sync_stocks_endpoint(
         start_date=request.start_date,
         end_date=request.end_date,
     )
-    await db.commit()
     return _response_from_result(result)

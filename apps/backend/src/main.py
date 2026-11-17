@@ -315,7 +315,7 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
         message=exc.message,
         request_id=request_id,
     )
-    return _error_json(exc.status_code, exc.error_id, exc.message, request_id=request_id, extra=exc.extra)
+    return _error_json(exc.status_code, exc.error_id, exc.detail, request_id=request_id, extra=exc.extra)
 
 
 @app.exception_handler(StarletteHTTPException)
