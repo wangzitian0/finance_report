@@ -8,7 +8,6 @@ import importlib.machinery
 import importlib.util
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 _COMMON_DIR = Path(__file__).resolve().parent
 _BACKEND_DIR = _COMMON_DIR.parents[1] / "apps" / "backend"
@@ -18,7 +17,6 @@ if str(_BACKEND_DIR) not in sys.path:
 
 _COMMON_ONLY = frozenset(
     {
-        "contract",
         "extension.cascade_ownership",
         "money.guard",
         "money.conformance",
@@ -69,15 +67,8 @@ if not any(type(f).__name__ == "_AuditBridgeFinder" for f in sys.meta_path):
 import src.audit as _src_audit  # noqa: E402
 from src.audit import *  # noqa: E402,F401,F403
 
-if TYPE_CHECKING:
-    from common.audit.contract import CONTRACT as CONTRACT
-
-__all__ = ["CONTRACT", *_src_audit.__all__]
+__all__ = list(_src_audit.__all__)
 
 
 def __getattr__(name: str):
-    if name == "CONTRACT":
-        from common.audit.contract import CONTRACT
-
-        return CONTRACT
     return getattr(_src_audit, name)

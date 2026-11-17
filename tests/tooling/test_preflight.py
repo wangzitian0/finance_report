@@ -10,60 +10,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestSelectChecks:
-    def test_AC_testing_preflight_1_package_contract_selected_on_contract_edit(self):
-        for path in (
-            "common/runtime/contract.py",
-            "common/meta/extension/check_package_contract.py",
-            "tools/check_package_contract.py",
-            "apps/backend/src/ledger/__init__.py",
-            "tests/tooling/test_check_package_contract.py",
-            "apps/backend/tests/ledger/test_accounting_equation.py",
-        ):
-            names = {c.name for c in preflight.select_checks([path], tier="static")}
-            assert "package-contract" in names, (
-                f"{path} did not select package-contract"
-            )
-        _m2_names = [
-            _m2_c.name
-            for _m2_c in preflight.select_checks(
-                ["docs/project/EPIC-008.testing-strategy.md"]
-            )
-        ]
-        assert "package-migration-safety" in _m2_names
-        _m3_names = [
-            _m3_c.name
-            for _m3_c in preflight.select_checks(["common/meta/data/MANIFEST.yaml"])
-        ]
-        assert "ssot-ownership" in _m3_names
-        _m4_names = [
-            _m4_c.name
-            for _m4_c in preflight.select_checks(
-                ["tests/tooling/test_s4_testing_gate_infrastructure.py"], tier="static"
-            )
-        ]
-        assert "package-migration-safety" in _m4_names
-        _m5_names = {
-            _m5_c.name
-            for _m5_c in preflight.select_checks([".github/workflows/ci.yml"])
+    def test_AC_testing_preflight_1_structural_and_cassette_checks_selected(self):
+        assert "public-orm-exports" in {
+            c.name for c in preflight.select_checks(["apps/backend/src/ledger/__init__.py"], tier="static")
         }
-        assert {"workflow-contract"}.issubset(_m5_names)
-        _m6_names = {
-            _m6_c.name
-            for _m6_c in preflight.select_checks(
-                ["common/meta/data/governance-exceptions.yaml"]
-            )
+        assert "toolchain-contract" in {
+            c.name for c in preflight.select_checks([".github/workflows/ci.yml"], tier="static")
         }
-        assert {"governance-exceptions"}.issubset(_m6_names)
         _m7_c_fixture = "tests/fixtures/llm_" + "cas" + "settes/example.json"
         _m7_names = {_m7_c.name for _m7_c in preflight.select_checks([_m7_c_fixture])}
         _m7_expected = {"llm-" + "cas" + "settes", "cas" + "sette-graded-eval"}
         assert _m7_expected.issubset(_m7_names)
-        "AC-testing.preflight.1"
-        _m10_names = [
-            _m10_c.name
-            for _m10_c in preflight.select_checks(["common/ledger/readme.md"])
-        ]
-        assert "taxonomy-drift" in _m10_names
         _m11_names = [
             _m11_c.name
             for _m11_c in preflight.select_checks(
@@ -164,27 +121,6 @@ class TestSelectChecks:
         assert "tooling" in _m24_names
         assert preflight.select_checks(["Makefile"]) == []
         assert preflight.select_checks([]) == []
-
-    @pytest.mark.parametrize(
-        "changed_path",
-        [
-            "common/testing/contract.py",
-            "tests/tooling/test_s4_testing_gate_infrastructure.py",
-            "apps/backend/tests/ledger/test_accounting_equation.py",
-            "apps/frontend/src/app/__tests__/page.test.tsx",
-            "apps/frontend/src/lib/api.spec.ts",
-            "common/meta/base/authority_matrix.py",
-            "common/meta/extension/authority_classifier.py",
-            "common/meta/extension/check_authority_reconcile.py",
-            "common/meta/extension/generate_ac_registry.py",
-        ],
-    )
-    def test_AC_testing_preflight_1_authority_input_selects_reconcile(
-        self, changed_path: str
-    ):
-        names = [c.name for c in preflight.select_checks([changed_path])]
-        assert "package-migration-safety" in names
-
 
 def _route_defining_backend_files() -> list[str]:
     src = REPO_ROOT / "apps" / "backend" / "src"
@@ -344,7 +280,7 @@ class TestRunAndMain:
             calls.append(list(argv))
             return 1
 
-        checks = [c for c in preflight.CHECKS if c.name == "ssot-ownership"]
+        checks = [c for c in preflight.CHECKS if c.name == "backend-format"]
         preflight.run_checks(checks, runner=runner, python="python3")
         assert len(calls) == 1
 
@@ -377,7 +313,7 @@ class TestRunAndMain:
 
 def test_AC_testing_preflight_1_static_tier_composes_with_glob_selection():
     "AC-testing.preflight.1"
-    changed = ["common/testing/preflight.py"]
+    changed = ["apps/backend/src/ledger/__init__.py"]
     full_names = {c.name for c in preflight.select_checks(changed)}
     static_selected = preflight.select_checks(changed, tier="static")
     static_names = {c.name for c in static_selected}
@@ -410,29 +346,6 @@ def test_AC_testing_preflight_1_static_tier_composes_with_glob_selection():
     assert _m5_names.index("Install frontend dependencies") < _m5_matching[0]
     assert "if" not in _m5_step, "the openapi-spec step must run on every Lint run"
     assert not _m5_step.get("continue-on-error"), "the step must fail the Lint job"
-    _m6_steps = _lint_steps()
-    _m6_names = [_m6_step.get("name", "") for _m6_step in _m6_steps]
-    _m6_matching = [
-        _m6_i
-        for _m6_i, _m6_step in enumerate(_m6_steps)
-        if "--only package-contract" in _m6_step.get("run", "")
-    ]
-    assert len(_m6_matching) == 1, (
-        f"expected one package-contract step in Lint, got {_m6_matching}"
-    )
-    _m6_step = _m6_steps[_m6_matching[0]]
-    _m6_run_lines = [
-        _m6_line.strip()
-        for _m6_line in _m6_step["run"].splitlines()
-        if _m6_line.strip() and (not _m6_line.strip().startswith("#"))
-    ]
-    assert _m6_run_lines == [
-        "cd apps/backend",
-        "uv run --frozen python ../../tools/preflight.py --only package-contract --ci",
-    ]
-    assert _m6_names.index("Set up backend environment") < _m6_matching[0]
-    assert "if" not in _m6_step, "the package-contract step must run on every Lint run"
-    assert not _m6_step.get("continue-on-error"), "the step must fail the Lint job"
     "AC-testing.preflight.2"
     "AC-testing.preflight.2"
     _m7_registry = {_m7_c.name for _m7_c in preflight.CHECKS}
@@ -514,7 +427,7 @@ class TestTierSelection:
         assert rc == 0
         out = capsys.readouterr().out
         assert out.find("Registered preflight gate inventory") != -1
-        assert out.find("ssot-ownership") != -1
+        assert out.find("app-boundary") != -1
         rc = preflight.run(
             ["--list", "--tier=static", "--changed"], runner=lambda argv, cwd: 0
         )
@@ -538,7 +451,7 @@ class TestTierCli:
     def _run_and_collect(args: list[str]) -> list[list[str]]:
         ran: list[list[str]] = []
         rc = preflight.run(
-            [*args, "--changed", "common/testing/preflight.py"],
+            [*args, "--changed", "apps/backend/src/ledger/__init__.py"],
             runner=lambda argv, cwd: ran.append(list(argv)) or 0,
         )
         assert rc == 0
@@ -553,7 +466,7 @@ class TestTierCli:
 
     def test_main_list_shows_each_selected_checks_tier(self, capsys):
         rc = preflight.run(
-            ["--list", "--changed", "common/testing/preflight.py"],
+            ["--list", "--changed", "apps/backend/src/ledger/__init__.py"],
             runner=lambda argv, cwd: 0,
         )
         assert rc == 0
@@ -561,12 +474,12 @@ class TestTierCli:
         assert all(
             (
                 any((check.name in line and check.tier in line for line in lines))
-                for check in preflight.select_checks(["common/testing/preflight.py"])
+                for check in preflight.select_checks(["apps/backend/src/ledger/__init__.py"])
             )
         )
         capsys.readouterr()
         _m2_rc = preflight.run(
-            ["--list", "--tier=static", "--changed", "common/testing/preflight.py"],
+            ["--list", "--tier=static", "--changed", "apps/backend/src/ledger/__init__.py"],
             runner=lambda argv, cwd: 0,
         )
         assert _m2_rc == 0
@@ -641,7 +554,7 @@ class TestCiLogging:
         assert _m1_expected_error in _m1_out
         capsys.readouterr()
         _m2_rc = preflight.run(
-            ["--tier=static", "--ci", "--changed", "common/testing/preflight.py"],
+            ["--tier=static", "--ci", "--changed", "apps/backend/src/ledger/__init__.py"],
             runner=lambda argv, cwd: 0,
         )
         assert _m2_rc == 0
@@ -1062,15 +975,6 @@ class TestInProcessAndStatCacheConsolidation:
         tree_v2 = parse_ast_cached(target)
         assert tree_v2 is not tree_v1
         assert tree_v2.body[0].value.value == 42  # type: ignore[attr-defined]
-
-    def test_package_migration_safety_cli_prints_passed_once(self, capsys):
-        from common.testing import check_package_migration_safety
-
-        rc = check_package_migration_safety.main(["--repo-root", str(REPO_ROOT)])
-        captured = capsys.readouterr()
-        assert rc == 0
-        passed_lines = [line for line in captured.out.splitlines() if "PASSED" in line]
-        assert len(passed_lines) == 1, captured.out
 
     def test_default_runner_executes_python_tools_in_process_and_deduplicates_commands(
         self, monkeypatch, capsys

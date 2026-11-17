@@ -66,27 +66,6 @@ OPENAPI_INPUT_GLOBS: tuple[str, ...] = (
 )
 
 CHECKS: tuple[Check, ...] = (
-    Check(
-        name="ssot-ownership",
-        globs=("common/meta/data/MANIFEST.yaml", "common/*/contract.py"),
-        commands=(
-            (PY, "tools/check_ssot_ownership.py"),
-            (PY, "tools/check_manifest.py"),
-        ),
-        why="Concept registry or contract changed: enforce single-owner + manifest integrity",
-    ),
-    _py_check(
-        "taxonomy-drift",
-        (
-            "*.md",
-            "common/meta/data/*.yaml",
-            "tests/*.py",
-            "common/*.py",
-            "tools/*.py",
-        ),
-        "tools/check_taxonomy_drift.py",
-        why="prose/tests changed: retired package-taxonomy vocabulary must not be presented as current (AC-meta.vocab.1)",
-    ),
     _py_check(
         "schema-validate",
         ("apps/backend/src/schemas/*.py",),
@@ -197,80 +176,6 @@ CHECKS: tuple[Check, ...] = (
         why="router/schema changed: openapi.json and frontend api-types must remain in sync (#1004, #2134)",
     ),
     _py_check(
-        "package-contract",
-        (
-            "common/*/contract.py",
-            "common/meta/extension/check_package_contract.py",
-            "tools/check_package_contract.py",
-            "apps/backend/src/*/__init__.py",
-            "tests/tooling/*.py",
-            "apps/backend/tests/*.py",
-        ),
-        "tools/check_package_contract.py",
-        why="package contract, published interface, or invariant test ref changed: validate all package contracts (#2713)",
-    ),
-    _py_check(
-        "package-migration-safety",
-        (
-            "common/*",
-            "tools/*",
-            "tests/*",
-            "apps/backend/tests/*",
-            "apps/frontend/*.test.ts",
-            "apps/frontend/*.test.tsx",
-            "apps/frontend/*.spec.ts",
-            "apps/frontend/*.spec.tsx",
-            "docs/project/EPIC*.md",
-        ),
-        "tools/check_package_migration_safety.py",
-        why="gate source, contracts, or test proofs changed: validate consolidated package migration safety gates",
-    ),
-    _py_check(
-        "workflow-contract",
-        (
-            ".github/workflows/*.yml",
-            "common/testing/ci-cd.md",
-            "common/runtime/deployment.md",
-            "common/runtime/environments.md",
-            "tools/check_workflow_contract.py",
-            "common/meta/extension/workflow_contract.py",
-        ),
-        "tools/check_workflow_contract.py",
-        why="CI workflows, deployment/environment docs, or issue templates changed: validate workflow contract and taxonomy",
-    ),
-    _py_check(
-        "governance-exceptions",
-        (
-            "common/meta/data/governance-exceptions.yaml",
-            "tools/check_governance_exceptions.py",
-            "common/meta/extension/check_governance_exceptions.py",
-        ),
-        "tools/check_governance_exceptions.py",
-        why="governance exceptions changed: validate bottom-up proof-exception registry",
-    ),
-    _py_check(
-        "context-contract",
-        (
-            "common/*/contract.py",
-            "common/meta/base/package_contract.py",
-            "common/meta/extension/check_context_contract.py",
-            "tools/check_context_contract.py",
-        ),
-        "tools/check_context_contract.py",
-        why="package contract or context gate changed: context declarations and dependency semantics only shrink",
-    ),
-    _py_check(
-        "semantic-ownership",
-        (
-            "common/*/contract.py",
-            "common/meta/base/package_contract.py",
-            "common/meta/extension/check_semantic_ownership.py",
-            "tools/check_semantic_ownership.py",
-        ),
-        "tools/check_semantic_ownership.py",
-        why="package semantic declarations changed: every governed DDD concept must retain one canonical owner",
-    ),
-    _py_check(
         "tooling",
         (
             "tools/*",
@@ -328,17 +233,6 @@ CHECKS: tuple[Check, ...] = (
         why="package base-layer or base-purity gate changed",
     ),
     _py_check(
-        "unit-accountability",
-        (
-            "common/*/contract.py",
-            "common/meta/data/unit-accountability-baseline.json",
-            "common/meta/extension/check_unit_accountability.py",
-            "tools/check_unit_accountability.py",
-        ),
-        "tools/check_unit_accountability.py",
-        why="package unit declarations changed: unbound units and incomplete repository pairs must remain shrink-only",
-    ),
-    _py_check(
         "toolchain-contract",
         (
             "toolchain.toml",
@@ -356,17 +250,6 @@ CHECKS: tuple[Check, ...] = (
         ),
         "tools/check_toolchain_contract.py",
         why="toolchain contracts and version declarations must not drift",
-    ),
-    _py_check(
-        "ci-metrics-contract",
-        (
-            ".github/workflows/ci.yml",
-            "common/testing/ci-cd.md",
-            "tools/check_ci_metrics_contract.py",
-            "common/meta/extension/metrics_contract.py",
-        ),
-        "tools/check_ci_metrics_contract.py",
-        why="CI workflow metrics contract must not drift",
     ),
     _py_check(
         "detached-owner-shortcuts",

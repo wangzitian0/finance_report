@@ -1,5 +1,3 @@
-"""Reconciliation package contract."""
+"""Reconciliation package specification."""
 
-from common.reconciliation.contract import CONTRACT
-
-__all__ = ["CONTRACT"]
+__all__: list[str] = []

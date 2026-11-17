@@ -148,37 +148,43 @@ def cross_boundary_edges(
     return sorted(set(inbound)) + sorted(set(outbound))
 
 
+def _package_all(src_dir: Path) -> list[str]:
+    tree = parse_ast_cached(src_dir / "__init__.py")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "__all__":
+                    if not isinstance(node.value, (ast.List, ast.Tuple)):
+                        return []
+                    return [
+                        elt.value
+                        for elt in node.value.elts
+                        if isinstance(elt, ast.Constant)
+                        and isinstance(elt.value, str)
+                    ]
+    return []
+
+
 def _carved_and_published(
     repo_root: Path,
 ) -> tuple[dict[str, str], dict[str, set[str]]]:
-    """Resolve carved src-subdir → package and package → ``__all__`` from the real
-    package registry (deferred import: this keeps the module importable in the lint
-    env even if the heavier contract loader is unavailable)."""
-    from common.meta.extension.check_package_contract import (
-        _package_all,
-        discover_packages,
-    )
-
+    """Resolve carved src-subdir -> package and package -> ``__all__`` from ``apps/backend/src``."""
     backend_src = (repo_root / "apps/backend/src").resolve()
+    common_root = (repo_root / "common").resolve()
     carved: dict[str, str] = {}
     published: dict[str, set[str]] = {}
-    for pkg in discover_packages(repo_root):
-        impl = pkg.impl_dir.resolve() if pkg.impl_dir else None
-        if impl is None or not str(impl).startswith(str(backend_src) + "/"):
+    if not backend_src.is_dir():
+        return carved, published
+    for impl in sorted(backend_src.iterdir()):
+        if not impl.is_dir():
             continue
-        sub = impl.relative_to(backend_src).parts[0]
+        sub = impl.name
         if sub in APP_REMAINDER_SUBDIRS:
-            # Not yet physically carved out of the app-remainder super-package —
-            # its implementation still lives *inside* services/routers/prompts
-            # (a contract-first migration slice, e.g. `apps/backend/src/services/
-            # reporting`). `sub` would otherwise collide with the remainder
-            # subdir name itself and corrupt every edge computed against it.
-            # Nothing to track until the code physically moves to its own
-            # top-level dir, same as every other carved package.
             continue
-        carved[sub] = pkg.name
-        if (impl / "__init__.py").exists():
-            published[pkg.name] = set(_package_all(impl))
+        if not (impl / "__init__.py").exists() or not (common_root / sub).is_dir():
+            continue
+        carved[sub] = sub
+        published[sub] = set(_package_all(impl))
     return carved, published
 
 

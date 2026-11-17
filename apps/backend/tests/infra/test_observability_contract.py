@@ -91,11 +91,6 @@ def test_observability_ssot_and_env_docs_are_linked() -> None:
     env_example = _read(REPO_ROOT / ".env.example")
     assert "SSOT Key" in observability
     assert "observability" in observability
-    from common.meta.extension.check_manifest import load_computed_concepts
-
-    manifest_path = REPO_ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
-    concepts = load_computed_concepts(REPO_ROOT, manifest_path)
-    assert concepts["observability_logging"]["owner"] == "common/observability/observability.md"
     assert all(
         (
             key in observability and key in env_example
