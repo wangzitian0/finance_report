@@ -1,4 +1,4 @@
-from __future__ import annotations; from datetime import date, timedelta; import pytest; from sqlalchemy import event; from sqlalchemy.ext.asyncio import AsyncSession; import src.routers.chat as chat_router; from src.advisor import AIAdvisorService; from src.advisor.extension import service as advisor_service_module; from tests.factories import seed_year_of_journal_entries; ENTRY_COUNT = 1000; SUGGESTIONS_SQL_BUDGET = 60; CHAT_CONTEXT_SQL_BUDGET = 60
+from __future__ import annotations; from datetime import date, timedelta; import pytest; from sqlalchemy import event; from sqlalchemy.ext.asyncio import AsyncSession; import src.routers.chat as chat_router; from src.advisor import AIAdvisorService; from src.advisor.extension import service as advisor_service_module; from src.workflow.extension.events import ensure_workflow_events_synced; from tests.factories import seed_year_of_journal_entries; ENTRY_COUNT = 1000; SUGGESTIONS_SQL_BUDGET = 60; CHAT_CONTEXT_SQL_BUDGET = 60
 class _StatementCounter:
     def __init__(self, engine) -> None: self.count = 0; self._engine = engine.sync_engine
     def _on_execute(self, conn, cursor, statement, parameters, context, executemany) -> None: self.count += 1
@@ -10,7 +10,7 @@ class _FallbackRecorder:
     def __getattr__(self, name: str): return getattr(self._inner, name)
 @pytest.fixture
 def advisor_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]: recorder = _FallbackRecorder(advisor_service_module.logger); monkeypatch.setattr(advisor_service_module, 'logger', recorder); return recorder.warnings
-async def _seed_and_open_home(client, db: AsyncSession, user_id) -> None: await seed_year_of_journal_entries(db, user_id, first_day=date.today() - timedelta(days=364), entry_count=ENTRY_COUNT); status = await client.get('/workflow/status'); assert status.status_code == 200, status.text
+async def _seed_and_open_home(client, db: AsyncSession, user_id) -> None: await seed_year_of_journal_entries(db, user_id, first_day=date.today() - timedelta(days=364), entry_count=ENTRY_COUNT); status = await client.get('/workflow/status'); assert status.status_code == 200, status.text; await ensure_workflow_events_synced(db, user_id=user_id); await db.commit()
 async def test_AC_advisor_context_6_structured_suggestions_within_sql_budget_at_year_scale(client, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch, advisor_warnings: list[str]) -> None:
     'AC-advisor.context.6'; monkeypatch.setattr(chat_router, 'SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS', 120.0); await _seed_and_open_home(client, db, test_user.id); warm_up = await client.get('/chat/suggestions', params={'include_structured': 'true'}); assert warm_up.status_code == 200, warm_up.text
     with _StatementCounter(db_engine) as counter: response = await client.get('/chat/suggestions', params={'include_structured': 'true'})
