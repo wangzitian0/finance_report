@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
 import time
 from collections.abc import Callable, Sequence
+
+from infra2_sdk.refs import ReleaseError, resolve_image_digest
 
 from common.meta.base.gate_util import required_arg
 from common.runtime.github_api import write_github_output as _write_github_output
@@ -18,14 +19,20 @@ Sleep = Callable[[float], None]
 
 
 def _default_inspect_image(image: str) -> tuple[int, str]:
-    result = subprocess.run(
-        ["docker", "buildx", "imagetools", "inspect", image],
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    return result.returncode, result.stdout
+    registry, sep, tail = image.partition("/")
+    if not sep or not registry or not tail:
+        return 1, ""
+    if "@" in tail:
+        repo, _, reference = tail.partition("@")
+    else:
+        repo, _, reference = tail.rpartition(":")
+    if not repo or not reference:
+        return 1, ""
+    try:
+        digest = resolve_image_digest(image=repo, reference=reference, registry=registry)
+    except (ReleaseError, ValueError, OSError):
+        return 1, ""
+    return 0, f"Digest: {digest}\n"
 
 
 def _extract_digest(output: str) -> str:

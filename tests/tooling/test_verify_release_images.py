@@ -26,3 +26,24 @@ def test_AC_runtime_release_images_6_negative_delay_is_rejected() -> None:
     'AC-runtime.release-images.6'
     with pytest.raises(ValueError, match='retry_delay_seconds must be >= 0'): release_images.verify_release_images(registry='ghcr.io', image_prefix='example', version_ref='abc1234', inspect_image=lambda _i: (1, ''), retry_delay_seconds=-1.0, sleep=lambda _s: None)
     _m1_rc = release_images.main(['--registry', 'ghcr.io', '--image-prefix', 'example', '--version-ref', 'abc1234', '--dry-run']); assert _m1_rc == 0
+
+
+def test_default_inspect_image_delegates_to_sdk_resolve_image_digest(monkeypatch) -> None:
+    calls: list[dict[str, str]] = []
+    expected = 'sha256:' + 'b' * 64
+
+    def fake_resolve(*, image: str, reference: str, registry: str) -> str:
+        calls.append({'image': image, 'reference': reference, 'registry': registry})
+        return expected
+
+    monkeypatch.setattr(release_images, 'resolve_image_digest', fake_resolve)
+    rc, output = release_images._default_inspect_image('ghcr.io/example/backend:abc1234')
+    assert rc == 0
+    assert output == f'Digest: {expected}\n'
+    assert calls == [{'image': 'example/backend', 'reference': 'abc1234', 'registry': 'ghcr.io'}]
+
+    def fail_resolve(**_kwargs: str) -> str:
+        raise release_images.ReleaseError('missing')
+
+    monkeypatch.setattr(release_images, 'resolve_image_digest', fail_resolve)
+    assert release_images._default_inspect_image('ghcr.io/example/backend:abc1234') == (1, '')
