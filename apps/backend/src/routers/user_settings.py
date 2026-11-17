@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import (
     auto_accept_preference,
     effective_auto_accept,
@@ -30,7 +30,7 @@ def _effective_settings(ai_settings: dict[str, bool] | None) -> UserAiSettingsRe
 
 @router.get("", response_model=UserAiSettingsResponse)
 async def get_current_user_settings(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> UserAiSettingsResponse:
     """Return effective current-user AI settings."""
@@ -55,6 +55,6 @@ async def patch_current_user_settings(
 
     updates = payload.model_dump(exclude_unset=True, exclude_none=True)
     user.ai_settings = {**(user.ai_settings or {}), **updates}
-    await db.commit()
+    await db.flush()
     await db.refresh(user)
     return _effective_settings(user.ai_settings)

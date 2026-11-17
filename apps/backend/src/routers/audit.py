@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, ReadDbSession
 from src.ledger import JournalAuditLog, JournalEntry
 from src.platform import raise_not_found
 from src.schemas.audit import AuditTrailItem, AuditTrailResponse
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/journal-entries", tags=["audit"])
 @router.get("/{entry_id}/audit", response_model=AuditTrailResponse)
 async def get_journal_entry_audit(
     entry_id: UUID,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> AuditTrailResponse:
     """Return chronological audit records for a user-owned journal entry."""
