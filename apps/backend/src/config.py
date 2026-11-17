@@ -54,8 +54,8 @@ secret_key|sec|i|Application secret key. CRITICAL: must be set to a secure rando
 jwt_algorithm|sec||JWT signing algorithm.
 access_token_expire_minutes|sec||Access token lifetime in minutes.
 trust_proxy|sec||Trust X-Forwarded-For headers from reverse proxies.
-ai_provider|ai|i|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
-ai_api_key|ai|i,ac:AI_API_KEY+ZAI_API_KEY|AI provider API key (empty key = AI features disabled). Settings also reads the old name ZAI_API_KEY.
+ai_provider|ai|i,ac:LLM_PROVIDER+AI_PROVIDER|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
+ai_api_key|ai|i,ac:LLM_API_KEY+AI_API_KEY+ZAI_API_KEY|AI provider API key (empty key = AI features disabled). Settings reads LLM_API_KEY and legacy AI_API_KEY / ZAI_API_KEY.
 environment|app|i,ac:ENVIRONMENT+ENV|Logical environment name (used to differentiate environments).
 debug|app|na|Enable debug mode.
 base_currency|app|na|Base reporting currency (ISO 4217).
@@ -66,7 +66,7 @@ redis_url|app||Optional Redis URL for staging/production background coordination
 next_public_app_url|app|i|Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL and is used by backend components when they link back to the frontend app.
 cors_origins_str|sec|i,al:CORS_ORIGINS|Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001.
 cors_origin_regex|sec|na|CORS origin regex for dynamic subdomains (PR deployments and staging).
-ai_base_url|ai||AI provider base URL (provider-neutral; default targets Z.AI/GLM).
+ai_base_url|ai|ac:LLM_BASE_URL+AI_BASE_URL|AI provider base URL (provider-neutral; default targets Z.AI/GLM).
 ai_chat_completions_path|ai||Chat completions path appended to the AI base URL.
 large_model|ai||Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production.
 small_model|ai||Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production.
@@ -109,6 +109,13 @@ register_rate_limit_window|rl||Per-IP registration rate-limit window in seconds.
     _FIELD_SPECS[_n] = (_GROUPS[_g], set(filter(None, _fl.split(","))), _d)
 
 
+_SDK_LLM_KEY_ALIASES: dict[str, tuple[str, ...]] = {
+    "ai_provider": ("LLM_PROVIDER", "AI_PROVIDER"),
+    "ai_api_key": ("LLM_API_KEY", "AI_API_KEY", "ZAI_API_KEY"),
+    "ai_base_url": ("LLM_BASE_URL", "AI_BASE_URL"),
+}
+
+
 def _f(
     name: str, default: Any, *, ex: str | None = None, ge: int | None = None, le: int | None = None, **extra: Any
 ) -> Any:
@@ -122,7 +129,9 @@ def _f(
     kw: dict[str, Any] = {"default": default, "description": desc, "json_schema_extra": schema_extra}
     ac = next((x[3:] for x in flags if x.startswith("ac:")), None)
     al = next((x[3:] for x in flags if x.startswith("al:")), None)
-    if ac is not None:
+    if name in _SDK_LLM_KEY_ALIASES:
+        kw["validation_alias"] = AliasChoices(*_SDK_LLM_KEY_ALIASES[name])
+    elif ac is not None:
         kw["validation_alias"] = AliasChoices(*ac.split("+"))
     elif al is not None:
         kw["validation_alias"] = al
@@ -355,17 +364,17 @@ class Settings(BaseSettings):
         return LlmSettings(
             provider=self.ai_provider,
             base_url=self.ai_base_url,
-            api_key=self.ai_api_key or None,
+            api_key=self.ai_api_key or "",
             large_model=self.large_model,
             small_model=self.small_model,
             multimodal_model=self.multimodal_model,
+            encryption_keys=list(self.llm_encryption_key_list),
             chat_completions_path=self.ai_chat_completions_path,
             json_timeout_seconds=self.ai_json_timeout_seconds,
             json_max_tokens=self.ai_json_max_tokens,
             json_disable_thinking=self.ai_json_disable_thinking,
             json_seed=self.ai_json_seed,
             extract_max_attempts=self.ai_extract_max_attempts,
-            encryption_keys=tuple(self.llm_encryption_key_list),
         )
 
 

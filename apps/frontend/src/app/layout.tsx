@@ -91,8 +91,8 @@ export default function RootLayout({
             endpoint is set; mounts once, never blocks render. */}
         <FrontendTelemetry
           endpoint={process.env.NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT}
-          environment={process.env.NEXT_PUBLIC_DEPLOYMENT_ENVIRONMENT}
-          serviceVersion={process.env.NEXT_PUBLIC_GIT_SHA}
+          environment={process.env.NEXT_PUBLIC_DEPLOYMENT_ENVIRONMENT || process.env.ENVIRONMENT}
+          serviceVersion={process.env.NEXT_PUBLIC_GIT_SHA || process.env.GIT_COMMIT_SHA}
         />
         <Providers>
           <AuthGuard>
