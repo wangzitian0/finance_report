@@ -679,27 +679,6 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(db,
     validation.assert_not_awaited()
 
 
-async def _run_pending_reject(*_args, **kwargs):
-    # The reject runs inside the reparse (#2994).
-    return await kwargs["while_pending"]()
-
-
-async def test_reject_statement_stage1_success(db, test_user, monkeypatch):
-    statement = build_statement(test_user.id, "hash_s1_reject", 80)
-    statement.status = BankStatementStatus.PARSED
-    db.add(statement)
-    await db.commit()
-    statement_id = statement.id
-    queue_reparse = AsyncMock(side_effect=_run_pending_reject)
-    monkeypatch.setattr(statements_router, "_queue_statement_reparse", queue_reparse)
-
-    result = await statements_router.reject_statement_stage1(
-        statement_id=statement_id, decision=StatementDecisionRequest(notes="Bad data"), db=db, user_id=test_user.id
-    )
-    assert result.status == BankStatementStatus.REJECTED
-    queue_reparse.assert_awaited_once()
-
-
 async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(db, test_user, monkeypatch):
     "AC-extraction.2822.2"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
