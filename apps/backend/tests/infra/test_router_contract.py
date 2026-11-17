@@ -30,19 +30,14 @@ _ALLOWED_TX_ROUTER_FUNCTIONS: frozenset[tuple[str, str]] = frozenset(
 # Each cleanup PR deletes fixed entries until this mapping is empty.
 LEGACY_ROUTER_ALLOWLIST: dict[str, set[str]] = {
     "ai_feedback.py": {"get_dbsession", "manual_tx"},
-    "app_config.py": {"get_dbsession", "manual_tx"},
     "assets.py": {"get_dbsession", "manual_tx"},
-    "audit.py": {"get_dbsession"},
     "chat.py": {"get_dbsession", "manual_tx"},
     "corrections.py": {"manual_tx"},
     "evidence.py": {"get_dbsession", "http_exception", "manual_tx"},
-    "journal.py": {"get_dbsession", "manual_tx"},
     "llm.py": {"get_dbsession", "manual_tx"},
     "market_data.py": {"get_dbsession", "manual_tx"},
     "metrics.py": {"get_dbsession"},
-    "portfolio.py": {"get_dbsession", "http_exception", "manual_tx"},
     "statements.py": {"http_exception", "manual_tx"},
-    "user_settings.py": {"get_dbsession", "manual_tx"},
 }
 
 

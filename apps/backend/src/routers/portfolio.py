@@ -10,9 +10,10 @@ from sqlalchemy import select
 
 from src.audit import to_money
 from src.composition import refresh_market_data_for_brokerage_import
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
 from src.observability import get_logger
+from src.platform import ResourceNotFoundError
 from src.portfolio import (
     AssetNotFoundError,
     InvestmentAccountingService,
@@ -67,7 +68,7 @@ def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> Div
     )
 
 
-async def _paged_allocation(fn, *, db: DbSession, user_id: UUID, as_of_date: date | None, limit: int, offset: int):
+async def _paged_allocation(fn, *, db: ReadDbSession, user_id: UUID, as_of_date: date | None, limit: int, offset: int):
     breakdowns = await fn(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     return [AllocationBreakdownResponse(**b.to_dict()) for b in list(breakdowns)[offset : offset + limit]]
 
@@ -109,16 +110,14 @@ async def import_brokerage_positions(
             source_document_id=request.source_document_id,
         )
         await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=request.payload)
-        await db.commit()
     except PositionServiceError as exc:
-        await db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return BrokerageImportResponse(**result.__dict__)
 
 
 @router.get("/holdings", response_model=HoldingsListResponse)
 async def get_holdings(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     include_disposed: bool = Query(False, description="Include disposed positions"),
@@ -140,7 +139,7 @@ async def get_holdings(
 
 @router.get("/summary", response_model=PortfolioSummaryDashboardResponse)
 async def get_portfolio_summary(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
 ) -> PortfolioSummaryDashboardResponse:
@@ -154,7 +153,7 @@ async def get_portfolio_summary(
 @router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
 async def get_holding_dividends(
     ticker: str,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
@@ -189,12 +188,12 @@ async def create_holding_dividend(
             withholding_tax_account_id=request.withholding_tax_account_id,
         )
     except PortfolioNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise ResourceNotFoundError(str(exc)) from exc
     except (InvestmentAccountingValidationError, PricingError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     entry_id = getattr(dividend, "journal_entry_id", None)
-    await db.commit()
+    await db.flush()
     await db.refresh(dividend)
     return _dividend_response(dividend, journal_entry_id=entry_id)
 
@@ -202,7 +201,7 @@ async def create_holding_dividend(
 @router.get("/{ticker}/realized", response_model=list[RealizedLotResponse])
 async def get_holding_realized_lots(
     ticker: str,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
@@ -260,16 +259,16 @@ async def update_holding_cost_basis_method(
         .all()
     )
     if not positions:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Holding not found")
+        raise ResourceNotFoundError("Holding not found")
     for p in positions:
         p.cost_basis_method = request.cost_basis_method
-    await db.commit()
+    await db.flush()
     return CostBasisMethodUpdateResponse(updated_count=len(positions), cost_basis_method=request.cost_basis_method)
 
 
 @router.get("/performance/report-schedule", response_model=InvestmentPerformanceReportScheduleResponse)
 async def get_investment_performance_report_schedule(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     period_start: date | None = Query(None, description="Report period start date (default: Jan 1 of period end year)"),
     period_end: date | None = Query(None, description="Report period end date (default: today)"),
@@ -302,7 +301,7 @@ async def get_investment_performance_report_schedule(
 
 @router.get("/allocation/sector", response_model=list[AllocationBreakdownResponse])
 async def get_sector_allocation(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
@@ -316,7 +315,7 @@ async def get_sector_allocation(
 
 @router.get("/allocation/geography", response_model=list[AllocationBreakdownResponse])
 async def get_geography_allocation(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
@@ -330,7 +329,7 @@ async def get_geography_allocation(
 
 @router.get("/allocation/asset-class", response_model=list[AllocationBreakdownResponse])
 async def get_asset_class_allocation(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
@@ -348,5 +347,4 @@ async def update_prices(
 ) -> PriceUpdateBatchResponse:
     """Update market prices manually (batch)."""
     results = await _portfolio_service.update_market_prices(db=db, user_id=user_id, updates=request.updates)
-    await db.commit()
     return PriceUpdateBatchResponse(updated_count=len(results), results=results)

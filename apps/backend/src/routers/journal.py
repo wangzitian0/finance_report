@@ -5,8 +5,7 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from src.config_app import get_effective_base_currency
-from src.deps import CurrentUserId, DbSession
+from src.deps import Ctx, CurrentUserId, DbSession, ReadDbSession
 from src.ledger import (
     DecisionAnchorError,
     JournalEntry,
@@ -32,24 +31,23 @@ logger = get_logger(__name__)
 @router.post("", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
 async def create_entry(
     entry_data: JournalEntryCreate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> JournalEntryResponse:
     """Create and post a balanced double-entry journal entry."""
     lines_data = [line.model_dump() for line in entry_data.lines]
     try:
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+        base_currency = await ctx.get_base_currency()
         entry = await submit_manual_journal_entry(
-            db=db,
-            user_id=user_id,
+            db=ctx.db,
+            user_id=ctx.user_id,
             entry_date=entry_data.entry_date,
             memo=entry_data.memo,
             lines_data=lines_data,
             rationale=entry_data.rationale,
             base_currency=base_currency,
         )
-        await db.commit()
-        await db.refresh(entry, ["lines"])
+        await ctx.db.flush()
+        await ctx.db.refresh(entry, ["lines"])
         return JournalEntryResponse.model_validate(entry)
     except (DecisionAnchorError, ValidationError) as e:
         raise_bad_request(str(e), cause=e)
@@ -63,7 +61,7 @@ async def list_journal_entries(
     limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     *,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> JournalEntryListResponse:
     """List journal entries with pagination and filters."""
@@ -93,7 +91,7 @@ async def list_journal_entries(
 async def get_journal_entry(
     entry_id: UUID,
     *,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     """Return one journal entry by id with its lines."""
@@ -112,27 +110,26 @@ async def get_journal_entry(
 async def post_entry(
     entry_id: UUID,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> JournalEntryResponse:
     """Post a draft journal entry, making it immutable."""
     try:
         # `post_journal_entry` validates the draft under the base currency stored at its creation. The
         # effective value applies only to a draft written before revision 0067 (#2539).
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
-        await get_owned_or_404(db, JournalEntry, entry_id, user_id, name="Journal entry")
+        base_currency = await ctx.get_base_currency()
+        await get_owned_or_404(ctx.db, JournalEntry, entry_id, ctx.user_id, name="Journal entry")
         entry = await post_journal_entry(
-            db,
+            ctx.db,
             entry_id,
-            user_id,
+            ctx.user_id,
             base_currency=base_currency,
         )
-        await db.commit()
-        await db.refresh(entry, ["lines"])
+        await ctx.db.flush()
+        await ctx.db.refresh(entry, ["lines"])
         log_financial_mutation(
             logger,
             "journal.entry.posted",
-            user_id=user_id,
+            user_id=ctx.user_id,
             action="post",
             resource_type="journal_entry",
             resource_id=entry.id,
@@ -148,25 +145,24 @@ async def void_entry(
     entry_id: UUID,
     void_request: VoidJournalEntryRequest,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> JournalEntryResponse:
     """Void a posted journal entry with a reason."""
     try:
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+        base_currency = await ctx.get_base_currency()
         reversal_entry = await void_journal_entry(
-            db,
+            ctx.db,
             entry_id,
             void_request.reason,
-            user_id,
+            ctx.user_id,
             base_currency=base_currency,
         )
-        await db.commit()
-        await db.refresh(reversal_entry, ["lines"])
+        await ctx.db.flush()
+        await ctx.db.refresh(reversal_entry, ["lines"])
         log_financial_mutation(
             logger,
             "journal.entry.voided",
-            user_id=user_id,
+            user_id=ctx.user_id,
             action="void",
             resource_type="journal_entry",
             resource_id=entry_id,
@@ -192,4 +188,3 @@ async def delete_journal_entry(
         raise_bad_request("Only draft entries can be deleted")
 
     await db.delete(entry)
-    await db.commit()
