@@ -21,7 +21,7 @@ from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
-from src.platform import raise_bad_request
+from src.platform import ValidationFailedError
 from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
@@ -104,7 +104,7 @@ async def generate_annualized_income_schedule(
         try:
             await prefetched_fx.prefetch(db, fx_pairs)
         except PricingError as exc:
-            raise_bad_request(str(exc), cause=exc)
+            raise ValidationFailedError(str(exc)) from exc
     # A restricted holding is outside the liquid net worth. An FX error on it must not
     # fail the schedule: the holding stays listed in its own currency, and the total
     # names it as left out (#2645). An FX error on an income line still fails.
@@ -139,7 +139,7 @@ async def generate_annualized_income_schedule(
             rate = prefetched_fx.get_rate(source_currency, reporting_currency, report_date, start_date, report_date)
             if rate is None:
                 # The prefetch above raised for each missing income rate, so no line converts at 1:1.
-                raise_bad_request(f"No FX rate available for {source_currency}/{reporting_currency}")
+                raise ValidationFailedError(f"No FX rate available for {source_currency}/{reporting_currency}")
             converted_amount = convert_money_with_rate(
                 line_money,
                 ExchangeRate(line_money.currency, target_ccy, rate),
