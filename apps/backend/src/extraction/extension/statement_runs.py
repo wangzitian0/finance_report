@@ -28,6 +28,7 @@ from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.platform import ConflictError
 from src.audit import (
     SqlTraceRecordRepository,
     TraceAuthorityProfile,
@@ -87,11 +88,14 @@ _TRACE_RESULT = {
 }
 
 
-class ActiveRunExists(RuntimeError):
+class ActiveRunExists(ConflictError, RuntimeError):
     """The statement already has a requested or running run."""
 
     def __init__(self, active_run_id: UUID) -> None:
-        super().__init__(f"The statement has an active run: {active_run_id}")
+        super().__init__(
+            "The statement has an active run. Wait for it to end.",
+            extra={"active_run_id": str(active_run_id)},
+        )
         self.active_run_id = active_run_id
 
 

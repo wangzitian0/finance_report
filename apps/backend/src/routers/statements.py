@@ -30,7 +30,6 @@ from src.extraction import (
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
-    ReviewedStatementEnvelopeConflict,
     RunActorKind,
     RunHints,
     RunKind,
@@ -73,6 +72,7 @@ from src.ledger import Account, AccountType, account_service
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
+    ValidationFailedError,
     raise_bad_request,
     raise_conflict,
     raise_internal_error,
@@ -387,11 +387,13 @@ async def _create_statement_account_from_confirmation(
         ).scalar_one_or_none()
         if account:
             return account
-        raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
+        raise ValidationFailedError("Statement account mapping is invalid. Confirm the target account before posting.")
 
     currency = (statement.currency or "").strip().upper()
     if not currency:
-        raise ValueError("Statement currency required before creating an account. Confirm the source currency first.")
+        raise ValidationFailedError(
+            "Statement currency required before creating an account. Confirm the source currency first."
+        )
     account_name = (statement.institution or "").strip() or "Statement Account"
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"
@@ -794,16 +796,12 @@ async def import_brokerage_statement_positions(
 @router.delete("/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_statement(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> None:
     """Retire a statement from product views while retaining source history."""
-    try:
-        await retire_statement(
-            db,
-            RetireStatementCommand(statement_id=statement_id, user_id=user_id),
-            dependencies=compose_statement_posting_dependencies(),
-        )
-        await db.flush()
-    except ValueError as exc:
-        await db.rollback()
-        raise_not_found("Statement", cause=exc)
+    await retire_statement(
+        db,
+        RetireStatementCommand(statement_id=statement_id, user_id=user_id),
+        dependencies=compose_statement_posting_dependencies(),
+    )
+    await db.flush()
 
 
 @router.get("/{statement_id}/review", response_model=StatementReviewResponse)
@@ -863,21 +861,14 @@ async def confirm_statement_review_envelope(
     user_id: CurrentUserId,
 ) -> ReviewedStatementEnvelopeResponse:
     """Append a typed human confirmation over the statement's current source result."""
-    try:
-        envelope = await confirm_reviewed_statement_envelope(
-            db,
-            user_id=user_id,
-            statement_id=statement_id,
-            command=ReviewedStatementEnvelopeCommand(**request.model_dump()),
-            trace_emitter=compose_statement_posting_dependencies().trace_emitter_factory(db),
-        )
-        await db.flush()
-    except ReviewedStatementEnvelopeConflict as exc:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    except (TypeError, ValueError) as exc:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    envelope = await confirm_reviewed_statement_envelope(
+        db,
+        user_id=user_id,
+        statement_id=statement_id,
+        command=ReviewedStatementEnvelopeCommand(**request.model_dump()),
+        trace_emitter=compose_statement_posting_dependencies().trace_emitter_factory(db),
+    )
+    await db.flush()
     return _envelope_response(envelope, request.source_result_digest)
 
 
@@ -889,32 +880,27 @@ async def approve_statement_stage1(
     request: Annotated[Stage1ApprovalRequest | None, Body()] = None,
 ) -> Stage1ApprovalResponse:
     """Stage 1: Approve statement with balance validation."""
-    try:
-        statement = await _get_statement_or_404(db, statement_id, user_id)
-        preloaded_account: Account | None = None
-        if request and request.account_id is not None:
-            statement.account_id = request.account_id
-            await db.flush()
-            preloaded_account = await resolve_statement_posting_account(db, statement, user_id)
-        elif request and request.create_account_if_missing and not statement.account_id:
-            preloaded_account = await _create_statement_account_from_confirmation(db, statement, user_id)
-        elif not statement.account_id:
-            preloaded_account = await resolve_statement_posting_account(db, statement, user_id)
-        auto_filled = (
-            await auto_fill_default_statement_dispositions(db, statement, user_id)
-            if request and request.auto_fill_default_categories
-            else 0
-        )
-        outcome = await approve_statement_workflow(
-            db,
-            statement_id,
-            user_id,
-            dependencies=compose_statement_posting_dependencies(),
-            preloaded_bank_account=preloaded_account,
-        )
-    except ValueError as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    statement = await _get_statement_or_404(db, statement_id, user_id)
+    preloaded_account: Account | None = None
+    if request and request.account_id is not None:
+        statement.account_id = request.account_id
+        preloaded_account = await resolve_statement_posting_account(db, statement, user_id)
+    elif request and request.create_account_if_missing and not statement.account_id:
+        preloaded_account = await _create_statement_account_from_confirmation(db, statement, user_id)
+    elif not statement.account_id:
+        preloaded_account = await resolve_statement_posting_account(db, statement, user_id)
+    auto_filled = (
+        await auto_fill_default_statement_dispositions(db, statement, user_id)
+        if request and request.auto_fill_default_categories
+        else 0
+    )
+    outcome = await approve_statement_workflow(
+        db,
+        statement_id,
+        user_id,
+        dependencies=compose_statement_posting_dependencies(),
+        preloaded_bank_account=preloaded_account,
+    )
 
     created_count = _posting_count_or_conflict(outcome) + auto_filled
     return _approval_response(statement, created_count)
@@ -928,12 +914,8 @@ async def reject_statement_stage1(
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
     """Stage 1: Reject statement and enqueue reparse. The notes become the hint note of the rerun."""
+    statement = await _get_statement_or_404(db, statement_id, user_id)
     try:
-        statement = await db.scalar(
-            select(StatementSummary).where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
-        )
-        if statement is None:
-            raise ValueError("Statement not found or access denied")
         await _queue_statement_reparse(
             db,
             statement,
@@ -949,9 +931,6 @@ async def reject_statement_stage1(
                 commit=False,
             ),
         )
-    except ValueError as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except StorageError as exc:
         await db.rollback()
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)

@@ -1,6 +1,6 @@
 """Common exception utilities for FastAPI routers."""
 
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from fastapi import HTTPException, status
 
@@ -55,11 +55,24 @@ def raise_gateway_timeout(detail: str, *, cause: Exception | None = None) -> NoR
 class BaseAppException(Exception):
     """Base exception with error_id for structured frontend consumption."""
 
-    def __init__(self, error_id: str, message: str, status_code: int = 500) -> None:
+    def __init__(
+        self,
+        error_id: str,
+        message: str,
+        status_code: int = 500,
+        *,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(message)
         self.error_id = error_id
         self.message = message
         self.status_code = status_code
+        self.extra = extra
+
+    @property
+    def detail(self) -> str:
+        """HTTP-compatible detail alias for direct handler callers."""
+        return self.message
 
 
 _DOMAIN_ERROR_IDS: dict[int, str] = {
@@ -82,12 +95,13 @@ class DomainError(BaseAppException, ValueError):
         *,
         status_code: int | None = None,
         error_id: str | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         resolved_status = self.default_status_code if status_code is None else status_code
         resolved_error_id = (
             error_id or self.default_error_id or _DOMAIN_ERROR_IDS.get(resolved_status, f"HTTP_{resolved_status}")
         )
-        super().__init__(error_id=resolved_error_id, message=message, status_code=resolved_status)
+        super().__init__(error_id=resolved_error_id, message=message, status_code=resolved_status, extra=extra)
 
 
 class ValidationFailedError(DomainError):

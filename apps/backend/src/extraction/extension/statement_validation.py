@@ -24,11 +24,12 @@ from src.extraction.extension.transaction_identity import (
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import account_service
+from src.platform import ResourceNotFoundError, ValidationFailedError
 
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
 
-class BalanceChainValidationError(ValueError):
+class BalanceChainValidationError(ValidationFailedError):
     """Raise when statement balance-chain validation fails."""
 
 
@@ -59,7 +60,7 @@ async def resolve_statement_transactions(
             db, user_id=statement.user_id, statement_id=statement.id, statement=statement
         )
         if current_result is None:
-            raise ValueError("Current source result is unavailable for transaction resolution")
+            raise ValidationFailedError("Current source result is unavailable for transaction resolution")
         payload = current_result.to_payload()
     facts = payload.get("transactions") if isinstance(payload, dict) else None
     if isinstance(facts, list):
@@ -82,7 +83,7 @@ async def resolve_statement_transactions(
     rows = list((await db.execute(query.order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at))).scalars().all())
     if isinstance(facts, list):
         if len(rows) != len(facts):
-            raise ValueError("Current source transaction identity requires review: incomplete persisted facts")
+            raise ValidationFailedError("Current source transaction identity requires review: incomplete persisted facts")
         alias_pairs = list(
             (
                 await db.execute(
@@ -123,7 +124,7 @@ async def resolve_statement_transactions(
                 row_dir,
                 None,
             ) not in fact_keys:
-                raise ValueError("Current source transaction identity requires review: source fact or currency differs")
+                raise ValidationFailedError("Current source transaction identity requires review: source fact or currency differs")
             if row.id not in aliased_rows:
                 _, resolved = await resolve_transaction_identity(
                     db,
@@ -133,7 +134,7 @@ async def resolve_statement_transactions(
                     custody_scope=scope,
                 )
                 if resolved is None or resolved.id != row.id:
-                    raise ValueError("Current source transaction identity requires review: legacy custody differs")
+                    raise ValidationFailedError("Current source transaction identity requires review: legacy custody differs")
 
             candidate_hashes = [row.dedup_hash, *sorted(alias_hashes_by_row.get(row.id, ()))]
             if row.currency:
@@ -207,7 +208,7 @@ async def validate_balance_chain(
     if statement is None:
         statement = await db.get(StatementSummary, statement_id)
         if not statement:
-            raise ValueError("Statement not found")
+            raise ResourceNotFoundError("Statement not found")
 
     if transactions is None:
         transactions = await resolve_statement_transactions(db, statement)
@@ -352,7 +353,7 @@ async def _get_statement_for_update(db: AsyncSession, statement_id: UUID, user_i
         )
     ).scalar_one_or_none()
     if not statement:
-        raise ValueError("Statement not found or access denied")
+        raise ResourceNotFoundError("Statement not found or access denied")
     return statement
 
 
@@ -418,20 +419,20 @@ def _raise_if_statement_conflicts_unresolved(
     if statement.stage1_conflicts_resolved_at is not None:
         return
     if _has_unresolved_statement_conflicts(transactions):
-        raise ValueError("Cannot approve statement while unresolved duplicate or transfer-pair candidates remain")
+        raise ValidationFailedError("Cannot approve statement while unresolved duplicate or transfer-pair candidates remain")
 
 
 def _raise_if_approved_envelope_incomplete(statement: StatementSummary) -> None:
     if statement.account_id is None:
-        raise ValueError("Account mapping required before posting. Confirm the statement account before posting.")
+        raise ValidationFailedError("Account mapping required before posting. Confirm the statement account before posting.")
     if not (statement.currency or "").strip():
-        raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
+        raise ValidationFailedError("Statement currency required before posting. Confirm the source currency before posting.")
     if statement.period_start is None or statement.period_end is None:
-        raise ValueError("Statement period required before posting. Confirm the source date range before posting.")
+        raise ValidationFailedError("Statement period required before posting. Confirm the source date range before posting.")
     if statement.period_start > statement.period_end:
-        raise ValueError("Statement period is invalid. Confirm the source date range before posting.")
+        raise ValidationFailedError("Statement period is invalid. Confirm the source date range before posting.")
     if statement.opening_balance is None or statement.closing_balance is None:
-        raise ValueError(
+        raise ValidationFailedError(
             "Statement opening and closing balances required before approval. Confirm the source balances first."
         )
 
@@ -457,7 +458,7 @@ async def approve_statement_with_transactions(
     if active_run is not None and active_run.id != ignore_run_id:
         raise ActiveRunExists(active_run.id)
     if statement.status not in _APPROVABLE_STATUSES:
-        raise ValueError(
+        raise ValidationFailedError(
             f"Statement cannot be approved while its status is {statement.status.value}. Reload the statement."
         )
     await require_current_statement_envelope_trust(db, statement=statement)

@@ -7,6 +7,7 @@ from src.reconciliation.extension.consistency_checks import (
     detect_transfer_pairs,
     has_unresolved_checks,
     list_checks,
+    parse_check_resolution_action,
     resolve_check,
     run_all_consistency_checks,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "implied_rate",
     "list_checks",
     "pair_fx_legs",
+    "parse_check_resolution_action",
     "resolve_check",
     "round_trip_realized_pnl",
     "run_all_consistency_checks",

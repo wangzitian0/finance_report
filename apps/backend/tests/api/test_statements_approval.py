@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, status
+from src.platform import DomainError
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -204,10 +205,11 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
     await db.commit()
     statement.closing_balance = Decimal("999.00")
 
-    with pytest.raises(HTTPException, match="diverges from its current reviewed envelope") as exc:
+    with pytest.raises((HTTPException, DomainError), match="diverges from its current reviewed envelope") as exc:
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
 
+    await db.rollback()
     await db.refresh(statement)
     await add_reviewed_disposition_rule(
         db, user_id=user_id, keyword="salary", account_type=AccountType.INCOME, category="SALARY"
@@ -441,7 +443,7 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
     )
     await db.commit()
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises((HTTPException, DomainError)) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Historical custody source needs review" in str(exc.value.detail)
@@ -472,7 +474,7 @@ async def test_approve_statement_stage1_blocks_overlapping_statement_period_befo
     )
     await db.commit()
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises((HTTPException, DomainError)) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Statement period overlaps" in str(exc.value.detail)
@@ -513,7 +515,7 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     )
     await db.commit()
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises((HTTPException, DomainError)) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Account mapping required" in str(exc.value.detail)
@@ -564,7 +566,7 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     )
     await db.commit()
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises((HTTPException, DomainError)) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert expected_detail == str(exc.value.detail)
@@ -651,7 +653,7 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
     )
     await db.commit()
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises((HTTPException, DomainError)) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Ambiguous historical custody accounts" in str(exc.value.detail)

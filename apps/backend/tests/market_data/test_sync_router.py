@@ -6,6 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src import composition
+from src.platform import PreconditionFailedError
 from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.routers import market_data as market_data_router, reports as reports_router
@@ -77,7 +78,7 @@ async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
             )
         )
         await db.flush()
-        raise ValueError("invalid symbol")
+        raise PreconditionFailedError("invalid symbol")
 
     monkeypatch.setattr(market_data_router, "sync_stock_prices", fake_stock_sync)
     response = await client.post(

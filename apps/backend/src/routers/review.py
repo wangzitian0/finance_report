@@ -17,13 +17,13 @@ from src.extraction import (
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_not_found
 from src.reconciliation import (
-    CheckResolutionAction,
     CheckStatus,
     CheckType,
     ReconciliationError,
     derive_reconciliation_score_tier,
     get_stage2_queue,
     list_checks,
+    parse_check_resolution_action,
     resolve_check,
     run_all_consistency_checks,
 )
@@ -102,13 +102,9 @@ async def resolve_review_conflicts(
     user_id: CurrentUserId,
 ) -> ReviewConflictsResolveResponse:
     """Resolve Stage-1 duplicate/transfer-pair candidates (#962)."""
-    try:
-        statement = await resolve_statement_conflicts(db, statement_id, user_id)
-        resolved_at = statement.stage1_conflicts_resolved_at
-        await db.commit()
-    except ValueError as exc:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    statement = await resolve_statement_conflicts(db, statement_id, user_id)
+    resolved_at = statement.stage1_conflicts_resolved_at
+    await db.commit()
 
     logger.info(
         "stage1.conflicts.resolved",
@@ -177,9 +173,11 @@ async def resolve_consistency_check(
 ) -> ConsistencyCheckResponse:
     """Resolve a consistency check."""
     try:
-        check = await resolve_check(db, check_id, CheckResolutionAction(request.action), user_id, request.note)
+        check = await resolve_check(
+            db, check_id, parse_check_resolution_action(request.action), user_id, request.note
+        )
         await db.commit()
-    except (ReconciliationError, ValueError) as e:
+    except ReconciliationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return ConsistencyCheckResponse.model_validate(check)
 

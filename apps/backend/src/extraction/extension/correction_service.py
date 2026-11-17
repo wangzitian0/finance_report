@@ -14,6 +14,7 @@ from src.extraction.orm.correction import CorrectionLog
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account
 from src.observability import get_logger
+from src.platform import ResourceNotFoundError
 
 if TYPE_CHECKING:
     from src.extraction.orm.statement_summary import StatementSummary
@@ -137,14 +138,14 @@ async def record_correction(
     )
     txn = result.scalar_one_or_none()
     if not txn:
-        raise ValueError(f"Transaction {transaction_id} not found")
+        raise ResourceNotFoundError(f"Transaction {transaction_id} not found")
 
     if corrected_account_id is not None:
         account_result = await db.execute(
             select(Account.id).where(Account.id == corrected_account_id).where(Account.user_id == user_id)
         )
         if account_result.scalar_one_or_none() is None:
-            raise ValueError(f"Account {corrected_account_id} not found")
+            raise ResourceNotFoundError(f"Account {corrected_account_id} not found")
 
     from src.extraction.extension.transaction_classification import apply_user_transaction_correction
 

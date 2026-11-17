@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, status
 
 from src.deps import CurrentUserId, DbSession
 from src.observability import get_logger
-from src.platform import raise_bad_request, raise_internal_error, raise_not_found
+from src.platform import ValidationFailedError, raise_bad_request, raise_internal_error, raise_not_found
 from src.portfolio import PositionService, PositionServiceError
 from src.pricing import (
     ManualValuationComponentType,
@@ -70,6 +70,15 @@ async def create_valuation_snapshot(
     return ManualValuationSnapshotResponse.model_validate(snapshot)
 
 
+def _parse_component_type(component_type: str | None) -> ManualValuationComponentType | None:
+    if not component_type:
+        return None
+    try:
+        return ManualValuationComponentType(component_type)
+    except ValueError as exc:
+        raise ValidationFailedError(f"Unsupported component_type: {component_type}") from exc
+
+
 @router.get("/valuation-snapshots", response_model=ManualValuationSnapshotListResponse)
 async def list_valuation_snapshots(
     db: DbSession,
@@ -80,12 +89,7 @@ async def list_valuation_snapshots(
     offset: int = Query(0, ge=0),
 ) -> ManualValuationSnapshotListResponse:
     """List manual valuation snapshots."""
-    parsed_component_type = None
-    if component_type:
-        try:
-            parsed_component_type = ManualValuationComponentType(component_type)
-        except ValueError as exc:
-            raise_bad_request(f"Unsupported component_type: {component_type}", cause=exc)
+    parsed_component_type = _parse_component_type(component_type)
 
     snapshots, total = await _valuations.list_valuation_snapshots(
         db,

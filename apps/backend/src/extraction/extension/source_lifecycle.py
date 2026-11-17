@@ -14,6 +14,7 @@ from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentS
 from src.extraction.base.types import RetireStatementCommand
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
+from src.platform import ResourceNotFoundError
 
 if TYPE_CHECKING:
     from src.extraction.extension.statement_posting import StatementPostingDependencies
@@ -91,7 +92,7 @@ async def retire_statement(
         )
     ).scalar_one_or_none()
     if statement is None:
-        raise ValueError("Statement not found or access denied")
+        raise ResourceNotFoundError("Statement not found or access denied")
 
     was_approved = statement.status == BankStatementStatus.APPROVED
     statement.status = BankStatementStatus.RETIRED
