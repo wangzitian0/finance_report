@@ -26,7 +26,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
 
     'AC-extraction.5.4'; content = b'duplicate-statement'; _patch_parse_document(monkeypatch, test_user.id); upload_file = make_upload_file('statement.pdf', content); await statements_router.upload_statement(file=upload_file, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=test_user.id); await upload_file.close(); await wait_for_background_tasks(); user_id = test_user.id; db.expire_all(); upload_file_dup = make_upload_file('statement.pdf', content)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.upload_statement(file=upload_file_dup, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=user_id)
+    with pytest.raises((HTTPException, DomainError)) as exc: await statements_router.upload_statement(file=upload_file_dup, institution='DBS', account_id=None, model='google/gemini-3-flash-preview', db=db, user_id=user_id)
 
     await upload_file_dup.close(); assert exc.value.status_code == status.HTTP_409_CONFLICT
 

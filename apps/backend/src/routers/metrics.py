@@ -6,7 +6,7 @@ proportion — as a live value plus its recorded trend.
 
 from fastapi import APIRouter
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, ReadDbSession
 from src.extraction import CorrectionLoopService
 from src.schemas.metrics import CorrectionLoopReplayResponse
 
@@ -15,7 +15,7 @@ _correction_loop = CorrectionLoopService()
 
 
 @router.get("/correction-loop/replay", response_model=CorrectionLoopReplayResponse)
-async def get_correction_loop_replay(user_id: CurrentUserId, db: DbSession) -> CorrectionLoopReplayResponse:
+async def get_correction_loop_replay(user_id: CurrentUserId, db: ReadDbSession) -> CorrectionLoopReplayResponse:
     """Surface the held-out replay of the live correction corpus (read-only).
 
     Makes the feedback loop's effect on the North-Star proportion auditable: how

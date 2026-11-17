@@ -20,7 +20,6 @@ _DISALLOWED_HTTP_STATUS_TOKENS = (
 )
 _ALLOWED_TX_ROUTER_FUNCTIONS: frozenset[tuple[str, str]] = frozenset(
     {
-        ("chat.py", "chat_message"),
         ("statements.py", "_queue_statement_reparse"),
         ("statements.py", "_queue_classify_run"),
         ("statements.py", "upload_statement"),
@@ -29,15 +28,7 @@ _ALLOWED_TX_ROUTER_FUNCTIONS: frozenset[tuple[str, str]] = frozenset(
 
 # Shrink-only allowlist of remaining legacy router violations.
 # Each cleanup PR deletes fixed entries until this mapping is empty.
-LEGACY_ROUTER_ALLOWLIST: dict[str, set[str]] = {
-    "ai_feedback.py": {"get_dbsession", "manual_tx"},
-    "assets.py": {"get_dbsession", "manual_tx"},
-    "corrections.py": {"manual_tx"},
-    "evidence.py": {"get_dbsession", "http_exception", "manual_tx"},
-    "market_data.py": {"get_dbsession", "manual_tx"},
-    "metrics.py": {"get_dbsession"},
-    "statements.py": {"http_exception", "manual_tx"},
-}
+LEGACY_ROUTER_ALLOWLIST: dict[str, set[str]] = {}
 
 
 def _route_methods(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:

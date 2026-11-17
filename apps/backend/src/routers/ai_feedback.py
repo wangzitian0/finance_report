@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import (
     AtomicTransaction,
     ClassificationStatus,
@@ -42,7 +42,9 @@ def _txn_direction(txn: AtomicTransaction) -> Literal["IN", "OUT"] | None:
     return None
 
 
-async def _count_suggestions(db: DbSession, model: Any, join_col: Any, scope_filter: Any, filters: tuple[Any, ...]) -> int:
+async def _count_suggestions(
+    db: ReadDbSession, model: Any, join_col: Any, scope_filter: Any, filters: tuple[Any, ...]
+) -> int:
     stmt = select(func.count(model.id)).join(AtomicTransaction, join_col == AtomicTransaction.id).where(scope_filter, *filters)
     return int((await db.execute(stmt)).scalar_one() or 0)
 
@@ -65,7 +67,7 @@ async def create_ai_feedback(payload: AiFeedbackRequest, db: DbSession, user_id:
         corrected_value=payload.corrected_value,
     )
     db.add(feedback)
-    await db.commit()
+    await db.flush()
     await db.refresh(feedback)
     response = AiFeedbackResponse.model_validate(feedback)
     response.effect = effect
@@ -74,7 +76,7 @@ async def create_ai_feedback(payload: AiFeedbackRequest, db: DbSession, user_id:
 
 @router.get("/suggestions", response_model=AiSuggestionListResponse)
 async def list_ai_suggestions(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     limit: Annotated[int, Query(ge=1, le=200, description="Maximum items to return")] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,

@@ -29,10 +29,10 @@ from src.llm import (
 )
 from src.observability import get_logger
 from src.platform import (
+    ConflictError,
     ResourceNotFoundError,
     get_owned_or_404,
     raise_bad_request,
-    raise_conflict,
     raise_service_unavailable,
 )
 from src.schemas.llm import (
@@ -97,7 +97,7 @@ async def create_provider(
         await db.execute(select(func.count()).select_from(LlmProvider).where(LlmProvider.user_id == user_id))
     ).scalar_one()
     if count >= MAX_PROVIDERS_PER_USER:
-        raise_conflict(f"Provider limit reached ({MAX_PROVIDERS_PER_USER}); delete one before adding another.")
+        raise ConflictError(f"Provider limit reached ({MAX_PROVIDERS_PER_USER}); delete one before adding another.")
 
     sealed = cipher.encrypt(payload.api_key)
     provider = LlmProvider(
@@ -112,7 +112,7 @@ async def create_provider(
     try:
         await db.flush()
     except IntegrityError as exc:
-        raise_conflict("Provider could not be created due to a conflict.", cause=exc)
+        raise ConflictError("Provider could not be created due to a conflict.") from exc
     await db.refresh(provider)
     return LlmProviderResponse.model_validate(provider)
 
@@ -216,5 +216,5 @@ async def put_scenes(
     except IntegrityError as exc:
         # Concurrent writes for the same user can collide on the per-scope unique
         # index; surface a retryable conflict rather than a 500.
-        raise_conflict("Scene bindings could not be saved due to a concurrent update; retry.", cause=exc)
+        raise ConflictError("Scene bindings could not be saved due to a concurrent update; retry.") from exc
     return await get_scenes(db, user_id)

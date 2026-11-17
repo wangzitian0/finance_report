@@ -116,7 +116,7 @@ async def chat_message(payload: ChatRequest, *, db: DbSession, user_id: CurrentU
             await stream_iter.aclose()
         raise_service_unavailable("AI service temporarily unavailable.")
 
-    await db.commit()
+    await db.flush()
 
     async def primed_stream() -> AsyncIterator[str]:
         try:

@@ -3,9 +3,9 @@
 from typing import Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, ReadDbSession
 from src.extraction import (
     DEFAULT_MAX_DEPTH,
     EvidenceGraphMaterializationService,
@@ -13,6 +13,7 @@ from src.extraction import (
     EvidenceNode,
     EvidenceTraversalStep,
 )
+from src.platform import ConflictError, DomainError
 from src.schemas.evidence import (
     EvidenceLineageBlocker,
     EvidenceLineageDirection,
@@ -79,7 +80,7 @@ def _edge_dto(step: EvidenceTraversalStep, *, direction: str) -> EvidenceLineage
 
 @router.get("/lineage", response_model=EvidenceLineageResponse)
 async def get_evidence_lineage(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     entity_type: str = Query(..., min_length=1, max_length=100),
     entity_id: UUID = Query(...),
@@ -102,17 +103,13 @@ async def get_evidence_lineage(
             for b in mat.blockers
             if anchor is None or b.code != "entity_missing"
         ]
-        if mat.has_writes:
-            await db.commit()
         failure_status = _materialization_failure_status(mat_blockers)
         if failure_status is not None:
-            raise HTTPException(
-                status_code=failure_status,
-                detail=EvidenceLineageError(
-                    message="Evidence Graph materialization could not complete for this entity.",
-                    blockers=mat_blockers,
-                ).model_dump(),
+            err = EvidenceLineageError(
+                message="Evidence Graph materialization could not complete for this entity.",
+                blockers=mat_blockers,
             )
+            raise DomainError(err.message, status_code=failure_status, detail_payload=err.model_dump())
         anchor = await lineage.get_node_for_entity(
             db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
         )
@@ -149,13 +146,11 @@ async def get_evidence_lineage(
     )
     opening_blockers = await EvidenceGraphMaterializationService().validate_opening_nodes(db, user_id=user_id, nodes=nodes)
     if opening_blockers:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=EvidenceLineageError(
-                message="Opening lineage no longer has current source authority.",
-                blockers=[EvidenceLineageBlocker(code=b.code, message=b.message) for b in opening_blockers],
-            ).model_dump(),
+        err = EvidenceLineageError(
+            message="Opening lineage no longer has current source authority.",
+            blockers=[EvidenceLineageBlocker(code=b.code, message=b.message) for b in opening_blockers],
         )
+        raise ConflictError(err.message, detail_payload=err.model_dump())
     return EvidenceLineageResponse(
         anchor=_node_dto(anchor),
         nodes=[_node_dto(n) for n in nodes],

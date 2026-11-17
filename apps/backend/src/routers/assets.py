@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.observability import get_logger
 from src.platform import ValidationFailedError, raise_bad_request, raise_internal_error, raise_not_found
 from src.portfolio import PositionService, PositionServiceError
@@ -60,11 +60,10 @@ async def create_valuation_snapshot(
             recurrence_days=payload.recurrence_days,
             reminder_date=payload.reminder_date,
         )
-        await db.commit()
+        await db.flush()
         await db.refresh(snapshot)
     except Exception as e:
         logger.error("Manual valuation snapshot create failed", error=str(e), user_id=str(user_id))
-        await db.rollback()
         raise_internal_error("Manual valuation snapshot create failed", cause=e)
 
     return ManualValuationSnapshotResponse.model_validate(snapshot)
@@ -81,7 +80,7 @@ def _parse_component_type(component_type: str | None) -> ManualValuationComponen
 
 @router.get("/valuation-snapshots", response_model=ManualValuationSnapshotListResponse)
 async def list_valuation_snapshots(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(default=None),
     component_type: str | None = Query(default=None),
@@ -108,7 +107,7 @@ async def list_valuation_snapshots(
 @router.get("/valuation-snapshots/{snapshot_id}", response_model=ManualValuationSnapshotResponse)
 async def get_valuation_snapshot(
     snapshot_id: UUID,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> ManualValuationSnapshotResponse:
     """Get a manual valuation snapshot."""
@@ -133,13 +132,11 @@ async def update_valuation_snapshot(
             snapshot_id,
             values=payload.model_dump(exclude_unset=True),
         )
-        await db.commit()
+        await db.flush()
     except (PositionServiceError, ValuationServiceError) as e:
-        await db.rollback()
         raise_bad_request(str(e), cause=e)
     except Exception as e:
         logger.error("Manual valuation snapshot update failed", error=str(e), user_id=str(user_id))
-        await db.rollback()
         raise_internal_error("Manual valuation snapshot update failed", cause=e)
     if not snapshot:
         raise_not_found("Manual valuation snapshot")
@@ -160,12 +157,11 @@ async def delete_valuation_snapshot(
         raise_bad_request(str(exc), cause=exc)
     if not deleted:
         raise_not_found("Manual valuation snapshot")
-    await db.commit()
 
 
 @router.get("/valuation-components", response_model=ValuationComponentsResponse)
 async def list_valuation_components(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(default=None),
     include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
@@ -189,7 +185,7 @@ async def list_valuation_components(
 @router.get("/positions/{position_id}/depreciation", response_model=DepreciationResponse)
 async def get_position_depreciation(
     position_id: UUID,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     method: Literal["straight-line", "declining-balance"] = Query(
         default="straight-line", description="Depreciation method"

@@ -73,3 +73,18 @@ class TestBaseAppException:
         assert exc.message == "domain rule failed"
         assert exc.status_code == expected_status
         assert exc.error_id == expected_error_id
+
+    async def test_domain_error_detail_payload_serializes_structured_detail(self):
+        "AC-platform.21.5"
+        import json
+        from unittest.mock import MagicMock
+        from src.main import base_app_exception_handler
+
+        payload = {"error": "evidence_authority_revoked", "message": "revoked"}
+        exc = ConflictError("revoked", detail_payload=payload)
+        assert exc.detail == payload
+        response = await base_app_exception_handler(MagicMock(), exc)
+        assert response.status_code == 409
+        body = json.loads(response.body)
+        assert body["error_id"] == "conflict"
+        assert body["detail"] == payload

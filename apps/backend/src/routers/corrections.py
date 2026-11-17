@@ -50,7 +50,7 @@ async def create_correction(
         corrected_account_id=body.corrected_account_id,
         **compose_correction_callbacks(),
     )
-    await db.commit()
+    await db.flush()
     return CorrectionResponse(
         id=correction.id,
         transaction_id=correction.transaction_id,

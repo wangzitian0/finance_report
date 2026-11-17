@@ -4,16 +4,17 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import to_money
 from src.composition import refresh_market_data_for_brokerage_import
 from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
 from src.observability import get_logger
-from src.platform import ResourceNotFoundError
+from src.platform import PreconditionFailedError, ResourceNotFoundError
 from src.portfolio import (
     AssetNotFoundError,
     InvestmentAccountingService,
@@ -68,7 +69,7 @@ def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> Div
     )
 
 
-async def _paged_allocation(fn, *, db: ReadDbSession, user_id: UUID, as_of_date: date | None, limit: int, offset: int):
+async def _paged_allocation(fn, *, db: AsyncSession, user_id: UUID, as_of_date: date | None, limit: int, offset: int):
     breakdowns = await fn(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     return [AllocationBreakdownResponse(**b.to_dict()) for b in list(breakdowns)[offset : offset + limit]]
 
@@ -111,7 +112,7 @@ async def import_brokerage_positions(
         )
         await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=request.payload)
     except PositionServiceError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise PreconditionFailedError(str(exc)) from exc
     return BrokerageImportResponse(**result.__dict__)
 
 
@@ -147,7 +148,7 @@ async def get_portfolio_summary(
     try:
         return await _portfolio_service.get_portfolio_summary_dashboard(db=db, user_id=user_id, as_of_date=as_of_date)
     except PricingError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise PreconditionFailedError(str(exc)) from exc
 
 
 @router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
@@ -190,7 +191,7 @@ async def create_holding_dividend(
     except PortfolioNotFoundError as exc:
         raise ResourceNotFoundError(str(exc)) from exc
     except (InvestmentAccountingValidationError, PricingError) as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise PreconditionFailedError(str(exc)) from exc
 
     entry_id = getattr(dividend, "journal_entry_id", None)
     await db.flush()
@@ -280,23 +281,18 @@ async def get_investment_performance_report_schedule(
     period_start = period_start or date(period_end.year, 1, 1)
     as_of_date = as_of_date or period_end
     if period_start > period_end:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="period_start must be <= period_end"
-        )
+        raise PreconditionFailedError("period_start must be <= period_end")
     if as_of_date < period_end:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="as_of_date must be >= period_end")
+        raise PreconditionFailedError("as_of_date must be >= period_end")
     currency = currency.strip().upper()
     if currency != "SGD":
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Investment performance report schedule currently supports SGD presentation currency",
-        )
+        raise PreconditionFailedError("Investment performance report schedule currently supports SGD presentation currency")
     try:
         return await build_investment_performance_report_schedule(
             db, user_id, period_start=period_start, period_end=period_end, as_of_date=as_of_date, currency=currency
         )
     except PricingError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise PreconditionFailedError(str(exc)) from exc
 
 
 @router.get("/allocation/sector", response_model=list[AllocationBreakdownResponse])
@@ -347,4 +343,5 @@ async def update_prices(
 ) -> PriceUpdateBatchResponse:
     """Update market prices manually (batch)."""
     results = await _portfolio_service.update_market_prices(db=db, user_id=user_id, updates=request.updates)
+    await db.flush()
     return PriceUpdateBatchResponse(updated_count=len(results), results=results)
