@@ -21,20 +21,20 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `MARKET_DATA_YAHOO_TIMEOUT_SECONDS` | `5` |  |  | App Settings | Timeout (seconds) for outbound Yahoo Finance market-data calls. |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |  | yes | App Settings | Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL and is used by backend components when they link back to the frontend app. |
 | `REDIS_URL` |  |  |  | App Settings | Optional Redis URL for staging/production background coordination. |
-| `AI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). Settings also reads the old name ZAI_API_KEY. |
-| `AI_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` |  |  | AI Provider | AI provider base URL (provider-neutral; default targets Z.AI/GLM). |
 | `AI_CHAT_COMPLETIONS_PATH` | `/chat/completions` |  |  | AI Provider | Chat completions path appended to the AI base URL. |
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
 | `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort. |
 | `AI_JSON_MAX_TOKENS` | `32768` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
 | `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
-| `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
 | `LARGE_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production. |
+| `LLM_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). Settings reads LLM_API_KEY and legacy AI_API_KEY / ZAI_API_KEY. |
+| `LLM_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` |  |  | AI Provider | AI provider base URL (provider-neutral; default targets Z.AI/GLM). |
 | `LLM_CASSETTE_ENGAGE` | `false` |  |  | AI Provider | Engage offline LLM cassette replay layer. |
 | `LLM_CASSETTE_REFRESH` | `false` |  |  | AI Provider | Refresh recorded LLM cassettes in local runs. |
 | `LLM_ENCRYPTION_KEYS` |  |  | yes | AI Provider | Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets. |
 | `LLM_LIVE` | `false` |  |  | AI Provider | Force live LLM provider calls. |
+| `LLM_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
 | `MULTIMODAL_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Multimodal-role AI model id for vision and OCR (image, PDF and file input). Unset: the infra2 SDK default; set it only to customize production. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
 | `SMALL_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production. |
