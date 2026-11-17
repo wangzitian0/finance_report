@@ -6,14 +6,12 @@ from fastapi import APIRouter, Query
 
 from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.platform import ResourceNotFoundError
-from src.schemas.workflow import (
+from src.workflow import (
     WorkflowEventListResponse,
     WorkflowEventResponse,
+    WorkflowEventStatus,
     WorkflowEventStatusUpdate,
     WorkflowStatusResponse,
-)
-from src.workflow import (
-    WorkflowEventStatus,
     get_workflow_status,
     list_workflow_events_response,
     update_workflow_event_status,
