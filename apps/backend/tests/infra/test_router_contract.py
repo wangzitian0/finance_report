@@ -45,7 +45,6 @@ LEGACY_ROUTER_ALLOWLIST: dict[str, set[str]] = {
     "review.py": {"except_value_error", "get_dbsession", "http_exception", "manual_tx"},
     "statements.py": {"except_value_error", "http_exception", "manual_tx"},
     "user_settings.py": {"get_dbsession", "manual_tx"},
-    "workflow.py": {"get_dbsession"},
 }
 
 

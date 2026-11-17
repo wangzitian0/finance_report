@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.platform import ResourceNotFoundError
 from src.schemas.workflow import (
     WorkflowEventListResponse,
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/workflow", tags=["workflow"])
 
 @router.get("/status", response_model=WorkflowStatusResponse)
 async def get_workflow_status_endpoint(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> WorkflowStatusResponse:
     """Return the compact user-scoped upload-to-report workflow status."""
@@ -33,7 +33,7 @@ async def get_workflow_status_endpoint(
 
 @router.get("/events", response_model=WorkflowEventListResponse)
 async def list_workflow_events_endpoint(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     status_filter: WorkflowEventStatus | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),

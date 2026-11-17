@@ -114,9 +114,15 @@ async def test_get_balance_sheet_is_read_only_and_bounded(
 
 
 async def test_get_workflow_status_steady_read_is_read_only_and_bounded(client: AsyncClient, db_engine) -> None:
-    """AC-platform.request-sql-budget.3: verify /workflow/status steady read is write-free and bounded."""
-    warm = await client.get("/workflow/status")
-    assert warm.status_code == 200, warm.text
+    """AC-platform.request-sql-budget.3: verify /workflow/status cold and steady reads are write-free and bounded."""
+    cold_statements, cold_detach = _capture_sql(db_engine)
+    try:
+        cold = await client.get("/workflow/status")
+    finally:
+        cold_detach()
+    assert cold.status_code == 200, cold.text
+    assert _writes(cold_statements) == []
+    assert len(cold_statements) <= _BUDGET_GET_WORKFLOW_STATUS_STEADY, cold_statements
 
     statements, detach = _capture_sql(db_engine)
     try:

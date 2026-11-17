@@ -8,7 +8,7 @@
 |---|---|
 | Models & sync state | `apps/backend/src/workflow/orm/models.py` (`workflow_sessions`, `workflow_events`, `workflow_sync_states`) |
 | Schemas | `apps/backend/src/schemas/workflow.py` |
-| Sync & status derivation | `apps/backend/src/workflow/extension/events.py`, `apps/backend/src/workflow/extension/source_fingerprint.py` |
+| Sync & status derivation | `apps/backend/src/workflow/extension/events.py` (`get_workflow_status`, `list_workflow_events_response`, `ensure_workflow_events_synced`) |
 | Router | `apps/backend/src/routers/workflow.py` |
 | Package readiness input | `current_package_readiness` in `apps/backend/src/reporting/extension/package_document.py` |
 | Frontend notifications | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx`, `apps/frontend/src/components/home/HomeActionBanner.tsx`, `apps/frontend/src/hooks/useWorkflowStatus.ts` |
@@ -59,7 +59,7 @@ Product navigation IA is owned by EPIC-022 (`apps/frontend/frontend-patterns.md`
 
 ## 12. Initial Derivation
 
-`source_fingerprint.py` computes a one-SQL per-table `(count, sum(timestamps))` digest + date + settings hash excluding derived workflow tables and chat/feedback/outbox/ping tables. When the fingerprint matches and `workflow_sync_states` age `< 15m` (`WORKFLOW_SYNC_STATE_MAX_AGE`), status reads reuse stored readiness with zero writes (`stored_package_readiness` reads without deriving for advisor context).
+`workflow_input_stamp` computes a single-query stamp over explicit domain input tables + date + settings (`blake2b`). `GET /api/workflow/status` and `GET /api/workflow/events` run under `ReadDbSession` with zero DB writes (`stored_package_readiness` reuses cached state `< 15m` (`WORKFLOW_SYNC_STATE_MAX_AGE`) when the stamp matches, and otherwise projects state in memory without writing `workflow_sync_states` or `workflow_events`). `ensure_workflow_events_synced` / `PATCH /api/workflow/events/{event_id}` persist deterministic UUIDv5 workflow rows when needed.
 
 AC19.12 completes the first lightweight user-facing derivation set. Workflow events are a product attention projection, not a low-level event log; authoritative facts remain in normalized owner tables. Derivation answers only:
 - What needs my action now?
