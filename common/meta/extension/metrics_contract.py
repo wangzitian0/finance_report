@@ -129,7 +129,6 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
     errors: list[str] = []
     workflow = repo_root / ".github" / "workflows" / "ci.yml"
     ci_cd = repo_root / "common" / "testing" / "ci-cd.md"
-    traceability = repo_root / "common" / "ssot" / "build_ac_traceability.py"
 
     if workflow.exists():
         workflow_text = workflow.read_text(encoding="utf-8")
@@ -188,17 +187,6 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         ):
             if token not in ci_cd_text:
                 errors.append(f"CI/CD SSOT is missing metrics semantics: {token}")
-
-    if traceability.exists():
-        traceability_text = traceability.read_text(encoding="utf-8")
-        if "not behavioral coverage" not in traceability_text:
-            errors.append(
-                "AC traceability builder must state that references are not behavioral coverage"
-            )
-        if "placeholder assertions" not in traceability_text:
-            errors.append(
-                "AC traceability builder must distinguish placeholder assertions from real references"
-            )
 
     return errors
 

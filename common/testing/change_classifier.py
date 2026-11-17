@@ -11,8 +11,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from common.testing import matrix
-
 
 class Environment(StrEnum):
     LOCAL = "local"
@@ -286,7 +284,6 @@ class ChangeClassification:
     image_build_files: tuple[str, ...]
     image_build_required: bool
     component_changed: Mapping[str, bool]
-    touched_e2e_tests: tuple[str, ...] = ()
 
     def _runs_unless_all_in(self, skip_prefixes: tuple[str, ...]) -> bool:
         return (
@@ -556,7 +553,6 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         image_build_files=image_build_files,
         image_build_required=bool(image_build_files or not files),
         component_changed=_classify_components(files),
-        touched_e2e_tests=tuple(matrix.select_touched_e2e(files)),
     )
 
 
@@ -583,7 +579,6 @@ def write_github_outputs(
         ),
         ("vitest_required", str(classification.vitest_required).lower()),
         ("tooling_required", str(classification.tooling_required).lower()),
-        ("touched_e2e_tests", _json_output(list(classification.touched_e2e_tests))),
     ]
     with output_path.open("a", encoding="utf-8") as fh:
         fh.writelines(f"{k}={v}\n" for k, v in pairs)
@@ -647,10 +642,6 @@ def write_github_summary(
             fh.write(
                 f"| `{name}` | `{str(classification.component_changed[name]).lower()}` |\n"
             )
-        if classification.touched_e2e_tests:
-            fh.write("\n### Touched Non-LLM E2E Journeys (#2670)\n\n")
-            for path in classification.touched_e2e_tests:
-                fh.write(f"- `{path}`\n")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
