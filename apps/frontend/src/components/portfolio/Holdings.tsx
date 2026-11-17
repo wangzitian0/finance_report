@@ -11,7 +11,7 @@ import { portfolioHoldingHref } from "@/components/navigation";
 import { ProvenanceBadge } from "@/components/ui";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 
 interface HoldingsTableProps {

@@ -5,7 +5,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import {
   packagePeriodRequest,
   reportPeriodError,

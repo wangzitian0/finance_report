@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { ApiError, apiOperation } from "@/lib/api-client";
+import { ApiError, apiOperation } from "@/lib/api";
 import { clearUser, getUserId, setUser } from "@/lib/auth";
 
 const REJECTED_STATUSES = new Set([401, 403, 404]);

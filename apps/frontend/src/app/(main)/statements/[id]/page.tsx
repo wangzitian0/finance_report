@@ -8,9 +8,8 @@ import { useToast } from "@/components/ui/Toast";
 import { LoadingState } from "@/components/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { FlowStepBanner } from "@/components/workflow/WorkflowNotifications";
-import { ApiError, apiOperation } from "@/lib/api-client";
+import { ApiError, apiOperation } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
-import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
 import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
 import { BankStatement, BrokerageImportResponse, StatementRunHints, StatementRunKind, normalizeBankStatement } from "@/lib/types";
 import { PARSING_POLL_MS, canImportBrokerageStatement, currencyCodeOrDash } from "@/lib/statusLabels";
@@ -308,16 +307,22 @@ export default function StatementDetailPage() {
   const envelopeMutation = useMutation({
     mutationFn: () => {
       if (!review?.source_result_digest) return Promise.reject(new Error("The source result is unavailable. Re-parse the statement before confirming it."));
-      return confirmStatementReviewEnvelope(statementId, {
-        source_result_digest: review.source_result_digest,
-        account_id: envelopeDraft.accountId,
-        currency: envelopeDraft.currency,
-        period_start: envelopeDraft.periodStart,
-        period_end: envelopeDraft.periodEnd,
-        opening_balance: envelopeDraft.openingBalance,
-        closing_balance: envelopeDraft.closingBalance,
-        rationale: envelopeDraft.rationale,
-      });
+      return apiOperation(
+        "confirm_statement_review_envelope_statements__statement_id__review_envelope_post",
+        {
+          path: { statement_id: statementId },
+          body: {
+            source_result_digest: review.source_result_digest,
+            account_id: envelopeDraft.accountId,
+            currency: envelopeDraft.currency,
+            period_start: envelopeDraft.periodStart,
+            period_end: envelopeDraft.periodEnd,
+            opening_balance: envelopeDraft.openingBalance,
+            closing_balance: envelopeDraft.closingBalance,
+            rationale: envelopeDraft.rationale,
+          },
+        },
+      );
     },
     onSuccess: () => {
       showToast("Statement details confirmed. You can now continue the review.", "success");

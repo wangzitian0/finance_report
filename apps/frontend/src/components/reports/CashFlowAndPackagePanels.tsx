@@ -28,7 +28,7 @@ import {
   type LineagePanelState,
 } from "@/components/reports/package/shared";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
-import { apiOperation, apiOperationDownload } from "@/lib/api-client";
+import { apiOperation, apiOperationDownload } from "@/lib/api";
 import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";
 import { lineageQuery } from "@/lib/lineage";

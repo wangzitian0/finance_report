@@ -1,7 +1,7 @@
 "use client";
 
 import { useToast } from "@/components/ui/Toast";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { useSettingsForm } from "@/hooks/useSettingsForm";
 import Link from "next/link";
 import type {

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
 import { BrokerageImportResultBanner, StatementHeader } from "@/components/review/StatementReview";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { formatPeriod } from "@/lib/date";
 import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";
 import type { BankStatement, BrokerageImportResponse } from "@/lib/types";
@@ -13,7 +13,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode; [key: string]: unknown }) => (
     <a href={href} {...rest}>{children}</a>
   ),
-})); const showToastMock = vi.fn(); const mockSearchParams = new URLSearchParams(); let mockStatementId = "s1"; vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useParams: () => ({ id: mockStatementId }), useSearchParams: () => mockSearchParams, })); vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: showToastMock }), })); vi.mock("@/lib/api-client", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api-client")>()), apiOperation: vi.fn(), })); const parsedStatement = { id: "s1", original_filename: "statement-jan.pdf", institution: "DBS", currency: "SGD", period_start: "2026-01-01", period_end: "2026-01-31", opening_balance: 1000, closing_balance: 1500, confidence_score: 92, balance_validated: true, validation_error: null, status: "parsed", parsing_progress: 100, transactions: [ { id: "t1", txn_date: "2026-01-02", description: "Salary", reference: "R1", amount: 500, direction: "IN", currency: "SGD", balance_after: 1500, confidence: "high", status: "matched", }, ], }; function deferred<T>() { let resolve!: (value: T) => void
+})); const showToastMock = vi.fn(); const mockSearchParams = new URLSearchParams(); let mockStatementId = "s1"; vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useParams: () => ({ id: mockStatementId }), useSearchParams: () => mockSearchParams, })); vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: showToastMock }), })); vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), apiOperation: vi.fn(), })); const parsedStatement = { id: "s1", original_filename: "statement-jan.pdf", institution: "DBS", currency: "SGD", period_start: "2026-01-01", period_end: "2026-01-31", opening_balance: 1000, closing_balance: 1500, confidence_score: 92, balance_validated: true, validation_error: null, status: "parsed", parsing_progress: 100, transactions: [ { id: "t1", txn_date: "2026-01-02", description: "Salary", reference: "R1", amount: 500, direction: "IN", currency: "SGD", balance_after: 1500, confidence: "high", status: "matched", }, ], }; function deferred<T>() { let resolve!: (value: T) => void
 let reject!: (reason?: unknown) => void
 const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise
 reject = rejectPromise }); return { promise, resolve, reject } }; describe("StatementDetailPage", () => { const mockedApiFetch = vi.mocked(apiOperation); const STATEMENT_OP = "get_statement_statements__statement_id__get"; const RUNS_OP = "list_statement_runs_statements__statement_id__runs_get";

@@ -10,7 +10,7 @@ import UnmatchedBoard from "@/components/reconciliation/UnmatchedBoard";
 import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
 import { LoadingState } from "@/components/ui";
 import { InfoHint } from "@/components/ui/InfoHint";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { formatAmount } from "@/lib/audit/money";
 import { clampPercentWidthFromPercentValue, formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/audit/ratio/format";
 import { RECONCILIATION_STATS_QUERY_KEY } from "@/lib/sharedQueries";

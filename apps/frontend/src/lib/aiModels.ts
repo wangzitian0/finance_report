@@ -1,4 +1,4 @@
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import type { Schemas } from "@/lib/api-schema";
 
 export interface AiModelInfo {

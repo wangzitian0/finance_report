@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { clearUser } from "@/lib/auth";
 
 /** End browser cookie authority before reporting successful logout. */

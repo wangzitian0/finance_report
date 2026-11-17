@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useApiQuery } from "@/hooks/useApiQuery";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import type {
   WorkflowEventListResponse,
   WorkflowEventStatus,

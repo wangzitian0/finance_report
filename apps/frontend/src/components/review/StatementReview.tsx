@@ -17,7 +17,7 @@ import { DetailDialog } from "@/components/ui/Overlay";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { MessageSquareText, Check } from "lucide-react";
-import { apiOperation, apiOperationDownload } from "@/lib/api-client";
+import { apiOperation, apiOperationDownload } from "@/lib/api";
 import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
 import { useToast } from "@/components/ui/Toast";
 import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";

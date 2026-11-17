@@ -10,7 +10,7 @@ import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { ConfidenceBadge, EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { formatCurrencyLocale, sumAmounts } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";
 import { JournalEntry, JournalLine } from "@/lib/types";

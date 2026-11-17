@@ -9,7 +9,7 @@ import {
 } from "@/lib/audit/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { AllocationBreakdown } from "@/lib/types";
 import { formatCompactChartValue } from "@/components/charts/BarChart";
 

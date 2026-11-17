@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, X } from "lucide-react";
 
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { invalidatePortfolioQueries } from "@/lib/queryClient";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
 import GuidedEvidenceForm, { SOURCE_CLASS_CONFIGS, type EvidenceSourceClass } from "@/components/assets/GuidedEvidenceForm";

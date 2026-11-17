@@ -15,7 +15,7 @@ import { AuditBackLink } from "@/components/ui/SmartBackLink";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader, type BadgeVariant } from "@/components/ui";
-import { apiOperation } from "@/lib/api-client";
+import { apiOperation } from "@/lib/api";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
 import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 import { BankStatement, normalizeBankStatement } from "@/lib/types";
