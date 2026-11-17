@@ -11,8 +11,7 @@ publishes the cohesive surfaces:
 * :mod:`src.observability.pii_redaction` — the Singapore-pattern PII detector
   (``detect_pii``) the audit helpers and extraction's CSV path share (was the
   flat ``src.services.pii_redaction``, #1677);
-* :mod:`src.observability.logger` — structlog + OTEL logging configuration and
-  the ``get_logger`` factory (was the flat ``src.logger``);
+* :mod:`infra2_sdk.runtime.otel` — SDK-owned JSON stdout logging and OTLP export;
 * :mod:`src.observability.telemetry_metrics` — the OTEL metric instruments and
   ``record_*`` helpers (was the flat ``src.telemetry_metrics``);
 * :mod:`src.observability.analytics` — the OpenPanel product-analytics ``track``
@@ -26,9 +25,18 @@ the ``identity`` package (``src.identity.extension.observability``, #1428).
 
 from __future__ import annotations
 
+import datetime
+import logging
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+import structlog
+
 import src.config
 from src.observability.analytics import track
 from src.observability.audit import (
+    RISKY_LOG_FIELD_NAMES,
+    _redact_detected_pii,
     current_request_id,
     ensure_request_id,
     log_financial_mutation,
@@ -37,7 +45,6 @@ from src.observability.audit import (
     safe_log_fields,
 )
 from src.observability.error_ids import ErrorIds
-from src.observability.logger import configure_logging, get_logger
 from src.observability.pii_redaction import detect_pii
 from src.observability.runtime import (
     get_observability_status,
@@ -45,6 +52,116 @@ from src.observability.runtime import (
     log_observability_startup,
     mark_fastapi_instrumentation_active,
 )
+
+_RESERVED_RECORD_ATTRS = frozenset(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
+
+
+def _sanitize_value(val: Any) -> Any:
+    if val is None or isinstance(val, bool | int | float | bytes):
+        return val
+    if isinstance(val, str):
+        return _redact_detected_pii(val)
+    if isinstance(val, datetime.date | datetime.datetime):
+        return val.isoformat()
+    if isinstance(val, Mapping):
+        return {
+            str(k): "[REDACTED]" if str(k).lower() in RISKY_LOG_FIELD_NAMES else _sanitize_value(v)
+            for k, v in val.items()
+        }
+    if isinstance(val, list | tuple | set | frozenset | Sequence) and not isinstance(val, str | bytes):
+        return [_sanitize_value(x) for x in val]
+    return _redact_detected_pii(str(val))
+
+
+def _sanitize_fields(fields: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k, v in fields.items():
+        key = str(k)
+        out[key] = "[REDACTED]" if key.lower() in RISKY_LOG_FIELD_NAMES else _sanitize_value(v)
+    return out
+
+
+class _StructuredLogger:
+    """Thin stdlib logger adapter supporting keyword fields while honoring SDK JSON formatting."""
+
+    def __init__(self, name: str | None = None, bound: dict[str, Any] | None = None) -> None:
+        self._name = name
+        self._std = logging.getLogger(name)
+        self._bound = dict(bound or {})
+
+    def bind(self, **kwargs: Any) -> _StructuredLogger:
+        return _StructuredLogger(self._name, {**self._bound, **kwargs})
+
+    def _emit(self, level: int, method: str, event: str, /, *args: Any, **kwargs: Any) -> None:
+        exc_info = kwargs.pop("exc_info", None)
+        stack_info = kwargs.pop("stack_info", False)
+        stacklevel = kwargs.pop("stacklevel", 1) + 1
+        caller_extra = kwargs.pop("extra", None)
+        ctx_vars = structlog.contextvars.get_contextvars()
+        merged = {**ctx_vars, **self._bound, **(caller_extra or {}), **kwargs}
+        safe = _sanitize_fields(merged)
+        msg = _redact_detected_pii(event) if isinstance(event, str) else event
+        if structlog.is_configured():
+            sl = structlog.get_logger(self._name)
+            if exc_info is not None:
+                safe["exc_info"] = exc_info
+            getattr(sl, method)(msg, *args, **safe)
+            return
+        safe_extra = {k if k not in _RESERVED_RECORD_ATTRS else f"field_{k}": v for k, v in safe.items()}
+        self._std.log(
+            level,
+            msg,
+            *args,
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=safe_extra or None,
+        )
+
+    def debug(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._emit(logging.DEBUG, "debug", event, *args, **kwargs)
+
+    def info(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._emit(logging.INFO, "info", event, *args, **kwargs)
+
+    def warning(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._emit(logging.WARNING, "warning", event, *args, **kwargs)
+
+    def warn(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._emit(logging.WARNING, "warning", event, *args, **kwargs)
+
+    def error(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._emit(logging.ERROR, "error", event, *args, **kwargs)
+
+    def critical(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self._emit(logging.CRITICAL, "critical", event, *args, **kwargs)
+
+    def exception(self, event: str, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("exc_info", True)
+        self._emit(logging.ERROR, "exception", event, *args, **kwargs)
+
+
+def get_logger(name: str | None = None) -> _StructuredLogger:
+    return _StructuredLogger(name)
+
+
+def configure_logging(*, take_over_root: bool = False) -> None:
+    """Configure stdlib JSON logging via public infra2-sdk init_worker without bespoke structlog setup."""
+    from infra2_sdk.runtime.otel import init_worker
+
+    cfg = src.config.settings
+    if take_over_root:
+        logging.getLogger().handlers.clear()
+    level = logging.DEBUG if cfg.debug else logging.INFO
+    init_worker(
+        cfg.otel_service_name,
+        strict=False,
+        log_level=level,
+        set_global=False,
+        environ={"ENVIRONMENT": cfg.environment, "OTEL_SDK_DISABLED": "true"},
+    )
+
+
 from src.observability.telemetry_metrics import (
     INVARIANT_VIOLATION_KINDS,
     configure_database_pool_metrics,
@@ -60,10 +177,7 @@ from src.observability.telemetry_metrics import (
 )
 from src.observability.worker_telemetry import flow_run_telemetry
 
-# The shared config singleton, surfaced at the package root so callers and tests
-# can read/patch it via ``observability.settings`` (mirroring the prior flat
-# module). Bound by assignment from the bare-root ``src.config`` import to respect
-# the package-model cross-domain rule; not part of the published ``interface``.
+
 settings = src.config.settings
 
 __all__ = [

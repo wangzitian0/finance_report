@@ -2,23 +2,34 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
+import logging
 import os
 import shutil
 import subprocess
-import time
 import traceback
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from infra2_sdk.fastapi import init_service
+from infra2_sdk.runtime.environment import resolve_environment_tier as resolve_sdk_environment_tier
+from infra2_sdk.runtime.health import (
+    Dependency as SdkDependency,
+    DependencyKind as SdkDependencyKind,
+    DependencyManifest as SdkDependencyManifest,
+    DependencyStatus,
+    ProbeResult,
+)
+from infra2_sdk.runtime.otel import PROBE_PATHS
+from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import src.orm_registry  # noqa: E402, F401
@@ -26,7 +37,7 @@ from src.advisor import register_fx_pairs_read
 from src.boot import Bootloader, BootMode
 from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
-from src.database import async_session_maker, engine, init_db
+from src.database import async_session_maker, engine, get_db, get_test_session_maker, init_db
 from src.extraction import (
     get_known_storage_paths,
     get_statement_coverage_rows,
@@ -38,10 +49,10 @@ from src.ledger import register_statement_coverage_reader
 from src.observability import (
     ErrorIds,
     configure_database_pool_metrics,
-    configure_logging,
     configure_otel_metrics,
     current_request_id,
     get_logger,
+    get_observability_status,
     log_observability_startup,
     log_security_warning,
     mark_fastapi_instrumentation_active,
@@ -84,12 +95,9 @@ from src.routers import (
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
-from src.runtime import register_known_storage_paths_provider, run_storage_sweep, runtime_system_router
+from src.runtime import DEPENDENCY_MANIFEST, register_known_storage_paths_provider, resolve_env_tier, run_storage_sweep
 from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, error_code_for_status
 
-configure_logging()
-configure_otel_metrics()
-configure_database_pool_metrics(engine)
 logger = get_logger(__name__)
 
 register_fx_pairs_read(observed_fx_pairs)
@@ -134,7 +142,7 @@ def _init_otel_instrumentation() -> None:
         logger.warning("OTEL instrumentation not available", exc_info=True)
 
 
-_PROBE_PATHS = frozenset({"/health"})
+_PROBE_PATHS = PROBE_PATHS
 _RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
     {"/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
 )
@@ -152,9 +160,6 @@ def _sync_fastapi_telemetry_status(target_app: FastAPI) -> bool:
     if active:
         logger.info("FastAPI built-in OTel telemetry active")
     return active
-
-
-_init_otel_instrumentation()
 
 
 def _resolve_app_version(repo_dir: Path | None = None) -> str:
@@ -217,16 +222,125 @@ app = FastAPI(
     lifespan=lifespan,
     telemetry={"exclude": _is_probe_scope},
 )
+
+
+class _BootCheck:
+    def __init__(self, name: str, fn: Callable[[], Awaitable[ProbeResult]]) -> None:
+        self.name = name
+        self._fn = fn
+
+    async def probe(self) -> ProbeResult:
+        try:
+            return await self._fn()
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Health check: Unexpected error in probe",
+                error=str(exc),
+                error_id=ErrorIds.HEALTH_CHECK_FAILED,
+                check=self.name,
+                error_type=type(exc).__name__,
+            )
+            return ProbeResult(self.name, DependencyStatus.ABSENT, str(exc), 0.0)
+
+
+async def _check_database_probe() -> ProbeResult:
+    if override := app.dependency_overrides.get(get_db):
+        gen = override()
+        try:
+            async for session in gen:
+                await session.execute(text("SELECT 1"))
+                return ProbeResult("database", DependencyStatus.PRESENT, "ok", 0.0)
+        except Exception as exc:  # noqa: BLE001
+            return ProbeResult("database", DependencyStatus.ABSENT, str(exc), 0.0)
+        finally:
+            await gen.aclose()
+    if test_maker := get_test_session_maker():
+        try:
+            async with test_maker() as session:
+                await session.execute(text("SELECT 1"))
+            return ProbeResult("database", DependencyStatus.PRESENT, "ok", 0.0)
+        except Exception as exc:  # noqa: BLE001
+            return ProbeResult("database", DependencyStatus.ABSENT, str(exc), 0.0)
+    res = await Bootloader._check_database()
+    status = DependencyStatus.PRESENT if res.status == "ok" else DependencyStatus.ABSENT
+    return ProbeResult("database", status, res.message, res.duration_ms)
+
+
+def _boot_method_check(dep_name: str, method_name: str) -> _BootCheck:
+    async def _run() -> ProbeResult:
+        res = await getattr(Bootloader, method_name)()
+        status = DependencyStatus.PRESENT if res.status == "ok" else DependencyStatus.ABSENT
+        return ProbeResult(dep_name, status, res.message, res.duration_ms)
+
+    return _BootCheck(dep_name, _run)
+
+
+def _build_sdk_manifest() -> SdkDependencyManifest:
+    sdk_deps: list[SdkDependency] = []
+    for dep in DEPENDENCY_MANIFEST:
+        tiers = frozenset(resolve_sdk_environment_tier(t.value) for t in dep.required_in)
+        sdk_deps.append(
+            SdkDependency(
+                name=dep.name,
+                kind=SdkDependencyKind(dep.kind.value),
+                required_in=tiers,
+                env_vars=dep.env_vars,
+                summary=dep.summary,
+            )
+        )
+    return SdkDependencyManifest(sdk_deps)
+
+
+def _health_extra() -> dict[str, Any]:
+    in_gha = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+    return {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "version": settings.git_commit_sha,
+        "git_sha": settings.git_commit_sha,
+        "observability": get_observability_status(),
+        "sdk_environment_tier": resolve_sdk_environment_tier(
+            settings.environment, github_actions=in_gha, unknown="production"
+        ).value,
+    }
+
+
+def _build_health_checks() -> list[_BootCheck]:
+    in_gha = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+    tier = resolve_env_tier(settings.environment, github_actions=in_gha)
+    probed, _ = Bootloader._required_checks(tier)
+    checks: list[_BootCheck] = []
+    for name in sorted(probed):
+        if name == "database":
+            checks.append(_BootCheck("database", _check_database_probe))
+        else:
+            checks.append(_boot_method_check(name, probed[name]))
+    return checks
+
+
+if "ENVIRONMENT" not in os.environ and "ENV" not in os.environ:
+    os.environ["ENVIRONMENT"] = settings.environment
+if settings.otel_exporter_otlp_endpoint:
+    os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", settings.otel_exporter_otlp_endpoint)
+if settings.otel_service_name:
+    os.environ.setdefault("OTEL_SERVICE_NAME", settings.otel_service_name)
+if settings.otel_resource_attributes:
+    os.environ.setdefault("OTEL_RESOURCE_ATTRIBUTES", settings.otel_resource_attributes)
+
+init_service(
+    app,
+    "finance-report-backend",
+    checks=_build_health_checks(),
+    manifest=_build_sdk_manifest(),
+    strict_otel=True,
+    log_level=logging.DEBUG if settings.debug else logging.INFO,
+    health_extra=_health_extra,
+)
+_otel_disabled = os.getenv("OTEL_SDK_DISABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+if not _otel_disabled:
+    configure_otel_metrics()
+    configure_database_pool_metrics(engine)
+    _init_otel_instrumentation()
 _sync_fastapi_telemetry_status(app)
-
-
-def _is_successful_probe(path: str, status_code: int) -> bool:
-    return path in _PROBE_PATHS and 200 <= status_code < 300
-
-
-def _bind_request_ctx(request_id: str, method: str, path: str) -> None:
-    structlog.contextvars.clear_contextvars()
-    structlog.contextvars.bind_contextvars(request_id=request_id, method=method, path=path)
 
 
 def _error_json(
@@ -243,27 +357,6 @@ def _error_json(
     if extra:
         content.update(extra)
     return JSONResponse(status_code=status_code, content=content, headers=headers)
-
-
-@app.middleware("http")
-async def logging_middleware(request: Request, call_next: Any) -> Response:
-    request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    request.state.request_id = request_id
-    _bind_request_ctx(request_id, request.method, request.url.path)
-    start_time = time.perf_counter()
-    try:
-        response = await call_next(request)
-        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        if not _is_successful_probe(request.url.path, response.status_code):
-            logger.info("HTTP Request", status_code=response.status_code, duration_ms=duration_ms)
-        response.headers["X-Request-ID"] = request_id
-        return response
-    except Exception as exc:
-        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        logger.exception(
-            "HTTP Request Failed", duration_ms=duration_ms, error=str(exc), error_id=ErrorIds.UNHANDLED_EXCEPTION
-        )
-        raise
 
 
 api_rate_limiter = RateLimiter(
@@ -283,8 +376,7 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
     client_ip = get_client_ip(request, trust_proxy=settings.trust_proxy)
     allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
     if not allowed:
-        request_id = request.headers.get("X-Request-ID", str(uuid4()))
-        _bind_request_ctx(request_id, request.method, path)
+        request_id = current_request_id() or request.headers.get("X-Request-ID") or str(uuid4())
         record_rate_limit_rejected(scope="global_api")
         log_security_warning(
             logger,
@@ -341,6 +433,9 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     detail = str(exc) if settings.debug else "An internal server error occurred. Please try again later."
     request_id = getattr(request.state, "request_id", None) or current_request_id()
+    logger.exception(
+        "HTTP Request Failed", error=str(exc), error_id=ErrorIds.UNHANDLED_EXCEPTION, request_id=request_id
+    )
     return _error_json(
         500,
         ErrorCode.INTERNAL_ERROR.value,
@@ -382,6 +477,5 @@ for _router in (
     llm.router,
     portfolio.router,
     workflow.router,
-    runtime_system_router,
 ):
     app.include_router(_router, responses=COMMON_ERROR_RESPONSES)

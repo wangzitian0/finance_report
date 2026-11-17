@@ -19,11 +19,23 @@ interface AllowlistEntry {
  */
 const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
   // Set A (#3009): non-UI programmatic callers (infra health / benchmarks / flows SSOT)
-  health_check_health_get: {
+  health_health_get: {
     category: "non_ui_caller",
     methodPath: "GET /health",
     reason: "Container health probe, staging readiness gate, and smoke check.",
     proofPaths: ["common/runtime/shell/smoke_test.sh"],
+  },
+  livez_livez_get: {
+    category: "non_ui_caller",
+    methodPath: "GET /livez",
+    reason: "SDK Kubernetes/Docker container liveness probe.",
+    proofPaths: ["apps/backend/Dockerfile"],
+  },
+  readyz_readyz_get: {
+    category: "non_ui_caller",
+    methodPath: "GET /readyz",
+    reason: "SDK dependency readiness probe.",
+    proofPaths: ["docs/reference/api.md"],
   },
   run_stage2_checks_statements__statement_id__stage2_run_checks_post: {
     category: "non_ui_caller",

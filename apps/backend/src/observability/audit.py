@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
+from infra2_sdk.runtime.otel import current_request_id as _sdk_request_id
 
 from src.observability.pii_redaction import detect_pii
 
@@ -51,7 +52,7 @@ def _redact_detected_pii(text: str) -> str:
 
 
 def current_request_id() -> str | None:
-    value = structlog.contextvars.get_contextvars().get("request_id")
+    value = _sdk_request_id() or structlog.contextvars.get_contextvars().get("request_id")
     return str(value) if value else None
 
 

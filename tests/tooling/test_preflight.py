@@ -1,143 +1,1065 @@
-from __future__ import annotations; import ast; import re; from pathlib import Path; import pytest; import yaml; from common.testing import preflight; REPO_ROOT = Path(__file__).resolve().parents[2]
+from __future__ import annotations
+import ast
+import re
+from pathlib import Path
+import pytest
+import yaml
+from common.testing import preflight
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
 class TestSelectChecks:
     def test_AC_testing_preflight_1_package_contract_selected_on_contract_edit(self):
-        for path in ('common/runtime/contract.py', 'common/meta/extension/check_package_contract.py', 'tools/check_package_contract.py', 'apps/backend/src/ledger/__init__.py', 'tests/tooling/test_check_package_contract.py', 'apps/backend/tests/ledger/test_accounting_equation.py'): names = {c.name for c in preflight.select_checks([path], tier='static')}; assert 'package-contract' in names, f'{path} did not select package-contract'
-        _m1_names = [_m1_c.name for _m1_c in preflight.select_checks(['docs/project/EPIC-008.testing-strategy.md'])]; assert 'ac-traceability' in _m1_names; _m2_names = [_m2_c.name for _m2_c in preflight.select_checks(['docs/project/EPIC-008.testing-strategy.md'])]; assert 'package-migration-safety' in _m2_names; _m3_names = [_m3_c.name for _m3_c in preflight.select_checks(['common/meta/data/MANIFEST.yaml'])]; assert 'ssot-ownership' in _m3_names; _m4_names = [_m4_c.name for _m4_c in preflight.select_checks(['tests/tooling/test_s4_testing_gate_infrastructure.py'], tier='static')]; assert 'package-migration-safety' in _m4_names; _m5_names = {_m5_c.name for _m5_c in preflight.select_checks(['.github/workflows/ci.yml'])}; assert {'workflow-contract'}.issubset(_m5_names); _m6_names = {_m6_c.name for _m6_c in preflight.select_checks(['common/meta/data/governance-exceptions.yaml'])}; assert {'governance-exceptions'}.issubset(_m6_names); _m7_c_fixture = 'common/testing/fixtures/llm_' + 'cas' + 'settes/example.json'; _m7_names = {_m7_c.name for _m7_c in preflight.select_checks([_m7_c_fixture])}; _m7_expected = {'llm-' + 'cas' + 'settes', 'cas' + 'sette-graded-eval'}; assert _m7_expected.issubset(_m7_names); 'AC-testing.preflight.1'; 'AC-testing.preflight.1'; _m8_names = [_m8_c.name for _m8_c in preflight.select_checks(['apps/backend/tests/audit/test_money_tolerance_backend.py'], tier='static')]; assert 'ac-proof-traceability' in _m8_names; _m9_names = [_m9_c.name for _m9_c in preflight.select_checks(['docs/project/README.md'])]; assert 'doc-consistency' in _m9_names; _m10_names = [_m10_c.name for _m10_c in preflight.select_checks(['common/ledger/readme.md'])]; assert 'taxonomy-drift' in _m10_names; _m11_names = [_m11_c.name for _m11_c in preflight.select_checks(['apps/backend/src/extraction/extension/statement_parsing.py'])]; assert 'backend-format' in _m11_names; assert 'transaction-boundary' in _m11_names; _m12_names = [_m12_c.name for _m12_c in preflight.select_checks(['apps/backend/src/reconciliation/extension/matching.py'])]; assert 'app-boundary' in _m12_names; _m13_names = [_m13_c.name for _m13_c in preflight.select_checks(['apps/backend/src/ledger/__init__.py'])]; assert 'public-orm-exports' in _m13_names; _m14_selected = preflight.select_checks(['apps/backend/src/reconciliation/base/repository.py']); _m14_base_purity = next((_m14_check for _m14_check in _m14_selected if _m14_check.name == 'base-purity')); assert _m14_base_purity.commands == ((preflight.PY, 'tools/check_base_purity.py'),); _m15_names = [_m15_c.name for _m15_c in preflight.select_checks(['apps/backend/migrations/versions/0099_x.py'])]; assert 'migration-risk' in _m15_names; assert [_m16_c.name for _m16_c in preflight.select_checks(['.env.example'])] == ['env-keys']; _m17_names = [_m17_c.name for _m17_c in preflight.select_checks(['apps/backend/src/schemas/account.py'])]; assert 'schema-validate' in _m17_names; _m18_names = [_m18_c.name for _m18_c in preflight.select_checks(['apps/backend/src/runtime/extension/schema_validation.py'])]; assert 'schema-validate' not in _m18_names; _m19_names = [_m19_c.name for _m19_c in preflight.select_checks(['apps/backend/src/routers/income.py'])]; assert 'api-reference' in _m19_names; assert 'router-contract' in _m19_names; _m20_names = [_m20_c.name for _m20_c in preflight.select_checks(['apps/backend/src/identity/extension/api/users.py'])]; assert 'api-reference' in _m20_names; _m21_names = [_m21_c.name for _m21_c in preflight.select_checks(['apps/backend/src/schemas/income.py'])]; assert 'api-reference' in _m21_names; assert 'router-contract' not in _m21_names; _m22_names = [_m22_c.name for _m22_c in preflight.select_checks(['apps/frontend/src/app/layout.tsx'])]; assert _m22_names == ['frontend-static', 'frontend']; _m23_names = [_m23_c.name for _m23_c in preflight.select_checks(['apps/backend/src/config.py'])]; assert 'env-reference' in _m23_names; assert 'backend-format' in _m23_names; _m24_names = [_m24_c.name for _m24_c in preflight.select_checks(['tools/generate_env_reference.py'])]; assert 'tooling' in _m24_names; assert preflight.select_checks(['Makefile']) == []; assert preflight.select_checks([]) == []
-    @pytest.mark.parametrize('changed_path', ['common/testing/contract.py', 'tests/tooling/test_s4_testing_gate_infrastructure.py', 'apps/backend/tests/ledger/test_accounting_equation.py', 'apps/frontend/src/app/__tests__/page.test.tsx', 'apps/frontend/src/lib/api.spec.ts', 'common/meta/base/authority_matrix.py', 'common/meta/extension/authority_classifier.py', 'common/meta/extension/check_authority_reconcile.py', 'common/meta/extension/generate_ac_registry.py'])
-    def test_AC_testing_preflight_1_authority_input_selects_reconcile(self, changed_path: str): names = [c.name for c in preflight.select_checks([changed_path])]; assert 'package-migration-safety' in names
+        for path in (
+            "common/runtime/contract.py",
+            "common/meta/extension/check_package_contract.py",
+            "tools/check_package_contract.py",
+            "apps/backend/src/ledger/__init__.py",
+            "tests/tooling/test_check_package_contract.py",
+            "apps/backend/tests/ledger/test_accounting_equation.py",
+        ):
+            names = {c.name for c in preflight.select_checks([path], tier="static")}
+            assert "package-contract" in names, (
+                f"{path} did not select package-contract"
+            )
+        _m1_names = [
+            _m1_c.name
+            for _m1_c in preflight.select_checks(
+                ["docs/project/EPIC-008.testing-strategy.md"]
+            )
+        ]
+        assert "ac-traceability" in _m1_names
+        _m2_names = [
+            _m2_c.name
+            for _m2_c in preflight.select_checks(
+                ["docs/project/EPIC-008.testing-strategy.md"]
+            )
+        ]
+        assert "package-migration-safety" in _m2_names
+        _m3_names = [
+            _m3_c.name
+            for _m3_c in preflight.select_checks(["common/meta/data/MANIFEST.yaml"])
+        ]
+        assert "ssot-ownership" in _m3_names
+        _m4_names = [
+            _m4_c.name
+            for _m4_c in preflight.select_checks(
+                ["tests/tooling/test_s4_testing_gate_infrastructure.py"], tier="static"
+            )
+        ]
+        assert "package-migration-safety" in _m4_names
+        _m5_names = {
+            _m5_c.name
+            for _m5_c in preflight.select_checks([".github/workflows/ci.yml"])
+        }
+        assert {"workflow-contract"}.issubset(_m5_names)
+        _m6_names = {
+            _m6_c.name
+            for _m6_c in preflight.select_checks(
+                ["common/meta/data/governance-exceptions.yaml"]
+            )
+        }
+        assert {"governance-exceptions"}.issubset(_m6_names)
+        _m7_c_fixture = "common/testing/fixtures/llm_" + "cas" + "settes/example.json"
+        _m7_names = {_m7_c.name for _m7_c in preflight.select_checks([_m7_c_fixture])}
+        _m7_expected = {"llm-" + "cas" + "settes", "cas" + "sette-graded-eval"}
+        assert _m7_expected.issubset(_m7_names)
+        "AC-testing.preflight.1"
+        "AC-testing.preflight.1"
+        _m8_names = [
+            _m8_c.name
+            for _m8_c in preflight.select_checks(
+                ["apps/backend/tests/audit/test_money_tolerance_backend.py"],
+                tier="static",
+            )
+        ]
+        assert "ac-proof-traceability" in _m8_names
+        _m9_names = [
+            _m9_c.name for _m9_c in preflight.select_checks(["docs/project/README.md"])
+        ]
+        assert "doc-consistency" in _m9_names
+        _m10_names = [
+            _m10_c.name
+            for _m10_c in preflight.select_checks(["common/ledger/readme.md"])
+        ]
+        assert "taxonomy-drift" in _m10_names
+        _m11_names = [
+            _m11_c.name
+            for _m11_c in preflight.select_checks(
+                ["apps/backend/src/extraction/extension/statement_parsing.py"]
+            )
+        ]
+        assert "backend-format" in _m11_names
+        assert "transaction-boundary" in _m11_names
+        _m12_names = [
+            _m12_c.name
+            for _m12_c in preflight.select_checks(
+                ["apps/backend/src/reconciliation/extension/matching.py"]
+            )
+        ]
+        assert "app-boundary" in _m12_names
+        _m13_names = [
+            _m13_c.name
+            for _m13_c in preflight.select_checks(
+                ["apps/backend/src/ledger/__init__.py"]
+            )
+        ]
+        assert "public-orm-exports" in _m13_names
+        _m14_selected = preflight.select_checks(
+            ["apps/backend/src/reconciliation/base/repository.py"]
+        )
+        _m14_base_purity = next(
+            (
+                _m14_check
+                for _m14_check in _m14_selected
+                if _m14_check.name == "base-purity"
+            )
+        )
+        assert _m14_base_purity.commands == (
+            (preflight.PY, "tools/check_base_purity.py"),
+        )
+        _m15_names = [
+            _m15_c.name
+            for _m15_c in preflight.select_checks(
+                ["apps/backend/migrations/versions/0099_x.py"]
+            )
+        ]
+        assert "migration-risk" in _m15_names
+        assert [
+            _m16_c.name for _m16_c in preflight.select_checks([".env.example"])
+        ] == ["env-keys"]
+        _m17_names = [
+            _m17_c.name
+            for _m17_c in preflight.select_checks(
+                ["apps/backend/src/schemas/account.py"]
+            )
+        ]
+        assert "schema-validate" in _m17_names
+        _m18_names = [
+            _m18_c.name
+            for _m18_c in preflight.select_checks(
+                ["apps/backend/src/runtime/extension/schema_validation.py"]
+            )
+        ]
+        assert "schema-validate" not in _m18_names
+        _m19_names = [
+            _m19_c.name
+            for _m19_c in preflight.select_checks(
+                ["apps/backend/src/routers/income.py"]
+            )
+        ]
+        assert "api-reference" in _m19_names
+        assert "router-contract" in _m19_names
+        _m20_names = [
+            _m20_c.name
+            for _m20_c in preflight.select_checks(
+                ["apps/backend/src/identity/extension/api/users.py"]
+            )
+        ]
+        assert "api-reference" in _m20_names
+        _m21_names = [
+            _m21_c.name
+            for _m21_c in preflight.select_checks(
+                ["apps/backend/src/schemas/income.py"]
+            )
+        ]
+        assert "api-reference" in _m21_names
+        assert "router-contract" not in _m21_names
+        _m22_names = [
+            _m22_c.name
+            for _m22_c in preflight.select_checks(["apps/frontend/src/app/layout.tsx"])
+        ]
+        assert _m22_names == ["frontend-static", "frontend"]
+        _m23_names = [
+            _m23_c.name
+            for _m23_c in preflight.select_checks(["apps/backend/src/config.py"])
+        ]
+        assert "env-reference" in _m23_names
+        assert "backend-format" in _m23_names
+        _m24_names = [
+            _m24_c.name
+            for _m24_c in preflight.select_checks(["tools/generate_env_reference.py"])
+        ]
+        assert "tooling" in _m24_names
+        assert preflight.select_checks(["Makefile"]) == []
+        assert preflight.select_checks([]) == []
+
+    @pytest.mark.parametrize(
+        "changed_path",
+        [
+            "common/testing/contract.py",
+            "tests/tooling/test_s4_testing_gate_infrastructure.py",
+            "apps/backend/tests/ledger/test_accounting_equation.py",
+            "apps/frontend/src/app/__tests__/page.test.tsx",
+            "apps/frontend/src/lib/api.spec.ts",
+            "common/meta/base/authority_matrix.py",
+            "common/meta/extension/authority_classifier.py",
+            "common/meta/extension/check_authority_reconcile.py",
+            "common/meta/extension/generate_ac_registry.py",
+        ],
+    )
+    def test_AC_testing_preflight_1_authority_input_selects_reconcile(
+        self, changed_path: str
+    ):
+        names = [c.name for c in preflight.select_checks([changed_path])]
+        assert "package-migration-safety" in names
+
+
 def _route_defining_backend_files() -> list[str]:
-    src = REPO_ROOT / 'apps' / 'backend' / 'src'; found: list[str] = []
-    for path in sorted(src.rglob('*.py')):
-        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+    src = REPO_ROOT / "apps" / "backend" / "src"
+    found: list[str] = []
+    for path in sorted(src.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Call): continue
-            func = node.func; name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else None
-            if name in {'APIRouter', 'FastAPI'}: found.append(path.relative_to(REPO_ROOT).as_posix()); break
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = (
+                func.id
+                if isinstance(func, ast.Name)
+                else func.attr
+                if isinstance(func, ast.Attribute)
+                else None
+            )
+            if name in {"APIRouter", "FastAPI"}:
+                found.append(path.relative_to(REPO_ROOT).as_posix())
+                break
     return found
+
+
 def test_AC_testing_preflight_2_openapi_spec_gate_selects_every_route_file():
-    'AC-testing.preflight.2'; route_files = _route_defining_backend_files(); assert route_files, 'the scan found no route-defining backend file'; assert 'apps/backend/src/runtime/extension/api/health.py' in route_files; assert 'apps/backend/src/main.py' in route_files; unselected = [path for path in route_files if 'openapi-spec' not in {c.name for c in preflight.select_checks([path], tier='static')}]; assert unselected == [], f'route files that do not select openapi-spec: {unselected}'; 'AC-testing.preflight.2'; 'AC-testing.preflight.2'; _m1_by_name = {_m1_c.name: _m1_c for _m1_c in preflight.CHECKS}; assert _m1_by_name['openapi-spec'].globs == _m1_by_name['api-reference'].globs; assert _m1_by_name['openapi-spec'].globs == preflight.OPENAPI_INPUT_GLOBS
+    "AC-testing.preflight.2"
+    route_files = _route_defining_backend_files()
+    assert route_files, "the scan found no route-defining backend file"
+    assert "apps/backend/src/identity/extension/api/auth.py" in route_files
+    assert "apps/backend/src/main.py" in route_files
+    unselected = [
+        path
+        for path in route_files
+        if "openapi-spec"
+        not in {c.name for c in preflight.select_checks([path], tier="static")}
+    ]
+    assert unselected == [], (
+        f"route files that do not select openapi-spec: {unselected}"
+    )
+    "AC-testing.preflight.2"
+    "AC-testing.preflight.2"
+    _m1_by_name = {_m1_c.name: _m1_c for _m1_c in preflight.CHECKS}
+    assert _m1_by_name["openapi-spec"].globs == _m1_by_name["api-reference"].globs
+    assert _m1_by_name["openapi-spec"].globs == preflight.OPENAPI_INPUT_GLOBS
     for _m2_check in preflight.CHECKS:
         for _m2_command in _m2_check.commands:
             for _m2_part in _m2_command:
-                if _m2_part.endswith('.py') and _m2_part.startswith('tools/'): assert (REPO_ROOT / _m2_part).exists(), f'{_m2_check.name}: missing {_m2_part}'
-    _m3_by_name = {_m3_c.name: _m3_c for _m3_c in preflight.CHECKS}; assert _m3_by_name['backend-format'].cwd == 'apps/backend'; assert _m3_by_name['transaction-boundary'].cwd == 'apps/backend'
+                if _m2_part.endswith(".py") and _m2_part.startswith("tools/"):
+                    assert (REPO_ROOT / _m2_part).exists(), (
+                        f"{_m2_check.name}: missing {_m2_part}"
+                    )
+    _m3_by_name = {_m3_c.name: _m3_c for _m3_c in preflight.CHECKS}
+    assert _m3_by_name["backend-format"].cwd == "apps/backend"
+    assert _m3_by_name["transaction-boundary"].cwd == "apps/backend"
+
+
 ROUTE_DECORATOR = re.compile(r"@\w+\.(?:get|post|put|patch|delete|api_route)\(")
+
+
 def test_AC_testing_preflight_2_the_route_scan_finds_every_file_with_a_route_decorator():
     """AC-testing.preflight.2: each backend source file with a route decorator is in the scan that the openapi-spec test reads."""
     route_files = set(_route_defining_backend_files())
-    assert route_files, 'the scan found no route-defining backend file'
-    src = REPO_ROOT / 'apps' / 'backend' / 'src'
-    decorated = {path.relative_to(REPO_ROOT).as_posix() for path in sorted(src.rglob('*.py')) if ROUTE_DECORATOR.search(path.read_text(encoding='utf-8'))}
-    assert decorated, 'no backend source file has a route decorator'
-    assert decorated <= route_files, f'files with route decorators that the scan misses: {sorted(decorated - route_files)}'
-def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(): backend_format = next((c for c in preflight.CHECKS if c.name == 'backend-format')); assert backend_format.commands == ((preflight.PY, '-m', 'ruff', 'check', 'src', 'tests'), (preflight.PY, '-m', 'ruff', 'format', '--check', 'src', 'tests')); precommit = (REPO_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8'); assert 'cd apps/backend && uv run python ../../tools/check_env_keys.py' in precommit; assert 'cd apps/backend && uv run python ../../tools/validate_schemas.py' in precommit; _m4_commands: list[list[str]] = []; _m4_schema_check = [_m4_c for _m4_c in preflight.CHECKS if _m4_c.name == 'schema-validate']; preflight.run_checks(_m4_schema_check, changed_files=('apps/backend/src/schemas/review.py', 'apps/backend/src/extraction/extension/service.py'), runner=lambda argv, cwd: _m4_commands.append(list(argv)) or 0, python='python3'); assert _m4_commands == [['python3', 'tools/validate_schemas.py', '--paths', 'apps/backend/src/schemas/review.py']]
+    assert route_files, "the scan found no route-defining backend file"
+    src = REPO_ROOT / "apps" / "backend" / "src"
+    decorated = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in sorted(src.rglob("*.py"))
+        if ROUTE_DECORATOR.search(path.read_text(encoding="utf-8"))
+    }
+    assert decorated, "no backend source file has a route decorator"
+    assert decorated <= route_files, (
+        f"files with route decorators that the scan misses: {sorted(decorated - route_files)}"
+    )
+
+
+def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment():
+    backend_format = next((c for c in preflight.CHECKS if c.name == "backend-format"))
+    assert backend_format.commands == (
+        (preflight.PY, "-m", "ruff", "check", "src", "tests"),
+        (preflight.PY, "-m", "ruff", "format", "--check", "src", "tests"),
+    )
+    precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    assert "cd apps/backend && uv run python ../../tools/check_env_keys.py" in precommit
+    assert (
+        "cd apps/backend && uv run python ../../tools/validate_schemas.py" in precommit
+    )
+    _m4_commands: list[list[str]] = []
+    _m4_schema_check = [
+        _m4_c for _m4_c in preflight.CHECKS if _m4_c.name == "schema-validate"
+    ]
+    preflight.run_checks(
+        _m4_schema_check,
+        changed_files=(
+            "apps/backend/src/schemas/review.py",
+            "apps/backend/src/extraction/extension/service.py",
+        ),
+        runner=lambda argv, cwd: _m4_commands.append(list(argv)) or 0,
+        python="python3",
+    )
+    assert _m4_commands == [
+        [
+            "python3",
+            "tools/validate_schemas.py",
+            "--paths",
+            "apps/backend/src/schemas/review.py",
+        ]
+    ]
+
+
 def test_run_checks_passes_each_check_cwd_to_the_runner():
     seen: list[str] = []
-    def runner(argv, cwd): seen.append(cwd); return 0
-    preflight.run_checks([c for c in preflight.CHECKS if c.name == 'backend-format'], runner=runner, python='python3'); assert seen and all((c.endswith('apps/backend') for c in seen))
+
+    def runner(argv, cwd):
+        seen.append(cwd)
+        return 0
+
+    preflight.run_checks(
+        [c for c in preflight.CHECKS if c.name == "backend-format"],
+        runner=runner,
+        python="python3",
+    )
+    assert seen and all((c.endswith("apps/backend") for c in seen))
+
+
 class TestRunAndMain:
-    def test_run_checks_reports_per_check_pass_fail(self): checks = preflight.select_checks(['apps/backend/migrations/versions/0099_x.py']); results = preflight.run_checks(checks, runner=lambda argv, cwd: 0, python='python3'); assert all((r.ok for r in results)); results = preflight.run_checks(checks, runner=lambda argv, cwd: 1, python='python3'); assert all((not r.ok for r in results)); _m1_rc = preflight.run(['--changed', '.env.example'], runner=lambda argv, cwd: 1); assert _m1_rc == 1; _m2_rc = preflight.run(['--changed', '.env.example'], runner=lambda argv, cwd: 0); assert _m2_rc == 0; _m3_rc = preflight.run(['--changed', 'Makefile'], runner=lambda argv, cwd: 1); assert _m3_rc == 0; _m4_ran = []; _m4_rc = preflight.run(['--list', '--changed', 'docs/project/EPIC-008.x.md'], runner=lambda argv, cwd: _m4_ran.append(argv) or 0); assert _m4_rc == 0; assert _m4_ran == []
+    def test_run_checks_reports_per_check_pass_fail(self):
+        checks = preflight.select_checks(["apps/backend/migrations/versions/0099_x.py"])
+        results = preflight.run_checks(
+            checks, runner=lambda argv, cwd: 0, python="python3"
+        )
+        assert all((r.ok for r in results))
+        results = preflight.run_checks(
+            checks, runner=lambda argv, cwd: 1, python="python3"
+        )
+        assert all((not r.ok for r in results))
+        _m1_rc = preflight.run(
+            ["--changed", ".env.example"], runner=lambda argv, cwd: 1
+        )
+        assert _m1_rc == 1
+        _m2_rc = preflight.run(
+            ["--changed", ".env.example"], runner=lambda argv, cwd: 0
+        )
+        assert _m2_rc == 0
+        _m3_rc = preflight.run(["--changed", "Makefile"], runner=lambda argv, cwd: 1)
+        assert _m3_rc == 0
+        _m4_ran = []
+        _m4_rc = preflight.run(
+            ["--list", "--changed", "docs/project/EPIC-008.x.md"],
+            runner=lambda argv, cwd: _m4_ran.append(argv) or 0,
+        )
+        assert _m4_rc == 0
+        assert _m4_ran == []
+
     def test_run_checks_fails_fast_on_first_nonzero_command(self):
         calls: list[list[str]] = []
-        def runner(argv, cwd): calls.append(list(argv)); return 1
-        checks = [c for c in preflight.CHECKS if c.name == 'ssot-ownership']; preflight.run_checks(checks, runner=runner, python='python3'); assert len(calls) == 1
+
+        def runner(argv, cwd):
+            calls.append(list(argv))
+            return 1
+
+        checks = [c for c in preflight.CHECKS if c.name == "ssot-ownership"]
+        preflight.run_checks(checks, runner=runner, python="python3")
+        assert len(calls) == 1
+
     def test_schema_validation_is_limited_to_changed_schema_paths(self):
         calls: list[list[str]] = []
-        def runner(argv, _cwd): calls.append(list(argv)); return 0
-        changed_path = 'apps/backend/src/schemas/reconciliation.py'; rc = preflight.run(['--changed', changed_path], runner=runner); assert rc == 0; schema_command = next((command for command in calls if 'tools/validate_schemas.py' in command)); assert schema_command[-2:] == ['--paths', changed_path]
+
+        def runner(argv, _cwd):
+            calls.append(list(argv))
+            return 0
+
+        changed_path = "apps/backend/src/schemas/reconciliation.py"
+        rc = preflight.run(["--changed", changed_path], runner=runner)
+        assert rc == 0
+        schema_command = next(
+            (command for command in calls if "tools/validate_schemas.py" in command)
+        )
+        assert schema_command[-2:] == ["--paths", changed_path]
+
     def test_main_uses_injected_git_when_no_explicit_changes(self):
         def fake_git(args):
-            if args[0] == 'merge-base': return 'abc123\n'
-            if '--cached' in args: return ''
-            return '.env.example\n'
-        rc = preflight.run([], runner=lambda argv, cwd: 0, git=fake_git); assert rc == 0
+            if args[0] == "merge-base":
+                return "abc123\n"
+            if "--cached" in args:
+                return ""
+            return ".env.example\n"
+
+        rc = preflight.run([], runner=lambda argv, cwd: 0, git=fake_git)
+        assert rc == 0
+
+
 def test_AC_testing_preflight_1_static_tier_composes_with_glob_selection():
-    'AC-testing.preflight.1'; changed = ['common/testing/preflight.py']; full_names = {c.name for c in preflight.select_checks(changed)}; static_selected = preflight.select_checks(changed, tier='static'); static_names = {c.name for c in static_selected}; assert static_names == full_names - {'tooling'}; assert static_names; assert all((c.tier == 'static' for c in static_selected)); 'AC-testing.preflight.2'; 'AC-testing.preflight.2'; _m5_steps = _lint_steps(); _m5_names = [_m5_step.get('name', '') for _m5_step in _m5_steps]; _m5_matching = [_m5_i for _m5_i, _m5_step in enumerate(_m5_steps) if '--only openapi-spec' in _m5_step.get('run', '')]; assert len(_m5_matching) == 1, f'expected one openapi-spec step in Lint, got {_m5_matching}'; _m5_step = _m5_steps[_m5_matching[0]]; _m5_run_lines = [_m5_line.strip() for _m5_line in _m5_step['run'].splitlines() if _m5_line.strip() and (not _m5_line.strip().startswith('#'))]; assert _m5_run_lines == ['cd apps/backend', 'uv run --frozen python ../../tools/preflight.py --only openapi-spec --ci']; assert _m5_names.index('Set up backend environment') < _m5_matching[0]; assert _m5_names.index('Install frontend dependencies') < _m5_matching[0]; assert 'if' not in _m5_step, 'the openapi-spec step must run on every Lint run'; assert not _m5_step.get('continue-on-error'), 'the step must fail the Lint job'; _m6_steps = _lint_steps(); _m6_names = [_m6_step.get('name', '') for _m6_step in _m6_steps]; _m6_matching = [_m6_i for _m6_i, _m6_step in enumerate(_m6_steps) if '--only package-contract' in _m6_step.get('run', '')]; assert len(_m6_matching) == 1, f'expected one package-contract step in Lint, got {_m6_matching}'; _m6_step = _m6_steps[_m6_matching[0]]; _m6_run_lines = [_m6_line.strip() for _m6_line in _m6_step['run'].splitlines() if _m6_line.strip() and (not _m6_line.strip().startswith('#'))]; assert _m6_run_lines == ['cd apps/backend', 'uv run --frozen python ../../tools/preflight.py --only package-contract --ci']; assert _m6_names.index('Set up backend environment') < _m6_matching[0]; assert 'if' not in _m6_step, 'the package-contract step must run on every Lint run'; assert not _m6_step.get('continue-on-error'), 'the step must fail the Lint job'; 'AC-testing.preflight.2'; 'AC-testing.preflight.2'; _m7_registry = {_m7_c.name for _m7_c in preflight.CHECKS}; _m7_referenced: set[str] = set()
-    for _m7_workflow in sorted((REPO_ROOT / '.github' / 'workflows').glob('*.yml')): _m7_text = _m7_workflow.read_text(encoding='utf-8'); _m7_referenced.update(re.findall('preflight\\.py[^\\n]*?--only[= ]([A-Za-z0-9_-]+)', _m7_text))
-    assert 'openapi-spec' in _m7_referenced; assert _m7_referenced <= _m7_registry, sorted(_m7_referenced - _m7_registry)
+    "AC-testing.preflight.1"
+    changed = ["common/testing/preflight.py"]
+    full_names = {c.name for c in preflight.select_checks(changed)}
+    static_selected = preflight.select_checks(changed, tier="static")
+    static_names = {c.name for c in static_selected}
+    assert static_names == full_names - {"tooling"}
+    assert static_names
+    assert all((c.tier == "static" for c in static_selected))
+    "AC-testing.preflight.2"
+    "AC-testing.preflight.2"
+    _m5_steps = _lint_steps()
+    _m5_names = [_m5_step.get("name", "") for _m5_step in _m5_steps]
+    _m5_matching = [
+        _m5_i
+        for _m5_i, _m5_step in enumerate(_m5_steps)
+        if "--only openapi-spec" in _m5_step.get("run", "")
+    ]
+    assert len(_m5_matching) == 1, (
+        f"expected one openapi-spec step in Lint, got {_m5_matching}"
+    )
+    _m5_step = _m5_steps[_m5_matching[0]]
+    _m5_run_lines = [
+        _m5_line.strip()
+        for _m5_line in _m5_step["run"].splitlines()
+        if _m5_line.strip() and (not _m5_line.strip().startswith("#"))
+    ]
+    assert _m5_run_lines == [
+        "cd apps/backend",
+        "uv run --frozen python ../../tools/preflight.py --only openapi-spec --ci",
+    ]
+    assert _m5_names.index("Set up backend environment") < _m5_matching[0]
+    assert _m5_names.index("Install frontend dependencies") < _m5_matching[0]
+    assert "if" not in _m5_step, "the openapi-spec step must run on every Lint run"
+    assert not _m5_step.get("continue-on-error"), "the step must fail the Lint job"
+    _m6_steps = _lint_steps()
+    _m6_names = [_m6_step.get("name", "") for _m6_step in _m6_steps]
+    _m6_matching = [
+        _m6_i
+        for _m6_i, _m6_step in enumerate(_m6_steps)
+        if "--only package-contract" in _m6_step.get("run", "")
+    ]
+    assert len(_m6_matching) == 1, (
+        f"expected one package-contract step in Lint, got {_m6_matching}"
+    )
+    _m6_step = _m6_steps[_m6_matching[0]]
+    _m6_run_lines = [
+        _m6_line.strip()
+        for _m6_line in _m6_step["run"].splitlines()
+        if _m6_line.strip() and (not _m6_line.strip().startswith("#"))
+    ]
+    assert _m6_run_lines == [
+        "cd apps/backend",
+        "uv run --frozen python ../../tools/preflight.py --only package-contract --ci",
+    ]
+    assert _m6_names.index("Set up backend environment") < _m6_matching[0]
+    assert "if" not in _m6_step, "the package-contract step must run on every Lint run"
+    assert not _m6_step.get("continue-on-error"), "the step must fail the Lint job"
+    "AC-testing.preflight.2"
+    "AC-testing.preflight.2"
+    _m7_registry = {_m7_c.name for _m7_c in preflight.CHECKS}
+    _m7_referenced: set[str] = set()
+    for _m7_workflow in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+        _m7_text = _m7_workflow.read_text(encoding="utf-8")
+        _m7_referenced.update(
+            re.findall("preflight\\.py[^\\n]*?--only[= ]([A-Za-z0-9_-]+)", _m7_text)
+        )
+    assert "openapi-spec" in _m7_referenced
+    assert _m7_referenced <= _m7_registry, sorted(_m7_referenced - _m7_registry)
 
 
 def test_AC_testing_preflight_1_every_declared_watch_path_exists():
-    'AC-testing.preflight.1'; optional_watch_paths = {'.env', 'package-lock.json'}
+    "AC-testing.preflight.1"
+    optional_watch_paths = {".env", "package-lock.json"}
     missing = [
-        f'{check.name}:{glob}'
+        f"{check.name}:{glob}"
         for check in preflight.CHECKS
         for glob in check.globs
-        if '*' not in glob and '?' not in glob and not glob.endswith('/') and glob not in optional_watch_paths and not (REPO_ROOT / glob).exists()
+        if "*" not in glob
+        and "?" not in glob
+        and not glob.endswith("/")
+        and glob not in optional_watch_paths
+        and not (REPO_ROOT / glob).exists()
     ]
-    assert missing == [], f'Broken literal watch path(s) in preflight.CHECKS: {missing}'
+    assert missing == [], f"Broken literal watch path(s) in preflight.CHECKS: {missing}"
+
+
 class TestTierSelection:
-    'AC-testing.preflight.1'
-    def test_every_check_has_a_valid_tier(self): assert all((c.tier in ('static', 'heavy') for c in preflight.CHECKS)); _m1_heavy = {_m1_c.name for _m1_c in preflight.CHECKS if _m1_c.tier == 'heavy'}; assert _m1_heavy == {'tooling', 'frontend'}; _m2_changed = ['common/testing/preflight.py', 'apps/frontend/src/app/layout.tsx', 'common/reporting/readme.md']; assert preflight.select_checks(_m2_changed) == preflight.select_checks(_m2_changed, tier='full')
+    "AC-testing.preflight.1"
+
+    def test_every_check_has_a_valid_tier(self):
+        assert all((c.tier in ("static", "heavy") for c in preflight.CHECKS))
+        _m1_heavy = {_m1_c.name for _m1_c in preflight.CHECKS if _m1_c.tier == "heavy"}
+        assert _m1_heavy == {"tooling", "frontend"}
+        _m2_changed = [
+            "common/testing/preflight.py",
+            "apps/frontend/src/app/layout.tsx",
+            "common/reporting/readme.md",
+        ]
+        assert preflight.select_checks(_m2_changed) == preflight.select_checks(
+            _m2_changed, tier="full"
+        )
+
     def test_AC_testing_preflight_2_frontend_static_gate_parity(self):
-        'AC-testing.preflight.2'; selected = preflight.select_checks(['apps/frontend/src/app/layout.tsx'], tier='static'); selected_names = {c.name for c in selected}; assert selected_names >= {'frontend-static'}; check = next((c for c in preflight.CHECKS if c.name == 'frontend-static')); assert check.tier == 'static'; assert check.cwd == 'apps/frontend'; cmds = check.commands; assert ('npm', 'run', 'lint') in cmds; assert ('npm', 'run', 'typecheck') in cmds; assert ('npm', 'run', 'check:api-types') in cmds; openapi_check = next((c for c in preflight.CHECKS if c.name == 'openapi-spec')); has_api_types_check = any(('check:api-types' in ' '.join(cmd) or 'check_api_types' in ' '.join(cmd) for cmd in openapi_check.commands)); assert has_api_types_check; _m3_selected = preflight.select_checks(['common/testing/preflight.py', 'apps/frontend/src/app/layout.tsx'], tier='heavy'); assert [_m3_c.name for _m3_c in _m3_selected] == ['tooling', 'frontend']
-        with pytest.raises(ValueError): preflight.select_checks(['common/x.py'], tier='bogus')
-    def test_AC_testing_preflight_3_list_all_inventory_discovery(self, capsys): 'AC-testing.preflight.3'; rc = preflight.run(['--list', '--changed'], runner=lambda argv, cwd: 0); assert rc == 0; out = capsys.readouterr().out; assert out.find('Registered preflight gate inventory') != -1; assert out.find('ac-traceability') != -1; rc = preflight.run(['--list', '--tier=static', '--changed'], runner=lambda argv, cwd: 0); assert rc == 0; out = capsys.readouterr().out; assert out.find('frontend-static') != -1; assert out.find('  [heavy] frontend:') == -1; rc = preflight.run(['--all', '--tier=static', '--list'], runner=lambda argv, cwd: 0); assert rc == 0; out = capsys.readouterr().out; assert out.find('Registered preflight gate inventory') != -1; assert out.find('frontend-static') != -1
+        "AC-testing.preflight.2"
+        selected = preflight.select_checks(
+            ["apps/frontend/src/app/layout.tsx"], tier="static"
+        )
+        selected_names = {c.name for c in selected}
+        assert selected_names >= {"frontend-static"}
+        check = next((c for c in preflight.CHECKS if c.name == "frontend-static"))
+        assert check.tier == "static"
+        assert check.cwd == "apps/frontend"
+        cmds = check.commands
+        assert ("npm", "run", "lint") in cmds
+        assert ("npm", "run", "typecheck") in cmds
+        assert ("npm", "run", "check:api-types") in cmds
+        openapi_check = next((c for c in preflight.CHECKS if c.name == "openapi-spec"))
+        has_api_types_check = any(
+            (
+                "check:api-types" in " ".join(cmd) or "check_api_types" in " ".join(cmd)
+                for cmd in openapi_check.commands
+            )
+        )
+        assert has_api_types_check
+        _m3_selected = preflight.select_checks(
+            ["common/testing/preflight.py", "apps/frontend/src/app/layout.tsx"],
+            tier="heavy",
+        )
+        assert [_m3_c.name for _m3_c in _m3_selected] == ["tooling", "frontend"]
+        with pytest.raises(ValueError):
+            preflight.select_checks(["common/x.py"], tier="bogus")
+
+    def test_AC_testing_preflight_3_list_all_inventory_discovery(self, capsys):
+        "AC-testing.preflight.3"
+        rc = preflight.run(["--list", "--changed"], runner=lambda argv, cwd: 0)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert out.find("Registered preflight gate inventory") != -1
+        assert out.find("ac-traceability") != -1
+        rc = preflight.run(
+            ["--list", "--tier=static", "--changed"], runner=lambda argv, cwd: 0
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert out.find("frontend-static") != -1
+        assert out.find("  [heavy] frontend:") == -1
+        rc = preflight.run(
+            ["--all", "--tier=static", "--list"], runner=lambda argv, cwd: 0
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert out.find("Registered preflight gate inventory") != -1
+        assert out.find("frontend-static") != -1
+
+
 class TestTierCli:
-    'AC-testing.preflight.1'
+    "AC-testing.preflight.1"
+
     @staticmethod
-    def _run_and_collect(args: list[str]) -> list[list[str]]: ran: list[list[str]] = []; rc = preflight.run([*args, '--changed', 'common/testing/preflight.py'], runner=lambda argv, cwd: ran.append(list(argv)) or 0); assert rc == 0; return ran
-    def test_main_default_equals_tier_full(self): assert self._run_and_collect([]) == self._run_and_collect(['--tier=full']); _m1_full_ran = self._run_and_collect([]); _m1_static_ran = self._run_and_collect(['--tier=static']); assert 0 < len(_m1_static_ran) < len(_m1_full_ran); assert all((_m1_argv in _m1_full_ran for _m1_argv in _m1_static_ran))
-    def test_main_list_shows_each_selected_checks_tier(self, capsys): rc = preflight.run(['--list', '--changed', 'common/testing/preflight.py'], runner=lambda argv, cwd: 0); assert rc == 0; lines = capsys.readouterr().out.splitlines(); assert all((any((check.name in line and check.tier in line for line in lines)) for check in preflight.select_checks(['common/testing/preflight.py']))); capsys.readouterr(); _m2_rc = preflight.run(['--list', '--tier=static', '--changed', 'common/testing/preflight.py'], runner=lambda argv, cwd: 0); assert _m2_rc == 0; _m2_out = capsys.readouterr().out; _m2_heavy = {_m2_c.name for _m2_c in preflight.CHECKS if _m2_c.tier == 'heavy'}; assert _m2_heavy and all((_m2_name not in _m2_out for _m2_name in _m2_heavy))
+    def _run_and_collect(args: list[str]) -> list[list[str]]:
+        ran: list[list[str]] = []
+        rc = preflight.run(
+            [*args, "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: ran.append(list(argv)) or 0,
+        )
+        assert rc == 0
+        return ran
+
+    def test_main_default_equals_tier_full(self):
+        assert self._run_and_collect([]) == self._run_and_collect(["--tier=full"])
+        _m1_full_ran = self._run_and_collect([])
+        _m1_static_ran = self._run_and_collect(["--tier=static"])
+        assert 0 < len(_m1_static_ran) < len(_m1_full_ran)
+        assert all((_m1_argv in _m1_full_ran for _m1_argv in _m1_static_ran))
+
+    def test_main_list_shows_each_selected_checks_tier(self, capsys):
+        rc = preflight.run(
+            ["--list", "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        lines = capsys.readouterr().out.splitlines()
+        assert all(
+            (
+                any((check.name in line and check.tier in line for line in lines))
+                for check in preflight.select_checks(["common/testing/preflight.py"])
+            )
+        )
+        capsys.readouterr()
+        _m2_rc = preflight.run(
+            ["--list", "--tier=static", "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert _m2_rc == 0
+        _m2_out = capsys.readouterr().out
+        _m2_heavy = {_m2_c.name for _m2_c in preflight.CHECKS if _m2_c.tier == "heavy"}
+        assert _m2_heavy and all((_m2_name not in _m2_out for _m2_name in _m2_heavy))
+
+
 def test_changed_files_unions_committed_staged_unstaged_and_untracked():
     def fake_git(args):
-        if args[0] == 'merge-base': return 'base-sha\n'
-        if args[0] == 'ls-files': return 'new_untracked.py\n'
-        if args[-1] == '--cached': return 'c.py\n'
-        if args[-1] == 'base-sha': return 'a.py\nb.py\n'
-        return 'b.py\n'
-    assert preflight.changed_files(git=fake_git) == ['a.py', 'b.py', 'c.py', 'new_untracked.py']
+        if args[0] == "merge-base":
+            return "base-sha\n"
+        if args[0] == "ls-files":
+            return "new_untracked.py\n"
+        if args[-1] == "--cached":
+            return "c.py\n"
+        if args[-1] == "base-sha":
+            return "a.py\nb.py\n"
+        return "b.py\n"
+
+    assert preflight.changed_files(git=fake_git) == [
+        "a.py",
+        "b.py",
+        "c.py",
+        "new_untracked.py",
+    ]
+
+
 class TestCiLogging:
-    def test_run_checks_with_ci_formatting_on_success(self, capsys): test_check = preflight.Check(name='test-pass', tier='static', globs=('*.py',), commands=(('echo', 'ok'),), why='test passing check'); results = preflight.run_checks([test_check], changed_files=['foo.py'], runner=lambda argv, cwd: 0, ci=True); assert len(results) == 1; assert results[0].ok is True; out = capsys.readouterr().out; expected_group = '::group::Gate [static] test-pass'; expected_endgroup = '::endgroup::'; error_tag = '::error::'; assert expected_group in out; assert expected_endgroup in out; assert error_tag not in out; capsys.readouterr(); _m1_test_check = preflight.Check(name='test-fail', tier='static', globs=('*.py',), commands=(('echo', 'fail'),), why='test failing check'); _m1_results = preflight.run_checks([_m1_test_check], changed_files=['foo.py'], runner=lambda argv, cwd: 1, ci=True); assert len(_m1_results) == 1; assert _m1_results[0].ok is False; _m1_out = capsys.readouterr().out; _m1_expected_group = '::group::Gate [static] test-fail'; _m1_expected_endgroup = '::endgroup::'; _m1_expected_error = '::error::Gate test-fail failed: test failing check'; assert _m1_expected_group in _m1_out; assert _m1_expected_endgroup in _m1_out; assert _m1_expected_error in _m1_out; capsys.readouterr(); _m2_rc = preflight.run(['--tier=static', '--ci', '--changed', 'common/testing/preflight.py'], runner=lambda argv, cwd: 0); assert _m2_rc == 0; _m2_out = capsys.readouterr().out; _m2_group_tag = '::group::'; _m2_endgroup_tag = '::endgroup::'; assert _m2_group_tag in _m2_out; assert _m2_endgroup_tag in _m2_out; capsys.readouterr(); _m3_rc = preflight.run(['--tier=static', '--quiet', '--changed', '.env.example'], runner=lambda argv, cwd: 0); assert _m3_rc == 0; _m3_out = capsys.readouterr().out; _m3_summary_prefix = 'preflight: all'; _m3_summary_suffix = 'gates passed'; _m3_verbose_running = 'preflight: running'; _m3_gate_ok = '  [ok]'; assert _m3_summary_prefix in _m3_out; assert _m3_summary_suffix in _m3_out; assert _m3_verbose_running not in _m3_out; assert _m3_gate_ok not in _m3_out; capsys.readouterr(); _m4_rc = preflight.run(['--tier=static', '-q', '--changed', '.env.example'], runner=lambda argv, cwd: 1); assert _m4_rc == 1; _m4_out = capsys.readouterr().out; _m4_fail_indicator = 'FAIL'; _m4_failed_summary = 'failed'; assert _m4_fail_indicator in _m4_out; assert _m4_failed_summary in _m4_out
-    def test_default_quiet_runner_suppresses_output_on_success(self, capsys, monkeypatch): import subprocess; fake_proc = subprocess.CompletedProcess(args=['echo', 'clean'], returncode=0, stdout='some clean output\n', stderr=''); monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: fake_proc); rc = preflight._default_quiet_runner(['echo', 'clean'], cwd='/tmp'); assert rc == 0; captured = capsys.readouterr(); assert captured.out == ''; assert captured.err == ''
-    def test_default_quiet_runner_dumps_output_on_failure(self, capsys, monkeypatch): import subprocess; fake_proc = subprocess.CompletedProcess(args=['flake8'], returncode=1, stdout='syntax error on line 42\n', stderr='warning message\n'); monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: fake_proc); rc = preflight._default_quiet_runner(['flake8'], cwd='/tmp'); assert rc == 1; captured = capsys.readouterr(); error_msg = 'syntax error on line 42'; warning_msg = 'warning message'; assert error_msg in captured.out; assert warning_msg in captured.err
+    def test_run_checks_with_ci_formatting_on_success(self, capsys):
+        test_check = preflight.Check(
+            name="test-pass",
+            tier="static",
+            globs=("*.py",),
+            commands=(("echo", "ok"),),
+            why="test passing check",
+        )
+        results = preflight.run_checks(
+            [test_check], changed_files=["foo.py"], runner=lambda argv, cwd: 0, ci=True
+        )
+        assert len(results) == 1
+        assert results[0].ok is True
+        out = capsys.readouterr().out
+        expected_group = "::group::Gate [static] test-pass"
+        expected_endgroup = "::endgroup::"
+        error_tag = "::error::"
+        assert expected_group in out
+        assert expected_endgroup in out
+        assert error_tag not in out
+        capsys.readouterr()
+        _m1_test_check = preflight.Check(
+            name="test-fail",
+            tier="static",
+            globs=("*.py",),
+            commands=(("echo", "fail"),),
+            why="test failing check",
+        )
+        _m1_results = preflight.run_checks(
+            [_m1_test_check],
+            changed_files=["foo.py"],
+            runner=lambda argv, cwd: 1,
+            ci=True,
+        )
+        assert len(_m1_results) == 1
+        assert _m1_results[0].ok is False
+        _m1_out = capsys.readouterr().out
+        _m1_expected_group = "::group::Gate [static] test-fail"
+        _m1_expected_endgroup = "::endgroup::"
+        _m1_expected_error = "::error::Gate test-fail failed: test failing check"
+        assert _m1_expected_group in _m1_out
+        assert _m1_expected_endgroup in _m1_out
+        assert _m1_expected_error in _m1_out
+        capsys.readouterr()
+        _m2_rc = preflight.run(
+            ["--tier=static", "--ci", "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert _m2_rc == 0
+        _m2_out = capsys.readouterr().out
+        _m2_group_tag = "::group::"
+        _m2_endgroup_tag = "::endgroup::"
+        assert _m2_group_tag in _m2_out
+        assert _m2_endgroup_tag in _m2_out
+        capsys.readouterr()
+        _m3_rc = preflight.run(
+            ["--tier=static", "--quiet", "--changed", ".env.example"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert _m3_rc == 0
+        _m3_out = capsys.readouterr().out
+        _m3_summary_prefix = "preflight: all"
+        _m3_summary_suffix = "gates passed"
+        _m3_verbose_running = "preflight: running"
+        _m3_gate_ok = "  [ok]"
+        assert _m3_summary_prefix in _m3_out
+        assert _m3_summary_suffix in _m3_out
+        assert _m3_verbose_running not in _m3_out
+        assert _m3_gate_ok not in _m3_out
+        capsys.readouterr()
+        _m4_rc = preflight.run(
+            ["--tier=static", "-q", "--changed", ".env.example"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert _m4_rc == 1
+        _m4_out = capsys.readouterr().out
+        _m4_fail_indicator = "FAIL"
+        _m4_failed_summary = "failed"
+        assert _m4_fail_indicator in _m4_out
+        assert _m4_failed_summary in _m4_out
+
+    def test_default_quiet_runner_suppresses_output_on_success(
+        self, capsys, monkeypatch
+    ):
+        import subprocess
+
+        fake_proc = subprocess.CompletedProcess(
+            args=["echo", "clean"],
+            returncode=0,
+            stdout="some clean output\n",
+            stderr="",
+        )
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_proc)
+        rc = preflight._default_quiet_runner(["echo", "clean"], cwd="/tmp")
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_default_quiet_runner_dumps_output_on_failure(self, capsys, monkeypatch):
+        import subprocess
+
+        fake_proc = subprocess.CompletedProcess(
+            args=["flake8"],
+            returncode=1,
+            stdout="syntax error on line 42\n",
+            stderr="warning message\n",
+        )
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_proc)
+        rc = preflight._default_quiet_runner(["flake8"], cwd="/tmp")
+        assert rc == 1
+        captured = capsys.readouterr()
+        error_msg = "syntax error on line 42"
+        warning_msg = "warning message"
+        assert error_msg in captured.out
+        assert warning_msg in captured.err
+
     def test_default_runner_handles_timeout(self, capsys, monkeypatch):
         import subprocess
-        def fake_run(*args, **kwargs): raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
-        monkeypatch.setattr(subprocess, 'run', fake_run); rc = preflight._default_runner(['sleep', '999'], cwd='/tmp'); assert rc == 124; captured = capsys.readouterr(); assert 'timed out after 180s' in captured.out
+
+        def fake_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        rc = preflight._default_runner(["sleep", "999"], cwd="/tmp")
+        assert rc == 124
+        captured = capsys.readouterr()
+        assert "timed out after 180s" in captured.out
+
     def test_default_quiet_runner_handles_timeout(self, capsys, monkeypatch):
         import subprocess
-        def fake_run(*args, **kwargs): raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
-        monkeypatch.setattr(subprocess, 'run', fake_run); rc = preflight._default_quiet_runner(['sleep', '999'], cwd='/tmp'); assert rc == 124; captured = capsys.readouterr(); assert 'timed out after 180s' in captured.out
-    def test_child_env_isolates_test_namespace_and_preserves_explicit_override(self, monkeypatch): monkeypatch.delenv('TEST_NAMESPACE', raising=False); env = preflight._child_env(); assert env['TEST_NAMESPACE'].startswith('preflight_'); monkeypatch.setenv('TEST_NAMESPACE', 'explicit_ns'); env_override = preflight._child_env(); assert env_override['TEST_NAMESPACE'] == 'explicit_ns'
-CI_WORKFLOW = REPO_ROOT / '.github' / 'workflows' / 'ci.yml'
+
+        def fake_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        rc = preflight._default_quiet_runner(["sleep", "999"], cwd="/tmp")
+        assert rc == 124
+        captured = capsys.readouterr()
+        assert "timed out after 180s" in captured.out
+
+    def test_child_env_isolates_test_namespace_and_preserves_explicit_override(
+        self, monkeypatch
+    ):
+        monkeypatch.delenv("TEST_NAMESPACE", raising=False)
+        env = preflight._child_env()
+        assert env["TEST_NAMESPACE"].startswith("preflight_")
+        monkeypatch.setenv("TEST_NAMESPACE", "explicit_ns")
+        env_override = preflight._child_env()
+        assert env_override["TEST_NAMESPACE"] == "explicit_ns"
+
+
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+
+
 class TestOnlyNamedGate:
-    'AC-testing.preflight.2'
+    "AC-testing.preflight.2"
+
     @staticmethod
-    def _collect(args: list[str], rc_of_runner: int=0) -> tuple[int, list[list[str]]]: ran: list[list[str]] = []; rc = preflight.run(args, runner=lambda argv, cwd: ran.append(list(argv)) or rc_of_runner); return (rc, ran)
-    def test_AC_testing_preflight_2_only_runs_the_named_gate_commands(self, capsys):
-        rc, ran = self._collect(['--only', 'openapi-spec']); assert rc == 0; assert 'preflight: running 1 named gate(s)...' in capsys.readouterr().out; gate = next((c for c in preflight.CHECKS if c.name == 'openapi-spec')); expected = [preflight._resolve(command, python=preflight.sys.executable) for command in gate.commands]; assert len(expected) == 2; assert ran == expected; capsys.readouterr(); _m1_rc, _m1_ran = self._collect(['--only', 'openapi-spec'], rc_of_runner=1); assert _m1_rc == 1; assert len(_m1_ran) == 1; assert '[FAIL] openapi-spec' in capsys.readouterr().out; capsys.readouterr(); _m2_rc, _m2_ran = self._collect(['--only', 'openapi-spec']); assert _m2_rc == 0 and _m2_ran; _m2_ran.clear()
-        with pytest.raises(SystemExit) as _m2_exc: preflight.run(['--only', 'openapi-specc'], runner=lambda argv, cwd: _m2_ran.append(list(argv)) or 0)
-        assert _m2_exc.value.code == 2; assert _m2_ran == []; assert 'unknown gate name(s): openapi-specc' in capsys.readouterr().err
-    def test_AC_testing_preflight_2_only_ignores_the_diff(self, monkeypatch):
-        def fail_if_called(args): raise AssertionError(f'--only must not read the git diff: {args}')
-        rc = preflight.run(['--only', 'openapi-spec'], runner=lambda argv, cwd: 0, git=fail_if_called); assert rc == 0
-    @pytest.mark.parametrize('extra', [['--all'], ['--changed', 'Makefile']])
-    def test_AC_testing_preflight_2_only_rejects_diff_selection_flags(self, extra, capsys):
+    def _collect(args: list[str], rc_of_runner: int = 0) -> tuple[int, list[list[str]]]:
         ran: list[list[str]] = []
-        with pytest.raises(SystemExit) as exc: preflight.run(['--only', 'openapi-spec', *extra], runner=lambda argv, cwd: ran.append(list(argv)) or 0)
-        assert exc.value.code == 2; assert ran == []; assert '--only cannot combine with --all or --changed' in capsys.readouterr().err
+        rc = preflight.run(
+            args, runner=lambda argv, cwd: ran.append(list(argv)) or rc_of_runner
+        )
+        return (rc, ran)
+
+    def test_AC_testing_preflight_2_only_runs_the_named_gate_commands(self, capsys):
+        rc, ran = self._collect(["--only", "openapi-spec"])
+        assert rc == 0
+        assert "preflight: running 1 named gate(s)..." in capsys.readouterr().out
+        gate = next((c for c in preflight.CHECKS if c.name == "openapi-spec"))
+        expected = [
+            preflight._resolve(command, python=preflight.sys.executable)
+            for command in gate.commands
+        ]
+        assert len(expected) == 2
+        assert ran == expected
+        capsys.readouterr()
+        _m1_rc, _m1_ran = self._collect(["--only", "openapi-spec"], rc_of_runner=1)
+        assert _m1_rc == 1
+        assert len(_m1_ran) == 1
+        assert "[FAIL] openapi-spec" in capsys.readouterr().out
+        capsys.readouterr()
+        _m2_rc, _m2_ran = self._collect(["--only", "openapi-spec"])
+        assert _m2_rc == 0 and _m2_ran
+        _m2_ran.clear()
+        with pytest.raises(SystemExit) as _m2_exc:
+            preflight.run(
+                ["--only", "openapi-specc"],
+                runner=lambda argv, cwd: _m2_ran.append(list(argv)) or 0,
+            )
+        assert _m2_exc.value.code == 2
+        assert _m2_ran == []
+        assert "unknown gate name(s): openapi-specc" in capsys.readouterr().err
+
+    def test_AC_testing_preflight_2_only_ignores_the_diff(self, monkeypatch):
+        def fail_if_called(args):
+            raise AssertionError(f"--only must not read the git diff: {args}")
+
+        rc = preflight.run(
+            ["--only", "openapi-spec"], runner=lambda argv, cwd: 0, git=fail_if_called
+        )
+        assert rc == 0
+
+    @pytest.mark.parametrize("extra", [["--all"], ["--changed", "Makefile"]])
+    def test_AC_testing_preflight_2_only_rejects_diff_selection_flags(
+        self, extra, capsys
+    ):
+        ran: list[list[str]] = []
+        with pytest.raises(SystemExit) as exc:
+            preflight.run(
+                ["--only", "openapi-spec", *extra],
+                runner=lambda argv, cwd: ran.append(list(argv)) or 0,
+            )
+        assert exc.value.code == 2
+        assert ran == []
+        assert (
+            "--only cannot combine with --all or --changed" in capsys.readouterr().err
+        )
+
     def test_AC_testing_preflight_2_only_runs_a_gate_outside_the_requested_tier(self):
-        heavy = next((c for c in preflight.CHECKS if c.tier == 'heavy')); rc, ran = self._collect(['--only', heavy.name, '--tier=static']); assert rc == 0; assert len(ran) == len(heavy.commands) > 0; _m3_names = [_m3_c.name for _m3_c in preflight.CHECKS]; _m3_picked = preflight.select_named_checks(['openapi-spec', 'api-reference']); assert [_m3_c.name for _m3_c in _m3_picked] == [_m3_n for _m3_n in _m3_names if _m3_n in {'openapi-spec', 'api-reference'}]
-        with pytest.raises(ValueError, match='unknown gate name'): preflight.select_named_checks(['no-such-gate'])
-def _lint_steps() -> list[dict]: workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding='utf-8')); return workflow['jobs']['lint']['steps']
+        heavy = next((c for c in preflight.CHECKS if c.tier == "heavy"))
+        rc, ran = self._collect(["--only", heavy.name, "--tier=static"])
+        assert rc == 0
+        assert len(ran) == len(heavy.commands) > 0
+        _m3_names = [_m3_c.name for _m3_c in preflight.CHECKS]
+        _m3_picked = preflight.select_named_checks(["openapi-spec", "api-reference"])
+        assert [_m3_c.name for _m3_c in _m3_picked] == [
+            _m3_n for _m3_n in _m3_names if _m3_n in {"openapi-spec", "api-reference"}
+        ]
+        with pytest.raises(ValueError, match="unknown gate name"):
+            preflight.select_named_checks(["no-such-gate"])
+
+
+def _lint_steps() -> list[dict]:
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    return workflow["jobs"]["lint"]["steps"]
+
+
 def test_run_checks_fails_closed_when_gate_mutates_working_tree(tmp_path, capsys):
-    import subprocess; subprocess.run(['git', 'init'], cwd=tmp_path, check=True, capture_output=True); subprocess.run(['git', 'config', 'user.email', 'test@example.com'], cwd=tmp_path, check=True, capture_output=True); subprocess.run(['git', 'config', 'user.name', 'Test'], cwd=tmp_path, check=True, capture_output=True); tracked = tmp_path / 'tracked.txt'; tracked.write_text('clean\n', encoding='utf-8'); subprocess.run(['git', 'add', 'tracked.txt'], cwd=tmp_path, check=True, capture_output=True); subprocess.run(['git', 'commit', '-m', 'init'], cwd=tmp_path, check=True, capture_output=True); tracked.unlink(); spaced = tmp_path / 'dirty file.txt'; spaced.write_text('spaced-v1\n', encoding='utf-8'); assert preflight._unquote_porcelain_path('plain.txt') == 'plain.txt'; assert preflight._unquote_porcelain_path('"dirty file.txt"') == 'dirty file.txt'; mutating_check = preflight.Check(name='mutating-gate', globs=('*.txt',), commands=(('touch', 'dirty file.txt'),), why='test working-tree guard')
-    def dirtying_runner(_argv, cwd): (Path(cwd) / 'dirty file.txt').write_text('spaced-v2\n', encoding='utf-8'); return 0
-    results = preflight.run_checks([mutating_check], changed_files=('dirty file.txt',), runner=dirtying_runner, repo_root=tmp_path); assert len(results) == 1; assert results[0].ok is False; assert 'mutated the working tree' in capsys.readouterr().err
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("clean\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "tracked.txt"], cwd=tmp_path, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True
+    )
+    tracked.unlink()
+    spaced = tmp_path / "dirty file.txt"
+    spaced.write_text("spaced-v1\n", encoding="utf-8")
+    assert preflight._unquote_porcelain_path("plain.txt") == "plain.txt"
+    assert preflight._unquote_porcelain_path('"dirty file.txt"') == "dirty file.txt"
+    mutating_check = preflight.Check(
+        name="mutating-gate",
+        globs=("*.txt",),
+        commands=(("touch", "dirty file.txt"),),
+        why="test working-tree guard",
+    )
+
+    def dirtying_runner(_argv, cwd):
+        (Path(cwd) / "dirty file.txt").write_text("spaced-v2\n", encoding="utf-8")
+        return 0
+
+    results = preflight.run_checks(
+        [mutating_check],
+        changed_files=("dirty file.txt",),
+        runner=dirtying_runner,
+        repo_root=tmp_path,
+    )
+    assert len(results) == 1
+    assert results[0].ok is False
+    assert "mutated the working tree" in capsys.readouterr().err
+
+
 class TestDiffScopedPytestTargets:
-    def test_transaction_boundary_check_disables_xdist_workers(self): gate = next((c for c in preflight.CHECKS if c.name == 'transaction-boundary')); cmd = gate.commands[0]; assert '-n' in cmd; n_idx = cmd.index('-n'); assert cmd[n_idx + 1] == '0'
-    def test_resolve_changed_pytest_targets_maps_source_and_test_files(self, tmp_path): (tmp_path / 'tests' / 'tooling').mkdir(parents=True); (tmp_path / 'tests' / 'tooling' / 'test_preflight.py').write_text('def test_ok(): pass\n', encoding='utf-8'); (tmp_path / 'tests' / 'tooling' / 'test_direct_root.py').write_text('def test_ok(): pass\n', encoding='utf-8'); (tmp_path / 'apps' / 'backend' / 'tests' / 'unit').mkdir(parents=True); (tmp_path / 'apps' / 'backend' / 'tests' / 'unit' / 'test_journal_service.py').write_text('def test_ok(): pass\n', encoding='utf-8'); (tmp_path / 'apps' / 'backend' / 'tests' / 'unit' / 'test_direct_backend.py').write_text('def test_ok(): pass\n', encoding='utf-8'); (tmp_path / 'apps' / 'backend' / 'tests' / 'audit' / 'money').mkdir(parents=True); (tmp_path / 'apps' / 'backend' / 'tests' / 'audit' / 'money' / 'test_money_value_type.py').write_text('def test_ok(): pass\n', encoding='utf-8'); root_targets, backend_targets = preflight.resolve_changed_pytest_targets(['common/testing/__init__.py', 'common/testing/preflight.py', 'common/audit/money/money.py', 'tests/tooling/test_direct_root.py', 'apps/backend/src/services/journal_service.py', 'apps/backend/tests/unit/test_direct_backend.py', 'docs/README.md'], repo_root=tmp_path); assert root_targets == ['tests/tooling/test_direct_root.py', 'tests/tooling/test_preflight.py']; assert backend_targets == ['tests/audit/money/test_money_value_type.py', 'tests/unit/test_direct_backend.py', 'tests/unit/test_journal_service.py']
+    def test_transaction_boundary_check_disables_xdist_workers(self):
+        gate = next((c for c in preflight.CHECKS if c.name == "transaction-boundary"))
+        cmd = gate.commands[0]
+        assert "-n" in cmd
+        n_idx = cmd.index("-n")
+        assert cmd[n_idx + 1] == "0"
+
+    def test_resolve_changed_pytest_targets_maps_source_and_test_files(self, tmp_path):
+        (tmp_path / "tests" / "tooling").mkdir(parents=True)
+        (tmp_path / "tests" / "tooling" / "test_preflight.py").write_text(
+            "def test_ok(): pass\n", encoding="utf-8"
+        )
+        (tmp_path / "tests" / "tooling" / "test_direct_root.py").write_text(
+            "def test_ok(): pass\n", encoding="utf-8"
+        )
+        (tmp_path / "apps" / "backend" / "tests" / "unit").mkdir(parents=True)
+        (
+            tmp_path / "apps" / "backend" / "tests" / "unit" / "test_journal_service.py"
+        ).write_text("def test_ok(): pass\n", encoding="utf-8")
+        (
+            tmp_path / "apps" / "backend" / "tests" / "unit" / "test_direct_backend.py"
+        ).write_text("def test_ok(): pass\n", encoding="utf-8")
+        (tmp_path / "apps" / "backend" / "tests" / "audit" / "money").mkdir(
+            parents=True
+        )
+        (
+            tmp_path
+            / "apps"
+            / "backend"
+            / "tests"
+            / "audit"
+            / "money"
+            / "test_money_value_type.py"
+        ).write_text("def test_ok(): pass\n", encoding="utf-8")
+        root_targets, backend_targets = preflight.resolve_changed_pytest_targets(
+            [
+                "common/testing/__init__.py",
+                "common/testing/preflight.py",
+                "common/audit/money/money.py",
+                "tests/tooling/test_direct_root.py",
+                "apps/backend/src/services/journal_service.py",
+                "apps/backend/tests/unit/test_direct_backend.py",
+                "docs/README.md",
+            ],
+            repo_root=tmp_path,
+        )
+        assert root_targets == [
+            "tests/tooling/test_direct_root.py",
+            "tests/tooling/test_preflight.py",
+        ]
+        assert backend_targets == [
+            "tests/audit/money/test_money_value_type.py",
+            "tests/unit/test_direct_backend.py",
+            "tests/unit/test_journal_service.py",
+        ]
+
     def test_run_pytest_changed_executes_single_process_fail_fast_pytest(self, capsys):
         recorded: list[tuple[list[str], str]] = []
-        def fake_runner(argv, cwd): recorded.append((list(argv), cwd)); return 0
-        rc = preflight.run(['--tier=static', '--pytest-changed', '--changed', 'common/testing/preflight.py', 'apps/backend/tests/infra/test_transaction_boundaries.py'], runner=fake_runner); assert rc == 0; out = capsys.readouterr().out; root_calls = [(argv, cwd) for argv, cwd in recorded if 'pytest' in argv and 'tests/tooling/test_preflight.py' in argv]; backend_calls = [(argv, cwd) for argv, cwd in recorded if 'pytest' in argv and 'tests/infra/test_transaction_boundaries.py' in argv and ('--no-cov' in argv)]; assert len(root_calls) == 1; assert len(backend_calls) == 1; assert all(('-x' in argv and '--no-cov' in argv and ('-n' in argv and argv[argv.index('-n') + 1] == '0') for argv, _ in (root_calls[0], backend_calls[0]))); assert '[ok] pytest-changed:root' in out; assert '[ok] pytest-changed:backend' in out
+
+        def fake_runner(argv, cwd):
+            recorded.append((list(argv), cwd))
+            return 0
+
+        rc = preflight.run(
+            [
+                "--tier=static",
+                "--pytest-changed",
+                "--changed",
+                "common/testing/preflight.py",
+                "apps/backend/tests/infra/test_transaction_boundaries.py",
+            ],
+            runner=fake_runner,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        root_calls = [
+            (argv, cwd)
+            for argv, cwd in recorded
+            if "pytest" in argv and "tests/tooling/test_preflight.py" in argv
+        ]
+        backend_calls = [
+            (argv, cwd)
+            for argv, cwd in recorded
+            if "pytest" in argv
+            and "tests/infra/test_transaction_boundaries.py" in argv
+            and ("--no-cov" in argv)
+        ]
+        assert len(root_calls) == 1
+        assert len(backend_calls) == 1
+        assert all(
+            (
+                "-x" in argv
+                and "--no-cov" in argv
+                and ("-n" in argv and argv[argv.index("-n") + 1] == "0")
+                for argv, _ in (root_calls[0], backend_calls[0])
+            )
+        )
+        assert "[ok] pytest-changed:root" in out
+        assert "[ok] pytest-changed:backend" in out
+
     def test_run_pytest_changed_reports_failure_in_quiet_mode(self, capsys):
         def failing_pytest_runner(argv, cwd):
-            if 'pytest' in argv and '--no-cov' in argv: return 1
+            if "pytest" in argv and "--no-cov" in argv:
+                return 1
             return 0
-        rc = preflight.run(['--tier=static', '--quiet', '--pytest-changed', '--changed', 'common/testing/preflight.py'], runner=failing_pytest_runner); assert rc == 1; out = capsys.readouterr().out; assert '[FAIL] pytest-changed:root' in out; assert 'preflight: 1 gate(s) failed: pytest-changed:root' in out
-    def test_run_pytest_changed_reports_no_relevant_gates_when_zero_targets_and_gates(self, capsys): rc = preflight.run(['--tier=static', '--pytest-changed', '--changed', 'nonexistent_dir/unmatched.txt'], runner=lambda argv, cwd: 0); assert rc == 0; out = capsys.readouterr().out; assert 'preflight: no relevant gates for the current diff.' in out; capsys.readouterr(); _m1_rc = preflight.run(['--tier=static', '--quiet', '--pytest-changed', '--changed', 'tests/tooling/test_preflight.py'], runner=lambda argv, cwd: 0); assert _m1_rc == 0; _m1_out = capsys.readouterr().out; _m1_selected_count = len(preflight.select_checks(['tests/tooling/test_preflight.py'], tier='static')); assert f'preflight: all {_m1_selected_count + 1} gates passed.' in _m1_out
+
+        rc = preflight.run(
+            [
+                "--tier=static",
+                "--quiet",
+                "--pytest-changed",
+                "--changed",
+                "common/testing/preflight.py",
+            ],
+            runner=failing_pytest_runner,
+        )
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "[FAIL] pytest-changed:root" in out
+        assert "preflight: 1 gate(s) failed: pytest-changed:root" in out
+
+    def test_run_pytest_changed_reports_no_relevant_gates_when_zero_targets_and_gates(
+        self, capsys
+    ):
+        rc = preflight.run(
+            [
+                "--tier=static",
+                "--pytest-changed",
+                "--changed",
+                "nonexistent_dir/unmatched.txt",
+            ],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "preflight: no relevant gates for the current diff." in out
+        capsys.readouterr()
+        _m1_rc = preflight.run(
+            [
+                "--tier=static",
+                "--quiet",
+                "--pytest-changed",
+                "--changed",
+                "tests/tooling/test_preflight.py",
+            ],
+            runner=lambda argv, cwd: 0,
+        )
+        assert _m1_rc == 0
+        _m1_out = capsys.readouterr().out
+        _m1_selected_count = len(
+            preflight.select_checks(["tests/tooling/test_preflight.py"], tier="static")
+        )
+        assert f"preflight: all {_m1_selected_count + 1} gates passed." in _m1_out
 
 
 class TestInProcessAndStatCacheConsolidation:
@@ -167,9 +1089,7 @@ class TestInProcessAndStatCacheConsolidation:
         rc = check_package_migration_safety.main(["--repo-root", str(REPO_ROOT)])
         captured = capsys.readouterr()
         assert rc == 0
-        passed_lines = [
-            line for line in captured.out.splitlines() if "PASSED" in line
-        ]
+        passed_lines = [line for line in captured.out.splitlines() if "PASSED" in line]
         assert len(passed_lines) == 1, captured.out
 
     def test_default_runner_executes_python_tools_in_process_and_deduplicates_commands(
@@ -181,7 +1101,11 @@ class TestInProcessAndStatCacheConsolidation:
         real_run = subprocess.run
 
         def spy_run(cmd, *args, **kwargs):
-            if cmd and str(cmd[0]).endswith("python") or "tools/" in " ".join(map(str, cmd)):
+            if (
+                cmd
+                and str(cmd[0]).endswith("python")
+                or "tools/" in " ".join(map(str, cmd))
+            ):
                 subprocess_calls.append(list(map(str, cmd)))
             return real_run(cmd, *args, **kwargs)
 

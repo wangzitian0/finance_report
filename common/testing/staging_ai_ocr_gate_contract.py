@@ -473,7 +473,9 @@ def preflight(base_url: str, *, timeout_seconds: float = 30.0) -> tuple[bool, st
     if status != "healthy":
         return False, f"health status is {status!r}, expected 'healthy'"
     failed_checks = sorted(
-        name for name, ok in (payload.get("checks") or {}).items() if not ok
+        name
+        for name, entry in (payload.get("checks") or {}).items()
+        if (entry.get("status") != "present" if isinstance(entry, dict) else not entry)
     )
     if failed_checks:
         return False, f"required dependency checks failing: {', '.join(failed_checks)}"

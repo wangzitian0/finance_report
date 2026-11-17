@@ -1,130 +1,163 @@
-import builtins; import logging; import sys; import types; from structlog.dev import ConsoleRenderer; from structlog.processors import JSONRenderer; from src.observability import logger as logger_module
-def test_build_otlp_logs_endpoint_adds_suffix() -> None: 'AC-observability.2.1 AC12.1.1'; assert logger_module._build_otlp_logs_endpoint('http://collector:4318') == 'http://collector:4318/v1/logs'; assert logger_module._build_otlp_logs_endpoint('http://collector:4318/') == 'http://collector:4318/v1/logs'
-def test_build_otlp_logs_endpoint_preserves_logs_path() -> None: 'AC-observability.2.2 AC12.1.2'; assert logger_module._build_otlp_logs_endpoint('http://collector:4318/v1/logs') == 'http://collector:4318/v1/logs'
-def test_build_otlp_logs_endpoint_delegates_to_public_sdk_helper(monkeypatch) -> None:
-    import infra2_sdk.runtime.otel as otel_mod; calls: list[tuple[str, str]] = []
-    def fake_endpoint_builder(base: str, signal: str) -> str: calls.append((base, signal)); return 'http://sentinel/logs'
-    monkeypatch.setattr(otel_mod, 'signal_endpoint', fake_endpoint_builder); assert logger_module._build_otlp_logs_endpoint('http://collector:4318') == 'http://sentinel/logs'; assert calls == [('http://collector:4318', 'logs')]
-def test_select_renderer_uses_console_in_debug(monkeypatch) -> None: 'AC-observability.1.4 AC12.2.1'; monkeypatch.setattr(logger_module.settings, 'debug', True); renderer = logger_module._select_renderer(); assert isinstance(renderer, ConsoleRenderer)
-def test_select_renderer_uses_json_in_production(monkeypatch) -> None: 'AC-observability.1.3 AC12.2.2'; monkeypatch.setattr(logger_module.settings, 'debug', False); renderer = logger_module._select_renderer(); assert isinstance(renderer, JSONRenderer)
-def test_configure_otel_logging_missing_dependency_warns(monkeypatch, caplog) -> None:
-    'AC-observability.4.1 AC12.3.1'; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); original_import = builtins.__import__
-    def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name.startswith('opentelemetry'): raise ImportError('opentelemetry not installed')
-        return original_import(name, globals, locals, fromlist, level)
-    monkeypatch.setattr(builtins, '__import__', blocked_import)
-    with caplog.at_level(logging.WARNING): logger_module._configure_otel_logging()
-    assert 'OTEL log exporter not available' in caplog.text
-def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
-    'AC-observability.1.2 AC-observability.4.2 AC-observability.7.2 AC12.4.1'; calls: list[object] = []
-    class DummyProvider:
-        def __init__(self, resource=None): self.resource = resource; self.processors: list[object] = []
-        def add_log_record_processor(self, processor) -> None: self.processors.append(processor)
-    class DummyHandler(logging.Handler):
-        def __init__(self, level=logging.NOTSET, logger_provider=None): super().__init__(level=level); self.logger_provider = logger_provider
-        def emit(self, record): pass
-    class DummyProcessor:
-        def __init__(self, exporter) -> None: self.exporter = exporter
-    class DummyExporter:
-        def __init__(self, endpoint: str) -> None: self.endpoint = endpoint
-    class DummyResource:
-        @staticmethod
-        def create(attributes: dict[str, str]) -> dict[str, str]: return attributes
-    def dummy_set_logger_provider(provider) -> None: calls.append(provider)
-    def make_module(name: str, is_pkg: bool=False) -> types.ModuleType:
-        module = types.ModuleType(name)
-        if is_pkg: module.__path__ = []
-        monkeypatch.setitem(sys.modules, name, module); return module
-    opentelemetry = make_module('opentelemetry', is_pkg=True); opentelemetry_logs = make_module('opentelemetry._logs'); opentelemetry_logs.set_logger_provider = dummy_set_logger_provider; opentelemetry_sdk = make_module('opentelemetry.sdk', is_pkg=True); opentelemetry_sdk_logs = make_module('opentelemetry.sdk._logs'); opentelemetry_sdk_logs.LoggerProvider = DummyProvider; opentelemetry_sdk_logs.LoggingHandler = DummyHandler; opentelemetry_sdk_logs_export = make_module('opentelemetry.sdk._logs.export'); opentelemetry_sdk_logs_export.BatchLogRecordProcessor = DummyProcessor; opentelemetry_sdk_resources = make_module('opentelemetry.sdk.resources'); opentelemetry_sdk_resources.Resource = DummyResource; opentelemetry_exporter = make_module('opentelemetry.exporter', is_pkg=True); opentelemetry_otlp = make_module('opentelemetry.exporter.otlp', is_pkg=True); opentelemetry_proto = make_module('opentelemetry.exporter.otlp.proto', is_pkg=True); opentelemetry_proto_http = make_module('opentelemetry.exporter.otlp.proto.http', is_pkg=True); opentelemetry_log_exporter = make_module('opentelemetry.exporter.otlp.proto.http._log_exporter'); opentelemetry_log_exporter.OTLPLogExporter = DummyExporter; opentelemetry._logs = opentelemetry_logs; opentelemetry.sdk = opentelemetry_sdk; opentelemetry.exporter = opentelemetry_exporter; opentelemetry_sdk._logs = opentelemetry_sdk_logs; opentelemetry_sdk.resources = opentelemetry_sdk_resources; opentelemetry_sdk_logs.export = opentelemetry_sdk_logs_export; opentelemetry_exporter.otlp = opentelemetry_otlp; opentelemetry_otlp.proto = opentelemetry_proto; opentelemetry_proto.http = opentelemetry_proto_http; opentelemetry_proto_http._log_exporter = opentelemetry_log_exporter; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); monkeypatch.setattr(logger_module.settings, 'otel_service_name', 'test-service'); monkeypatch.setattr(logger_module.settings, 'otel_resource_attributes', 'deployment.environment=staging'); root_logger = logging.getLogger(); previous_handlers = list(root_logger.handlers); logger_module._configure_otel_logging(); assert len(calls) == 1; provider = calls[0]; assert provider.resource['service.name'] == 'test-service'; assert provider.resource['deployment.environment'] == 'staging'; batch_processor = next((p for p in provider.processors if getattr(p, 'exporter', None) is not None)); assert batch_processor.exporter.endpoint.endswith('/v1/logs'); assert any((isinstance(p, logger_module.SanitizingLogRecordProcessor) for p in provider.processors)); [root_logger.removeHandler(handler) if handler not in previous_handlers else None for handler in list(root_logger.handlers)]
-def test_build_processors_returns_list() -> None: 'AC-observability.16.1 AC12.10.1'; processors = logger_module._build_processors(); assert isinstance(processors, list); assert len(processors) >= 5; import datetime; assert logger_module._sanitize_value(123) == 123; assert logger_module._sanitize_value('text') == 'text'; assert logger_module._sanitize_value(True) is True; assert logger_module._sanitize_value(None) is None; _m1_d = datetime.date(2025, 4, 30); assert logger_module._sanitize_value(_m1_d) == '2025-04-30'; _m1_dt = datetime.datetime(2025, 4, 30, 12, 0, 0); assert logger_module._sanitize_value(_m1_dt) == '2025-04-30T12:00:00'; _m1_nested = {'date': _m1_d, 'list': [_m1_dt, 1]}; assert logger_module._sanitize_value(_m1_nested) == {'date': '2025-04-30', 'list': ['2025-04-30T12:00:00', 1]}; import datetime; _m2_event_dict = {'event': 'test', 'snapshot_date': datetime.date(2025, 4, 30)}; _m2_processed = logger_module._sanitize_event_dict(None, 'info', _m2_event_dict); assert _m2_processed['snapshot_date'] == '2025-04-30'
-def test_add_trace_context_with_valid_span(monkeypatch) -> None:
-    'AC-observability.16.2 AC12.11.1'; import types
-    class MockSpanContext: trace_id = 24197857200151252728969465429440056815; span_id = 18364757930599072545; is_valid = True
-    class MockSpan:
-        def get_span_context(self): return MockSpanContext()
-    mock_trace = types.ModuleType('opentelemetry.trace'); mock_trace.get_current_span = lambda: MockSpan(); monkeypatch.setitem(sys.modules, 'opentelemetry', types.ModuleType('opentelemetry')); monkeypatch.setitem(sys.modules, 'opentelemetry.trace', mock_trace); event_dict: dict[str, object] = {'event': 'test'}; result = logger_module._add_trace_context(None, 'info', event_dict); assert 'trace_id' in result; assert 'span_id' in result; assert result['trace_id'] == '1234567890abcdef1234567890abcdef'; assert result['span_id'] == 'fedcba0987654321'
-def test_add_trace_context_with_invalid_span(monkeypatch) -> None:
-    'AC-observability.16.3 AC12.11.2'; import types
-    class MockSpanContext: trace_id = 0; span_id = 0; is_valid = False
-    class MockSpan:
-        def get_span_context(self): return MockSpanContext()
-    mock_trace = types.ModuleType('opentelemetry.trace'); mock_trace.get_current_span = lambda: MockSpan(); monkeypatch.setitem(sys.modules, 'opentelemetry', types.ModuleType('opentelemetry')); monkeypatch.setitem(sys.modules, 'opentelemetry.trace', mock_trace); event_dict: dict[str, object] = {'event': 'test'}; result = logger_module._add_trace_context(None, 'info', event_dict); assert 'trace_id' not in result; assert 'span_id' not in result
-def test_add_trace_context_handles_import_error(monkeypatch) -> None:
-    'AC-observability.16.4 AC12.11.3'
-    def raise_import_error(name, *args, **kwargs):
-        if 'opentelemetry' in name: raise ImportError('opentelemetry not installed')
-        return original_import(name, *args, **kwargs)
-    original_import = builtins.__import__; monkeypatch.setattr(builtins, '__import__', raise_import_error); modules_to_remove = [k for k in sys.modules if k.startswith('opentelemetry')]; [monkeypatch.delitem(sys.modules, mod, raising=False) for mod in modules_to_remove]; event_dict: dict[str, object] = {'event': 'test'}; result = logger_module._add_trace_context(None, 'info', event_dict); assert result == event_dict; assert 'trace_id' not in result
-def test_configure_otel_tracing_no_endpoint(monkeypatch) -> None: 'AC-observability.4.8 AC12.12.1'; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', None); logger_module._configure_otel_tracing()
-def test_configure_otel_tracing_missing_dependency_warns(monkeypatch, caplog) -> None:
-    'AC-observability.4.5 AC12.3.2'; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); original_import = builtins.__import__
-    def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name.startswith('opentelemetry'): raise ImportError('opentelemetry not installed')
-        return original_import(name, globals, locals, fromlist, level)
-    monkeypatch.setattr(builtins, '__import__', blocked_import)
-    with caplog.at_level(logging.WARNING): logger_module._configure_otel_tracing()
-    assert 'OTEL trace exporter not available' in caplog.text
-def test_configure_otel_tracing_with_fake_exporter(monkeypatch) -> None:
-    'AC-observability.4.9 AC12.12.2'; calls: list[object] = []
-    class DummyTracerProvider:
-        def __init__(self, resource=None): self.resource = resource; self.span_processors: list[object] = []
-        def add_span_processor(self, processor) -> None: self.span_processors.append(processor)
-    class DummyBatchSpanProcessor:
-        def __init__(self, exporter) -> None: self.exporter = exporter
-    class DummySpanExporter:
-        def __init__(self, endpoint: str) -> None: self.endpoint = endpoint
-    class DummyResource:
-        @staticmethod
-        def create(attributes: dict[str, str]) -> dict[str, str]: return attributes
-    def dummy_set_tracer_provider(provider) -> None: calls.append(provider)
-    def make_module(name: str, is_pkg: bool=False) -> types.ModuleType:
-        module = types.ModuleType(name)
-        if is_pkg: module.__path__ = []
-        monkeypatch.setitem(sys.modules, name, module); return module
-    opentelemetry = make_module('opentelemetry', is_pkg=True); opentelemetry_trace = make_module('opentelemetry.trace'); opentelemetry_trace.set_tracer_provider = dummy_set_tracer_provider; opentelemetry_sdk = make_module('opentelemetry.sdk', is_pkg=True); opentelemetry_sdk_trace = make_module('opentelemetry.sdk.trace'); opentelemetry_sdk_trace.TracerProvider = DummyTracerProvider; opentelemetry_sdk_trace_export = make_module('opentelemetry.sdk.trace.export'); opentelemetry_sdk_trace_export.BatchSpanProcessor = DummyBatchSpanProcessor; opentelemetry_sdk_resources = make_module('opentelemetry.sdk.resources'); opentelemetry_sdk_resources.Resource = DummyResource; opentelemetry_exporter = make_module('opentelemetry.exporter', is_pkg=True); opentelemetry_otlp = make_module('opentelemetry.exporter.otlp', is_pkg=True); opentelemetry_proto = make_module('opentelemetry.exporter.otlp.proto', is_pkg=True); opentelemetry_proto_http = make_module('opentelemetry.exporter.otlp.proto.http', is_pkg=True); opentelemetry_trace_exporter = make_module('opentelemetry.exporter.otlp.proto.http.trace_exporter'); opentelemetry_trace_exporter.OTLPSpanExporter = DummySpanExporter; opentelemetry.trace = opentelemetry_trace; opentelemetry.sdk = opentelemetry_sdk; opentelemetry.exporter = opentelemetry_exporter; opentelemetry_sdk.trace = opentelemetry_sdk_trace; opentelemetry_sdk.resources = opentelemetry_sdk_resources; opentelemetry_sdk_trace.export = opentelemetry_sdk_trace_export; opentelemetry_exporter.otlp = opentelemetry_otlp; opentelemetry_otlp.proto = opentelemetry_proto; opentelemetry_proto.http = opentelemetry_proto_http; opentelemetry_proto_http.trace_exporter = opentelemetry_trace_exporter; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318'); monkeypatch.setattr(logger_module.settings, 'otel_service_name', 'test-service'); monkeypatch.setattr(logger_module.settings, 'otel_resource_attributes', 'deployment.environment=test'); logger_module._configure_otel_tracing(); assert len(calls) == 1; provider = calls[0]; assert provider.resource['service.name'] == 'test-service'; assert provider.resource['deployment.environment'] == 'test'; assert provider.span_processors[0].exporter.endpoint.endswith('/v1/traces')
-def test_configure_otel_tracing_appends_traces_path(monkeypatch) -> None:
-    'AC-observability.4.10 AC12.12.3'; calls: list[object] = []
-    class DummyTracerProvider:
-        def __init__(self, resource=None): self.resource = resource; self.span_processors: list[object] = []
-        def add_span_processor(self, processor) -> None: self.span_processors.append(processor)
-    class DummyBatchSpanProcessor:
-        def __init__(self, exporter) -> None: self.exporter = exporter
-    class DummySpanExporter:
-        def __init__(self, endpoint: str) -> None: self.endpoint = endpoint; calls.append(endpoint)
-    class DummyResource:
-        @staticmethod
-        def create(attributes: dict[str, str]) -> dict[str, str]: return attributes
-    def make_module(name: str, is_pkg: bool=False) -> types.ModuleType:
-        module = types.ModuleType(name)
-        if is_pkg: module.__path__ = []
-        monkeypatch.setitem(sys.modules, name, module); return module
-    opentelemetry = make_module('opentelemetry', is_pkg=True); opentelemetry_trace = make_module('opentelemetry.trace'); opentelemetry_trace.set_tracer_provider = lambda p: None; opentelemetry_sdk = make_module('opentelemetry.sdk', is_pkg=True); opentelemetry_sdk_trace = make_module('opentelemetry.sdk.trace'); opentelemetry_sdk_trace.TracerProvider = DummyTracerProvider; opentelemetry_sdk_trace_export = make_module('opentelemetry.sdk.trace.export'); opentelemetry_sdk_trace_export.BatchSpanProcessor = DummyBatchSpanProcessor; opentelemetry_sdk_resources = make_module('opentelemetry.sdk.resources'); opentelemetry_sdk_resources.Resource = DummyResource; opentelemetry_exporter = make_module('opentelemetry.exporter', is_pkg=True); opentelemetry_otlp = make_module('opentelemetry.exporter.otlp', is_pkg=True); opentelemetry_proto = make_module('opentelemetry.exporter.otlp.proto', is_pkg=True); opentelemetry_proto_http = make_module('opentelemetry.exporter.otlp.proto.http', is_pkg=True); opentelemetry_trace_exporter = make_module('opentelemetry.exporter.otlp.proto.http.trace_exporter'); opentelemetry_trace_exporter.OTLPSpanExporter = DummySpanExporter; opentelemetry.trace = opentelemetry_trace; opentelemetry.sdk = opentelemetry_sdk; opentelemetry.exporter = opentelemetry_exporter; opentelemetry_sdk.trace = opentelemetry_sdk_trace; opentelemetry_sdk.resources = opentelemetry_sdk_resources; opentelemetry_sdk_trace.export = opentelemetry_sdk_trace_export; opentelemetry_exporter.otlp = opentelemetry_otlp; opentelemetry_otlp.proto = opentelemetry_proto; opentelemetry_proto.http = opentelemetry_proto_http; opentelemetry_proto_http.trace_exporter = opentelemetry_trace_exporter; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', 'http://collector:4318/'); monkeypatch.setattr(logger_module.settings, 'otel_service_name', 'test'); monkeypatch.setattr(logger_module.settings, 'otel_resource_attributes', ''); logger_module._configure_otel_tracing(); assert calls[-1] == 'http://collector:4318/v1/traces'
-def test_build_otel_resource(monkeypatch) -> None:
-    'AC-observability.4.7 AC12.5.1'
-    class DummyResource:
-        @staticmethod
-        def create(attributes: dict[str, str]) -> dict[str, str]: return attributes
-    def make_module(name: str, is_pkg: bool=False) -> types.ModuleType:
-        module = types.ModuleType(name)
-        if is_pkg: module.__path__ = []
-        monkeypatch.setitem(sys.modules, name, module); return module
-    opentelemetry = make_module('opentelemetry', is_pkg=True); opentelemetry_sdk = make_module('opentelemetry.sdk', is_pkg=True); opentelemetry_sdk_resources = make_module('opentelemetry.sdk.resources'); opentelemetry_sdk_resources.Resource = DummyResource; opentelemetry.sdk = opentelemetry_sdk; opentelemetry_sdk.resources = opentelemetry_sdk_resources; monkeypatch.setattr(logger_module.settings, 'otel_service_name', 'my-service'); monkeypatch.setattr(logger_module.settings, 'otel_resource_attributes', 'env=prod,version=1.0'); resource = logger_module._build_otel_resource(); assert resource['service.name'] == 'my-service'; assert resource['env'] == 'prod'; assert resource['version'] == '1.0'
-def test_configure_otel_logging_no_endpoint(monkeypatch) -> None: 'AC-observability.4.6 AC12.3.3'; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', None); logger_module._configure_otel_logging()
-def test_configure_logging_basic(monkeypatch) -> None:
-    'AC-observability.1.5 AC12.15.1'; import structlog; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', None); monkeypatch.setattr(logger_module.settings, 'debug', True); original_config = structlog.get_config()
-    try: logger_module.configure_logging(); config = structlog.get_config(); assert config['logger_factory'] is not None
-    finally: structlog.configure(**original_config)
-def test_configure_logging_production_mode(monkeypatch) -> None:
-    'AC-observability.1.6 AC12.15.2'; import structlog; monkeypatch.setattr(logger_module.settings, 'otel_exporter_otlp_endpoint', None); monkeypatch.setattr(logger_module.settings, 'debug', False); original_config = structlog.get_config()
-    try: logger_module.configure_logging(); config = structlog.get_config(); assert config['logger_factory'] is not None
-    finally: structlog.configure(**original_config)
-def test_sanitizing_log_record_processor_encodes_cleanly_for_otel() -> None:
-    import datetime; from opentelemetry.exporter.otlp.proto.common._internal import _encode_value
-    class FakeRecord:
-        def __init__(self): self.attributes = {'report_date': datetime.date(2025, 4, 30), 'count': 10}; self.body = {'nested_date': datetime.date(2025, 4, 30)}
-    record = FakeRecord(); processor = logger_module.SanitizingLogRecordProcessor(); processor.on_emit(record); assert record.attributes['report_date'] == '2025-04-30'; encoded_attr = _encode_value(record.attributes['report_date']); assert encoded_attr.string_value == '2025-04-30'; encoded_body = _encode_value(record.body); assert encoded_body is not None
-def test_sanitize_event_dict_and_otel_processor_redact_pii_and_risky_keys() -> None:
-    'AC-observability.11.3'; event_dict: dict[str, object] = {'event': 'Account 1234567890 failed for holder S1234567A', 'error': 'Transfer to 9876543210 rejected for S7654321Z', 'raw_response': '{"account_number": "1234567890"}', 'Authorization': 'Bearer secret-jwt-token', 'nested': {'provider_response': 'raw provider secret', 'note': 'Contact holder S1234567A on account 1234567890'}, 'items': ['Account 1234567890', 'S1234567A']}; processed = logger_module._sanitize_event_dict(None, 'error', event_dict); assert '1234567890' not in str(processed); assert '9876543210' not in str(processed); assert 'S1234567A' not in str(processed); assert 'S7654321Z' not in str(processed); assert processed['event'] == 'Account [BANK_ACCOUNT] failed for holder [NRIC]'; assert processed['error'] == 'Transfer to [BANK_ACCOUNT] rejected for [NRIC]'; assert processed['raw_response'] == '[REDACTED]'; assert processed['Authorization'] == '[REDACTED]'; assert processed['nested'] == {'provider_response': '[REDACTED]', 'note': 'Contact holder [NRIC] on account [BANK_ACCOUNT]'}; assert processed['items'] == ['Account [BANK_ACCOUNT]', '[NRIC]']
-    class FakeOtelRecord:
-        def __init__(self) -> None: self.attributes = {'raw_response': 'secret payload', 'detail': 'Account 1234567890 for S1234567A'}; self.body = 'Account 1234567890 failed for S1234567A'
-    otel_record = FakeOtelRecord(); processor = logger_module.SanitizingLogRecordProcessor(); processor.on_emit(otel_record); assert otel_record.attributes['raw_response'] == '[REDACTED]'; assert otel_record.attributes['detail'] == 'Account [BANK_ACCOUNT] for [NRIC]'; assert otel_record.body == 'Account [BANK_ACCOUNT] failed for [NRIC]'
+from __future__ import annotations
+
+import datetime
+import io
+import json
+import logging
+import sys
+from unittest.mock import patch
+
+from infra2_sdk.runtime.otel import OtelSettings, _JsonLogFormatter, signal_endpoint
+from opentelemetry.exporter.otlp.proto.common._internal import _encode_value
+
+from src import observability
+from src.observability import configure_logging, get_logger
+
+
+def test_build_otlp_logs_endpoint_delegates_to_public_sdk_helper() -> None:
+    "AC-observability.2.1 AC-observability.2.2 AC-observability.4.10 AC12.1.1 AC12.1.2 AC12.12.3"
+    assert signal_endpoint("http://collector:4318", "logs") == "http://collector:4318/v1/logs"
+    assert signal_endpoint("http://collector:4318/", "logs") == "http://collector:4318/v1/logs"
+    assert signal_endpoint("http://collector:4318/v1/logs", "logs") == "http://collector:4318/v1/logs"
+    assert signal_endpoint("http://collector:4318/", "traces") == "http://collector:4318/v1/traces"
+
+
+def test_sdk_json_formatter_emits_structured_json_and_trace_context(monkeypatch) -> None:
+    "AC-observability.1.2 AC-observability.1.3 AC-observability.1.4 AC-observability.4.2 AC-observability.4.9 AC-observability.16.2 AC-observability.16.3 AC-observability.16.4"
+
+    class _SpanCtx:
+        def __init__(self, *, valid: bool) -> None:
+            self.trace_id = 0x1234567890ABCDEF1234567890ABCDEF if valid else 0
+            self.span_id = 0xFEDCBA0987654321 if valid else 0
+            self.is_valid = valid
+
+    class _Span:
+        def __init__(self, *, valid: bool) -> None:
+            self._ctx = _SpanCtx(valid=valid)
+
+        def get_span_context(self):
+            return self._ctx
+
+    formatter = _JsonLogFormatter(
+        {
+            "service.name": "finance-report-backend",
+            "deployment.environment.name": "staging",
+            "service.version": "abc1234",
+        }
+    )
+    record = logging.LogRecord("test.logger", logging.INFO, __file__, 1, "Account S1234567A failed", (), None)
+    record.audit_event = "statement.parse"
+    with patch("opentelemetry.trace.get_current_span", return_value=_Span(valid=True)):
+        payload = json.loads(formatter.format(record))
+    assert payload["service.name"] == "finance-report-backend"
+    assert payload["deployment.environment.name"] == "staging"
+    assert payload["service.version"] == "abc1234"
+    assert payload["trace_id"] == "1234567890abcdef1234567890abcdef"
+    assert payload["span_id"] == "fedcba0987654321"
+    assert payload["audit_event"] == "statement.parse"
+
+    with patch("opentelemetry.trace.get_current_span", return_value=_Span(valid=False)):
+        no_trace = json.loads(formatter.format(record))
+    assert no_trace["trace_id"] is None
+    assert no_trace["span_id"] is None
+
+    monkeypatch.delitem(sys.modules, "opentelemetry.trace", raising=False)
+    no_mod = json.loads(formatter.format(record))
+    assert no_mod["trace_id"] is None
+
+
+def test_configure_logging_installs_sdk_json_handler(monkeypatch) -> None:
+    "AC-observability.1.5 AC-observability.1.6 AC-observability.4.6 AC-observability.4.8"
+    import structlog
+
+    root = logging.getLogger()
+    saved_handlers, saved_level = list(root.handlers), root.level
+    stream = io.StringIO()
+    monkeypatch.setattr("sys.stdout", stream)
+    monkeypatch.setattr(observability.settings, "debug", False)
+    try:
+        configure_logging(take_over_root=True)
+        with patch.object(structlog, "is_configured", return_value=False):
+            get_logger("test.sdk.logging").info("statement.logged", amount_count=2)
+        payload = json.loads(stream.getvalue().strip().splitlines()[-1])
+        assert payload["message"] == "statement.logged"
+        assert payload["amount_count"] == 2
+        assert payload["service.name"] == observability.settings.otel_service_name
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
+
+
+def test_sanitize_value_and_fields_redact_pii_and_risky_keys() -> None:
+    "AC-observability.11.3 AC-observability.16.1"
+    today = datetime.date(2025, 4, 30)
+    assert observability._sanitize_value(today) == "2025-04-30"
+    assert _encode_value(observability._sanitize_value(today)).string_value == "2025-04-30"
+
+    processed = observability._sanitize_fields(
+        {
+            "event": "Account 1234567890 failed for holder S1234567A",
+            "raw_response": '{"account_number": "1234567890"}',
+            "Authorization": "Bearer secret-jwt-token",
+            "nested": {"provider_response": "raw provider secret", "note": "Contact S1234567A on 1234567890"},
+            "items": ["Account 1234567890", "S1234567A"],
+        }
+    )
+    assert "1234567890" not in str(processed)
+    assert "S1234567A" not in str(processed)
+    assert processed["raw_response"] == "[REDACTED]"
+    assert processed["Authorization"] == "[REDACTED]"
+    assert processed["nested"] == {
+        "provider_response": "[REDACTED]",
+        "note": "Contact [NRIC] on [BANK_ACCOUNT]",
+    }
+    assert processed["items"] == ["Account [BANK_ACCOUNT]", "[NRIC]"]
+
+
+def test_otel_settings_reads_resource_attributes(monkeypatch) -> None:
+    "AC-observability.4.1 AC-observability.4.5 AC-observability.4.7 AC-observability.7.2 AC12.5.1"
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "my-service")
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=production,team=finance")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
+    s = OtelSettings.from_env(strict=True)
+    assert s.service_name == "my-service"
+    assert s.deployment_environment == "production"
+    assert s.resource_attributes["team"] == "finance"
+    assert s.enabled is True
+
+
+def test_structured_logger_propagates_contextvars_to_otel_records_and_redacts_capture_logs() -> None:
+    import structlog
+    from structlog.testing import capture_logs
+
+    captured: list[logging.LogRecord] = []
+
+    class _CaptureHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            captured.append(record)
+
+    root = logging.getLogger()
+    handler = _CaptureHandler()
+    root.addHandler(handler)
+    saved_level = root.level
+    root.setLevel(logging.INFO)
+    structlog.contextvars.bind_contextvars(user_id="user-42", authorization="Bearer secret-token")
+    try:
+        with patch.object(structlog, "is_configured", return_value=False):
+            get_logger("test.ctx").info("Contact S1234567A")
+        assert captured
+        rec = captured[-1]
+        assert rec.user_id == "user-42"
+        assert rec.authorization == "[REDACTED]"
+        assert rec.getMessage() == "Contact [NRIC]"
+
+        with capture_logs() as logs:
+            get_logger("test.ctx").info("Contact S1234567A", token="raw-secret")
+        assert logs[-1]["event"] == "Contact [NRIC]"
+        assert logs[-1]["token"] == "[REDACTED]"
+        assert logs[-1]["user_id"] == "user-42"
+    finally:
+        structlog.contextvars.clear_contextvars()
+        root.removeHandler(handler)
+        root.setLevel(saved_level)

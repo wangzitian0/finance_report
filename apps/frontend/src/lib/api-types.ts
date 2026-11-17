@@ -58,12 +58,13 @@ export interface paths {
   "/chat/suggestions": _P<{ get: _O["suggestions_chat_suggestions_get"] }>;
   "/corrections": _P<{ post: _O["create_correction_corrections_post"] }>;
   "/evidence/lineage": _P<{ get: _O["get_evidence_lineage_evidence_lineage_get"] }>;
-  "/health": _P<{ get: _O["health_check_health_get"] }>;
+  "/health": _P<{ get: _O["health_health_get"] }>;
   "/journal-entries": _P<{ get: _O["list_journal_entries_journal_entries_get"]; post: _O["create_entry_journal_entries_post"] }>;
   "/journal-entries/{entry_id}": _P<{ get: _O["get_journal_entry_journal_entries__entry_id__get"]; delete: _O["delete_journal_entry_journal_entries__entry_id__delete"] }>;
   "/journal-entries/{entry_id}/audit": _P<{ get: _O["get_journal_entry_audit_journal_entries__entry_id__audit_get"] }>;
   "/journal-entries/{entry_id}/postings": _P<{ post: _O["post_entry_journal_entries__entry_id__postings_post"] }>;
   "/journal-entries/{entry_id}/voidings": _P<{ post: _O["void_entry_journal_entries__entry_id__voidings_post"] }>;
+  "/livez": _P<{ get: _O["livez_livez_get"] }>;
   "/llm/catalog": _P<{ get: _O["get_catalog_llm_catalog_get"] }>;
   "/llm/config/status": _P<{ get: _O["get_config_status_llm_config_status_get"] }>;
   "/llm/providers": _P<{ get: _O["list_providers_llm_providers_get"]; post: _O["create_provider_llm_providers_post"] }>;
@@ -84,6 +85,7 @@ export interface paths {
   "/portfolio/{ticker}": _P<{ patch: _O["update_holding_cost_basis_method_portfolio__ticker__patch"] }>;
   "/portfolio/{ticker}/dividends": _P<{ get: _O["get_holding_dividends_portfolio__ticker__dividends_get"]; post: _O["create_holding_dividend_portfolio__ticker__dividends_post"] }>;
   "/portfolio/{ticker}/realized": _P<{ get: _O["get_holding_realized_lots_portfolio__ticker__realized_get"] }>;
+  "/readyz": _P<{ get: _O["readyz_readyz_get"] }>;
   "/reconciliation/adjustment": _P<{ post: _O["post_reconciliation_adjustment_reconciliation_adjustment_post"] }>;
   "/reconciliation/matches": _P<{ get: _O["list_matches_reconciliation_matches_get"]; post: _O["batch_update_matches_reconciliation_matches_post"] }>;
   "/reconciliation/matches/{match_id}/accept": _P<{ post: _O["accept_match_reconciliation_matches__match_id__accept_post"] }>;
@@ -632,6 +634,12 @@ export interface components {
       structured_suggestions?: _S["AdvisorSuggestion"][];
       suggestions: string[];
     };
+    CheckDetail: {
+      detail: string;
+      duration_ms: number;
+      required: boolean;
+      status: string;
+    };
     CheckStatus: "pending" | "approved" | "rejected" | "flagged";
     CheckType: "duplicate" | "transfer_pair" | "anomaly";
     ConsistencyCheckListResponse: {
@@ -830,6 +838,18 @@ export interface components {
     };
     HTTPValidationError: {
       detail?: _S["ValidationError"][];
+    };
+    HealthResponse: {
+      checks: {
+        [key: string]: _S["CheckDetail"];
+      };
+      git_sha: string;
+      reasons: string[];
+      service: string;
+      status: string;
+      version: string;
+    } & {
+      [key: string]: unknown;
     };
     HoldingResponse: {
       account_id: string;
@@ -1528,6 +1548,11 @@ export interface components {
       source: string;
       success: boolean;
     };
+    ProbeResponse: {
+      reasons?: string[] | null;
+      service: string;
+      status: string;
+    };
     ProcessingPendingItem: {
       amount: string;
       currency: string;
@@ -2110,12 +2135,13 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["EvidenceLineageResponse"]>;
   };
-  health_check_health_get: {
-    parameters: _QP<{
-        full?: boolean;
-      }>;
+  health_health_get: {
+    parameters: _NP;
     requestBody?: never;
-    responses: _R<unknown>;
+    responses: {
+      200: _J<_S["HealthResponse"]>;
+      503: _J<_S["HealthResponse"]>;
+    };
   };
   list_journal_entries_journal_entries_get: {
     parameters: _QP<{
@@ -2163,6 +2189,13 @@ export interface operations {
       }>;
     requestBody: _B<_S["VoidJournalEntryRequest"]>;
     responses: _R<_S["JournalEntryResponse"]>;
+  };
+  livez_livez_get: {
+    parameters: _NP;
+    requestBody?: never;
+    responses: {
+      200: _J<_S["ProbeResponse"]>;
+    };
   };
   get_catalog_llm_catalog_get: {
     parameters: _QP<{
@@ -2285,6 +2318,14 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<_S["RealizedLotResponse"][]>;
+  };
+  readyz_readyz_get: {
+    parameters: _NP;
+    requestBody?: never;
+    responses: {
+      200: _J<_S["ProbeResponse"]>;
+      503: _J<_S["ProbeResponse"]>;
+    };
   };
   post_reconciliation_adjustment_reconciliation_adjustment_post: _Op<_S["ReconciliationAdjustmentResponse"], _NP, _S["ReconciliationAdjustmentRequest"]>;
   list_matches_reconciliation_matches_get: {
