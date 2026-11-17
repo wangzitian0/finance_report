@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from infra2_sdk.fastapi import ErrorResponse
+
+__all__ = [
+    "COMMON_ERROR_RESPONSES",
+    "STATUS_TO_ERROR_CODE",
+    "ErrorCode",
+    "ErrorResponse",
+    "error_code_for_status",
+]
 
 
 class ErrorCode(str, Enum):
@@ -41,12 +49,6 @@ def error_code_for_status(status_code: int) -> ErrorCode:
     if status_code in STATUS_TO_ERROR_CODE:
         return STATUS_TO_ERROR_CODE[status_code]
     return ErrorCode.HTTP_ERROR if status_code < 500 else ErrorCode.INTERNAL_ERROR
-
-
-class ErrorResponse(BaseModel):
-    error_id: str = Field(..., description="Machine-readable error code.", examples=["not_found"])
-    detail: str
-    request_id: str | None = None
 
 
 COMMON_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {

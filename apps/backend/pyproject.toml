@@ -37,16 +37,14 @@ dependencies = [
     # fallback in statement_pipeline.py), so installing the client there is
     # inert, not wasted: it's the same image either way.
     "prefect>=3.7.0",
-    # A real runtime import (health.py, adapters.py, storage.py), not test/dev-only, so it
-    # belongs in [project.dependencies]: the Docker image builds with
-    # `uv sync --frozen --no-dev`, which would otherwise exclude it entirely
-    # and crash the app on import at container startup.
-    # The line below installs the SDK core with no extras. The app installs these optional
-    # packages on its own: boto3 (SDK `s3`), httpx (SDK `http`), opentelemetry-sdk and
-    # opentelemetry-exporter-otlp-proto-http (SDK `otel`). The app does NOT install `psycopg`
-    # (SDK `postgres`) or `opentelemetry-instrumentation-logging` (SDK `otel`). So
-    # `probe_postgres` and `configure_telemetry(set_global=True)` cannot run here.
-    "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v3.31.0/infra2_sdk-3.31.0-py3-none-any.whl",
+    # A real runtime import (main.py, adapters.py, storage.py, worker_telemetry.py),
+    # not test/dev-only, so it belongs in [project.dependencies]: the Docker image
+    # builds with `uv sync --frozen --no-dev`, which would otherwise exclude it
+    # entirely and crash the app on import at container startup.
+    # The `otel` extra installs `opentelemetry-instrumentation-logging` so
+    # `infra2_sdk.fastapi.init_service` and `infra2_sdk.runtime.otel.init_worker`
+    # own OTel traces/metrics/logs, JSON logging, /livez, /readyz, and /health.
+    "infra2-sdk[otel] @ https://github.com/wangzitian0/infra2-sdk/releases/download/v3.32.0/infra2_sdk-3.32.0-py3-none-any.whl",
 ]
 
 [dependency-groups]

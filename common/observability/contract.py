@@ -73,26 +73,26 @@ api-key-from-env-not-argv|The OpenPanel query CLI reads its API key from the env
 6.3|The app publishes its deploy-time env requirements.|^|P1
 6.4|Vault-owned observability fields are marked explicitly in required-env.|^|P1
 @$be/infra/test_logger.py
-1.2|Optional OTLP log export is configured.|test_configure_otel_logging_with_fake_exporter|P1
-4.2|Configuring OTEL logging wires the OTLP exporter, resource.|^|P1
-7.2|Logs export over OTLP through the configured exporter.|^
-1.3||test_select_renderer_uses_json_in_production
-2.2||test_build_otlp_logs_endpoint_preserves_logs_path
-4.1||test_configure_otel_logging_missing_dependency_warns
-1.4||test_select_renderer_uses_console_in_debug
-1.5||test_configure_logging_basic
-1.6||test_configure_logging_production_mode
-2.1||test_build_otlp_logs_endpoint_adds_suffix|P1
-4.5||test_configure_otel_tracing_missing_dependency_warns
-4.6||test_configure_otel_logging_no_endpoint
-4.7||test_build_otel_resource
-4.8||test_configure_otel_tracing_no_endpoint
-4.9||test_configure_otel_tracing_with_fake_exporter
-4.10||test_configure_otel_tracing_appends_traces_path
-16.1||test_build_processors_returns_list
-16.2||test_add_trace_context_with_valid_span
-16.3||test_add_trace_context_with_invalid_span
-16.4||test_add_trace_context_handles_import_error
+1.2|SDK JSON formatter emits structured JSON and trace context.|test_sdk_json_formatter_emits_structured_json_and_trace_context|P1
+4.2|Configuring logging installs SDK JSON stdout handler.|test_configure_logging_installs_sdk_json_handler|P1
+7.2|SDK OtelSettings resolves service identity and resource attributes.|test_otel_settings_reads_resource_attributes
+1.3||test_sdk_json_formatter_emits_structured_json_and_trace_context
+2.2||test_build_otlp_logs_endpoint_delegates_to_public_sdk_helper
+4.1||test_otel_settings_reads_resource_attributes
+1.4||test_sdk_json_formatter_emits_structured_json_and_trace_context
+1.5||test_configure_logging_installs_sdk_json_handler
+1.6||test_configure_logging_installs_sdk_json_handler
+2.1||test_build_otlp_logs_endpoint_delegates_to_public_sdk_helper|P1
+4.5||test_otel_settings_reads_resource_attributes
+4.6||test_configure_logging_installs_sdk_json_handler
+4.7||test_otel_settings_reads_resource_attributes
+4.8||test_configure_logging_installs_sdk_json_handler
+4.9||test_sdk_json_formatter_emits_structured_json_and_trace_context
+4.10||test_build_otlp_logs_endpoint_delegates_to_public_sdk_helper
+16.1||test_sanitize_value_and_fields_redact_pii_and_risky_keys
+16.2||test_sdk_json_formatter_emits_structured_json_and_trace_context
+16.3||test_sdk_json_formatter_emits_structured_json_and_trace_context
+16.4||test_sdk_json_formatter_emits_structured_json_and_trace_context
 @$be/api/test_statements_router.py
 8.1||test_AC10_8_1_upload_audit_logs_include_statement_input_provenance
 8.3||test_AC10_8_3_statement_scoped_brokerage_import_audit_logs
@@ -114,9 +114,9 @@ fe-telemetry.3||AC24.1.3 keeps the error type but redacts the message/stack
 fe-telemetry.4||emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)
 fe-telemetry.5||dispatches an OpenPanel event via window.op when configured (AC24.2.2)
 @$be/infra/test_request_log_probe_filter.py
-19.1||test_AC_observability_19_1_successful_health_probe_writes_no_request_log_line
-19.2||test_AC_observability_19_2_failed_health_probe_still_writes_request_log_line
-19.3||test_AC_observability_19_3_non_probe_request_keeps_its_request_log_line
+19.1||test_AC_observability_19_1_successful_health_probe_sets_request_id_and_suppresses_access_logs
+19.2||test_AC_observability_19_2_failed_health_probe_returns_503_with_request_id
+19.3||test_AC_observability_19_3_non_probe_path_keeps_uvicorn_access_log
 @$be/identity/test_auth.py
 11.1||test_AC10_11_1_get_current_user_id_binds_user_context
 @$be/infra/test_worker_telemetry.py|P1

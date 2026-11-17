@@ -12,8 +12,6 @@ The declared-required enforcement and the compose/lifecycle integration.
 
 from __future__ import annotations
 
-from importlib import import_module
-
 from src.runtime.base.env_classification import (
     NON_DEPENDENCY_ENV_FIELDS,
     check_env_classification,
@@ -65,14 +63,4 @@ __all__ = [
     "register_known_storage_paths_provider",
     "resolve_env_tier",
     "run_storage_sweep",
-    "runtime_system_router",
 ]
-
-
-def __getattr__(name: str) -> object:
-    """Resolve the HTTP router lazily to avoid boot/runtime import cycles."""
-    if name != "runtime_system_router":
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    value = getattr(import_module("src.runtime.extension.api"), "router")
-    globals()[name] = value
-    return value

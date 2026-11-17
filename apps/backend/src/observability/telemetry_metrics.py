@@ -7,14 +7,13 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import src.config
+from src.observability import get_logger
 from src.observability.audit import safe_error_message
-from src.observability.logger import get_logger
 
 settings = src.config.settings
 
 _metrics_export_active = False
 _meter: Any | None = None
-_meter_provider: Any | None = None
 _instruments: dict[str, Any] = {}
 _async_parse_in_flight = 0
 _prime_new_series = False
@@ -56,12 +55,6 @@ INVARIANT_VIOLATION_KINDS = (
 INVARIANT_INSTITUTION_CLASSES = ("bank", "brokerage", "unknown")
 
 
-def _build_otel_resource() -> Any:
-    from src.observability.logger import _build_otel_resource as _shared_build_resource
-
-    return _shared_build_resource()
-
-
 def _build_otlp_metrics_endpoint(endpoint: str) -> str:
     from infra2_sdk.runtime.otel import signal_endpoint
 
@@ -74,10 +67,13 @@ def mark_metrics_export_active(active: bool = True) -> None:
 
 
 def flush_otel_metrics(timeout_millis: int = 10000) -> None:
-    if _meter_provider is None:
-        return
     try:
-        _meter_provider.force_flush(timeout_millis)
+        from opentelemetry import metrics
+
+        provider = metrics.get_meter_provider()
+        force_flush = getattr(provider, "force_flush", None)
+        if callable(force_flush):
+            force_flush(timeout_millis)
     except Exception:
         logging.getLogger(__name__).warning("OTEL metric flush failed", exc_info=True)
 
@@ -98,11 +94,10 @@ def _add_counter(name: str, counter: Any, attributes: dict[str, str]) -> None:
 
 
 def _clear_metrics_state() -> None:
-    global _meter, _meter_provider
+    global _meter
     _primed_series.clear()
     enable_series_priming(False)
     _meter = None
-    _meter_provider = None
     _instruments.clear()
     mark_metrics_export_active(False)
 
@@ -112,26 +107,18 @@ def is_metrics_export_active() -> bool:
 
 
 def configure_otel_metrics() -> None:
-    global _meter, _meter_provider
+    """Bind app counters/gauges to the SDK-configured global OpenTelemetry meter provider."""
+    global _meter
     if not settings.otel_exporter_otlp_endpoint:
         _clear_metrics_state()
         return
     try:
         from opentelemetry import metrics
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-        from opentelemetry.sdk.metrics import MeterProvider
-        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
     except Exception:  # pragma: no cover
-        logging.getLogger(__name__).warning("OTEL metric exporter not available", exc_info=True)
+        logging.getLogger(__name__).warning("OTEL metrics API not available", exc_info=True)
         _clear_metrics_state()
         return
 
-    reader = PeriodicExportingMetricReader(
-        OTLPMetricExporter(endpoint=_build_otlp_metrics_endpoint(settings.otel_exporter_otlp_endpoint))
-    )
-    provider = MeterProvider(resource=_build_otel_resource(), metric_readers=[reader])
-    metrics.set_meter_provider(provider)
-    _meter_provider = provider
     _meter = metrics.get_meter("finance-report-backend")
     _create_instruments(_meter)
     mark_metrics_export_active(True)

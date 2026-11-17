@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `contract`
-- Endpoint count: `117`
-- Schema count: `260`
+- Endpoint count: `119`
+- Schema count: `263`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -15,6 +15,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Group | Endpoints |
 |---|---:|
+| `Observability` | 3 |
 | `accounts` | 9 |
 | `ai-feedback` | 2 |
 | `app-config` | 2 |
@@ -33,11 +34,18 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `reports` | 21 |
 | `review` | 6 |
 | `statements` | 13 |
-| `untagged` | 1 |
 | `user-settings` | 2 |
 | `workflow` | 3 |
 
 ## Endpoints
+
+### Observability
+
+| Method | Path | Auth | Params | Request | Success responses | Summary |
+|---|---|---|---|---|---|---|
+| `GET` | `/health` | no | - | - | `200` `HealthResponse` | Health |
+| `GET` | `/livez` | no | - | - | `200` `ProbeResponse` | Livez |
+| `GET` | `/readyz` | no | - | - | `200` `ProbeResponse` | Readyz |
 
 ### accounts
 
@@ -239,12 +247,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/statements/{statement_id}/review/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
 | `GET` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | - | `200` `ListResponse_StatementRunRecord_` | List Statement Runs |
 | `POST` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | `StatementRunRequest` | `202` `StatementRunRecord` | Create Statement Run |
-
-### untagged
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/health` | no | `full` (query) | - | `200` - | Health Check |
 
 ### user-settings
 

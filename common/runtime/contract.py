@@ -42,7 +42,7 @@ DependencyKind DependencyManifest EnvTier LlmCheck MarketDataCheck
 NON_DEPENDENCY_ENV_FIELDS ObjectStorageCheck RedisCheck StorageError StorageService
 TelemetryCheck VPS_TIERS WorkflowEngineCheck check_env_classification
 redact_presigned_url register_known_storage_paths_provider resolve_env_tier
-run_storage_sweep runtime_system_router
+run_storage_sweep
 """.split(),
     events=[],
     invariants=invs(

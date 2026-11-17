@@ -1,28 +1,188 @@
-from unittest.mock import AsyncMock; from httpx import AsyncClient
-async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch) -> None: 'AC-runtime.7.1'; from src.boot import Bootloader, ServiceStatus; monkeypatch.setattr(Bootloader, '_check_s3', AsyncMock(return_value=ServiceStatus('s3', 'ok', 'Reachable'))); response = await client.get('/health?full=1'); assert response.status_code == 200; data = response.json(); assert 'status' in data; assert 'timestamp' in data; assert 'checks' in data; assert data['checks']['database'] is True; assert data['checks']['s3'] is True
-async def test_health_endpoint_structure(client: AsyncClient) -> None: 'AC-runtime.7.1'; response = await client.get('/health?full=1'); assert response.status_code in [200, 503]; data = response.json(); assert 'status' in data; assert 'timestamp' in data; assert 'checks' in data; checks = data['checks']; assert 'database' in checks; assert 's3' in checks; assert isinstance(checks['database'], bool); assert isinstance(checks['s3'], bool)
+from unittest.mock import AsyncMock
+from httpx import AsyncClient
+
+
+async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch) -> None:
+    "AC-runtime.7.1"
+    from src.boot import Bootloader, ServiceStatus
+
+    monkeypatch.setattr(Bootloader, "_check_s3", AsyncMock(return_value=ServiceStatus("s3", "ok", "Reachable")))
+    response = await client.get("/health?full=1")
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert "timestamp" in data
+    assert "checks" in data
+    assert data["checks"]["database"]["status"] == "present"
+    assert data["checks"]["object_storage"]["status"] == "present"
+
+
+async def test_health_endpoint_structure(client: AsyncClient) -> None:
+    "AC-runtime.7.1"
+    response = await client.get("/health?full=1")
+    assert response.status_code in [200, 503]
+    data = response.json()
+    assert "status" in data
+    assert "timestamp" in data
+    assert "checks" in data
+    checks = data["checks"]
+    assert "database" in checks
+    assert "object_storage" in checks
+    assert isinstance(checks["database"], dict)
+    assert isinstance(checks["object_storage"], dict)
+
+
 async def test_health_returns_503_on_database_failure(public_client: AsyncClient, monkeypatch) -> None:
-    'AC-runtime.7.2'; from src.database import get_db
-    async def mock_get_db(): from unittest.mock import MagicMock; mock_session = MagicMock(); mock_session.execute.side_effect = Exception('DB Down'); yield mock_session
-    from src.main import app; app.dependency_overrides[get_db] = mock_get_db
-    try: response = await public_client.get('/health?full=1'); assert response.status_code == 503; data = response.json(); assert data['status'] == 'unhealthy'; assert data['checks']['database'] is False
-    finally: app.dependency_overrides.clear()
-async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None: 'AC-runtime.7.2'; from src.boot import Bootloader, ServiceStatus; monkeypatch.setattr(Bootloader, '_check_s3', AsyncMock(return_value=ServiceStatus('minio', 'error', 'Bucket missing'))); response = await public_client.get('/health?full=1'); assert response.status_code == 503; data = response.json(); assert data['status'] == 'unhealthy'; assert data['checks']['s3'] is False
-async def test_get_statement_not_found(client: AsyncClient) -> None: response = await client.get('/statements/00000000-0000-0000-0000-000000000000'); assert response.status_code == 404; assert 'not found' in response.json()['detail'].lower()
-async def test_get_pending_review_empty(client: AsyncClient) -> None: response = await client.get('/statements/pending-review'); assert response.status_code == 200; data = response.json(); assert data['items'] == []; assert data['total'] == 0
-async def test_upload_no_file(client: AsyncClient) -> None: response = await client.post('/statements/upload', data={'institution': 'DBS'}); assert response.status_code == 422
+    "AC-runtime.7.2"
+    from src.database import get_db
+
+    async def mock_get_db():
+        from unittest.mock import MagicMock
+
+        mock_session = MagicMock()
+        mock_session.execute.side_effect = Exception("DB Down")
+        yield mock_session
+
+    from src.main import app
+
+    app.dependency_overrides[get_db] = mock_get_db
+    try:
+        response = await public_client.get("/health?full=1")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "unhealthy"
+        assert data["checks"]["database"]["status"] == "absent"
+    finally:
+        app.dependency_overrides.clear()
+
+
+async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None:
+    "AC-runtime.7.2"
+    from src.boot import Bootloader, ServiceStatus
+
+    monkeypatch.setattr(
+        Bootloader, "_check_s3", AsyncMock(return_value=ServiceStatus("minio", "error", "Bucket missing"))
+    )
+    response = await public_client.get("/health?full=1")
+    assert response.status_code == 503
+    data = response.json()
+    assert data["status"] == "unhealthy"
+    assert data["checks"]["object_storage"]["status"] == "absent"
+
+
+async def test_get_statement_not_found(client: AsyncClient) -> None:
+    response = await client.get("/statements/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+async def test_get_pending_review_empty(client: AsyncClient) -> None:
+    response = await client.get("/statements/pending-review")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+
+
+async def test_upload_no_file(client: AsyncClient) -> None:
+    response = await client.post("/statements/upload", data={"institution": "DBS"})
+    assert response.status_code == 422
+
+
 class TestSchemas:
-    def test_review_decision_approved(self): from src.schemas.extraction import StatementDecisionRequest; decision = StatementDecisionRequest(); assert decision.notes is None; from src.schemas.extraction import StatementDecisionRequest; _m1_decision = StatementDecisionRequest(notes='Incorrect amount'); assert _m1_decision.notes == 'Incorrect amount'; from src.schemas.extraction import BankStatementStatusEnum; assert BankStatementStatusEnum.UPLOADED.value == 'uploaded'; assert BankStatementStatusEnum.PARSED.value == 'parsed'; assert BankStatementStatusEnum.APPROVED.value == 'approved'
+    def test_review_decision_approved(self):
+        from src.schemas.extraction import StatementDecisionRequest
+
+        decision = StatementDecisionRequest()
+        assert decision.notes is None
+        from src.schemas.extraction import StatementDecisionRequest
+
+        _m1_decision = StatementDecisionRequest(notes="Incorrect amount")
+        assert _m1_decision.notes == "Incorrect amount"
+        from src.schemas.extraction import BankStatementStatusEnum
+
+        assert BankStatementStatusEnum.UPLOADED.value == "uploaded"
+        assert BankStatementStatusEnum.PARSED.value == "parsed"
+        assert BankStatementStatusEnum.APPROVED.value == "approved"
+
+
 class TestDatabase:
-    def test_base_metadata(self): from src.database import Base; assert Base.metadata is not None; import inspect; from src.database import get_db; assert inspect.isasyncgenfunction(get_db)
+    def test_base_metadata(self):
+        from src.database import Base
+
+        assert Base.metadata is not None
+        import inspect
+        from src.database import get_db
+
+        assert inspect.isasyncgenfunction(get_db)
+
+
 class TestModels:
-    def test_statement_summary_model_table_name(self): from src.extraction.orm.statement_summary import StatementSummary; assert StatementSummary.__tablename__ == 'statement_summaries'; from src.extraction.orm.layer2 import AtomicTransaction; assert AtomicTransaction.__tablename__ == 'atomic_transactions'; from src.extraction import UploadedDocument; assert UploadedDocument.__tablename__ == 'uploaded_documents'; from src.extraction import BankStatementStatus; assert BankStatementStatus.UPLOADED.value == 'uploaded'; assert BankStatementStatus.PARSED.value == 'parsed'; from src.extraction.orm.statement_summary import StatementSummary; assert hasattr(StatementSummary, 'uploaded_document_id'); assert hasattr(StatementSummary, 'file_hash'); assert hasattr(StatementSummary, 'status'); 'AC-extraction.406.8'; 'AC-extraction.406.8'; from src.extraction.orm.layer2 import AtomicTransaction; assert hasattr(AtomicTransaction, 'dedup_hash'); assert hasattr(AtomicTransaction, 'source_documents'); assert hasattr(AtomicTransaction, 'balance_after')
+    def test_statement_summary_model_table_name(self):
+        from src.extraction.orm.statement_summary import StatementSummary
+
+        assert StatementSummary.__tablename__ == "statement_summaries"
+        from src.extraction.orm.layer2 import AtomicTransaction
+
+        assert AtomicTransaction.__tablename__ == "atomic_transactions"
+        from src.extraction import UploadedDocument
+
+        assert UploadedDocument.__tablename__ == "uploaded_documents"
+        from src.extraction import BankStatementStatus
+
+        assert BankStatementStatus.UPLOADED.value == "uploaded"
+        assert BankStatementStatus.PARSED.value == "parsed"
+        from src.extraction.orm.statement_summary import StatementSummary
+
+        assert hasattr(StatementSummary, "uploaded_document_id")
+        assert hasattr(StatementSummary, "file_hash")
+        assert hasattr(StatementSummary, "status")
+        "AC-extraction.406.8"
+        "AC-extraction.406.8"
+        from src.extraction.orm.layer2 import AtomicTransaction
+
+        assert hasattr(AtomicTransaction, "dedup_hash")
+        assert hasattr(AtomicTransaction, "source_documents")
+        assert hasattr(AtomicTransaction, "balance_after")
+
+
 class TestConfig:
-    def test_config_defaults(self, monkeypatch): 'AC7.6.1'; from infra2_sdk.runtime.llm import LlmSettings; from src.config import Settings; monkeypatch.delenv('S3_BUCKET', raising=False); [monkeypatch.delenv(name, raising=False) for name in ('LARGE_MODEL', 'SMALL_MODEL', 'MULTIMODAL_MODEL')]; settings = Settings(_env_file=None); sdk = LlmSettings(); assert settings.ai_provider == 'zai'; assert settings.large_model == sdk.role_model('large'); assert settings.small_model == sdk.role_model('small'); assert settings.multimodal_model == sdk.role_model('multimodal'); assert settings.s3_bucket == 'statements'
-    def test_config_database_url(self): 'AC7.6.1'; from src.config import Settings; settings = Settings(); assert 'postgresql' in settings.database_url or 'sqlite' in settings.database_url
+    def test_config_defaults(self, monkeypatch):
+        "AC7.6.1"
+        from infra2_sdk.runtime.llm import LlmSettings
+        from src.config import Settings
+
+        monkeypatch.delenv("S3_BUCKET", raising=False)
+        [monkeypatch.delenv(name, raising=False) for name in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL")]
+        settings = Settings(_env_file=None)
+        sdk = LlmSettings()
+        assert settings.ai_provider == "zai"
+        assert settings.large_model == sdk.role_model("large")
+        assert settings.small_model == sdk.role_model("small")
+        assert settings.multimodal_model == sdk.role_model("multimodal")
+        assert settings.s3_bucket == "statements"
+
+    def test_config_database_url(self):
+        "AC7.6.1"
+        from src.config import Settings
+
+        settings = Settings()
+        assert "postgresql" in settings.database_url or "sqlite" in settings.database_url
+
+
 async def test_logging_middleware_tags_unhandled_exception(monkeypatch) -> None:
-    from unittest.mock import MagicMock; import pytest; from fastapi import Request; from src import main as main_module; from src.observability import ErrorIds; mock_logger = MagicMock(); monkeypatch.setattr(main_module, 'logger', mock_logger)
-    async def failing_call_next(_req): raise RuntimeError('boom')
-    request = MagicMock(spec=Request); request.method = 'GET'; request.url = MagicMock(); request.url.path = '/test'; request.scope = {'type': 'http', 'method': 'GET', 'path': '/test'}
-    with pytest.raises(RuntimeError, match='boom'): await main_module.logging_middleware(request, failing_call_next)
-    mock_logger.exception.assert_called_once(); assert mock_logger.exception.call_args.kwargs.get('error_id') == ErrorIds.UNHANDLED_EXCEPTION
+    from unittest.mock import MagicMock
+    from fastapi import Request
+    from src import main as main_module
+    from src.observability import ErrorIds
+
+    mock_logger = MagicMock()
+    monkeypatch.setattr(main_module, "logger", mock_logger)
+    request = MagicMock(spec=Request)
+    request.state = MagicMock()
+    request.state.request_id = "req-123"
+    resp = await main_module.global_exception_handler(request, RuntimeError("boom"))
+    assert resp.status_code == 500
+    assert resp.headers["X-Request-ID"] == "req-123"
+    mock_logger.exception.assert_called_once()
+    assert mock_logger.exception.call_args.kwargs.get("error_id") == ErrorIds.UNHANDLED_EXCEPTION

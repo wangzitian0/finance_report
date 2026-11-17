@@ -7,10 +7,10 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid5
 
-import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType
+from src.observability import get_logger
 from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
 from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReportingFrameworkId, ReportLineId
 from src.reporting.extension.balance_sheet import generate_balance_sheet
@@ -23,7 +23,7 @@ from src.reporting.extension.reporting_calc import (
     _quantize_money,
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 # Deterministic namespace for L1 consolidated line UUIDs.
 _L1_NAMESPACE = UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
