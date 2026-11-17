@@ -122,17 +122,9 @@ seeded-journey.3||test_seeded_statement_transactions_and_reconciliation
 @$be/identity/test_auth_shift_left.py
 must-have.8||test_password_hashing_and_verification
 must-have.9||test_invalid_token_rejected_with_401
-@$t/test_check_critical_proof_matrix.py
-trust-mirrors.1||test_valid_behavioral_static_and_manual_entries_pass
-trust-mirrors.2||test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror
-acgates.5||test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids
-acgates.6||test_AC8_13_50_macro_outcome_contract_rejects_drift
-acgates.7||test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations
 @$t/test_personal_report_package_fixture_contract.py
-trust-mirrors.3||test_AC8_14_3_personal_package_has_deterministic_package_document_mirror
 product-gates.8||test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs
 product-gates.9||test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract
-product-gates.10||test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract
 product-gates.11||test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs
 product-gates.12||test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs
 @$be/integration/test_reporting_e2e.py
@@ -157,7 +149,6 @@ matrix.6||test_AC8_22_6_charter_and_manifest_ownership|P1
 conformance.1||test_AC8_23_1_every_workflow_pytest_invocation_is_registered
 conformance.2||test_AC8_23_2_registered_invocations_match_matrix_selection
 conformance.3||test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows|P1
-conformance.4||test_AC8_23_4_pr_ci_evidence_reconciliation_gate
 @$t/test_package_declaration_and_ratchet.py
 declarations.1||test_AC8_24_1_seed_packages_declare_owned_test_roots
 declarations.2||test_AC8_24_2_e2e_stages_run_their_environment_precondition_first
@@ -267,38 +258,12 @@ ci-structure.15||test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsa
 governance.11||test_AC7_15_1_real_repo_passes_the_workflow_contract
 governance.12||test_AC7_15_2_stale_or_missing_contract_inputs_fail
 governance.13||test_AC7_15_3_stale_ci_classifier_job_name_fails
-@$t/test_ac_index_consistency.py|P1
-acgates.1|In-memory AC registry loader (common/meta/extension/generate_ac_registry.py) extracts entries from package roadmaps and marked EPIC residue.|test_AC8_13_139_no_committed_materialized_index_files|P0
-acgates.15|The historical AC-score ratchet baseline (common/testing/data/ac-score-baseline.jsonl) and its one-consumer scoring machinery are retired alongside the materialized proof/vision/status views.|^
-acgates.14||test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral|P0
-acgates.16||test_AC8_13_139_gate_passes_on_consistent_tree
-acgates.17||test_AC8_13_140_every_ac_managed_with_empty_protection_passes
-@$t/test_check_ac_traceability.py
-acgates.3||test_classifies_placeholder_assertion
-acgates.4||test_placeholder_and_stub_refs_do_not_count_as_real_coverage
-acgates.11||test_AC8_13_78_ci_required_real_refs_cover_mandatory_gate
-@$t/test_lint_doc_consistency.py
-acgates.10||test_AC8_13_77_active_stub_orphan_fails
-governance.2||test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number|P1
 @$t/test_schema_quality_contract.py
-acgates.13||test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface|P1
 schema.1||test_AC8_13_121_pr_ci_runs_schema_migration_contract
 schema.2||test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets
 schema.3||test_AC8_13_123_schema_guardrails_scan_real_migration_directory
-@$t/test_two_gate_consolidation.py|P1
-acgates.18||test_AC8_13_141_green_tree_old_gates_and_consolidated_agree
-@$t/test_ac_proof_execution_model.py|P1|done|property
-gate-inventory.2||test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
-@$t/test_runtime_incident_response_ssot.py
-governance.6||test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage
 @$t/test_governance_exceptions_registry.py|P1
 governance.7||test_AC8_13_131_every_classified_entry_links_an_owner_and_issue
-@$t/test_no_ac_test_classification.py|P1
-governance.8||test_AC8_13_132_no_unclassified_no_ac_test_files
-@$t/test_ssot_cross_document_anchors.py|P1
-governance.9||test_AC8_13_133_concepts_registered_in_manifest_with_anchored_owner
-@$t/test_stale_docs_consolidation.py|P1
-governance.10||test_AC8_13_134_mkdocs_nav_links_resolve
 @$t/test_secret_scan_gate.py
 secret-scan.1||test_AC8_13_136_gitleaks_runs_in_precommit_and_ci
 @$t/test_build_secret_scan_contract.py
@@ -365,21 +330,12 @@ fe-coverage.3||AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction tabl
 fe-coverage.4||AC8.13.92 keeps the frontend Vitest threshold baseline code-owned
 @$t/test_s4_testing_gate_infrastructure.py|P1
 governance.14||test_AC_testing_governance_14_jsonl_baseline_bindings_share_parameterized_behavior
-governance.15||test_AC_testing_governance_15_traceability_tools_share_scanner_and_canonical_sort
 @$t/test_s4_tool_homing.py|P1
 governance.19||test_AC_testing_governance_19_ai_ocr_gate_and_data_are_package_owned
 governance.20||test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt
 toolchain.13||test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain|P2
 @$t/test_executed_proof.py
-capability-proof.1||test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates
 capability-proof.3||test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_closed
-capability-proof.4||test_AC_testing_capability_proof_4_partial_rerun_accepts_earlier_attempt_of_same_run
-@$t/test_trusted_year_scenario.py
-capability-proof.2||test_AC_testing_capability_proof_2_binding_rejects_stitching
-trusted-year.1||test_AC_testing_trusted_year_1_scenario_is_small_exact_and_closed
-@$t/test_source_capability_proof.py
-source-capability-proof.1||test_AC_testing_source_capability_proof_1_real_registry_resolves_to_required_proofs
-source-capability-proof.2||test_AC_testing_source_capability_proof_2_static_matrix_is_retired
 @$be/integration/test_trusted_year_scenario.py
 trusted-year.2|The v0 scenario deterministically traverses reviewed source authority, ledger posting, valuation, and every report section to exact oracle values.|test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle
 trusted-year.3|Cross-scope and target-mismatched authority mutations are rejected, and superseding every authority parent in the selected manifest makes the next package candidate draft/unproven.|^
@@ -412,17 +368,6 @@ benchmarks.11||test_AC_testing_benchmarks_11_a_missing_statement_fact_is_never_r
 benchmarks.12||test_AC_testing_benchmarks_12_a_manifest_entry_without_a_hash_fails_verification
 @$t/test_benchmark_runner_upload.py|P2
 benchmarks.16||test_AC_testing_benchmarks_16_a_csv_without_an_institution_gets_the_default_institution
-@$t/test_journey_board.py|P1
-journey-board.1||test_AC_testing_journey_board_1_checkpoint_status_follows_reached_order
-journey-board.2||test_AC_testing_journey_board_2_retry_skip_and_absence_are_distinct
-journey-board.3||test_AC_testing_journey_board_3_missing_evidence_is_shown_not_hidden
-journey-board.4||test_AC_testing_journey_board_4_index_and_fragment_are_regenerated_honestly
-journey-board.5||test_AC_testing_journey_board_5_checkpoint_map_matches_test_source
-journey-board.6||test_AC_testing_journey_board_6_publisher_wiring_keeps_gates_read_only
-journey-board.7||test_AC_testing_journey_board_7_core_journey_lane_runs_after_deploy_and_files_no_alert
-journey-board.8||test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_evidence
-@$t/test_core_journey_order.py|P2
-journey-board.9||test_AC_testing_journey_board_9_the_burst_journeys_run_last
 @$t/test_backend_test_timeout.py|P1|done|property
 backend-test-timeout.1||test_AC_testing_backend_test_timeout_1_config_sets_a_thread_timeout_that_fits_the_pr_budget
 backend-test-timeout.2||test_AC_testing_backend_test_timeout_2_a_hung_test_fails_by_name_with_the_project_method
@@ -450,30 +395,20 @@ e2e-failure-diagnostics.2||test_AC_testing_e2e_failure_diagnostics_2_select_touc
     ),
     concepts=concepts(
         """
-trusted_year_scenario|common/testing/readme.md#trusted-year-scenario|Small immutable annual input, independent Decimal oracle, and single-proof binding for terminal report-package verification.|common/testing/trusted_year.py,apps/backend/tests/integration/test_trusted_year_scenario.py,tests/tooling/test_trusted_year_scenario.py|tests/tooling/test_trusted_year_scenario.py,apps/backend/tests/integration/test_trusted_year_scenario.py|tdd|concept
-journey_board|common/testing/readme.md#journey-board|Per-revision core-journey board.|common/testing/journey_board.py,common/testing/data/core-journey-checkpoints.json,runtime-hooks.manifest.json,docs/board/index.html,tests/e2e/journey_checkpoint.py|tests/tooling/test_journey_board.py|delivery|concept
+trusted_year_scenario|common/testing/readme.md#trusted-year-scenario|Small immutable annual input, independent Decimal oracle, and single-proof binding for terminal report-package verification.|common/testing/trusted_year.py,apps/backend/tests/integration/test_trusted_year_scenario.py|apps/backend/tests/integration/test_trusted_year_scenario.py|tdd|concept
 tool_shim_contract|common/testing/tool_shim_contract.py|Shrink-only line-count ratchet that prevents new top-level tools/*.py implementations over 40 lines.|common/testing/readme.md,tests/tooling/test_s4_tool_homing.py|tests/tooling/test_s4_tool_homing.py|delivery|baseline
 staging_ai_ocr_gate_contract|common/testing/staging_ai_ocr_gate_contract.py|Package-owned staging AI-OCR corpus, replay accounting, preflight, and JUnit classification contract.|common/testing/data/staging-ai-ocr-replay-counters.json,runtime-hooks.manifest.json|tests/tooling/test_staging_ai_ocr_gate_contract.py,tests/tooling/test_s4_tool_homing.py|delivery|concept
 developer_toolchain|common/runtime/dev/toolchain.py|Shared runtime-version, uv command, and env-aware container runtime selection for local developer commands.|common/runtime/dev/cli.py,common/runtime/dev/dev_backend.py,common/runtime/dev/test_lifecycle.py|tests/tooling/test_s4_tool_homing.py|development|concept
 gate_cli|common/meta/base/gate_cli.py|Shared policy-gate command boundary for repository-root parsing, workflow-command-safe annotations, summaries, and integer status codes.|common/testing/readme.md|tests/tooling/test_s4_testing_gate_infrastructure.py|delivery|concept
-ac_graph|common/testing/ac_graph.py|The one AC-keyed graph (EPIC -> AC -> Proof -> vision).|common/testing/tdd.md,common/testing/data/critical-proof-outcomes.yaml,common/testing/data/protection-floor.json,common/testing/protection.py,common/testing/ac_proof.py,vision.md,.github/workflows/ci.yml|tests/tooling/test_ac_index_consistency.py,tools/check_ac_index.py|tdd|model
-ac_proof_execution_model|common/testing/ci-cd.md#ac-proof-execution-model|AC-keyed proof execution placement model.|common/testing/ac_proof_execution.py,common/testing/ac_proof.py,common/testing/ac_graph.py,docs/project/EPIC-008.testing-strategy.md|tests/tooling/test_ac_proof_execution_model.py|delivery|concept|documented_contract|ci_workflow
 ci_workflow|common/testing/ci-cd.md#ci-job-structure|CI job structure (lint → backend shards → frontend → coverage) and the local guardrail tiers (pre-commit → pre-push → CI) that left-move its cheap drift gates.|common/meta/development.md,common/testing/coverage.md,.github/workflows/ci.yml,.pre-commit-config.yaml|-|tdd|playbook
-critical_proof_matrix|common/testing/generate_critical_proof_matrix.py|README -> EPIC -> E2E macro outcome guard and core proof-path matrix, a DERIVED (not committed) view of the one AC-keyed graph.|README.md,common/testing/tdd.md,common/testing/ci-cd.md,common/testing/data/critical-proof-outcomes.yaml,common/testing/ac_graph.py,.github/workflows/ci.yml,common/testing/ac_proof.py,tools/check_ac_index.py|-|tdd|matrix|-|ac_graph
-critical_proof_outcomes|common/testing/data/critical-proof-outcomes.yaml|Hand-maintained macro-outcome contract source (outcome -> owner EPICs + proof_ids) merged into the derived critical proof matrix view.|common/testing/ac_graph.py,common/testing/generate_critical_proof_matrix.py|-|tdd|registry|human_curated|critical_proof_matrix
 github_action_runtime|common/testing/data/github-action-runtime.yaml|External GitHub JavaScript action runtime inventory.|common/testing/ci-cd.md,.github/workflows/ci.yml|tests/tooling/test_workflow_contract.py,tests/tooling/test_post_merge_e2e_gates.py|delivery|matrix|human_curated|ci_workflow
 pdf_fixtures|common/testing/readme.md#pdf-fixtures|Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback.|common/testing/fixtures/pdf/README.md,common/testing/fixtures/pdf/FONT_HANDLING.md,common/testing/fixtures/pdf/analyzers/README.md,tests/tooling/test_pdf_fixture_epic009_behavior.py,tests/tooling/test_pdf_fixture_parseable.py|-|pdf|concept
 pr_review_thread_merge_gate|common/testing/ci-cd.md#pr-review-thread-merge-gate|Merge-time gate that blocks unresolved P0/P1 (and Copilot-authored) PR review threads, and the documented severity classification rule.|docs/project/EPIC-008.testing-strategy.md,.github/workflows/ci.yml|tests/tooling/test_check_pr_review_threads.py|delivery|concept|documented_contract
-protection_count_floor|common/testing/data/protection-floor.json|Per-type PROTECTION COUNT floor (Gate B of tools/check_ac_index.py).|common/testing/tdd.md,common/testing/protection.py,common/testing/check_ac_index.py,tools/check_ac_index.py,tests/tooling/test_ac_index_consistency.py|-|tdd|baseline|machine_generated|tdd_workflow
-source_capability_proof_join|common/testing/source_capability_proof.py|Generic fail-closed join from owner-declared source capabilities to the existing AC proof graph.|apps/backend/src/extraction/base/source_capability.py,common/testing/ac_proof.py,common/testing/check_ac_index.py,tools/check_ac_index.py|tests/tooling/test_source_capability_proof.py,tools/check_ac_index.py|source|concept
-ssot_governance_gates|common/testing/tdd.md#ssot-governance-gates|Incremental prevent-worse CI gates for changed SSOT files and changed manifest entries.|docs/project/EPIC-014.ttd-transformation.md,common/meta/data/governance-exceptions.yaml,common/meta/extension/governance_report/_gate.py,tools/report_ssot_governance.py,tests/tooling/test_ssot_governance_report.py,.github/workflows/ci.yml|-|tdd|concept
-ssot_governance_metrics|common/testing/tdd.md#ssot-governance-metrics|Report-only governance metrics for SSOT ownership, shape, proof coverage, and future gate candidates.|docs/project/EPIC-014.ttd-transformation.md,common/meta/extension/governance_report/_metrics.py,tools/report_ssot_governance.py,tests/tooling/test_ssot_governance_report.py,.github/workflows/ci.yml|-|tdd|baseline
-tdd_workflow|common/testing/tdd.md|EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.|AGENTS.md,docs/agents/orchestration.md,.github/workflows/ci.yml,tools/check_ac_index.py|-|tdd|playbook
+tdd_workflow|common/testing/tdd.md|EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.|AGENTS.md,docs/agents/orchestration.md,.github/workflows/ci.yml|-|tdd|playbook
 test_coverage|common/testing/coverage.md|Unified coverage system (backend + frontend + common + tools).|common/testing/tdd.md,common/testing/ci-cd.md|tests/tooling/test_ci_metrics_contract.py|tdd|baseline
-test_execution_matrix|common/testing/matrix.py|Test placement and selection SSOT.|common/testing/data/test-execution-matrix.yaml,common/testing/ci-cd.md,common/testing/tdd.md,tools/check_ac_index.py,tools/test_selection.py|tests/tooling/test_execution_matrix_contract.py|tdd|matrix
+test_execution_matrix|common/testing/matrix.py|Test placement and selection SSOT.|common/testing/data/test-execution-matrix.yaml,common/testing/ci-cd.md,common/testing/tdd.md,tools/test_selection.py|tests/tooling/test_execution_matrix_contract.py|tdd|matrix
 test_execution_matrix_generated_view|common/testing/data/test-execution-matrix.yaml|Generated view of common/testing/matrix.py kept for AC-traceability consumers.|common/testing/matrix.py,tools/test_selection.py|tests/tooling/test_execution_matrix_contract.py|tdd|matrix|-|test_execution_matrix
 test_optimization|common/testing/ci-cd.md#test-optimization|Smart/fast/full test modes and 8-way seeded backend sharding strategy.|common/meta/development.md,common/testing/coverage.md|apps/backend/tests/unit/infra/test_test_lifecycle.py,tests/tooling/test_github_workflow_timing_summary.py|platform|concept
-vision_proof_matrix|common/testing/generate_vision_proof_matrix.py|Vision-anchor -> EPIC -> AC -> test proof matrix, a DERIVED (not committed) view of the one AC-keyed graph, built in memory by build_matrix and gated by tools/check_ac_index.py (supersedes #442/#480).|vision.md,common/testing/ac_graph.py,docs/project/EPIC-014.ttd-transformation.md,.github/workflows/ci.yml|tests/tooling/test_generate_vision_proof_matrix.py|tdd|matrix|-|ac_graph
 """
     ),
 )

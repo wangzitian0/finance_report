@@ -1,5 +1,17 @@
-from __future__ import annotations; from common.testing.matrix import PR_EVIDENCE_STAGES, classify_stage; CORPUS_FILE_HINT = 'test_statement_corpus_journeys.py'
-def _corpus_proofs() -> list[dict]: from common.testing.ac_graph import build_proofs_only; from common.testing.generate_critical_proof_matrix import build_matrix_from_graph; proofs = build_matrix_from_graph(build_proofs_only()).get('proofs', []); return [p for p in proofs if CORPUS_FILE_HINT in p.get('file', '')]
+from __future__ import annotations
+
+from pathlib import Path
+
+from common.testing.matrix import PR_EVIDENCE_STAGES, classify_stage
+
+CORPUS_FILE = Path("apps/backend/tests/integration/test_statement_corpus_journeys.py")
+
+
 def test_corpus_is_a_reconciled_pr_ci_proof() -> None:
-    corpus = _corpus_proofs(); assert corpus, f'no @ac_proof found for the real-statement corpus journey ({CORPUS_FILE_HINT}) — the cassette-replay safety net is unanchored.'; pr_ci = [p for p in corpus if p.get('ci_tier') == 'pr_ci']; assert pr_ci, 'the corpus journey must stay a pr_ci proof so it runs pre-merge.'
-    for proof in pr_ci: stage = classify_stage(proof['file']); assert stage in PR_EVIDENCE_STAGES, f"corpus proof {proof['id']} is pr_ci but its file classifies to {stage!r}, which the ci_tier<->JUnit reconciliation does not cover — it could silently stop running. Map its path into a PR-evidence stage."
+    assert CORPUS_FILE.is_file(), (
+        f"missing real-statement corpus journey ({CORPUS_FILE}) — the cassette-replay safety net is unanchored."
+    )
+    stage = classify_stage(CORPUS_FILE.as_posix())
+    assert stage in PR_EVIDENCE_STAGES, (
+        f"corpus file classifies to {stage!r}, which PR_EVIDENCE_STAGES does not cover."
+    )

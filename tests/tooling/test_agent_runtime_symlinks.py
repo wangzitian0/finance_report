@@ -63,5 +63,5 @@ def _repo_py_basenames() -> set[str]:
     names: set[str] = set()
     for (dirpath, dirnames, filenames) in os.walk(ROOT): dirnames[:] = [d for d in dirnames if d not in _PY_SKIP_DIRS]; names.update((fn for fn in filenames if fn.endswith('.py')))
     return names
-_COMMON_ENGINEERING_SKILLS = {'audit', 'close', 'codegraph', 'deploy-evidence', 'prr', 'recall', 'smoke', 'ssot', 'start'}
+_COMMON_ENGINEERING_SKILLS = {'ac-workflow', 'audit', 'close', 'codegraph', 'deploy-evidence', 'prr', 'recall', 'smoke', 'ssot', 'start'}
 def _is_ignored(path: str) -> bool: result = subprocess.run(['git', 'check-ignore', '-q', path], cwd=ROOT, capture_output=True); assert result.returncode in (0, 1), result.stderr.decode(); return result.returncode == 0
