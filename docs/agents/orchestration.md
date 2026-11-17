@@ -18,7 +18,7 @@ Agents deliver a mergeable branch/PR (never commit directly to `main`):
 3. **Test**: Write failing tests first referencing AC IDs with synthetic/anonymized fixtures ([red-lines.md](./red-lines.md)).
 4. **Code & Doc**: Implement minimal code and update the owning package `readme.md` / `contract.py`.
 
-Never hand-author LLM cassettes under `common/testing/fixtures/llm_cassettes/` (always record with `make llm-record`).
+Never hand-author LLM cassettes under `tests/fixtures/llm_cassettes/` (always record with `make llm-record`).
 
 ## Cross-Cutting Contract Reminders
 

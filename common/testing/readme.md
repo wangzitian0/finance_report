@@ -37,7 +37,7 @@ Contracts run at lint/tooling speed (`check_package_contract`, `gate_cli.py`, `t
 
 > **SSOT Key**: `pdf_fixtures`
 
-Generates synthetic statements under `common/testing/fixtures/pdf/` while keeping real statements local and gitignored (`input/`, `output/`).
+Generates synthetic statements under `tests/fixtures/pdf/` while keeping real statements local and gitignored (`input/`, `output/`).
 
 ### Generate Test PDFs
 
@@ -50,7 +50,7 @@ Supported `--source` values: `dbs`, `cmb`, `mari`, `moomoo`, `futu`, `pingan`, `
 ### Analyze Real PDFs
 
 ```bash
-python tools/analyze_pdf_fixture.py --input common/testing/fixtures/pdf/input/real.pdf --output common/testing/fixtures/pdf/templates/dbs_template.yaml --source dbs
+python tools/analyze_pdf_fixture.py --input tests/fixtures/pdf/input/real.pdf --output tests/fixtures/pdf/templates/dbs_template.yaml --source dbs
 ```
 
 ### Commit Policy
@@ -59,4 +59,4 @@ Commit `templates/*.yaml`, analyzers, generators, `fake_data.py`, and wrappers; 
 
 ### Font Fallback
 
-`common/testing/fixtures/pdf/generators/font_utils.py` exposes `register_chinese_fonts()` and `get_safe_font()` (Helvetica fallback). Proven by `tests/tooling/test_pdf_fixture_*.py`.
+`tests/fixtures/pdf/generators/font_utils.py` exposes `register_chinese_fonts()` and `get_safe_font()` (Helvetica fallback). Proven by `tests/tooling/test_pdf_fixture_*.py`.

@@ -211,7 +211,7 @@ banned-models.1||test_AC_llm_banned_models_1_no_tracked_file_names_glm_4_6v
     ),
     concepts=concepts(
         """
-cassette_graded_eval|common/llm/readme.md#cassette-graded-eval|Graded per-field accuracy eval over committed cassettes with a ratcheted per-case score floor (EPIC-023 AC23.8).|common/llm/readme.md#cassettes,docs/project/EPIC-023.llm-provider-abstraction.md,common/testing/cassette_graded_eval.py,common/testing/check_cassette_graded_eval.py,common/testing/fixtures/cassette-eval-baseline.jsonl,common/testing/fixtures/llm_cassettes/|tests/tooling/test_cassette_graded_eval.py|llm|concept
+cassette_graded_eval|common/llm/readme.md#cassette-graded-eval|Graded per-field accuracy eval over committed cassettes with a ratcheted per-case score floor (EPIC-023 AC23.8).|common/llm/readme.md#cassettes,docs/project/EPIC-023.llm-provider-abstraction.md,common/testing/cassette_graded_eval.py,common/testing/check_cassette_graded_eval.py,tests/fixtures/cassette-eval-baseline.jsonl,tests/fixtures/llm_cassettes/|tests/tooling/test_cassette_graded_eval.py|llm|concept
 llm_provider_abstraction|common/llm/readme.md#axes|LLM layer's three orthogonal axes (protocol family x model x scene), scene->model binding, and at-rest provider-secret encryption.|common/extraction/readme.md,docs/project/EPIC-023.llm-provider-abstraction.md,apps/backend/src/llm/base/types.py,apps/backend/src/llm/base/secrets.py,apps/backend/src/llm/extension/cassette.py|apps/backend/tests/llm/test_secrets.py,apps/backend/tests/llm/test_types.py,apps/backend/tests/llm/test_cassette.py|llm|concept
 """
     ),

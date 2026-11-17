@@ -54,7 +54,7 @@ class TestSelectChecks:
             )
         }
         assert {"governance-exceptions"}.issubset(_m6_names)
-        _m7_c_fixture = "common/testing/fixtures/llm_" + "cas" + "settes/example.json"
+        _m7_c_fixture = "tests/fixtures/llm_" + "cas" + "settes/example.json"
         _m7_names = {_m7_c.name for _m7_c in preflight.select_checks([_m7_c_fixture])}
         _m7_expected = {"llm-" + "cas" + "settes", "cas" + "sette-graded-eval"}
         assert _m7_expected.issubset(_m7_names)

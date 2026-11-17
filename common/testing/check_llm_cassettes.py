@@ -25,7 +25,7 @@ from pathlib import Path
 from common.meta.base.gate_cli import run_cli_command
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
+CASSETTE_DIR = REPO_ROOT / "tests" / "fixtures" / "llm_cassettes"
 TOLERANCE = Decimal("0.01")
 _STATEMENT_KEYS = ("opening_balance", "closing_balance", "transactions")
 VALIDATION_SOURCE = REPO_ROOT / "apps/backend/src/extraction/base/validation.py"

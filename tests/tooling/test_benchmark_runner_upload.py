@@ -1,4 +1,4 @@
-'AC-testing.benchmarks.16'; from __future__ import annotations; from typing import Any; import pytest; from common.testing.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
+'AC-testing.benchmarks.16'; from __future__ import annotations; from typing import Any; import pytest; from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
 class _Response:
     status_code = 202
     def json(self) -> dict[str, str]: return {'id': 'statement-1'}

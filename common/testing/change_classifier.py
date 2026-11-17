@@ -179,8 +179,8 @@ STAGING_ONLY_EXACT = frozenset(
         ".github/workflows/ci.yml",
         ".node-version",
         ".python-version",
-        "common/testing/benchmarks/pdf_corpus_oracle.py",
-        "common/testing/benchmarks/run_financial_scenario_benchmark.py",
+        "tests/benchmarks/pdf_corpus_oracle.py",
+        "tests/benchmarks/run_financial_scenario_benchmark.py",
         "common/testing/matrix.py",
         "common/testing/test_selection.py",
         "runtime-hooks.manifest.json",
@@ -190,13 +190,13 @@ STAGING_ONLY_EXACT = frozenset(
 )
 
 PDF_FIXTURE_RUNTIME_EXACT = {
-    "common/testing/fixtures/pdf/__init__.py",
-    "common/testing/fixtures/pdf/generate_pdf_fixtures.py",
+    "tests/fixtures/pdf/__init__.py",
+    "tests/fixtures/pdf/generate_pdf_fixtures.py",
 }
 PDF_FIXTURE_RUNTIME_PREFIXES = (
-    "common/testing/fixtures/pdf/data/",
-    "common/testing/fixtures/pdf/generators/",
-    "common/testing/fixtures/pdf/templates/",
+    "tests/fixtures/pdf/data/",
+    "tests/fixtures/pdf/generators/",
+    "tests/fixtures/pdf/templates/",
 )
 
 STAGING_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | STAGING_ONLY_EXACT
@@ -223,9 +223,9 @@ STAGING_AI_OCR_PREFIXES = (
     "apps/backend/src/extraction",
     "apps/backend/src/routers/ai",
     "apps/backend/src/routers/statements",
-    "common/testing/fixtures/pdf/data/",
-    "common/testing/fixtures/pdf/generators/",
-    "common/testing/fixtures/pdf/templates/",
+    "tests/fixtures/pdf/data/",
+    "tests/fixtures/pdf/generators/",
+    "tests/fixtures/pdf/templates/",
 )
 
 

@@ -1,4 +1,4 @@
-'AC-testing.benchmarks.9'; from __future__ import annotations; import json; import httpx; import pytest; from common.testing.benchmarks import run_financial_scenario_benchmark as runner_module; from common.testing.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner; BASE_URL = 'http://api.test'; _client = lambda handler: httpx.Client(base_url=BASE_URL, transport=httpx.MockTransport(handler)); _runner = lambda: ScenarioBenchmarkRunner(BASE_URL)
+'AC-testing.benchmarks.9'; from __future__ import annotations; import json; import httpx; import pytest; from tests.benchmarks import run_financial_scenario_benchmark as runner_module; from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner; BASE_URL = 'http://api.test'; _client = lambda handler: httpx.Client(base_url=BASE_URL, transport=httpx.MockTransport(handler)); _runner = lambda: ScenarioBenchmarkRunner(BASE_URL)
 def test_AC_testing_benchmarks_9_ephemeral_user_pins_explicit_review_path(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[tuple[str, str, dict]] = []
     def handler(request: httpx.Request) -> httpx.Response:

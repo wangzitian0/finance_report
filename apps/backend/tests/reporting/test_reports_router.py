@@ -588,7 +588,7 @@ async def test_cash_flow_endpoints_include_statement_custody_accounts_without_ke
 
 def test_benchmark_runner_adjudicate_unmatched_items_reuses_counter_accounts() -> None:
     from unittest.mock import MagicMock
-    from common.testing.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
+    from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
 
     runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
     mock_client = MagicMock()

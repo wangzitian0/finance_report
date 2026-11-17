@@ -1,4 +1,4 @@
-'AC-testing.benchmarks.10'; from __future__ import annotations; import pytest; from common.testing.benchmarks.oracles import assert_ai_advisor_semantic_grounding; FIGURES = ['24,200']
+'AC-testing.benchmarks.10'; from __future__ import annotations; import pytest; from tests.benchmarks.oracles import assert_ai_advisor_semantic_grounding; FIGURES = ['24,200']
 def passes(answer: str) -> bool:
     try: assert_ai_advisor_semantic_grounding(answer, FIGURES)
     except AssertionError: return False
