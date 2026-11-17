@@ -47,6 +47,8 @@ async def _get_active_positions_with_atomics(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date,
+    *,
+    base_currency: str | None = None,
 ) -> list[tuple[AtomicPosition, Decimal]]:
     """
     Fetch positions held as of as_of_date and their latest atomic snapshots in batch.
@@ -69,7 +71,7 @@ async def _get_active_positions_with_atomics(
     asset_ids = [identifier for identifier, _broker in position_keys]
 
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
 
     enriched = []
     for identifier, broker in position_keys:
@@ -80,7 +82,7 @@ async def _get_active_positions_with_atomics(
             db,
             atomic.market_value or Decimal("0"),
             atomic.currency,
-            base_currency,
+            resolved_base_currency,
             as_of_date,
         )
         enriched.append((atomic, value_base))
@@ -110,6 +112,8 @@ async def get_sector_allocation(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date | None = None,
+    *,
+    base_currency: str | None = None,
 ) -> list[AllocationBreakdown]:
     """
     Calculate sector allocation breakdown.
@@ -125,7 +129,7 @@ async def get_sector_allocation(
     if as_of_date is None:
         as_of_date = date.today()
 
-    enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date)
+    enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date, base_currency=base_currency)
     return _build_allocation(enriched, lambda a: a.sector or "Unknown")
 
 
@@ -133,6 +137,8 @@ async def get_geography_allocation(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date | None = None,
+    *,
+    base_currency: str | None = None,
 ) -> list[AllocationBreakdown]:
     """
     Calculate geography allocation breakdown.
@@ -148,7 +154,7 @@ async def get_geography_allocation(
     if as_of_date is None:
         as_of_date = date.today()
 
-    enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date)
+    enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date, base_currency=base_currency)
     return _build_allocation(enriched, lambda a: a.geography or "Unknown")
 
 
@@ -156,6 +162,8 @@ async def get_asset_class_allocation(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date | None = None,
+    *,
+    base_currency: str | None = None,
 ) -> list[AllocationBreakdown]:
     """
     Calculate asset class allocation breakdown.
@@ -179,5 +187,5 @@ async def get_asset_class_allocation(
         val = asset_type.value if hasattr(asset_type, "value") else str(asset_type)
         return val.replace("_", " ").title()
 
-    enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date)
+    enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date, base_currency=base_currency)
     return _build_allocation(enriched, _asset_class_key)

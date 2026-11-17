@@ -1,22 +1,103 @@
-'AC25.2.1 EPIC-025'; from types import SimpleNamespace; from uuid import uuid4; import src.routers.statements as statements_router; from src.extraction.base.source_vocabulary import BankStatementStatus; from src.extraction.base.types import StatementPostingStatus; from src.extraction.extension import statement_workflow
+"AC25.2.1 EPIC-025"
+
+from types import SimpleNamespace
+from uuid import uuid4
+import src.routers.statements as statements_router
+from src.extraction.base.source_vocabulary import BankStatementStatus
+from src.extraction.base.types import StatementPostingStatus
+from src.extraction.extension import statement_workflow
+
+
 class _FakeResult:
-    def __init__(self, value: object) -> None: self._value = value
-    def scalar_one_or_none(self) -> object: return self._value
+    def __init__(self, value: object) -> None:
+        self._value = value
+
+    def scalar_one_or_none(self) -> object:
+        return self._value
+
+
 class _FakeSession:
-    def __init__(self, calls: list) -> None: self._calls = calls
-    async def execute(self, statement: object, params: dict | None=None) -> _FakeResult | None:
-        if 'pg_advisory_xact_lock' in str(statement): assert params is not None; self._calls.append(('release_lock', params['key'])); return None
-        self._calls.append(('read_status',)); return _FakeResult(BankStatementStatus.PARSED)
-    async def commit(self) -> None: self._calls.append(('commit',))
-    async def refresh(self, obj: object) -> None: self._calls.append(('refresh', obj))
+    def __init__(self, calls: list) -> None:
+        self._calls = calls
+
+    async def execute(self, statement: object, params: dict | None = None) -> _FakeResult | None:
+        if "pg_advisory_xact_lock" in str(statement):
+            assert params is not None
+            self._calls.append(("release_lock", params["key"]))
+            return None
+        self._calls.append(("read_status",))
+        return _FakeResult(BankStatementStatus.PARSED)
+
+    async def commit(self) -> None:
+        self._calls.append(("commit",))
+
+    async def refresh(self, obj: object) -> None:
+        self._calls.append(("refresh", obj))
+
+
 async def test_statement_workflow_service(monkeypatch):
-    'AC-extraction.2502.1 AC25.2.1'; statement_id = uuid4(); user_id = uuid4(); approve_calls: list = []; approved_statement = SimpleNamespace(id=statement_id, name='approved'); resolved_transactions = ['txn-1']
-    async def fake_approve(db, sid, uid): assert (sid, uid) == (statement_id, user_id); approve_calls.append(('approve_statement',)); return (approved_statement, resolved_transactions)
-    async def fake_post(db, statement, uid, *, dependencies, transactions=None, preloaded_bank_account=None): assert statement is approved_statement; assert transactions is resolved_transactions; assert preloaded_bank_account is None; assert dependencies is posting_dependencies; approve_calls.append(('auto_post',)); return SimpleNamespace(created_count=3, status=StatementPostingStatus.POSTED)
-    async def fake_opening(db, statement, uid, *, dependencies): assert statement is approved_statement; assert uid == user_id; assert dependencies is posting_dependencies; approve_calls.append(('opening_stock',))
-    monkeypatch.setattr(statement_workflow, 'try_auto_post_statement_opening_balance', fake_opening); monkeypatch.setattr(statement_workflow, 'approve_statement_with_transactions', fake_approve); monkeypatch.setattr(statement_workflow, 'auto_create_posted_entries_for_statement', fake_post); posting_dependencies = object(); outcome = await statement_workflow.approve_statement_workflow(_FakeSession(approve_calls), statement_id, user_id, dependencies=posting_dependencies); assert outcome.created_count == 3; assert approve_calls == [('approve_statement',), ('auto_post',), ('opening_stock',), ('commit',)]; reject_calls: list = []; rejected_statement = SimpleNamespace(id=statement_id, name='rejected')
-    async def fake_reject(db, sid, uid, *, reason): assert (sid, uid, reason) == (statement_id, user_id, 'looks wrong'); reject_calls.append(('reject_statement',)); return rejected_statement
-    monkeypatch.setattr(statement_workflow, 'reject_statement', fake_reject); result = await statement_workflow.reject_statement_workflow(_FakeSession(reject_calls), statement_id, user_id, reason='looks wrong'); assert result is rejected_statement; assert reject_calls == [('read_status',), ('reject_statement',), ('release_lock', f'statement-release:{user_id}'), ('commit',), ('refresh', rejected_statement)]; assert statements_router.approve_statement_workflow is statement_workflow.approve_statement_workflow; assert statements_router.reject_statement_workflow is statement_workflow.reject_statement_workflow; assert not hasattr(statements_router, 'approve_statement_svc'); assert not hasattr(statements_router, 'reject_statement_svc')
+    "AC-extraction.2502.1 AC25.2.1"
+    statement_id = uuid4()
+    user_id = uuid4()
+    approve_calls: list = []
+    approved_statement = SimpleNamespace(id=statement_id, name="approved")
+    resolved_transactions = ["txn-1"]
+
+    async def fake_approve(db, sid, uid):
+        assert (sid, uid) == (statement_id, user_id)
+        approve_calls.append(("approve_statement",))
+        return (approved_statement, resolved_transactions)
+
+    async def fake_post(
+        db, statement, uid, *, dependencies, transactions=None, preloaded_bank_account=None, base_currency=None
+    ):
+        assert statement is approved_statement
+        assert transactions is resolved_transactions
+        assert preloaded_bank_account is None
+        assert dependencies is posting_dependencies
+        approve_calls.append(("auto_post",))
+        return SimpleNamespace(created_count=3, status=StatementPostingStatus.POSTED)
+
+    async def fake_opening(db, statement, uid, *, dependencies, base_currency=None):
+        assert statement is approved_statement
+        assert uid == user_id
+        assert dependencies is posting_dependencies
+        approve_calls.append(("opening_stock",))
+
+    monkeypatch.setattr(statement_workflow, "try_auto_post_statement_opening_balance", fake_opening)
+    monkeypatch.setattr(statement_workflow, "approve_statement_with_transactions", fake_approve)
+    monkeypatch.setattr(statement_workflow, "auto_create_posted_entries_for_statement", fake_post)
+    posting_dependencies = object()
+    outcome = await statement_workflow.approve_statement_workflow(
+        _FakeSession(approve_calls), statement_id, user_id, dependencies=posting_dependencies
+    )
+    assert outcome.created_count == 3
+    assert approve_calls == [("approve_statement",), ("auto_post",), ("opening_stock",), ("commit",)]
+    reject_calls: list = []
+    rejected_statement = SimpleNamespace(id=statement_id, name="rejected")
+
+    async def fake_reject(db, sid, uid, *, reason):
+        assert (sid, uid, reason) == (statement_id, user_id, "looks wrong")
+        reject_calls.append(("reject_statement",))
+        return rejected_statement
+
+    monkeypatch.setattr(statement_workflow, "reject_statement", fake_reject)
+    result = await statement_workflow.reject_statement_workflow(
+        _FakeSession(reject_calls), statement_id, user_id, reason="looks wrong"
+    )
+    assert result is rejected_statement
+    assert reject_calls == [
+        ("read_status",),
+        ("reject_statement",),
+        ("release_lock", f"statement-release:{user_id}"),
+        ("commit",),
+        ("refresh", rejected_statement),
+    ]
+    assert statements_router.approve_statement_workflow is statement_workflow.approve_statement_workflow
+    assert statements_router.reject_statement_workflow is statement_workflow.reject_statement_workflow
+    assert not hasattr(statements_router, "approve_statement_svc")
+    assert not hasattr(statements_router, "reject_statement_svc")
+
 
 # --- #2970: the planner statistics refresh runs after the response, in one background task ---
 import asyncio
@@ -126,11 +207,13 @@ def _patch_approval(monkeypatch, calls: list) -> SimpleNamespace:
         calls.append(("approve_statement",))
         return statement, []
 
-    async def post(db, statement, user_id, *, dependencies, transactions=None, preloaded_bank_account=None):
+    async def post(
+        db, statement, user_id, *, dependencies, transactions=None, preloaded_bank_account=None, base_currency=None
+    ):
         calls.append(("auto_post",))
         return SimpleNamespace(created_count=2, status=StatementPostingStatus.POSTED)
 
-    async def opening(db, statement, user_id, *, dependencies):
+    async def opening(db, statement, user_id, *, dependencies, base_currency=None):
         calls.append(("opening_balance",))
 
     monkeypatch.setattr(statement_workflow, "approve_statement_with_transactions", approve)
@@ -140,7 +223,7 @@ def _patch_approval(monkeypatch, calls: list) -> SimpleNamespace:
 
 
 async def test_AC_extraction_2970_1_approve_returns_while_the_refresh_is_pending(production_like, monkeypatch):
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     runner = _Runner()
     monkeypatch.setattr(statement_workflow, "analyze_tenant_tables", runner)
     calls: list = []
@@ -170,13 +253,23 @@ async def test_AC_extraction_2970_1_approve_returns_while_the_refresh_is_pending
 async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committed(
     production_like, monkeypatch, client, db, test_user
 ):
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     runner = _Runner(error=RuntimeError("tuple concurrently updated"))
     runner.release.set()
     monkeypatch.setattr(statement_workflow, "analyze_tenant_tables", runner)
     rows = [
-        {"description": "Salary", "amount": Decimal("2500.00"), "direction": TransactionDirection.IN, "date": date(2026, 1, 1)},
-        {"description": "Rent", "amount": Decimal("12.50"), "direction": TransactionDirection.OUT, "date": date(2026, 1, 2)},
+        {
+            "description": "Salary",
+            "amount": Decimal("2500.00"),
+            "direction": TransactionDirection.IN,
+            "date": date(2026, 1, 1),
+        },
+        {
+            "description": "Rent",
+            "amount": Decimal("12.50"),
+            "direction": TransactionDirection.OUT,
+            "date": date(2026, 1, 2),
+        },
     ]
     seeded = await seed_parsed_statement(db, test_user.id, original_filename="refresh_failure.pdf", transactions=rows)
     seeded.statement.period_start = rows[0]["date"]
@@ -186,7 +279,9 @@ async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committ
     statement_id = seeded.id
 
     with structlog.testing.capture_logs() as logs:
-        response = await client.post(f"/statements/{statement_id}/review/approve", json={"create_account_if_missing": True})
+        response = await client.post(
+            f"/statements/{statement_id}/review/approve", json={"create_account_if_missing": True}
+        )
         await _wait_until_idle()
 
     assert response.status_code == 200, response.text
@@ -200,7 +295,7 @@ async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committ
 
 
 async def test_AC_extraction_2970_1_five_requests_during_one_run_cause_one_more_run(production_like, monkeypatch):
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     runner = _Runner()
     monkeypatch.setattr(statement_workflow, "analyze_tenant_tables", runner)
     session = _PostgresSession([])
@@ -219,7 +314,7 @@ async def test_AC_extraction_2970_1_five_requests_during_one_run_cause_one_more_
 
 
 async def test_AC_extraction_2970_1_the_gap_separates_two_runs(production_like, monkeypatch):
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     events: list[str] = []
     gate = asyncio.Event()
     real_sleep = asyncio.sleep
@@ -248,7 +343,7 @@ async def test_AC_extraction_2970_1_the_gap_separates_two_runs(production_like, 
 
 
 async def test_AC_extraction_2970_1_the_refresh_session_sets_both_timeouts_before_analyze():
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     statements: list[str] = []
 
     await statement_workflow.analyze_tenant_tables(lambda: _RecordingSession(statements))
@@ -269,7 +364,7 @@ async def test_AC_extraction_2970_1_the_refresh_session_sets_both_timeouts_befor
 async def test_AC_extraction_2970_1_no_refresh_task_in_the_testing_environment_or_without_postgresql(
     production_like, monkeypatch, setting_environment, process_environment, dialect
 ):
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     runner = _Runner()
     runner.release.set()
     monkeypatch.setattr(statement_workflow, "analyze_tenant_tables", runner)
@@ -284,7 +379,7 @@ async def test_AC_extraction_2970_1_no_refresh_task_in_the_testing_environment_o
 
 
 async def test_AC_extraction_2970_1_a_failed_run_does_not_end_the_refresh(production_like, monkeypatch):
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     runner = _Runner(error=RuntimeError("tuple concurrently updated"))
     monkeypatch.setattr(statement_workflow, "analyze_tenant_tables", runner)
     session = _PostgresSession([])
@@ -304,7 +399,7 @@ async def test_AC_extraction_2970_1_a_failed_run_does_not_end_the_refresh(produc
 async def test_AC_extraction_2970_1_a_lock_held_by_another_session_ends_the_refresh_at_the_lock_timeout(
     db_engine, monkeypatch
 ):
-    'AC-extraction.2970.1'
+    "AC-extraction.2970.1"
     monkeypatch.setattr(statement_workflow, "TENANT_STATISTICS_LOCK_TIMEOUT", "100ms")
     maker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
 

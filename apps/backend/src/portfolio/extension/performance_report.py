@@ -124,9 +124,7 @@ async def _report_preparation_holdings(
     except (PortfolioNotFoundError, AssetNotFoundError):
         return []
 
-    return [
-        h for h in current_holdings if h.asset_identifier in override_assets and h.status == PositionStatus.ACTIVE
-    ]
+    return [h for h in current_holdings if h.asset_identifier in override_assets and h.status == PositionStatus.ACTIVE]
 
 
 async def build_investment_performance_report_schedule(
@@ -137,6 +135,7 @@ async def build_investment_performance_report_schedule(
     period_end: date,
     as_of_date: date,
     currency: str,
+    base_currency: str | None = None,
 ) -> InvestmentPerformanceReportScheduleResponse:
     """Assemble the report-ready investment performance schedule."""
     notes: list[str] = [
@@ -190,19 +189,26 @@ async def build_investment_performance_report_schedule(
             return None
 
     xirr = await _metric_or_note(
-        "XIRR", lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date)
+        "XIRR",
+        lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency),
     )
     twr = await _metric_or_note(
         "TWR",
         lambda: performance.calculate_time_weighted_return(
-            db=db, user_id=user_id, period_start=period_start, period_end=period_end
+            db=db, user_id=user_id, period_start=period_start, period_end=period_end, base_currency=base_currency
         ),
     )
     mwr = await _metric_or_note(
-        "MWR", lambda: performance.calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of_date)
+        "MWR",
+        lambda: performance.calculate_money_weighted_return(
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency
+        ),
     )
     dividend_yield = await _metric_or_note(
-        "Dividend yield", lambda: performance.calculate_dividend_yield(db=db, user_id=user_id, as_of_date=as_of_date)
+        "Dividend yield",
+        lambda: performance.calculate_dividend_yield(
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency
+        ),
     )
 
     realized_by_asset, realized_source_refs = await portfolio_service.get_realized_pnl_by_asset(
@@ -249,7 +255,7 @@ async def build_investment_performance_report_schedule(
             ("geography", allocation.get_geography_allocation),
             ("asset_class", allocation.get_asset_class_allocation),
         )
-        for row in await loader(db=db, user_id=user_id, as_of_date=as_of_date)
+        for row in await loader(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency)
     ]
     if used_report_preparation_evidence and not allocation_rows and holding_rows:
         total_market_value = sum((row.market_value for row in holding_rows), Decimal("0.00"))
@@ -278,7 +284,9 @@ async def build_investment_performance_report_schedule(
         else latest_atomic_query.where(AtomicPosition.snapshot_date <= as_of_date)
     )
     atomics = (
-        await db.scalars(latest_atomic_query.order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc()))
+        await db.scalars(
+            latest_atomic_query.order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
+        )
     ).all()
     latest_atomic_by_asset: dict[str, AtomicPosition] = {}
     for atomic in atomics:

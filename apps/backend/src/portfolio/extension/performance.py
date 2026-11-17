@@ -87,6 +87,8 @@ async def calculate_xirr(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date | None = None,
+    *,
+    base_currency: str | None = None,
 ) -> Decimal:
     """
     Calculate XIRR (Extended Internal Rate of Return) for portfolio.
@@ -122,14 +124,14 @@ async def calculate_xirr(
     )
     result = await db.execute(query)
     transactions = result.scalars().all()
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
 
     for txn in transactions:
         amount_base = await convert_amount(
             db,
             txn.gross_amount,
             txn.currency,
-            base_currency,
+            resolved_base_currency,
             txn.transaction_date,
         )
         sign = -1 if txn.transaction_type == InvestmentTransactionType.BUY else 1
@@ -137,7 +139,7 @@ async def calculate_xirr(
         dates.append(txn.transaction_date)
         amounts.append(amount_base * sign)
 
-    total_value = await _get_portfolio_value(db, user_id, as_of_date, base_currency)
+    total_value = await _get_portfolio_value(db, user_id, as_of_date, resolved_base_currency)
 
     if total_value > Decimal("0"):
         dates.append(as_of_date)
@@ -275,6 +277,8 @@ async def calculate_time_weighted_return(
     user_id: UUID,
     period_start: date,
     period_end: date,
+    *,
+    base_currency: str | None = None,
 ) -> Decimal:
     """
     Calculate Time-Weighted Return (TWR) for a period.
@@ -295,9 +299,9 @@ async def calculate_time_weighted_return(
     Raises:
         InsufficientDataError: Need at least two position snapshots
     """
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
-    start_value = await _get_portfolio_value(db, user_id, period_start, base_currency)
-    end_value = await _get_portfolio_value(db, user_id, period_end, base_currency)
+    resolved_twr_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    start_value = await _get_portfolio_value(db, user_id, period_start, resolved_twr_base)
+    end_value = await _get_portfolio_value(db, user_id, period_end, resolved_twr_base)
 
     query = select(InvestmentTransaction).where(
         InvestmentTransaction.user_id == user_id,
@@ -315,7 +319,7 @@ async def calculate_time_weighted_return(
             db,
             txn.gross_amount,
             txn.currency,
-            base_currency,
+            resolved_twr_base,
             txn.transaction_date,
         )
         sign = 1 if txn.transaction_type == InvestmentTransactionType.BUY else -1
@@ -338,6 +342,8 @@ async def calculate_money_weighted_return(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date | None = None,
+    *,
+    base_currency: str | None = None,
 ) -> Decimal:
     """
     Calculate Money-Weighted Return (MWR) for portfolio.
@@ -358,13 +364,15 @@ async def calculate_money_weighted_return(
         XIRRCalculationError: Calculation failed to converge
     """
     # MWR = XIRR (they are the same concept)
-    return await calculate_xirr(db, user_id, as_of_date)
+    return await calculate_xirr(db, user_id, as_of_date, base_currency=base_currency)
 
 
 async def calculate_dividend_yield(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date | None = None,
+    *,
+    base_currency: str | None = None,
 ) -> Decimal:
     """
     Calculate trailing 12-month dividend yield.
@@ -383,7 +391,7 @@ async def calculate_dividend_yield(
         )
     )
     dividends = result.scalars().all()
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    resolved_div_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
 
     annual_dividends = Decimal("0")
     for dividend in dividends:
@@ -391,11 +399,11 @@ async def calculate_dividend_yield(
             db,
             dividend.amount,
             dividend.currency,
-            base_currency,
+            resolved_div_base,
             dividend.payment_date,
         )
 
-    current_value = await _get_portfolio_value(db, user_id, as_of_date, base_currency)
+    current_value = await _get_portfolio_value(db, user_id, as_of_date, resolved_div_base)
     if current_value == Decimal("0"):
         if annual_dividends == Decimal("0"):
             dividend_yield_ratio = Ratio.zero()
