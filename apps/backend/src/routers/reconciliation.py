@@ -12,7 +12,7 @@ from sqlalchemy.orm import aliased, selectinload
 
 from src.composition import compose_reviewed_disposition_dependencies
 from src.config_app import get_effective_base_currency
-from src.deps import CurrentUserId, DbSession, Pagination
+from src.deps import CurrentUserId, DbSession, Pagination, ReadDbSession
 from src.extraction import (
     AtomicTransaction,
     BankStatementStatus,
@@ -30,7 +30,7 @@ from src.ledger import (
     submit_system_journal_entry,
 )
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
-from src.platform import get_owned_or_404, paginate, raise_bad_request, raise_conflict, raise_not_found
+from src.platform import ConflictError, ResourceNotFoundError, ValidationFailedError, get_owned_or_404, paginate
 from src.reconciliation import (
     MatchNotFoundError,
     ReconciliationError,
@@ -203,7 +203,7 @@ async def run_reconciliation(
             )
         ).scalar_one_or_none()
         if statement is None:
-            raise_not_found("Statement")
+            raise ResourceNotFoundError("Statement not found")
 
     request_id = ensure_request_id()
     statement_id = str(payload.statement_id) if payload.statement_id else None
@@ -220,10 +220,8 @@ async def run_reconciliation(
     try:
         currency = await get_effective_base_currency(db, user_id=user_id)
         matches = await execute_matching(db, limit=payload.limit, user_id=user_id, currency=currency)
-        await db.commit()
     except ValidationError as exc:
-        await db.rollback()
-        raise_bad_request(str(exc), cause=exc)
+        raise ValidationFailedError(str(exc)) from exc
     except Exception as exc:
         logger.exception(
             "reconciliation.run.failed",
@@ -237,7 +235,6 @@ async def run_reconciliation(
             error_type=type(exc).__name__,
             safe_error_message=safe_error_message(str(exc)),
         )
-        await db.rollback()
         raise
 
     auto_accepted = sum(1 for m in matches if m.status.value == "auto_accepted")
@@ -276,7 +273,7 @@ async def list_matches(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     *,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     """Return reconciliation matches for the current user."""
@@ -299,7 +296,7 @@ async def pending_review_queue(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     *,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     """Return the Stage-2 pending review queue."""
@@ -313,11 +310,11 @@ async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId)
     """Accept one reconciliation match."""
     try:
         match = await accept_match_service(db, match_id, user_id=user_id)
-        await db.commit()
     except MatchNotFoundError as exc:
-        raise_not_found("Match", cause=exc)
+        raise ResourceNotFoundError("Match not found") from exc
     except ReconciliationError as exc:
-        raise_bad_request(str(exc), cause=exc)
+        raise ValidationFailedError(str(exc)) from exc
+    await db.flush()
     log_financial_mutation(
         logger,
         "reconciliation.match.accepted",
@@ -335,11 +332,11 @@ async def reject_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId)
     """Reject one reconciliation match."""
     try:
         match = await reject_match_service(db, str(match_id), user_id=user_id)
-        await db.commit()
     except MatchNotFoundError as exc:
-        raise_not_found("Match", cause=exc)
+        raise ResourceNotFoundError("Match not found") from exc
     except ReconciliationError as exc:
-        raise_bad_request(str(exc), cause=exc)
+        raise ValidationFailedError(str(exc)) from exc
+    await db.flush()
     return (await _load_match_responses(db, [match], user_id))[0]
 
 
@@ -350,7 +347,7 @@ async def batch_update_matches(
     """Apply a batch accept or reject decision to pending reconciliation matches."""
     if payload.action == "accept":
         if await has_unresolved_checks(db, user_id, run_id=payload.run_id):
-            raise_conflict("Cannot batch approve while there are unresolved consistency checks")
+            raise ConflictError("Cannot batch approve while there are unresolved consistency checks")
         if not payload.match_ids:
             return ReconciliationMatchBatchResponse()
         query = (
@@ -371,10 +368,9 @@ async def batch_update_matches(
         matches = list((await db.execute(query)).scalars().all())
         try:
             reconciled = await accept_pending_matches(db, matches, user_id=user_id)
-            await db.commit()
         except ReconciliationError as exc:
-            await db.rollback()
-            raise_bad_request(str(exc), cause=exc)
+            raise ValidationFailedError(str(exc)) from exc
+        await db.flush()
         log_financial_mutation(
             logger,
             "reconciliation.match.batch_accepted",
@@ -410,7 +406,7 @@ async def batch_update_matches(
     for match in matches:
         match.status = ReconciliationStatus.REJECTED
         match.version += 1
-    await db.commit()
+    await db.flush()
     log_financial_mutation(
         logger,
         "reconciliation.match.batch_rejected",
@@ -429,7 +425,7 @@ async def batch_update_matches(
 
 
 @router.get("/stats", response_model=ReconciliationStatsResponse)
-async def reconciliation_stats(*, db: DbSession, user_id: CurrentUserId) -> ReconciliationStatsResponse:
+async def reconciliation_stats(*, db: ReadDbSession, user_id: CurrentUserId) -> ReconciliationStatsResponse:
     """Return reconciliation statistics."""
     stats = await get_reconciliation_stats(db, user_id, include_distribution=True)
     return ReconciliationStatsResponse(
@@ -449,7 +445,7 @@ async def list_unmatched(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     *,
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
 ) -> UnmatchedTransactionsResponse:
     """Return unmatched transactions."""
@@ -491,22 +487,17 @@ async def submit_unmatched_reviewed_disposition(
             )
         ).scalar_one()
         response = _build_entry_summary(entry_with_lines)
-        await db.commit()
     except LookupError as exc:
-        await db.rollback()
-        raise_not_found("Transaction", cause=exc)
+        raise ResourceNotFoundError("Transaction not found") from exc
     except ReviewedDispositionError as exc:
-        await db.rollback()
-        raise_bad_request(str(exc), cause=exc)
-    except Exception:
-        await db.rollback()
-        raise
+        raise ValidationFailedError(str(exc)) from exc
+    await db.flush()
     return response
 
 
 @router.get("/transactions/{txn_id}/anomalies", response_model=list[AnomalyResponse])
 async def list_anomalies(
-    txn_id: UUID, *, db: DbSession, user_id: CurrentUserId, pagination: Pagination
+    txn_id: UUID, *, db: ReadDbSession, user_id: CurrentUserId, pagination: Pagination
 ) -> list[AnomalyResponse]:
     """Return reconciliation anomalies."""
     txn = await get_owned_or_404(db, AtomicTransaction, txn_id, user_id, name="Transaction")
@@ -522,7 +513,7 @@ async def post_reconciliation_adjustment(
     account = await get_owned_or_404(db, Account, payload.account_id, user_id, name="Account")
     diff = abs(payload.bank_balance - payload.book_balance)
     if diff > payload.threshold:
-        raise_bad_request(f"difference {diff} exceeds immaterial threshold {payload.threshold}")
+        raise ValidationFailedError(f"difference {diff} exceeds immaterial threshold {payload.threshold}")
 
     adj = calculate_reconciliation_adjustment(
         bank_balance=payload.bank_balance, book_balance=payload.book_balance, threshold=payload.threshold
@@ -581,7 +572,7 @@ async def post_reconciliation_adjustment(
 
     base_currency = await get_effective_base_currency(db, user_id=user_id)
     if account.currency != base_currency and payload.fx_rate is None:
-        raise_bad_request(
+        raise ValidationFailedError(
             f"fx_rate is required for non-base currency account {account.currency} (base currency {base_currency})"
         )
 
@@ -608,10 +599,9 @@ async def post_reconciliation_adjustment(
             post_immediately=True,
         )
         await db.refresh(entry, ["lines"])
-        await db.commit()
     except (ValidationError, AccountingError) as exc:
-        await db.rollback()
-        raise_bad_request(safe_error_message(exc), cause=exc)
+        raise ValidationFailedError(safe_error_message(exc)) from exc
+    await db.flush()
 
     log_financial_mutation(
         logger,

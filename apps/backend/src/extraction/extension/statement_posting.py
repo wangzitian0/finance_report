@@ -1206,20 +1206,32 @@ async def try_auto_approve_high_confidence_statement(
     *,
     dependencies: StatementPostingDependencies,
     ignore_run_id: UUID | None = None,
+    locked_statement: StatementSummary | None = None,
 ) -> int:
     statement = (
-        await db.execute(
-            select(StatementSummary).where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
-        )
-    ).scalar_one_or_none()
+        locked_statement
+        if locked_statement is not None
+        else (
+            await db.execute(
+                select(StatementSummary).where(
+                    StatementSummary.id == statement_id, StatementSummary.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+    )
     if statement is None or not is_high_confidence_auto_approve_candidate(statement):
         return 0
 
     try:
         async with db.begin_nested():
-            approved, transactions = await approve_statement_with_transactions(
-                db, statement_id, user_id, ignore_run_id=ignore_run_id
-            )
+            if locked_statement is not None:
+                approved, transactions = await approve_statement_with_transactions(
+                    db, statement_id, user_id, ignore_run_id=ignore_run_id, statement=locked_statement
+                )
+            else:
+                approved, transactions = await approve_statement_with_transactions(
+                    db, statement_id, user_id, ignore_run_id=ignore_run_id
+                )
             outcome = await auto_create_posted_entries_for_statement(
                 db, approved, user_id, dependencies=dependencies, transactions=transactions
             )
@@ -1265,5 +1277,10 @@ async def auto_approve_parsed_candidate(
         statement.status = BankStatementStatus.PARSED
         return 0
     return await try_auto_approve_high_confidence_statement(
-        db, statement_id, user_id, dependencies=dependencies, ignore_run_id=ignore_run_id
+        db,
+        statement_id,
+        user_id,
+        dependencies=dependencies,
+        ignore_run_id=ignore_run_id,
+        locked_statement=statement,
     )

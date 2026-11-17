@@ -72,6 +72,8 @@ from src.ledger import Account, AccountType, account_service
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
+    ConflictError,
+    ResourceNotFoundError,
     ValidationFailedError,
     raise_bad_request,
     raise_conflict,
@@ -121,7 +123,7 @@ def _track_task(task: asyncio.Task) -> None:
 
 def _posting_count_or_conflict(outcome: StatementPostingOutcome) -> int:
     if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
-        raise_conflict(f"Economic review required: {', '.join(outcome.review_reasons)}")
+        raise ConflictError(f"Economic review required: {', '.join(outcome.review_reasons)}")
     return outcome.created_count
 
 
@@ -223,7 +225,7 @@ async def _get_statement_or_404(db: AsyncSession, statement_id: UUID, user_id: U
         )
     ).scalar_one_or_none()
     if stmt is None:
-        raise_not_found("Statement")
+        raise ResourceNotFoundError("Statement not found")
     return stmt
 
 
@@ -928,7 +930,6 @@ async def reject_statement_stage1(
                 user_id,
                 reason=decision.notes,
                 dependencies=compose_statement_posting_dependencies(),
-                commit=False,
             ),
         )
     except StorageError as exc:

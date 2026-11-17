@@ -31,6 +31,9 @@ class _FakeSession:
     async def commit(self) -> None:
         self._calls.append(("commit",))
 
+    async def flush(self) -> None:
+        self._calls.append(("flush",))
+
     async def refresh(self, obj: object) -> None:
         self._calls.append(("refresh", obj))
 
@@ -90,7 +93,7 @@ async def test_statement_workflow_service(monkeypatch):
         ("read_status",),
         ("reject_statement",),
         ("release_lock", f"statement-release:{user_id}"),
-        ("commit",),
+        ("flush",),
         ("refresh", rejected_statement),
     ]
     assert statements_router.approve_statement_workflow is statement_workflow.approve_statement_workflow
@@ -148,6 +151,9 @@ class _PostgresSession:
 
     async def commit(self) -> None:
         self._calls.append(("commit",))
+
+    async def flush(self) -> None:
+        self._calls.append(("flush",))
 
 
 class _RecordingSession:

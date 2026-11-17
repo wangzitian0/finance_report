@@ -114,7 +114,7 @@ async def test_get_statement_not_found(db, test_user):
 
     'AC-extraction.5.11'
 
-    with pytest.raises(HTTPException) as exc: await statements_router.get_statement(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), db=db, user_id=test_user.id)
+    with pytest.raises((HTTPException, DomainError)) as exc: await statements_router.get_statement(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 
@@ -138,7 +138,7 @@ async def test_retry_statement_not_found(db, test_user):
 
     'AC-extraction.5.14'; from src.schemas import StatementRunRequest
 
-    with pytest.raises(HTTPException) as exc: await statements_router.create_statement_run(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), request=StatementRunRequest(model=None), db=db, user_id=test_user.id)
+    with pytest.raises((HTTPException, DomainError)) as exc: await statements_router.create_statement_run(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), request=StatementRunRequest(model=None), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 
@@ -280,7 +280,7 @@ async def test_AC16_33_5_get_statement_document_404_when_no_document(db, test_us
 
     'AC16.33.5'; statement = build_statement(test_user.id, 'hash_doc_missing', 75); db.add(statement); await db.commit(); await db.refresh(statement)
 
-    with pytest.raises(HTTPException) as exc: await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+    with pytest.raises((HTTPException, DomainError)) as exc: await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 
@@ -294,7 +294,7 @@ async def test_AC16_33_5_get_statement_document_storage_error_maps_to_502(db, te
 
 async def test_get_statement_for_review_not_found(db, test_user):
 
-    with pytest.raises(HTTPException) as exc: await statements_router.get_statement_for_review(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), db=db, user_id=test_user.id)
+    with pytest.raises((HTTPException, DomainError)) as exc: await statements_router.get_statement_for_review(statement_id=statements_router.UUID('00000000-0000-0000-0000-000000000000'), db=db, user_id=test_user.id)
 
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 

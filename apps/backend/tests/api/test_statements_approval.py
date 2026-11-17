@@ -113,7 +113,7 @@ async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, t
     )
     await db.commit()
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises((HTTPException, DomainError)) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
     assert exc.value.status_code == status.HTTP_409_CONFLICT
     assert exc.value.detail == "Economic review required: intent_missing"
@@ -404,7 +404,7 @@ async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correct
         source_id=txn.id,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises((HTTPException, DomainError)) as exc_info:
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert "legacy_unanchored_source_entry" in exc_info.value.detail
@@ -672,7 +672,7 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(db,
     validation = AsyncMock(side_effect=AssertionError("validation should not run before authorization"))
     monkeypatch.setattr(statement_validation_mod, "validate_balance_chain", validation)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises((HTTPException, DomainError)) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
     assert exc.value.status_code == 404
     assert "Statement not found" in exc.value.detail

@@ -41,8 +41,6 @@ LEGACY_ROUTER_ALLOWLIST: dict[str, set[str]] = {
     "market_data.py": {"get_dbsession", "manual_tx"},
     "metrics.py": {"get_dbsession"},
     "portfolio.py": {"get_dbsession", "http_exception", "manual_tx"},
-    "reconciliation.py": {"get_dbsession", "manual_tx"},
-    "review.py": {"get_dbsession", "http_exception", "manual_tx"},
     "statements.py": {"http_exception", "manual_tx"},
     "user_settings.py": {"get_dbsession", "manual_tx"},
 }

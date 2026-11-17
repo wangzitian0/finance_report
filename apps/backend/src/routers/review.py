@@ -3,10 +3,11 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, ReadDbSession
 from src.extraction import (
     AtomicTransaction,
     BankStatementStatus,
@@ -15,7 +16,7 @@ from src.extraction import (
     resolve_statement_transactions,
 )
 from src.observability import get_logger
-from src.platform import get_owned_or_404, raise_not_found
+from src.platform import ResourceNotFoundError, ValidationFailedError, get_owned_or_404
 from src.reconciliation import (
     CheckStatus,
     CheckType,
@@ -44,16 +45,16 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/statements", tags=["review"])
 
 
-async def _active_statement_or_404(db: DbSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
+async def _active_statement_or_404(db: AsyncSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
     stmt = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
     if stmt.status is BankStatementStatus.RETIRED:
-        raise_not_found("Statement")
+        raise ResourceNotFoundError("Statement not found")
     return stmt
 
 
 @router.get("/{statement_id}/conflicts", response_model=ReviewConflictsResponse)
 async def get_review_conflicts(
-    statement_id: UUID, db: DbSession, user_id: CurrentUserId
+    statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId
 ) -> ReviewConflictsResponse:
     """Return duplicate and transfer-pair candidates for a statement."""
     statement = await _active_statement_or_404(db, statement_id, user_id)
@@ -104,7 +105,7 @@ async def resolve_review_conflicts(
     """Resolve Stage-1 duplicate/transfer-pair candidates (#962)."""
     statement = await resolve_statement_conflicts(db, statement_id, user_id)
     resolved_at = statement.stage1_conflicts_resolved_at
-    await db.commit()
+    await db.flush()
 
     logger.info(
         "stage1.conflicts.resolved",
@@ -118,7 +119,7 @@ async def resolve_review_conflicts(
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)
 async def get_stage2_review_queue(
-    db: DbSession, user_id: CurrentUserId, run_id: str | None = None
+    db: ReadDbSession, user_id: CurrentUserId, run_id: str | None = None
 ) -> Stage2ReviewQueueResponse:
     """Stage 2: Get review queue (matches + checks)."""
     matches = await get_stage2_queue(db, user_id, run_id=run_id)
@@ -160,7 +161,7 @@ async def run_stage2_checks(
     """Run consistency checks for a statement."""
     await _active_statement_or_404(db, statement_id, user_id)
     checks = await run_all_consistency_checks(db, user_id, statement_id)
-    await db.commit()
+    await db.flush()
     return ConsistencyCheckListResponse(
         items=[ConsistencyCheckResponse.model_validate(c) for c in checks],
         total=len(checks),
@@ -176,15 +177,15 @@ async def resolve_consistency_check(
         check = await resolve_check(
             db, check_id, parse_check_resolution_action(request.action), user_id, request.note
         )
-        await db.commit()
     except ReconciliationError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise ValidationFailedError(str(e)) from e
+    await db.flush()
     return ConsistencyCheckResponse.model_validate(check)
 
 
 @router.get("/consistency-checks", response_model=ConsistencyCheckListResponse)
 async def list_consistency_checks(
-    db: DbSession,
+    db: ReadDbSession,
     user_id: CurrentUserId,
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
