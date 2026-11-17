@@ -10,9 +10,8 @@ from src.extraction import (
     effective_classification,
     effective_reconciliation,
 )
-from src.identity import User
+from src.identity import User, UserAiSettingsResponse, UserAiSettingsUpdate
 from src.platform import raise_not_found
-from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate
 
 router = APIRouter(prefix="/users/me/settings", tags=["user-settings"])
 

@@ -24,7 +24,7 @@ Authenticates email + password (constant-time bcrypt comparison; a generic error
 Returns the current authenticated user.
 ## Internal layering (`base` / `extension`)
 ### Wire vocabulary ownership
-Identity owns the auth, user CRUD, AI-settings, and feedback request/response value objects in `base/types/`. `src.schemas.user` retains compatibility re-exports; identity implementation code imports its owned base vocabulary directly. | layer | what lives here |
+Identity owns the auth, user CRUD, AI-settings, and feedback request/response value objects in `base/types/`, exported from `src.identity`. | layer | what lives here |
 |-------|-----------------|
 | `base/types/` | the pure value objects: `RegisterRequest`/`LoginRequest`/`AuthResponse`, owned `User*` and AI-settings DTOs, the `AiFeedback*` request/response shapes, `normalize_email`, `AUTH_COOKIE_NAME` (no ORM, no transport) | | `base/repository.py` | the `UserRepository` **port** (a `typing.Protocol`) the pure core depends on |
 | `extension/sql.py` | the `User` aggregate + `AiFeedback` entity ORM models **and** `SqlUserRepository` (the only role that touches the ORM) — the port's adapter (mechanism B) | | `extension/security.py` | `create_access_token`/`decode_access_token` (JWT) + `hash_password`/`verify_password` (bcrypt) domain services | | `extension/auth.py` | `get_current_user_id` (the FastAPI auth dependency) + `oauth2_scheme` |
