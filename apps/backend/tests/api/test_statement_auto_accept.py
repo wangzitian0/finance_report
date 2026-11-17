@@ -17,6 +17,7 @@ from src.extraction.extension.statement_posting import try_auto_approve_high_con
 from src.extraction.orm.layer3 import TransactionClassification
 from src.ledger import PROCESSING_ACCOUNT_CODE, Account, Direction, JournalEntry
 from src.llm import AIStreamError
+from src.platform import DomainError
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.routers import statements as statements_router
 from src.schemas.review import Stage1ApprovalRequest
@@ -134,7 +135,7 @@ async def test_AC_extraction_auto_accept_7_an_outage_does_not_turn_the_statement
     _install(monkeypatch, model)
     await classify_statement_rows(db, statement)
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises((HTTPException, DomainError)) as error:
         await statements_router.approve_statement_stage1(
             statement_id=statement.id, request=None, db=db, user_id=test_user.id
         )
@@ -156,7 +157,7 @@ async def test_AC_extraction_auto_accept_1_with_the_setting_off_the_same_stateme
     await db.commit()
     _install(monkeypatch, _Model({"Lunch": ("DINING", 66)}))
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises((HTTPException, DomainError)) as error:
         await statements_router.approve_statement_stage1(
             statement_id=statement.id, request=None, db=db, user_id=test_user.id
         )
@@ -329,7 +330,7 @@ async def test_AC_extraction_auto_accept_9_the_observe_mode_posts_no_leg(db, tes
     await db.commit()
     _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90)}))
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises((HTTPException, DomainError)) as error:
         await statements_router.approve_statement_stage1(
             statement_id=statement.id, request=None, db=db, user_id=test_user.id
         )
@@ -364,7 +365,7 @@ async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_only
     def posted_sources():
         return db.execute(select(JournalEntry.source_id).where(JournalEntry.source_id.is_not(None)))
 
-    with pytest.raises(HTTPException) as first:
+    with pytest.raises((HTTPException, DomainError)) as first:
         await statements_router.approve_statement_stage1(
             statement_id=statement.id, request=None, db=db, user_id=test_user.id
         )
@@ -374,7 +375,7 @@ async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_only
 
     answering = _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90), "Lunch": ("DINING", 66)})
     _install(monkeypatch, answering)
-    with pytest.raises(HTTPException) as retry:
+    with pytest.raises((HTTPException, DomainError)) as retry:
         await statements_router.approve_statement_stage1(
             statement_id=statement.id, request=None, db=db, user_id=test_user.id
         )

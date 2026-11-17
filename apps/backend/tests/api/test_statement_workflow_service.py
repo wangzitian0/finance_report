@@ -31,6 +31,9 @@ class _FakeSession:
     async def commit(self) -> None:
         self._calls.append(("commit",))
 
+    async def flush(self) -> None:
+        self._calls.append(("flush",))
+
     async def refresh(self, obj: object) -> None:
         self._calls.append(("refresh", obj))
 
@@ -72,7 +75,7 @@ async def test_statement_workflow_service(monkeypatch):
         _FakeSession(approve_calls), statement_id, user_id, dependencies=posting_dependencies
     )
     assert outcome.created_count == 3
-    assert approve_calls == [("approve_statement",), ("auto_post",), ("opening_stock",), ("commit",)]
+    assert approve_calls == [("approve_statement",), ("auto_post",), ("opening_stock",), ("flush",)]
     reject_calls: list = []
     rejected_statement = SimpleNamespace(id=statement_id, name="rejected")
 
@@ -90,7 +93,7 @@ async def test_statement_workflow_service(monkeypatch):
         ("read_status",),
         ("reject_statement",),
         ("release_lock", f"statement-release:{user_id}"),
-        ("commit",),
+        ("flush",),
         ("refresh", rejected_statement),
     ]
     assert statements_router.approve_statement_workflow is statement_workflow.approve_statement_workflow
@@ -148,6 +151,9 @@ class _PostgresSession:
 
     async def commit(self) -> None:
         self._calls.append(("commit",))
+
+    async def flush(self) -> None:
+        self._calls.append(("flush",))
 
 
 class _RecordingSession:
@@ -243,11 +249,12 @@ async def test_AC_extraction_2970_1_approve_returns_while_the_refresh_is_pending
     await _wait_until_started(runner)
     task = statement_workflow._refresh_task
     assert task is not None and not task.done(), "the refresh must still run, and the module must hold its task"
-    assert calls == [("approve_statement",), ("auto_post",), ("opening_balance",), ("commit",)]  # one commit only
+    assert calls == [("approve_statement",), ("auto_post",), ("opening_balance",), ("flush",)]  # one flush only
     runner.release.set()
     await _wait_until_idle()
     assert runner.runs == 1
-    assert calls.count(("commit",)) == 1
+    assert calls.count(("flush",)) == 1
+    assert calls.count(("commit",)) == 0
 
 
 async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committed(

@@ -1,9 +1,7 @@
 """Statement Stage-1 workflow contracts (EPIC-025 AC25.2.1 / #1158).
 
-Service-level orchestration that owns the transaction boundary and the Stage-1
-state transition for statement approval/rejection, so routers stay thin (HTTP
-mapping + response shaping only). Behavior-preserving extraction of the inline
-router sequences — same service calls, same commit point, same ordering.
+Service-level orchestration for the Stage-1 state transition (approve/reject),
+flushing changes so the request/session boundary owns commit and rollback.
 """
 
 from __future__ import annotations
@@ -150,7 +148,7 @@ async def approve_statement_workflow(
             dependencies=dependencies,
             base_currency=resolved_base_currency,
         )
-    await db.commit()
+    await db.flush()
     request_tenant_statistics_refresh(db)
     return outcome
 
@@ -162,14 +160,11 @@ async def reject_statement_workflow(
     *,
     reason: str | None = None,
     dependencies: StatementPostingDependencies | None = None,
-    commit: bool = True,
 ) -> StatementSummary:
-    """Reject a PARSED statement as one committed unit, returning the refreshed row.
+    """Reject a PARSED statement and flush the transition, returning the refreshed row.
 
-    Owns the PARSED→REJECTED transition and its ``commit``. Re-parse queueing is a
-    caller (router/background) concern and is intentionally excluded so the state
-    transition stays a pure, committed unit. A caller that must commit the reject together
-    with another write passes ``commit=False``: the function then flushes and the caller commits.
+    Owns the PARSED→REJECTED transition, releasing ledger/statement-chain effects
+    before flushing so the caller's transaction boundary commits atomically.
     """
     # The reject changes the status, so the status before the reject decides which statements keep a shared row.
     # A missing statement gives None here, and ``reject_statement`` reports it.
@@ -202,9 +197,6 @@ async def reject_statement_workflow(
             dependencies=dependencies,
             base_currency=resolved_base_currency,
         )
-    if commit:
-        await db.commit()
-        await db.refresh(statement)
-    else:
-        await db.flush()
+    await db.flush()
+    await db.refresh(statement)
     return statement

@@ -20,13 +20,24 @@ from src.reconciliation.orm.reconciliation import ReconciliationMatch, Reconcili
 logger = get_logger(__name__)
 
 
-def _anchored_entries(*, user_id: UUID, transaction_id: UUID | None = None):
+def _anchored_entries(
+    *,
+    user_id: UUID,
+    transaction_id: UUID | None = None,
+    transaction_ids: Sequence[UUID] | None = None,
+):
     """Return entries whose exact command was validated before persistence.
 
     The journal owns only an immutable decision id. Audit's projection resolves
     its current target and causal authority from the canonical TraceRecord graph.
     """
     query = current_anchored_journal_entries(user_id=user_id)
+    if transaction_ids is not None:
+        return current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_ids=[f"statement-transaction:{tid}" for tid in transaction_ids],
+        )
     if transaction_id is not None:
         query = current_anchored_journal_entries(
             user_id=user_id,
@@ -102,40 +113,51 @@ async def accept_pending_matches(
             await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_({m.atomic_txn_id for m in pending})))
         ).scalars()
     }
-    for match in pending:
-        if match.journal_entry_ids or match.atomic_txn_id not in txns:
-            continue
-        existing_entry = (
+    missing_txn_ids = [match.atomic_txn_id for match in pending if not match.journal_entry_ids and match.atomic_txn_id in txns]
+    preloaded_entries: dict[UUID, JournalEntry] = {}
+    if missing_txn_ids:
+        matched_entries = (
             await db.execute(
-                _anchored_entries(user_id=user_id, transaction_id=match.atomic_txn_id)
+                _anchored_entries(user_id=user_id, transaction_ids=missing_txn_ids)
                 .where(JournalEntry.status != JournalEntryStatus.VOID)
-                .limit(1)
-                .with_for_update()
+                .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+                .order_by(JournalEntry.created_at, JournalEntry.id)
+                .with_for_update(of=JournalEntry)
             )
-        ).scalar_one_or_none()
-        if existing_entry is None:
-            raise EntryCreationError(
-                "Authoritative economic disposition is required before accepting a reconciliation match; "
-                "a pre-existing journal entry must exist, so post the source transaction first"
-            )
-        match.journal_entry_ids = [str(existing_entry.id)]
+        ).scalars().all()
+        entries_by_txn: dict[UUID, JournalEntry] = {}
+        for entry in matched_entries:
+            if entry.source_id is not None and entry.source_id not in entries_by_txn:
+                entries_by_txn[entry.source_id] = entry
+        for match in pending:
+            if match.journal_entry_ids or match.atomic_txn_id not in txns:
+                continue
+            existing_entry = entries_by_txn.get(match.atomic_txn_id)
+            if existing_entry is None:
+                raise EntryCreationError(
+                    "Authoritative economic disposition is required before accepting a reconciliation match; "
+                    "a pre-existing journal entry must exist, so post the source transaction first"
+                )
+            match.journal_entry_ids = [str(existing_entry.id)]
+            preloaded_entries[existing_entry.id] = existing_entry
 
     entry_ids_by_match = {m: {UUID(e) for e in m.journal_entry_ids or []} for m in pending}
     all_ids = set().union(*entry_ids_by_match.values())
-    entries = (
-        {
-            e.id: e
-            for e in (
-                await db.execute(
-                    _anchored_entries(user_id=user_id)
-                    .where(JournalEntry.id.in_(all_ids))
-                    .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-                )
-            ).scalars()
-        }
-        if all_ids
-        else {}
-    )
+    remaining_ids = all_ids - preloaded_entries.keys()
+    entries = {eid: preloaded_entries[eid] for eid in all_ids if eid in preloaded_entries}
+    if remaining_ids:
+        entries.update(
+            {
+                e.id: e
+                for e in (
+                    await db.execute(
+                        _anchored_entries(user_id=user_id)
+                        .where(JournalEntry.id.in_(remaining_ids))
+                        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+                    )
+                ).scalars()
+            }
+        )
     for match in pending:
         ids = entry_ids_by_match[match]
         txn = txns.get(match.atomic_txn_id)
