@@ -109,6 +109,13 @@ register_rate_limit_window|rl||Per-IP registration rate-limit window in seconds.
     _FIELD_SPECS[_n] = (_GROUPS[_g], set(filter(None, _fl.split(","))), _d)
 
 
+_SDK_LLM_KEY_ALIASES: dict[str, tuple[str, ...]] = {
+    "ai_provider": ("LLM_PROVIDER", "AI_PROVIDER"),
+    "ai_api_key": ("LLM_API_KEY", "AI_API_KEY", "ZAI_API_KEY"),
+    "ai_base_url": ("LLM_BASE_URL", "AI_BASE_URL"),
+}
+
+
 def _f(
     name: str, default: Any, *, ex: str | None = None, ge: int | None = None, le: int | None = None, **extra: Any
 ) -> Any:
@@ -122,7 +129,9 @@ def _f(
     kw: dict[str, Any] = {"default": default, "description": desc, "json_schema_extra": schema_extra}
     ac = next((x[3:] for x in flags if x.startswith("ac:")), None)
     al = next((x[3:] for x in flags if x.startswith("al:")), None)
-    if ac is not None:
+    if name in _SDK_LLM_KEY_ALIASES:
+        kw["validation_alias"] = AliasChoices(*_SDK_LLM_KEY_ALIASES[name])
+    elif ac is not None:
         kw["validation_alias"] = AliasChoices(*ac.split("+"))
     elif al is not None:
         kw["validation_alias"] = al
@@ -352,16 +361,14 @@ class Settings(BaseSettings):
         return parse_comma_list(self.llm_encryption_keys, [])
 
     def to_llm_settings(self) -> LlmSettings:
-        return LlmSettings.from_mapping(
-            {
-                "LLM_PROVIDER": self.ai_provider,
-                "LLM_BASE_URL": self.ai_base_url,
-                "LLM_API_KEY": self.ai_api_key or "",
-                "LARGE_MODEL": self.large_model,
-                "SMALL_MODEL": self.small_model,
-                "MULTIMODAL_MODEL": self.multimodal_model,
-                "LLM_ENCRYPTION_KEYS": ",".join(self.llm_encryption_key_list),
-            },
+        return LlmSettings(
+            provider=self.ai_provider,
+            base_url=self.ai_base_url,
+            api_key=self.ai_api_key or "",
+            large_model=self.large_model,
+            small_model=self.small_model,
+            multimodal_model=self.multimodal_model,
+            encryption_keys=list(self.llm_encryption_key_list),
             chat_completions_path=self.ai_chat_completions_path,
             json_timeout_seconds=self.ai_json_timeout_seconds,
             json_max_tokens=self.ai_json_max_tokens,
