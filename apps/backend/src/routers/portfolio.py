@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import to_money
 from src.composition import refresh_market_data_for_brokerage_import
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
 from src.observability import get_logger
 from src.platform import PreconditionFailedError, ResourceNotFoundError
@@ -96,9 +96,10 @@ class DividendCreateRequest(BaseModel):
 
 @router.post("/brokerage/import", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
 async def import_brokerage_positions(
-    request: BrokerageImportRequest, db: DbSession, user_id: CurrentUserId
+    request: BrokerageImportRequest, ctx: Ctx
 ) -> BrokerageImportResponse:
     """Import parsed brokerage holdings into AtomicPosition and reconcile ManagedPosition."""
+    db, user_id = ctx.db, ctx.user_id
     result = await _brokerage_import_service.import_positions(
         db,
         user_id=user_id,
@@ -112,14 +113,14 @@ async def import_brokerage_positions(
 
 @router.get("/holdings", response_model=HoldingsListResponse)
 async def get_holdings(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     include_disposed: bool = Query(False, description="Include disposed positions"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> HoldingsListResponse:
     """Get portfolio holdings with P&L."""
+    db, user_id = ctx.db, ctx.user_id
     warnings: list[dict[str, str]] = []
     try:
         holdings = list(
@@ -134,25 +135,23 @@ async def get_holdings(
 
 @router.get("/summary", response_model=PortfolioSummaryDashboardResponse)
 async def get_portfolio_summary(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
 ) -> PortfolioSummaryDashboardResponse:
     """Get portfolio summary with YTD realized P&L and dividend income."""
-    return await _portfolio_service.get_portfolio_summary_dashboard(db=db, user_id=user_id, as_of_date=as_of_date)
+    return await _portfolio_service.get_portfolio_summary_dashboard(db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date)
 
 
 @router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
 async def get_holding_dividends(
     ticker: str,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[DividendEventResponse]:
     """List dividend events for a holding ticker."""
     dividends = await _investment_accounting_service.list_holding_dividends(
-        db, user_id=user_id, ticker=ticker, limit=limit, offset=offset
+        ctx.db, user_id=ctx.user_id, ticker=ticker, limit=limit, offset=offset
     )
     return [_dividend_response(d) for d in dividends]
 
@@ -161,10 +160,10 @@ async def get_holding_dividends(
 async def create_holding_dividend(
     ticker: str,
     request: DividendCreateRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> DividendEventResponse:
     """Record dividend income for an existing current-user holding."""
+    db, user_id = ctx.db, ctx.user_id
     dividend = await _investment_accounting_service.record_holding_dividend(
         db,
         user_id=user_id,
@@ -188,12 +187,12 @@ async def create_holding_dividend(
 @router.get("/{ticker}/realized", response_model=list[RealizedLotResponse])
 async def get_holding_realized_lots(
     ticker: str,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[RealizedLotResponse]:
     """List lot-level realized P&L rows for a holding ticker."""
+    db, user_id = ctx.db, ctx.user_id
     rows = (
         await db.execute(
             select(InvestmentTransaction, ManagedPosition)
@@ -228,10 +227,10 @@ async def get_holding_realized_lots(
 async def update_holding_cost_basis_method(
     ticker: str,
     request: CostBasisMethodUpdateRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> CostBasisMethodUpdateResponse:
     """Persist cost-basis method for all active positions matching a holding ticker."""
+    db, user_id = ctx.db, ctx.user_id
     positions = list(
         (
             await db.execute(
@@ -255,14 +254,14 @@ async def update_holding_cost_basis_method(
 
 @router.get("/performance/report-schedule", response_model=InvestmentPerformanceReportScheduleResponse)
 async def get_investment_performance_report_schedule(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     period_start: date | None = Query(None, description="Report period start date (default: Jan 1 of period end year)"),
     period_end: date | None = Query(None, description="Report period end date (default: today)"),
     as_of_date: date | None = Query(None, description="Valuation date (default: period_end)"),
     currency: str = Query(default="SGD", min_length=3, max_length=3),
 ) -> InvestmentPerformanceReportScheduleResponse:
     """Build the report-ready investment performance schedule."""
+    db, user_id = ctx.db, ctx.user_id
     period_end = period_end or date.today()
     period_start = period_start or date(period_end.year, 1, 1)
     as_of_date = as_of_date or period_end
@@ -280,51 +279,51 @@ async def get_investment_performance_report_schedule(
 
 @router.get("/allocation/sector", response_model=list[AllocationBreakdownResponse])
 async def get_sector_allocation(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get sector allocation breakdown."""
     return await _paged_allocation(
-        sector_allocation_breakdowns, db=db, user_id=user_id, as_of_date=as_of_date, limit=limit, offset=offset
+        sector_allocation_breakdowns, db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date, limit=limit, offset=offset
     )
 
 
 @router.get("/allocation/geography", response_model=list[AllocationBreakdownResponse])
 async def get_geography_allocation(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get geography allocation breakdown."""
     return await _paged_allocation(
-        geography_allocation_breakdowns, db=db, user_id=user_id, as_of_date=as_of_date, limit=limit, offset=offset
+        geography_allocation_breakdowns, db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date, limit=limit, offset=offset
     )
 
 
 @router.get("/allocation/asset-class", response_model=list[AllocationBreakdownResponse])
 async def get_asset_class_allocation(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get asset class allocation breakdown."""
     return await _paged_allocation(
-        asset_class_allocation_breakdowns, db=db, user_id=user_id, as_of_date=as_of_date, limit=limit, offset=offset
+        asset_class_allocation_breakdowns,
+        db=ctx.db,
+        user_id=ctx.user_id,
+        as_of_date=as_of_date,
+        limit=limit,
+        offset=offset,
     )
 
 
 @router.post("/prices/update", response_model=PriceUpdateBatchResponse, status_code=status.HTTP_200_OK)
-async def update_prices(
-    db: DbSession, user_id: CurrentUserId, request: PriceUpdateBatchRequest
-) -> PriceUpdateBatchResponse:
+async def update_prices(ctx: Ctx, request: PriceUpdateBatchRequest) -> PriceUpdateBatchResponse:
     """Update market prices manually (batch)."""
-    results = await _portfolio_service.update_market_prices(db=db, user_id=user_id, updates=request.updates)
-    await db.flush()
+    results = await _portfolio_service.update_market_prices(db=ctx.db, user_id=ctx.user_id, updates=request.updates)
+    await ctx.db.flush()
     return PriceUpdateBatchResponse(updated_count=len(results), results=results)

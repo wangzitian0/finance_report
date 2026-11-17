@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.extraction import (
     auto_accept_preference,
     effective_auto_accept,
@@ -30,11 +30,10 @@ def _effective_settings(ai_settings: dict[str, bool] | None) -> UserAiSettingsRe
 
 @router.get("", response_model=UserAiSettingsResponse)
 async def get_current_user_settings(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> UserAiSettingsResponse:
     """Return effective current-user AI settings."""
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await ctx.db.execute(select(User).where(User.id == ctx.user_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise ResourceNotFoundError("User not found")
@@ -44,10 +43,10 @@ async def get_current_user_settings(
 @router.patch("", response_model=UserAiSettingsResponse)
 async def patch_current_user_settings(
     payload: UserAiSettingsUpdate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> UserAiSettingsResponse:
     """Persist current-user AI setting overrides."""
+    db, user_id = ctx.db, ctx.user_id
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:

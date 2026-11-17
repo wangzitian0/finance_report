@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.observability import get_logger
 from src.platform import DomainError, InternalServiceError, ResourceNotFoundError, ValidationFailedError
 from src.portfolio import PositionService
@@ -40,10 +40,10 @@ _valuations = ValuationService()
 )
 async def create_valuation_snapshot(
     payload: ManualValuationSnapshotCreate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> ManualValuationSnapshotResponse:
     """Create a manual valuation snapshot."""
+    db, user_id = ctx.db, ctx.user_id
     try:
         snapshot = await _valuations.create_valuation_snapshot(
             db,
@@ -81,14 +81,14 @@ def _parse_component_type(component_type: str | None) -> ManualValuationComponen
 
 @router.get("/valuation-snapshots", response_model=ManualValuationSnapshotListResponse)
 async def list_valuation_snapshots(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of_date: date | None = Query(default=None),
     component_type: str | None = Query(default=None),
     limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> ManualValuationSnapshotListResponse:
     """List manual valuation snapshots."""
+    db, user_id = ctx.db, ctx.user_id
     parsed_component_type = _parse_component_type(component_type)
 
     snapshots, total = await _valuations.list_valuation_snapshots(
@@ -108,11 +108,10 @@ async def list_valuation_snapshots(
 @router.get("/valuation-snapshots/{snapshot_id}", response_model=ManualValuationSnapshotResponse)
 async def get_valuation_snapshot(
     snapshot_id: UUID,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ManualValuationSnapshotResponse:
     """Get a manual valuation snapshot."""
-    snapshot = await _valuations.get_valuation_snapshot(db, user_id, snapshot_id)
+    snapshot = await _valuations.get_valuation_snapshot(ctx.db, ctx.user_id, snapshot_id)
     if not snapshot:
         raise ResourceNotFoundError("Manual valuation snapshot not found")
     return ManualValuationSnapshotResponse.model_validate(snapshot)
@@ -122,10 +121,10 @@ async def get_valuation_snapshot(
 async def update_valuation_snapshot(
     snapshot_id: UUID,
     payload: ManualValuationSnapshotUpdate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> ManualValuationSnapshotResponse:
     """Update a manual valuation snapshot."""
+    db, user_id = ctx.db, ctx.user_id
     try:
         snapshot = await _valuations.update_valuation_snapshot(
             db,
@@ -148,26 +147,24 @@ async def update_valuation_snapshot(
 @router.delete("/valuation-snapshots/{snapshot_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_valuation_snapshot(
     snapshot_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> None:
     """Reject destructive deletion of an immutable manual valuation snapshot."""
-    deleted = await _valuations.delete_valuation_snapshot(db, user_id, snapshot_id)
+    deleted = await _valuations.delete_valuation_snapshot(ctx.db, ctx.user_id, snapshot_id)
     if not deleted:
         raise ResourceNotFoundError("Manual valuation snapshot not found")
 
 
 @router.get("/valuation-components", response_model=ValuationComponentsResponse)
 async def list_valuation_components(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     as_of_date: date | None = Query(default=None),
     include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
 ) -> ValuationComponentsResponse:
     """List latest manual valuation components as of a date."""
     result = await _valuations.get_latest_valuation_components(
-        db,
-        user_id,
+        ctx.db,
+        ctx.user_id,
         as_of_date=as_of_date or date.today(),
         include_restricted=include_restricted,
     )
@@ -183,8 +180,7 @@ async def list_valuation_components(
 @router.get("/positions/{position_id}/depreciation", response_model=DepreciationResponse)
 async def get_position_depreciation(
     position_id: UUID,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     method: Literal["straight-line", "declining-balance"] = Query(
         default="straight-line", description="Depreciation method"
     ),
@@ -201,8 +197,8 @@ async def get_position_depreciation(
     )
 
     result = await _positions.get_depreciation_schedule(
-        db=db,
-        user_id=user_id,
+        db=ctx.db,
+        user_id=ctx.user_id,
         position_id=position_id,
         method=method,
         useful_life_years=useful_life_years,

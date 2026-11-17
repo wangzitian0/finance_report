@@ -20,7 +20,7 @@ from src.composition import (
     execute_statement_brokerage_import,
 )
 from src.config import settings
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
@@ -274,7 +274,7 @@ async def _enqueue_parse_job(
 
 
 async def _queue_statement_reparse(
-    db: DbSession,
+    db: AsyncSession,
     statement: StatementSummary,
     user_id: UUID,
     *,
@@ -333,7 +333,7 @@ async def _queue_statement_reparse(
     return started.run_id
 
 
-async def _queue_classify_run(db: DbSession, statement_id: UUID, user_id: UUID, hints: RunHints) -> UUID:
+async def _queue_classify_run(db: AsyncSession, statement_id: UUID, user_id: UUID, hints: RunHints) -> UUID:
     """Start a user classify run, commit it, then run it as a task of this process."""
     run_id = await start_user_classify_run(db, statement_id=statement_id, user_id=user_id, hints=hints)
     await db.commit()
@@ -347,7 +347,7 @@ async def _queue_classify_run(db: DbSession, statement_id: UUID, user_id: UUID, 
 
 
 async def _create_statement_account_from_confirmation(
-    db: DbSession, statement: StatementSummary, user_id: UUID
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> Account:
     document = await _resolve_uploaded_document(db, statement, user_id)
     if statement.institution and statement.account_last4 and statement.currency:
@@ -430,10 +430,10 @@ async def upload_statement(
     account_id: Annotated[UUID | None, Form()] = None,
     model: Annotated[str | None, Form()] = None,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> BankStatementResponse:
     """Upload a financial statement and enqueue parsing."""
+    db, user_id = ctx.db, ctx.user_id
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     if extension not in _ALLOWED_EXTENSIONS:
@@ -585,14 +585,14 @@ async def create_statement_run(
     statement_id: UUID,
     request: StatementRunRequest,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> StatementRunRecord:
     """Run the extraction or the classification of a statement again, with optional hints.
 
     The actor of the run is the authenticated user. An active run gives 409 with `active_run_id`. A classify run
     needs a parsed statement, takes the hints for every file type, and runs as a task of this process.
     """
+    db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
     if request.kind == "classify":
         if statement.status is not BankStatementStatus.PARSED:
@@ -619,44 +619,56 @@ async def create_statement_run(
 
 
 @router.get("/{statement_id}/runs", response_model=StatementRunListResponse)
-async def list_statement_runs(
-    statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId
-) -> StatementRunListResponse:
+async def list_statement_runs(statement_id: UUID, ctx: ReadCtx) -> StatementRunListResponse:
     """List the runs of a statement by attempt number, with their hints, actor, state and error."""
-    await _get_statement_or_404(db, statement_id, user_id)
-    runs = await list_runs(db, statement_id, user_id)
+    await _get_statement_or_404(ctx.db, statement_id, ctx.user_id)
+    runs = await list_runs(ctx.db, statement_id, ctx.user_id)
     return StatementRunListResponse(items=runs, total=len(runs))
 
 
 @router.get("", response_model=BankStatementListResponse)
-async def list_statements(db: ReadDbSession, user_id: CurrentUserId) -> BankStatementListResponse:
+async def list_statements(ctx: ReadCtx) -> BankStatementListResponse:
     """List non-retired statements for the current user."""
     return await _list_statements_by_where(
-        db, user_id, StatementSummary.user_id == user_id, StatementSummary.status != BankStatementStatus.RETIRED
+        ctx.db,
+        ctx.user_id,
+        StatementSummary.user_id == ctx.user_id,
+        StatementSummary.status != BankStatementStatus.RETIRED,
     )
 
 
 @router.get("/pending-review", response_model=BankStatementListResponse)
-async def list_pending_review(db: ReadDbSession, user_id: CurrentUserId) -> BankStatementListResponse:
+async def list_pending_review(ctx: ReadCtx) -> BankStatementListResponse:
     """List statements pending Stage 1 human review."""
     return await _list_statements_by_where(
-        db,
-        user_id,
-        StatementSummary.user_id == user_id,
+        ctx.db,
+        ctx.user_id,
+        StatementSummary.user_id == ctx.user_id,
         StatementSummary.status == BankStatementStatus.PARSED,
         pending_stage1_review_filter(),
     )
 
 
 @router.get("/{statement_id}", response_model=BankStatementResponse)
-async def get_statement(statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId) -> BankStatementResponse:
+async def get_statement(statement_id: UUID, ctx: ReadCtx) -> BankStatementResponse:
     """Get a statement with all its transactions."""
-    return await _compose_statement_response(db, await _get_statement_or_404(db, statement_id, user_id), user_id)
+    return await _compose_statement_response(
+        ctx.db, await _get_statement_or_404(ctx.db, statement_id, ctx.user_id), ctx.user_id
+    )
 
 
-@router.get("/{statement_id}/document")
-async def get_statement_document(statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId) -> Response:
+@router.get(
+    "/{statement_id}/document",
+    responses={
+        200: {
+            "description": "Original uploaded statement document bytes.",
+            "content": {"application/pdf": {}, "text/csv": {}, "image/png": {}, "image/jpeg": {}},
+        }
+    },
+)
+async def get_statement_document(statement_id: UUID, ctx: ReadCtx) -> Response:
     """Stream the original uploaded document for a statement, same-origin."""
+    db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
@@ -680,9 +692,10 @@ async def get_statement_document(statement_id: UUID, db: ReadDbSession, user_id:
     status_code=status.HTTP_200_OK,
 )
 async def import_brokerage_statement_positions(
-    statement_id: UUID, db: DbSession, user_id: CurrentUserId
+    statement_id: UUID, ctx: Ctx
 ) -> BrokerageImportResponse:
     """Import portfolio positions from a parsed brokerage statement."""
+    db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
     if statement.status not in BROKERAGE_IMPORTABLE_STATUSES:
@@ -738,21 +751,20 @@ async def import_brokerage_statement_positions(
 
 
 @router.delete("/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_statement(statement_id: UUID, db: DbSession, user_id: CurrentUserId) -> None:
+async def delete_statement(statement_id: UUID, ctx: Ctx) -> None:
     """Retire a statement from product views while retaining source history."""
     await retire_statement(
-        db,
-        RetireStatementCommand(statement_id=statement_id, user_id=user_id),
+        ctx.db,
+        RetireStatementCommand(statement_id=statement_id, user_id=ctx.user_id),
         dependencies=compose_statement_posting_dependencies(),
     )
-    await db.flush()
+    await ctx.db.flush()
 
 
 @router.get("/{statement_id}/review", response_model=StatementReviewResponse)
-async def get_statement_for_review(
-    statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId
-) -> StatementReviewResponse:
+async def get_statement_for_review(statement_id: UUID, ctx: ReadCtx) -> StatementReviewResponse:
     """Get Stage 1 review data for a statement."""
+    db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     transactions = await resolve_statement_transactions(db, statement)
@@ -801,10 +813,10 @@ async def get_statement_for_review(
 async def confirm_statement_review_envelope(
     statement_id: UUID,
     request: ReviewedStatementEnvelopeRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> ReviewedStatementEnvelopeResponse:
     """Append a typed human confirmation over the statement's current source result."""
+    db, user_id = ctx.db, ctx.user_id
     envelope = await confirm_reviewed_statement_envelope(
         db,
         user_id=user_id,
@@ -819,11 +831,11 @@ async def confirm_statement_review_envelope(
 @router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
 async def approve_statement_stage1(
     statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
     request: Annotated[Stage1ApprovalRequest | None, Body()] = None,
 ) -> Stage1ApprovalResponse:
     """Stage 1: Approve statement with balance validation."""
+    db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
     preloaded_account: Account | None = None
     if request and request.account_id is not None:
@@ -854,10 +866,10 @@ async def approve_statement_stage1(
 async def reject_statement_stage1(
     statement_id: UUID,
     decision: StatementDecisionRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> BankStatementResponse:
     """Stage 1: Reject statement and enqueue reparse. The notes become the hint note of the rerun."""
+    db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
     try:
         await _queue_statement_reparse(

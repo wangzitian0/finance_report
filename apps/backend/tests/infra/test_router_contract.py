@@ -15,6 +15,14 @@ API_ROUTER_DIRS = (
 )
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete"})
 _RW_SESSIONS = frozenset({"DbSession", "Ctx"})
+_UNAUTHENTICATED_DB_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("auth.py", "register"),
+        ("auth.py", "login"),
+        ("reports.py", "get_available_currencies"),
+    }
+)
+_STATELESS_AUTH_ROUTES: frozenset[tuple[str, str]] = frozenset({("llm.py", "get_config_status")})
 _FORBIDDEN_HELPER_CALLS = frozenset(
     {
         "get_owned_or_404",
@@ -54,7 +62,6 @@ _TRANSLATED_DOMAIN_EXCEPTIONS = frozenset(
 )
 _ALLOWED_TX_ROUTER_FUNCTIONS: frozenset[tuple[str, str]] = frozenset(
     {
-        ("auth.py", "register"),
         ("statements.py", "_queue_statement_reparse"),
         ("statements.py", "_queue_classify_run"),
         ("statements.py", "upload_statement"),
@@ -91,6 +98,21 @@ def _scan_router_violations(path: Path) -> set[str]:
                     if arg.annotation is not None and ast.unparse(arg.annotation) in _RW_SESSIONS:
                         violations.add("get_dbsession")
             if methods:
+                annos = {
+                    ast.unparse(arg.annotation)
+                    for arg in [*node.args.args, *node.args.kwonlyargs]
+                    if arg.annotation is not None
+                }
+                if (name, node.name) not in _UNAUTHENTICATED_DB_ROUTES and (
+                    ("DbSession" in annos or "ReadDbSession" in annos)
+                    or (
+                        "CurrentUserId" in annos
+                        and "Ctx" not in annos
+                        and "ReadCtx" not in annos
+                        and (name, node.name) not in _STATELESS_AUTH_ROUTES
+                    )
+                ):
+                    violations.add("legacy_db_route_param")
                 for sub in ast.walk(node):
                     if isinstance(sub, ast.ExceptHandler) and sub.type is not None:
                         exc_src = ast.unparse(sub.type)

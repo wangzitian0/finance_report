@@ -5,8 +5,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.extraction import (
     AtomicTransaction,
     ClassificationStatus,
@@ -40,15 +41,16 @@ def _txn_direction(txn: AtomicTransaction) -> Literal["IN", "OUT"] | None:
 
 
 async def _count_suggestions(
-    db: ReadDbSession, model: Any, join_col: Any, scope_filter: Any, filters: tuple[Any, ...]
+    db: AsyncSession, model: Any, join_col: Any, scope_filter: Any, filters: tuple[Any, ...]
 ) -> int:
     stmt = select(func.count(model.id)).join(AtomicTransaction, join_col == AtomicTransaction.id).where(scope_filter, *filters)
     return int((await db.execute(stmt)).scalar_one() or 0)
 
 
 @router.post("/feedback", response_model=AiFeedbackResponse, status_code=status.HTTP_201_CREATED)
-async def create_ai_feedback(payload: AiFeedbackRequest, db: DbSession, user_id: CurrentUserId) -> AiFeedbackResponse:
+async def create_ai_feedback(payload: AiFeedbackRequest, ctx: Ctx) -> AiFeedbackResponse:
     """Persist user feedback for an AI suggestion and apply it to the draft classification."""
+    db, user_id = ctx.db, ctx.user_id
     effect = await apply_suggestion_feedback(
         db, user_id, payload.suggestion_id, payload.action, payload.corrected_value
     )
@@ -70,13 +72,13 @@ async def create_ai_feedback(payload: AiFeedbackRequest, db: DbSession, user_id:
 
 @router.get("/suggestions", response_model=AiSuggestionListResponse)
 async def list_ai_suggestions(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     limit: Annotated[int, Query(ge=1, le=200, description="Maximum items to return")] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     statement_id: Annotated[UUID | None, Query(description="Optional statement ID filter")] = None,
 ) -> AiSuggestionListResponse:
     """List pending AI classification and reconciliation suggestions in the 60-84 review band."""
+    db, user_id = ctx.db, ctx.user_id
     scope_filter = (
         effective_statement_transaction_filter(user_id, statement_id)
         if statement_id is not None

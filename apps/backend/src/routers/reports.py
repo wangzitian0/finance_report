@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, union
 
 from src.config_app import get_effective_base_currency
-from src.deps import CurrentUserId, DbSession, Pagination, ReadDbSession
+from src.deps import Ctx, Pagination, ReadCtx, ReadDbSession, RequestContext
 from src.extraction import coverage_bank_custody_account_ids
 from src.ledger import AccountType
 from src.observability import get_logger, track as _track_analytics
@@ -156,8 +156,7 @@ class ExportReportType(str, Enum):
 
 
 async def _package_period(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: RequestContext,
     *,
     start_date: date | None,
     end_date: date | None,
@@ -169,7 +168,7 @@ async def _package_period(
     )
     if report_start > report_end:
         raise ValidationFailedError("start_date must be before end_date")
-    target_currency = _package_currency(currency or await get_effective_base_currency(db, user_id=user_id))
+    target_currency = _package_currency(currency or await ctx.get_base_currency())
     return report_start, report_end, report_as_of, target_currency
 
 
@@ -182,16 +181,15 @@ async def preview_personal_report_package(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     include_restricted: bool = Query(default=PACKAGE_INCLUDE_RESTRICTED),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> PersonalReportPackagePreview:
     """Build the typed preview document without persisting a snapshot."""
     report_start, report_end, report_as_of, target_currency = await _package_period(
-        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+        ctx, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
     document = await PackageAssembler().assemble(
-        db,
-        user_id=user_id,
+        ctx.db,
+        user_id=ctx.user_id,
         framework_id=framework_id,
         start_date=report_start,
         end_date=report_end,
@@ -213,17 +211,16 @@ async def list_personal_report_package_line_details(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     pagination: Pagination,
 ) -> PersonalReportPackageLineDetailsPage:
     """Return one page of traceability line anchor details."""
     report_start, report_end, report_as_of, target_currency = await _package_period(
-        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+        ctx, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
     details = await PackageAssembler().line_details(
-        db,
-        user_id=user_id,
+        ctx.db,
+        user_id=ctx.user_id,
         start_date=report_start,
         end_date=report_end,
         as_of_date=report_as_of,
@@ -245,17 +242,16 @@ async def list_personal_report_package_manifest_entries(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     pagination: Pagination,
 ) -> PersonalReportPackageManifestEntriesPage:
     """Return one page of the preview input manifest."""
     report_start, report_end, report_as_of, target_currency = await _package_period(
-        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+        ctx, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
     entries = await PackageAssembler().manifest_entries(
-        db,
-        user_id=user_id,
+        ctx.db,
+        user_id=ctx.user_id,
         start_date=report_start,
         end_date=report_end,
         as_of_date=report_as_of,
@@ -271,17 +267,16 @@ async def list_personal_report_package_policy_decisions(
     end_date: date | None = Query(default=None),
     as_of_date: date | None = Query(default=None),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     pagination: Pagination,
 ) -> PersonalReportPackagePolicyDecisionsPage:
     """Return one page of the preview framework policy decisions."""
     report_start, report_end, report_as_of, _ = await _package_period(
-        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=None
+        ctx, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=None
     )
     decisions = await PackageAssembler().policy_decisions(
-        db,
-        user_id=user_id,
+        ctx.db,
+        user_id=ctx.user_id,
         framework_id=framework_id,
         start_date=report_start,
         end_date=report_end,
@@ -292,15 +287,15 @@ async def list_personal_report_package_policy_decisions(
 
 @router.post("/package/generate", response_model=PersonalReportPackageSnapshotResponse)
 async def generate_personal_report_package_snapshot(
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
     request: PersonalReportPackageGenerateRequest,
 ) -> PersonalReportPackageSnapshotResponse:
     """Generate and persist an immutable personal report package snapshot."""
+    db, user_id = ctx.db, ctx.user_id
     report_start, report_end, report_as_of = _package_dates(
         start_date=request.start_date, end_date=request.end_date, as_of_date=request.as_of_date
     )
-    target_currency = _package_currency(request.currency or await get_effective_base_currency(db, user_id=user_id))
+    target_currency = _package_currency(request.currency or await ctx.get_base_currency())
     snapshot_id = uuid4()
     frozen_at = datetime.now(UTC)
     document = await PackageAssembler().assemble(
@@ -333,14 +328,14 @@ async def generate_personal_report_package_snapshot(
 
 @router.get("/package/snapshots", response_model=list[PersonalReportPackageSnapshotSummary])
 async def list_personal_report_package_snapshots(
-    db: ReadDbSession, user_id: CurrentUserId, pagination: Pagination
+    ctx: ReadCtx, pagination: Pagination
 ) -> list[PersonalReportPackageSnapshotSummary]:
     """List saved personal report package snapshots for the current user."""
     rows = (
         (
-            await db.execute(
+            await ctx.db.execute(
                 select(ReportSnapshot)
-                .where(ReportSnapshot.user_id == user_id, ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
+                .where(ReportSnapshot.user_id == ctx.user_id, ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
                 .order_by(ReportSnapshot.created_at.desc(), ReportSnapshot.id.desc())
                 .limit(pagination.limit)
                 .offset(pagination.offset)
@@ -349,19 +344,19 @@ async def list_personal_report_package_snapshots(
         .scalars()
         .all()
     )
-    default_currency = await get_effective_base_currency(db, user_id=user_id)
+    default_currency = await ctx.get_base_currency()
     return [_package_snapshot_summary(s, default_currency=default_currency) for s in rows]
 
 
 @router.get("/package/snapshots/{snapshot_id}", response_model=PersonalReportPackageSnapshotResponse)
 async def get_personal_report_package_snapshot(
-    snapshot_id: UUID, db: ReadDbSession, user_id: CurrentUserId
+    snapshot_id: UUID, ctx: ReadCtx
 ) -> PersonalReportPackageSnapshotResponse:
     """Return one saved package snapshot without recalculating live report data."""
-    snapshot = await db.scalar(
+    snapshot = await ctx.db.scalar(
         select(ReportSnapshot).where(
             ReportSnapshot.id == snapshot_id,
-            ReportSnapshot.user_id == user_id,
+            ReportSnapshot.user_id == ctx.user_id,
             ReportSnapshot.report_type == SnapshotReportType.PACKAGE,
         )
     )
@@ -397,15 +392,22 @@ def _package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> by
     return buffer.getvalue()
 
 
-@router.get("/package/snapshots/{snapshot_id}/export")
+@router.get(
+    "/package/snapshots/{snapshot_id}/export",
+    responses={
+        200: {
+            "description": "Exported personal report package snapshot.",
+            "content": {"text/csv": {}, "application/json": {}, "application/zip": {}},
+        }
+    },
+)
 async def export_personal_report_package_snapshot(
     snapshot_id: UUID,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     format: PackageSnapshotExportFormat = Query(default=PackageSnapshotExportFormat.CSV),
 ) -> StreamingResponse:
     """Export a saved package snapshot as JSON, CSV, or ZIP."""
-    snapshot = await get_personal_report_package_snapshot(snapshot_id=snapshot_id, db=db, user_id=user_id)
+    snapshot = await get_personal_report_package_snapshot(snapshot_id=snapshot_id, ctx=ctx)
     stem = f"personal-report-package-{snapshot.framework_id.value}-{snapshot.as_of_date}-{snapshot.id}"
     if format == PackageSnapshotExportFormat.ZIP:
         return _zip_streaming_response(_package_snapshot_zip(snapshot), f"{stem}.zip")
@@ -416,16 +418,23 @@ async def export_personal_report_package_snapshot(
     return _stream_envelope_text(_package_snapshot_csv(snapshot), ExportStreamMediaType.CSV, f"{stem}.csv")
 
 
-@router.post("/package/annual-archive")
+@router.post(
+    "/package/annual-archive",
+    responses={
+        200: {
+            "description": "Annual tax & audit package archive ZIP.",
+            "content": {"application/zip": {}},
+        }
+    },
+)
 async def export_annual_tax_archive(
-    request: AnnualTaxArchiveRequest, db: DbSession, user_id: CurrentUserId
+    request: AnnualTaxArchiveRequest, ctx: Ctx
 ) -> StreamingResponse:
     """Generate and stream an annual tax & audit package archive ZIP."""
     start_date, end_date = date(request.year, 1, 1), date(request.year, 12, 31)
     target_currency = _package_currency(request.currency)
     snapshot = await generate_personal_report_package_snapshot(
-        db=db,
-        user_id=user_id,
+        ctx=ctx,
         request=PersonalReportPackageGenerateRequest(
             framework_id=request.framework_id,
             start_date=start_date,
@@ -441,12 +450,11 @@ async def export_annual_tax_archive(
 async def report_coverage(
     as_of_date: date | None = Query(default=None),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ReportCoverageResponse:
     """Return the earliest date covered across authoritative custody accounts."""
     resolved = as_of_date or date.today()
-    coverage = await _report_coverage(db, user_id=user_id, as_of=resolved)
+    coverage = await _report_coverage(ctx.db, user_id=ctx.user_id, as_of=resolved)
     return ReportCoverageResponse(
         as_of_date=resolved,
         coverage_start=coverage.start,
@@ -461,8 +469,7 @@ async def balance_sheet(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     report_date = as_of_date or date.today()
@@ -471,7 +478,7 @@ async def balance_sheet(
         end_date=report_date,
         label="Balance sheet generation",
         build=lambda: generate_balance_sheet(
-            db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+            ctx.db, ctx.user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
         ),
     )
     return BalanceSheetResponse.model_validate(report)
@@ -483,8 +490,7 @@ async def balance_sheet_diagnostics(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> EquationDiagnosticResult:
     """Diagnose accounting equation out-of-balance root cause."""
     report_date = as_of_date or date.today()
@@ -493,7 +499,7 @@ async def balance_sheet_diagnostics(
         end_date=report_date,
         label="Balance sheet diagnostics",
         build=lambda: run_balance_sheet_diagnostics(
-            db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+            ctx.db, ctx.user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
         ),
     )
 
@@ -503,8 +509,7 @@ async def get_data_quality_health(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> PersonalDataQualityHealthResponse:
     """Return personal financial data quality, invariants, timeline, and action items."""
     report_date = as_of_date or date.today()
@@ -512,7 +517,7 @@ async def get_data_quality_health(
         currency=currency,
         end_date=report_date,
         label="Data quality evaluation",
-        build=lambda: compute_personal_data_quality(db, user_id, as_of_date=report_date, currency=currency),
+        build=lambda: compute_personal_data_quality(ctx.db, ctx.user_id, as_of_date=report_date, currency=currency),
     )
 
 
@@ -523,13 +528,12 @@ async def account_lineage(
     start_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> AccountLineageResponse:
     """List the journal lines contributing to one account's report balance."""
     report_date = as_of_date or date.today()
     report = await get_account_lineage(
-        db, user_id, account_id, as_of_date=report_date, start_date=start_date, currency=currency
+        ctx.db, ctx.user_id, account_id, as_of_date=report_date, start_date=start_date, currency=currency
     )
     return AccountLineageResponse.model_validate(report)
 
@@ -542,8 +546,7 @@ async def income_statement(
     tags: list[str] | None = Query(default=None, alias="tags"),
     account_type: AccountType | None = Query(default=None, alias="account_type"),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> IncomeStatementResponse:
     """Get income statement for a period with optional filtering."""
     resolved_end = end_date or date.today()
@@ -553,8 +556,8 @@ async def income_statement(
         end_date=resolved_end,
         label="Income statement generation",
         build=lambda: generate_income_statement(
-            db,
-            user_id,
+            ctx.db,
+            ctx.user_id,
             start_date=resolved_start,
             end_date=resolved_end,
             currency=currency,
@@ -571,10 +574,10 @@ async def cash_flow(
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> CashFlowPreview:
     """Get bounded cash-flow statement."""
+    db, user_id = ctx.db, ctx.user_id
     start, end = cash_flow_period(start_date, end_date)
 
     async def _build():
@@ -594,11 +597,11 @@ async def list_cash_flow_line_events(
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     pagination: Pagination,
 ) -> CashFlowLineEventsPage:
     """Return one page of lineage records for a cash-flow line."""
+    db, user_id = ctx.db, ctx.user_id
     start, end = cash_flow_period(start_date, end_date)
 
     async def _build():
@@ -621,8 +624,7 @@ async def net_worth_timeseries(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> NetWorthTimeSeriesResponse:
     """Get daily or monthly net worth time-series."""
     report = await _run_report(
@@ -630,8 +632,8 @@ async def net_worth_timeseries(
         end_date=to_date,
         label="Net worth time-series generation",
         build=lambda: get_net_worth_timeseries(
-            db,
-            user_id,
+            ctx.db,
+            ctx.user_id,
             start_date=from_date,
             end_date=to_date,
             granularity=granularity.value,
@@ -648,8 +650,7 @@ async def net_worth_allocation(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> NetWorthAllocationResponse:
     """Get signed net-worth allocation grouped by asset class, liquidity, and source currency."""
     report_date = as_of_date or date.today()
@@ -658,13 +659,21 @@ async def net_worth_allocation(
         end_date=report_date,
         label="Net worth allocation generation",
         build=lambda: get_net_worth_allocation_schedule(
-            db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+            ctx.db, ctx.user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
         ),
     )
     return NetWorthAllocationResponse.model_validate(report)
 
 
-@router.get("/export")
+@router.get(
+    "/export",
+    responses={
+        200: {
+            "description": "Exported financial report CSV stream.",
+            "content": {"text/csv": {}},
+        }
+    },
+)
 async def export_report(
     report_type: ExportReportType = Query(...),
     format: ExportFormat = Query(default=ExportFormat.CSV),
@@ -675,10 +684,10 @@ async def export_report(
     include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     framework_id: PersonalReportingFrameworkId | None = Query(default=None),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> StreamingResponse:
     """Export reports in CSV format."""
+    db, user_id = ctx.db, ctx.user_id
     _ = (format, framework_id)
     if report_type == ExportReportType.BALANCE_SHEET:
         report_date = as_of_date or date.today()

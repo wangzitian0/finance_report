@@ -11,8 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
 from src.composition import compose_reviewed_disposition_dependencies
-from src.config_app import get_effective_base_currency
-from src.deps import CurrentUserId, DbSession, Pagination, ReadDbSession
+from src.deps import Ctx, Pagination, ReadCtx
 from src.extraction import (
     AtomicTransaction,
     BankStatementStatus,
@@ -182,10 +181,10 @@ async def _load_match_responses(
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> ReconciliationRunResponse:
     """Run the reconciliation pipeline for the current user."""
+    db, user_id = ctx.db, ctx.user_id
     statement: StatementSummary | None = None
     if payload.statement_id:
         statement = (
@@ -213,7 +212,7 @@ async def run_reconciliation(
         limit=payload.limit,
     )
     try:
-        currency = await get_effective_base_currency(db, user_id=user_id)
+        currency = await ctx.get_base_currency()
         matches = await execute_matching(db, limit=payload.limit, user_id=user_id, currency=currency)
     except Exception as exc:
         logger.exception(
@@ -266,10 +265,10 @@ async def list_matches(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ReconciliationMatchListResponse:
     """Return reconciliation matches for the current user."""
+    db, user_id = ctx.db, ctx.user_id
     clauses = [AtomicTransaction.user_id == user_id]
     if status_filter:
         clauses.append(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
@@ -289,18 +288,19 @@ async def pending_review_queue(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ReconciliationMatchListResponse:
     """Return the Stage-2 pending review queue."""
+    db, user_id = ctx.db, ctx.user_id
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
     total = await count_pending_review_items(db, user_id=user_id)
     return ReconciliationMatchListResponse(items=await _load_match_responses(db, matches, user_id), total=total)
 
 
 @router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
-async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
+async def accept_match(match_id: UUID, *, ctx: Ctx) -> ReconciliationMatchResponse:
     """Accept one reconciliation match."""
+    db, user_id = ctx.db, ctx.user_id
     match = await accept_match_service(db, match_id, user_id=user_id)
     await db.flush()
     log_financial_mutation(
@@ -316,8 +316,9 @@ async def accept_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId)
 
 
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
-async def reject_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId) -> ReconciliationMatchResponse:
+async def reject_match(match_id: UUID, *, ctx: Ctx) -> ReconciliationMatchResponse:
     """Reject one reconciliation match."""
+    db, user_id = ctx.db, ctx.user_id
     match = await reject_match_service(db, str(match_id), user_id=user_id)
     await db.flush()
     return (await _load_match_responses(db, [match], user_id))[0]
@@ -325,9 +326,10 @@ async def reject_match(match_id: UUID, *, db: DbSession, user_id: CurrentUserId)
 
 @router.post("/matches", response_model=ReconciliationMatchBatchResponse)
 async def batch_update_matches(
-    payload: ReconciliationMatchBatchRequest, *, db: DbSession, user_id: CurrentUserId
+    payload: ReconciliationMatchBatchRequest, *, ctx: Ctx
 ) -> ReconciliationMatchBatchResponse:
     """Apply a batch accept or reject decision to pending reconciliation matches."""
+    db, user_id = ctx.db, ctx.user_id
     if payload.action == "accept":
         if await has_unresolved_checks(db, user_id, run_id=payload.run_id):
             raise ConflictError("Cannot batch approve while there are unresolved consistency checks")
@@ -405,9 +407,9 @@ async def batch_update_matches(
 
 
 @router.get("/stats", response_model=ReconciliationStatsResponse)
-async def reconciliation_stats(*, db: ReadDbSession, user_id: CurrentUserId) -> ReconciliationStatsResponse:
+async def reconciliation_stats(*, ctx: ReadCtx) -> ReconciliationStatsResponse:
     """Return reconciliation statistics."""
-    stats = await get_reconciliation_stats(db, user_id, include_distribution=True)
+    stats = await get_reconciliation_stats(ctx.db, ctx.user_id, include_distribution=True)
     return ReconciliationStatsResponse(
         total_transactions=stats.total_transactions,
         matched_transactions=stats.matched_transactions,
@@ -425,10 +427,10 @@ async def list_unmatched(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     *,
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> UnmatchedTransactionsResponse:
     """Return unmatched transactions."""
+    db, user_id = ctx.db, ctx.user_id
     query = _unmatched_atomic_txn_query(user_id, include_pending_stage1=statement_id is not None)
     if statement_id is not None:
         statement = await get_owned_or_raise(db, StatementSummary, statement_id, user_id, name="Statement")
@@ -444,10 +446,10 @@ async def submit_unmatched_reviewed_disposition(
     txn_id: UUID,
     payload: ReviewedDispositionRequest,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> JournalEntrySummary:
     """Post one unmatched source transaction from explicit reviewed economic meaning."""
+    db, user_id = ctx.db, ctx.user_id
     entry = await submit_reviewed_disposition(
         db,
         transaction_id=txn_id,
@@ -472,9 +474,10 @@ async def submit_unmatched_reviewed_disposition(
 
 @router.get("/transactions/{txn_id}/anomalies", response_model=list[AnomalyResponse])
 async def list_anomalies(
-    txn_id: UUID, *, db: ReadDbSession, user_id: CurrentUserId, pagination: Pagination
+    txn_id: UUID, *, ctx: ReadCtx, pagination: Pagination
 ) -> list[AnomalyResponse]:
     """Return reconciliation anomalies."""
+    db, user_id = ctx.db, ctx.user_id
     txn = await get_owned_or_raise(db, AtomicTransaction, txn_id, user_id, name="Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
     return [AnomalyResponse(**a.__dict__) for a in anomalies[pagination.offset : pagination.offset + pagination.limit]]
@@ -482,9 +485,10 @@ async def list_anomalies(
 
 @router.post("/adjustment", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_200_OK)
 async def post_reconciliation_adjustment(
-    payload: ReconciliationAdjustmentRequest, *, db: DbSession, user_id: CurrentUserId
+    payload: ReconciliationAdjustmentRequest, *, ctx: Ctx
 ) -> ReconciliationAdjustmentResponse:
     """Post an immaterial penny rounding adjustment."""
+    db, user_id = ctx.db, ctx.user_id
     account = await get_owned_or_raise(db, Account, payload.account_id, user_id, name="Account")
     diff = abs(payload.bank_balance - payload.book_balance)
     if diff > payload.threshold:
@@ -545,7 +549,7 @@ async def post_reconciliation_adjustment(
         ),
     )
 
-    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    base_currency = await ctx.get_base_currency()
     if account.currency != base_currency and payload.fx_rate is None:
         raise ValidationFailedError(
             f"fx_rate is required for non-base currency account {account.currency} (base currency {base_currency})"

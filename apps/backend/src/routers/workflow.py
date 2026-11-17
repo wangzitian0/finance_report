@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.platform import ResourceNotFoundError
 from src.workflow import (
     WorkflowEventListResponse,
@@ -22,24 +22,22 @@ router = APIRouter(prefix="/workflow", tags=["workflow"])
 
 @router.get("/status", response_model=WorkflowStatusResponse)
 async def get_workflow_status_endpoint(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> WorkflowStatusResponse:
     """Return the compact user-scoped upload-to-report workflow status."""
-    return await get_workflow_status(db, user_id=user_id)
+    return await get_workflow_status(ctx.db, user_id=ctx.user_id)
 
 
 @router.get("/events", response_model=WorkflowEventListResponse)
 async def list_workflow_events_endpoint(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     status_filter: WorkflowEventStatus | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),
 ) -> WorkflowEventListResponse:
     """Return a bounded user-scoped workflow event list."""
     return await list_workflow_events_response(
-        db,
-        user_id=user_id,
+        ctx.db,
+        user_id=ctx.user_id,
         status=status_filter,
         limit=limit,
     )
@@ -49,10 +47,10 @@ async def list_workflow_events_endpoint(
 async def update_workflow_event_status_endpoint(
     event_id: UUID,
     payload: WorkflowEventStatusUpdate,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> WorkflowEventResponse:
     """Update one user-owned workflow event lifecycle state."""
+    db, user_id = ctx.db, ctx.user_id
     event = await update_workflow_event_status(
         db,
         event_id=event_id,

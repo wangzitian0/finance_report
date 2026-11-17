@@ -6,7 +6,7 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from src.composition import compose_correction_callbacks
-from src.deps import CurrentUserId, DbSession
+from src.deps import Ctx
 from src.extraction import record_correction
 from src.observability import get_logger
 
@@ -35,13 +35,13 @@ class CorrectionResponse(BaseModel):
 async def create_correction(
     body: CorrectionRequest,
     *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> CorrectionResponse:
     """Record a user correction to an AI-suggested category.
 
     AC18.2.2: Corrections API records corrections.
     """
+    db, user_id = ctx.db, ctx.user_id
     correction = await record_correction(
         db,
         user_id=user_id,

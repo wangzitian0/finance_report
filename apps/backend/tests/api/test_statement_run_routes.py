@@ -36,6 +36,7 @@ from tests.api._statement_router_fixtures import (
     make_upload_file,
     seed_uploaded_document,
 )
+from src.request_context import RequestContext
 
 
 async def _statement_with_document(db, user, *, status, file_hash, validation_error=None) -> StatementSummary:
@@ -85,9 +86,7 @@ async def test_AC_extraction_2994_16_upload_creates_the_extract_run_before_dispa
     monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(execute))
     upload = make_upload_file("june.pdf", b"upload-run-content")
 
-    created = await statements_router.upload_statement(
-        file=upload, institution="DBS", account_id=None, model=None, db=db, user_id=test_user.id
-    )
+    created = await statements_router.upload_statement(file=upload, institution='DBS', account_id=None, model=None, ctx=RequestContext(db, test_user.id))
     await upload.close()
     await statements_router.wait_for_parse_tasks()
 
@@ -117,9 +116,7 @@ async def test_AC_extraction_2994_17_a_failed_run_insert_leaves_no_statement(
     user_id = test_user.id
 
     with pytest.raises(DomainError) as caught:
-        await statements_router.upload_statement(
-            file=upload, institution="DBS", account_id=None, model=None, db=db, user_id=test_user.id
-        )
+        await statements_router.upload_statement(file=upload, institution='DBS', account_id=None, model=None, ctx=RequestContext(db, test_user.id))
     await upload.close()
 
     assert caught.value.status_code == 500
@@ -150,9 +147,7 @@ async def test_AC_extraction_2994_18_a_reparse_creates_a_rerun_with_the_previous
     previous_id = previous.id
     jobs = _capture_dispatch(monkeypatch)
 
-    response = await statements_router.create_statement_run(
-        statement_id, StatementRunRequest(model=None), db=db, user_id=test_user.id
-    )
+    response = await statements_router.create_statement_run(statement_id, StatementRunRequest(model=None), ctx=RequestContext(db, test_user.id))
     await statements_router.wait_for_parse_tasks()
     statement_after = await db.scalar(
         select(StatementSummary).where(StatementSummary.id == statement_id).execution_options(populate_existing=True)
@@ -238,12 +233,7 @@ async def test_AC_extraction_2994_20_reject_then_reparse_shows_parsing_while_the
     statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)
 
-    response = await statements_router.reject_statement_stage1(
-        statement_id=statement_id,
-        decision=StatementDecisionRequest(notes="Needs re-parse"),
-        db=db,
-        user_id=test_user.id,
-    )
+    response = await statements_router.reject_statement_stage1(statement_id=statement_id, decision=StatementDecisionRequest(notes='Needs re-parse'), ctx=RequestContext(db, test_user.id))
     await statements_router.wait_for_parse_tasks()
 
     runs = await _runs(db, statement_id)
@@ -347,9 +337,7 @@ async def test_AC_extraction_2994_42_a_retryable_failure_through_the_router_wait
     assert statement_parsing.PARSE_RETRY_DELAY_SECONDS == 30
     upload = make_upload_file("slow-retry.pdf", b"retry-delay-content")
 
-    created = await statements_router.upload_statement(
-        file=upload, institution="DBS", account_id=None, model=None, db=db, user_id=test_user.id
-    )
+    created = await statements_router.upload_statement(file=upload, institution='DBS', account_id=None, model=None, ctx=RequestContext(db, test_user.id))
     await upload.close()
     with pytest.raises(TimeoutError):
         await asyncio.wait_for(statements_router.wait_for_parse_tasks(), timeout=1.5)

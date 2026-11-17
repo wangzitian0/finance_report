@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import Ctx, ReadCtx
 from src.extraction import (
     AtomicTransaction,
     BankStatementStatus,
@@ -52,10 +52,9 @@ async def _active_statement_or_404(db: AsyncSession, statement_id: UUID, user_id
 
 
 @router.get("/{statement_id}/conflicts", response_model=ReviewConflictsResponse)
-async def get_review_conflicts(
-    statement_id: UUID, db: ReadDbSession, user_id: CurrentUserId
-) -> ReviewConflictsResponse:
+async def get_review_conflicts(statement_id: UUID, ctx: ReadCtx) -> ReviewConflictsResponse:
     """Return duplicate and transfer-pair candidates for a statement."""
+    db, user_id = ctx.db, ctx.user_id
     statement = await _active_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
 
@@ -98,10 +97,10 @@ async def get_review_conflicts(
 async def resolve_review_conflicts(
     statement_id: UUID,
     request: ResolveConflictsRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
+    ctx: Ctx,
 ) -> ReviewConflictsResolveResponse:
     """Resolve Stage-1 duplicate/transfer-pair candidates (#962)."""
+    db, user_id = ctx.db, ctx.user_id
     statement = await resolve_statement_conflicts(db, statement_id, user_id)
     resolved_at = statement.stage1_conflicts_resolved_at
     await db.flush()
@@ -117,10 +116,9 @@ async def resolve_review_conflicts(
 
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)
-async def get_stage2_review_queue(
-    db: ReadDbSession, user_id: CurrentUserId, run_id: str | None = None
-) -> Stage2ReviewQueueResponse:
+async def get_stage2_review_queue(ctx: ReadCtx, run_id: str | None = None) -> Stage2ReviewQueueResponse:
     """Stage 2: Get review queue (matches + checks)."""
+    db, user_id = ctx.db, ctx.user_id
     matches = await get_stage2_queue(db, user_id, run_id=run_id)
     txn_ids = {m.atomic_txn_id for m in matches}
     txn_map = (
@@ -154,10 +152,9 @@ async def get_stage2_review_queue(
 
 
 @router.post("/{statement_id}/stage2/run-checks", response_model=ConsistencyCheckListResponse)
-async def run_stage2_checks(
-    statement_id: UUID, db: DbSession, user_id: CurrentUserId
-) -> ConsistencyCheckListResponse:
+async def run_stage2_checks(statement_id: UUID, ctx: Ctx) -> ConsistencyCheckListResponse:
     """Run consistency checks for a statement."""
+    db, user_id = ctx.db, ctx.user_id
     await _active_statement_or_404(db, statement_id, user_id)
     checks = await run_all_consistency_checks(db, user_id, statement_id)
     await db.flush()
@@ -169,20 +166,19 @@ async def run_stage2_checks(
 
 @router.post("/consistency-checks/{check_id}/resolve", response_model=ConsistencyCheckResponse)
 async def resolve_consistency_check(
-    check_id: UUID, request: ResolveCheckRequest, db: DbSession, user_id: CurrentUserId
+    check_id: UUID, request: ResolveCheckRequest, ctx: Ctx
 ) -> ConsistencyCheckResponse:
     """Resolve a consistency check."""
     check = await resolve_check(
-        db, check_id, parse_check_resolution_action(request.action), user_id, request.note
+        ctx.db, check_id, parse_check_resolution_action(request.action), ctx.user_id, request.note
     )
-    await db.flush()
+    await ctx.db.flush()
     return ConsistencyCheckResponse.model_validate(check)
 
 
 @router.get("/consistency-checks", response_model=ConsistencyCheckListResponse)
 async def list_consistency_checks(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
     run_id: str | None = None,
@@ -191,7 +187,7 @@ async def list_consistency_checks(
 ) -> ConsistencyCheckListResponse:
     """List/filter consistency checks."""
     checks, total = await list_checks(
-        db, user_id, status=status, check_type=check_type, run_id=run_id, limit=limit, offset=offset
+        ctx.db, ctx.user_id, status=status, check_type=check_type, run_id=run_id, limit=limit, offset=offset
     )
     return ConsistencyCheckListResponse(
         items=[ConsistencyCheckResponse.model_validate(c) for c in checks],

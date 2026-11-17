@@ -14,11 +14,14 @@ async def test_register_integrity_error_race_condition(monkeypatch):
     class _Result:
         @staticmethod
         def scalar_one_or_none(): return None
+    class _NestedTx:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_args): return False
     class FakeDb:
         async def execute(self, *_args, **_kwargs): return _Result()
         def add(self, _obj): return None
-        async def commit(self): raise IntegrityError('x', {}, Exception('dup'))
-        async def rollback(self): return None
+        def begin_nested(self): return _NestedTx()
+        async def flush(self): raise IntegrityError('x', {}, Exception('dup'))
         async def refresh(self, _obj): return None
     monkeypatch.setattr(auth_router, '_check_rate_limit', lambda *args, **kwargs: None); monkeypatch.setattr(auth_router.register_rate_limiter, 'reset', lambda *args, **kwargs: None); monkeypatch.setattr(auth_router, 'hash_password', lambda _password: 'hashed'); scope = {'type': 'http', 'headers': [], 'client': ('127.0.0.1', 1234)}; request = Request(scope); payload = auth_router.RegisterRequest(email='race@example.com', password='password123', name='Race User')
     with pytest.raises(ValidationFailedError) as exc_info: await auth_router.register(request=request, response=Response(), data=payload, db=FakeDb())

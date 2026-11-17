@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from src.deps import CurrentUserId, ReadDbSession
+from src.deps import ReadCtx
 from src.extraction import (
     DEFAULT_MAX_DEPTH,
     EvidenceGraphMaterializationService,
@@ -80,8 +80,7 @@ def _edge_dto(step: EvidenceTraversalStep, *, direction: str) -> EvidenceLineage
 
 @router.get("/lineage", response_model=EvidenceLineageResponse)
 async def get_evidence_lineage(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
     entity_type: str = Query(..., min_length=1, max_length=100),
     entity_id: UUID = Query(...),
     node_kind: str | None = Query(default=None, min_length=1, max_length=50),
@@ -89,6 +88,7 @@ async def get_evidence_lineage(
     max_depth: int = Query(default=DEFAULT_MAX_DEPTH, ge=0, le=DEFAULT_MAX_DEPTH),
 ) -> EvidenceLineageResponse:
     """Return bounded user-owned Evidence Graph lineage around one entity anchor."""
+    db, user_id = ctx.db, ctx.user_id
     lineage = EvidenceLineageService()
     anchor = await lineage.get_node_for_entity(
         db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind

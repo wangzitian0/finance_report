@@ -2088,7 +2088,12 @@ export interface operations {
     parameters: _NP;
     requestBody: _B<_S["ChatRequest"]>;
     responses: {
-      200: _Empty;
+      200: {
+        headers: _H;
+        content: {
+          "text/event-stream": unknown;
+        };
+      };
       400: _E;
       401: _E;
       403: _E;
@@ -2465,7 +2470,23 @@ export interface operations {
         framework_id?: _S["PersonalReportingFrameworkId"] | null;
       }>;
     requestBody?: never;
-    responses: _R<unknown>;
+    responses: {
+      200: {
+        headers: _H;
+        content: {
+          "application/json": unknown;
+          "text/csv": unknown;
+        };
+      };
+      400: _E;
+      401: _E;
+      403: _E;
+      404: _E;
+      409: _E;
+      422: _VE;
+      429: _E;
+      500: _E;
+    };
   };
   income_statement_reports_income_statement_get: {
     parameters: _QP<{
@@ -2510,7 +2531,27 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["PersonalReportPackagePreview"]>;
   };
-  export_annual_tax_archive_reports_package_annual_archive_post: _Op<unknown, _NP, _S["AnnualTaxArchiveRequest"]>;
+  export_annual_tax_archive_reports_package_annual_archive_post: {
+    parameters: _NP;
+    requestBody: _B<_S["AnnualTaxArchiveRequest"]>;
+    responses: {
+      200: {
+        headers: _H;
+        content: {
+          "application/json": unknown;
+          "application/zip": unknown;
+        };
+      };
+      400: _E;
+      401: _E;
+      403: _E;
+      404: _E;
+      409: _E;
+      422: _VE;
+      429: _E;
+      500: _E;
+    };
+  };
   generate_personal_report_package_snapshot_reports_package_generate_post: _Op<_S["PersonalReportPackageSnapshotResponse"], _NP, _S["PersonalReportPackageGenerateRequest"]>;
   list_personal_report_package_line_details_reports_package_line_details_get: {
     parameters: _QPR<{
@@ -2572,7 +2613,24 @@ export interface operations {
         format?: _S["PackageSnapshotExportFormat"];
       }>;
     requestBody?: never;
-    responses: _R<unknown>;
+    responses: {
+      200: {
+        headers: _H;
+        content: {
+          "application/json": unknown;
+          "application/zip": unknown;
+          "text/csv": unknown;
+        };
+      };
+      400: _E;
+      401: _E;
+      403: _E;
+      404: _E;
+      409: _E;
+      422: _VE;
+      429: _E;
+      500: _E;
+    };
   };
   list_statements_statements_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
   list_consistency_checks_statements_consistency_checks_get: {
@@ -2650,7 +2708,26 @@ export interface operations {
         statement_id: string;
       }>;
     requestBody?: never;
-    responses: _R<unknown>;
+    responses: {
+      200: {
+        headers: _H;
+        content: {
+          "application/json": unknown;
+          "application/pdf": unknown;
+          "image/jpeg": unknown;
+          "image/png": unknown;
+          "text/csv": unknown;
+        };
+      };
+      400: _E;
+      401: _E;
+      403: _E;
+      404: _E;
+      409: _E;
+      422: _VE;
+      429: _E;
+      500: _E;
+    };
   };
   get_statement_for_review_statements__statement_id__review_get: {
     parameters: _PP<{

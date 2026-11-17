@@ -27,6 +27,7 @@ from tests.api._statement_router_fixtures import (
     create_statement_with_bank,
 )
 from tests.statement_ingestion import classify_statement_rows, classify_transactions
+from src.request_context import RequestContext
 
 pytestmark = pytest.mark.asyncio
 
@@ -106,9 +107,7 @@ async def test_AC_extraction_auto_accept_7_one_approval_posts_every_row_of_the_s
     )
     await classify_statement_rows(db, statement)
 
-    result = await statements_router.approve_statement_stage1(
-        statement_id=statement.id, request=None, db=db, user_id=test_user.id
-    )
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert result.status == BankStatementStatus.APPROVED
     assert result.validation_error is None
     assert result.journal_entries_created == 4
@@ -136,9 +135,7 @@ async def test_AC_extraction_auto_accept_7_an_outage_does_not_turn_the_statement
     await classify_statement_rows(db, statement)
 
     with pytest.raises((HTTPException, DomainError)) as error:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=None, db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert error.value.status_code == 409
     assert model.calls == 1
     assert (await db.execute(select(JournalEntry.id).where(JournalEntry.source_id.is_not(None)))).first() is None
@@ -158,9 +155,7 @@ async def test_AC_extraction_auto_accept_1_with_the_setting_off_the_same_stateme
     _install(monkeypatch, _Model({"Lunch": ("DINING", 66)}))
 
     with pytest.raises((HTTPException, DomainError)) as error:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=None, db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert error.value.status_code == 409
     assert error.value.detail == "Economic review required: intent_missing"
 
@@ -218,9 +213,7 @@ async def test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_witho
     )
     await classify_statement_rows(db, statement)
 
-    result = await statements_router.approve_statement_stage1(
-        statement_id=statement.id, request=None, db=db, user_id=test_user.id
-    )
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert result.status == BankStatementStatus.APPROVED
     assert result.journal_entries_created == 3
     assert await counter_account_names(db, loan, bank.id) == {"Loans Payable (SGD)"}
@@ -263,9 +256,7 @@ async def test_AC_extraction_auto_accept_5_a_weak_loan_posts_to_suspense_and_nev
     _install(monkeypatch, _Model({"Loan repayment": ("LOAN_PRINCIPAL", 55)}))
     await classify_statement_rows(db, statement)
 
-    result = await statements_router.approve_statement_stage1(
-        statement_id=statement.id, request=None, db=db, user_id=test_user.id
-    )
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert result.status == BankStatementStatus.APPROVED
     assert result.journal_entries_created == 1
     leg = (
@@ -331,9 +322,7 @@ async def test_AC_extraction_auto_accept_9_the_observe_mode_posts_no_leg(db, tes
     _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90)}))
 
     with pytest.raises((HTTPException, DomainError)) as error:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=None, db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert error.value.status_code == 409
     assert (await db.execute(select(ReconciliationMatch.id))).first() is None
     assert (await db.execute(select(JournalEntry.id).where(JournalEntry.source_id.is_not(None)))).first() is None
@@ -366,9 +355,7 @@ async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_only
         return db.execute(select(JournalEntry.source_id).where(JournalEntry.source_id.is_not(None)))
 
     with pytest.raises((HTTPException, DomainError)) as first:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=None, db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert first.value.status_code == 409
     assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 1
     assert (await posted_sources()).scalars().all() == [wallet.id]
@@ -376,20 +363,13 @@ async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_only
     answering = _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90), "Lunch": ("DINING", 66)})
     _install(monkeypatch, answering)
     with pytest.raises((HTTPException, DomainError)) as retry:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id, request=None, db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert retry.value.status_code == 409
     assert retry.value.detail.startswith("Economic review required:")
     assert answering.calls == 0, "a plain retry of the approve asks no model"
     assert (await posted_sources()).scalars().all() == [wallet.id], "a plain retry posts no row without an answer"
 
-    result = await statements_router.approve_statement_stage1(
-        statement_id=statement.id,
-        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
-        db=db,
-        user_id=test_user.id,
-    )
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(auto_fill_default_categories=True), ctx=RequestContext(db, test_user.id))
     assert result.status == BankStatementStatus.APPROVED
     assert result.journal_entries_created == 1
     assert answering.calls == 0, "the one-click fill asks no model"
@@ -427,9 +407,7 @@ async def test_AC_extraction_auto_accept_6_a_corrected_suggestion_posts_as_the_d
     _install(monkeypatch, _Model({"Lunch": ("DINING", 66)}))
     await classify_statement_rows(db, statement)
 
-    result = await statements_router.approve_statement_stage1(
-        statement_id=statement.id, request=None, db=db, user_id=test_user.id
-    )
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=None, ctx=RequestContext(db, test_user.id))
     assert result.status == BankStatementStatus.APPROVED
     assert await counter_account_names(db, lunch, bank.id) == {"Expense - Groceries"}
     entry = (await db.execute(select(JournalEntry).where(JournalEntry.source_id == lunch.id))).scalar_one()
