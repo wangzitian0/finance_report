@@ -28,10 +28,25 @@ from src.database import get_db, get_db_readonly
 # this deep import is cycle-free. ``get_current_user_id`` is identity's published
 # language (in its __all__); the deep path is an infra import-order detail.
 from src.identity.extension.auth import get_current_user_id
+from src.request_context import RequestContext
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 ReadDbSession = Annotated[AsyncSession, Depends(get_db_readonly)]
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
+
+
+def get_request_context(db: DbSession, user_id: CurrentUserId) -> RequestContext:
+    """Dependency returning a read-write RequestContext."""
+    return RequestContext(db=db, user_id=user_id)
+
+
+def get_read_request_context(db: ReadDbSession, user_id: CurrentUserId) -> RequestContext:
+    """Dependency returning a read-only RequestContext."""
+    return RequestContext(db=db, user_id=user_id)
+
+
+Ctx = Annotated[RequestContext, Depends(get_request_context)]
+ReadCtx = Annotated[RequestContext, Depends(get_read_request_context)]
 
 # Pagination convention for list endpoints (#1099 AC-platform.29.2/.3).
 # A single default + hard maximum shared by every list endpoint via the
@@ -67,9 +82,12 @@ Pagination = Annotated[PaginationParams, Depends()]
 __all__ = [
     "DEFAULT_PAGE_LIMIT",
     "MAX_PAGE_LIMIT",
+    "Ctx",
     "CurrentUserId",
     "DbSession",
     "Pagination",
     "PaginationParams",
+    "ReadCtx",
     "ReadDbSession",
+    "RequestContext",
 ]

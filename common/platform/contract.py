@@ -161,6 +161,16 @@ fe-workflow.4||${scenario.name} shows workflow badge, inbox, and the Home action
 fe-workflow.5||AC-platform.fe-workflow.5 shows the next-action summary, and the workflow-state sentence once when the summary is empty
 @$t/test_platform_package.py
 boundary.1||test_AC_platform_boundary_1_outbox_public_language_is_not_an_orm_row
+@$be/infra/test_router_contract.py|P1
+router-contract.1|Routers use read-only sessions on GET and centralized error and transaction boundaries.|test_routers_have_no_unallowlisted_legacy_patterns
+router-contract.2|Router legacy allowlist shrinks to zero with no stale entries.|test_legacy_router_allowlist_has_no_stale_entries
+@$be/infra/test_request_sql_budget.py|P1
+request-sql-budget.1|Accounts read endpoints execute zero writes within SQL statement budget.|test_get_accounts_and_processing_summary_are_read_only_and_bounded
+request-sql-budget.2|Balance sheet report endpoint executes zero writes within SQL statement budget.|test_get_balance_sheet_is_read_only_and_bounded
+request-sql-budget.3|Workflow status steady GET executes zero writes within SQL statement budget.|test_get_workflow_status_steady_read_is_read_only_and_bounded
+request-sql-budget.4|Statement approve endpoint executes within SQL statement budget.|test_post_statement_approve_sql_count_is_bounded
+request-sql-budget.5|Batch match accept endpoint scales with bounded extra SQL per match.|test_post_reconciliation_batch_accept_sql_count_is_bounded
+request-sql-budget.6|RequestContext queries effective base currency at most once per request.|test_request_context_memoizes_base_currency
 """,
     ),
 )

@@ -9,8 +9,7 @@ from sqlalchemy import select
 
 from src.audit import to_money
 from src.composition import post_guided_opening_balances
-from src.config_app import get_effective_base_currency
-from src.deps import CurrentUserId, DbSession, ReadDbSession
+from src.deps import CurrentUserId, DbSession, ReadCtx, ReadDbSession
 from src.ledger import (
     DEFAULT_STALE_AFTER_DAYS,
     AccountNotFoundError,
@@ -142,16 +141,14 @@ async def list_accounts(
 
 @router.get("/processing/summary", response_model=ProcessingSummaryResponse)
 async def get_processing_summary(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ProcessingSummaryResponse:
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
     """Return the processing-account pipeline summary."""
+    db, user_id = ctx.db, ctx.user_id
     processing_account = await find_processing_account(db, user_id)
-    currency = (
-        processing_account.currency if processing_account else await get_effective_base_currency(db, user_id=user_id)
-    )
+    currency = processing_account.currency if processing_account else await ctx.get_base_currency()
     persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
     pairs = await find_transfer_pairs(
         db,
@@ -183,16 +180,14 @@ async def get_processing_summary(
 
 @router.get("/processing/pending", response_model=ProcessingPendingListResponse)
 async def list_processing_pending(
-    db: ReadDbSession,
-    user_id: CurrentUserId,
+    ctx: ReadCtx,
 ) -> ProcessingPendingListResponse:
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
     """Return pending items in the processing pipeline."""
+    db, user_id = ctx.db, ctx.user_id
     processing_account = await find_processing_account(db, user_id)
-    currency = (
-        processing_account.currency if processing_account else await get_effective_base_currency(db, user_id=user_id)
-    )
+    currency = processing_account.currency if processing_account else await ctx.get_base_currency()
     persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
     pairs = await find_transfer_pairs(
         db,

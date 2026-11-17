@@ -67,7 +67,9 @@ def register_manual_valuation_lines_provider(
     _manual_valuation_lines_series_provider = series_provider
 
 
-def _bind_supported_kwargs(provider: Callable[..., Any] | None, **optional_kwargs: Any) -> tuple[Callable[..., Any], dict[str, Any]]:
+def _bind_supported_kwargs(
+    provider: Callable[..., Any] | None, **optional_kwargs: Any
+) -> tuple[Callable[..., Any], dict[str, Any]]:
     if provider is None:
         raise RuntimeError(_PROVIDER_MISSING_MSG)
     non_null = {k: v for k, v in optional_kwargs.items() if v is not None}
@@ -231,11 +233,12 @@ async def generate_balance_sheet(
     *,
     as_of_date: date,
     currency: str | None = None,
+    base_currency: str | None = None,
     include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
     include_trust_signals: bool = True,
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date."""
-    base_curr = (await get_effective_base_currency(db, user_id=user_id)).upper()
+    base_curr = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
     target_currency = _normalize_currency(currency or base_curr)
     fx_warnings: list[FxWarning] = []
     portfolio_warnings: list[FxWarning] = []
