@@ -1,4 +1,4 @@
-'AC-runtime.4.1'; from __future__ import annotations; import ast; from pathlib import Path; from unittest.mock import AsyncMock, MagicMock, patch; import pytest; from infra2_sdk.runtime import health as sdk_health; from infra2_sdk.runtime.health import DependencyStatus; import src.runtime as runtime_package; from src.runtime import AnalyticsCheck, DatabaseCheck, MarketDataCheck, RedisCheck, TelemetryCheck, WorkflowEngineCheck; pytestmark = pytest.mark.no_db
+'AC-runtime.4.1'; from __future__ import annotations; import ast; from pathlib import Path; from unittest.mock import AsyncMock, MagicMock, patch; import pytest; from infra2_sdk.runtime import health as sdk_health; from infra2_sdk.runtime.health import DependencyStatus; import src.runtime as runtime_package; from src.runtime import AnalyticsCheck, DatabaseCheck, MarketDataCheck, ObjectStorageCheck, RedisCheck, TelemetryCheck, WorkflowEngineCheck; pytestmark = pytest.mark.no_db
 def _http_response(status_code: int) -> MagicMock: resp = MagicMock(); resp.status_code = status_code; return resp
 class TestRedisCheck:
     async def test_unconfigured_is_absent(self):
@@ -55,3 +55,34 @@ async def test_http_adapters_return_the_sdk_probe_result_unchanged(make_check, n
     sdk_result = sdk_health.ProbeResult(name, sdk_health.DependencyStatus.PRESENT, 'HTTP 200', 1.5)
     with patch(patch_target, AsyncMock(return_value=sdk_result)) as probe_fn: result = await make_check().probe()
     assert result is sdk_result; assert probe_fn.await_args.kwargs['name'] == name
+
+
+async def test_object_storage_check_delegates_to_sdk_probe_s3() -> None:
+    check = ObjectStorageCheck(
+        endpoint='http://localhost:9000',
+        access_key='minio',
+        secret_key='minio123',
+        region='us-east-1',
+        bucket='statements',
+    )
+    sdk_result = sdk_health.ProbeResult('object_storage', sdk_health.DependencyStatus.PRESENT, 'bucket accessible', 1.2)
+    with patch('src.runtime.extension.adapters.probe_s3', return_value=sdk_result) as probe_fn:
+        result = await check.probe()
+    assert result is sdk_result
+    settings_arg = probe_fn.call_args.args[0]
+    assert settings_arg.bucket == 'statements'
+    assert settings_arg.endpoint_url == 'http://localhost:9000'
+
+
+async def test_object_storage_check_invalid_settings_returns_absent() -> None:
+    check = ObjectStorageCheck(
+        endpoint='http://localhost:9000',
+        access_key='minio',
+        secret_key=None,
+        region='us-east-1',
+        bucket='statements',
+    )
+    result = await check.probe()
+    assert result.name == 'object_storage'
+    assert result.status is DependencyStatus.ABSENT
+    assert 'secret key' in result.detail
