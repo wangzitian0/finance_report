@@ -11,3 +11,15 @@ async def test_asset_class_allocation_empty_portfolio(db: AsyncSession, test_use
 async def test_sector_allocation_with_positions(db: AsyncSession, test_user, tech_stock_position, finance_stock_position): 'AC-portfolio.allocation.1 AC17.3.1'; result = await get_sector_allocation(db, test_user.id, base_currency='SGD'); assert len(result) > 0; assert all((hasattr(item, 'category') for item in result)); assert all((hasattr(item, 'value') for item in result)); assert all((hasattr(item, 'percentage') for item in result)); assert all((hasattr(item, 'count') for item in result))
 async def test_geography_allocation_with_positions(db: AsyncSession, test_user, tech_stock_position, finance_stock_position): 'AC-portfolio.allocation.2 AC17.3.2'; result = await get_geography_allocation(db, test_user.id, base_currency='SGD'); assert len(result) > 0; assert all((hasattr(item, 'category') for item in result))
 async def test_asset_class_allocation_with_positions(db: AsyncSession, test_user, tech_stock_position, finance_stock_position): 'AC-portfolio.allocation.3 AC17.3.3'; result = await get_asset_class_allocation(db, test_user.id, base_currency='SGD'); assert len(result) > 0; assert all((hasattr(item, 'category') for item in result))
+
+
+@pytest.mark.no_db
+async def test_account_names_lookup_short_circuits_on_no_ids() -> None:
+    from uuid import uuid4
+    from src.portfolio.extension.holdings import _account_names_by_id
+
+    class _ExplodingSession:
+        def __getattr__(self, name: str) -> None:
+            raise AssertionError(f"empty-input guard must not touch the session (accessed .{name})")
+
+    assert await _account_names_by_id(_ExplodingSession(), uuid4(), set()) == {}

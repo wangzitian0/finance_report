@@ -26,7 +26,7 @@ from src.extraction.extension.prompts.hints import run_prompt_digest
 from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION
 from src.extraction.orm.statement_run import StatementRun
 from src.identity import User
-from src.routers import statements as statements_router
+from src.runtime import StorageError
 from tests.api._statement_router_fixtures import (
     _compose_mock_ingestion,
     build_statement,
@@ -415,7 +415,7 @@ async def test_AC_extraction_2994_67_a_status_that_changed_after_the_check_gives
     approved = await _approved_values(db, test_user)
     jobs = _capture_dispatch(monkeypatch)
     maker = create_session_maker_from_db(db)
-    original = statements_router._resolve_uploaded_document
+    original = statement_pipeline.resolve_uploaded_document
 
     async def resolve_after_an_approval(*args, **kwargs):
         # The route checked PARSED. Another tab now commits the approval, before the rerun writes.
@@ -426,7 +426,7 @@ async def test_AC_extraction_2994_67_a_status_that_changed_after_the_check_gives
             await other_tab.commit()
         return await original(*args, **kwargs)
 
-    monkeypatch.setattr(statements_router, "_resolve_uploaded_document", resolve_after_an_approval)
+    monkeypatch.setattr("src.routers.statements._resolve_uploaded_document", resolve_after_an_approval)
 
     response = await client.post(f"/statements/{statement_id}/runs", json={})
 
@@ -500,7 +500,7 @@ class _CountingStorage:
 
     def get_object(self, key: str) -> bytes:
         type(self).reads += 1
-        raise statements_router.StorageError("the stored file is missing")
+        raise StorageError("the stored file is missing")
 
 
 async def test_AC_extraction_2994_78_hints_on_a_csv_statement_give_400_before_any_storage_read(
@@ -510,7 +510,7 @@ async def test_AC_extraction_2994_78_hints_on_a_csv_statement_give_400_before_an
     statement = await _statement(db, test_user, name="bank.csv")
     statement_id = statement.id
     _CountingStorage.reads = 0
-    monkeypatch.setattr(statements_router, "StorageService", _CountingStorage)
+    monkeypatch.setattr("src.routers.statements.StorageService", _CountingStorage)
 
     rejected = await client.post(f"/statements/{statement_id}/runs", json={"hints": {"keywords": ["x"]}})
 
@@ -527,7 +527,7 @@ async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_afte
     statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)
     maker = create_session_maker_from_db(db)
-    original = statements_router._resolve_uploaded_document
+    original = statement_pipeline.resolve_uploaded_document
 
     async def resolve_after_a_retirement(*args, **kwargs):
         async with maker() as other_tab:
@@ -539,7 +539,7 @@ async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_afte
             await other_tab.commit()
         return await original(*args, **kwargs)
 
-    monkeypatch.setattr(statements_router, "_resolve_uploaded_document", resolve_after_a_retirement)
+    monkeypatch.setattr("src.routers.statements._resolve_uploaded_document", resolve_after_a_retirement)
 
     response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check again"})
 
@@ -570,7 +570,7 @@ async def test_AC_extraction_2994_78_a_reject_and_a_rerun_at_once_give_one_winne
         assert codes[1] == 409 and codes[0] in (200, 202), (round_number, first.text, second.text)
         assert len(await _runs(db, statement_id)) == 1, "the loser must not leave a second run"
         assert await _status(db, statement_id) is BankStatementStatus.PARSING
-    await statements_router.wait_for_parse_tasks()
+    await statement_pipeline.wait_for_parse_tasks()
     assert len(jobs) == 6
 
 
@@ -582,7 +582,7 @@ async def test_classify_run_dispatch_failure_409_and_rejections_validation(clien
     def broken_dispatch(run_id, *, db):
         raise RuntimeError("secret dispatch failure")
 
-    monkeypatch.setattr(statements_router, "submit_classify_run", broken_dispatch)
+    monkeypatch.setattr("src.routers.statements.submit_classify_run", broken_dispatch)
     resp_503 = await client.post(f"/statements/{sid}/runs", json={"kind": "classify", "hints": hints})
     assert resp_503.status_code == 503
     runs = await _runs(db, sid)

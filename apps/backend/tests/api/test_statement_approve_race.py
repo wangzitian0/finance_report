@@ -33,7 +33,7 @@ from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
 from src.extraction.orm.statement_run import StatementRun
 from src.ledger import JournalEntry
-from src.routers import statements as statements_router
+from src.extraction.extension.statement_workflow import approve_statement_workflow as real_approve_statement_workflow
 from tests.api._statement_router_fixtures import create_statement_account
 from tests.factories import seed_parsed_statement
 from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
@@ -92,7 +92,7 @@ async def test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_no
     """AC-extraction.2994.83: Approve sees the committed PARSING under its lock: no entry is posted, the status stays."""
     statement_id = await _approvable_statement(db, test_user)
     maker = create_session_maker_from_db(db)
-    original = statements_router.approve_statement_workflow
+    original = real_approve_statement_workflow
     rerun_ids: list = []
 
     async def approve_after_a_rerun(*args, **kwargs):
@@ -114,7 +114,7 @@ async def test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_no
             await other_tab.commit()
         return await original(*args, **kwargs)
 
-    monkeypatch.setattr(statements_router, "approve_statement_workflow", approve_after_a_rerun)
+    monkeypatch.setattr("src.routers.statements.approve_statement_workflow", approve_after_a_rerun)
 
     response = await client.post(f"/statements/{statement_id}/approvals", json={})
 

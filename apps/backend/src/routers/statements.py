@@ -67,12 +67,14 @@ from src.extraction import (
     resolve_statement_conflicts,
     resolve_statement_posting_account,
     resolve_statement_transactions,
+    resolve_uploaded_document as _resolve_uploaded_document,
     retire_statement,
     start_user_classify_run,
     start_user_extract_run,
     submit_classify_run,
     submit_parse_pipeline,
     supports_reviewed_statement_envelope,
+    track_parse_task as _track_task,
     validate_balance_chain,
 )
 from src.ledger import Account
@@ -130,7 +132,6 @@ _RERUN_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.REJ
 _REJECT_STATUSES = _RERUN_STATUSES | {BankStatementStatus.APPROVED}
 logger = get_logger(__name__)
 
-_PENDING_PARSE_TASKS: set[asyncio.Task] = set()
 _BROKERAGE_IMPORT_SERVICE = compose_brokerage_import_service()
 _CORRECTION_LOOP = CorrectionLoopService()
 
@@ -153,11 +154,6 @@ async def _count_classification_suggestions(db: AsyncSession, scope_filter: Any,
     return int((await db.execute(stmt)).scalar_one() or 0)
 
 
-def _track_task(task: asyncio.Task) -> None:
-    _PENDING_PARSE_TASKS.add(task)
-    task.add_done_callback(_PENDING_PARSE_TASKS.discard)
-
-
 def _posting_count_or_conflict(outcome: StatementPostingOutcome) -> int:
     if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
         raise ConflictError(f"Economic review required: {', '.join(outcome.review_reasons)}")
@@ -172,22 +168,6 @@ async def _validate_vision_model(model: str | None) -> None:
         raise ValidationFailedError("Invalid model selection. Choose a model from /llm/catalog.")
     if not spec.accepts(Modality.IMAGE):
         raise ValidationFailedError("Selected model does not support image/PDF inputs.")
-
-
-async def _resolve_uploaded_document(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID
-) -> UploadedDocument | None:
-    if statement.uploaded_document_id is not None:
-        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
-        if doc is not None and doc.user_id == user_id:
-            return doc
-    return (
-        await db.execute(
-            select(UploadedDocument).where(
-                UploadedDocument.user_id == user_id, UploadedDocument.file_hash == statement.file_hash
-            )
-        )
-    ).scalar_one_or_none()
 
 
 async def _resolve_uploaded_documents(
@@ -1052,9 +1032,3 @@ async def resolve_review_conflicts(
         note=request.note,
     )
     return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)
-
-
-async def wait_for_parse_tasks() -> None:
-    """Wait for all pending background parsing tasks to complete."""
-    if _PENDING_PARSE_TASKS:
-        await asyncio.gather(*_PENDING_PARSE_TASKS, return_exceptions=True)

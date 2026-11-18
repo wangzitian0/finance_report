@@ -12,14 +12,13 @@ from uuid import uuid4
 from fastapi import APIRouter, status
 from fastapi.routing import APIRoute, iter_route_contexts
 from httpx import AsyncClient
-import src.routers as _routers_pkg
 from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from src.main import _resolve_app_version, app
 from src.reporting import DEFAULT_INCLUDE_RESTRICTED, PACKAGE_INCLUDE_RESTRICTED
 
-_ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent
+_BACKEND_SRC = Path(__file__).resolve().parents[2] / "src"
+_ROUTER_DIR = _BACKEND_SRC / "routers"
 _RAW_STATUS_CODE = re.compile("status_code\\s*=\\s*\\d")
-_BACKEND_SRC = _ROUTER_DIR.parent
 _DISHONEST_DEPENDENCY_DEFAULT = re.compile("(?:DbSession|CurrentUserId)\\s*=\\s*None")
 _PREVIOUSLY_UNBOUNDED_LIST_PATHS = ("/reconciliation/transactions/{txn_id}/anomalies", "/reports/package/snapshots")
 _UNTAGGED_UTILITY_PATHS = frozenset(

@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from src.audit.orm.trace_record import TraceRecordRow
@@ -19,8 +20,6 @@ from src.ledger import (
     get_or_create_processing_account,
 )
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
-from src.routers import statements as statements_router
-from src.schemas.extraction import Stage1ApprovalRequest
 from tests.api._statement_router_fixtures import (
     add_txn,
     counter_account_names,
@@ -29,14 +28,13 @@ from tests.api._statement_router_fixtures import (
     leg_and_entry_for,
     seed_classification,
 )
-from src.request_context import RequestContext
 
 pytestmark = pytest.mark.asyncio
-CLICK = Stage1ApprovalRequest(auto_fill_default_categories=True)
+CLICK = {"auto_fill_default_categories": True}
 
 
 async def test_AC_extraction_accept_ai_suggestions_1_auto_fill_posts_the_draft_category_and_account(
-    db, test_user, monkeypatch
+    client: AsyncClient, db, test_user, monkeypatch
 ):
     "AC-extraction.accept-ai-suggestions.1"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -62,15 +60,16 @@ async def test_AC_extraction_accept_ai_suggestions_1_auto_fill_posts_the_draft_c
     await seed_classification(db, test_user.id, dining, category="DINING", account=expense_account, score=76)
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
-    assert result.journal_entries_created == 3
+    response = await client.post(f"/statements/{statement.id}/approvals", json=CLICK)
+    assert response.status_code == 200, response.text
+    assert response.json()["journal_entries_created"] == 3
     assert await counter_account_names(db, interest, bank.id) == {"Income - Interest"}
     assert await counter_account_names(db, dining, bank.id) == {"Expense - Dining"}
     assert await counter_account_names(db, opaque, bank.id) == {"General Expense (SGD)"}
 
 
 async def test_AC_extraction_accept_ai_suggestions_2_a_gxs_shaped_statement_reaches_approved(
-    db, test_user, monkeypatch
+    client: AsyncClient, db, test_user, monkeypatch
 ):
     "AC-extraction.accept-ai-suggestions.2"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -120,10 +119,12 @@ async def test_AC_extraction_accept_ai_suggestions_2_a_gxs_shaped_statement_reac
     await seed_classification(db, test_user.id, wallet_two, category="TRANSFER", account=None, score=78)
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
-    assert result.status == BankStatementStatus.APPROVED
-    assert result.validation_error is None
-    assert result.journal_entries_created == 4
+    response = await client.post(f"/statements/{statement.id}/approvals", json=CLICK)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["status"] == BankStatementStatus.APPROVED.value
+    assert result["validation_error"] is None
+    assert result["journal_entries_created"] == 4
     processing = await get_or_create_processing_account(db, test_user.id, currency="SGD")
     for txn, score in ((wallet_one, 90), (wallet_two, 78)):
         match, entry = await leg_and_entry_for(db, txn)
@@ -147,7 +148,7 @@ async def test_AC_extraction_accept_ai_suggestions_2_a_gxs_shaped_statement_reac
 
 
 async def test_AC_extraction_accept_ai_suggestions_3_a_suggestion_that_contradicts_the_direction_falls_back(
-    db, test_user, monkeypatch
+    client: AsyncClient, db, test_user, monkeypatch
 ):
     "AC-extraction.accept-ai-suggestions.3"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -163,13 +164,16 @@ async def test_AC_extraction_accept_ai_suggestions_3_a_suggestion_that_contradic
     await seed_classification(db, test_user.id, outgoing, category="SALARY", account=income_account, score=79)
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
-    assert result.journal_entries_created == 2
+    response = await client.post(f"/statements/{statement.id}/approvals", json=CLICK)
+    assert response.status_code == 200, response.text
+    assert response.json()["journal_entries_created"] == 2
     assert await counter_account_names(db, outgoing, bank.id) == {"General Expense (SGD)"}
     assert await counter_account_names(db, incoming, bank.id) == {"General Income (SGD)"}
 
 
-async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_category(db, test_user, monkeypatch):
+async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_category(
+    client: AsyncClient, db, test_user, monkeypatch
+):
     "AC-extraction.accept-ai-suggestions.5"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, bank = await create_statement_with_bank(db, test_user.id, "hash_accept_ai_5", bank_name="DBS Accept AI")
@@ -202,8 +206,9 @@ async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_
     await seed_classification(db, test_user.id, draft, category="DINING", account=expense_account, score=76)
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
-    assert result.journal_entries_created == 3
+    response = await client.post(f"/statements/{statement.id}/approvals", json=CLICK)
+    assert response.status_code == 200, response.text
+    assert response.json()["journal_entries_created"] == 3
     assert await counter_account_names(db, applied, bank.id) == {"Income - Interest"}
     assert await counter_account_names(db, draft, bank.id) == {"Expense - Dining"}
     assert await counter_account_names(db, opaque, bank.id) == {"General Expense (SGD)"}
@@ -223,7 +228,7 @@ async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_
 
 
 async def test_AC_extraction_accept_ai_suggestions_6_posting_clears_only_the_economic_review_note(
-    db, test_user, monkeypatch
+    client: AsyncClient, db, test_user, monkeypatch
 ):
     "AC-extraction.accept-ai-suggestions.6"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -242,9 +247,11 @@ async def test_AC_extraction_accept_ai_suggestions_6_posting_clears_only_the_eco
         await seed_classification(db, test_user.id, txn, category="DINING", account=dining, score=76)
         await db.commit()
 
-        result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
-        assert result.status == BankStatementStatus.APPROVED
-        assert result.validation_error == (note if outcome == "kept" else None)
+        response = await client.post(f"/statements/{statement.id}/approvals", json=CLICK)
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["status"] == BankStatementStatus.APPROVED.value
+        assert result["validation_error"] == (note if outcome == "kept" else None)
 
 
 @pytest.mark.parametrize(
@@ -257,7 +264,7 @@ async def test_AC_extraction_accept_ai_suggestions_6_posting_clears_only_the_eco
     ],
 )
 async def test_AC_extraction_accept_ai_suggestions_7_a_loan_or_a_trade_posts_to_a_balance_sheet_account(
-    db, test_user, monkeypatch, category, direction, account_name, account_type, bank_side, counter_side
+    client: AsyncClient, db, test_user, monkeypatch, category, direction, account_name, account_type, bank_side, counter_side
 ):
     "AC-extraction.accept-ai-suggestions.7"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -277,8 +284,9 @@ async def test_AC_extraction_accept_ai_suggestions_7_a_loan_or_a_trade_posts_to_
     await seed_classification(db, test_user.id, txn, category=category, account=None, score=64)
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
-    assert result.status == BankStatementStatus.APPROVED
+    response = await client.post(f"/statements/{statement.id}/approvals", json=CLICK)
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == BankStatementStatus.APPROVED.value
     entry = (
         await db.execute(
             select(JournalEntry).where(JournalEntry.source_id == txn.id).options(selectinload(JournalEntry.lines))
@@ -297,7 +305,7 @@ async def test_AC_extraction_accept_ai_suggestions_7_a_loan_or_a_trade_posts_to_
 
 
 async def test_AC_extraction_classification_hardening_4_an_applied_row_that_the_policy_refuses_gets_the_default(
-    db, test_user, monkeypatch
+    client: AsyncClient, db, test_user, monkeypatch
 ):
     "AC-extraction.classification-hardening.4"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -314,13 +322,14 @@ async def test_AC_extraction_classification_hardening_4_an_applied_row_that_the_
     )
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
-    assert result.journal_entries_created == 1
+    response = await client.post(f"/statements/{statement.id}/approvals", json=CLICK)
+    assert response.status_code == 200, response.text
+    assert response.json()["journal_entries_created"] == 1
     assert await counter_account_names(db, contradicted, bank.id) == {"General Expense (SGD)"}
 
 
 async def test_AC_extraction_classification_hardening_8_the_approval_settles_the_drafts_it_decided(
-    db, test_user, monkeypatch
+    client: AsyncClient, db, test_user, monkeypatch
 ):
     "AC-extraction.classification-hardening.8"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -340,7 +349,7 @@ async def test_AC_extraction_classification_hardening_8_the_approval_settles_the
     await seed_classification(db, test_user.id, refused, category="SALARY", account=salary, score=79)
     await db.commit()
 
-    await statements_router.approve_statement_stage1(statement_id=statement.id, request=CLICK, ctx=RequestContext(db, test_user.id))
+    assert (await client.post(f"/statements/{statement.id}/approvals", json=CLICK)).status_code == 200
     rows = {
         row.atomic_txn_id: row
         for row in (await db.execute(select(TransactionClassification))).scalars().all()

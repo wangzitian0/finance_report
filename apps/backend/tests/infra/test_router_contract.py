@@ -218,3 +218,52 @@ def test_domain_packages_do_not_import_config_app() -> None:
                 ):
                     violators.append(f"{path.relative_to(_SRC_DIR)}:{node.lineno}")
     assert violators == [], f"Unexpected src.config_app imports in domain packages: {violators}"
+
+
+@pytest.mark.no_db
+def test_tests_do_not_use_dual_http_and_domain_error_raises() -> None:
+    """AC-platform.router-contract.4: keep backend tests free of (HTTPException, DomainError) tuple catches."""
+    tests_dir = Path(__file__).resolve().parents[1]
+    violators: list[str] = []
+    for path in sorted(tests_dir.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            is_raises = (isinstance(node.func, ast.Name) and node.func.id == "raises") or (
+                isinstance(node.func, ast.Attribute) and node.func.attr == "raises"
+            )
+            if not is_raises or not node.args:
+                continue
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Tuple):
+                names = {
+                    elt.id if isinstance(elt, ast.Name) else elt.attr
+                    for elt in first_arg.elts
+                    if isinstance(elt, (ast.Name, ast.Attribute))
+                }
+                if "HTTPException" in names and "DomainError" in names:
+                    violators.append(f"{path.relative_to(tests_dir)}:{node.lineno}")
+    assert violators == [], f"Unexpected (HTTPException, DomainError) dual catches: {violators}"
+
+
+@pytest.mark.no_db
+def test_api_tests_do_not_import_src_routers() -> None:
+    """AC-platform.router-contract.5: keep tests/api free of direct src.routers imports."""
+    api_tests_dir = Path(__file__).resolve().parents[1] / "api"
+    violators: list[str] = []
+    for path in sorted(api_tests_dir.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if mod == "src.routers" or mod.startswith("src.routers.") or (
+                    mod == "src" and any(a.name == "routers" for a in node.names)
+                ):
+                    violators.append(f"{path.relative_to(api_tests_dir)}:{node.lineno}")
+            elif isinstance(node, ast.Import) and any(
+                alias.name == "src.routers" or alias.name.startswith("src.routers.")
+                for alias in node.names
+            ):
+                violators.append(f"{path.relative_to(api_tests_dir)}:{node.lineno}")
+    assert violators == [], f"Unexpected src.routers imports in tests/api: {violators}"

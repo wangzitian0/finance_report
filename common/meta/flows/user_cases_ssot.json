@@ -923,7 +923,7 @@
           "component": "PackagePanel",
           "backend_endpoint": "POST /reports/package/snapshots",
           "invariant": "Frozen report package snapshots remain immutable against subsequent ledger postings",
-          "backend_test_ref": "apps/backend/tests/api/test_personal_report_package_contract.py",
+          "backend_test_ref": "apps/backend/tests/reporting/test_personal_report_package_contract.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/personalReportPackagePage.test.tsx",
           "e2e_test_ref": "tests/e2e/test_personal_financial_report_package.py",
           "benchmark_cases": [],

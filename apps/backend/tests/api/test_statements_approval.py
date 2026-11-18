@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException, status
-from src.platform import DomainError
-from sqlalchemy import select, text
+from fastapi import status
+from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from src.audit import (
@@ -38,9 +38,6 @@ from src.extraction.extension.statement_posting import try_auto_approve_high_con
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
-from src.routers import statements as statements_router
-from src.schemas import StatementDecisionRequest
-from src.schemas.extraction import ReviewedStatementEnvelopeRequest, Stage1ApprovalRequest
 from tests.api._statement_router_fixtures import (
     add_reviewed_disposition_rule,
     add_txn,
@@ -50,12 +47,13 @@ from tests.api._statement_router_fixtures import (
 )
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 from tests.statement_ingestion import posting_dependencies
-from src.request_context import RequestContext
 
 pytestmark = pytest.mark.asyncio
 
 
-async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_description(db, test_user):
+async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_description(
+    client: AsyncClient, db, test_user
+):
     "AC-extraction.statement-memo.1"
     bank_account = Account(user_id=test_user.id, name="DBS Autosave", type=AccountType.ASSET, currency="SGD")
     db.add(bank_account)
@@ -80,9 +78,11 @@ async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_d
     txn_id = txn_out.id
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, test_user.id))
-    assert result.journal_entries_created == 1
-    assert result.status == BankStatementStatus.APPROVED
+    resp = await client.post(f"/statements/{statement_id}/approvals")
+    assert resp.status_code == status.HTTP_200_OK, resp.text
+    result = resp.json()
+    assert result["journal_entries_created"] == 1
+    assert result["status"] == BankStatementStatus.APPROVED.value
     entries = (
         (
             await db.execute(
@@ -100,7 +100,9 @@ async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_d
     assert entries[0].memo == description[:500]
 
 
-async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, test_user, monkeypatch):
+async def test_AC_extraction_disposition_5_stage1_requires_economic_review(
+    client: AsyncClient, db, test_user, monkeypatch
+):
     "AC-extraction.disposition.5"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     bank_account = await create_statement_account(db, test_user.id, "DBS Economic Review")
@@ -114,10 +116,9 @@ async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, t
     )
     await db.commit()
 
-    with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, test_user.id))
-    assert exc.value.status_code == status.HTTP_409_CONFLICT
-    assert exc.value.detail == "Economic review required: intent_missing"
+    exc = await client.post(f"/statements/{statement.id}/approvals")
+    assert exc.status_code == status.HTTP_409_CONFLICT
+    assert exc.json()["detail"] == "Economic review required: intent_missing"
     await db.refresh(statement)
     assert statement.status is BankStatementStatus.PARSED
     assert statement.stage1_status is Stage1Status.PENDING_REVIEW
@@ -126,7 +127,9 @@ async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, t
     assert entries.scalars().all() == []
 
 
-async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition(db, test_user):
+async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition(
+    client: AsyncClient, db, test_user
+):
     "AC-extraction.reviewed-envelope.4"
     user_id = test_user.id
     statement = build_statement(user_id, "hash_reviewed_envelope_approval", 80)
@@ -187,29 +190,43 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
     account = await create_statement_account(db, user_id, "Reviewed CSV Custody")
     await db.commit()
 
-    envelope = await statements_router.confirm_statement_review_envelope(statement_id=statement.id, request=ReviewedStatementEnvelopeRequest(source_result_digest=source_result.content_digest, account_id=account.id, currency='SGD', period_start=date(2025, 1, 1), period_end=date(2025, 1, 31), opening_balance=Decimal('100.00'), closing_balance=Decimal('110.00'), rationale='The CSV export omits source header and balance facts.'), ctx=RequestContext(db, user_id))
-    assert envelope.source_result_digest == source_result.content_digest
-    await db.commit()
+    envelope_resp = await client.post(
+        f"/statements/{statement.id}/review-envelopes",
+        json={
+            "source_result_digest": source_result.content_digest,
+            "account_id": str(account.id),
+            "currency": "SGD",
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "100.00",
+            "closing_balance": "110.00",
+            "rationale": "The CSV export omits source header and balance facts.",
+        },
+    )
+    assert envelope_resp.status_code == status.HTTP_200_OK, envelope_resp.text
+    assert envelope_resp.json()["source_result_digest"] == source_result.content_digest
     statement.closing_balance = Decimal("999.00")
+    await db.commit()
 
-    with pytest.raises((HTTPException, DomainError), match="diverges from its current reviewed envelope") as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    exc = await client.post(f"/statements/{statement.id}/approvals")
+    assert exc.status_code == status.HTTP_400_BAD_REQUEST
+    assert "diverges from its current reviewed envelope" in exc.json()["detail"]
 
-    await db.rollback()
-    await db.refresh(statement)
+    statement.closing_balance = Decimal("110.00")
     await add_reviewed_disposition_rule(
         db, user_id=user_id, keyword="salary", account_type=AccountType.INCOME, category="SALARY"
     )
     await db.commit()
-    approved = await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
-    assert approved.status is BankStatementStatus.APPROVED
-    assert approved.journal_entries_created == 1
+    approved_resp = await client.post(f"/statements/{statement.id}/approvals")
+    assert approved_resp.status_code == status.HTTP_200_OK, approved_resp.text
+    approved = approved_resp.json()
+    assert approved["status"] == BankStatementStatus.APPROVED.value
+    assert approved["journal_entries_created"] == 1
     entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
     assert len(entries.scalars().all()) == 1
 
 
-async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
+async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(client: AsyncClient, db, test_user):
     "AC-extraction.6.1"
     bank_account = Account(user_id=test_user.id, name="DBS Confirmed Account", type=AccountType.ASSET, currency="SGD")
     db.add(bank_account)
@@ -242,8 +259,9 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     txn_id = txn.id
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, test_user.id))
-    assert result.journal_entries_created == 1
+    resp = await client.post(f"/statements/{statement_id}/approvals")
+    assert resp.status_code == status.HTTP_200_OK, resp.text
+    assert resp.json()["journal_entries_created"] == 1
     await db.refresh(statement)
     assert statement.account_id == bank_account_id
     entry_result = await db.execute(
@@ -369,7 +387,9 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     assert persisted_txns[0].description == "Uncommitted Salary"
 
 
-async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correction_review(db, test_user):
+async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correction_review(
+    client: AsyncClient, db, test_user
+):
     bank_account = await create_statement_account(db, test_user.id, "DBS Existing Entry Promotion")
     statement = build_statement(test_user.id, "hash_s1_existing_entry_promotion", 90)
     statement.status = BankStatementStatus.PARSED
@@ -390,11 +410,11 @@ async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correct
         source_type=JournalEntrySourceType.AUTO_PARSED,
         source_id=txn.id,
     )
+    await db.commit()
 
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, test_user.id))
-    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
-    assert "legacy_unanchored_source_entry" in exc_info.value.detail
+    exc_info = await client.post(f"/statements/{statement.id}/approvals")
+    assert exc_info.status_code == status.HTTP_409_CONFLICT
+    assert "legacy_unanchored_source_entry" in exc_info.json()["detail"]
     await db.refresh(existing_entry)
     assert existing_entry.source_type == JournalEntrySourceType.AUTO_PARSED
     assert existing_entry.status == JournalEntryStatus.POSTED
@@ -410,7 +430,7 @@ async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correct
     assert len(entries_result.scalars().all()) == 1
 
 
-async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping(db, test_user):
+async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping(client: AsyncClient, db, test_user):
     "AC-extraction.6.5"
     user_id = test_user.id
     bank_account = await create_statement_account(db, user_id, "DBS Unconfirmed Prior")
@@ -430,13 +450,14 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
     )
     await db.commit()
 
-    with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Historical custody source needs review" in str(exc.value.detail)
+    exc = await client.post(f"/statements/{statement.id}/approvals")
+    assert exc.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Historical custody source needs review" in exc.json()["detail"]
 
 
-async def test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting(db, test_user):
+async def test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting(
+    client: AsyncClient, db, test_user
+):
     "AC-extraction.6.6"
     user_id = test_user.id
     bank_account = await create_statement_account(db, user_id, "DBS Period Guard")
@@ -461,10 +482,9 @@ async def test_approve_statement_stage1_blocks_overlapping_statement_period_befo
     )
     await db.commit()
 
-    with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, ctx=RequestContext(db, user_id))
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Statement period overlaps" in str(exc.value.detail)
+    exc = await client.post(f"/statements/{statement.id}/approvals")
+    assert exc.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Statement period overlaps" in exc.json()["detail"]
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == user_id)
@@ -487,7 +507,7 @@ async def test_statement_summary_rejects_a_period_that_ends_before_it_starts(db,
         await db.flush()
 
 
-async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(db, test_user):
+async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(client: AsyncClient, db, test_user):
     "AC-extraction.6.2"
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_unmapped", 90)
@@ -502,10 +522,9 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     )
     await db.commit()
 
-    with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, user_id))
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Account mapping required" in str(exc.value.detail)
+    exc = await client.post(f"/statements/{statement_id}/approvals")
+    assert exc.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Account mapping required" in exc.json()["detail"]
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == user_id)
@@ -527,7 +546,7 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     ],
 )
 async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
-    db, test_user, account_type, account_currency, is_active, expected_detail
+    client: AsyncClient, db, test_user, account_type, account_currency, is_active, expected_detail
 ):
     "AC-extraction.6.2"
     user_id = test_user.id
@@ -553,13 +572,12 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     )
     await db.commit()
 
-    with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, user_id))
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert expected_detail == str(exc.value.detail)
+    exc = await client.post(f"/statements/{statement_id}/approvals")
+    assert exc.status_code == status.HTTP_400_BAD_REQUEST
+    assert expected_detail == exc.json()["detail"]
 
 
-async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(db, test_user):
+async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(client: AsyncClient, db, test_user):
     "AC-extraction.6.4"
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_confirm_create_account", 90)
@@ -581,8 +599,9 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     txn_id = txn.id
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement_id, request=Stage1ApprovalRequest(create_account_if_missing=True), ctx=RequestContext(db, user_id))
-    assert result.journal_entries_created == 1
+    resp = await client.post(f"/statements/{statement_id}/approvals", json={"create_account_if_missing": True})
+    assert resp.status_code == status.HTTP_200_OK, resp.text
+    assert resp.json()["journal_entries_created"] == 1
     await db.refresh(statement)
     assert statement.account_id is not None
     account = await db.get(Account, statement.account_id)
@@ -606,7 +625,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     assert fallback_result.scalar_one_or_none() is None
 
 
-async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, test_user):
+async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(client: AsyncClient, db, test_user):
     "AC-extraction.6.3"
     user_id = test_user.id
     first_account = Account(user_id=user_id, name="DBS Account A", type=AccountType.ASSET, currency="SGD")
@@ -635,13 +654,14 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
     )
     await db.commit()
 
-    with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, user_id))
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Ambiguous historical custody accounts" in str(exc.value.detail)
+    exc = await client.post(f"/statements/{statement_id}/approvals")
+    assert exc.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Ambiguous historical custody accounts" in exc.json()["detail"]
 
 
-async def test_approve_statement_stage1_authorizes_before_balance_validation(db, test_user, monkeypatch):
+async def test_approve_statement_stage1_authorizes_before_balance_validation(
+    client: AsyncClient, db, test_user, monkeypatch
+):
     "AC16.18.1"
     other_user = User(email="stage1-other@example.com", hashed_password="hashed")
     db.add(other_user)
@@ -654,14 +674,13 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(db,
     validation = AsyncMock(side_effect=AssertionError("validation should not run before authorization"))
     monkeypatch.setattr(statement_validation_mod, "validate_balance_chain", validation)
 
-    with pytest.raises((HTTPException, DomainError)) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, ctx=RequestContext(db, test_user.id))
-    assert exc.value.status_code == 404
-    assert "Statement not found" in exc.value.detail
+    exc = await client.post(f"/statements/{statement_id}/approvals")
+    assert exc.status_code == 404
+    assert "Statement not found" in exc.json()["detail"]
     validation.assert_not_awaited()
 
 
-async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(db, test_user, monkeypatch):
+async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(client: AsyncClient, db, test_user, monkeypatch):
     "AC-extraction.2822.2"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     selected_account = await create_statement_account(db, test_user.id, "User Selected Custody Account")
@@ -676,13 +695,18 @@ async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(db, test_u
     )
     await db.commit()
 
-    approved = await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(account_id=selected_account.id, auto_fill_default_categories=True), ctx=RequestContext(db, test_user.id))
-    assert approved.status == BankStatementStatus.APPROVED
-    assert approved.account_id == selected_account.id
-    assert approved.journal_entries_created == 1
+    resp = await client.post(
+        f"/statements/{statement.id}/approvals",
+        json={"account_id": str(selected_account.id), "auto_fill_default_categories": True},
+    )
+    assert resp.status_code == status.HTTP_200_OK, resp.text
+    approved = resp.json()
+    assert approved["status"] == BankStatementStatus.APPROVED.value
+    assert approved["account_id"] == str(selected_account.id)
+    assert approved["journal_entries_created"] == 1
 
 
-async def test_AC_extraction_2826_1_review_response_inherits_bank_statement_response(db, test_user):
+async def test_AC_extraction_2826_1_review_response_inherits_bank_statement_response(client: AsyncClient, db, test_user):
     "AC-extraction.2826.1"
     from src.schemas.extraction import BankStatementResponse
     from src.schemas.extraction import StatementReviewResponse
@@ -699,6 +723,8 @@ async def test_AC_extraction_2826_1_review_response_inherits_bank_statement_resp
     db.add(statement)
     await db.commit()
 
-    review = await statements_router.get_statement_for_review(statement_id=statement.id, ctx=RequestContext(db, test_user.id))
-    assert review.brokerage_import_failed is True
-    assert review.brokerage_import_failure_reason == "Brokerage import failed: missing instrument symbol"
+    resp = await client.get(f"/statements/{statement.id}/review")
+    assert resp.status_code == status.HTTP_200_OK, resp.text
+    review = resp.json()
+    assert review["brokerage_import_failed"] is True
+    assert review["brokerage_import_failure_reason"] == "Brokerage import failed: missing instrument symbol"

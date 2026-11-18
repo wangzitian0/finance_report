@@ -217,7 +217,6 @@ async def test_AC_extraction_classification_hardening_5_the_provider_call_carrie
 
 async def test_AC_extraction_classification_hardening_2_reconciliation_match_feedback_transitions_state(db, test_user):
     "AC-extraction.classification-hardening.2"
-    from fastapi import HTTPException
     from src.ledger import (
         Account,
         AccountType,
@@ -282,7 +281,7 @@ async def test_AC_extraction_classification_hardening_2_reconciliation_match_fee
     )
     db.add_all([match_accept, match_reject])
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
+    with pytest.raises(DomainError) as exc_info:
         await create_classification_feedback(
             payload=AiFeedbackRequest(suggestion_id=match_accept.id, action="accept"),
             ctx=RequestContext(db, test_user.id),
