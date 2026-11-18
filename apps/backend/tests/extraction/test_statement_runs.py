@@ -194,7 +194,7 @@ async def test_AC_extraction_2994_6_a_run_with_hints_and_an_identical_result_kee
         [RunActorKind.SYSTEM, RunActorKind.USER],
     )
     assert (rows[0].hints, rows[1].hints) == ({"keywords": [], "note": None}, HINTS.model_dump(mode="json"))
-    assert all(len(await run_traces(db, statement.id, r.id)) == 3 for r in rows)
+    assert all([len(await run_traces(db, statement.id, r.id)) == 3 for r in rows])
 
 
 async def test_AC_extraction_2994_7_the_requested_trace_record_binds_hints_actor_and_the_transition_time(db, test_user):

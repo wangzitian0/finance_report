@@ -47,6 +47,7 @@ async def _stmt(db, uid, *, file_hash: str, account_id=None, **kw) -> StatementS
     doc = await UploadedDocumentFactory.create_async(db, user_id=uid, file_hash=file_hash)
     kw.setdefault("period_start", date(2024, 1, 1))
     kw.setdefault("period_end", date(2024, 1, 31))
+    kw.setdefault("status", BankStatementStatus.PARSED)
     return await StatementSummaryFactory.create_async(db, user_id=uid, uploaded_document_id=doc.id, account_id=account_id, file_hash=file_hash, currency="USD", **kw)
 
 
@@ -111,9 +112,10 @@ async def test_validate_balance_chain_reuse_isolation_and_approve_reject(db, tes
 
     with pytest.raises(ValueError, match="Statement not found or access denied"):
         await approve_statement_with_transactions(db, stmt.id, uuid4())
-    rejected = await reject_statement(db, stmt.id, uid)
+    stmt_rej = await _stmt(db, uid, file_hash="hash_rej", opening_balance=Decimal("1000.00"), closing_balance=Decimal("1100.00"))
+    rejected = await reject_statement(db, stmt_rej.id, uid)
     assert (rejected.stage1_status, rejected.status, rejected.validation_error) == (Stage1Status.REJECTED, BankStatementStatus.REJECTED, None)
-    assert (await reject_statement(db, stmt.id, uid, reason="Bad")).validation_error == "Bad"
+    assert (await reject_statement(db, stmt_rej.id, uid, reason="Bad")).validation_error == "Bad"
 
     bad = await _stmt(db, uid, file_hash="hash222", opening_balance=Decimal("1000.00"), closing_balance=Decimal("2000.00"))
     await _txn(db, bad, "10.00")

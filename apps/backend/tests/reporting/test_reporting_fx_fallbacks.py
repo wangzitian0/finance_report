@@ -43,10 +43,6 @@ async def test_aggregate_balances_and_net_income_start_date_and_missing_fx(
     db: AsyncSession, fx_accounts, test_user
 ) -> None:
     sgd_cash, usd_savings, capital, salary, usd_income, _ = fx_accounts
-    await post_pair(db, test_user.id, date(2025, 1, 1), "Before", sgd_cash, capital, "500.00")
-    await post_pair(db, test_user.id, date(2025, 2, 1), "During", sgd_cash, capital, "300.00")
-    await post_pair(db, test_user.id, date(2025, 1, 1), "Old inc", sgd_cash, salary, "1000.00")
-    await post_pair(db, test_user.id, date(2025, 2, 15), "New inc", sgd_cash, salary, "500.00")
     await post_pair(
         db,
         test_user.id,
@@ -59,23 +55,6 @@ async def test_aggregate_balances_and_net_income_start_date_and_missing_fx(
         fx_rate=Decimal("1.00"),
         commit=True,
     )
-
-    assert (
-        await _aggregate_balances_sql(
-            db, test_user.id, (AccountType.ASSET,), "SGD", date(2025, 3, 1), base_currency="SGD"
-        )
-    )[sgd_cash.id] == Decimal("1800.00")
-    assert (
-        await _aggregate_balances_sql(
-            db,
-            test_user.id,
-            (AccountType.ASSET,),
-            "SGD",
-            date(2025, 3, 1),
-            start_date=date(2025, 1, 15),
-            base_currency="SGD",
-        )
-    )[sgd_cash.id] == Decimal("800.00")
 
     warnings: list[dict[str, str]] = []
     assert (
@@ -93,6 +72,27 @@ async def test_aggregate_balances_and_net_income_start_date_and_missing_fx(
         }
     ]
 
+    await post_pair(db, test_user.id, date(2025, 1, 1), "Before", sgd_cash, capital, "500.00")
+    await post_pair(db, test_user.id, date(2025, 2, 1), "During", sgd_cash, capital, "300.00", commit=True)
+    assert (
+        await _aggregate_balances_sql(
+            db, test_user.id, (AccountType.ASSET,), "SGD", date(2025, 3, 1), base_currency="SGD"
+        )
+    )[sgd_cash.id] == Decimal("800.00")
+    assert (
+        await _aggregate_balances_sql(
+            db,
+            test_user.id,
+            (AccountType.ASSET,),
+            "SGD",
+            date(2025, 3, 1),
+            start_date=date(2025, 1, 15),
+            base_currency="SGD",
+        )
+    )[sgd_cash.id] == Decimal("300.00")
+
+    await post_pair(db, test_user.id, date(2025, 1, 1), "Old inc", sgd_cash, salary, "1000.00")
+    await post_pair(db, test_user.id, date(2025, 2, 15), "New inc", sgd_cash, salary, "500.00", commit=True)
     assert (await _aggregate_net_income_sql(db, test_user.id, "SGD", date(2025, 3, 1)))[0] == Decimal("1500.00")
     assert (await _aggregate_net_income_sql(db, test_user.id, "SGD", date(2025, 3, 1), start_date=date(2025, 2, 1)))[
         0

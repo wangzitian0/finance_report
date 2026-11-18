@@ -457,6 +457,9 @@ _LEDGER_SCENARIOS = [
 ]
 
 
+_BENCHMARK_FX = {"USD": Decimal("1.35"), "HKD": Decimal("0.17"), "EUR": Decimal("1.45")}
+
+
 @pytest.mark.parametrize(
     ("acct_specs", "fx_specs", "entries", "start_date", "as_of_date", "currency", "expected"), _LEDGER_SCENARIOS
 )
@@ -467,20 +470,30 @@ async def test_bench_ledger_articulation_scenarios(
     if fx_specs:
         await seed_fx_rates(db, *fx_specs, commit=False)
     for dt, memo, spec in entries:
-        db.add(
-            make_entry(test_user_id, dt, memo, [(accs[i], d, a, *rest) for i, d, a, *rest in spec])
-            if isinstance(spec, list)
-            else make_pair_entry(
-                test_user_id,
-                dt,
-                memo,
-                accs[spec[0]],
-                accs[spec[1]],
-                spec[2],
-                currency=spec[3] if len(spec) > 3 else currency,
-                fx_rate=Decimal(spec[4]) if len(spec) > 4 else None,
+        if isinstance(spec, list):
+            lines = [
+                (
+                    accs[i],
+                    d,
+                    a,
+                    rest[0] if rest else currency,
+                    rest[1]
+                    if len(rest) > 1
+                    else (_BENCHMARK_FX.get(rest[0], Decimal("1.00")) if rest and rest[0] != "SGD" else None),
+                )
+                for i, d, a, *rest in spec
+            ]
+            db.add(make_entry(test_user_id, dt, memo, lines))
+        else:
+            ccy = spec[3] if len(spec) > 3 else currency
+            fx = (
+                Decimal(spec[4])
+                if len(spec) > 4
+                else (_BENCHMARK_FX.get(ccy, Decimal("1.00")) if ccy != "SGD" else None)
             )
-        )
+            db.add(
+                make_pair_entry(test_user_id, dt, memo, accs[spec[0]], accs[spec[1]], spec[2], currency=ccy, fx_rate=fx)
+            )
     await db.commit()
     if any(k in expected for k in ("bs", "bs_min_assets", "cta_not_none")):
         bs = await generate_balance_sheet(db, test_user_id, as_of_date=as_of_date, currency=currency)

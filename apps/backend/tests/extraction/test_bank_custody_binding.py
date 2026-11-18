@@ -128,12 +128,12 @@ async def test_real_custody_migration_installs_unique_key(db, test_user):
 
 @pytest.mark.parametrize("ambiguous", [False, True])
 async def test_explicit_selection_resolves_only_unique_legacy_history(db, test_user, ambiguous):
-    selected = None
+    uid, selected = test_user.id, None
     for _ in range(2 if ambiguous else 1):
-        account = AccountFactory.build(user_id=test_user.id, name="Legacy retained custody", currency="SGD")
+        account = AccountFactory.build(user_id=uid, name="Legacy retained custody", currency="SGD")
         db.add(account)
         await db.flush()
-        source = await seed_parsed_statement(db, test_user.id)
+        source = await seed_parsed_statement(db, uid)
         source.statement.account_id, source.statement.account_last4, source.statement.institution = (
             account.id,
             "2468",
@@ -142,13 +142,13 @@ async def test_explicit_selection_resolves_only_unique_legacy_history(db, test_u
         selected = account.id
     await db.commit()
     with pytest.raises(ExtractionError, match="Historical custody"):
-        await parse(db, test_user.id)
+        await parse(db, uid)
     await db.rollback()
     if ambiguous:
         with pytest.raises(ExtractionError, match="Ambiguous historical"):
-            await parse(db, test_user.id, account_id=selected)
+            await parse(db, uid, account_id=selected)
     else:
-        assert (await parse(db, test_user.id, account_id=selected)).account_id == selected
+        assert (await parse(db, uid, account_id=selected)).account_id == selected
 
 
 async def test_confirmed_create_reuses_and_mapped_posting_rejects_contradictory_custody(db, test_user):

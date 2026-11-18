@@ -9,10 +9,12 @@ from src.extraction import ClassificationStatus, RuleType, TransactionDirection
 from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import (
     ClassificationRule,
+    TransactionClassification,
+)
+from src.portfolio.orm.portfolio import (
     CostBasisMethod,
     ManagedPosition,
     PositionStatus,
-    TransactionClassification,
 )
 from src.ledger import Account, AccountType
 from src.pricing import ManualValuationComponentType, ManualValuationLiquidityClass, ValuationService

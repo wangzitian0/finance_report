@@ -30,7 +30,18 @@ async def _add_entry(db: AsyncSession, uid, debit_acc, credit_acc, amount: Decim
 
 async def _add_stmt_txn(db: AsyncSession, uid, desc: str, amt: Decimal, direction: str):
     custody, doc = await AccountFactory.create_async(db, user_id=uid, name=f"C {uuid4()}"), await UploadedDocumentFactory.create_async(db, user_id=uid)
-    await StatementSummaryFactory.create_async(db, user_id=uid, account_id=custody.id, uploaded_document_id=doc.id, file_hash=doc.file_hash, status=BankStatementStatus.APPROVED)
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=uid,
+        account_id=custody.id,
+        uploaded_document_id=doc.id,
+        file_hash=doc.file_hash,
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED,
+    )
     return await AtomicTransactionFactory.create_async(db, user_id=uid, source_doc_id=doc.id, txn_date=date(2024, 1, 15), description=desc, amount=amt, direction=TransactionDirection(direction))
 
 

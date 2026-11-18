@@ -735,7 +735,7 @@ async def test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot(
     ) and trusted.document.package_decision_id is not None
 
 
-async def test_AC_extraction_disposition_7_and_rollback(
+async def test_AC_extraction_disposition_7_frozen_package_persists_trace_bound_policy_snapshot(
     db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -781,11 +781,16 @@ async def test_AC_extraction_disposition_7_and_rollback(
         == note.disclosure
     )
 
+
+async def test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together(
+    db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
+):
     await _install_trace_anchored_package_fixture(db, test_user, monkeypatch, fault_after_trace_flush=True)
+    user_id = test_user.id
     with pytest.raises(RuntimeError, match="fault_after_package_trace_flush"):
-        await generate_personal_report_package_snapshot(RequestContext(db, test_user.id), request=_PKG_REQ)
+        await generate_personal_report_package_snapshot(RequestContext(db, user_id), request=_PKG_REQ)
     q = select(func.count(TraceRecordRow.id)).where(
-        TraceRecordRow.scope_id == str(test_user.id), TraceRecordRow.target_kind == "personal_report_package"
+        TraceRecordRow.scope_id == str(user_id), TraceRecordRow.target_kind == "personal_report_package"
     )
     assert await db.scalar(q) > 0
     await db.rollback()
@@ -793,7 +798,7 @@ async def test_AC_extraction_disposition_7_and_rollback(
         await db.scalar(q) == 0
         and await db.scalar(
             select(func.count(ReportSnapshot.id)).where(
-                ReportSnapshot.user_id == test_user.id, ReportSnapshot.report_type == ReportType.PACKAGE
+                ReportSnapshot.user_id == user_id, ReportSnapshot.report_type == ReportType.PACKAGE
             )
         )
         == 0

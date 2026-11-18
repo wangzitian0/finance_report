@@ -24,6 +24,7 @@ from src.routers import reconciliation as reconciliation_router, statements as s
 from src.schemas.extraction import ResolveConflictsRequest, Stage1ApprovalRequest
 from src.schemas.reconciliation import ConsistencyCheckRunRequest, ReconciliationMatchBatchRequest, ResolveCheckRequest
 from tests.api._statement_router_fixtures import add_reviewed_disposition_rule, add_txn, build_statement, create_statement_account
+from tests.factories import UserFactory
 from tests.statement_ingestion import anchored_reviewed_posting_inputs
 
 
@@ -146,20 +147,22 @@ async def test_AC16_34_resolve_conflicts_and_reject_reset(db, test_user):
 
 async def test_AC16_32_3_and_AC19_11_1_queue_and_run_id_scoping(db, test_user):
     ctx = RequestContext(db, test_user.id)
-    db.add_all([_chk(test_user.id, related=[f"txn-{i}"]) for i in range(55)])
+    db.add_all([_chk(test_user.id, run_id="run-queue", related=[f"txn-{i}"]) for i in range(55)])
     db.add_all([_chk(test_user.id, run_id="run-123", related=["txn-in-run"]), _chk(test_user.id, run_id="run-456", related=["txn-other-run"])])
     await db.commit()
     assert len((await reconciliation_router.get_stage2_review_queue(ctx)).consistency_checks) == 57
     listed = await reconciliation_router.list_consistency_checks(ctx, run_id="run-123")
     assert listed.total == 1 and listed.items[0].related_txn_ids == ["txn-in-run"]
 
-    _, _, txn_in, _ = await _seed_approved_statement_with_posted_txn(db, test_user.id, "DBS Run Scope")
-    _, _, txn_out = await _seed_approved_statement_with_txn(db, test_user.id, "DBS Other Run")
+    uid2 = (await UserFactory.create_async(db)).id
+    ctx2 = RequestContext(db, uid2)
+    _, _, txn_in, _ = await _seed_approved_statement_with_posted_txn(db, uid2, "DBS Run Scope")
+    _, _, txn_out = await _seed_approved_statement_with_txn(db, uid2, "DBS Other Run")
     m_in, m_out = _match(txn_in.id, score=95, run_id="run-123"), _match(txn_out.id, score=95, run_id="run-456")
     db.add_all([m_in, m_out])
     await db.commit()
-    assert [str(m.id) for m in (await reconciliation_router.get_stage2_review_queue(ctx, run_id="run-123")).pending_matches] == [str(m_in.id)]
-    assert (await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[m_in.id, m_out.id], run_id="run-123"), ctx=ctx)).approved_count == 1
+    assert [str(m.id) for m in (await reconciliation_router.get_stage2_review_queue(ctx2, run_id="run-123")).pending_matches] == [str(m_in.id)]
+    assert (await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[m_in.id, m_out.id], run_id="run-123"), ctx=ctx2)).approved_count == 1
     await db.refresh(m_in)
     await db.refresh(m_out)
     assert (m_in.status, m_out.status) == (ReconciliationStatus.ACCEPTED, ReconciliationStatus.PENDING_REVIEW)
@@ -180,7 +183,8 @@ async def test_batch_accept_reject_idempotency_errors_and_evidence_graph(db, tes
     assert (r1.approved_count, r1.journal_entries_reconciled, m_ref.status, entry_ref.status, m_exist.journal_entry_ids, entry_exist.status) == (2, 2, ReconciliationStatus.ACCEPTED, JournalEntryStatus.RECONCILED, [str(entry_exist.id)], JournalEntryStatus.RECONCILED)
 
     _, stmt_miss, txn_miss = await _seed_approved_statement_with_txn(db, uid, "DBS Miss", txn_date=date(2025, 1, 17))
-    m_miss = _match(txn_miss.id)
+    txn_miss_id = txn_miss.id
+    m_miss = _match(txn_miss_id)
     db.add(m_miss)
     await db.commit()
     with pytest.raises(DomainError) as exc_miss:
@@ -188,8 +192,9 @@ async def test_batch_accept_reject_idempotency_errors_and_evidence_graph(db, tes
     assert exc_miss.value.status_code == 400 and "Authoritative economic disposition" in str(exc_miss.value.detail)
     await db.rollback()
     await db.refresh(m_miss)
+    await db.refresh(stmt_miss)
     assert m_miss.status == ReconciliationStatus.PENDING_REVIEW and m_miss.journal_entry_ids == []
-    assert list((await db.execute(select(JournalEntry).where(JournalEntry.user_id == uid, JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES), JournalEntry.source_id == txn_miss.id))).scalars()) == []
+    assert list((await db.execute(select(JournalEntry).where(JournalEntry.user_id == uid, JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES), JournalEntry.source_id == txn_miss_id))).scalars()) == []
 
     _, _, txn_retry, _ = await _seed_approved_statement_with_posted_txn(db, uid, "DBS Retry", txn_date=date(2025, 1, 18))
     m_retry = _match(txn_retry.id)
@@ -201,13 +206,15 @@ async def test_batch_accept_reject_idempotency_errors_and_evidence_graph(db, tes
     await db.commit()
     assert (second.status, second.version, second.journal_entry_ids) == (ReconciliationStatus.ACCEPTED, first.version, list(first.journal_entry_ids or []))
 
+    _, _, txn_bad = await _seed_approved_statement_with_txn(db, uid, "DBS Bad", txn_date=date(2025, 1, 19))
+    _, _, txn_rej = await _seed_approved_statement_with_txn(db, uid, "DBS Rej", txn_date=date(2025, 1, 19))
     other_txn = await add_txn(db, stmt_miss, txn_date=date(2025, 1, 19), description="Diff", amount=Decimal("100.00"), direction="OUT")
     db.add(other_txn)
     await db.commit()
     await db.refresh(other_txn)
     dec, c_acc, s_dec, emitter = await anchored_reviewed_posting_inputs(db, user_id=uid, transaction=other_txn, intent=EconomicIntent.EXPENSE)
     e_bad = await create_entry_from_txn(db, other_txn, user_id=uid, auto_post=True, disposition=dec, counter_account=c_acc, source_decision=s_dec, trace_emitter=emitter, base_currency="SGD")
-    m_bad, m_rej = _match(txn_miss.id, eids=[str(e_bad.id)]), _match(txn_miss.id, score=70)
+    m_bad, m_rej = _match(txn_bad.id, eids=[str(e_bad.id)]), _match(txn_rej.id, score=70)
     db.add_all([m_bad, m_rej])
     await db.commit()
     with pytest.raises(DomainError) as exc_amt:
@@ -225,12 +232,13 @@ async def test_batch_accept_reject_idempotency_errors_and_evidence_graph(db, tes
     assert await db.scalar(select(Account.id).where(Account.user_id == uid, Account.name.in_(("Income - Uncategorized", "Expense - Uncategorized"))).limit(1)) is None
 
     _, _, g_txn, g_entry = await _seed_approved_statement_with_posted_txn(db, uid, "DBS Graph", txn_date=date(2025, 1, 21), description="Evidence salary", direction="IN", intent=EconomicIntent.INCOME, source_type=JournalEntrySourceType.AUTO_PARSED)
+    g_txn_id, g_entry_id, g_line_ids = g_txn.id, g_entry.id, [item.id for item in g_entry.lines]
+    assert (g_entry.source_type, g_entry.source_id) == (JournalEntrySourceType.AUTO_PARSED, g_txn_id)
     await db.commit()
-    assert (g_entry.source_type, g_entry.source_id) == (JournalEntrySourceType.AUTO_PARSED, g_txn.id)
-    await EvidenceGraphMaterializationService().materialize_for_entity(db, user_id=uid, entity_type="journal_entry", entity_id=g_entry.id)
+    await EvidenceGraphMaterializationService().materialize_for_entity(db, user_id=uid, entity_type="journal_entry", entity_id=g_entry_id)
     await db.commit()
     nodes = {(n.node_kind, n.entity_type, n.entity_id): n for n in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == uid))).scalars()}
     edges = {(e.from_node_id, e.to_node_id, e.relation) for e in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == uid))).scalars()}
-    le_node = nodes["ledger_entry", "journal_entry", g_entry.id]
-    assert (nodes["atomic_fact", "atomic_transaction", g_txn.id].id, le_node.id, "posted_as") in edges
-    assert {(le_node.id, nodes["ledger_line", "journal_line", item.id].id, "contains") for item in g_entry.lines} <= edges
+    le_node = nodes["ledger_entry", "journal_entry", g_entry_id]
+    assert (nodes["atomic_fact", "atomic_transaction", g_txn_id].id, le_node.id, "posted_as") in edges
+    assert {(le_node.id, nodes["ledger_line", "journal_line", lid].id, "contains") for lid in g_line_ids} <= edges

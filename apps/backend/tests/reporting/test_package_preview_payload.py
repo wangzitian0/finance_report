@@ -11,6 +11,7 @@ from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import ORMExecuteState, Session
 
+from src.identity import User
 from src.ledger import Account, AccountType, JournalLine, initialize_opening_positions
 from src.ledger.orm.opening_position import OpeningPositionRecord
 from src.reporting import PackageAssembler, derive_user_framework_policy_result
@@ -217,7 +218,8 @@ async def test_AC_reporting_package_traceability_9_and_10_categorized_year_scale
 async def test_AC_reporting_package_traceability_8_and_11_evidence_and_snapshot_pages(
     client, db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    stock_price = await seed_reviewed_statement(db, test_user.id, monkeypatch)
+    user_id = test_user.id
+    stock_price = await seed_reviewed_statement(db, user_id, monkeypatch)
     gen = (
         await client.post("/reports/package/snapshots", json={**JUNE_PERIOD, "framework_id": FRAMEWORK.value})
     ).json()
@@ -233,7 +235,7 @@ async def test_AC_reporting_package_traceability_8_and_11_evidence_and_snapshot_
     db.expire_all()
     evidence = await PackageAssembler()._evidence_contributions(
         db,
-        user_id=test_user.id,
+        user_id=user_id,
         start_date=date(2026, 6, 1),
         end_date=date(2026, 6, 30),
         as_of_date=date(2026, 6, 30),
@@ -330,11 +332,16 @@ async def test_AC_reporting_package_traceability_8_line_details_reject_unknown_l
 async def test_AC_reporting_package_traceability_8_and_10_deterministic_tiebreak_order(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    await seed_ready_package_state(db, test_user.id, monkeypatch)
-    accs = await seed_accounts(db, test_user.id, *[(f"Cash {i}", AccountType.ASSET) for i in range(4)])
+    user_id = test_user.id
+    pol_user = User(email="tiebreak-pol@example.com", hashed_password="hashed")
+    db.add(pol_user)
+    await db.flush()
+    pol_user_id = pol_user.id
+    await seed_ready_package_state(db, pol_user_id, monkeypatch)
+    accs = await seed_accounts(db, user_id, *[(f"Cash {i}", AccountType.ASSET) for i in range(4)])
     await initialize_opening_positions(
         db,
-        test_user.id,
+        user_id,
         entry_date=date(2026, 1, 1),
         balances={a.id: Decimal(f"{i + 1}000.00") for i, a in enumerate(accs)},
         currency="SGD",
@@ -358,7 +365,7 @@ async def test_AC_reporting_package_traceability_8_and_10_deterministic_tiebreak
         try:
             details = await PackageAssembler().line_details(
                 db,
-                user_id=test_user.id,
+                user_id=user_id,
                 start_date=date(2026, 6, 1),
                 end_date=date(2026, 6, 30),
                 as_of_date=date(2026, 6, 30),
@@ -368,7 +375,7 @@ async def test_AC_reporting_package_traceability_8_and_10_deterministic_tiebreak
             )
             pol = await derive_user_framework_policy_result(
                 db,
-                test_user.id,
+                pol_user_id,
                 framework_id=FRAMEWORK,
                 report_period_start=date(2026, 6, 1),
                 report_period_end=date(2026, 6, 30),

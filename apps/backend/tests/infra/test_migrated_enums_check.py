@@ -84,16 +84,11 @@ def test_AC_meta_phase0_21_to_25_orm_enums_ci_and_main(monkeypatch, capsys):
 
 
 def test_AC_meta_phase0_26_the_database_side_groups_labels_and_drops_async_suffix(monkeypatch):
+    from contextlib import nullcontext
+
     seen, queries = [], []
-    conn = SimpleNamespace(
-        __enter__=lambda s=None: SimpleNamespace(
-            cursor=lambda: SimpleNamespace(
-                execute=queries.append,
-                fetchall=lambda: [("k_enum", "extract"), ("k_enum", "classify"), ("s_enum", "x")],
-            )
-        ),
-        __exit__=lambda *_e: False,
-    )
+    cursor = nullcontext(SimpleNamespace(execute=queries.append, fetchall=lambda: [("k_enum", "extract"), ("k_enum", "classify"), ("s_enum", "x")]))
+    conn = nullcontext(SimpleNamespace(cursor=lambda: cursor))
     monkeypatch.setattr(check.psycopg2, "connect", lambda url: seen.append(url) or conn)
     assert check.migrated_enums("postgresql+asyncpg://db/app") == {"k_enum": KIND, "s_enum": frozenset({"x"})}
     assert seen == ["postgresql://db/app"] and len(queries) == 1 and "pg_type_is_visible(t.oid)" in queries[0]

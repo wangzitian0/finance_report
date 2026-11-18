@@ -73,6 +73,7 @@ async def test_AC_runtime_snapshot_anonymizer_2_to_4_all_invariants(db: AsyncSes
     await db.flush()
     s9876_id = s9876.id
 
+    conn = await db.connection()
     report = await conn.run_sync(lambda c: anonymize(c, Base.metadata, secret=SECRET, scale_factor=FACTOR))
     assert report.scale_factor == FACTOR
     db.expire_all()

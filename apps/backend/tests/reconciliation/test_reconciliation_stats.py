@@ -32,13 +32,13 @@ async def test_get_reconciliation_stats_dedup_distribution_and_unmatched_alignme
         await AtomicTransactionFactory.create_async(db, user_id=uid, txn_date=date(2024, 1, 15 + i), description=desc, amount=Decimal(amt), direction=direction)
         for i, (desc, amt, direction) in enumerate([("Salary", "5000", TransactionDirection.IN), ("Groceries", "100", TransactionDirection.OUT), ("Rent", "2000", TransactionDirection.OUT)])
     ]
-    m1 = await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[0].id, match_score=95, status=ReconciliationStatus.AUTO_ACCEPTED)
-    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[2].id, match_score=70, status=ReconciliationStatus.PENDING_REVIEW)
+    m1 = await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[0].id, journal_entry_ids=[str(uuid4())], match_score=95, status=ReconciliationStatus.AUTO_ACCEPTED)
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[2].id, journal_entry_ids=[str(uuid4())], match_score=70, status=ReconciliationStatus.PENDING_REVIEW)
     stats = await get_reconciliation_stats(db, uid, include_distribution=False)
     assert (stats.total_transactions, stats.matched_transactions, stats.unmatched_transactions, stats.pending_review, stats.auto_accepted, stats.score_distribution) == (3, 1, 1, 1, 1, None)
     assert stats.match_rate == pytest.approx(33.33, rel=0.01)
 
-    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[0].id, match_score=91, status=ReconciliationStatus.SUPERSEDED, superseded_by_id=m1.id)
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[0].id, journal_entry_ids=[str(uuid4())], match_score=91, status=ReconciliationStatus.SUPERSEDED, superseded_by_id=m1.id)
     assert (await get_reconciliation_stats(db, uid, include_distribution=False)).matched_transactions == 1
 
     scores = [50, 55, 65, 70, 75, 85, 88, 92, 95, 100]
@@ -48,10 +48,10 @@ async def test_get_reconciliation_stats_dedup_distribution_and_unmatched_alignme
     retired.statement.status = BankStatementStatus.RETIRED
     for i, s in enumerate(scores):
         t = await AtomicTransactionFactory.create_async(db, user_id=uid2, txn_date=date(2024, 2, 1 + i), description=f"D{i}", amount=Decimal(str(100 + i)))
-        await ReconciliationMatchFactory.create_async(db, atomic_txn_id=t.id, match_score=s, status=ReconciliationStatus.AUTO_ACCEPTED)
+        await ReconciliationMatchFactory.create_async(db, atomic_txn_id=t.id, journal_entry_ids=[str(uuid4())], match_score=s, status=ReconciliationStatus.AUTO_ACCEPTED)
     t_pend = await AtomicTransactionFactory.create_async(db, user_id=uid2, txn_date=date(2026, 2, 3), description="Rent", amount=Decimal("1200.00"))
     t_u = await AtomicTransactionFactory.create_async(db, user_id=uid2, txn_date=date(2026, 2, 4), description="Coffee", amount=Decimal("6.50"))
-    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=t_pend.id, match_score=72, status=ReconciliationStatus.PENDING_REVIEW)
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=t_pend.id, journal_entry_ids=[str(uuid4())], match_score=72, status=ReconciliationStatus.PENDING_REVIEW)
     await db.commit()
     dist_stats = await get_reconciliation_stats(db, uid2, include_distribution=True)
     assert dist_stats.score_distribution == {"0-59": 2, "60-79": 4, "80-89": 2, "90-100": 3}

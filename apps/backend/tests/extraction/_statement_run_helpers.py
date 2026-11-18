@@ -1039,13 +1039,13 @@ async def integrity_upsert(db, user_id, document, *, currency="SGD"):
     )
 
 
-async def integrity_legacy_txn(db, user_id, document, currency="SGD"):
+async def integrity_legacy_txn(db, user_id, document, currency="SGD", description="Synthetic deposit"):
     old_hash = DeduplicationService.calculate_transaction_hash(
         user_id,
         date(2025, 1, 2),
         Decimal("10"),
         TransactionDirection.IN,
-        "Synthetic deposit",
+        description,
         balance_after=Decimal("110"),
     )
     old = AtomicTransaction(
@@ -1053,7 +1053,7 @@ async def integrity_legacy_txn(db, user_id, document, currency="SGD"):
         txn_date=date(2025, 1, 2),
         amount=Decimal("10"),
         direction=TransactionDirection.IN,
-        description="Synthetic deposit",
+        description=description,
         currency=currency,
         balance_after=Decimal("110"),
         dedup_hash=old_hash,
@@ -1619,28 +1619,30 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
     ).status is StatementIngestionStatus.SOURCE_REJECTED
     assert (await _runs(db, sid_err))[0].state is RunState.FAILED
 
+    uid = test_user.id
     parsed_id = (await make_run_statement(db, test_user, status=BankStatementStatus.PARSED)).id
     loader = ScriptedLoader([])
 
     async def failing_load():
         raise StorageError("missing")
 
-    for exc_cls, ft, hints, statuses, load_fn in (
+    for exc_cls, ft, hints, statuses, load_fn, expected_calls in (
         (
             HintsNotApplicable,
             "csv",
             RunHints(keywords=["x"]),
             frozenset({BankStatementStatus.PARSED}),
             lambda: loader("k"),
+            0,
         ),
-        (StatementStatusChanged, "pdf", RunHints(), frozenset({BankStatementStatus.REJECTED}), lambda: loader("k")),
-        (StorageError, "pdf", RunHints(), frozenset({BankStatementStatus.PARSED}), failing_load),
+        (StatementStatusChanged, "pdf", RunHints(), frozenset({BankStatementStatus.REJECTED}), lambda: loader("k"), 1),
+        (StorageError, "pdf", RunHints(), frozenset({BankStatementStatus.PARSED}), failing_load, 1),
     ):
         with pytest.raises(exc_cls):
             await start_user_extract_run(
                 db,
                 statement_id=parsed_id,
-                user_id=test_user.id,
+                user_id=uid,
                 file_type=ft,
                 hints=hints,
                 model=None,
@@ -1649,13 +1651,13 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
                 load_content=load_fn,
             )
         await db.rollback()
-    assert loader.calls == 0
+        assert loader.calls == expected_calls
     assert (
-        await lock_statement_for_run(db, parsed_id, test_user.id, allowed=frozenset({BankStatementStatus.PARSED}))
+        await lock_statement_for_run(db, parsed_id, uid, allowed=frozenset({BankStatementStatus.PARSED}))
         is not None
     )
     await db.rollback()
-    assert isinstance(ParseJob(**{**_prefect_params(), "user_id": test_user.id}), ParseJob)
+    assert isinstance(ParseJob(**{**_prefect_params(), "user_id": uid}), ParseJob)
 
 
 async def verify_run_transitions_guard(db, test_user) -> None:
@@ -1837,12 +1839,17 @@ async def verify_approve_active_or_failed_classify_run(client, db, test_user, mo
     response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
     assert (response.status_code, response.json()["journal_entries_created"], proposer.rows_asked) == (200, 5, 5)
 
+    before_entries, before_answers = await _count(db, JournalEntry), await count_user_answers(db, test_user)
     failing = install_proposer(monkeypatch, Proposer(error=RuntimeError("provider down")))
     seeded_fail = await seed_classify_statement(db, test_user)
     assert (await get_run(db, await classify_statement(db, seeded_fail.id))).state is RunState.FAILED
     fail_resp = await client.post(f"/statements/{seeded_fail.id}/approvals", json={"create_account_if_missing": True})
     assert fail_resp.status_code == 409 and fail_resp.json()["detail"].startswith("Economic review required:")
-    assert (len(failing.calls), await _count(db, JournalEntry), await count_user_answers(db, test_user)) == (1, 0, 0)
+    assert (len(failing.calls), await _count(db, JournalEntry), await count_user_answers(db, test_user)) == (
+        1,
+        before_entries,
+        before_answers,
+    )
 
 
 async def verify_phase_batches_release_connections(db, test_user, test_database_url, monkeypatch) -> None:
@@ -2216,7 +2223,7 @@ async def verify_membership_excludes_ambiguous_and_superseded(db, test_user) -> 
     for s in (s1, s2):
         s.extraction_metadata = {"statement_extraction_result": payload}
     await db.flush()
-    assert all(legacy.id not in await effective_txn_ids(db, test_user.id, scope) for scope in (None, s1.id, s2.id))
+    assert all([legacy.id not in await effective_txn_ids(db, test_user.id, scope) for scope in (None, s1.id, s2.id)])
 
     source = DocumentSource.resolve(path=Path(d1.file_path), content=b"synthetic", content_hash=d1.file_hash)
     await integrity_store_result(
@@ -2240,11 +2247,15 @@ async def verify_membership_excludes_ambiguous_and_superseded(db, test_user) -> 
     )
     new_id = (await resolve_statement_transactions(db, s1))[0].id
     assert all(
-        new_id in (ids := await effective_txn_ids(db, test_user.id, scope)) and old_id not in ids
-        for scope in (None, s1.id)
+        [
+            new_id in (ids := await effective_txn_ids(db, test_user.id, scope)) and old_id not in ids
+            for scope in (None, s1.id)
+        ]
     )
     assert not await effective_txn_ids(db, uuid4())
-    standalone = await integrity_legacy_txn(db, test_user.id, type("Source", (), {"id": uuid4()})())
+    standalone = await integrity_legacy_txn(
+        db, test_user.id, type("Source", (), {"id": uuid4()})(), description="Synthetic standalone"
+    )
     assert standalone.id in await effective_txn_ids(db, test_user.id)
 
 
@@ -3419,7 +3430,7 @@ async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeyp
         install_proposer(monkeypatch, failing)
     rows = make_rows(6)
     statement_id = await ingest_csv_statement(db, test_user.id, "fails.csv", rows)
-    assert (await db.get(StatementSummary, statement_id)).status is BankStatementStatus.PARSED and (
+    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSED and (
         len(provider_calls) if failure == "provider-error" else failing.rows_asked
     ) >= 1
     assert (await user_classification_rows(db, test_user.id), outcomes) == ([], [label])

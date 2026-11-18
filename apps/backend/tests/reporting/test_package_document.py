@@ -736,23 +736,6 @@ async def test_AC_extraction_auto_accept_8_and_package_doc_13_and_2623_1(db, tes
         manual
     )
 
-    trace_calls = bs_calls = 0
-
-    async def count_trace(**kw):
-        nonlocal trace_calls
-        trace_calls += 1
-        return await real_build_traceability(**kw)
-
-    async def count_bs(*a, **kw):
-        nonlocal bs_calls
-        bs_calls += 1
-        return await real_generate_balance_sheet(*a, **kw)
-
-    monkeypatch.setattr(package_document_mod, "build_personal_report_package_traceability_payload", count_trace)
-    monkeypatch.setattr(framework_report_mod, "generate_balance_sheet", count_bs)
-    if hasattr(income_statement_mod, "generate_balance_sheet"):
-        monkeypatch.setattr(income_statement_mod, "generate_balance_sheet", count_bs)
-
     _bank, sys_round, sys_liab = await seed_accounts(
         db,
         test_user.id,
@@ -772,6 +755,24 @@ async def test_AC_extraction_auto_accept_8_and_package_doc_13_and_2623_1(db, tes
     assert (
         await current_package_readiness(db, user_id=test_user.id, as_of_date=date(2026, 7, 31), base_currency="SGD")
     ).package_id == "personal-financial-report-package"
+
+    trace_calls = bs_calls = 0
+
+    async def count_trace(**kw):
+        nonlocal trace_calls
+        trace_calls += 1
+        return await real_build_traceability(**kw)
+
+    async def count_bs(*a, **kw):
+        nonlocal bs_calls
+        bs_calls += 1
+        return await real_generate_balance_sheet(*a, **kw)
+
+    monkeypatch.setattr(package_document_mod, "build_personal_report_package_traceability_payload", count_trace)
+    monkeypatch.setattr(framework_report_mod, "generate_balance_sheet", count_bs)
+    if hasattr(income_statement_mod, "generate_balance_sheet"):
+        monkeypatch.setattr(income_statement_mod, "generate_balance_sheet", count_bs)
+
     doc = await PackageAssembler().assemble(
         db,
         user_id=test_user.id,

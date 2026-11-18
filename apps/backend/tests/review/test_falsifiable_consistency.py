@@ -29,14 +29,15 @@ async def test_consistency_checks_strictly_partition_by_currency(db: AsyncSessio
     )
     assert await detect_duplicates(db, test_user.id) == []
 
+    d3, d4 = date(2026, 5, 10), date(2026, 6, 15)
     await _add_txns(
         db,
         test_user.id,
         [
-            (Decimal("100.00"), TransactionDirection.OUT, "USD", d1, "Payment out"),
-            (Decimal("100.00"), TransactionDirection.IN, "JPY", d1, "Deposit in"),
-            (Decimal("200.00"), TransactionDirection.OUT, "USD", d2, "Wire transfer"),
-            (Decimal("200.00"), TransactionDirection.IN, "EUR", d2, "Wire transfer"),
+            (Decimal("100.00"), TransactionDirection.OUT, "USD", d3, "Payment out"),
+            (Decimal("100.00"), TransactionDirection.IN, "JPY", d3, "Deposit in"),
+            (Decimal("200.00"), TransactionDirection.OUT, "USD", d4, "Wire transfer"),
+            (Decimal("200.00"), TransactionDirection.IN, "EUR", d4, "Wire transfer"),
         ],
     )
     assert await detect_transfer_pairs(db, test_user.id) == []

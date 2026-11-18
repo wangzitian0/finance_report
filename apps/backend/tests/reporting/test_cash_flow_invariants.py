@@ -144,7 +144,7 @@ async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_
         Decimal("10000.00"),
         Decimal("19200.00"),
     )
-    ledger_sum = sum((await calculate_account_balance(db, aid, test_user.id) for aid in cash_ids), Decimal("0.00"))
+    ledger_sum = sum([await calculate_account_balance(db, aid, test_user.id) for aid in cash_ids], Decimal("0.00"))
     assert s["ending_cash"] == ledger_sum
     assert (b["reconciles"], b["cash_delta"], b["unclassified_cash"], b["fx_effect"], b["discrepancy"]) == (
         True,

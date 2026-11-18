@@ -61,15 +61,18 @@ async def test_AC_reconciliation_economic_disposition_1_normal_precedes_transfer
 
 @pytest.mark.integration
 async def test_AC_reconciliation_economic_disposition_2_and_3_uniqueness_and_concurrency(db: AsyncSession, db_engine, test_user) -> None:
-    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, txn_date=date(2026, 7, 20), amount=Decimal("100.00"), description="payment", currency="SGD")
+    uid = test_user.id
+    txn = await AtomicTransactionFactory.create_async(db, user_id=uid, txn_date=date(2026, 7, 20), amount=Decimal("100.00"), description="payment", currency="SGD")
     db.add_all([_match(txn.id), _match(txn.id)])
     with pytest.raises(IntegrityError):
         await db.flush()
     await db.rollback()
 
-    txn2 = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, txn_date=date(2026, 7, 20), amount=Decimal("100.00"), description="race", currency="SGD")
-    cash = Account(user_id=test_user.id, name="Race cash", code="1098", type=AccountType.ASSET, currency="SGD")
+    txn2 = await AtomicTransactionFactory.create_async(db, user_id=uid, txn_date=date(2026, 7, 20), amount=Decimal("100.00"), description="race", currency="SGD")
+    cash = Account(user_id=uid, name="Race cash", code="1098", type=AccountType.ASSET, currency="SGD")
     db.add(cash)
+    await db.flush()
+    txn2_id, txn2_amt, txn2_date, cash_id = txn2.id, txn2.amount, txn2.txn_date, cash.id
     await db.commit()
     maker, start, ready, lock = async_sessionmaker(db_engine, expire_on_commit=False), asyncio.Event(), 0, asyncio.Lock()
 
@@ -82,11 +85,11 @@ async def test_AC_reconciliation_economic_disposition_2_and_3_uniqueness_and_con
                     start.set()
             await start.wait()
             repo = SqlReconciliationRepository(s)
-            winner = await repo.claim_transaction(txn2.id)
+            winner = await repo.claim_transaction(txn2_id)
             created, eid = winner is None, None
             if winner is None:
-                eff = await create_transfer_out_entry(s, user_id=test_user.id, source_account_id=cash.id, amount=txn2.amount, txn_date=txn2.txn_date, description="concurrent disposition effect", currency="SGD")
-                winner = _match(txn2.id, eids=[str(eff.id)])
+                eff = await create_transfer_out_entry(s, user_id=uid, source_account_id=cash_id, amount=txn2_amt, txn_date=txn2_date, description="concurrent disposition effect", currency="SGD")
+                winner = _match(txn2_id, eids=[str(eff.id)])
                 await repo.add_match(winner)
                 await s.flush()
                 eid = eff.id
@@ -96,7 +99,7 @@ async def test_AC_reconciliation_economic_disposition_2_and_3_uniqueness_and_con
     a, b = await asyncio.wait_for(asyncio.gather(worker(), worker()), timeout=10)
     assert a[0] == b[0] and sorted((a[1], b[1])) == [False, True] and len([e for e in (a[2], b[2]) if e]) == 1
     async with maker() as v:
-        assert (await v.scalar(select(func.count()).select_from(ReconciliationMatch).where(ReconciliationMatch.atomic_txn_id == txn2.id)), await v.scalar(select(func.count()).select_from(JournalEntry).where(JournalEntry.memo == "Transfer OUT: concurrent disposition effect"))) == (1, 1)
+        assert (await v.scalar(select(func.count()).select_from(ReconciliationMatch).where(ReconciliationMatch.atomic_txn_id == txn2_id)), await v.scalar(select(func.count()).select_from(JournalEntry).where(JournalEntry.memo == "Transfer OUT: concurrent disposition effect"))) == (1, 1)
 
 
 @pytest.mark.integration
@@ -210,7 +213,13 @@ async def test_AC_reconciliation_economic_disposition_7_processing_uses_typed_le
         events.append(tag)
         return SimpleNamespace(id=uuid4(), status=JournalEntryStatus.POSTED)
 
-    out_spy, in_spy = AsyncMock(side_effect=lambda **kw: _cmd("ledger-out-command", **kw)), AsyncMock(side_effect=lambda **kw: _cmd("ledger-in-command", **kw))
+    async def _out_cmd(**kw):
+        return await _cmd("ledger-out-command", **kw)
+
+    async def _in_cmd(**kw):
+        return await _cmd("ledger-in-command", **kw)
+
+    out_spy, in_spy = AsyncMock(side_effect=_out_cmd), AsyncMock(side_effect=_in_cmd)
     monkeypatch.setattr(transfer_detection, "create_transfer_out_entry", out_spy)
     monkeypatch.setattr(transfer_detection, "create_transfer_in_entry", in_spy)
     uid = uuid4()

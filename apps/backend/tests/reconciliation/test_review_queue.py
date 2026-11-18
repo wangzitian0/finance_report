@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
@@ -12,8 +12,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType, TraceScope
+from src.composition import compose_statement_posting_dependencies
 from src.config import settings
-from src.extraction import ClassificationStatus, EconomicIntent, RuleType, TransactionDirection
+from src.extraction import (
+    ClassificationStatus,
+    DispositionContext,
+    DispositionMode,
+    DispositionPolicy,
+    EconomicIntent,
+    IntentProposal,
+    IntentProposalOrigin,
+    RuleType,
+    StatementTransaction,
+    TransactionDirection,
+)
+from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import AccountType, JournalEntry, JournalEntryStatus, ValidationError, journal_command_target
@@ -38,8 +51,16 @@ async def _seed_txn(db: AsyncSession, uid, *, amount: Decimal = Decimal("50.00")
 
 async def _reviewed_entry(db: AsyncSession, txn, *, user_id, counter_account=None, **kw):
     intent = EconomicIntent.INCOME if txn.direction is TransactionDirection.IN else EconomicIntent.EXPENSE
-    dec, d_cnt, s_dec, em = await anchored_reviewed_posting_inputs(db, user_id=user_id, transaction=txn, intent=intent)
-    return await create_entry_from_txn(db, txn, user_id=user_id, disposition=dec, counter_account=counter_account or d_cnt, source_decision=s_dec, trace_emitter=em, base_currency=kw.pop("base_currency", "SGD"), **kw)
+    if counter_account is None:
+        dec, d_cnt, s_dec, em = await anchored_reviewed_posting_inputs(db, user_id=user_id, transaction=txn, intent=intent)
+        counter_account = d_cnt
+    else:
+        proposal = IntentProposal(schema_version="1", policy_version="reviewed-test-v1", origin=IntentProposalOrigin.REVIEWED_RULE, intent=intent, category="TEST", confidence=Decimal("1"), evidence=("reviewed-test",))
+        st_txn = StatementTransaction(transaction_id=txn.id, transaction_date=txn.txn_date, amount=txn.amount, currency=txn.currency, direction=txn.direction, description=txn.description)
+        dec = DispositionPolicy().decide(st_txn, proposal=proposal, context=DispositionContext(counter_account_id=counter_account.id), mode=DispositionMode.ENFORCE)
+        em = compose_statement_posting_dependencies().trace_emitter_factory(db)
+        s_dec = (await emit_disposition_trace_records(emitter=em, user_id=user_id, execution_id=f"test-reviewed-statement:{txn.id}", occurred_at=datetime.now(UTC), transaction=st_txn, proposal=proposal, decision=dec))[-1]
+    return await create_entry_from_txn(db, txn, user_id=user_id, disposition=dec, counter_account=counter_account, source_decision=s_dec, trace_emitter=em, base_currency=kw.pop("base_currency", "SGD"), **kw)
 
 
 async def _seed_match(db: AsyncSession, uid, *, reviewed: bool = False, status: ReconciliationStatus = ReconciliationStatus.PENDING_REVIEW, score: int | None = None, doc_id=None):

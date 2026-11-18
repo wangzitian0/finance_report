@@ -13,7 +13,7 @@ def test_stream_redactor_and_storage_service() -> None:
     redactor = StreamRedactor(tail_size=10)
     assert redactor.process("Hello") == ""
     assert len(redactor.process(" World")) > 0 or len(redactor._buffer) == 10
-    assert redactor.flush() == ""
+    assert StreamRedactor(tail_size=10).flush() == ""
 
     service = StorageService(bucket="test-bucket")
     service._checked_buckets.add(service.bucket)

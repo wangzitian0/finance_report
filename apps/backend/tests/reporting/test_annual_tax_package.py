@@ -36,8 +36,8 @@ def _assert_zip_manifest(body: bytes, *, snapshot_id: str, label: str) -> None:
         assert label in bs_csv or "balance" in bs_csv.lower()
 
 
-async def test_package_snapshot_export_zip_and_annual_tax_archive(
-    db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch, client: AsyncClient
+async def test_package_snapshot_export_zip_format_structure_and_checksums(
+    db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await _patch_package_snapshot_inputs(
         monkeypatch, readiness_state="ready", blocking_count=0, section_label="Annual Tax Audit 2025"
@@ -59,6 +59,8 @@ async def test_package_snapshot_export_zip_and_annual_tax_archive(
     chunks = [c.encode("utf-8") if isinstance(c, str) else c async for c in zip_resp.body_iterator]
     _assert_zip_manifest(b"".join(chunks), snapshot_id=str(snap.id), label="Annual Tax Audit 2025")
 
+
+async def test_annual_tax_archive_via_snapshot_zip_export(monkeypatch: pytest.MonkeyPatch, client: AsyncClient) -> None:
     await _patch_package_snapshot_inputs(
         monkeypatch, readiness_state="ready", blocking_count=0, section_label="Tax Year 2025"
     )

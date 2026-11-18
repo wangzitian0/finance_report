@@ -18,7 +18,7 @@ async def test_AC5_10_and_package_doc_8_cash_flow_balances_signs_and_cash_inputs
     cash, equity, rent = await seed_accounts(
         db,
         test_user.id,
-        ("DBS", AccountType.ASSET),
+        ("Cash", AccountType.ASSET),
         ("Owner Equity", AccountType.EQUITY),
         ("Rent Expense", AccountType.EXPENSE),
     )
@@ -35,6 +35,9 @@ async def test_AC5_10_and_package_doc_8_cash_flow_balances_signs_and_cash_inputs
         rep["summary"]["operating_activities"],
         rep["operating"][0]["amount"],
     ) == (Decimal("1000.00"), Decimal("900.00"), Decimal("-100.00"), Decimal("-100.00"), Decimal("-100.00"))
+
+    cash.name = "DBS"
+    await db.commit()
 
     contrib = PackageSectionContribution(
         contribution_type="statement_source",

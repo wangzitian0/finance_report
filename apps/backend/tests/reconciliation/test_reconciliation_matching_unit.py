@@ -66,7 +66,20 @@ def _atomic_txn(*, owner_id: UUID, **kw) -> AtomicTransaction:
 
 
 def _cfg(**ov) -> ReconciliationConfig:
-    return ReconciliationConfig(weight_amount=Decimal("0.40"), weight_date=Decimal("0.25"), weight_description=Decimal("0.20"), weight_business=Decimal("0.10"), weight_history=Decimal("0.05"), auto_accept=95, pending_review=50, amount_percent=Decimal("0.005"), amount_absolute=Decimal("0.10"), date_days=7, **ov)
+    defaults = {
+        "weight_amount": Decimal("0.40"),
+        "weight_date": Decimal("0.25"),
+        "weight_description": Decimal("0.20"),
+        "weight_business": Decimal("0.10"),
+        "weight_history": Decimal("0.05"),
+        "auto_accept": 95,
+        "pending_review": 50,
+        "amount_percent": Decimal("0.005"),
+        "amount_absolute": Decimal("0.10"),
+        "date_days": 7,
+    }
+    defaults.update(ov)
+    return ReconciliationConfig(**defaults)
 
 
 async def _seed_scenario(db: AsyncSession, uid: UUID, *, txn_desc: str = "Test Txn", txn_amount: Decimal | str | list[Decimal | str] = "100.00", direction: str = "OUT", pair_specs: list[tuple[Decimal | str, str]] | None = None, credit_account: Account | None = None, txn_date: date = date(2024, 1, 1)):
@@ -87,8 +100,20 @@ async def _seed_scenario(db: AsyncSession, uid: UUID, *, txn_desc: str = "Test T
 async def _seed_xfer(db: AsyncSession, *, uid: UUID | None = None, desc: str = "TRANSFER TO SAVINGS", direction: str = "OUT", amount: Decimal = Decimal("500.00"), with_doc: bool = True):
     uid = uid or (await UserFactory.create_async(db)).id
     acc = await AccountFactory.create_async(db, user_id=uid)
-    doc_id = (await UploadedDocumentFactory.create_async(db, user_id=uid)).id if with_doc else None
-    await StatementSummaryFactory.create_async(db, user_id=uid, account_id=acc.id, uploaded_document_id=doc_id, status=BankStatementStatus.APPROVED)
+    doc = await UploadedDocumentFactory.create_async(db, user_id=uid) if with_doc else None
+    doc_id = doc.id if doc else None
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=uid,
+        account_id=acc.id,
+        uploaded_document_id=doc_id,
+        **({"file_hash": doc.file_hash} if doc else {}),
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED,
+    )
     src = {"source_documents": [{"doc_id": str(doc_id), "doc_type": "bank_statement"}]} if doc_id else {}
     txn = _atomic_txn(owner_id=uid, txn_date=date(2024, 1, 1), description=desc, amount=amount, direction=direction, **src)
     db.add(txn)
@@ -285,11 +310,14 @@ async def test_phase_mocks_unbalanced_inflow_fx_and_exclusivity(db: AsyncSession
     with _patch_phases(**{"src.reconciliation.extension.phases.many_to_one.build_many_to_one_groups": {"return_value": [[txn_m2o]]}, "src.reconciliation.extension.phases.many_to_one.prune_candidates": {"return_value": [entry]}, "src.reconciliation.extension.phases.many_to_one.is_entry_balanced": {"return_value": True}, "src.reconciliation.extension.phases.many_to_one.score_group": {"new_callable": AsyncMock, "return_value": cand2}}):
         assert [m.atomic_txn_id for m in await execute_matching(db, user_id=uid, currency="SGD")] == [txn_m2o.id]
 
-    txn_norm = _atomic_txn(owner_id=uid, txn_date=date(2024, 9, 1), description="Office", amount=Decimal("50.00"), direction=TransactionDirection.OUT)
+    uid_norm = (await UserFactory.create_async(db)).id
+    txn_norm = _atomic_txn(owner_id=uid_norm, txn_date=date(2024, 9, 1), description="Office", amount=Decimal("50.00"), direction=TransactionDirection.OUT)
+    entry_norm = await create_valid_posted_entry(db, uid_norm, entry_date=date(2024, 9, 1), memo="candidate", amount=Decimal("50.00"))
     db.add(txn_norm)
     await db.flush()
-    with _patch_phases(**{"src.reconciliation.extension.phases.many_to_one.build_many_to_one_groups": {"return_value": []}, "src.reconciliation.extension.phases.normal_matching.score_single": {"new_callable": AsyncMock, "return_value": cand2}}):
-        assert [m.atomic_txn_id for m in await execute_matching(db, user_id=uid, currency="SGD")] == [txn_norm.id]
+    cand_norm = MatchCandidate(journal_entry_ids=[str(entry_norm.id)], score=95, breakdown={"amount": 100.0})
+    with _patch_phases(**{"src.reconciliation.extension.phases.many_to_one.build_many_to_one_groups": {"return_value": []}, "src.reconciliation.extension.phases.normal_matching.score_single": {"new_callable": AsyncMock, "return_value": cand_norm}}):
+        assert [m.atomic_txn_id for m in await execute_matching(db, user_id=uid_norm, currency="SGD")] == [txn_norm.id]
 
     uid2 = (await UserFactory.create_async(db)).id
     await StatementSummaryFactory.create_async(db, user_id=uid2, period_start=date(2024, 9, 12), period_end=date(2024, 9, 12))
@@ -300,7 +328,19 @@ async def test_phase_mocks_unbalanced_inflow_fx_and_exclusivity(db: AsyncSession
 
     db.add(FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=date(2024, 4, 10), source="test"))
     bank_u, income_u, doc_u = await AccountFactory.create_async(db, user_id=uid2, name="Bank USD", currency="USD"), await AccountFactory.create_async(db, user_id=uid2, name="Income USD", type=AccountType.INCOME, currency="USD"), await UploadedDocumentFactory.create_async(db, user_id=uid2)
-    await StatementSummaryFactory.create_async(db, user_id=uid2, account_id=bank_u.id, uploaded_document_id=doc_u.id, file_hash=doc_u.file_hash, currency="USD", period_start=date(2024, 4, 10), period_end=date(2024, 4, 10), status=BankStatementStatus.APPROVED)
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=uid2,
+        account_id=bank_u.id,
+        uploaded_document_id=doc_u.id,
+        file_hash=doc_u.file_hash,
+        currency="USD",
+        period_start=date(2024, 4, 10),
+        period_end=date(2024, 4, 10),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED,
+    )
     txn_u = _atomic_txn(owner_id=uid2, txn_date=date(2024, 4, 10), description="Client deposit", amount=Decimal("250.00"), direction=TransactionDirection.IN, currency="USD", source_documents=[{"doc_id": str(doc_u.id), "doc_type": DocumentType.BANK_STATEMENT.value}])
     db.add(txn_u)
     await db.commit()

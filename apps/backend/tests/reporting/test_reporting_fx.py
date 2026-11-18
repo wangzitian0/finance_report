@@ -133,7 +133,7 @@ async def test_fx_liability_inversion_and_multi_currency_aggregation(
 async def test_historical_vs_average_discrepancy_bridge_and_spot_fallbacks(
     db: AsyncSession, multi_currency_accounts, test_user_id
 ) -> None:
-    sgd_cash, usd_savings, _c, salary, _d = multi_currency_accounts
+    _s, usd_savings, _c, salary, _d = multi_currency_accounts
     await seed_fx_rates(
         db,
         ("USD", "SGD", "1.30", date(2025, 1, 1)),
@@ -164,27 +164,33 @@ async def test_historical_vs_average_discrepancy_bridge_and_spot_fallbacks(
         )
     )["comprehensive_income"] == Decimal("150.00")
 
+
+@pytest.mark.parametrize(("rate", "expected_total"), [("1.50", "150.00"), ("1.35", "135.00")])
+async def test_reporting_fx_spot_fallback_for_income_statement_and_balance_sheet(
+    db: AsyncSession, multi_currency_accounts, test_user_id, rate: str, expected_total: str
+) -> None:
+    sgd_cash, _, _, salary, _ = multi_currency_accounts
+    await seed_fx_rates(db, ("USD", "SGD", rate, date(2025, 1, 31)))
     await post_pair(
         db,
         test_user_id,
-        date(2025, 2, 10),
+        date(2025, 1, 10),
         "Spot fallback",
         sgd_cash,
         salary,
         "100.00",
         currency="USD",
-        fx_rate=Decimal("1.50"),
+        fx_rate=Decimal(rate),
         commit=True,
     )
-    await seed_fx_rates(db, ("USD", "SGD", "1.50", date(2025, 2, 28)))
     assert (
         await generate_income_statement(
-            db, test_user_id, start_date=date(2025, 2, 1), end_date=date(2025, 2, 28), currency="SGD"
+            db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
         )
-    )["total_income"] == Decimal("150.00")
-    assert (await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 2, 28), currency="SGD"))[
+    )["total_income"] == Decimal(expected_total)
+    assert (await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD"))[
         "net_income"
-    ] == Decimal("440.00")
+    ] == Decimal(expected_total)
 
 
 @pytest.mark.parametrize(
@@ -256,20 +262,6 @@ async def test_reporting_fx_additional_coverage_and_edge_cases(
         make_entry(
             test_user_id,
             date(2025, 1, 15),
-            "Sal+Food",
-            [
-                (sgd_cash, Direction.DEBIT, "1000.00", "SGD"),
-                (salary, Direction.CREDIT, "1200.00", "SGD"),
-                (dining, Direction.DEBIT, "200.00", "SGD"),
-            ],
-            tags={"work": "true"},
-        )
-    )
-    db.add(make_pair_entry(test_user_id, date.today(), "Today", sgd_cash, salary, "100.00"))
-    db.add(
-        make_entry(
-            test_user_id,
-            date(2025, 1, 15),
             "Inv+Fin",
             [
                 (sgd_cash, Direction.DEBIT, "5000", "SGD"),
@@ -280,6 +272,32 @@ async def test_reporting_fx_additional_coverage_and_edge_cases(
         )
     )
     sgd_cash.name = "Bank account"
+    await db.commit()
+    cf = await generate_cash_flow(
+        db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
+    )
+    assert (
+        cf["summary"]["financing_activities"],
+        cf["summary"]["investing_activities"],
+        cf["summary"]["net_cash_flow"],
+        cf["cash_bridge"]["unclassified_cash"],
+        cf["proof_state"],
+    ) == (Decimal("0.00"), Decimal("0.00"), Decimal("3000.00"), Decimal("3000.00"), "unproven")
+
+    db.add(
+        make_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Sal+Food",
+            [
+                (sgd_cash, Direction.DEBIT, "1000.00", "SGD"),
+                (salary, Direction.CREDIT, "1200.00", "SGD"),
+                (dining, Direction.DEBIT, "200.00", "SGD"),
+            ],
+            tags={"work": "true"},
+        )
+    )
+    db.add(make_pair_entry(test_user_id, date.today(), "Today", sgd_cash, salary, "100.00"))
     await db.commit()
 
     assert (
@@ -318,17 +336,6 @@ async def test_reporting_fx_additional_coverage_and_edge_cases(
         db, test_user_id, breakdown_type=AccountType.INCOME, period="quarterly", currency="SGD"
     )
     await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="annual", currency="SGD")
-
-    cf = await generate_cash_flow(
-        db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
-    )
-    assert (
-        cf["summary"]["financing_activities"],
-        cf["summary"]["investing_activities"],
-        cf["summary"]["net_cash_flow"],
-        cf["cash_bridge"]["unclassified_cash"],
-        cf["proof_state"],
-    ) == (Decimal("0.00"), Decimal("0.00"), Decimal("4000.00"), Decimal("4000.00"), "unproven")
     assert (
         _quantize_money(100) == Decimal("100.00")
         and len(_iter_periods(date(2025, 1, 1), date(2030, 1, 1), "daily")) == 367

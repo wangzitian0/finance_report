@@ -135,11 +135,12 @@ async def test_AC_extraction_2994_88_89_extract_failure_and_classify_insert_atom
         and (await _statement(db, statement_id)).status is BankStatementStatus.PARSING
     )
 
-    sid_fail, job_fail = await _statement_with_run(db, test_user)
+    fail_csv = CSV + b"SGD,2026-01-21,Coffee,5.00,\n"
+    sid_fail, job_fail = await _statement_with_run(db, test_user, content=fail_csv)
     spy = AsyncMock(return_value=0)
     monkeypatch.setattr(statement_parsing, "execute_classify_run", spy)
     assert (
-        await _use_case(db, ScriptedService([ExtractionError("unreadable")])).execute(job_fail, content=CSV)
+        await _use_case(db, ScriptedService([ExtractionError("unreadable")])).execute(job_fail, content=fail_csv)
     ).status is StatementIngestionStatus.SOURCE_REJECTED
     assert [(r.kind, r.state) for r in await _runs(db, sid_fail)] == [(RunKind.EXTRACT, RunState.FAILED)]
     spy.assert_not_awaited()
@@ -395,24 +396,27 @@ async def test_AC_extraction_2994_99_candidate_without_full_answers_goes_to_econ
 
 
 async def test_AC_extraction_2994_101_155_one_click_fill_guards_and_posts(client, db, test_user, monkeypatch):
-    proposer, seeded_active = _install(monkeypatch, Proposer()), await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded_active.id)
+    uid = test_user.id
+    proposer, seeded_active = _install(monkeypatch, Proposer()), await _seed(db, uid)
+    active_id = seeded_active.id
+    run_id = await classify_run_for(db, active_id)
     with pytest.raises(ActiveRunExists) as caught:
-        await auto_fill_default_statement_dispositions(db, seeded_active.statement, test_user.id)
+        await auto_fill_default_statement_dispositions(db, seeded_active.statement, uid)
     assert caught.value.active_run_id == run_id and proposer.calls == []
+    await db.rollback()
     resp = await client.post(
-        f"/statements/{seeded_active.id}/approvals",
+        f"/statements/{active_id}/approvals",
         json={"create_account_if_missing": True, "auto_fill_default_categories": True},
     )
     assert resp.status_code == 409 and resp.json()["active_run_id"] == str(run_id) and proposer.calls == []
 
     no_model, seeded_fill = (
         _install(monkeypatch, Proposer(error=AssertionError("the fill asked the model"))),
-        await _seed(db, test_user),
+        await _seed(db, uid),
     )
-    filled = await auto_fill_default_statement_dispositions(db, seeded_fill.statement, test_user.id)
-    names = set(await db.scalars(select(Account.name).where(Account.user_id == test_user.id)))
-    assert (no_model.calls, filled, await _answers(db, test_user)) == ([], 5, 0) and {
+    filled = await auto_fill_default_statement_dispositions(db, seeded_fill.statement, uid)
+    names = set(await db.scalars(select(Account.name).where(Account.user_id == uid)))
+    assert (no_model.calls, filled, await _answers(db, uid)) == ([], 5, 0) and {
         "General Expense (SGD)",
         "General Income (SGD)",
     } <= names

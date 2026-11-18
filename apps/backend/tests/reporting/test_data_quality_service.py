@@ -172,6 +172,11 @@ async def test_compute_personal_data_quality_temporal_gap_and_pending_and_no_stm
     rev = [a for a in res_may.action_items if a.action_type == "REVIEW_STATEMENT"]
     assert len(rev) == 1 and "Review 1 Pending Statement" in rev[0].title and rev[0].action_url == "/upload"
 
+
+async def test_compute_personal_data_quality_ledger_entries_without_statements_is_not_100(
+    db: AsyncSession, test_user: User
+) -> None:
+    acc, sal = await seed_accounts(db, test_user.id, ("DBS Cash", AccountType.ASSET), ("Salary", AccountType.INCOME))
     await post_pair(db, test_user.id, date(2026, 9, 15), "Salary without statement", acc, sal, "5000.00")
     res_no_stmt = await compute_personal_data_quality(db, test_user.id, as_of_date=date(2026, 10, 1), currency="SGD")
     assert res_no_stmt.score < 80 and res_no_stmt.grade != QualityGrade.A_AUDIT_READY
@@ -333,16 +338,15 @@ async def test_AC_reporting_2726_3_and_2822_1_timeline_anchor_and_pending_stage1
     assert "REVIEW_STATEMENT" in act_types and "RECONCILE_TRANSACTIONS" not in act_types
 
 
-async def test_AC_reporting_2832_2_and_3_gap_ranking_and_tiny_plug_and_filters(
+async def test_AC_reporting_2832_2_zero_change_gap_verified_and_material_gaps_ranked_by_delta(
     db: AsyncSession, test_user: User
 ) -> None:
-    dormant, small, large, citi = await seed_accounts(
+    dormant, small, large = await seed_accounts(
         db,
         test_user.id,
         ("OCBC Dormant", AccountType.ASSET),
         ("UOB Cash", AccountType.ASSET),
         ("DBS Multiplier", AccountType.ASSET),
-        ("Citibank", AccountType.ASSET),
     )
     db.add_all(
         [
@@ -446,6 +450,11 @@ async def test_AC_reporting_2832_2_and_3_gap_ranking_and_tiny_plug_and_filters(
         and "8%" in uploads[1].description
     )
 
+
+async def test_AC_reporting_2832_3_tiny_plug_and_missing_boundary_balances_branches(
+    db: AsyncSession, test_user: User
+) -> None:
+    [citi] = await seed_accounts(db, test_user.id, ("Citibank", AccountType.ASSET))
     db.add_all(
         [
             _stmt(

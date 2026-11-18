@@ -32,7 +32,7 @@ from tests.extraction._statement_run_helpers import (
     verify_posted_cannot_be_superseded,
     verify_reparse_preserves_history,
 )
-from tests.factories import AccountFactory, StatementSummaryFactory
+from tests.factories import AccountFactory, StatementSummaryFactory, UserFactory
 from tests.statement_ingestion import run_for
 
 __all__ = ["_parse", "_payload", "_source", "_store_result"]
@@ -118,11 +118,12 @@ async def test_legacy_identity_reuse_and_ambiguity(db, test_user):
         test_user.id,
     )
 
-    amb_old, _ = await _source(db, test_user.id)
-    amb_new, _ = await _source(db, test_user.id)
-    await _legacy(db, test_user.id, amb_old)
+    other = await UserFactory.create_async(db)
+    amb_old, _ = await _source(db, other.id)
+    amb_new, _ = await _source(db, other.id)
+    await _legacy(db, other.id, amb_old)
     with pytest.raises(ExtractionError, match="identity.*review|review.*identity"):
-        await _upsert(db, test_user.id, amb_new)
+        await _upsert(db, other.id, amb_new)
 
 
 async def test_concurrent_identity_upsert(db, test_user):

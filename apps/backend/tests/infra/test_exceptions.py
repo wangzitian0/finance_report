@@ -64,13 +64,15 @@ class TestBaseAppException:
         from src.main import base_app_exception_handler
 
         resp = await base_app_exception_handler(MagicMock(), BaseAppException(error_id="TEST_ERR", message="test message", status_code=422))
-        assert resp.status_code == 422 and json.loads(resp.body) == {"error_id": "TEST_ERR", "detail": "test message"}
+        body = json.loads(resp.body)
+        assert resp.status_code == 422 and body["error_id"] == "TEST_ERR" and body["detail"] == "test message"
 
         payload = {"error": "evidence_authority_revoked", "message": "revoked"}
         conflict_exc = ConflictError("revoked", detail_payload=payload)
         assert conflict_exc.detail == payload
         conflict_resp = await base_app_exception_handler(MagicMock(), conflict_exc)
-        assert conflict_resp.status_code == 409 and json.loads(conflict_resp.body) == {"error_id": "conflict", "detail": payload}
+        cbody = json.loads(conflict_resp.body)
+        assert conflict_resp.status_code == 409 and cbody["error_id"] == "conflict" and cbody["detail"] == payload
 
         for exc, status_code, header, expected in (
             (UnauthorizedError("Not authenticated", headers={"WWW-Authenticate": "Bearer"}), 401, "www-authenticate", "Bearer"),

@@ -176,8 +176,9 @@ async def test_AC_reconciliation_named_transfer_legs_2_claim_locks_row(db, test_
     first, second = sessions(), sessions()
     try:
         assert await SqlReconciliationRepository(first).claim_transaction_for_decision(t.id) is None
+        second_pid = await backend_pid(second)
         waiting = asyncio.create_task(SqlReconciliationRepository(second).claim_transaction_for_decision(t.id))
-        assert await backend_waits_for_a_lock(db_engine, await backend_pid(second))
+        assert await backend_waits_for_a_lock(db_engine, second_pid)
         await first.commit()
         assert await asyncio.wait_for(waiting, timeout=15) is None
     finally:

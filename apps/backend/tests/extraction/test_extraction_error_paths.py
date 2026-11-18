@@ -38,7 +38,7 @@ async def test_handle_parse_failure_persists_failed_document_lineage(db, test_us
     ("message", "expected_error", "cause_db_error"),
     [
         ("Something went wrong", "Something went wrong", False),
-        ("x" * 1000, "x" * 500, False),
+        ("x" * 1000, "x" * 497 + "...", False),
         (None, None, False),
         ("DB error occurred", "DB error occurred", True),
     ],

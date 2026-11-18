@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy import func, select
 
 from src.config import settings
-from src.extraction import BankStatementStatus, StatementIngestionStatus
+from src.extraction import BankStatementStatus, StatementIngestionStatus, TransactionDirection
 from src.extraction.extension import statement_classification_run, transaction_classification
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.transaction_classification import CategoryProposal
@@ -21,6 +21,7 @@ from src.ledger import Account, AccountType
 from tests.extraction._statement_run_helpers import (
     EXTENDED_ANSWERS as ANSWERS,
     Proposer,
+    _statement,
     _use_case,
     add_coffee_rule,
     approve_statement,
@@ -118,7 +119,7 @@ async def test_AC_extraction_statement_classify_1_a_pdf_payload_is_classified_af
     )
     assert (
         outcome.status,
-        (await db.get(StatementSummary, stmt.id)).status,
+        (await _statement(db, stmt.id)).status,
         proposer.rows_asked,
         len(await user_classification_rows(db, test_user.id)),
     ) == (StatementIngestionStatus.COMPLETED, BankStatementStatus.PARSED, 3, 3)
@@ -334,7 +335,7 @@ async def test_AC_extraction_2813_3_propose_batch_pins_deterministic_decode(db, 
         user_id=test_user.id,
         txn_date=date(2026, 1, 2),
         amount=Decimal("12.50"),
-        direction="OUT",
+        direction=TransactionDirection.OUT,
         description="Coffee 000",
         currency="SGD",
         dedup_hash="a" * 64,

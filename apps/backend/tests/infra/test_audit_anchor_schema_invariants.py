@@ -69,22 +69,24 @@ async def test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_docum
 
 async def test_AC18_11_3_evidence_edges_reject_cross_user_endpoints_and_preserve_tenant_scope(db: AsyncSession, test_user: User) -> None:
     other = await UserFactory.create_async(db)
-    src, tgt = EvidenceNode(user_id=test_user.id, node_kind="source_document", entity_type="uploaded_document", entity_id=uuid4(), properties={}), EvidenceNode(user_id=test_user.id, node_kind="atomic_fact", entity_type="atomic_transaction", entity_id=uuid4(), properties={})
+    uid = test_user.id
+    src, tgt = EvidenceNode(user_id=uid, node_kind="source_document", entity_type="uploaded_document", entity_id=uuid4(), properties={}), EvidenceNode(user_id=uid, node_kind="atomic_fact", entity_type="atomic_transaction", entity_id=uuid4(), properties={})
     otgt = EvidenceNode(user_id=other.id, node_kind="atomic_fact", entity_type="atomic_transaction", entity_id=uuid4(), properties={})
     db.add_all([src, tgt, otgt])
     await db.flush()
-    db.add(EvidenceEdge(user_id=test_user.id, from_node_id=src.id, to_node_id=tgt.id, relation="deduped_into", properties={}))
+    sid, otgt_id = src.id, otgt.id
+    db.add(EvidenceEdge(user_id=uid, from_node_id=sid, to_node_id=tgt.id, relation="deduped_into", properties={}))
     await db.commit()
-    await _reject_integrity(db, EvidenceEdge(user_id=test_user.id, from_node_id=src.id, to_node_id=otgt.id, relation="deduped_into", properties={}))
+    await _reject_integrity(db, EvidenceEdge(user_id=uid, from_node_id=sid, to_node_id=otgt_id, relation="deduped_into", properties={}))
 
-    edge = EvidenceEdge(user_id=test_user.id, from_node_id=src.id, to_node_id=otgt.id, relation="deduped_into", properties={})
+    edge = EvidenceEdge(user_id=uid, from_node_id=sid, to_node_id=otgt_id, relation="deduped_into", properties={})
     await db.execute(text("SET LOCAL session_replication_role = replica"))
     try:
         db.add(edge)
         await db.flush()
     finally:
         await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
-    eid, sid = edge.id, src.id
+    eid = edge.id
     db.expunge_all()
     reloaded = (await db.execute(select(EvidenceEdge).options(selectinload(EvidenceEdge.from_node), selectinload(EvidenceEdge.to_node)).where(EvidenceEdge.id == eid))).scalar_one()
     assert reloaded.from_node.id == sid and reloaded.to_node is None
@@ -92,25 +94,28 @@ async def test_AC18_11_3_evidence_edges_reject_cross_user_endpoints_and_preserve
 
 async def test_AC18_11_4_and_5_account_refs_and_legacy_source_ids(db: AsyncSession, test_user: User) -> None:
     other = await UserFactory.create_async(db)
-    own_acc, other_acc = await AccountFactory.create_async(db, user_id=test_user.id), await AccountFactory.create_async(db, user_id=other.id)
-    entry = await JournalEntryFactory.create_async(db, user_id=test_user.id, source_type=JournalEntrySourceType.USER_CONFIRMED, source_id=uuid4(), status=JournalEntryStatus.DRAFT)
-    atomic = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, source_documents=[])
-    rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2026, 3, 1), is_active=True, rule_name=f"r-{uuid4()}", rule_type=RuleType.KEYWORD_MATCH, rule_config={"keywords": ["anchor"]}, created_by=test_user.id)
+    uid = test_user.id
+    own_acc, other_acc = await AccountFactory.create_async(db, user_id=uid), await AccountFactory.create_async(db, user_id=other.id)
+    entry = await JournalEntryFactory.create_async(db, user_id=uid, source_type=JournalEntrySourceType.USER_CONFIRMED, source_id=uuid4(), status=JournalEntryStatus.DRAFT)
+    atomic = await AtomicTransactionFactory.create_async(db, user_id=uid, source_documents=[])
+    rule = ClassificationRule(user_id=uid, version_number=1, effective_date=date(2026, 3, 1), is_active=True, rule_name=f"r-{uuid4()}", rule_type=RuleType.KEYWORD_MATCH, rule_config={"keywords": ["anchor"]}, created_by=uid)
     db.add(rule)
     await db.flush()
     own_id, other_id, eid, aid, rid = own_acc.id, other_acc.id, entry.id, atomic.id, rule.id
     await db.commit()
     for bad in (
         JournalLine(journal_entry_id=eid, account_id=other_id, direction=Direction.DEBIT, amount=Decimal("10.00"), currency="SGD"),
-        StatementSummary(user_id=test_user.id, file_hash=uuid4().hex + uuid4().hex, institution="B", account_id=other_id, currency="SGD", period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), opening_balance=Decimal("100"), closing_balance=Decimal("110"), status=BankStatementStatus.APPROVED),
+        StatementSummary(user_id=uid, file_hash=uuid4().hex + uuid4().hex, institution="B", account_id=other_id, currency="SGD", period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), opening_balance=Decimal("100"), closing_balance=Decimal("110"), status=BankStatementStatus.APPROVED),
         TransactionClassification(atomic_txn_id=aid, rule_version_id=rid, account_id=other_id, status=ClassificationStatus.APPLIED),
     ):
         await _reject_integrity(db, bad)
     own_line = JournalLine(journal_entry_id=eid, account_id=own_id, direction=Direction.DEBIT, amount=Decimal("10.00"), currency="SGD")
     db.add_all([TransactionClassification(atomic_txn_id=aid, rule_version_id=rid, account_id=own_id, status=ClassificationStatus.APPLIED), own_line])
+    await db.flush()
+    lid = own_line.id
     await db.commit()
-    mat = await EvidenceGraphMaterializationService().materialize_for_entity(db, user_id=test_user.id, entity_type="journal_line", entity_id=own_line.id, node_kind="ledger_line")
-    assert "entity_missing" in {b.code for b in mat.blockers} and list((await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id, EvidenceNode.node_kind == "source_document"))).scalars()) == []
+    mat = await EvidenceGraphMaterializationService().materialize_for_entity(db, user_id=uid, entity_type="journal_line", entity_id=lid, node_kind="ledger_line")
+    assert "entity_missing" in {b.code for b in mat.blockers} and list((await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == uid, EvidenceNode.node_kind == "source_document"))).scalars()) == []
 
 
 def test_AC18_11_6_migration_preflights_and_risk_contract_are_declared() -> None:

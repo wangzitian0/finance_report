@@ -32,13 +32,25 @@ from src.reconciliation.orm.reconciliation import (
     ReconciliationTransferPair,
     TransferPairDecision,
 )
-from tests.factories import AccountFactory, AtomicTransactionFactory, StatementSummaryFactory, UploadedDocumentFactory
+from tests.factories import AccountFactory, AtomicTransactionFactory, StatementSummaryFactory, UploadedDocumentFactory, UserFactory
 
 
 async def _stmt(db, uid, tag: str) -> StatementSummary:
     acc = await AccountFactory.create_async(db, user_id=uid, currency="USD")
     doc = await UploadedDocumentFactory.create_async(db, user_id=uid, file_hash=tag)
-    return await StatementSummaryFactory.create_async(db, user_id=uid, uploaded_document_id=doc.id, file_hash=tag, account_id=acc.id, currency="USD", period_start=date(2024, 1, 1), period_end=date(2024, 1, 31), status=BankStatementStatus.APPROVED)
+    return await StatementSummaryFactory.create_async(
+        db,
+        user_id=uid,
+        uploaded_document_id=doc.id,
+        file_hash=tag,
+        account_id=acc.id,
+        currency="USD",
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED,
+    )
 
 
 async def _txn(db, uid, amt: str, direction: TransactionDirection, d: date, desc: str, *, doc_id=None, ccy: str = "USD"):
@@ -90,12 +102,14 @@ async def test_duplicates_transfers_and_anomalies(db, test_user):
     await _txn(db, uid, "1000.00", TransactionDirection.OUT, date(2024, 1, 15), "Giant Buy")
     assert CheckType.ANOMALY in [c.check_type for c in await detect_anomalies_batch(db, uid, stmt.id)]
 
-    rec_txn = await _txn(db, uid, "33.00", TransactionDirection.OUT, date(2024, 4, 1), "Recurring Charge")
-    await _check(db, uid, check_type=CheckType.ANOMALY, txns=[str(rec_txn.id)], details={"anomaly_type": "REPEATED_DESCRIPTION"})
+    uid2 = (await UserFactory.create_async(db)).id
+    stmt2 = await _stmt(db, uid2, f"rec_{uuid4().hex}")
+    rec_txn = await _txn(db, uid2, "33.00", TransactionDirection.OUT, date(2024, 4, 1), "Recurring Charge")
+    await _check(db, uid2, check_type=CheckType.ANOMALY, txns=[str(rec_txn.id)], details={"anomaly_type": "REPEATED_DESCRIPTION"})
     with patch("src.reconciliation.extension.consistency_checks.detect_anomalies", new=AsyncMock(return_value=[SimpleNamespace(anomaly_type="REPEATED_DESCRIPTION", message="x", severity="low")])):
-        assert await detect_anomalies_batch(db, uid, stmt.id) == []
+        assert await detect_anomalies_batch(db, uid2, stmt2.id) == []
 
-    run_checks = await run_all_consistency_checks(db, uid, stmt.id, run_id="run-tagged")
+    run_checks = await run_all_consistency_checks(db, uid2, stmt2.id, run_id="run-tagged")
     assert all(c.run_id == "run-tagged" for c in run_checks)
 
 
@@ -111,7 +125,7 @@ async def test_resolve_check_actions(db, test_user, action, expected_status, not
 async def test_resolve_errors_and_list_filters(db, test_user):
     uid = test_user.id
     assert (await list_checks(db, uid, status=CheckStatus.PENDING))[0] == []
-    await _check(db, uid, check_type=CheckType.ANOMALY, severity="low", txns=["low"])
+    c_low = await _check(db, uid, check_type=CheckType.ANOMALY, severity="low", run_id="run-low", txns=["low"])
     assert await has_unresolved_checks(db, uid) is False
     c_dup = await _check(db, uid, severity="high", run_id="run-1", txns=["1"])
     assert await has_unresolved_checks(db, uid, run_id="run-1") is True and await has_unresolved_checks(db, uid, run_id="run-beta") is False
@@ -123,7 +137,7 @@ async def test_resolve_errors_and_list_filters(db, test_user):
         with pytest.raises(exc, match=msg):
             await resolve_check(db, bad_id, act, actor)
 
-    assert {c.id for c in (await list_checks(db, uid, status=CheckStatus.PENDING))[0]} == {c_dup.id, c_anom.id}
+    assert {c.id for c in (await list_checks(db, uid, status=CheckStatus.PENDING))[0]} == {c_low.id, c_dup.id, c_anom.id}
     assert [c.id for c in (await list_checks(db, uid, status=CheckStatus.PENDING, check_type=CheckType.DUPLICATE))[0]] == [c_dup.id]
     assert [c.id for c in (await list_checks(db, uid, status=CheckStatus.PENDING, severity="high"))[0]] == [c_dup.id]
     by_run, total = await list_checks(db, uid, status=CheckStatus.PENDING, run_id="run-1")
