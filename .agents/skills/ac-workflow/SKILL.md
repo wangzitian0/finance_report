@@ -1,80 +1,28 @@
 ---
 name: ac-workflow
-description: Route a new or changed acceptance criterion (AC) to its correct home — a migrated package's contract.py roadmap first, EPIC tables only for legacy surfaces — then follow the mandatory MECE → AC → Test → Code → Doc order. Use this whenever you add/modify an AC, add a test that references an AC id (AC-<pkg>.* or ACx.y.z), edit a package contract.py roadmap or a docs/project/EPIC*.md file, or need the AC registry/traceability/dual gate to pass.
+description: Follow the MECE -> User Case -> Test -> Code -> Doc order in finance_report, anchoring user cases in common/meta/flows/user_cases_ssot.json and package docs in common/<pkg>/readme.md.
 ---
 
-# AC workflow — package roadmap first, EPIC table only for legacy
+# Package workflow — user cases and package specs
 
-The culture is `EPIC → AC → Test → Code → Doc` (every behavior anchors to a
-goal and is proven by a test); the mandatory sequence is
-**MECE → AC → Test → Code → Doc** — slice the work into non-overlapping,
-collectively exhaustive pieces *before* touching ACs. The **mechanism** for
-*where an AC lives* is the package contract, not an EPIC table — see
-`docs/agents/orchestration.md` (work order) and
-`common/meta/migration-standard.md` (the target architecture).
+The mandatory order is **MECE -> User Case -> Test -> Code -> Doc**. Slice work into non-overlapping, collectively exhaustive pieces before writing code.
 
-## Step 0 — route the AC (this decides everything else)
+See `docs/agents/orchestration.md` (work order) and `common/meta/migration-standard.md` (package architecture; package list in `common/meta/base/layering.py::PACKAGE_LAYER`).
 
-Does the owning package have a `common/<pkg>/contract.py`? (Check
-`ls common/*/contract.py`; membership is `common/meta/base/layering.py::PACKAGE_LAYER`.
-In practice a new AC almost always belongs to a package now.)
+## Step 0 — route specifications
 
-- **Migrated package** → the AC lives in that package's `contract.py`
-  `roadmap` as an `ACRecord` with id `AC-<pkg>.<group>.<seq>` — `<group>` is an
-  entity name or a numeric group (e.g. `AC-ledger.journal-entry.3`,
-  `AC-identity.1.2`). **Never** add it to an EPIC table and never mirror it
-  back there.
-- **Legacy surface only** (no owning package — a shrinking set) → a marked
-  residue row (`<!-- epic-owned: CATEGORY -->`) in the owning
-  `docs/project/EPIC-*.md` table, loaded in memory by
-  `common/meta/extension/generate_ac_registry.py`.
-- **Moving an existing EPIC row into a package is atomic**: delete the EPIC
-  row, update the residue baseline, and add the roadmap entry in the *same PR*.
+- **End-to-end business user cases**: update `common/meta/flows/user_cases_ssot.json`. Never duplicate test tables into `docs/project/EPIC-*.md`.
+- **Package contracts and specs**: update `common/<pkg>/readme.md` (and `common/<pkg>/contract/` or `common/<pkg>/conformance/` when used).
+- **EPIC anchors**: reference an EPIC in `docs/project/` only as a horizontal goal anchor.
 
-Either way, still anchor the *work* to an EPIC in `docs/project/` as its
-horizontal goal — the anchor is a goal reference, not the AC's home.
+## Steps 1–4
 
-## The ritual (after routing)
-
-1. **Write the AC.**
-   - Package: append an `ACRecord(id=..., statement=...,
-     test="apps/backend/tests/<pkg>/test_x.py::test_name", priority=...,
-     status=...)` to the `roadmap` (schema:
-     `common/meta/base/package_contract.py`). `test=` can anchor directly to a
-     frontend suite too (#1820) — `apps/frontend/**/*.test.ts::<it/test title>`
-     (also `.test.tsx`/`.spec.ts`/`.spec.tsx`) — resolved as file-exists + a
-     real vitest/Playwright `it(...)`/`test(...)` title match, no Python proxy
-     test required.
-   - Legacy: add a row under the right `### ACx.y:` section of the EPIC with a
-     unique `ACx.y.z` id, a one-line test case, the **exact test function
-     name(s)**, the **test file path**, and a priority.
-2. **Write the failing test first (🔴).** The test must reference the AC id
-   (in the name or a comment) and live at the path you registered.
+1. **Register or update user cases / invariants** in `common/meta/flows/user_cases_ssot.json` when adding or changing an end-to-end behavior.
+2. **Write the failing test first (🔴)** with synthetic or anonymized fixtures (`docs/agents/red-lines.md`).
 3. **Write minimal code to pass (🟢).**
-4. **Doc sync.** Migrated package: its `contract.py`/`readme.md`. Legacy: the
-   SSOT doc owning any base term you touched.
+4. **Sync docs**: update `common/<pkg>/readme.md` and `common/meta/flows/user_cases_ssot.json`.
 
-## Always verify before pushing
+## Verification
 
-The AC index is computed in memory by `common/meta/extension/generate_ac_registry.py`
-from package roadmaps and marked EPIC residue:
-
-```bash
-apps/backend/.venv/bin/python tools/check_ac_index.py           # gate: every mandatory AC has a real CI test
-apps/backend/.venv/bin/python tools/check_package_migration_safety.py  # gate: package migration safety (tier literal, drafts, reconcile)
-```
-
-The **preflight** gate runner picks the right gates for your diff — prefer
-`apps/backend/.venv/bin/python tools/preflight.py` (an interpreter with the
-project deps) so you can't forget.
-
-## Gotchas (learned the hard way)
-
-- The `test` field / EPIC-table test name must **exactly** match the real
-  test — the gates parse both sides.
-- Unmarked EPIC rows fail `tests/tooling/test_epic_residue_ratchet.py`; new ACs
-  belong in the owning package's `contract.py` `roadmap`.
-- A new AC with no executing test fails the gate as "missing" — write the
-  test, don't just register the row.
-- Picking an AC number already used by an open PR causes a collision; check
-  open PRs for the next free `<group>.<seq>` before claiming one.
+- Focused TDD uses single-process, coverage-free pytest per Root rule.
+- `git push` runs `tools/preflight.py --tier=static` via `pre-commit` (cached per worktree tree/HEAD). Run `apps/backend/.venv/bin/python tools/preflight.py --tier=full` only in sandboxes without pre-push hooks or before final merge.

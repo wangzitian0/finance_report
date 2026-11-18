@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=4fc2d561f46c661b5ef171abff05e7241b4ba48c92b83b4f99180a0168895a95 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=35228692b21a71a9ed137ccf73f6bb9e38bc0bfc443f21b8d5b6e1c1820c6755 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -13,7 +13,7 @@
 - **Fix an owner hold by deletion:** Delete the rule or gate branch that holds non-production work. Do not add logic that reads a command to permit it. Such logic lets unsafe commands through.
 - **Define guard scope from what it must govern, not from today's passing tree.** Let the guard fail on existing violations, then repair them. A guard never seen failing is not yet evidence of protection.
 - **Worktree self-sufficiency:** Every worktree must resolve its dependencies, toolchain, skills, and configuration internally. Tools and tests must not navigate upward with `../..` to locate files in parent checkouts.
-- **Local and remote test segregation:** Inner-loop verification runs only focused tests on changed files (`pytest <file>::<test> -x`). Full-suite regression runs on remote CI, or locally at most once before merge.
+- **Local and remote test segregation:** Inner-loop verification runs single-process focused tests (`pytest -n0 --no-cov -o addopts= <file>::<test> -x`). Full-suite regression runs on remote CI, or locally once before merge.
 - **Bounded file reads:** Pass `StartLine` and `EndLine` (`<= 800` lines per call) when reading existing files with `read_file` or `view_file`.
 
 ## Delivery and merge
@@ -77,8 +77,8 @@ Four document roles have zero overlapping ownership:
 | Document | Question | Role & Responsibility |
 |---|---|---|
 | **vision.md** | *Why* | Product vision, architectural north star, and design culture. |
-| **Package README / contract.py** | *In what shared language* | Base entities, vocabulary, and data contracts (`common/<pkg>/`). Cross-cutting registry: [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml). |
-| **docs/project/** | *What tracking* | Horizontal EPIC milestone tracking (packages own their ACs in `contract.py`). |
+| **Package README** | *In what shared language* | Base entities, vocabulary, and data contracts (`common/<pkg>/`). Package layering & boundaries: [common/meta/readme.md](common/meta/readme.md). |
+| **docs/project/** | *What tracking* | Horizontal EPIC milestone tracking. |
 | **README** (root, `apps/*`) | *What per module* | Module goals, setup commands, and build guides. |
 
 No document may usurp another's role: vision does not dictate module internals; EPICs do not redefine package data types.
@@ -91,7 +91,7 @@ No document may usurp another's role: vision does not dictate module internals; 
 |------|-------|
 | Project vision & decisions | [vision.md](vision.md) |
 | Tech stack, quick start | [README.md](README.md) |
-| Concept ownership registry | [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) |
+| Package layering & metadata | [common/meta/readme.md](common/meta/readme.md) |
 | Project tracking & EPICs | [docs/project/README.md](docs/project/README.md) |
 | Agent skills | [.agents/skills/](.agents/skills/) |
 | Copilot settings | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
@@ -106,11 +106,11 @@ No document may usurp another's role: vision does not dictate module internals; 
 
 ## 📐 SSOT-First Principle
 
-Bounded-context concepts live in `common/<pkg>/readme.md` and `contract.py`. Cross-cutting concepts, gate inputs, and generated artifacts live in the governing package's `data/` directory (`common/meta/data/`, `common/testing/data/`, or `common/runtime/`). `docs/ssot/` is retired (#1823). Ownership registry: **[common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml)**.
+Bounded-context concepts live in `common/<pkg>/readme.md`. Cross-cutting concepts, gate inputs, and generated artifacts live in the governing package's `data/` directory (`common/meta/data/`, `common/testing/data/`, or `common/runtime/`). `docs/ssot/` is retired (#1823). Layering registry: **[common/meta/readme.md](common/meta/readme.md)**.
 
-1. **No SSOT, no work**: Define shared terms in the owning package (`readme.md`/`contract.py` or `common/meta/data/`) before writing code.
+1. **No SSOT, no work**: Define shared terms in the owning package (`readme.md` or `common/meta/data/`) before writing code.
 2. **No hidden drift**: Sync code and its owning document in the same change.
-3. **Single owner**: Each concept has one owner file in MANIFEST.
+3. **Single owner**: Each concept has one owner file.
 
 ---
 
@@ -123,10 +123,10 @@ Bounded-context concepts live in `common/<pkg>/readme.md` and `contract.py`. Cro
 
 0. Frame a **MECE** breakdown: mutually exclusive slices, collectively exhaustive coverage, explicit dependencies, and out-of-scope items.
 1. Anchor to an EPIC in `docs/project/`.
-2. Define ACs in the owning package's `contract.py` `roadmap` as `AC-<pkg>.<group>.<seq>` (never mirrored into EPIC tables). `docs/project/EPIC-*.md` keeps only existing residue-marked rows (`<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->`), ratcheted by `tests/tooling/test_epic_residue_ratchet.py`.
-3. Write **failing** tests referencing AC IDs (🔴 red).
+2. Record new or changed end-to-end user cases in `common/meta/flows/user_cases_ssot.json` (never mirror test tables into `docs/project/EPIC-*.md`).
+3. Write **failing** tests first (🔴 red).
 4. Write minimal code to pass tests (🟢 green).
-5. Update the owning package's contract and readme.
+5. Update the owning package's `common/<pkg>/readme.md` (and `common/meta/flows/user_cases_ssot.json` if user cases changed).
 
 Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [common/testing/tdd.md](common/testing/tdd.md)
 
@@ -134,10 +134,10 @@ Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [common
 
 ## 🛡️ Pre-Push Gate Parity
 
-- **Before every push**, run `apps/backend/.venv/bin/python tools/preflight.py --tier=static`. Do not push on non-zero exit. Check list SSOT: `tools/preflight.py --list` (#1435).
+- **Pre-push hook**: `git push` runs `tools/preflight.py --tier=static` automatically via `pre-commit` (cached per worktree tree/HEAD). Do not invoke `--tier=static` manually before pushing. Check list SSOT: `tools/preflight.py --list` (#1435).
 - **Escape hatch**: If preflight itself is broken, declare `preflight skipped: <reason>` in the PR body.
 - **Cloud/sandbox agents**: Run `apps/backend/.venv/bin/python tools/preflight.py --tier=full` before pushing; if dependencies cannot install, declare it via the escape hatch.
-- **Coverage**: Run pytest with `--cov` scoped to changed files during TDD; leave full-suite coverage to CI.
+- **Coverage**: Follow [common/testing/coverage.md](common/testing/coverage.md) (`make test-cov` runs full branch coverage locally; keep inner-loop runs coverage-free per Root rule).
 
 ---
 
@@ -166,7 +166,7 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 
 ## 🤖 Agent Architecture
 
-Guides: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** · **[.claude/README.md](.claude/README.md)** · Skills: **[.agents/skills/](.agents/skills/)** and **[.claude/skills/](.claude/skills/)** (physical renders from `dev_env`)
+Guides: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** · Skills: **[.agents/skills/](.agents/skills/)** and **[.claude/skills/](.claude/skills/)** (physical renders from `dev_env`)
 
 - The active runtime's main loop is the orchestrator. Use the runtime's own subagent list (Claude Code: `.claude/agents/`; OpenCode: `.opencode/oh-my-openagent.json`).
 - Delegate read-only search fan-out to cheap search agents; reserve expensive models for hard reasoning. Bound parallelism by write conflicts (vision.md, Good Taste 6).
