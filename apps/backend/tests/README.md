@@ -15,7 +15,7 @@ unless they are listed in `docs/project/traceability-exceptions.md`.
 moon run :test
 uv run pytest tests/accounting/ -v
 uv run pytest tests/infra/ tests/ai/test_models_repr.py -v
-uv run pytest tests/ --cov=src --cov-report=term-missing
+uv run pytest -n 4 --cov=src --cov-report=term-missing --cov-branch --cov-fail-under=96
 ```
 
 ## SSOT Links

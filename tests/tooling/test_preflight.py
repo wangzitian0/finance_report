@@ -315,7 +315,7 @@ def test_AC_testing_preflight_1_static_tier_composes_with_glob_selection():
     full_names = {c.name for c in preflight.select_checks(changed)}
     static_selected = preflight.select_checks(changed, tier="static")
     static_names = {c.name for c in static_selected}
-    assert static_names == full_names - {"tooling"}
+    assert static_names == full_names - {"tooling", "bench-articulation"}
     assert static_names
     assert all((c.tier == "static" for c in static_selected))
     "AC-testing.preflight.2"
@@ -379,7 +379,19 @@ class TestTierSelection:
     def test_every_check_has_a_valid_tier(self):
         assert all((c.tier in ("static", "heavy") for c in preflight.CHECKS))
         _m1_heavy = {_m1_c.name for _m1_c in preflight.CHECKS if _m1_c.tier == "heavy"}
-        assert _m1_heavy == {"tooling", "frontend"}
+        assert _m1_heavy == {
+            "router-contract",
+            "transaction-boundary",
+            "bench-articulation",
+            "tooling",
+            "frontend",
+        }
+        assert all(
+            "-m" not in cmd or "pytest" not in cmd
+            for c in preflight.CHECKS
+            if c.tier == "static"
+            for cmd in c.commands
+        )
         _m2_changed = [
             "common/testing/preflight.py",
             "apps/frontend/src/app/layout.tsx",
@@ -798,12 +810,18 @@ def test_run_checks_fails_closed_when_gate_mutates_working_tree(tmp_path, capsys
 
 
 class TestDiffScopedPytestTargets:
-    def test_transaction_boundary_check_disables_xdist_workers(self):
-        gate = next((c for c in preflight.CHECKS if c.name == "transaction-boundary"))
-        cmd = gate.commands[0]
-        assert "-n" in cmd
-        n_idx = cmd.index("-n")
-        assert cmd[n_idx + 1] == "0"
+    def test_heavy_pytest_checks_disable_xdist_cov_and_addopts(self):
+        for name in (
+            "router-contract",
+            "transaction-boundary",
+            "bench-articulation",
+            "tooling",
+        ):
+            gate = next((c for c in preflight.CHECKS if c.name == name))
+            cmd = gate.commands[0]
+            assert "-n" in cmd and cmd[cmd.index("-n") + 1] == "0", name
+            assert "--no-cov" in cmd, name
+            assert "-o" in cmd and cmd[cmd.index("-o") + 1] == "addopts=", name
 
     def test_resolve_changed_pytest_targets_maps_source_and_test_files(self, tmp_path):
         (tmp_path / "tests" / "tooling").mkdir(parents=True)
@@ -1028,3 +1046,88 @@ class TestInProcessAndStatCacheConsolidation:
         assert invocations == 1
         assert subprocess_calls == []
         assert capsys.readouterr().out == ""
+
+
+def test_static_preflight_cache_hits_on_unchanged_tree_and_invalidates_on_change(
+    tmp_path: Path, capsys
+):
+    import subprocess
+
+    for cmd in (
+        ["git", "init"],
+        ["git", "config", "user.email", "test@example.com"],
+        ["git", "config", "user.name", "Test"],
+    ):
+        subprocess.run(cmd, cwd=tmp_path, check=True, capture_output=True)
+    tracked = tmp_path / ".env.example"
+    tracked.write_text("A=1\n", encoding="utf-8")
+    subprocess.run(["git", "add", ".env.example"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "branch", "origin/main"], cwd=tmp_path, check=True, capture_output=True)
+    tracked.write_text("A=2\n", encoding="utf-8")
+
+    def repo_git(args):
+        return subprocess.run(
+            ["git", *args], cwd=tmp_path, capture_output=True, text=True, check=False
+        ).stdout
+
+    stamp = tmp_path / ".git" / "preflight-static.stamp"
+    calls: list[list[str]] = []
+
+    def runner(argv, cwd):
+        calls.append(list(argv))
+        return 0
+
+    assert (
+        preflight.run(
+            ["--tier=static"],
+            runner=runner,
+            git=repo_git,
+            repo_root=tmp_path,
+            cache_file=stamp,
+        )
+        == 0
+    )
+    assert len(calls) == 1
+    assert stamp.is_file()
+
+    capsys.readouterr()
+    assert (
+        preflight.run(
+            ["--tier=static"],
+            runner=runner,
+            git=repo_git,
+            repo_root=tmp_path,
+            cache_file=stamp,
+        )
+        == 0
+    )
+    assert len(calls) == 1
+    assert "static cache hit" in capsys.readouterr().out
+
+    # --ci must always bypass the local cache
+    assert (
+        preflight.run(
+            ["--tier=static", "--ci"],
+            runner=runner,
+            git=repo_git,
+            repo_root=tmp_path,
+            cache_file=stamp,
+        )
+        == 0
+    )
+    assert len(calls) == 2
+
+    # Mutating the tracked file invalidates the fingerprint
+    tracked.write_text("A=3\n", encoding="utf-8")
+    assert (
+        preflight.run(
+            ["--tier=static"],
+            runner=runner,
+            git=repo_git,
+            repo_root=tmp_path,
+            cache_file=stamp,
+        )
+        == 0
+    )
+    assert len(calls) == 3

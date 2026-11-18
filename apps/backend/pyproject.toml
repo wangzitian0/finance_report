@@ -134,18 +134,12 @@ timeout_method = "thread"
 # stderr of the worker 15 s before the timeout ends it (#2398).
 faulthandler_timeout = 45
 
-# Default: Run all tests except slow/perf/e2e
-# Note: -n 4 for local (fixed), CI uses -n auto for ephemeral runners
+# Default: run non-slow, non-perf, non-e2e tests in a single process without coverage.
+# Pass explicit -n auto/4 and --cov flags for CI shards and full coverage verification.
 addopts = [
     "-v",
     "-ra",
-    "-n", "4",
     "-m", "not e2e and not slow and not perf",
-    "--cov=src",
-    "--cov-report=term-missing",
-    "--cov-report=xml",
-    "--cov-branch",
-    "--cov-fail-under=96",
 ]
 
 [tool.coverage.run]

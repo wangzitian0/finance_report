@@ -16,6 +16,16 @@ MAX_POSTGRES_IDENTIFIER_LENGTH = 63
 TEST_DB_PREFIX = "finance_report_test_"
 MAX_NAMESPACE_LENGTH = MAX_POSTGRES_IDENTIFIER_LENGTH - len(TEST_DB_PREFIX)
 MAX_S3_BUCKET_LENGTH = 63
+EPHEMERAL_NAMESPACE_PREFIXES: tuple[str, ...] = (
+    "preflight_",
+    "mutation_",
+    "planner_seq_",
+)
+
+
+def is_ephemeral_namespace(namespace: str | None) -> bool:
+    """Return True when ``namespace`` is a single-run PID/UUID test namespace."""
+    return bool(namespace) and namespace.startswith(EPHEMERAL_NAMESPACE_PREFIXES)
 
 
 def sanitize_namespace(name: str) -> str:
