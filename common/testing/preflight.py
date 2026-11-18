@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -181,7 +182,7 @@ CHECKS: tuple[Check, ...] = (
         globs=OPENAPI_INPUT_GLOBS,
         commands=(
             (PY, "tools/generate_openapi_spec.py", "--check"),
-            ("npm", "--prefix", "apps/frontend", "run", "check:api-types"),
+            (PY, "tools/check_api_types.py"),
         ),
         why="router/schema changed: openapi.json and frontend api-types must remain in sync (#1004, #2134)",
     ),
@@ -419,7 +420,10 @@ def _child_env() -> dict[str, str]:
     return env
 
 
-_INPROCESS_EXCLUDED_TOOLS: frozenset[str] = frozenset()
+_INPROCESS_EXCLUDED_TOOLS: frozenset[str] = frozenset({"check_api_types.py"})
+_PARALLEL_SUBPROCESS_CHECK_NAMES: frozenset[str] = frozenset(
+    {"app-boundary", "base-purity", "tier-imports"}
+)
 _TOOL_MODULE_CACHE: dict[Path, ModuleType] = {}
 
 
@@ -431,7 +435,8 @@ def _resolve_inprocess_tool(argv: Sequence[str], cwd: str) -> Path | None:
         return None
     if argv[1].startswith("-"):
         return None
-    candidate = (Path(cwd) / argv[1]).resolve()
+    cwd_path = Path(cwd) if Path(cwd).is_absolute() else (REPO_ROOT / cwd)
+    candidate = (cwd_path / argv[1]).resolve()
     tools_dir = (REPO_ROOT / "tools").resolve()
     if (
         candidate.parent != tools_dir
@@ -623,7 +628,8 @@ def run_checks(
     is_default_runner = runner in (_default_runner, _default_quiet_runner)
     guard_tree = is_default_runner or repo_root is not None
     dedup_results: dict[tuple[tuple[str, ...], str], bool] = {}
-    results: list[CheckResult] = []
+
+    prepared: list[tuple[Check, str, list[tuple[str, ...]]]] = []
     for check in checks:
         cwd = str(root / check.cwd)
         matching_paths = tuple(
@@ -635,40 +641,126 @@ def run_checks(
             tuple(_resolve(command, python, matching_paths=matching_paths))
             for command in check.commands
         ]
-        if ci and not quiet:
-            print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
-        if is_default_runner and all(
-            dedup_results.get((cmd, cwd)) is True for cmd in resolved_cmds
-        ):
-            ok = True
-        else:
-            before_snapshot = _working_tree_snapshot(root) if guard_tree else {}
-            ok = True
-            for cmd in resolved_cmds:
-                if is_default_runner and dedup_results.get((cmd, cwd)) is True:
-                    continue
-                cmd_ok = runner(list(cmd), cwd) == 0
-                if not cmd_ok:
-                    ok = False
-                    break
-                if is_default_runner:
-                    dedup_results[(cmd, cwd)] = True
-            if guard_tree and _working_tree_snapshot(root) != before_snapshot:
-                ok = False
-                for cmd in resolved_cmds:
-                    dedup_results.pop((cmd, cwd), None)
-                print(
-                    f"::error::Gate {check.name} mutated the working tree during execution",
-                    file=sys.stderr,
-                    flush=True,
+        prepared.append((check, cwd, resolved_cmds))
+
+    # Pre-launch independent external subprocess commands (e.g. ruff, check_api_types,
+    # and multi-gate static AST checks) on background threads while src.main checks
+    # execute on the main thread.
+    prefetched: dict[tuple[tuple[str, ...], str], Future[tuple[int, str, str]]] = {}
+    pool: ThreadPoolExecutor | None = None
+    parallel_multi_gate = is_default_runner and len(prepared) > 2
+    if is_default_runner and len(prepared) > 1:
+        sub_jobs = [
+            (cmd, cwd)
+            for check, cwd, cmds in prepared
+            if check.tier == "static"
+            for cmd in cmds
+            if _resolve_inprocess_tool(cmd, cwd) is None
+            or (parallel_multi_gate and check.name in _PARALLEL_SUBPROCESS_CHECK_NAMES)
+        ]
+        unique_jobs = list(dict.fromkeys(sub_jobs))
+        if unique_jobs:
+            pool = ThreadPoolExecutor(max_workers=min(8, len(unique_jobs)))
+            for job in unique_jobs:
+                prefetched[job] = pool.submit(_run_subprocess_buffered, job[0], job[1])
+
+    batch_snapshot = (
+        _working_tree_snapshot(root)
+        if guard_tree and is_default_runner and len(prepared) > 1
+        else None
+    )
+    results: list[CheckResult] = []
+    try:
+        for check, cwd, resolved_cmds in prepared:
+            if ci and not quiet:
+                print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
+            if is_default_runner and all(
+                dedup_results.get((cmd, cwd)) is True for cmd in resolved_cmds
+            ):
+                ok = True
+            else:
+                before_snapshot = (
+                    batch_snapshot
+                    if batch_snapshot is not None
+                    else (_working_tree_snapshot(root) if guard_tree else {})
                 )
-        if ci:
-            if not quiet:
-                print("::endgroup::", flush=True)
-            if not ok:
-                print(f"::error::Gate {check.name} failed: {check.why}", flush=True)
-        results.append(CheckResult(check.name, ok))
+                ok = True
+                for cmd in resolved_cmds:
+                    if is_default_runner and dedup_results.get((cmd, cwd)) is True:
+                        continue
+                    fut = prefetched.pop((cmd, cwd), None)
+                    if fut is not None:
+                        cmd_rc, out_txt, err_txt = fut.result()
+                        if not quiet or cmd_rc != 0:
+                            if out_txt:
+                                sys.stdout.write(out_txt)
+                                sys.stdout.flush()
+                            if err_txt:
+                                sys.stderr.write(err_txt)
+                                sys.stderr.flush()
+                        cmd_ok = cmd_rc == 0
+                    else:
+                        cmd_ok = runner(list(cmd), cwd) == 0
+                    if not cmd_ok:
+                        ok = False
+                        break
+                    if is_default_runner:
+                        dedup_results[(cmd, cwd)] = True
+                if (
+                    batch_snapshot is None
+                    and guard_tree
+                    and _working_tree_snapshot(root) != before_snapshot
+                ):
+                    ok = False
+                    for cmd in resolved_cmds:
+                        dedup_results.pop((cmd, cwd), None)
+                    print(
+                        f"::error::Gate {check.name} mutated the working tree during execution",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+            if ci:
+                if not quiet:
+                    print("::endgroup::", flush=True)
+                if not ok:
+                    print(f"::error::Gate {check.name} failed: {check.why}", flush=True)
+            results.append(CheckResult(check.name, ok))
+        if (
+            batch_snapshot is not None
+            and _working_tree_snapshot(root) != batch_snapshot
+        ):
+            last_name = results[-1].name if results else "static"
+            print(
+                f"::error::Gate {last_name} mutated the working tree during execution",
+                file=sys.stderr,
+                flush=True,
+            )
+            results = [CheckResult(r.name, False) for r in results]
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True)
     return results
+
+
+def _run_subprocess_buffered(cmd: Sequence[str], cwd: str) -> tuple[int, str, str]:
+    try:
+        proc = subprocess.run(
+            list(cmd),
+            cwd=cwd,
+            env=_child_env(),
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
+            timeout=DEFAULT_SUBPROCESS_TIMEOUT,
+        )
+        return proc.returncode, proc.stdout or "", proc.stderr or ""
+    except subprocess.TimeoutExpired:
+        return (
+            124,
+            "",
+            f"::error::Gate command timed out after {DEFAULT_SUBPROCESS_TIMEOUT}s: {' '.join(cmd)}\n",
+        )
 
 
 def _collect_matching_tests(
@@ -852,17 +944,22 @@ def run(
         and not args.pytest_changed
         and not args.ci
         and os.environ.get("PREFLIGHT_NO_CACHE") != "1"
-        and (cache_file is not None or (runner is _default_runner and git is _default_git))
+        and (
+            cache_file is not None
+            or (runner is _default_runner and git is _default_git)
+        )
     )
     resolved_cache_file = (
         cache_file
         if cache_file is not None
         else (_static_cache_path(root, git) if use_cache else None)
     )
-    fingerprint = (
-        _static_fingerprint(root, args.base, files, git) if use_cache else ""
-    )
-    if use_cache and fingerprint and _read_static_stamp(resolved_cache_file) == fingerprint:
+    fingerprint = _static_fingerprint(root, args.base, files, git) if use_cache else ""
+    if (
+        use_cache
+        and fingerprint
+        and _read_static_stamp(resolved_cache_file) == fingerprint
+    ):
         print(
             f"preflight: static cache hit ({fingerprint[:12]}); skipping duplicate run."
         )
@@ -881,6 +978,9 @@ def run(
 
     failed: list[str] = []
     pytest_suites_ran = 0
+    ran_pytest = bool(args.pytest_changed and (root_targets or backend_targets)) or any(
+        cmd[1:3] == ("-m", "pytest") for check in selected for cmd in check.commands
+    )
     try:
         if selected:
             if not args.quiet:
@@ -931,10 +1031,14 @@ def run(
     finally:
         if not had_external_ns:
             os.environ.pop("TEST_NAMESPACE", None)
-            if runner is _default_runner:
-                from common.testing.reap_test_dbs import drop_namespace_databases
+            if runner is _default_runner and ran_pytest:
+                from common.testing.reap_test_dbs import (
+                    drop_namespace_databases,
+                    reap_orphaned_test_databases,
+                )
 
                 drop_namespace_databases(generated_ns)
+                reap_orphaned_test_databases(ephemeral_only=True, repo_root=root)
 
     if failed:
         print(f"preflight: {len(failed)} gate(s) failed: {', '.join(failed)}")
