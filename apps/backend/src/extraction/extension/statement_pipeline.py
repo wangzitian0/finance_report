@@ -6,18 +6,51 @@ import asyncio
 from contextlib import suppress
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.database import create_session_maker_from_db
 from src.extraction.base.types import ParseJob
 from src.extraction.extension.statement_classification_run import execute_classify_run
+from src.extraction.orm.statement_summary import StatementSummary
+from src.extraction.orm.layer1 import UploadedDocument
 from src.observability import get_logger, run_with_async_parse_tracking
 
 logger = get_logger(__name__)
 settings = src.config.settings
 
 PARSE_DEPLOYMENT = "parse-statement/parse-statement"
+PENDING_PARSE_TASKS: set[asyncio.Task] = set()
+
+
+def track_parse_task(task: asyncio.Task) -> None:
+    """Register an in-flight background statement parse or classify task."""
+    PENDING_PARSE_TASKS.add(task)
+    task.add_done_callback(PENDING_PARSE_TASKS.discard)
+
+
+async def wait_for_parse_tasks() -> None:
+    """Wait for all pending background statement parse or classify tasks."""
+    if PENDING_PARSE_TASKS:
+        await asyncio.gather(*PENDING_PARSE_TASKS, return_exceptions=True)
+
+
+async def resolve_uploaded_document(
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
+) -> UploadedDocument | None:
+    """Resolve the user-owned uploaded document backing a statement."""
+    if statement.uploaded_document_id is not None:
+        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
+        if doc is not None and doc.user_id == user_id:
+            return doc
+    return (
+        await db.execute(
+            select(UploadedDocument).where(
+                UploadedDocument.user_id == user_id, UploadedDocument.file_hash == statement.file_hash
+            )
+        )
+    ).scalar_one_or_none()
 
 
 def compose_statement_ingestion_use_case(*, session_maker):

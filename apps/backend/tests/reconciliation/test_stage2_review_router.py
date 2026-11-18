@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 import pytest
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy import select
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction import BankStatementStatus, EconomicIntent, Stage1Status
@@ -127,7 +127,7 @@ async def test_run_stage2_checks_success(db, test_user):
 
 
 async def test_run_stage2_checks_not_found(db, test_user):
-    with pytest.raises((HTTPException, DomainError)) as exc:
+    with pytest.raises(DomainError) as exc:
         await reconciliation_router.run_stage2_checks(
             request=ConsistencyCheckRunRequest(
                 statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000")
@@ -174,7 +174,7 @@ async def test_resolve_consistency_check_invalid_action(db, test_user):
     await db.commit()
     await db.refresh(check)
     check_id = check.id
-    with pytest.raises((HTTPException, DomainError)) as exc:
+    with pytest.raises(DomainError) as exc:
         await reconciliation_router.resolve_consistency_check(
             check_id=check_id, request=ResolveCheckRequest(action="invalid"), ctx=RequestContext(db, test_user.id)
         )
@@ -182,7 +182,7 @@ async def test_resolve_consistency_check_invalid_action(db, test_user):
 
 
 async def test_resolve_consistency_check_not_found(db, test_user):
-    with pytest.raises((HTTPException, DomainError)) as exc:
+    with pytest.raises(DomainError) as exc:
         await reconciliation_router.resolve_consistency_check(
             check_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
             request=ResolveCheckRequest(action="approve"),
@@ -242,7 +242,7 @@ async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user)
     )
     db.add(check)
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as exc:
+    with pytest.raises(DomainError) as exc:
         await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[]), ctx=RequestContext(db, test_user.id))
     assert exc.value.status_code == status.HTTP_409_CONFLICT
     assert "unresolved" in exc.value.detail
@@ -269,7 +269,7 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_us
             direction="IN",
         )
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
+    with pytest.raises(DomainError) as exc_info:
         await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
@@ -291,7 +291,7 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, te
         db, statement, txn_date=date(2025, 1, 15), description="Transfer in", amount=Decimal("20.00"), direction="IN"
     )
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
+    with pytest.raises(DomainError) as exc_info:
         await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
@@ -323,7 +323,7 @@ async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
         db, user_id=user_id, keyword="duplicate deposit", account_type=AccountType.INCOME, category="SALARY"
     )
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
+    with pytest.raises(DomainError) as exc_info:
         await statements_router.approve_statement_stage1(statement_id=statement_id, request=Stage1ApprovalRequest(), ctx=RequestContext(db, user_id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     resolve_response = await statements_router.resolve_review_conflicts(
@@ -340,7 +340,7 @@ async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
 
 async def test_AC16_34_1_resolve_conflicts_404_for_unknown_statement(db, test_user):
     "AC16.34.1"
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
+    with pytest.raises(DomainError) as exc_info:
         await statements_router.resolve_review_conflicts(
             statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
             request=ResolveConflictsRequest(action="confirm_distinct"),
@@ -525,7 +525,7 @@ async def test_batch_approve_matches_without_entry_requires_review(db, test_user
     )
     db.add(match)
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
+    with pytest.raises(DomainError) as exc_info:
         await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, user_id))
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Authoritative economic disposition" in str(exc_info.value.detail)
@@ -736,7 +736,7 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
     )
     db.add(match)
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as exc_info:
+    with pytest.raises(DomainError) as exc_info:
         await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, test_user.id))
     assert exc_info.value.status_code == 400
     assert "Amount mismatch" in exc_info.value.detail

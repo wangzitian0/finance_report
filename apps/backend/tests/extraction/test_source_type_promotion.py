@@ -2,7 +2,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction import BankStatementStatus, Stage1Status, TransactionDirection
@@ -50,7 +49,7 @@ async def test_stage1_approve_preserves_auto_parsed_provenance(db: AsyncSession,
         direction=TransactionDirection.OUT,
     )
     await db.commit()
-    with pytest.raises((HTTPException, DomainError)) as error:
+    with pytest.raises(DomainError) as error:
         await statements_router.approve_statement_stage1(
             statement_id=statement.id, ctx=RequestContext(db, test_user.id)
         )

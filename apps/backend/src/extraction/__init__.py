@@ -160,7 +160,14 @@ from src.extraction.extension.statement_parsing import (
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
-from src.extraction.extension.statement_pipeline import submit_classify_run, submit_parse_pipeline
+from src.extraction.extension.statement_pipeline import (
+    PENDING_PARSE_TASKS,
+    resolve_uploaded_document,
+    submit_classify_run,
+    submit_parse_pipeline,
+    track_parse_task,
+    wait_for_parse_tasks,
+)
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     applied_rows_the_policy_accepts,
@@ -425,8 +432,12 @@ __all__ = [
     "effective_statement_transaction_filter",
     "run_parsing_supervisor",
     "snapshot_currencies",
+    "PENDING_PARSE_TASKS",
+    "resolve_uploaded_document",
     "submit_classify_run",
     "submit_parse_pipeline",
+    "track_parse_task",
+    "wait_for_parse_tasks",
     "supports_reviewed_statement_envelope",
     "validate_balance",
     "validate_balance_chain",
