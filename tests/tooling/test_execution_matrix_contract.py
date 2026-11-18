@@ -1,4 +1,4 @@
-'EPIC-008'; from __future__ import annotations; import shlex; import subprocess; import sys; from pathlib import Path; import pytest; import yaml; from common.meta.extension.check_manifest import load_computed_concepts; from common.testing import matrix, test_selection; ROOT = Path(__file__).resolve().parents[2]; MATRIX_YAML = ROOT / 'common' / 'testing' / 'data' / 'test-execution-matrix.yaml'; RUNTIME_HOOKS_MANIFEST = ROOT / 'runtime-hooks.manifest.json'; TESTING_README = ROOT / 'common' / 'testing' / 'readme.md'; MANIFEST = ROOT / 'common' / 'meta' / 'data' / 'MANIFEST.yaml'
+'EPIC-008'; from __future__ import annotations; import shlex; import subprocess; import sys; from pathlib import Path; import pytest; import yaml; from common.testing import matrix, test_selection; ROOT = Path(__file__).resolve().parents[2]; MATRIX_YAML = ROOT / 'common' / 'testing' / 'data' / 'test-execution-matrix.yaml'; RUNTIME_HOOKS_MANIFEST = ROOT / 'runtime-hooks.manifest.json'; TESTING_README = ROOT / 'common' / 'testing' / 'readme.md'
 from tests.tooling.hook_text import hook_text
 def _staging_e2e_run_step() -> str: from infra2_sdk.manifests import load_hooks_manifest; manifest = load_hooks_manifest(RUNTIME_HOOKS_MANIFEST); command = hook_text(manifest.slots['staging_gate']); return command.split('env STRICT_E2E_GATES=1 python -m pytest tests/e2e/test_ai_provider_connectivity.py', 1)[0]
 def test_AC8_22_1_generated_matrix_matches_checked_in_yaml() -> None: 'AC-testing.matrix.1 AC8.22.1'; assert MATRIX_YAML.read_text(encoding='utf-8') == matrix.emit_execution_matrix_yaml(); result = subprocess.run([sys.executable, str(ROOT / 'tools' / 'test_selection.py'), '--check-matrix'], capture_output=True, text=True, check=False); assert result.returncode == 0, result.stderr; 'AC8.22.1'; 'AC8.22.1'; _m1_data = yaml.safe_load(matrix.emit_execution_matrix_yaml()); _m1_parsed = [(_m1_item['path'], _m1_item['stage'], bool(_m1_item['ci_required'])) for _m1_item in _m1_data['rules']]; _m1_expected = [(_m1_r.path, _m1_r.stage, _m1_r.ci_required) for _m1_r in matrix.PATH_RULES]; assert _m1_parsed == _m1_expected
@@ -25,21 +25,11 @@ def test_AC8_22_5_shell_emission_round_trips(monkeypatch: pytest.MonkeyPatch) ->
     with pytest.raises(ValueError, match='produced an empty test tuple'): monkeypatch.setattr(matrix, 'preview_minimum_e2e_selection', lambda: ()); matrix.emit_shell(matrix.PREVIEW_MINIMUM_E2E_STAGE)
     with pytest.raises(ValueError, match='produced an empty test tuple'): monkeypatch.setattr(matrix, 'staging_ai_ocr_selection', lambda _corpus='all': ()); matrix.emit_shell(matrix.STAGING_AI_OCR_STAGE, corpus='canary')
     for extra in ([], ['--shell']): result = subprocess.run([sys.executable, str(ROOT / 'tools' / 'test_selection.py'), '--stage', 'nonexistent_stage', *extra], capture_output=True, text=True, check=False); assert result.returncode == 2, result.stderr; assert 'unknown selection stage' in result.stderr
-def test_matrix_classify_stage_and_package_declarations(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert matrix.classify_stage('apps/backend/tests/foo.py') == 'backend_ci'; assert matrix.classify_stage('unmatched/prefix/foo.py') is None; import types; fake_empty = types.ModuleType('contract'); fake_empty.TEST_ROOTS = (); monkeypatch.setattr(matrix, 'PACKAGE_TEST_DECLARATIONS', ('pkg_empty',)); import importlib; monkeypatch.setattr(importlib, 'import_module', lambda name: fake_empty)
-    with pytest.raises(ValueError, match='declares no TEST_ROOTS'): matrix.package_test_ownership()
-    fake_str = types.ModuleType('contract'); fake_str.TEST_ROOTS = 'apps/backend/tests/'; monkeypatch.setattr(importlib, 'import_module', lambda name: fake_str)
-    with pytest.raises(ValueError, match='must be a tuple of paths'): matrix.package_test_ownership()
-    fake_dup1 = types.ModuleType('contract1'); fake_dup1.TEST_ROOTS = ('tests/shared',); fake_dup2 = types.ModuleType('contract2'); fake_dup2.TEST_ROOTS = ('tests/shared',); monkeypatch.setattr(matrix, 'PACKAGE_TEST_DECLARATIONS', ('p1', 'p2'))
-    def fake_import(name: str):
-        if name == 'common.p1.contract': return fake_dup1
-        return fake_dup2
-    monkeypatch.setattr(importlib, 'import_module', fake_import)
-    with pytest.raises(ValueError, match='declared by both'): matrix.package_test_ownership()
+def test_matrix_classify_stage_and_package_declarations() -> None:
+    assert matrix.classify_stage('apps/backend/tests/foo.py') == 'backend_ci'; assert matrix.classify_stage('unmatched/prefix/foo.py') is None
 def test_AC8_22_6_charter_and_manifest_ownership() -> None:
     'AC-testing.matrix.6 AC8.22.6'; readme = TESTING_README.read_text(encoding='utf-8')
     for section in ('## Governance charter', '### Execution matrix', '### Package declaration protocol', '### E2E extension layer', '### Fast interception', '### Responsibility table'): assert section in readme, f'charter section missing: {section}'
-    concepts = load_computed_concepts(ROOT, MANIFEST); entry = concepts['test_execution_matrix']; assert entry['owner'] == 'common/testing/matrix.py'; cross_refs = entry.get('cross_refs', []); assert 'common/testing/data/test-execution-matrix.yaml' in cross_refs
 def test_test_selection_cli_in_process(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert test_selection.main(['--check-matrix']) == 0; capsys.readouterr(); fake_yaml = tmp_path / 'matrix.yaml'; monkeypatch.setattr(test_selection, 'ROOT_DIR', tmp_path); monkeypatch.setattr(test_selection, 'MATRIX_YAML', fake_yaml); assert test_selection.main(['--check-matrix']) == 1; assert 'drifted from' in capsys.readouterr().err; assert test_selection.main(['--emit-matrix']) == 0; assert fake_yaml.read_text(encoding='utf-8') == matrix.emit_execution_matrix_yaml(); capsys.readouterr(); assert test_selection.main(['--check-matrix']) == 0; capsys.readouterr()
     with pytest.raises(SystemExit): test_selection.main([])

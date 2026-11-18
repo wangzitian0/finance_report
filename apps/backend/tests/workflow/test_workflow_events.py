@@ -1,81 +1,973 @@
-'EPIC-019'; from __future__ import annotations; import asyncio; from collections.abc import Iterator; from datetime import UTC, datetime; from pathlib import Path; from types import SimpleNamespace; from uuid import uuid4; import pytest; from pydantic import ValidationError; from sqlalchemy import func, inspect, select; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker; import src.workflow.extension.events as workflow_events; from src.extraction import BankStatementStatus, DocumentType, Stage1Status, UploadedDocument; from src.extraction.orm.statement_summary import StatementSummary; from src.identity import User; from src.reporting import current_package_readiness; from src.workflow import WorkflowEventCreate, WorkflowEventResponse, WorkflowPrimaryState, WorkflowReportReadinessState; from src.workflow import WorkflowEvent, WorkflowEventFamily, WorkflowEventSeverity, WorkflowEventStatus, WorkflowReportImpact, WorkflowSession, WorkflowSessionStatus; from src.workflow.extension.events import _apply_or_insert_event, _get_workflow_event_by_dedupe_key, _insert_workflow_event_conflict_safe, _workflow_event_from_payload, build_uploaded_statement_event_payload, get_or_create_active_workflow_session, get_workflow_status, list_workflow_events, list_workflow_events_response, refresh_workflow_session_summary, sync_workflow_events_for_user, update_workflow_event_status; ROOT_DIR = Path(__file__).resolve().parents[4]
-async def _seed_workflow_event(db: AsyncSession, *, user_id, payload: WorkflowEventCreate) -> WorkflowEvent: session_id = (await get_or_create_active_workflow_session(db, user_id=user_id)).id; existing = await _get_workflow_event_by_dedupe_key(db, user_id=user_id, dedupe_key=payload.dedupe_key); event = await _apply_or_insert_event(db, user_id=user_id, existing=existing, payload=payload, session_id=session_id); await db.flush(); await refresh_workflow_session_summary(db, user_id=user_id, session_id=session_id); return event
+"EPIC-019"
+
+from __future__ import annotations
+import asyncio
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from pathlib import Path
+from types import SimpleNamespace
+from uuid import uuid4
+import pytest
+from pydantic import ValidationError
+from sqlalchemy import func, inspect, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import src.workflow.extension.events as workflow_events
+from src.extraction import BankStatementStatus, DocumentType, Stage1Status, UploadedDocument
+from src.extraction.orm.statement_summary import StatementSummary
+from src.identity import User
+from src.reporting import current_package_readiness
+from src.workflow import WorkflowEventCreate, WorkflowEventResponse, WorkflowPrimaryState, WorkflowReportReadinessState
+from src.workflow import (
+    WorkflowEvent,
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+    WorkflowSession,
+    WorkflowSessionStatus,
+)
+from src.workflow.extension.events import (
+    _apply_or_insert_event,
+    _get_workflow_event_by_dedupe_key,
+    _insert_workflow_event_conflict_safe,
+    _workflow_event_from_payload,
+    build_uploaded_statement_event_payload,
+    get_or_create_active_workflow_session,
+    get_workflow_status,
+    list_workflow_events,
+    list_workflow_events_response,
+    refresh_workflow_session_summary,
+    sync_workflow_events_for_user,
+    update_workflow_event_status,
+)
+
+ROOT_DIR = Path(__file__).resolve().parents[4]
+
+
+async def _seed_workflow_event(db: AsyncSession, *, user_id, payload: WorkflowEventCreate) -> WorkflowEvent:
+    session_id = (await get_or_create_active_workflow_session(db, user_id=user_id)).id
+    existing = await _get_workflow_event_by_dedupe_key(db, user_id=user_id, dedupe_key=payload.dedupe_key)
+    event = await _apply_or_insert_event(db, user_id=user_id, existing=existing, payload=payload, session_id=session_id)
+    await db.flush()
+    await refresh_workflow_session_summary(db, user_id=user_id, session_id=session_id)
+    return event
+
+
 @pytest.fixture(autouse=True)
-def _restore_readiness_read() -> Iterator[None]: workflow_events.current_package_readiness = current_package_readiness; yield; workflow_events.current_package_readiness = current_package_readiness
+def _restore_readiness_read() -> Iterator[None]:
+    workflow_events.current_package_readiness = current_package_readiness
+    yield
+    workflow_events.current_package_readiness = current_package_readiness
+
+
 def _override_readiness_for_test(provider) -> None:
-    async def readiness_provider(db, *, user_id): payload = await provider(db, user_id=user_id); return SimpleNamespace(model_dump=lambda mode='json': payload)
+    async def readiness_provider(db, *, user_id):
+        payload = await provider(db, user_id=user_id)
+        return SimpleNamespace(model_dump=lambda mode="json": payload)
+
     workflow_events.current_package_readiness = readiness_provider
-async def _make_statement(db: AsyncSession, user_id, *, original_filename: str, file_hash: str, institution: str='Demo Bank', status: BankStatementStatus=BankStatementStatus.UPLOADED, stage1_status: Stage1Status | None=None, stage1_reviewed_at: datetime | None=None) -> tuple[StatementSummary, UploadedDocument]: document = UploadedDocument(user_id=user_id, file_path=f'statements/{original_filename}', file_hash=file_hash, original_filename=original_filename, document_type=DocumentType.BANK_STATEMENT); db.add(document); await db.flush(); statement = StatementSummary(user_id=user_id, uploaded_document_id=document.id, file_hash=file_hash, institution=institution, status=status, stage1_status=stage1_status, stage1_reviewed_at=stage1_reviewed_at); db.add(statement); await db.flush(); return (statement, document)
-def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None: 'AC-platform.30.1 AC-meta.workflow-events.1 AC19.1.1 AC19.3.8'; from common.meta.extension.check_manifest import load_computed_concepts; manifest_path = ROOT_DIR / 'common' / 'meta' / 'data' / 'MANIFEST.yaml'; concepts = load_computed_concepts(ROOT_DIR, manifest_path); concept = concepts['workflow_events']; assert concept['owner'] == 'common/workflow/workflow-events.md'; assert 'docs/project/EPIC-019.event-driven-upload-to-report-ux.md' in concept['cross_refs']
-def test_AC19_8_2_workflow_session_model_contract() -> None: 'AC-platform.33.1 AC-platform.33.2 AC19.8.1 AC19.8.2'; session_table = WorkflowSession.__table__; event_table = WorkflowEvent.__table__; assert session_table.name == 'workflow_sessions'; assert session_table.c.status.type.name == 'workflow_session_status_enum'; assert event_table.c.session_id.foreign_keys; assert event_table.c.session_id.nullable is True; unique_constraints = {tuple(constraint.columns.keys()): constraint.name for constraint in session_table.constraints if constraint.__class__.__name__ == 'UniqueConstraint'}; assert unique_constraints['user_id', 'dedupe_key'] == 'uq_workflow_sessions_user_dedupe_key'; check_constraints = {constraint.name for constraint in session_table.constraints if constraint.__class__.__name__ == 'CheckConstraint'}; assert 'ck_workflow_sessions_report_href_internal' in check_constraints; session_indexes = {index.name: tuple(index.columns.keys()) for index in session_table.indexes}; event_indexes = {index.name: tuple(index.columns.keys()) for index in event_table.indexes}; assert session_indexes['idx_workflow_sessions_user_status_last_event'] == ('user_id', 'status', 'last_event_at'); assert event_indexes['idx_workflow_events_user_session_occurred'] == ('user_id', 'session_id', 'occurred_at'); assert {status.value for status in WorkflowSessionStatus} == {'active', 'generated', 'archived'}
+
+
+async def _make_statement(
+    db: AsyncSession,
+    user_id,
+    *,
+    original_filename: str,
+    file_hash: str,
+    institution: str = "Demo Bank",
+    status: BankStatementStatus = BankStatementStatus.UPLOADED,
+    stage1_status: Stage1Status | None = None,
+    stage1_reviewed_at: datetime | None = None,
+) -> tuple[StatementSummary, UploadedDocument]:
+    document = UploadedDocument(
+        user_id=user_id,
+        file_path=f"statements/{original_filename}",
+        file_hash=file_hash,
+        original_filename=original_filename,
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(document)
+    await db.flush()
+    statement = StatementSummary(
+        user_id=user_id,
+        uploaded_document_id=document.id,
+        file_hash=file_hash,
+        institution=institution,
+        status=status,
+        stage1_status=stage1_status,
+        stage1_reviewed_at=stage1_reviewed_at,
+    )
+    db.add(statement)
+    await db.flush()
+    return (statement, document)
+
+
+def test_AC19_8_2_workflow_session_model_contract() -> None:
+    "AC-platform.33.1 AC-platform.33.2 AC19.8.1 AC19.8.2"
+    session_table = WorkflowSession.__table__
+    event_table = WorkflowEvent.__table__
+    assert session_table.name == "workflow_sessions"
+    assert session_table.c.status.type.name == "workflow_session_status_enum"
+    assert event_table.c.session_id.foreign_keys
+    assert event_table.c.session_id.nullable is True
+    unique_constraints = {
+        tuple(constraint.columns.keys()): constraint.name
+        for constraint in session_table.constraints
+        if constraint.__class__.__name__ == "UniqueConstraint"
+    }
+    assert unique_constraints["user_id", "dedupe_key"] == "uq_workflow_sessions_user_dedupe_key"
+    check_constraints = {
+        constraint.name
+        for constraint in session_table.constraints
+        if constraint.__class__.__name__ == "CheckConstraint"
+    }
+    assert "ck_workflow_sessions_report_href_internal" in check_constraints
+    session_indexes = {index.name: tuple(index.columns.keys()) for index in session_table.indexes}
+    event_indexes = {index.name: tuple(index.columns.keys()) for index in event_table.indexes}
+    assert session_indexes["idx_workflow_sessions_user_status_last_event"] == ("user_id", "status", "last_event_at")
+    assert event_indexes["idx_workflow_events_user_session_occurred"] == ("user_id", "session_id", "occurred_at")
+    assert {status.value for status in WorkflowSessionStatus} == {"active", "generated", "archived"}
+
+
 async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe(db_engine, test_user) -> None:
-    'AC-platform.33.4 AC19.8.9'; sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
-    async with sessionmaker() as first_session, sessionmaker() as second_session: first = await get_or_create_active_workflow_session(first_session, user_id=test_user.id); second_task = asyncio.create_task(get_or_create_active_workflow_session(second_session, user_id=test_user.id)); await asyncio.sleep(0.2); await first_session.commit(); second = await asyncio.wait_for(second_task, timeout=5); await second_session.commit()
-    async with sessionmaker() as verify_session: sessions = (await verify_session.execute(select(WorkflowSession).where(WorkflowSession.user_id == test_user.id).where(WorkflowSession.dedupe_key == 'active-upload-to-report'))).scalars().all()
-    assert first.id == second.id; assert len(sessions) == 1; assert sessions[0].status == WorkflowSessionStatus.ACTIVE
-async def test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_dedupe_row(db, test_user) -> None: 'AC19.8.9'; archived_session = WorkflowSession(user_id=test_user.id, status=WorkflowSessionStatus.ARCHIVED, title='Upload-to-report session', summary='Archived synthetic session.', dedupe_key='active-upload-to-report', source_count=0); db.add(archived_session); await db.flush(); active_session = await get_or_create_active_workflow_session(db, user_id=test_user.id); await db.flush(); assert active_session.id == archived_session.id; assert active_session.status == WorkflowSessionStatus.ACTIVE; assert active_session.summary == 'Current upload, processing, review, and report-readiness work.'
-def test_AC19_1_2_workflow_event_model_contract() -> None: 'AC-platform.30.2 AC19.1.2'; table = WorkflowEvent.__table__; assert table.name == 'workflow_events'; enum_names = {table.c.family.type.name, table.c.severity.type.name, table.c.status.type.name, table.c.report_impact.type.name}; assert enum_names == {'workflow_event_family_enum', 'workflow_event_severity_enum', 'workflow_event_status_enum', 'workflow_report_impact_enum'}; check_constraints = {constraint.name for constraint in table.constraints if constraint.__class__.__name__ == 'CheckConstraint'}; assert 'ck_workflow_events_action_href_internal' in check_constraints; unique_constraints = {tuple(constraint.columns.keys()): constraint.name for constraint in table.constraints if constraint.__class__.__name__ == 'UniqueConstraint'}; assert unique_constraints['user_id', 'dedupe_key'] == 'uq_workflow_events_user_dedupe_key'; indexes = {index.name: tuple(index.columns.keys()) for index in table.indexes}; assert indexes['idx_workflow_events_user_status_occurred'] == ('user_id', 'status', 'occurred_at'); assert indexes['idx_workflow_events_user_severity_occurred'] == ('user_id', 'severity', 'occurred_at'); assert indexes['idx_workflow_events_user_family_occurred'] == ('user_id', 'family', 'occurred_at'); assert indexes['idx_workflow_events_user_source'] == ('user_id', 'source_type', 'source_id'); mapper_columns = {column.key for column in inspect(WorkflowEvent).columns}; assert {'id', 'user_id', 'occurred_at', 'family', 'severity', 'status', 'title', 'summary', 'source_type', 'source_id', 'action_href', 'report_impact', 'dedupe_key', 'created_at', 'updated_at'}.issubset(mapper_columns)
+    "AC-platform.33.4 AC19.8.9"
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as first_session, sessionmaker() as second_session:
+        first = await get_or_create_active_workflow_session(first_session, user_id=test_user.id)
+        second_task = asyncio.create_task(get_or_create_active_workflow_session(second_session, user_id=test_user.id))
+        await asyncio.sleep(0.2)
+        await first_session.commit()
+        second = await asyncio.wait_for(second_task, timeout=5)
+        await second_session.commit()
+    async with sessionmaker() as verify_session:
+        sessions = (
+            (
+                await verify_session.execute(
+                    select(WorkflowSession)
+                    .where(WorkflowSession.user_id == test_user.id)
+                    .where(WorkflowSession.dedupe_key == "active-upload-to-report")
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert first.id == second.id
+    assert len(sessions) == 1
+    assert sessions[0].status == WorkflowSessionStatus.ACTIVE
+
+
+async def test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_dedupe_row(db, test_user) -> None:
+    "AC19.8.9"
+    archived_session = WorkflowSession(
+        user_id=test_user.id,
+        status=WorkflowSessionStatus.ARCHIVED,
+        title="Upload-to-report session",
+        summary="Archived synthetic session.",
+        dedupe_key="active-upload-to-report",
+        source_count=0,
+    )
+    db.add(archived_session)
+    await db.flush()
+    active_session = await get_or_create_active_workflow_session(db, user_id=test_user.id)
+    await db.flush()
+    assert active_session.id == archived_session.id
+    assert active_session.status == WorkflowSessionStatus.ACTIVE
+    assert active_session.summary == "Current upload, processing, review, and report-readiness work."
+
+
+def test_AC19_1_2_workflow_event_model_contract() -> None:
+    "AC-platform.30.2 AC19.1.2"
+    table = WorkflowEvent.__table__
+    assert table.name == "workflow_events"
+    enum_names = {
+        table.c.family.type.name,
+        table.c.severity.type.name,
+        table.c.status.type.name,
+        table.c.report_impact.type.name,
+    }
+    assert enum_names == {
+        "workflow_event_family_enum",
+        "workflow_event_severity_enum",
+        "workflow_event_status_enum",
+        "workflow_report_impact_enum",
+    }
+    check_constraints = {
+        constraint.name for constraint in table.constraints if constraint.__class__.__name__ == "CheckConstraint"
+    }
+    assert "ck_workflow_events_action_href_internal" in check_constraints
+    unique_constraints = {
+        tuple(constraint.columns.keys()): constraint.name
+        for constraint in table.constraints
+        if constraint.__class__.__name__ == "UniqueConstraint"
+    }
+    assert unique_constraints["user_id", "dedupe_key"] == "uq_workflow_events_user_dedupe_key"
+    indexes = {index.name: tuple(index.columns.keys()) for index in table.indexes}
+    assert indexes["idx_workflow_events_user_status_occurred"] == ("user_id", "status", "occurred_at")
+    assert indexes["idx_workflow_events_user_severity_occurred"] == ("user_id", "severity", "occurred_at")
+    assert indexes["idx_workflow_events_user_family_occurred"] == ("user_id", "family", "occurred_at")
+    assert indexes["idx_workflow_events_user_source"] == ("user_id", "source_type", "source_id")
+    mapper_columns = {column.key for column in inspect(WorkflowEvent).columns}
+    assert {
+        "id",
+        "user_id",
+        "occurred_at",
+        "family",
+        "severity",
+        "status",
+        "title",
+        "summary",
+        "source_type",
+        "source_id",
+        "action_href",
+        "report_impact",
+        "dedupe_key",
+        "created_at",
+        "updated_at",
+    }.issubset(mapper_columns)
+
+
 def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
-    'AC-platform.30.3 AC19.1.3'; valid = WorkflowEventCreate(family=WorkflowEventFamily.SOURCE_UPLOADED, severity=WorkflowEventSeverity.INFO, title='Statement uploaded', summary='Processing will start shortly.', source_type='bank_statement', source_id=uuid4(), action_href='/statements/123', report_impact=WorkflowReportImpact.PROCESSING, dedupe_key='bank-statement:123:source.uploaded', occurred_at=datetime.now(UTC)); assert valid.action_href == '/statements/123'; assert valid.report_impact == WorkflowReportImpact.PROCESSING
-    for href in ('https://example.com/review', '//example.com/review', 'javascript:alert(1)', 'statements/123'):
-        with pytest.raises(ValidationError): WorkflowEventCreate(family=WorkflowEventFamily.SOURCE_UPLOADED, severity=WorkflowEventSeverity.INFO, title='Statement uploaded', summary='Processing will start shortly.', source_type='bank_statement', source_id=uuid4(), action_href=href, report_impact=WorkflowReportImpact.PROCESSING, dedupe_key=f'bad:{href}', occurred_at=datetime.now(UTC))
-    with pytest.raises(ValidationError): WorkflowEventCreate(family=WorkflowEventFamily.REPORT_READY, severity=WorkflowEventSeverity.SUCCESS, title='Report ready', summary='The report can be opened.', source_type='report', source_id=uuid4(), action_href='/reports/current', report_impact='published', dedupe_key='report:current:report.ready', occurred_at=datetime.now(UTC))
-    with pytest.raises(ValidationError): WorkflowEventResponse.model_validate(SimpleNamespace(id=uuid4(), user_id=uuid4(), occurred_at=datetime.now(UTC), family=WorkflowEventFamily.REPORT_READY, severity=WorkflowEventSeverity.SUCCESS, status=WorkflowEventStatus.UNREAD, title='Report ready', summary='The report can be opened.', source_type='report', source_id=uuid4(), action_href='/reports/current', report_impact='published', dedupe_key='report:current:report.ready', created_at=datetime.now(UTC), updated_at=datetime.now(UTC)))
-async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, test_user) -> None: 'AC-platform.30.4 AC19.1.4'; statement, _document = await _make_statement(db, test_user.id, original_filename='demo.csv', file_hash='a' * 64); uploaded_events = select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.source_id == statement.id).where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED); await sync_workflow_events_for_user(db, user_id=test_user.id); first = (await db.execute(uploaded_events)).scalar_one(); await sync_workflow_events_for_user(db, user_id=test_user.id); second = (await db.execute(uploaded_events)).scalar_one(); assert first.id == second.id; assert first.severity == WorkflowEventSeverity.INFO; assert first.status == WorkflowEventStatus.UNREAD; assert first.action_href == f'/statements/{statement.id}'; assert first.report_impact == WorkflowReportImpact.PROCESSING; assert first.session_id is not None
-async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user) -> None: 'AC-platform.30.5 AC19.1.5'; other_user = User(email=f'other-{uuid4()}@example.com', hashed_password='hashed'); db.add(other_user); await db.flush(); event = await _seed_workflow_event(db, user_id=test_user.id, payload=WorkflowEventCreate(family=WorkflowEventFamily.REVIEW_REQUIRED, severity=WorkflowEventSeverity.ACTION_REQUIRED, title='Review required', summary='One statement needs confirmation.', source_type='bank_statement', source_id=uuid4(), action_href='/audit', report_impact=WorkflowReportImpact.BLOCKED, dedupe_key='bank-statement:review-required:test', occurred_at=datetime.now(UTC))); await db.flush(); assert [item.id for item in await list_workflow_events(db, user_id=test_user.id)] == [event.id]; assert await list_workflow_events(db, user_id=other_user.id) == []; assert await update_workflow_event_status(db, event_id=event.id, user_id=other_user.id, status=WorkflowEventStatus.READ) is None; updated = await update_workflow_event_status(db, event_id=event.id, user_id=test_user.id, status=WorkflowEventStatus.ARCHIVED); assert updated is not None; assert updated.status == WorkflowEventStatus.ARCHIVED; assert WorkflowEventResponse.model_validate(updated).status == WorkflowEventStatus.ARCHIVED
-async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None: 'AC-platform.32.1 AC19.3.1'; statement, document = await _make_statement(db, test_user.id, original_filename='original.csv', file_hash='e' * 64); await sync_workflow_events_for_user(db, user_id=test_user.id); event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.source_id == statement.id))).scalar_one(); event.status = WorkflowEventStatus.ARCHIVED; document.original_filename = 'renamed.csv'; await db.flush(); await sync_workflow_events_for_user(db, user_id=test_user.id); events = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.source_id == statement.id))).scalars().all(); assert len(events) == 1; assert events[0].id == event.id; assert events[0].status == WorkflowEventStatus.ARCHIVED; assert 'renamed.csv' in events[0].summary
-async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None: 'AC-platform.34.1 AC-platform.34.2 AC-platform.36.1 AC-platform.36.2 AC19.12.1 AC19.12.2 AC22.2.2 AC22.2.5'; statement, _document = await _make_statement(db, test_user.id, original_filename='review.csv', file_hash='1' * 64, institution='Review Bank', status=BankStatementStatus.PARSED, stage1_status=Stage1Status.PENDING_REVIEW); await sync_workflow_events_for_user(db, user_id=test_user.id); review_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED))).scalar_one(); review_event.status = WorkflowEventStatus.READ; await db.flush(); await sync_workflow_events_for_user(db, user_id=test_user.id); same_review_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED))).scalar_one(); assert same_review_event.id == review_event.id; assert same_review_event.status == WorkflowEventStatus.READ; assert same_review_event.severity == WorkflowEventSeverity.ACTION_REQUIRED; assert same_review_event.action_href == f'/statements/{same_review_event.source_id}'; statement.stage1_status = Stage1Status.APPROVED; statement.stage1_reviewed_at = datetime.now(UTC); await db.flush(); await sync_workflow_events_for_user(db, user_id=test_user.id); resolved_review_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED))).scalar_one(); completed_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_COMPLETED))).scalar_one(); assert resolved_review_event.status == WorkflowEventStatus.ARCHIVED; assert completed_event.status == WorkflowEventStatus.UNREAD; assert completed_event.severity == WorkflowEventSeverity.SUCCESS; assert completed_event.action_href == f'/statements/{statement.id}'
-async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure(db, test_user) -> None: 'AC19.12.2'; pending_statement, _pending_document = await _make_statement(db, test_user.id, original_filename='null-stage1.csv', file_hash='6' * 64, institution='Review Bank', status=BankStatementStatus.PARSED, stage1_status=None); rejected_by_review, _rejected_review_document = await _make_statement(db, test_user.id, original_filename='review-rejected.csv', file_hash='7' * 64, institution='Review Bank', status=BankStatementStatus.REJECTED, stage1_status=Stage1Status.REJECTED, stage1_reviewed_at=datetime.now(UTC)); rejected_by_parser, _rejected_parser_document = await _make_statement(db, test_user.id, original_filename='parser-rejected.csv', file_hash='8' * 64, institution='Review Bank', status=BankStatementStatus.REJECTED, stage1_status=None); await sync_workflow_events_for_user(db, user_id=test_user.id); pending_review_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED).where(WorkflowEvent.source_id == pending_statement.id))).scalar_one(); review_completed_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_COMPLETED).where(WorkflowEvent.source_id == rejected_by_review.id))).scalar_one(); parsing_failed_count = await db.scalar(select(func.count(WorkflowEvent.id)).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_PARSING_FAILED).where(WorkflowEvent.source_id == rejected_by_review.id)); parsing_failed_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_PARSING_FAILED).where(WorkflowEvent.source_id == rejected_by_parser.id))).scalar_one(); assert pending_review_event.status == WorkflowEventStatus.UNREAD; assert pending_review_event.action_href == f'/statements/{pending_review_event.source_id}'; assert review_completed_event.status == WorkflowEventStatus.UNREAD; assert parsing_failed_count == 0; assert parsing_failed_event.status == WorkflowEventStatus.UNREAD; assert parsing_failed_event.action_href == f'/statements/{rejected_by_parser.id}'
-async def test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers(db, test_user, monkeypatch) -> None:
-    'AC-platform.34.3 AC19.12.3'; blocker_payload = {'state': 'blocked', 'action_href': '/audit', 'blocking_count': 2, 'blockers': [{'code': 'pending_review', 'label': 'Pending source review', 'count': 2, 'reason': 'Statement review must be completed before the package can be marked ready.', 'action_href': '/audit'}]}; ready_payload = {'state': 'ready', 'action_href': '/reports?tab=package', 'blocking_count': 0, 'blockers': []}; generated_payload = {'state': 'generated', 'action_href': '/reports?tab=package', 'blocking_count': 0, 'blockers': []}; current_payload = blocker_payload
-    async def fake_readiness(_db, **_kwargs): return current_payload
-    _override_readiness_for_test(fake_readiness); await sync_workflow_events_for_user(db, user_id=test_user.id); blocked_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED))).scalar_one(); blocked_event.status = WorkflowEventStatus.READ; await db.flush(); await sync_workflow_events_for_user(db, user_id=test_user.id); same_blocked_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED))).scalar_one(); assert same_blocked_event.id == blocked_event.id; assert same_blocked_event.status == WorkflowEventStatus.READ; assert same_blocked_event.report_impact == WorkflowReportImpact.BLOCKED; current_payload = ready_payload; await sync_workflow_events_for_user(db, user_id=test_user.id); archived_blocker = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED))).scalar_one(); ready_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REPORT_READY))).scalar_one(); assert archived_blocker.status == WorkflowEventStatus.ARCHIVED; assert ready_event.status == WorkflowEventStatus.UNREAD; assert ready_event.action_href == '/reports?tab=package'; current_payload = generated_payload; await sync_workflow_events_for_user(db, user_id=test_user.id); generated_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REPORT_GENERATED))).scalar_one(); ready_event_after_generation = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REPORT_READY))).scalar_one(); assert generated_event.status == WorkflowEventStatus.UNREAD; assert generated_event.action_href == '/reports?tab=package'; assert ready_event_after_generation.status == WorkflowEventStatus.ARCHIVED
-async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_payloads(db, test_user, monkeypatch) -> None:
-    'AC19.12.3'; blocker_payload = {'state': 'blocked', 'action_href': '/audit', 'blocking_count': 1, 'blockers': [{'code': 'pending_review', 'label': 'Pending source review', 'count': 1, 'reason': 'Statement review must be completed before the package can be marked ready.', 'action_href': '/audit'}]}; empty_payload = {'state': 'draft', 'action_href': '/upload', 'blocking_count': 0, 'blockers': []}; current_payload = blocker_payload
-    async def fake_readiness(_db, **_kwargs): return current_payload
-    _override_readiness_for_test(fake_readiness); await sync_workflow_events_for_user(db, user_id=test_user.id); blocked_event = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED))).scalar_one(); current_payload = empty_payload; await sync_workflow_events_for_user(db, user_id=test_user.id); assert blocked_event.status == WorkflowEventStatus.ARCHIVED
-async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_processing(db, test_user, monkeypatch) -> None:
-    'AC19.12.3'; await _make_statement(db, test_user.id, original_filename='ready.csv', file_hash='2' * 64, institution='Ready Bank', status=BankStatementStatus.PARSED, stage1_status=Stage1Status.APPROVED, stage1_reviewed_at=datetime.now(UTC))
-    async def fake_readiness(_db, **_kwargs): return {'state': 'ready', 'action_href': '/reports?tab=package', 'blocking_count': 0, 'blockers': []}
-    _override_readiness_for_test(fake_readiness); status = await get_workflow_status(db, user_id=test_user.id); assert status.primary_state.value == 'ready'; assert status.next_action.type.value == 'open_report'; assert status.next_action.href == '/reports?tab=package'
+    "AC-platform.30.3 AC19.1.3"
+    valid = WorkflowEventCreate(
+        family=WorkflowEventFamily.SOURCE_UPLOADED,
+        severity=WorkflowEventSeverity.INFO,
+        title="Statement uploaded",
+        summary="Processing will start shortly.",
+        source_type="bank_statement",
+        source_id=uuid4(),
+        action_href="/statements/123",
+        report_impact=WorkflowReportImpact.PROCESSING,
+        dedupe_key="bank-statement:123:source.uploaded",
+        occurred_at=datetime.now(UTC),
+    )
+    assert valid.action_href == "/statements/123"
+    assert valid.report_impact == WorkflowReportImpact.PROCESSING
+    for href in ("https://example.com/review", "//example.com/review", "javascript:alert(1)", "statements/123"):
+        with pytest.raises(ValidationError):
+            WorkflowEventCreate(
+                family=WorkflowEventFamily.SOURCE_UPLOADED,
+                severity=WorkflowEventSeverity.INFO,
+                title="Statement uploaded",
+                summary="Processing will start shortly.",
+                source_type="bank_statement",
+                source_id=uuid4(),
+                action_href=href,
+                report_impact=WorkflowReportImpact.PROCESSING,
+                dedupe_key=f"bad:{href}",
+                occurred_at=datetime.now(UTC),
+            )
+    with pytest.raises(ValidationError):
+        WorkflowEventCreate(
+            family=WorkflowEventFamily.REPORT_READY,
+            severity=WorkflowEventSeverity.SUCCESS,
+            title="Report ready",
+            summary="The report can be opened.",
+            source_type="report",
+            source_id=uuid4(),
+            action_href="/reports/current",
+            report_impact="published",
+            dedupe_key="report:current:report.ready",
+            occurred_at=datetime.now(UTC),
+        )
+    with pytest.raises(ValidationError):
+        WorkflowEventResponse.model_validate(
+            SimpleNamespace(
+                id=uuid4(),
+                user_id=uuid4(),
+                occurred_at=datetime.now(UTC),
+                family=WorkflowEventFamily.REPORT_READY,
+                severity=WorkflowEventSeverity.SUCCESS,
+                status=WorkflowEventStatus.UNREAD,
+                title="Report ready",
+                summary="The report can be opened.",
+                source_type="report",
+                source_id=uuid4(),
+                action_href="/reports/current",
+                report_impact="published",
+                dedupe_key="report:current:report.ready",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+
+async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, test_user) -> None:
+    "AC-platform.30.4 AC19.1.4"
+    statement, _document = await _make_statement(db, test_user.id, original_filename="demo.csv", file_hash="a" * 64)
+    uploaded_events = (
+        select(WorkflowEvent)
+        .where(WorkflowEvent.user_id == test_user.id)
+        .where(WorkflowEvent.source_id == statement.id)
+        .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
+    )
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    first = (await db.execute(uploaded_events)).scalar_one()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    second = (await db.execute(uploaded_events)).scalar_one()
+    assert first.id == second.id
+    assert first.severity == WorkflowEventSeverity.INFO
+    assert first.status == WorkflowEventStatus.UNREAD
+    assert first.action_href == f"/statements/{statement.id}"
+    assert first.report_impact == WorkflowReportImpact.PROCESSING
+    assert first.session_id is not None
+
+
+async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user) -> None:
+    "AC-platform.30.5 AC19.1.5"
+    other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(other_user)
+    await db.flush()
+    event = await _seed_workflow_event(
+        db,
+        user_id=test_user.id,
+        payload=WorkflowEventCreate(
+            family=WorkflowEventFamily.REVIEW_REQUIRED,
+            severity=WorkflowEventSeverity.ACTION_REQUIRED,
+            title="Review required",
+            summary="One statement needs confirmation.",
+            source_type="bank_statement",
+            source_id=uuid4(),
+            action_href="/audit",
+            report_impact=WorkflowReportImpact.BLOCKED,
+            dedupe_key="bank-statement:review-required:test",
+            occurred_at=datetime.now(UTC),
+        ),
+    )
+    await db.flush()
+    assert [item.id for item in await list_workflow_events(db, user_id=test_user.id)] == [event.id]
+    assert await list_workflow_events(db, user_id=other_user.id) == []
+    assert (
+        await update_workflow_event_status(
+            db, event_id=event.id, user_id=other_user.id, status=WorkflowEventStatus.READ
+        )
+        is None
+    )
+    updated = await update_workflow_event_status(
+        db, event_id=event.id, user_id=test_user.id, status=WorkflowEventStatus.ARCHIVED
+    )
+    assert updated is not None
+    assert updated.status == WorkflowEventStatus.ARCHIVED
+    assert WorkflowEventResponse.model_validate(updated).status == WorkflowEventStatus.ARCHIVED
+
+
+async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None:
+    "AC-platform.32.1 AC19.3.1"
+    statement, document = await _make_statement(db, test_user.id, original_filename="original.csv", file_hash="e" * 64)
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.source_id == statement.id)
+        )
+    ).scalar_one()
+    event.status = WorkflowEventStatus.ARCHIVED
+    document.original_filename = "renamed.csv"
+    await db.flush()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events = (
+        (
+            await db.execute(
+                select(WorkflowEvent)
+                .where(WorkflowEvent.user_id == test_user.id)
+                .where(WorkflowEvent.source_id == statement.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(events) == 1
+    assert events[0].id == event.id
+    assert events[0].status == WorkflowEventStatus.ARCHIVED
+    assert "renamed.csv" in events[0].summary
+
+
+async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
+    "AC-platform.34.1 AC-platform.34.2 AC-platform.36.1 AC-platform.36.2 AC19.12.1 AC19.12.2 AC22.2.2 AC22.2.5"
+    statement, _document = await _make_statement(
+        db,
+        test_user.id,
+        original_filename="review.csv",
+        file_hash="1" * 64,
+        institution="Review Bank",
+        status=BankStatementStatus.PARSED,
+        stage1_status=Stage1Status.PENDING_REVIEW,
+    )
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+        )
+    ).scalar_one()
+    review_event.status = WorkflowEventStatus.READ
+    await db.flush()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    same_review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+        )
+    ).scalar_one()
+    assert same_review_event.id == review_event.id
+    assert same_review_event.status == WorkflowEventStatus.READ
+    assert same_review_event.severity == WorkflowEventSeverity.ACTION_REQUIRED
+    assert same_review_event.action_href == f"/statements/{same_review_event.source_id}"
+    statement.stage1_status = Stage1Status.APPROVED
+    statement.stage1_reviewed_at = datetime.now(UTC)
+    await db.flush()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    resolved_review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+        )
+    ).scalar_one()
+    completed_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_COMPLETED)
+        )
+    ).scalar_one()
+    assert resolved_review_event.status == WorkflowEventStatus.ARCHIVED
+    assert completed_event.status == WorkflowEventStatus.UNREAD
+    assert completed_event.severity == WorkflowEventSeverity.SUCCESS
+    assert completed_event.action_href == f"/statements/{statement.id}"
+
+
+async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure(db, test_user) -> None:
+    "AC19.12.2"
+    pending_statement, _pending_document = await _make_statement(
+        db,
+        test_user.id,
+        original_filename="null-stage1.csv",
+        file_hash="6" * 64,
+        institution="Review Bank",
+        status=BankStatementStatus.PARSED,
+        stage1_status=None,
+    )
+    rejected_by_review, _rejected_review_document = await _make_statement(
+        db,
+        test_user.id,
+        original_filename="review-rejected.csv",
+        file_hash="7" * 64,
+        institution="Review Bank",
+        status=BankStatementStatus.REJECTED,
+        stage1_status=Stage1Status.REJECTED,
+        stage1_reviewed_at=datetime.now(UTC),
+    )
+    rejected_by_parser, _rejected_parser_document = await _make_statement(
+        db,
+        test_user.id,
+        original_filename="parser-rejected.csv",
+        file_hash="8" * 64,
+        institution="Review Bank",
+        status=BankStatementStatus.REJECTED,
+        stage1_status=None,
+    )
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    pending_review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+            .where(WorkflowEvent.source_id == pending_statement.id)
+        )
+    ).scalar_one()
+    review_completed_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_COMPLETED)
+            .where(WorkflowEvent.source_id == rejected_by_review.id)
+        )
+    ).scalar_one()
+    parsing_failed_count = await db.scalar(
+        select(func.count(WorkflowEvent.id))
+        .where(WorkflowEvent.user_id == test_user.id)
+        .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_PARSING_FAILED)
+        .where(WorkflowEvent.source_id == rejected_by_review.id)
+    )
+    parsing_failed_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_PARSING_FAILED)
+            .where(WorkflowEvent.source_id == rejected_by_parser.id)
+        )
+    ).scalar_one()
+    assert pending_review_event.status == WorkflowEventStatus.UNREAD
+    assert pending_review_event.action_href == f"/statements/{pending_review_event.source_id}"
+    assert review_completed_event.status == WorkflowEventStatus.UNREAD
+    assert parsing_failed_count == 0
+    assert parsing_failed_event.status == WorkflowEventStatus.UNREAD
+    assert parsing_failed_event.action_href == f"/statements/{rejected_by_parser.id}"
+
+
+async def test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers(
+    db, test_user, monkeypatch
+) -> None:
+    "AC-platform.34.3 AC19.12.3"
+    blocker_payload = {
+        "state": "blocked",
+        "action_href": "/audit",
+        "blocking_count": 2,
+        "blockers": [
+            {
+                "code": "pending_review",
+                "label": "Pending source review",
+                "count": 2,
+                "reason": "Statement review must be completed before the package can be marked ready.",
+                "action_href": "/audit",
+            }
+        ],
+    }
+    ready_payload = {"state": "ready", "action_href": "/reports?tab=package", "blocking_count": 0, "blockers": []}
+    generated_payload = {
+        "state": "generated",
+        "action_href": "/reports?tab=package",
+        "blocking_count": 0,
+        "blockers": [],
+    }
+    current_payload = blocker_payload
+
+    async def fake_readiness(_db, **_kwargs):
+        return current_payload
+
+    _override_readiness_for_test(fake_readiness)
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    blocked_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+    blocked_event.status = WorkflowEventStatus.READ
+    await db.flush()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    same_blocked_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+    assert same_blocked_event.id == blocked_event.id
+    assert same_blocked_event.status == WorkflowEventStatus.READ
+    assert same_blocked_event.report_impact == WorkflowReportImpact.BLOCKED
+    current_payload = ready_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    archived_blocker = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+    ready_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_READY)
+        )
+    ).scalar_one()
+    assert archived_blocker.status == WorkflowEventStatus.ARCHIVED
+    assert ready_event.status == WorkflowEventStatus.UNREAD
+    assert ready_event.action_href == "/reports?tab=package"
+    current_payload = generated_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    generated_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_GENERATED)
+        )
+    ).scalar_one()
+    ready_event_after_generation = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_READY)
+        )
+    ).scalar_one()
+    assert generated_event.status == WorkflowEventStatus.UNREAD
+    assert generated_event.action_href == "/reports?tab=package"
+    assert ready_event_after_generation.status == WorkflowEventStatus.ARCHIVED
+
+
+async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_payloads(
+    db, test_user, monkeypatch
+) -> None:
+    "AC19.12.3"
+    blocker_payload = {
+        "state": "blocked",
+        "action_href": "/audit",
+        "blocking_count": 1,
+        "blockers": [
+            {
+                "code": "pending_review",
+                "label": "Pending source review",
+                "count": 1,
+                "reason": "Statement review must be completed before the package can be marked ready.",
+                "action_href": "/audit",
+            }
+        ],
+    }
+    empty_payload = {"state": "draft", "action_href": "/upload", "blocking_count": 0, "blockers": []}
+    current_payload = blocker_payload
+
+    async def fake_readiness(_db, **_kwargs):
+        return current_payload
+
+    _override_readiness_for_test(fake_readiness)
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    blocked_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+    current_payload = empty_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    assert blocked_event.status == WorkflowEventStatus.ARCHIVED
+
+
+async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_processing(
+    db, test_user, monkeypatch
+) -> None:
+    "AC19.12.3"
+    await _make_statement(
+        db,
+        test_user.id,
+        original_filename="ready.csv",
+        file_hash="2" * 64,
+        institution="Ready Bank",
+        status=BankStatementStatus.PARSED,
+        stage1_status=Stage1Status.APPROVED,
+        stage1_reviewed_at=datetime.now(UTC),
+    )
+
+    async def fake_readiness(_db, **_kwargs):
+        return {"state": "ready", "action_href": "/reports?tab=package", "blocking_count": 0, "blockers": []}
+
+    _override_readiness_for_test(fake_readiness)
+    status = await get_workflow_status(db, user_id=test_user.id)
+    assert status.primary_state.value == "ready"
+    assert status.next_action.type.value == "open_report"
+    assert status.next_action.href == "/reports?tab=package"
+
+
 async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
-    'AC-platform.34.4 AC19.12.4'
-    async def fake_readiness(_db, **_kwargs): return {'state': 'blocked', 'action_href': '/reconciliation?tab=review-queue', 'blocking_count': 3, 'blockers': [{'code': 'reconciliation_blocked', 'label': 'Reconciliation blockers', 'count': 2, 'reason': 'Pending reconciliation matches must be accepted or rejected.', 'action_href': '/reconciliation?tab=review-queue'}, {'code': 'processing_account_unresolved', 'label': 'Processing account unresolved', 'count': 1, 'reason': 'In-transit transfer legs must net to zero.', 'action_href': '/accounts/processing'}]}
-    _override_readiness_for_test(fake_readiness); await sync_workflow_events_for_user(db, user_id=test_user.id); events = (await db.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family.in_([WorkflowEventFamily.RECONCILIATION_BLOCKED, WorkflowEventFamily.REPORT_BLOCKED])).order_by(WorkflowEvent.family))).scalars().all(); assert [(event.family, event.action_href, event.source_type) for event in events] == [(WorkflowEventFamily.RECONCILIATION_BLOCKED, '/reconciliation?tab=review-queue', 'readiness_blocker'), (WorkflowEventFamily.REPORT_BLOCKED, '/accounts/processing', 'readiness_blocker')]; assert all((event.severity == WorkflowEventSeverity.BLOCKED for event in events)); assert all((event.report_impact == WorkflowReportImpact.BLOCKED for event in events))
+    "AC-platform.34.4 AC19.12.4"
+
+    async def fake_readiness(_db, **_kwargs):
+        return {
+            "state": "blocked",
+            "action_href": "/reconciliation?tab=review-queue",
+            "blocking_count": 3,
+            "blockers": [
+                {
+                    "code": "reconciliation_blocked",
+                    "label": "Reconciliation blockers",
+                    "count": 2,
+                    "reason": "Pending reconciliation matches must be accepted or rejected.",
+                    "action_href": "/reconciliation?tab=review-queue",
+                },
+                {
+                    "code": "processing_account_unresolved",
+                    "label": "Processing account unresolved",
+                    "count": 1,
+                    "reason": "In-transit transfer legs must net to zero.",
+                    "action_href": "/accounts/processing",
+                },
+            ],
+        }
+
+    _override_readiness_for_test(fake_readiness)
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events = (
+        (
+            await db.execute(
+                select(WorkflowEvent)
+                .where(WorkflowEvent.user_id == test_user.id)
+                .where(
+                    WorkflowEvent.family.in_(
+                        [WorkflowEventFamily.RECONCILIATION_BLOCKED, WorkflowEventFamily.REPORT_BLOCKED]
+                    )
+                )
+                .order_by(WorkflowEvent.family)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [(event.family, event.action_href, event.source_type) for event in events] == [
+        (WorkflowEventFamily.RECONCILIATION_BLOCKED, "/reconciliation?tab=review-queue", "readiness_blocker"),
+        (WorkflowEventFamily.REPORT_BLOCKED, "/accounts/processing", "readiness_blocker"),
+    ]
+    assert all((event.severity == WorkflowEventSeverity.BLOCKED for event in events))
+    assert all((event.report_impact == WorkflowReportImpact.BLOCKED for event in events))
+
+
 async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, test_user) -> None:
-    'AC19.3.1'; from sqlalchemy import event as sqlalchemy_event
-    for index in range(3): await _make_statement(db, test_user.id, original_filename=f'bulk-{index}.csv', file_hash=f'{index}' * 64)
-    await db.commit(); statements: list[str] = []
-    def capture_sql(_conn, _cursor, statement, _parameters, _context, _executemany) -> None: normalized = ' '.join(statement.lower().split()); statements.append(normalized) if normalized.startswith('select') and 'workflow_events' in normalized else None
-    sqlalchemy_event.listen(db_engine.sync_engine, 'before_cursor_execute', capture_sql)
-    try: await sync_workflow_events_for_user(db, user_id=test_user.id)
-    finally: sqlalchemy_event.remove(db_engine.sync_engine, 'before_cursor_execute', capture_sql)
-    assert len(statements) <= 3; assert 'source_id in (' in statements[0]
+    "AC19.3.1"
+    from sqlalchemy import event as sqlalchemy_event
+
+    for index in range(3):
+        await _make_statement(db, test_user.id, original_filename=f"bulk-{index}.csv", file_hash=f"{index}" * 64)
+    await db.commit()
+    statements: list[str] = []
+
+    def capture_sql(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        normalized = " ".join(statement.lower().split())
+        statements.append(normalized) if normalized.startswith("select") and "workflow_events" in normalized else None
+
+    sqlalchemy_event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+    try:
+        await sync_workflow_events_for_user(db, user_id=test_user.id)
+    finally:
+        sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+    assert len(statements) <= 3
+    assert "source_id in (" in statements[0]
+
+
 async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(db, db_engine, test_user) -> None:
-    'AC-platform.32.2 AC-platform.32.3 AC19.3.2 AC19.4.1 AC22.21.1 AC19.6.1'; from sqlalchemy import event as sqlalchemy_event; await _seed_workflow_event(db, user_id=test_user.id, payload=WorkflowEventCreate(family=WorkflowEventFamily.REVIEW_REQUIRED, severity=WorkflowEventSeverity.ACTION_REQUIRED, title='Review required', summary='One statement needs confirmation.', source_type='bank_statement', source_id=uuid4(), action_href='/audit', report_impact=WorkflowReportImpact.BLOCKED, dedupe_key='bank-statement:review-required:aggregate', occurred_at=datetime.now(UTC))); await _seed_workflow_event(db, user_id=test_user.id, payload=WorkflowEventCreate(family=WorkflowEventFamily.REPORT_PROCESSING, severity=WorkflowEventSeverity.INFO, title='Report processing', summary='Automation is running.', source_type='report', source_id=uuid4(), action_href='/reports', report_impact=WorkflowReportImpact.PROCESSING, dedupe_key='report:processing:aggregate', occurred_at=datetime.now(UTC))); await db.commit(); statements: list[str] = []
-    def capture_sql(_conn, _cursor, statement, _parameters, _context, _executemany) -> None: normalized = ' '.join(statement.lower().split()); statements.append(normalized) if 'workflow_events' in normalized else None
-    sqlalchemy_event.listen(db_engine.sync_engine, 'before_cursor_execute', capture_sql)
-    try: status = await get_workflow_status(db, user_id=test_user.id)
-    finally: sqlalchemy_event.remove(db_engine.sync_engine, 'before_cursor_execute', capture_sql)
-    count_queries = [statement for statement in statements if 'count(' in statement]; representative_queries = [statement for statement in statements if 'select workflow_events.' in statement and 'count(' not in statement and ('order by workflow_events.occurred_at desc' in statement)]; assert status.primary_state.value == 'needs_action'; assert len(count_queries) == 1; assert len(representative_queries) == 1
-async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user): 'AC-platform.36.3 AC22.4.1'; from tests.factories import AtomicTransactionFactory, ReconciliationMatchFactory; atomic_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id); await ReconciliationMatchFactory.create_async(db, atomic_txn_id=atomic_txn.id, journal_entry_ids=[]); await db.commit(); await sync_workflow_events_for_user(db, user_id=test_user.id); events = await list_workflow_events(db, user_id=test_user.id); recon = [e for e in events if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]; assert len(recon) == 1, 'pending Stage 2 matches must surface a single reconciliation-review card'; assert recon[0].action_href == '/reconciliation?tab=review-queue'; original_event_id = recon[0].id; await sync_workflow_events_for_user(db, user_id=test_user.id); events_again = await list_workflow_events(db, user_id=test_user.id); recon_again = [e for e in events_again if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]; assert len(recon_again) == 1; assert recon_again[0].id == original_event_id
+    "AC-platform.32.2 AC-platform.32.3 AC19.3.2 AC19.4.1 AC22.21.1 AC19.6.1"
+    from sqlalchemy import event as sqlalchemy_event
+
+    await _seed_workflow_event(
+        db,
+        user_id=test_user.id,
+        payload=WorkflowEventCreate(
+            family=WorkflowEventFamily.REVIEW_REQUIRED,
+            severity=WorkflowEventSeverity.ACTION_REQUIRED,
+            title="Review required",
+            summary="One statement needs confirmation.",
+            source_type="bank_statement",
+            source_id=uuid4(),
+            action_href="/audit",
+            report_impact=WorkflowReportImpact.BLOCKED,
+            dedupe_key="bank-statement:review-required:aggregate",
+            occurred_at=datetime.now(UTC),
+        ),
+    )
+    await _seed_workflow_event(
+        db,
+        user_id=test_user.id,
+        payload=WorkflowEventCreate(
+            family=WorkflowEventFamily.REPORT_PROCESSING,
+            severity=WorkflowEventSeverity.INFO,
+            title="Report processing",
+            summary="Automation is running.",
+            source_type="report",
+            source_id=uuid4(),
+            action_href="/reports",
+            report_impact=WorkflowReportImpact.PROCESSING,
+            dedupe_key="report:processing:aggregate",
+            occurred_at=datetime.now(UTC),
+        ),
+    )
+    await db.commit()
+    statements: list[str] = []
+
+    def capture_sql(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        normalized = " ".join(statement.lower().split())
+        statements.append(normalized) if "workflow_events" in normalized else None
+
+    sqlalchemy_event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+    try:
+        status = await get_workflow_status(db, user_id=test_user.id)
+    finally:
+        sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+    count_queries = [statement for statement in statements if "count(" in statement]
+    representative_queries = [
+        statement
+        for statement in statements
+        if "select workflow_events." in statement
+        and "count(" not in statement
+        and ("order by workflow_events.occurred_at desc" in statement)
+    ]
+    assert status.primary_state.value == "needs_action"
+    assert len(count_queries) == 1
+    assert len(representative_queries) == 1
+
+
+async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user):
+    "AC-platform.36.3 AC22.4.1"
+    from tests.factories import AtomicTransactionFactory, ReconciliationMatchFactory
+
+    atomic_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=atomic_txn.id, journal_entry_ids=[])
+    await db.commit()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events = await list_workflow_events(db, user_id=test_user.id)
+    recon = [e for e in events if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
+    assert len(recon) == 1, "pending Stage 2 matches must surface a single reconciliation-review card"
+    assert recon[0].action_href == "/reconciliation?tab=review-queue"
+    original_event_id = recon[0].id
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events_again = await list_workflow_events(db, user_id=test_user.id)
+    recon_again = [e for e in events_again if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
+    assert len(recon_again) == 1
+    assert recon_again[0].id == original_event_id
+
+
 async def test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500(db_engine, test_user) -> None:
-    'AC-platform.35.1 AC19.14.1'; sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False); source_id = uuid4(); payload = build_uploaded_statement_event_payload(SimpleNamespace(id=source_id, created_at=datetime.now(UTC)), 'concurrent.pdf')
-    async with sessionmaker() as first_session, sessionmaker() as second_session: first = await _seed_workflow_event(first_session, user_id=test_user.id, payload=payload); second_task = asyncio.create_task(_seed_workflow_event(second_session, user_id=test_user.id, payload=payload)); await asyncio.sleep(0.2); await first_session.commit(); second = await asyncio.wait_for(second_task, timeout=5); await second_session.commit()
-    async with sessionmaker() as verify_session: events = (await verify_session.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.dedupe_key == payload.dedupe_key))).scalars().all()
-    assert len(events) == 1; assert first.dedupe_key == payload.dedupe_key; assert second.dedupe_key == payload.dedupe_key
-async def test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction(db, test_user) -> None: 'AC-platform.35.2 AC19.14.2'; source_id = uuid4(); payload = build_uploaded_statement_event_payload(SimpleNamespace(id=source_id, created_at=datetime.now(UTC)), 'duplicate.pdf'); workflow_session = await get_or_create_active_workflow_session(db, user_id=test_user.id); existing = _workflow_event_from_payload(user_id=test_user.id, payload=payload, session_id=workflow_session.id); db.add(existing); await db.commit(); recovered = await _insert_workflow_event_conflict_safe(db, user_id=test_user.id, payload=payload, session_id=workflow_session.id); assert recovered.id == existing.id; await db.flush(); count = await db.scalar(select(func.count(WorkflowEvent.id)).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.dedupe_key == payload.dedupe_key)); assert count == 1
+    "AC-platform.35.1 AC19.14.1"
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    source_id = uuid4()
+    payload = build_uploaded_statement_event_payload(
+        SimpleNamespace(id=source_id, created_at=datetime.now(UTC)), "concurrent.pdf"
+    )
+    async with sessionmaker() as first_session, sessionmaker() as second_session:
+        first = await _seed_workflow_event(first_session, user_id=test_user.id, payload=payload)
+        second_task = asyncio.create_task(_seed_workflow_event(second_session, user_id=test_user.id, payload=payload))
+        await asyncio.sleep(0.2)
+        await first_session.commit()
+        second = await asyncio.wait_for(second_task, timeout=5)
+        await second_session.commit()
+    async with sessionmaker() as verify_session:
+        events = (
+            (
+                await verify_session.execute(
+                    select(WorkflowEvent)
+                    .where(WorkflowEvent.user_id == test_user.id)
+                    .where(WorkflowEvent.dedupe_key == payload.dedupe_key)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert len(events) == 1
+    assert first.dedupe_key == payload.dedupe_key
+    assert second.dedupe_key == payload.dedupe_key
+
+
+async def test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction(db, test_user) -> None:
+    "AC-platform.35.2 AC19.14.2"
+    source_id = uuid4()
+    payload = build_uploaded_statement_event_payload(
+        SimpleNamespace(id=source_id, created_at=datetime.now(UTC)), "duplicate.pdf"
+    )
+    workflow_session = await get_or_create_active_workflow_session(db, user_id=test_user.id)
+    existing = _workflow_event_from_payload(user_id=test_user.id, payload=payload, session_id=workflow_session.id)
+    db.add(existing)
+    await db.commit()
+    recovered = await _insert_workflow_event_conflict_safe(
+        db, user_id=test_user.id, payload=payload, session_id=workflow_session.id
+    )
+    assert recovered.id == existing.id
+    await db.flush()
+    count = await db.scalar(
+        select(func.count(WorkflowEvent.id))
+        .where(WorkflowEvent.user_id == test_user.id)
+        .where(WorkflowEvent.dedupe_key == payload.dedupe_key)
+    )
+    assert count == 1
+
+
 async def test_AC19_14_3_sync_tolerates_concurrent_event_creation(db_engine, test_user) -> None:
-    'AC-platform.35.3 AC19.14.3'; sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False); file_hash = uuid4().hex
-    async with sessionmaker() as setup_session: await _make_statement(setup_session, test_user.id, original_filename='race.pdf', file_hash=file_hash, status=BankStatementStatus.UPLOADED); await setup_session.commit()
-    async with sessionmaker() as first_session, sessionmaker() as second_session: await sync_workflow_events_for_user(first_session, user_id=test_user.id); second_task = asyncio.create_task(sync_workflow_events_for_user(second_session, user_id=test_user.id)); await asyncio.sleep(0.2); await first_session.commit(); await asyncio.wait_for(second_task, timeout=5); await second_session.commit()
-    async with sessionmaker() as verify_session: uploaded = (await verify_session.execute(select(WorkflowEvent).where(WorkflowEvent.user_id == test_user.id).where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED))).scalars().all()
+    "AC-platform.35.3 AC19.14.3"
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    file_hash = uuid4().hex
+    async with sessionmaker() as setup_session:
+        await _make_statement(
+            setup_session,
+            test_user.id,
+            original_filename="race.pdf",
+            file_hash=file_hash,
+            status=BankStatementStatus.UPLOADED,
+        )
+        await setup_session.commit()
+    async with sessionmaker() as first_session, sessionmaker() as second_session:
+        await sync_workflow_events_for_user(first_session, user_id=test_user.id)
+        second_task = asyncio.create_task(sync_workflow_events_for_user(second_session, user_id=test_user.id))
+        await asyncio.sleep(0.2)
+        await first_session.commit()
+        await asyncio.wait_for(second_task, timeout=5)
+        await second_session.commit()
+    async with sessionmaker() as verify_session:
+        uploaded = (
+            (
+                await verify_session.execute(
+                    select(WorkflowEvent)
+                    .where(WorkflowEvent.user_id == test_user.id)
+                    .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
+                )
+            )
+            .scalars()
+            .all()
+        )
     assert len(uploaded) == 1
+
+
 async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(db, test_user, monkeypatch) -> None:
-    'AC-platform.31.7 AC19.2.7'
-    async def fake_readiness(_db, **_kwargs): return {'state': 'blocked', 'action_href': '/reports?tab=package', 'blocking_count': 1, 'blockers': [{'code': 'balance_mismatch', 'label': 'Balance validation mismatch', 'count': 1, 'reason': 'Balance mismatch: expected 52754.77, got 52842.53.', 'action_href': '/audit'}]}
-    _override_readiness_for_test(fake_readiness); await sync_workflow_events_for_user(db, user_id=test_user.id); await db.flush(); status = await get_workflow_status(db, user_id=test_user.id); events = await list_workflow_events_response(db, user_id=test_user.id, limit=10); assert status.primary_state == WorkflowPrimaryState.BLOCKED; assert status.report_readiness.state == WorkflowReportReadinessState.BLOCKED; assert status.active_session is not None; active_summaries = [session for session in events.sessions if session.id == status.active_session.id]; assert active_summaries, 'events response must include the active session summary'; active_summary = active_summaries[0]; assert active_summary.primary_state == status.active_session.primary_state; assert active_summary.report_readiness.state == status.active_session.report_readiness.state; assert active_summary.primary_state == WorkflowPrimaryState.BLOCKED; assert active_summary.report_readiness.state == WorkflowReportReadinessState.BLOCKED
+    "AC-platform.31.7 AC19.2.7"
+
+    async def fake_readiness(_db, **_kwargs):
+        return {
+            "state": "blocked",
+            "action_href": "/reports?tab=package",
+            "blocking_count": 1,
+            "blockers": [
+                {
+                    "code": "balance_mismatch",
+                    "label": "Balance validation mismatch",
+                    "count": 1,
+                    "reason": "Balance mismatch: expected 52754.77, got 52842.53.",
+                    "action_href": "/audit",
+                }
+            ],
+        }
+
+    _override_readiness_for_test(fake_readiness)
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await db.flush()
+    status = await get_workflow_status(db, user_id=test_user.id)
+    events = await list_workflow_events_response(db, user_id=test_user.id, limit=10)
+    assert status.primary_state == WorkflowPrimaryState.BLOCKED
+    assert status.report_readiness.state == WorkflowReportReadinessState.BLOCKED
+    assert status.active_session is not None
+    active_summaries = [session for session in events.sessions if session.id == status.active_session.id]
+    assert active_summaries, "events response must include the active session summary"
+    active_summary = active_summaries[0]
+    assert active_summary.primary_state == status.active_session.primary_state
+    assert active_summary.report_readiness.state == status.active_session.report_readiness.state
+    assert active_summary.primary_state == WorkflowPrimaryState.BLOCKED
+    assert active_summary.report_readiness.state == WorkflowReportReadinessState.BLOCKED
+
+
 async def test_AC19_2_7_events_read_computes_readiness_once(db, test_user, monkeypatch) -> None:
-    'AC19.2.7'; call_count = 0
-    async def counting_readiness(_db, **_kwargs): nonlocal call_count; call_count += 1; return {'state': 'blocked', 'action_href': '/reports?tab=package', 'blocking_count': 1, 'blockers': [{'code': 'balance_mismatch', 'label': 'Balance validation mismatch', 'count': 1, 'reason': 'Balance mismatch: expected 52754.77, got 52842.53.', 'action_href': '/audit'}]}
-    _override_readiness_for_test(counting_readiness); events = await list_workflow_events_response(db, user_id=test_user.id, limit=10); assert call_count == 1, f'readiness must be computed once per events read, got {call_count}'; assert events.sessions, 'events response must include session summaries'; active = [s for s in events.sessions if s.primary_state == WorkflowPrimaryState.BLOCKED]; assert active, 'events response must surface the blocked active session'
+    "AC19.2.7"
+    call_count = 0
+
+    async def counting_readiness(_db, **_kwargs):
+        nonlocal call_count
+        call_count += 1
+        return {
+            "state": "blocked",
+            "action_href": "/reports?tab=package",
+            "blocking_count": 1,
+            "blockers": [
+                {
+                    "code": "balance_mismatch",
+                    "label": "Balance validation mismatch",
+                    "count": 1,
+                    "reason": "Balance mismatch: expected 52754.77, got 52842.53.",
+                    "action_href": "/audit",
+                }
+            ],
+        }
+
+    _override_readiness_for_test(counting_readiness)
+    events = await list_workflow_events_response(db, user_id=test_user.id, limit=10)
+    assert call_count == 1, f"readiness must be computed once per events read, got {call_count}"
+    assert events.sessions, "events response must include session summaries"
+    active = [s for s in events.sessions if s.primary_state == WorkflowPrimaryState.BLOCKED]
+    assert active, "events response must surface the blocked active session"

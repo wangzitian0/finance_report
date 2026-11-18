@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import shlex
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -33,34 +32,6 @@ def classify_stage(path: str) -> str | None:
     return next((rule.stage for rule in PATH_RULES if path.startswith(rule.path)), None)
 
 
-PACKAGE_TEST_DECLARATIONS: tuple[str, ...] = ("runtime", "ledger", "testing")
-
-
-def package_test_ownership() -> dict[str, str]:
-    """Aggregate declared test roots -> owning package."""
-    ownership: dict[str, str] = {}
-    for pkg in PACKAGE_TEST_DECLARATIONS:
-        contract = importlib.import_module(f"common.{pkg}.contract")
-        roots = getattr(contract, "TEST_ROOTS", None)
-        if not roots:
-            raise ValueError(
-                f"package {pkg!r} is in PACKAGE_TEST_DECLARATIONS but its "
-                "contract.py declares no TEST_ROOTS"
-            )
-        if isinstance(roots, str):
-            raise ValueError(
-                f"package {pkg!r}: TEST_ROOTS must be a tuple of paths, not a bare string"
-            )
-        for root in roots:
-            other = ownership.get(root)
-            if other is not None:
-                raise ValueError(
-                    f"test root {root!r} declared by both {other!r} and {pkg!r}"
-                )
-            ownership[root] = pkg
-    return ownership
-
-
 GENERATED_MATRIX_HEADER = (
     "# GENERATED from common/testing/matrix.py — do not hand-edit.\n"
     "# Regenerate: python tools/test_selection.py --emit-matrix\n"
@@ -79,9 +50,6 @@ def emit_execution_matrix_yaml() -> str:
                 f"    ci_required: {'true' if rule.ci_required else 'false'}",
             )
         )
-    lines.append("ownership:")
-    for root, pkg in sorted(package_test_ownership().items()):
-        lines.extend((f"  - path: {root}", f"    package: {pkg}"))
     return "\n".join(lines) + "\n"
 
 

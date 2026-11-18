@@ -1,5 +1,3 @@
-"""Workflow package contract."""
+"""Workflow package specification."""
 
-from common.workflow.contract import CONTRACT
-
-__all__ = ["CONTRACT"]
+__all__: list[str] = []

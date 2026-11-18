@@ -178,8 +178,8 @@ def _build_executed_proof(
             item, environ
         )
 
-    contract_path = Path(__file__).with_name("contract.py")
-    owner_digest = sha256(contract_path.read_bytes()).hexdigest()
+    owner_path = Path(__file__)
+    owner_digest = sha256(owner_path.read_bytes()).hexdigest()
     assertion_version = executed_proof_assertion_version(
         proof_id=proof.proof_id,
         scenario_id=proof.scenario_id,
