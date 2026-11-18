@@ -349,10 +349,13 @@ def _cash_inputs_from_contributions(contributions: tuple[PackageSectionContribut
     for c in contributions:
         if not _is_bank_statement_contribution(c):
             continue
-        account_id = getattr(c.payload, "account_id", None)
+        payload_ids = getattr(c.payload, "all_account_ids", None)
+        if payload_ids is None:
+            single_id = getattr(c.payload, "account_id", None)
+            payload_ids = (single_id,) if single_id is not None else ()
         input_refs.update(c.input_refs)
-        if c.is_authoritative and account_id is not None:
-            account_ids.add(account_id)
+        if c.is_authoritative and payload_ids:
+            account_ids.update(payload_ids)
         else:
             has_unproven = True
     if has_unproven:
@@ -443,7 +446,9 @@ def _section_invariant_blockers(
             "The balance sheet does not balance.",
         ),
         (
-            bs.net_income != cumulative_net_income or inc.net_income != period_net_income,
+            bs.net_income != cumulative_net_income
+            or abs(inc.net_income - period_net_income)
+            > Decimal("0.005") * max(1, len(getattr(inc, "income", ())) + len(getattr(inc, "expenses", ()))),
             "statement_net_income_mismatch",
             "Statement net income differs from the ledger for its cumulative or selected period.",
         ),

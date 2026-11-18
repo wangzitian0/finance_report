@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType
 from src.observability import get_logger
+from src.reporting.base.balance_sheet_calculator import calculate_balance_sheet_equation
 from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
 from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReportingFrameworkId, ReportLineId
 from src.reporting.extension.balance_sheet import generate_balance_sheet
@@ -256,9 +257,17 @@ async def assemble_framework_balance_sheet(
     net_income = raw_bs.get("net_income", Decimal("0.00"))
     unrealized_fx = raw_bs.get("unrealized_fx_gain_loss", Decimal("0.00"))
     net_worth_adjustment = raw_bs.get("net_worth_adjustment_gain_loss", Decimal("0.00"))
+    cta_adjustment = _quantize_money(raw_bs.get("cta_adjustment", Decimal("0.00")))
 
-    total_liab_equity_inc = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
-    equation_delta = _quantize_money(total_assets - total_liab_equity_inc)
+    totals = calculate_balance_sheet_equation(
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        total_equity=total_equity,
+        net_income=net_income,
+        unrealized_fx=unrealized_fx,
+        net_worth_adjustment=net_worth_adjustment,
+        cta_adjustment=cta_adjustment,
+    )
 
     return {
         "as_of_date": as_of_date,
@@ -267,19 +276,20 @@ async def assemble_framework_balance_sheet(
         "liabilities": liabilities_list,
         "equity": equity_list,
         "provenance": raw_bs.get("provenance"),
-        "total_assets": _quantize_money(total_assets),
-        "total_liabilities": _quantize_money(total_liabilities),
-        "total_equity": _quantize_money(total_equity),
+        "total_assets": totals.total_assets,
+        "total_liabilities": totals.total_liabilities,
+        "total_equity": totals.total_equity,
         "net_income": net_income,
         "unrealized_fx_gain_loss": unrealized_fx,
         "net_worth_adjustment_gain_loss": net_worth_adjustment,
+        "cta_adjustment": totals.cta_adjustment,
         "fx_warnings": raw_bs.get("fx_warnings", []),
         "portfolio_warnings": raw_bs.get("portfolio_warnings", []),
         "opening_balance_warnings": raw_bs.get("opening_balance_warnings", []),
         # The classes that the scope leaves out; the package notes name each one (#2645).
         "excluded_holdings": raw_bs["excluded_holdings"],
-        "equation_delta": equation_delta,
-        "is_balanced": abs(equation_delta) < Decimal("0.01"),
+        "equation_delta": totals.equation_delta,
+        "is_balanced": abs(totals.equation_delta) < Decimal("0.01"),
     }
 
 

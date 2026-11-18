@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import Date, and_, cast, func, literal, or_, select, text
+from sqlalchemy import Date, and_, cast, func, literal, or_, select, text, union
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money.currency import normalize_currency_code
@@ -87,7 +87,12 @@ async def coverage_bank_custody_account_ids(
     )
     result_start = cast(func.nullif(StatementExtractionResultRecord.payload["period_start"].astext, ""), Date)
     period_start = func.coalesce(envelope_start, result_start, StatementSummary.period_start)
-    custody_cte = (
+    is_bank_source = or_(
+        StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
+        StatementExtractionResultRecord.payload["evidence_type"].astext
+        == StatementEvidenceType.TRANSACTION_LEDGER.value,
+    )
+    primary_accounts = (
         select(StatementSummary.account_id.label("account_id"))
         .join(
             StatementExtractionResultRecord,
@@ -97,15 +102,34 @@ async def coverage_bank_custody_account_ids(
             StatementSummary.user_id == user_id,
             StatementSummary.account_id.is_not(None),
             period_start <= as_of,
-            or_(
-                StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
-                StatementExtractionResultRecord.payload["evidence_type"].astext
-                == StatementEvidenceType.TRANSACTION_LEDGER.value,
+            is_bank_source,
+        )
+    )
+    secondary_accounts = (
+        select(BankCustodyBinding.account_id.label("account_id"))
+        .join(
+            StatementSummary,
+            and_(
+                StatementSummary.user_id == BankCustodyBinding.user_id,
+                StatementSummary.institution == BankCustodyBinding.institution,
+                StatementSummary.account_last4 == BankCustodyBinding.account_last4,
             ),
         )
-        .distinct()
-        .cte("custody_accounts")
+        .join(
+            StatementExtractionResultRecord,
+            StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
+        )
+        .join(Account, Account.id == BankCustodyBinding.account_id)
+        .where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.account_last4.is_not(None),
+            period_start <= as_of,
+            is_bank_source,
+            Account.type == AccountType.ASSET,
+            Account.is_active.is_(True),
+        )
     )
+    custody_cte = union(primary_accounts, secondary_accounts).cte("custody_accounts")
     latest_cte = (
         select(func.max(StatementSummary.period_end).label("latest_end"))
         .where(

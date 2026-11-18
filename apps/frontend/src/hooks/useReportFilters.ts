@@ -111,10 +111,12 @@ export interface ReportFilters {
   ready: boolean;
 }
 
-/** The fields of `GET /reports/coverage` that the default view and `All` read (#2646, #2726). */
+/** The fields of `GET /reports/coverage` that the default view and `All` read (#2646, #2726, #3128). */
 export interface ReportCoverageViewModel {
-  /** `coverage_start`. Null applies no bound. */
+  /** `coverage_start`: latest cash account opening position. Null applies no bound. */
   start: string | null;
+  /** `earliest_start`: earliest cash account opening position (`All` preset bound). */
+  earliestStart?: string | null;
   /** `limiting_accounts`: the names of the cash accounts whose opening balance is on `start`. */
   limitingAccounts: readonly string[];
   /** `latest_statement_end`: the latest approved statement period end on or before `as_of_date`. */
@@ -197,9 +199,11 @@ export function readReportFilters(
     : { startDate: start, endDate: end || today };
   const { endDate } = range;
   const usesCoverageBound = isDefaultPeriod || preset === "All";
+  const rawBound =
+    preset === "All" ? (coverage?.earliestStart ?? coverage?.start) : coverage?.start;
   const bound =
-    usesCoverageBound && coverage?.start && isValidReportDate(coverage.start) ? coverage.start : null;
-  // The default view and `All` start no earlier than the coverage start (#2646, #2726).
+    usesCoverageBound && rawBound && isValidReportDate(rawBound) ? rawBound : null;
+  // Default view starts at `coverage_start`; `All` uses earliest history (`earliest_start ?? coverage_start`) (#2646, #2726, #3128).
   const reachesCoverageStart = bound !== null && range.startDate <= bound && bound <= endDate;
   const startDate = reachesCoverageStart ? bound : range.startDate;
   const openingDate = reachesCoverageStart ? bound : preset === "All" ? null : dayBefore(startDate);
@@ -274,16 +278,18 @@ export function useReportFilters(): UseReportFiltersResult {
     { staleTime: SHARED_STALE_MS, enabled: usesCoverageBound },
   );
   const coverageStart = coverage.data?.coverage_start ?? null;
+  const earliestStart = coverage.data?.earliest_start ?? null;
   const limitingAccounts = coverage.data?.limiting_accounts;
   const latestStatementEnd = coverage.data?.latest_statement_end ?? null;
   const filters = useMemo(
     () =>
       readReportFilters(new URLSearchParams(search), new Date(), {
         start: coverageStart,
+        earliestStart,
         limitingAccounts: limitingAccounts ?? [],
         latestStatementEnd,
       }),
-    [search, coverageStart, limitingAccounts, latestStatementEnd],
+    [search, coverageStart, earliestStart, limitingAccounts, latestStatementEnd],
   );
 
   const update = useCallback(

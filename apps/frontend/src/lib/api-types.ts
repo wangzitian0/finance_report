@@ -1650,6 +1650,7 @@ export interface components {
     ReportCoverageResponse: {
       as_of_date: string;
       coverage_start?: string | null;
+      earliest_start?: string | null;
       latest_statement_end?: string | null;
       limiting_accounts?: string[];
     };
