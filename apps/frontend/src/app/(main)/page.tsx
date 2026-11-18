@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
+import { AdvisorBrief } from "@/components/chat/AdvisorBrief";
 import { HomeActionBanner } from "@/components/home/HomeActionBanner";
 import { ReportDimensionBar, StatementCockpit } from "@/components/reports/ReportShell";
 import { useApiQuery } from "@/hooks/useApiQuery";

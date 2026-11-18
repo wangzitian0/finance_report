@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { APP_ROUTES } from "@/components/navigation";
 import UnmatchedBoard from "@/components/reconciliation/UnmatchedBoard";
-import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
+import { Stage2ReviewQueue } from "@/components/reconciliation/Stage2ReviewQueue";
 import { LoadingState } from "@/components/ui";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { apiOperation } from "@/lib/api";
@@ -32,7 +32,9 @@ const TABS = [
 
 export default function ReconciliationWorkbench() {
   const queryClient = useQueryClient();
-  const tabParam = useSearchParams()?.get("tab");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams?.get("tab");
+  const runIdParam = searchParams?.get("run_id") ?? undefined;
   const [selected, setSelected] = useState<ReconciliationMatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,7 +164,7 @@ export default function ReconciliationWorkbench() {
       ) : activeTab === "unmatched" ? (
         <UnmatchedBoard />
       ) : activeTab === "review-queue" ? (
-        <Stage2ReviewQueue />
+        <Stage2ReviewQueue runId={runIdParam} />
       ) : (
         <>
           <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">

@@ -7,7 +7,7 @@ import {
   RunSummaryPanel,
   Stage2Filters,
   Stage2ReviewQueue,
-} from "@/components/review/Stage2ReviewQueue";
+} from "@/components/reconciliation/Stage2ReviewQueue";
 import { checkSeverityColor, checkTypeLabel } from "@/lib/statusLabels";
 import type { ConsistencyCheck, PendingMatch } from "@/lib/types";
 import { apiOperation } from "@/lib/api";

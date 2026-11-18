@@ -134,7 +134,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "apps/frontend/src/app/(main)/upload/",
             "apps/frontend/src/app/(main)/statements/",
             "apps/frontend/src/components/statements/",
-            "apps/frontend/src/components/review/",
         ),
     ),
     _e2e(
@@ -207,6 +206,7 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         frontend_paths=(
             "apps/frontend/src/app/(main)/portfolio/",
             "apps/frontend/src/components/portfolio/",
+            "apps/frontend/src/components/pricing/PriceUpdateForm.tsx",
         ),
     ),
     _e2e(
@@ -258,7 +258,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         frontend_paths=(
             "apps/frontend/src/app/(main)/reconciliation/",
             "apps/frontend/src/components/reconciliation/",
-            "apps/frontend/src/components/review/Stage2ReviewQueue.tsx",
         ),
     ),
     _e2e(
@@ -271,7 +270,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "apps/frontend/src/components/settings/",
             "apps/frontend/src/components/accounts/",
             "apps/frontend/src/components/statements/",
-            "apps/frontend/src/components/review/StatementReview.tsx",
         ),
     ),
 )

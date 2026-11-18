@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
 import StatementUploader from "@/components/statements/StatementUploader";
-import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
-import { ProcessingTransfers } from "@/components/statements/ProcessingTransfers";
+import GuidedEvidenceForm from "@/components/pricing/GuidedEvidenceForm";
+import { ProcessingTransfers } from "@/components/reconciliation/ProcessingTransfers";
 import { StatementCoverageCard } from "@/components/statements/StatementCoverageCard";
 import { FlowStepBanner, WorkflowNotices } from "@/components/workflow/WorkflowNotifications";
 import { InfoHint } from "@/components/ui/InfoHint";

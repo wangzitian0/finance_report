@@ -5,7 +5,7 @@ import { FileText, PencilLine } from "lucide-react";
 
 import { Sheet } from "@/components/ui/Overlay";
 import StatementUploader from "@/components/statements/StatementUploader";
-import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
+import GuidedEvidenceForm from "@/components/pricing/GuidedEvidenceForm";
 
 type AddMode = "menu" | "upload" | "manual";
 

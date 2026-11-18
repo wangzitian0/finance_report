@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
-import { BrokerageImportResultBanner, StatementHeader } from "@/components/review/StatementReview";
+import { BrokerageImportResultBanner, StatementHeader } from "@/components/statements/StatementReview";
 import { apiOperation } from "@/lib/api";
 import { formatPeriod } from "@/lib/date";
 import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";

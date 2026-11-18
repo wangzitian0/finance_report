@@ -16,7 +16,7 @@ import {
   useAiSuggestions,
 } from "@/components/audit/AuditPanels";
 import { auditHubItems } from "@/components/navigation";
-import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
+import { Stage2ReviewQueue } from "@/components/reconciliation/Stage2ReviewQueue";
 import { LoadingState, PageHeader } from "@/components/ui";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAttentionQueue } from "@/hooks/useAttentionQueue";
@@ -121,7 +121,12 @@ export default function AuditPage() {
             <NeedsConfirmationQueue />
             {runId && (
               <section aria-labelledby="run-review-heading" className="space-y-3">
-                <h2 id="run-review-heading" className="text-sm font-semibold">Review this reconciliation run</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 id="run-review-heading" className="text-sm font-semibold">Review this reconciliation run</h2>
+                  <Link href={`/reconciliation?tab=review-queue&run_id=${encodeURIComponent(runId)}`} className="text-xs font-medium text-[var(--accent)] hover:underline">
+                    Open in Reconciliation Review queue
+                  </Link>
+                </div>
                 <Stage2ReviewQueue embedded runId={runId} />
               </section>
             )}
