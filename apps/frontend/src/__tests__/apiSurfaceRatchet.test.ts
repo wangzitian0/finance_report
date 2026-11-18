@@ -105,7 +105,7 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     proofPaths: [
       "tests/benchmarks/cases/case_5.py",
       "tests/e2e/test_four_asset_net_worth_golden_path.py",
-      "tests/tooling/test_post_merge_e2e_gates.py",
+      "apps/backend/tests/assets/test_manual_valuation_snapshots.py",
     ],
   },
   market_data_status_endpoint_pricing_market_data_status_get: {
