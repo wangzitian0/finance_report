@@ -120,7 +120,7 @@ async def test_AC_audit_39_7_only_boundary_modules_read_settings_base_currency()
 
 
 async def test_AC_audit_39_8_usd_user_reports_and_revaluation_use_user_effective_base_currency(
-    db: AsyncSession, test_user: User
+    client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
     "AC-audit.39.8"
     assert Currency(settings.base_currency).code == "SGD"
@@ -180,17 +180,34 @@ async def test_AC_audit_39_8_usd_user_reports_and_revaluation_use_user_effective
         ]
     )
     await db.commit()
-    reval = await calculate_unrealized_fx_gains(db, test_user.id, report_day)
+    with pytest.raises(ValueError, match="base_currency is required"):
+        await calculate_unrealized_fx_gains(db, test_user.id, report_day)
+    with pytest.raises(ValueError, match="base_currency is required"):
+        await generate_balance_sheet(db, test_user.id, as_of_date=report_day)
+    with pytest.raises(ValueError, match="base_currency is required"):
+        await generate_income_statement(db, test_user.id, start_date=date(2025, 3, 1), end_date=report_day)
+    resolved_base = await get_effective_base_currency(db, user_id=test_user.id)
+    assert resolved_base == "USD"
+    reval = await calculate_unrealized_fx_gains(db, test_user.id, report_day, base_currency=resolved_base)
     assert reval.base_currency == "USD"
     assert len(reval.accounts_revalued) == 1
     assert reval.accounts_revalued[0].account_currency == "EUR"
     assert reval.total_unrealized_gain_loss == Decimal("10.00")
-    bs = await generate_balance_sheet(db, test_user.id, as_of_date=report_day)
+    bs_resp = await client.get(f"/reports/balance-sheet?as_of_date={report_day.isoformat()}")
+    assert bs_resp.status_code == 200, bs_resp.text
+    bs = bs_resp.json()
     assert bs["currency"] == "USD"
-    assert bs["total_assets"] == Decimal("320.00")
-    assert bs["unrealized_fx_gain_loss"] == Decimal("10.00")
+    assert Decimal(str(bs["total_assets"])) == Decimal("320.00")
+    assert Decimal(str(bs["unrealized_fx_gain_loss"])) == Decimal("10.00")
     assert bs["is_balanced"] is True
-    inc = await generate_income_statement(db, test_user.id, start_date=date(2025, 3, 1), end_date=report_day)
+    inc_resp = await client.get(
+        f"/reports/income-statement?start_date=2025-03-01&end_date={report_day.isoformat()}"
+    )
+    assert inc_resp.status_code == 200, inc_resp.text
+    inc = inc_resp.json()
     assert inc["currency"] == "USD"
-    assert inc["total_income"] == Decimal("310.00")
-    assert inc["unrealized_fx_gain_loss"] == Decimal("10.00")
+    assert Decimal(str(inc["total_income"])) == Decimal("310.00")
+    inc_domain = await generate_income_statement(
+        db, test_user.id, start_date=date(2025, 3, 1), end_date=report_day, currency=resolved_base, base_currency=resolved_base
+    )
+    assert inc_domain["unrealized_fx_gain_loss"] == Decimal("10.00")

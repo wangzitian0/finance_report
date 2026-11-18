@@ -6,7 +6,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config_app import get_effective_base_currency
 from src.extraction.extension.statement_summary import resolve_custody_account_id
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
@@ -18,6 +17,7 @@ from src.ledger import (
     detect_transfer_pattern,
 )
 from src.observability import get_logger
+from src.platform import require_base_currency
 from src.reconciliation.base import ReconciliationRepository
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
 
@@ -31,21 +31,20 @@ async def run_transfer_detection_phase(
     matched_txn_ids: set[UUID],
     repository: ReconciliationRepository,
     user_id: UUID,
+    base_currency: str | None = None,
 ) -> list[ReconciliationMatch]:
     """Materialize transfer fallback only after normal candidates are exhausted."""
     created_matches: list[ReconciliationMatch] = []
-    base_currency: str | None = None
+    resolved_base_currency = require_base_currency(base_currency)
     for txn in transactions:
         if txn.id in matched_txn_ids or not detect_transfer_pattern(txn.description):
             continue
-        if base_currency is None:
-            base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
-        if (txn.currency or "").upper() != base_currency:
+        if (txn.currency or "").upper() != resolved_base_currency:
             logger.info(
                 "Transfer detected in another currency - skipping Processing entry",
                 txn_id=str(txn.id),
                 txn_currency=txn.currency,
-                base_currency=base_currency,
+                base_currency=resolved_base_currency,
             )
             continue
 

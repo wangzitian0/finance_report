@@ -126,7 +126,7 @@ async def test_get_workflow_status_steady_read_is_read_only_and_bounded(
     assert cold.status_code == 200, cold.text
     assert _writes(cold_statements) == []
 
-    await ensure_workflow_events_synced(db, user_id=test_user.id)
+    await ensure_workflow_events_synced(db, user_id=test_user.id, base_currency='SGD')
     await db.commit()
 
     statements, detach = _capture_sql(db_engine)

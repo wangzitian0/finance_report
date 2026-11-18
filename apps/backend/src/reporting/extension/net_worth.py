@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.audit.ratio import Ratio
-from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
+from src.platform import require_base_currency
 from src.pricing import (
     ManualValuationLiquidityClass,
     PrefetchedFxRates,
@@ -191,15 +191,17 @@ async def get_net_worth_allocation_schedule(
     *,
     as_of_date: date,
     currency: str | None = None,
+    base_currency: str | None = None,
     include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> dict[str, object]:
     """Return signed net-worth allocation rows grouped by asset/liquidity/currency."""
-    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
+    target_currency = _normalize_currency(require_base_currency(currency or base_currency))
     balance_sheet = await generate_balance_sheet(
         db,
         user_id,
         as_of_date=as_of_date,
         currency=target_currency,
+        base_currency=base_currency,
         include_restricted=include_restricted,
     )
     portfolio_basis_by_account = await _portfolio_market_basis_by_account(
@@ -255,7 +257,7 @@ async def get_account_trend(
     currency: str | None = None,
 ) -> dict[str, object]:
     """Get account trend data for a period granularity."""
-    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
+    target_currency = _normalize_currency(require_base_currency(currency))
     account = (
         await db.execute(select(Account).where(Account.id == account_id, Account.user_id == user_id))
     ).scalar_one_or_none()
@@ -490,7 +492,7 @@ async def get_net_worth_timeseries(
     if granularity == "monthly":
         start_date = _monthly_series_start(start_date, end_date)
 
-    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
+    target_currency = _normalize_currency(require_base_currency(currency))
     spans = _iter_periods(start_date, end_date, granularity)
     point_dates = [span.start if granularity == "daily" else span.end for span in spans]
 
@@ -564,7 +566,7 @@ async def get_category_breakdown(
     """Get breakdown totals by category (account) for a period."""
     if breakdown_type not in (AccountType.INCOME, AccountType.EXPENSE):
         raise ReportError("Breakdown type must be income or expense")
-    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
+    target_currency = _normalize_currency(require_base_currency(currency))
     today = date.today()
 
     if period == "monthly":

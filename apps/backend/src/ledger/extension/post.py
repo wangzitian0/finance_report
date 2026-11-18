@@ -7,10 +7,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config_app import get_effective_base_currency
 from src.ledger.base.types.entry import Entry
 from src.ledger.extension.anchored_posting import submit_system_journal_entry
 from src.ledger.orm.journal import JournalEntry
+from src.platform import require_base_currency
 
 
 async def post_entry(
@@ -25,8 +25,7 @@ async def post_entry(
     operation: str = "typed-post-entry",
 ) -> JournalEntry:
     """Persist a balanced :class:`Entry` under a deterministic system decision."""
-    if base_currency is None:
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+    base_currency = require_base_currency(base_currency)
     lines_data = [
         {
             "account_id": leg.account_id,

@@ -17,11 +17,10 @@ from src.audit import (
     normalize_currency_code,
     to_money,
 )
-from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
-from src.platform import ValidationFailedError
+from src.platform import ValidationFailedError, require_base_currency
 from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
@@ -72,7 +71,7 @@ async def generate_annualized_income_schedule(
     )
     income_rows = income_result.all()
 
-    reporting_currency = normalize_currency_code(currency or await get_effective_base_currency(db, user_id=user_id))
+    reporting_currency = normalize_currency_code(require_base_currency(currency))
     target_ccy = Currency(reporting_currency)
     snapshots = (
         await list_current_manual_valuation_facts(

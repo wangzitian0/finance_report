@@ -12,11 +12,11 @@ def test_AC12_40_2_placeholder_cannot_masquerade_as_real_currency():
 @ac_proof(proof_id='test_promotion_gate_blocks_unresolved', ac_ids=['AC-audit.40.4'], ci_tier='pr_ci', issue='#1341')
 async def test_AC12_40_4_promotion_gate_blocks_unresolved_currency():
     'AC-audit.40.4 AC12.40.4'; user_id = uuid4(); txn = SimpleNamespace(id=uuid4(), user_id=user_id, currency_unresolved=True, currency=UNRESOLVED_PLACEHOLDER, txn_date=date(2024, 1, 1))
-    with pytest.raises(CurrencyUnresolvedError): await create_entry_from_txn(None, txn, user_id=user_id)
+    with pytest.raises(CurrencyUnresolvedError): await create_entry_from_txn(None, txn, user_id=user_id, base_currency='SGD')
 @ac_proof(proof_id='test_promotion_gate_allows_resolved', ac_ids=['AC-audit.40.4'], ci_tier='pr_ci', issue='#1341')
 async def test_AC12_40_4_promotion_gate_passes_guard_when_resolved():
     'AC-audit.40.4 AC12.40.4'; user_id = uuid4(); txn = SimpleNamespace(id=uuid4(), user_id=user_id, currency_unresolved=False, currency='USD', txn_date=date(2024, 1, 1), source_documents=[])
-    with pytest.raises(Exception) as exc_info: await create_entry_from_txn(None, txn, user_id=user_id)
+    with pytest.raises(Exception) as exc_info: await create_entry_from_txn(None, txn, user_id=user_id, base_currency='SGD')
     assert not isinstance(exc_info.value, CurrencyUnresolvedError)
 class _FakeResult:
     def __init__(self, obj): self._obj = obj

@@ -105,6 +105,7 @@ async def run_balance_sheet_diagnostics(
     *,
     as_of_date: date | None = None,
     currency: str | None = None,
+    base_currency: str | None = None,
     include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> EquationDiagnosticResult:
     """Execute end-to-end accounting equation diagnostics against ledger & statements."""
@@ -118,6 +119,7 @@ async def run_balance_sheet_diagnostics(
         user_id,
         as_of_date=report_date,
         currency=currency,
+        base_currency=base_currency,
         include_restricted=include_restricted,
     )
     pending_count = (

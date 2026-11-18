@@ -79,6 +79,7 @@ _MODULES: dict[str, tuple[str, ...]] = {
         "package_snapshot_document",
         "package_snapshot_response",
         "package_snapshot_summary",
+        "package_snapshot_zip",
     ),
     "src.reporting.extension.report_traceability": ("build_personal_report_package_traceability_payload",),
     "src.reporting.extension.reporting_calc": (
@@ -180,6 +181,7 @@ __all__ = [
     "package_snapshot_document",
     "package_snapshot_response",
     "package_snapshot_summary",
+    "package_snapshot_zip",
     "render_balance_sheet_csv",
     "render_cash_flow_csv",
     "render_income_statement_csv",
@@ -278,6 +280,7 @@ if TYPE_CHECKING:
         package_snapshot_document,
         package_snapshot_response,
         package_snapshot_summary,
+        package_snapshot_zip,
     )
     from src.reporting.extension.report_traceability import build_personal_report_package_traceability_payload
     from src.reporting.extension.reporting_calc import (

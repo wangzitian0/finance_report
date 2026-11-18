@@ -12,10 +12,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
-from src.config_app import get_effective_base_currency
 from src.extraction import BankStatementStatus, StatementSummary
 from src.ledger import Account, JournalEntry, JournalEntryStatus, account_service
 from src.observability import get_logger
+from src.platform import require_base_currency
 from src.pricing import NoObservationError, PricingError
 from src.reconciliation import get_reconciliation_stats
 from src.reporting.base.data_quality_types import (
@@ -109,22 +109,29 @@ async def compute_personal_data_quality(
     *,
     as_of_date: date | None = None,
     currency: str | None = None,
+    base_currency: str | None = None,
 ) -> PersonalDataQualityHealthResponse:
     """Compute complete financial data quality, invariants, timeline, and actions."""
     report_date = as_of_date or date.today()
-    report_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
+    resolved_base = require_base_currency(base_currency or currency)
+    report_currency = _normalize_currency(currency or resolved_base)
 
     fx_gap: FxGap | None = None
     try:
         diag_result = await run_balance_sheet_diagnostics(
-            db, user_id, as_of_date=report_date, currency=report_currency
+            db, user_id, as_of_date=report_date, currency=report_currency, base_currency=resolved_base
         )
     except ReportError as exc:
         if not isinstance(exc.__cause__, PricingError):
             raise
         fx_gap = FxGap(message=str(exc), rate_missing=isinstance(exc.__cause__, NoObservationError))
         diag_result = await run_balance_sheet_diagnostics(
-            db, user_id, as_of_date=report_date, currency=report_currency, include_restricted=False
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=report_currency,
+            include_restricted=False,
+            base_currency=resolved_base,
         )
     equation_healthy = diag_result.is_balanced
     equation_status = InvariantStatus(

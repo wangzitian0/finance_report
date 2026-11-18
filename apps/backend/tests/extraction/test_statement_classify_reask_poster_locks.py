@@ -108,13 +108,13 @@ async def _post_a_reviewed_disposition(poster, user, txn, draft) -> None:
             rationale="Reviewed.",
         ),
         dependencies=compose_reviewed_disposition_dependencies(poster),
-    )
+    base_currency='SGD',)
 
 
 async def _post_a_named_transfer(poster, user, txn, _draft) -> None:
     """The row is locked now, by the claim of the reconciliation repository."""
     row = await poster.get(AtomicTransaction, txn.id)
-    legs = await post_named_transfer_legs(poster, user_id=user.id, named=[NamedTransfer(row, "TRANSFER", 88)])
+    legs = await post_named_transfer_legs(poster, user_id=user.id, named=[NamedTransfer(row, "TRANSFER", 88)], base_currency='SGD')
     assert len(legs) == 1
 
 

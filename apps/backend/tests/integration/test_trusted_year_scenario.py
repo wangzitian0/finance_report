@@ -153,7 +153,7 @@ async def _ingest_reviewed_bank_statement(db, *, user_id, bank: Account, securit
             money=Money(investment_txn.amount, investment_txn.currency),
             event_type="investment_buy",
             tags={"asset_identifier": TRUSTED_YEAR_SCENARIO.position.symbol},
-        ),
+        ), base_currency='SGD',
     )
     source_record = await db.get(StatementExtractionResultRecord, statement.current_extraction_result_id)
     assert source_record is not None
@@ -386,7 +386,7 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
         entry_date=date(2025, 12, 31),
         balances={bank.id: scenario.opening_cash, securities.id: Decimal("0")},
         currency="SGD",
-        memo="TrustedYearScenario v0 opening cash",
+        memo="TrustedYearScenario v0 opening cash", base_currency='SGD',
     )
     await _ingest_reviewed_bank_statement(db, user_id=test_user.id, bank=bank, securities_id=securities.id)
     await _import_brokerage_position(db, user_id=test_user.id)

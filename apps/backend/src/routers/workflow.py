@@ -25,7 +25,7 @@ async def get_workflow_status_endpoint(
     ctx: ReadCtx,
 ) -> WorkflowStatusResponse:
     """Return the compact user-scoped upload-to-report workflow status."""
-    return await get_workflow_status(ctx.db, user_id=ctx.user_id)
+    return await get_workflow_status(ctx.db, user_id=ctx.user_id, base_currency=await ctx.get_base_currency())
 
 
 @router.get("/events", response_model=WorkflowEventListResponse)
@@ -40,6 +40,7 @@ async def list_workflow_events_endpoint(
         user_id=ctx.user_id,
         status=status_filter,
         limit=limit,
+        base_currency=await ctx.get_base_currency(),
     )
 
 
@@ -56,6 +57,7 @@ async def update_workflow_event_status_endpoint(
         event_id=event_id,
         user_id=user_id,
         status=payload.status,
+        base_currency=await ctx.get_base_currency(),
     )
     if event is None:
         raise ResourceNotFoundError("Workflow event not found")

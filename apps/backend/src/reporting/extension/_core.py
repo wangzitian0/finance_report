@@ -12,7 +12,6 @@ from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.config_app import get_effective_base_currency
 from src.ledger import (
     Account,
     AccountType,
@@ -23,6 +22,7 @@ from src.ledger import (
 )
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
+from src.platform import require_base_currency
 from src.pricing import (
     FxWarning,
     ManualValuationLiquidityClass,
@@ -260,7 +260,7 @@ async def _aggregate_balances_sql(
 
     fx_case_parts: list[tuple[Any, Any]] = []
     if AccountType.EQUITY in account_types and fx_rates:
-        effective_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+        effective_base = require_base_currency(base_currency)
         fx_case_parts.append(
             (
                 (Account.type == AccountType.EQUITY)
@@ -422,7 +422,7 @@ async def _aggregate_equity_translation_variance_sql(
 ) -> Decimal:
     """Compute translation variance on equity contributions and non-P&L foreign-currency lines (#2664)."""
     target = target_currency.upper()
-    effective_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+    effective_base = require_base_currency(base_currency)
     equity_entries_stmt = _base_ledger_lines_filter(
         select(JournalLine.journal_entry_id).distinct().join(Account, JournalLine.account_id == Account.id),
         user_id,

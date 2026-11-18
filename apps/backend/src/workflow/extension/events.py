@@ -394,9 +394,11 @@ class _ProjectedEvent:
             self.session_id = session_id
 
 
-async def _current_package_readiness_dict(db: AsyncSession, *, user_id: UUID) -> dict:
+async def _current_package_readiness_dict(
+    db: AsyncSession, *, user_id: UUID, base_currency: str | None = None
+) -> dict:
     try:
-        return (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
+        return (await current_package_readiness(db, user_id=user_id, base_currency=base_currency)).model_dump(mode="json")
     except ReportError as exc:
         return PersonalReportPackageReadinessResponse(
             package_id="personal-financial-report-package",
@@ -418,7 +420,11 @@ async def _current_package_readiness_dict(db: AsyncSession, *, user_id: UUID) ->
 
 
 async def _derive_workflow_inputs(
-    db: AsyncSession, *, user_id: UUID, package_readiness: dict | None = None
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    package_readiness: dict | None = None,
+    base_currency: str | None = None,
 ) -> tuple[dict, list[WorkflowEventCreate], list[WorkflowEventCreate], WorkflowEventCreate | None, list[UUID]]:
     """Compute statement uploaded payloads, derived payloads, report-state payload, and readiness read-only."""
     statement_rows = await get_statement_event_sources(db, user_id)
@@ -447,7 +453,9 @@ async def _derive_workflow_inputs(
         derived_payloads.append(build_reconciliation_review_event_payload(pending_reconciliation_count))
 
     resolved_readiness = (
-        await _current_package_readiness_dict(db, user_id=user_id) if package_readiness is None else package_readiness
+        await _current_package_readiness_dict(db, user_id=user_id, base_currency=base_currency)
+        if package_readiness is None
+        else package_readiness
     )
     derived_payloads.extend(
         build_readiness_blocker_event_payload(b) for b in resolved_readiness.get("blockers", [])
@@ -462,11 +470,13 @@ async def _derive_workflow_inputs(
     )
 
 
-async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> dict:
+async def sync_workflow_events_for_user(
+    db: AsyncSession, *, user_id: UUID, base_currency: str | None = None
+) -> dict:
     """Derive deterministic workflow events from user records and return package readiness (#987, #1675)."""
     workflow_session: WorkflowSession | None = None
     package_readiness, uploaded_payloads, derived_payloads, report_state_payload, statement_ids = (
-        await _derive_workflow_inputs(db, user_id=user_id)
+        await _derive_workflow_inputs(db, user_id=user_id, base_currency=base_currency)
     )
     existing_event_by_source_id = (
         {
@@ -592,20 +602,24 @@ async def stored_package_readiness(db: AsyncSession, *, user_id: UUID) -> dict |
     return await _reusable_package_readiness(db, user_id=user_id, fingerprint=stamp)
 
 
-async def _read_package_readiness(db: AsyncSession, *, user_id: UUID) -> tuple[dict, bool]:
+async def _read_package_readiness(
+    db: AsyncSession, *, user_id: UUID, base_currency: str | None = None
+) -> tuple[dict, bool]:
     """Read reusable readiness or compute in memory without writing to DB."""
     if (stored := await stored_package_readiness(db, user_id=user_id)) is not None:
         return stored, True
-    return await _current_package_readiness_dict(db, user_id=user_id), False
+    return await _current_package_readiness_dict(db, user_id=user_id, base_currency=base_currency), False
 
 
-async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID) -> dict:
+async def ensure_workflow_events_synced(
+    db: AsyncSession, *, user_id: UUID, base_currency: str | None = None
+) -> dict:
     """Derive workflow events only when input stamp changed or sync state expired (#2583)."""
     stamp = await workflow_input_stamp(db, user_id=user_id)
     if (stored := await _reusable_package_readiness(db, user_id=user_id, fingerprint=stamp)) is not None:
         return stored
 
-    package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
+    package_readiness = await sync_workflow_events_for_user(db, user_id=user_id, base_currency=base_currency)
     await db.execute(
         postgresql_insert(WorkflowSyncState)
         .values(user_id=user_id, source_fingerprint=stamp, package_readiness=package_readiness)
@@ -920,9 +934,10 @@ async def list_workflow_events_response(
     user_id: UUID,
     status: WorkflowEventStatus | None = None,
     limit: int = 50,
+    base_currency: str | None = None,
 ) -> WorkflowEventListResponse:
     """Return bounded event list plus total count and grouped session summaries write-free (#987)."""
-    package_readiness, is_synced = await _read_package_readiness(db, user_id=user_id)
+    package_readiness, is_synced = await _read_package_readiness(db, user_id=user_id, base_currency=base_currency)
     if not is_synced:
         package_readiness, uploaded_payloads, derived_payloads, report_state_payload, _ = await _derive_workflow_inputs(
             db, user_id=user_id, package_readiness=package_readiness
@@ -1054,10 +1069,11 @@ async def get_workflow_status(
     *,
     user_id: UUID,
     synced_package_readiness: dict | None = None,
+    base_currency: str | None = None,
 ) -> WorkflowStatusResponse:
     """Return compact workflow status write-free for primary UI surfaces (#987, #2583)."""
     if synced_package_readiness is None:
-        package_readiness, is_synced = await _read_package_readiness(db, user_id=user_id)
+        package_readiness, is_synced = await _read_package_readiness(db, user_id=user_id, base_currency=base_currency)
     else:
         package_readiness, is_synced = synced_package_readiness, True
 
@@ -1161,12 +1177,17 @@ async def get_workflow_status(
 
 
 async def update_workflow_event_status(
-    db: AsyncSession, *, event_id: UUID, user_id: UUID, status: WorkflowEventStatus
+    db: AsyncSession,
+    *,
+    event_id: UUID,
+    user_id: UUID,
+    status: WorkflowEventStatus,
+    base_currency: str | None = None,
 ) -> WorkflowEvent | None:
     """Update read/archive lifecycle state for one user-scoped event."""
     event = await db.scalar(select(WorkflowEvent).where(WorkflowEvent.id == event_id, WorkflowEvent.user_id == user_id))
     if event is None:
-        await ensure_workflow_events_synced(db, user_id=user_id)
+        await ensure_workflow_events_synced(db, user_id=user_id, base_currency=base_currency)
         event = await db.scalar(
             select(WorkflowEvent).where(WorkflowEvent.id == event_id, WorkflowEvent.user_id == user_id)
         )

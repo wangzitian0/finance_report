@@ -11,6 +11,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.platform import require_base_currency
+
 from src.audit import (
     SqlTraceRecordRepository,
     TraceDecisionPolicyRegistry,
@@ -24,7 +26,6 @@ from src.audit import (
     current_authoritative_trace_decisions,
     shared_current_authority,
 )
-from src.config_app import get_effective_base_currency
 from src.extraction import (
     StatementEvidenceType,
     StatementSourceType,
@@ -521,6 +522,7 @@ class PackageAssembler:
         lifecycle: PersonalReportPackageDocumentLifecycle = PersonalReportPackageDocumentLifecycle.PREVIEW,
         snapshot_id: UUID | None = None,
         frozen_at: datetime | None = None,
+        base_currency: str | None = None,
     ) -> PersonalReportPackageDocument:
         ev = await self._evaluate(
             db,
@@ -530,6 +532,7 @@ class PackageAssembler:
             end_date=end_date,
             as_of_date=as_of_date,
             currency=currency,
+            base_currency=base_currency,
             include_restricted=include_restricted,
         )
         contract = _contract(framework_id)
@@ -597,6 +600,7 @@ class PackageAssembler:
         end_date: date,
         as_of_date: date,
         currency: str,
+        base_currency: str | None = None,
         include_restricted: bool = PACKAGE_INCLUDE_RESTRICTED,
     ) -> PersonalReportPackageReadinessResponse:
         ev = await self._evaluate(
@@ -607,6 +611,7 @@ class PackageAssembler:
             end_date=end_date,
             as_of_date=as_of_date,
             currency=currency,
+            base_currency=base_currency,
             include_restricted=include_restricted,
         )
         return ev.readiness
@@ -621,10 +626,11 @@ class PackageAssembler:
         end_date: date,
         as_of_date: date,
         currency: str,
+        base_currency: str | None = None,
         include_restricted: bool,
     ) -> _PackageEvaluation:
         async with shared_current_authority(db, TraceScope.tenant(user_id)):
-            resolved_base_currency = await get_effective_base_currency(db, user_id=user_id)
+            resolved_base_currency = require_base_currency(base_currency or currency)
             policy = await derive_user_framework_policy_result(
                 db,
                 user_id,
@@ -820,6 +826,7 @@ class PackageAssembler:
             start_date=start_date,
             end_date=end_date,
             currency=currency,
+            base_currency=base_currency,
             decisions_by_source_id=decisions_by_source_id,
             ending_unrealized_fx_gain_loss=bs.get("unrealized_fx_gain_loss") if end_date == as_of_date else None,
         )
@@ -925,13 +932,27 @@ class PackageAssembler:
         return (*base_contributions, *market)
 
     async def _evidence_contributions(
-        self, db: AsyncSession, *, user_id: UUID, start_date: date, end_date: date, as_of_date: date, currency: str
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        base_currency: str | None = None,
     ) -> tuple[PackageSectionContribution[Any], ...]:
         base = await self._contributions(
             db, user_id=user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date
         )
         inv = await self._investment_performance(
-            db, user_id=user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            base_currency=base_currency or currency,
         )
         return await self._with_market_contributions(
             db, user_id=user_id, base_contributions=base, investment_performance=inv
@@ -948,19 +969,34 @@ class PackageAssembler:
         currency: str,
         line_id: str,
         anchor: PersonalReportPackageTraceabilityAnchorName,
+        base_currency: str | None = None,
     ) -> list[dict[str, str | Decimal | None]] | None:
         if line_id not in {line["line_id"] for line in PERSONAL_REPORT_PACKAGE_TRACEABILITY["lines"]}:
             return None
         appendix = await _traceability_appendix(
             await self._evidence_contributions(
-                db, user_id=user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+                db,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+                base_currency=base_currency or currency,
             )
         )
         line = next(line for line in appendix.lines if line.line_id == line_id)
         return getattr(line, anchor.value).details
 
     async def manifest_entries(
-        self, db: AsyncSession, *, user_id: UUID, start_date: date, end_date: date, as_of_date: date, currency: str
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        base_currency: str | None = None,
     ) -> list[PersonalReportPackageTraceManifestEntry]:
         async with shared_current_authority(db, TraceScope.tenant(user_id)):
             manifest, _ = await self._input_manifest(
@@ -973,6 +1009,7 @@ class PackageAssembler:
                     end_date=end_date,
                     as_of_date=as_of_date,
                     currency=currency,
+                    base_currency=base_currency or currency,
                 ),
             )
         return manifest
@@ -1190,10 +1227,11 @@ async def report_coverage(db: AsyncSession, *, user_id: UUID, as_of: date) -> Ca
 
 
 async def current_package_readiness(
-    db: AsyncSession, *, user_id: UUID, as_of_date: date | None = None
+    db: AsyncSession, *, user_id: UUID, as_of_date: date | None = None, base_currency: str | None = None
 ) -> PersonalReportPackageReadinessResponse:
     report_end = as_of_date or date.today()
     report_start = report_end - timedelta(days=365)
+    resolved_base = require_base_currency(base_currency)
     async with shared_current_authority(db, TraceScope.tenant(user_id)):
         coverage_start = (await report_coverage(db, user_id=user_id, as_of=report_end)).start
         if coverage_start is not None and report_start < coverage_start <= report_end:
@@ -1205,5 +1243,6 @@ async def current_package_readiness(
             start_date=report_start,
             end_date=report_end,
             as_of_date=report_end,
-            currency=await get_effective_base_currency(db, user_id=user_id),
+            currency=resolved_base,
+            base_currency=resolved_base,
         )

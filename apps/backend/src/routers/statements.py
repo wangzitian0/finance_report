@@ -866,6 +866,7 @@ async def delete_statement(statement_id: UUID, ctx: Ctx) -> None:
     await retire_statement(
         ctx.db,
         RetireStatementCommand(statement_id=statement_id, user_id=ctx.user_id),
+        base_currency=await ctx.get_base_currency(),
         dependencies=compose_statement_posting_dependencies(),
     )
     await ctx.db.flush()
@@ -967,6 +968,7 @@ async def approve_statement_stage1(
         user_id,
         dependencies=compose_statement_posting_dependencies(),
         preloaded_bank_account=preloaded_account,
+        base_currency=await ctx.get_base_currency(),
     )
 
     created_count = _posting_count_or_conflict(outcome) + auto_filled
@@ -982,6 +984,7 @@ async def reject_statement_stage1(
     """Stage 1: Reject statement and enqueue reparse. The notes become the hint note of the rerun."""
     db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
+    base_currency = await ctx.get_base_currency()
     try:
         await _queue_statement_reparse(
             db,
@@ -995,6 +998,7 @@ async def reject_statement_stage1(
                 user_id,
                 reason=decision.notes,
                 dependencies=compose_statement_posting_dependencies(),
+                base_currency=base_currency,
             ),
         )
     except StorageError as exc:

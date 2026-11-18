@@ -9,7 +9,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config_app import get_effective_base_currency
 from src.extraction.extension.statement_summary import resolve_custody_account_id
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
@@ -19,6 +18,7 @@ from src.ledger import (
     find_processing_account,
 )
 from src.observability import get_logger
+from src.platform import require_base_currency
 from src.reconciliation.base.repository import ReconciliationRepository
 from src.reconciliation.extension.matching import sync_reconciliation_matches_journal_entry_links_batch
 from src.reconciliation.extension.phases.transfer_detection import post_transfer_leg
@@ -49,16 +49,17 @@ async def post_named_transfer_legs(
     named: Sequence[NamedTransfer],
     repository: ReconciliationRepository | None = None,
     accepted_by: Literal["user", "system"] = "user",
+    base_currency: str | None = None,
 ) -> list[ReconciliationMatch]:
     """Post a Processing leg for each eligible named transfer transaction."""
     repo = repository if repository is not None else SqlReconciliationRepository(db)
-    base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
+    resolved_base_currency = require_base_currency(base_currency)
     processing = await find_processing_account(db, user_id)
-    if processing is not None and processing.currency.upper() != base_currency:
+    if processing is not None and processing.currency.upper() != resolved_base_currency:
         logger.info(
             "Named transfers skipped: the Processing account holds another currency",
             processing_currency=processing.currency,
-            base_currency=base_currency,
+            base_currency=resolved_base_currency,
         )
         return []
 
@@ -67,7 +68,7 @@ async def post_named_transfer_legs(
         txn = item.transaction
         if await repo.claim_transaction_for_decision(txn.id) is not None:
             continue
-        if (txn.currency or "").upper() != base_currency:
+        if (txn.currency or "").upper() != resolved_base_currency:
             logger.info("Named transfer skipped: the row is not in the base currency", txn_id=str(txn.id))
             continue
         custody_id = await resolve_custody_account_id(db, txn)
@@ -75,7 +76,7 @@ async def post_named_transfer_legs(
             logger.info("Named transfer skipped: the statement has no linked account", txn_id=str(txn.id))
             continue
         custody = await db.get(Account, custody_id)
-        if custody is None or custody.user_id != user_id or custody.currency.upper() != base_currency:
+        if custody is None or custody.user_id != user_id or custody.currency.upper() != resolved_base_currency:
             logger.info("Named transfer skipped: the linked account is not in the base currency", txn_id=str(txn.id))
             continue
         try:

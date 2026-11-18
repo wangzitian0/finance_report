@@ -20,7 +20,6 @@ from src.audit import (
     TraceResult,
 )
 from src.audit.money.currency import normalize_currency_code
-from src.config_app import get_effective_base_currency
 from src.extraction.base.disposition import (
     DispositionContext,
     DispositionDecision,
@@ -65,7 +64,7 @@ from src.extraction.extension.statement_validation import (
     resolve_statement_transactions,
 )
 from src.extraction.extension.statement_runs import ActiveRunExists, lock_statement_for_run
-from src.platform import ValidationFailedError
+from src.platform import ValidationFailedError, require_base_currency
 from src.extraction.extension.transaction_classification import classification_suggestions
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.orm.layer1 import UploadedDocument
@@ -99,6 +98,7 @@ TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
 NamedTransferPoster = Callable[[AsyncSession, UUID, Sequence[AtomicTransaction]], Awaitable[int]]
 ReconciliationRelease = Callable[[AsyncSession, UUID, Sequence[UUID], str], Awaitable[int]]
+BaseCurrencyResolver = Callable[[AsyncSession, UUID], Awaitable[str]]
 
 ECONOMIC_REVIEW_NOTICE = "Economic review required:"
 
@@ -114,6 +114,7 @@ class StatementPostingDependencies:
     disposition_mode: DispositionMode
     post_named_transfers: NamedTransferPoster | None = None
     release_reconciliation: ReconciliationRelease | None = None
+    base_currency_resolver: BaseCurrencyResolver | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -185,6 +186,21 @@ async def ledger_covered_txn_ids(
     )
 
 
+async def resolve_statement_base_currency(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    base_currency: str | None = None,
+    dependencies: StatementPostingDependencies | None = None,
+) -> str:
+    """Resolve effective base currency via explicit input or injected boundary port."""
+    if base_currency is not None:
+        return require_base_currency(base_currency)
+    if (resolver := getattr(dependencies, "base_currency_resolver", None)) is not None:
+        return require_base_currency(await resolver(db, user_id))
+    raise ValueError("base_currency or StatementPostingDependencies.base_currency_resolver is required")
+
+
 async def auto_create_posted_entries_for_statement(
     db: AsyncSession,
     statement: StatementSummary,
@@ -245,7 +261,9 @@ async def auto_create_posted_entries_for_statement(
                 legs_posted = await dependencies.post_named_transfers(db, user_id, user_transfer_txns)
                 transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
 
-    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = await resolve_statement_base_currency(
+        db, user_id, base_currency=base_currency, dependencies=dependencies
+    )
     base_currency = resolved_base_currency
     policy = await statement_disposition_policy_for_user(db, user_id)
     policy_snapshot = current_statement_disposition_policy_snapshot(mode=dependencies.disposition_mode, policy=policy)
@@ -787,10 +805,13 @@ async def _void_entries_of_transactions(
     *,
     reason: str,
     base_currency: str | None = None,
+    dependencies: StatementPostingDependencies | None = None,
 ) -> int:
     if not txn_ids:
         return 0
-    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = await resolve_statement_base_currency(
+        db, user_id, base_currency=base_currency, dependencies=dependencies
+    )
     active_entries = (
         (
             await db.execute(
@@ -834,7 +855,12 @@ async def release_statement_ledger_effects(
         return 0
     if dependencies is not None and dependencies.release_reconciliation is not None:
         await dependencies.release_reconciliation(db, user_id, owned, reason)
-    return await _void_entries_of_transactions(db, user_id, owned, reason=reason, base_currency=base_currency)
+    resolved_base = await resolve_statement_base_currency(
+        db, user_id, base_currency=base_currency, dependencies=dependencies
+    )
+    return await _void_entries_of_transactions(
+        db, user_id, owned, reason=reason, base_currency=resolved_base, dependencies=dependencies
+    )
 
 
 async def _active_gap_plug_entries_for_account(
@@ -964,7 +990,9 @@ async def reconcile_account_statement_chain(
         approved_rows.append(candidate_statement)
         approved_rows.sort(key=StatementSummary.chain_sort_key)
 
-    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = await resolve_statement_base_currency(
+        db, user_id, base_currency=base_currency, dependencies=dependencies
+    )
     base_currency = resolved_base_currency
     existing_plugs = await _active_gap_plug_entries_for_account(db, user_id, account_id)
     positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
@@ -1258,7 +1286,9 @@ async def try_auto_post_statement_opening_balance(
 ) -> bool:
     if statement.effective_opening_balance() is None or statement.period_start is None or statement.account_id is None:
         raise ValidationFailedError("Statement opening balance, date, and account are required before posting")
-    resolved_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base = await resolve_statement_base_currency(
+        db, user_id, base_currency=base_currency, dependencies=dependencies
+    )
     changed = await reconcile_account_statement_chain(
         db,
         user_id=user_id,

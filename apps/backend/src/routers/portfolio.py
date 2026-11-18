@@ -5,11 +5,9 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.audit import to_money
 from src.composition import compose_brokerage_import_service, refresh_market_data_for_brokerage_import
-from src.deps import Ctx, ReadCtx
+from src.deps import Ctx, ReadCtx, RequestContext
 from src.observability import get_logger
 from src.platform import PreconditionFailedError, ResourceNotFoundError
 from src.portfolio import (
@@ -62,8 +60,10 @@ def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> Div
     )
 
 
-async def _paged_allocation(fn, *, db: AsyncSession, user_id: UUID, as_of_date: date | None, limit: int, offset: int):
-    breakdowns = await fn(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
+async def _paged_allocation(fn, *, ctx: RequestContext, as_of_date: date | None, limit: int, offset: int):
+    breakdowns = await fn(
+        db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date or date.today(), base_currency=await ctx.get_base_currency()
+    )
     return [AllocationBreakdownResponse(**b.to_dict()) for b in list(breakdowns)[offset : offset + limit]]
 
 
@@ -98,7 +98,12 @@ async def get_holdings(
     try:
         holdings = list(
             await portfolio_service.get_holdings(
-                db=db, user_id=user_id, as_of_date=as_of_date, include_disposed=include_disposed, warnings=warnings
+                db=db,
+                user_id=user_id,
+                as_of_date=as_of_date,
+                include_disposed=include_disposed,
+                warnings=warnings,
+                base_currency=await ctx.get_base_currency(),
             )
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
@@ -112,7 +117,9 @@ async def get_portfolio_summary(
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
 ) -> PortfolioSummaryDashboardResponse:
     """Get portfolio summary with YTD realized P&L and dividend income."""
-    return await portfolio_service.get_portfolio_summary_dashboard(db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date)
+    return await portfolio_service.get_portfolio_summary_dashboard(
+        db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date, base_currency=await ctx.get_base_currency()
+    )
 
 
 @router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
@@ -149,6 +156,7 @@ async def create_holding_dividend(
         cash_account_id=request.cash_account_id,
         dividend_income_account_id=request.dividend_income_account_id,
         withholding_tax_account_id=request.withholding_tax_account_id,
+        base_currency=await ctx.get_base_currency(),
     )
 
     entry_id = getattr(dividend, "journal_entry_id", None)
@@ -221,7 +229,13 @@ async def get_investment_performance_report_schedule(
     if currency != "SGD":
         raise PreconditionFailedError("Investment performance report schedule currently supports SGD presentation currency")
     return await build_investment_performance_report_schedule(
-        db, user_id, period_start=period_start, period_end=period_end, as_of_date=as_of_date, currency=currency
+        db,
+        user_id,
+        period_start=period_start,
+        period_end=period_end,
+        as_of_date=as_of_date,
+        currency=currency,
+        base_currency=await ctx.get_base_currency(),
     )
 
 
@@ -234,7 +248,7 @@ async def get_sector_allocation(
 ) -> list[AllocationBreakdownResponse]:
     """Get sector allocation breakdown."""
     return await _paged_allocation(
-        sector_allocation_breakdowns, db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date, limit=limit, offset=offset
+        sector_allocation_breakdowns, ctx=ctx, as_of_date=as_of_date, limit=limit, offset=offset
     )
 
 
@@ -247,7 +261,7 @@ async def get_geography_allocation(
 ) -> list[AllocationBreakdownResponse]:
     """Get geography allocation breakdown."""
     return await _paged_allocation(
-        geography_allocation_breakdowns, db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date, limit=limit, offset=offset
+        geography_allocation_breakdowns, ctx=ctx, as_of_date=as_of_date, limit=limit, offset=offset
     )
 
 
@@ -260,10 +274,5 @@ async def get_asset_class_allocation(
 ) -> list[AllocationBreakdownResponse]:
     """Get asset class allocation breakdown."""
     return await _paged_allocation(
-        asset_class_allocation_breakdowns,
-        db=ctx.db,
-        user_id=ctx.user_id,
-        as_of_date=as_of_date,
-        limit=limit,
-        offset=offset,
+        asset_class_allocation_breakdowns, ctx=ctx, as_of_date=as_of_date, limit=limit, offset=offset
     )

@@ -13,9 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Currency, Money, to_money
 from src.audit.quantity import Quantity, Unit
 from src.audit.unit_price import UnitPrice
-from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, account_service, post_entry
+from src.platform import require_base_currency
 from src.portfolio.base.errors import InvestmentAccountingValidationError, PortfolioNotFoundError
 from src.portfolio.base.types import DividendEvent, TradeAccounts, TradeOrder
 from src.portfolio.orm.portfolio import (
@@ -90,6 +90,7 @@ class InvestmentAccountingService:
             user_id=user_id,
             entry_date=order.transaction_date,
             memo=f"Buy {order.asset_identifier}",
+            base_currency=currency,
             source_id=order.source_id,
             entry=Entry.transfer(
                 debit=investment_account.id,
@@ -205,6 +206,7 @@ class InvestmentAccountingService:
             user_id=user_id,
             entry_date=order.transaction_date,
             memo=f"Sell {order.asset_identifier}",
+            base_currency=currency,
             source_id=order.source_id,
             entry=Entry.of(*legs),
         )
@@ -290,6 +292,7 @@ class InvestmentAccountingService:
             user_id=user_id,
             entry_date=event.payment_date,
             memo=f"Dividend {event.asset_identifier}",
+            base_currency=currency,
             source_id=event.source_id,
             entry=Entry.of(*legs),
         )
@@ -342,6 +345,7 @@ class InvestmentAccountingService:
         cash_account_id: UUID | None = None,
         dividend_income_account_id: UUID | None = None,
         withholding_tax_account_id: UUID | None = None,
+        base_currency: str | None = None,
     ) -> DividendIncome:
         """Resolve holding and default accounts, then post a dividend journal entry (#2673)."""
         position = await db.scalar(
@@ -378,10 +382,10 @@ class InvestmentAccountingService:
             )
         ).id
 
-        base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
+        resolved_base = require_base_currency(base_currency)
         fx_rate = (
-            await get_exchange_rate(db, ccy, base_currency, payment_date, lazy_load=True)
-            if ccy != base_currency
+            await get_exchange_rate(db, ccy, resolved_base, payment_date, lazy_load=True)
+            if ccy != resolved_base
             else None
         )
 

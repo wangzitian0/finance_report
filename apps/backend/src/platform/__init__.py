@@ -25,6 +25,7 @@ from src.platform.base import (
     TooManyRequestsError,
     UnauthorizedError,
     ValidationFailedError,
+    require_base_currency,
     validate_internal_action_href,
 )
 
@@ -79,6 +80,7 @@ __all__ = [
     "get_client_ip",
     "get_owned_or_raise",
     "paginate",
+    "require_base_currency",
     "validate_internal_action_href",
 ]
 

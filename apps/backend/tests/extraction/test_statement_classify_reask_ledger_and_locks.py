@@ -307,7 +307,7 @@ async def test_AC_extraction_3057_void_journal_entry_does_not_block_reask(db, te
             rationale="Posted before voiding.",
         ),
         dependencies=compose_reviewed_disposition_dependencies(db),
-    )
+    base_currency='SGD',)
     posted_entry = await db.scalar(select(JournalEntry).where(JournalEntry.source_id == grab_txn.id))
     assert posted_entry is not None
     await void_journal_entry(db, posted_entry.id, "Voided before re-ask", test_user.id)

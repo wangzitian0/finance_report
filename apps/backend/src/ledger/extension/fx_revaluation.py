@@ -16,7 +16,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.config_app import get_effective_base_currency
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import (
     Direction,
@@ -25,6 +24,7 @@ from src.ledger.orm.journal import (
     active_journal_entry_filter,
 )
 from src.observability import get_logger
+from src.platform import require_base_currency
 from src.pricing import PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
@@ -62,7 +62,7 @@ async def get_foreign_currency_accounts(
     base_currency: str | None = None,
 ) -> list[Account]:
     """Get all asset/liability accounts with non-base currency."""
-    resolved_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+    resolved_base = require_base_currency(base_currency)
 
     stmt = (
         select(Account)
@@ -140,7 +140,7 @@ async def calculate_account_historical_cost(
     )
 
     result = await db.execute(stmt)
-    resolved_base = (base_currency or await get_effective_base_currency(db, user_id=account.user_id)).upper()
+    resolved_base = require_base_currency(base_currency)
     total_debit = Decimal("0")
     total_credit = Decimal("0")
     for row in result.all():
@@ -223,7 +223,7 @@ async def calculate_unrealized_fx_gains(
     base_currency: str | None = None,
 ) -> RevaluationResult:
     """Calculate unrealized FX gains/losses for all foreign currency accounts."""
-    resolved_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+    resolved_base = require_base_currency(base_currency)
     accounts = await get_foreign_currency_accounts(db, user_id, resolved_base)
 
     revaluations: list[AccountRevaluation] = []

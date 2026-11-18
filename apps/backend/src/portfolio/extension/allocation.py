@@ -12,11 +12,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition
 from src.ledger import Account
 from src.observability import get_logger
+from src.platform import require_base_currency
 from src.portfolio.base.valuation_calculator import AllocationItem, calculate_allocation_breakdown
 from src.portfolio.extension.performance import batch_latest_atomic_positions
 from src.pricing import convert_amount
@@ -71,7 +71,7 @@ async def _get_active_positions_with_atomics(
     asset_ids = [identifier for identifier, _broker in position_keys]
 
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
-    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = require_base_currency(base_currency)
 
     enriched = []
     for identifier, broker in position_keys:

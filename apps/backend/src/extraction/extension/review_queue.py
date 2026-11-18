@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType, TraceEmitter, TraceRecord
-from src.config_app import get_effective_base_currency
 from src.extraction.base.disposition import DispositionDecision, DispositionStatus, intent_matches_counter_account
 from src.extraction.base.source_vocabulary import DocumentType, TransactionDirection
 from src.extraction.base.types import extract_source_document_ids
@@ -38,7 +37,7 @@ from src.ledger import (
     submit_anchored_journal_entry,
 )
 from src.observability import get_logger
-from src.platform import ValidationFailedError
+from src.platform import ValidationFailedError, require_base_currency
 from src.pricing import ExchangeRateLookup, PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
@@ -168,7 +167,7 @@ async def _plan_entry_command(
     else:
         statement = await _resolve_statement_summary(db, txn, user_id=user_id)
 
-    base_currency = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+    base_currency = require_base_currency(base_currency)
     currency = (txn.currency or (statement.currency if statement else None) or base_currency).upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
