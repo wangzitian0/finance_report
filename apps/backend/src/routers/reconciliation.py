@@ -437,6 +437,7 @@ async def submit_unmatched_reviewed_disposition(
             rationale=payload.rationale,
         ),
         dependencies=compose_reviewed_disposition_dependencies(db),
+        base_currency=await ctx.get_base_currency(),
     )
     entry_with_lines = (
         await db.execute(

@@ -14,7 +14,6 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import settings
-from src.config_app import get_effective_base_currency
 from src.database import async_session_maker, get_test_session_maker
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import StatementPostingOutcome, StatementPostingStatus
@@ -23,6 +22,7 @@ from src.extraction.extension.statement_posting import (
     auto_create_posted_entries_for_statement,
     reconcile_account_statement_chain,
     release_statement_ledger_effects,
+    resolve_statement_base_currency,
     try_auto_post_statement_opening_balance,
 )
 from src.extraction.extension.statement_validation import (
@@ -130,7 +130,9 @@ async def approve_statement_workflow(
     pending review and returns ``REVIEW_REQUIRED``.
     """
     statement, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
-    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = await resolve_statement_base_currency(
+        db, user_id, base_currency=base_currency, dependencies=dependencies
+    )
     outcome = await auto_create_posted_entries_for_statement(
         db,
         statement,
@@ -160,6 +162,7 @@ async def reject_statement_workflow(
     *,
     reason: str | None = None,
     dependencies: StatementPostingDependencies | None = None,
+    base_currency: str | None = None,
 ) -> StatementSummary:
     """Reject a PARSED statement and flush the transition, returning the refreshed row.
 
@@ -178,7 +181,9 @@ async def reject_statement_workflow(
     statement = await reject_statement(db, statement_id, user_id, reason=reason)
     # A reject of an APPROVED statement keeps a row only for another APPROVED statement.
     # Any other reject keeps a row for every statement that is not RETIRED and not REJECTED (#2888).
-    resolved_base_currency = await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = await resolve_statement_base_currency(
+        db, user_id, base_currency=base_currency, dependencies=dependencies
+    )
     await release_statement_ledger_effects(
         db,
         statement,

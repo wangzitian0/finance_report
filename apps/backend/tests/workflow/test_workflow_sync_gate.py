@@ -16,7 +16,7 @@ async def test_AC_workflow_sync_1_year_scale_status_read_is_bounded_and_write_fr
     try: first = await client.get('/workflow/status')
     finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', cold_counter)
     assert first.status_code == 200, first.text; assert first.json()['report_readiness']['state'] == 'blocked'; assert traceability_calls == 0; assert cold_counter.writes == []
-    await ensure_workflow_events_synced(db, user_id=test_user.id); await db.commit()
+    await ensure_workflow_events_synced(db, user_id=test_user.id, base_currency='SGD'); await db.commit()
     synced_baseline = None
     for _ in range(2):
         counter = _SqlCounter(); event.listen(db_engine.sync_engine, 'before_cursor_execute', counter)
@@ -44,7 +44,7 @@ async def test_AC_workflow_sync_2_a_source_change_derives_events_again(client: A
         assert counter.writes == []
     finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', counter)
     assert await _event_states(db, user_id) == {}
-    await ensure_workflow_events_synced(db, user_id=user_id); await db.commit(); assert (await _event_states(db, user_id))[WorkflowEventFamily.REVIEW_REQUIRED] == WorkflowEventStatus.UNREAD
+    await ensure_workflow_events_synced(db, user_id=user_id, base_currency='SGD'); await db.commit(); assert (await _event_states(db, user_id))[WorkflowEventFamily.REVIEW_REQUIRED] == WorkflowEventStatus.UNREAD
     await db.execute(update(StatementSummary).where(StatementSummary.id == statement_id).values(stage1_status=Stage1Status.APPROVED, stage1_reviewed_at=datetime.now(UTC))); await db.commit()
     read_counter = _SqlCounter(); event.listen(db_engine.sync_engine, 'before_cursor_execute', read_counter)
     try:
@@ -54,7 +54,7 @@ async def test_AC_workflow_sync_2_a_source_change_derives_events_again(client: A
         assert (await client.get('/workflow/status')).json()['next_action']['type'] != 'review_required'
     finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', read_counter)
     assert read_counter.writes == []
-    await ensure_workflow_events_synced(db, user_id=user_id); await db.commit(); states = await _event_states(db, user_id)
+    await ensure_workflow_events_synced(db, user_id=user_id, base_currency='SGD'); await db.commit(); states = await _event_states(db, user_id)
     assert states[WorkflowEventFamily.REVIEW_REQUIRED] == WorkflowEventStatus.ARCHIVED; assert states[WorkflowEventFamily.REVIEW_COMPLETED] == WorkflowEventStatus.UNREAD
 @pytest.mark.no_db
 def test_AC_workflow_sync_3_workflow_reads_use_readonly_session_without_table_scan() -> None:
@@ -75,12 +75,12 @@ async def test_AC_workflow_sync_4_input_stamp_changes_only_with_relevant_inputs(
         @classmethod
         def today(cls) -> date: return date.today() + timedelta(days=1)
     monkeypatch.setattr(workflow_events, 'date', _Tomorrow); await assert_changed()
-async def test_AC_workflow_sync_4_tenant_scope_matches_stored_trace_records(db: AsyncSession, test_user: User) -> None: 'AC-workflow.sync.4'; bank = Account(user_id=test_user.id, name='Bank', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=test_user.id, name='Salary', type=AccountType.INCOME, currency='SGD'); db.add_all((bank, income)); await db.flush(); before = await workflow_input_stamp(db, user_id=test_user.id); await post_entry(db, user_id=test_user.id, entry_date=date.today(), memo='Anchored entry', entry=Entry.transfer(debit=bank.id, credit=income.id, money=Money(Decimal('10'), 'SGD'))); await db.commit(); after = await workflow_input_stamp(db, user_id=test_user.id); assert after != before
+async def test_AC_workflow_sync_4_tenant_scope_matches_stored_trace_records(db: AsyncSession, test_user: User) -> None: 'AC-workflow.sync.4'; bank = Account(user_id=test_user.id, name='Bank', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=test_user.id, name='Salary', type=AccountType.INCOME, currency='SGD'); db.add_all((bank, income)); await db.flush(); before = await workflow_input_stamp(db, user_id=test_user.id); await post_entry(db, user_id=test_user.id, entry_date=date.today(), memo='Anchored entry', entry=Entry.transfer(debit=bank.id, credit=income.id, money=Money(Decimal('10'), 'SGD')), base_currency='SGD'); await db.commit(); after = await workflow_input_stamp(db, user_id=test_user.id); assert after != before
 async def test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again(db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch) -> None:
     'AC-workflow.sync.5'; from src.workflow.extension.events import WORKFLOW_SYNC_STATE_MAX_AGE, ensure_workflow_events_synced; from src.workflow.orm.models import WorkflowSyncState; user_id = test_user.id; real_readiness = workflow_events.current_package_readiness; derivations = 0
-    async def counting_readiness(db, *, user_id): nonlocal derivations; derivations += 1; return await real_readiness(db, user_id=user_id)
-    monkeypatch.setattr(workflow_events, 'current_package_readiness', counting_readiness); await ensure_workflow_events_synced(db, user_id=user_id); await db.commit(); assert derivations == 1; await ensure_workflow_events_synced(db, user_id=user_id); await db.commit(); assert derivations == 1; await db.execute(update(WorkflowSyncState).where(WorkflowSyncState.user_id == user_id).values(updated_at=datetime.now(UTC) - WORKFLOW_SYNC_STATE_MAX_AGE - timedelta(minutes=1))); await db.commit(); await ensure_workflow_events_synced(db, user_id=user_id); await db.commit(); assert derivations == 2
+    async def counting_readiness(db, *, user_id, base_currency=None): nonlocal derivations; derivations += 1; return await real_readiness(db, user_id=user_id, base_currency=base_currency)
+    monkeypatch.setattr(workflow_events, 'current_package_readiness', counting_readiness); await ensure_workflow_events_synced(db, user_id=user_id, base_currency='SGD'); await db.commit(); assert derivations == 1; await ensure_workflow_events_synced(db, user_id=user_id, base_currency='SGD'); await db.commit(); assert derivations == 1; await db.execute(update(WorkflowSyncState).where(WorkflowSyncState.user_id == user_id).values(updated_at=datetime.now(UTC) - WORKFLOW_SYNC_STATE_MAX_AGE - timedelta(minutes=1))); await db.commit(); await ensure_workflow_events_synced(db, user_id=user_id, base_currency='SGD'); await db.commit(); assert derivations == 2
 async def test_AC_workflow_sync_7_report_error_becomes_blocked_readiness_state(db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch) -> None:
     'AC-workflow.sync.7'; from src.reporting import ReportError; from src.workflow import WorkflowPrimaryState, WorkflowReportReadinessState, get_workflow_status
-    async def failing_readiness(db, *, user_id): raise ReportError('No registered L1 mapping for ledger account 00000000-0000-0000-0000-000000000001')
-    monkeypatch.setattr(workflow_events, 'current_package_readiness', failing_readiness); status = await get_workflow_status(db, user_id=test_user.id); assert status.primary_state == WorkflowPrimaryState.BLOCKED; assert status.report_readiness.state == WorkflowReportReadinessState.BLOCKED; assert status.report_readiness.blocking_count == 1; assert status.report_readiness.href == '/reports?tab=package'; await ensure_workflow_events_synced(db, user_id=test_user.id); await db.commit(); cached = await stored_package_readiness(db, user_id=test_user.id); assert cached is not None; assert cached['state'] == 'blocked'; assert cached['blocking_count'] == 1; assert cached['blockers'][0]['code'] == 'report_generation_error'; assert 'No registered L1 mapping' in cached['blockers'][0]['reason']
+    async def failing_readiness(db, *, user_id, base_currency=None): raise ReportError('No registered L1 mapping for ledger account 00000000-0000-0000-0000-000000000001')
+    monkeypatch.setattr(workflow_events, 'current_package_readiness', failing_readiness); status = await get_workflow_status(db, user_id=test_user.id, base_currency='SGD'); assert status.primary_state == WorkflowPrimaryState.BLOCKED; assert status.report_readiness.state == WorkflowReportReadinessState.BLOCKED; assert status.report_readiness.blocking_count == 1; assert status.report_readiness.href == '/reports?tab=package'; await ensure_workflow_events_synced(db, user_id=test_user.id, base_currency='SGD'); await db.commit(); cached = await stored_package_readiness(db, user_id=test_user.id); assert cached is not None; assert cached['state'] == 'blocked'; assert cached['blocking_count'] == 1; assert cached['blockers'][0]['code'] == 'report_generation_error'; assert 'No registered L1 mapping' in cached['blockers'][0]['reason']

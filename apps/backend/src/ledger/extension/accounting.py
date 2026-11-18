@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import TraceEmitter, TraceScope, current_authoritative_trace_decision_projection
 from src.audit.money import to_money
 from src.audit.money.currency import normalize_currency_code
-from src.config_app import get_effective_base_currency
 from src.ledger.base.validators import ValidationError
 from src.ledger.extension.anchored_posting import submit_system_journal_entry, void_journal_entry
 from src.ledger.extension.opening_positions import list_opening_positions, record_opening_position
@@ -21,6 +20,7 @@ from src.ledger.orm.journal import (
     JournalLine,
     active_journal_entry_filter,
 )
+from src.platform import require_base_currency
 
 __all__ = ["get_opening_balance_readiness", "initialize_opening_positions", "post_opening_balance_entry"]
 
@@ -44,7 +44,7 @@ async def post_opening_balance_entry(
         raise ValidationError("At least one opening balance is required")
     if any(not isinstance(amount, Decimal) or to_money(amount) <= 0 for amount in balances.values()):
         raise ValidationError("Opening balance amounts must be positive Decimal values")
-    normalized_base = normalize_currency_code(base_currency or await get_effective_base_currency(db, user_id=user_id))
+    normalized_base = normalize_currency_code(require_base_currency(base_currency))
     if normalize_currency_code(currency) != normalized_base:
         raise ValidationError(f"Opening balances are supported only in the base currency ({normalized_base})")
     entry = await initialize_opening_positions(
@@ -88,7 +88,7 @@ async def initialize_opening_positions(
     await db.execute(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": f"ledger-opening:{user_id}"}
     )
-    normalized_base = normalize_currency_code(base_currency or await get_effective_base_currency(db, user_id=user_id))
+    normalized_base = normalize_currency_code(require_base_currency(base_currency))
     expected_currency = normalize_currency_code(currency) if currency else None
     accounts = {
         a.id: a

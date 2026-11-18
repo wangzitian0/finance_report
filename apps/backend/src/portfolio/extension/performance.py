@@ -13,11 +13,11 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
-from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition
 from src.ledger import Account
 from src.observability import get_logger
+from src.platform import require_base_currency
 from src.portfolio.base.errors import InsufficientDataError, XIRRCalculationError
 from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.pricing import convert_amount
@@ -124,7 +124,7 @@ async def calculate_xirr(
     )
     result = await db.execute(query)
     transactions = result.scalars().all()
-    resolved_base_currency = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base_currency = require_base_currency(base_currency)
 
     for txn in transactions:
         amount_base = await convert_amount(
@@ -299,7 +299,7 @@ async def calculate_time_weighted_return(
     Raises:
         InsufficientDataError: Need at least two position snapshots
     """
-    resolved_twr_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_twr_base = require_base_currency(base_currency)
     start_value = await _get_portfolio_value(db, user_id, period_start, resolved_twr_base)
     end_value = await _get_portfolio_value(db, user_id, period_end, resolved_twr_base)
 
@@ -391,7 +391,7 @@ async def calculate_dividend_yield(
         )
     )
     dividends = result.scalars().all()
-    resolved_div_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_div_base = require_base_currency(base_currency)
 
     annual_dividends = Decimal("0")
     for dividend in dividends:
@@ -431,7 +431,7 @@ async def _get_portfolio_value(
     asset_ids = [identifier for identifier, _broker in position_keys]
 
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
-    resolved_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
+    resolved_base = require_base_currency(base_currency)
 
     total_value = Decimal("0")
     for identifier, broker in position_keys:

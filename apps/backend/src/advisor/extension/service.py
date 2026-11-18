@@ -37,7 +37,6 @@ from src.advisor.extension import app_reads
 from src.advisor.extension.cache import _CACHE
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import to_money
-from src.config_app import get_effective_base_currency
 from src.ledger import (
     Account,
     AccountType,
@@ -56,6 +55,7 @@ from src.llm import (
     get_llm_client,
     stream_ai_chat,
 )
+from src.platform import require_base_currency
 from src.platform.base.errors import DomainError
 from src.observability import get_logger
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
@@ -141,6 +141,8 @@ class AIAdvisorService:
         message: str,
         session_id: UUID | None = None,
         model: str | None = None,
+        *,
+        base_currency: str | None = None,
     ) -> ChatStream:
         raw_message = message.strip()
         message = redact_sensitive(raw_message)
@@ -155,7 +157,8 @@ class AIAdvisorService:
                 await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
                 return self._cached_stream(session.id, refusal, model_name=None)
 
-        context = await self.get_financial_context(db, user_id)
+        context_kwargs = {"base_currency": base_currency} if base_currency is not None else {}
+        context = await self.get_financial_context(db, user_id, **context_kwargs)
         metadata = self.build_chat_grounding_metadata(context, raw_message)
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
         bound = await _bound_scene_binding(user_id)
@@ -183,9 +186,13 @@ class AIAdvisorService:
             metadata=metadata,
         )
 
-    async def get_financial_context(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
-        context = await self._get_financial_summary_context(db, user_id)
-        advisor_context = await self.get_advisor_context(db, user_id, financial_context=context)
+    async def get_financial_context(
+        self, db: AsyncSession, user_id: UUID, *, base_currency: str | None = None
+    ) -> dict[str, str]:
+        context = await self._get_financial_summary_context(db, user_id, base_currency=base_currency)
+        advisor_context = await self.get_advisor_context(
+            db, user_id, financial_context=context, base_currency=base_currency
+        )
         context["advisor_context"] = json.dumps(advisor_context, sort_keys=True, default=str)
         context["advisor_suggestions"] = (
             "; ".join(f"{item['basis']} [{item['confidence_tier']}]" for item in advisor_context["suggestions"])
@@ -193,16 +200,23 @@ class AIAdvisorService:
         )
         return context
 
-    async def _get_financial_summary_context(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
+    async def _get_financial_summary_context(
+        self, db: AsyncSession, user_id: UUID, *, base_currency: str | None = None
+    ) -> dict[str, str]:
         today = date.today()
         start_date = today.replace(day=1)
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+        resolved_base = require_base_currency(base_currency)
         ending_unrealized_fx: Decimal | None = None
         try:
             balance = cast(
                 dict[str, Any],
                 await generate_balance_sheet(
-                    db, user_id, as_of_date=today, currency=base_currency, include_trust_signals=False
+                    db,
+                    user_id,
+                    as_of_date=today,
+                    currency=resolved_base,
+                    base_currency=resolved_base,
+                    include_trust_signals=False,
                 ),
             )
             total_assets = Decimal(str(balance["total_assets"]))
@@ -210,20 +224,26 @@ class AIAdvisorService:
             opening_equity = Decimal(str(balance["total_equity"]))
             net_income_bs = Decimal(str(balance.get("net_income") or "0.00"))
             net_worth = total_assets - total_liabilities
-            currency = str(balance.get("currency") or base_currency)
+            currency = str(balance.get("currency") or resolved_base)
             bs_lines = [*cast(list[dict[str, Any]], balance.get("assets") or []), *cast(list[dict[str, Any]], balance.get("liabilities") or [])]
             bs_tier = str(balance["confidence_tier"]) if balance.get("confidence_tier") else _worst_lines_tier(bs_lines)
             ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
             total_assets = total_liabilities = opening_equity = net_income_bs = net_worth = Decimal("0")
-            currency = base_currency
+            currency = resolved_base
             bs_tier = "UNAVAILABLE"
 
         async def _load_inc(s_date: date, e_date: date, fx: Decimal | None = None) -> tuple[Decimal, Decimal, list[dict[str, Any]], list[dict[str, Any]]]:
             inc = cast(
                 dict[str, Any],
                 await generate_income_statement(
-                    db, user_id, start_date=s_date, end_date=e_date, currency=currency, ending_unrealized_fx_gain_loss=fx
+                    db,
+                    user_id,
+                    start_date=s_date,
+                    end_date=e_date,
+                    currency=currency,
+                    base_currency=resolved_base,
+                    ending_unrealized_fx_gain_loss=fx,
                 ),
             )
             return (
@@ -299,25 +319,45 @@ class AIAdvisorService:
         }
 
     async def get_advisor_context(
-        self, db: AsyncSession, user_id: UUID, *, financial_context: dict[str, str] | None = None
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        financial_context: dict[str, str] | None = None,
+        base_currency: str | None = None,
     ) -> dict[str, Any]:
-        summary = financial_context or await self._get_financial_summary_context(db, user_id)
-        context = await self._load_advisor_facts(db, user_id, summary)
+        resolved_base = require_base_currency(base_currency)
+        summary = financial_context or await self._get_financial_summary_context(
+            db, user_id, base_currency=resolved_base
+        )
+        context = await self._load_advisor_facts(db, user_id, summary, base_currency=resolved_base)
         context["suggestions"] = [s.model_dump() for s in self._build_advisor_suggestions(context)]
         return self._redact_context(context)
 
-    async def get_advisor_suggestions(self, db: AsyncSession, user_id: UUID) -> list[dict[str, Any]]:
-        context = await self._load_advisor_facts(db, user_id, await self._get_reconciliation_summary(db, user_id))
+    async def get_advisor_suggestions(
+        self, db: AsyncSession, user_id: UUID, *, base_currency: str | None = None
+    ) -> list[dict[str, Any]]:
+        resolved_base = require_base_currency(base_currency)
+        context = await self._load_advisor_facts(
+            db, user_id, await self._get_reconciliation_summary(db, user_id), base_currency=resolved_base
+        )
         suggestions = [s.model_dump() for s in self._build_advisor_suggestions(context)]
         return cast(list[dict[str, Any]], self._redact_context({"suggestions": suggestions})["suggestions"])
 
     async def _load_advisor_facts(
-        self, db: AsyncSession, user_id: UUID, financial_summary: dict[str, str]
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        financial_summary: dict[str, str],
+        *,
+        base_currency: str | None = None,
     ) -> dict[str, Any]:
-        readiness = await self._load_report_readiness(db, user_id)
-        workflow = await self._load_workflow_status(db, user_id, synced_package_readiness=readiness)
+        readiness = await self._load_report_readiness(db, user_id, base_currency=base_currency)
+        workflow = await self._load_workflow_status(
+            db, user_id, synced_package_readiness=readiness, base_currency=base_currency
+        )
         market_data = await self._load_market_data_status(db, user_id)
-        portfolio = await self._load_portfolio_summary(db, user_id)
+        portfolio = await self._load_portfolio_summary(db, user_id, base_currency=base_currency)
         return self._assemble_advisor_facts(
             financial_summary, readiness=readiness, workflow=workflow, market_data=market_data, portfolio=portfolio
         )
@@ -344,11 +384,15 @@ class AIAdvisorService:
             },
         }
 
-    async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
+    async def _load_report_readiness(
+        self, db: AsyncSession, user_id: UUID, *, base_currency: str | None = None
+    ) -> dict[str, Any]:
         try:
             readiness = await stored_package_readiness(db, user_id=user_id)
             if readiness is None:
-                readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
+                readiness = (
+                    await current_package_readiness(db, user_id=user_id, base_currency=base_currency)
+                ).model_dump(mode="json")
             readiness["document_status"] = PersonalReportPackageSnapshotStatus.DRAFT.value
             return readiness
         except Exception as exc:
@@ -368,11 +412,21 @@ class AIAdvisorService:
             }
 
     async def _load_workflow_status(
-        self, db: AsyncSession, user_id: UUID, *, synced_package_readiness: dict[str, Any] | None = None
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        synced_package_readiness: dict[str, Any] | None = None,
+        base_currency: str | None = None,
     ) -> dict[str, Any]:
         try:
             return self._jsonable(
-                await get_workflow_status(db, user_id=user_id, synced_package_readiness=synced_package_readiness)
+                await get_workflow_status(
+                    db,
+                    user_id=user_id,
+                    synced_package_readiness=synced_package_readiness,
+                    base_currency=base_currency,
+                )
             )
         except Exception as exc:
             logger.warning("Failed to load advisor workflow status", error=str(exc))
@@ -402,9 +456,13 @@ class AIAdvisorService:
         stale = [r for r in rows if r.get("fresh") is False]
         return {"statuses": rows, "stale_count": len(stale), "stale_scopes": [str(r.get("scope")) for r in stale]}
 
-    async def _load_portfolio_summary(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
+    async def _load_portfolio_summary(
+        self, db: AsyncSession, user_id: UUID, *, base_currency: str | None = None
+    ) -> dict[str, Any]:
         try:
-            payload = self._jsonable(await PortfolioService().get_portfolio_summary(db, user_id))
+            payload = self._jsonable(
+                await PortfolioService().get_portfolio_summary(db, user_id, base_currency=base_currency)
+            )
             payload["available"] = True
             return payload
         except PortfolioNotFoundError:
@@ -413,7 +471,7 @@ class AIAdvisorService:
                 "holdings_count": 0,
                 "active_positions_count": 0,
                 "total_market_value": "0.00",
-                "currency": await get_effective_base_currency(db, user_id=user_id),
+                "currency": require_base_currency(base_currency),
             }
         except Exception as exc:
             logger.warning("Failed to load advisor portfolio summary", error=str(exc))

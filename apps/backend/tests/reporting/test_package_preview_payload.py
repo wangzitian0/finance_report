@@ -42,7 +42,7 @@ def _equal_rank_order(direction: str):
         tiebreak = OpeningPositionRecord.id.asc() if direction == 'asc' else OpeningPositionRecord.id.desc(); return state.invoke_statement(statement=statement.order_by(tiebreak))
     return _hook
 async def test_AC_reporting_package_traceability_8_detail_order_does_not_depend_on_database_tie_order(db: AsyncSession, test_user) -> None:
-    'AC-reporting.package-traceability.8'; accounts = [Account(user_id=test_user.id, name=f'Cash {index}', type=AccountType.ASSET, currency='SGD') for index in range(4)]; db.add_all(accounts); await db.flush(); await initialize_opening_positions(db, test_user.id, entry_date=date(2026, 1, 1), balances={account.id: Decimal(f'{index + 1}000.00') for index, account in enumerate(accounts)}, currency='SGD'); await db.commit(); orders = []
+    'AC-reporting.package-traceability.8'; accounts = [Account(user_id=test_user.id, name=f'Cash {index}', type=AccountType.ASSET, currency='SGD') for index in range(4)]; db.add_all(accounts); await db.flush(); await initialize_opening_positions(db, test_user.id, entry_date=date(2026, 1, 1), balances={account.id: Decimal(f'{index + 1}000.00') for index, account in enumerate(accounts)}, currency='SGD', base_currency='SGD'); await db.commit(); orders = []
     for direction in ('asc', 'desc'):
         hook = _equal_rank_order(direction); event.listen(Session, 'do_orm_execute', hook)
         try: details = await PackageAssembler().line_details(db, user_id=test_user.id, start_date=date(2026, 6, 1), end_date=date(2026, 6, 30), as_of_date=date(2026, 6, 30), currency='SGD', line_id='balance_sheet.total_assets', anchor=PersonalReportPackageTraceabilityAnchorName.LEDGER)

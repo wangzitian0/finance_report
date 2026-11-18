@@ -61,7 +61,8 @@ def _restore_readiness_read() -> Iterator[None]:
 
 
 def _override_readiness_for_test(provider) -> None:
-    async def readiness_provider(db, *, user_id):
+    async def readiness_provider(db, *, user_id, base_currency=None):
+        del base_currency
         payload = await provider(db, user_id=user_id)
         return SimpleNamespace(model_dump=lambda mode="json": payload)
 
@@ -300,9 +301,9 @@ async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, tes
         .where(WorkflowEvent.source_id == statement.id)
         .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
     )
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     first = (await db.execute(uploaded_events)).scalar_one()
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     second = (await db.execute(uploaded_events)).scalar_one()
     assert first.id == second.id
     assert first.severity == WorkflowEventSeverity.INFO
@@ -338,12 +339,12 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
     assert await list_workflow_events(db, user_id=other_user.id) == []
     assert (
         await update_workflow_event_status(
-            db, event_id=event.id, user_id=other_user.id, status=WorkflowEventStatus.READ
+            db, event_id=event.id, user_id=other_user.id, status=WorkflowEventStatus.READ, base_currency="SGD"
         )
         is None
     )
     updated = await update_workflow_event_status(
-        db, event_id=event.id, user_id=test_user.id, status=WorkflowEventStatus.ARCHIVED
+        db, event_id=event.id, user_id=test_user.id, status=WorkflowEventStatus.ARCHIVED, base_currency="SGD"
     )
     assert updated is not None
     assert updated.status == WorkflowEventStatus.ARCHIVED
@@ -353,7 +354,7 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
 async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None:
     "AC-platform.32.1 AC19.3.1"
     statement, document = await _make_statement(db, test_user.id, original_filename="original.csv", file_hash="e" * 64)
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     event = (
         await db.execute(
             select(WorkflowEvent)
@@ -364,7 +365,7 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
     event.status = WorkflowEventStatus.ARCHIVED
     document.original_filename = "renamed.csv"
     await db.flush()
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     events = (
         (
             await db.execute(
@@ -393,7 +394,7 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
         status=BankStatementStatus.PARSED,
         stage1_status=Stage1Status.PENDING_REVIEW,
     )
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     review_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -403,7 +404,7 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
     ).scalar_one()
     review_event.status = WorkflowEventStatus.READ
     await db.flush()
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     same_review_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -418,7 +419,7 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
     await db.flush()
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     resolved_review_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -469,7 +470,7 @@ async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without
         status=BankStatementStatus.REJECTED,
         stage1_status=None,
     )
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     pending_review_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -539,7 +540,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
         return current_payload
 
     _override_readiness_for_test(fake_readiness)
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     blocked_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -549,7 +550,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     ).scalar_one()
     blocked_event.status = WorkflowEventStatus.READ
     await db.flush()
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     same_blocked_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -561,7 +562,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     assert same_blocked_event.status == WorkflowEventStatus.READ
     assert same_blocked_event.report_impact == WorkflowReportImpact.BLOCKED
     current_payload = ready_payload
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     archived_blocker = (
         await db.execute(
             select(WorkflowEvent)
@@ -580,7 +581,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     assert ready_event.status == WorkflowEventStatus.UNREAD
     assert ready_event.action_href == "/reports?tab=package"
     current_payload = generated_payload
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     generated_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -625,7 +626,7 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
         return current_payload
 
     _override_readiness_for_test(fake_readiness)
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     blocked_event = (
         await db.execute(
             select(WorkflowEvent)
@@ -634,7 +635,7 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
         )
     ).scalar_one()
     current_payload = empty_payload
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     assert blocked_event.status == WorkflowEventStatus.ARCHIVED
 
 
@@ -657,7 +658,7 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
         return {"state": "ready", "action_href": "/reports?tab=package", "blocking_count": 0, "blockers": []}
 
     _override_readiness_for_test(fake_readiness)
-    status = await get_workflow_status(db, user_id=test_user.id)
+    status = await get_workflow_status(db, user_id=test_user.id, base_currency="SGD")
     assert status.primary_state.value == "ready"
     assert status.next_action.type.value == "open_report"
     assert status.next_action.href == "/reports?tab=package"
@@ -690,7 +691,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
         }
 
     _override_readiness_for_test(fake_readiness)
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     events = (
         (
             await db.execute(
@@ -730,7 +731,7 @@ async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, t
 
     sqlalchemy_event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
     try:
-        await sync_workflow_events_for_user(db, user_id=test_user.id)
+        await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     finally:
         sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
     assert len(statements) <= 3
@@ -782,7 +783,7 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(d
 
     sqlalchemy_event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
     try:
-        status = await get_workflow_status(db, user_id=test_user.id)
+        status = await get_workflow_status(db, user_id=test_user.id, base_currency="SGD")
     finally:
         sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
     count_queries = [statement for statement in statements if "count(" in statement]
@@ -805,13 +806,13 @@ async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_even
     atomic_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
     await ReconciliationMatchFactory.create_async(db, atomic_txn_id=atomic_txn.id, journal_entry_ids=[])
     await db.commit()
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     events = await list_workflow_events(db, user_id=test_user.id)
     recon = [e for e in events if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
     assert len(recon) == 1, "pending Stage 2 matches must surface a single reconciliation-review card"
     assert recon[0].action_href == "/reconciliation?tab=review-queue"
     original_event_id = recon[0].id
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     events_again = await list_workflow_events(db, user_id=test_user.id)
     recon_again = [e for e in events_again if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
     assert len(recon_again) == 1
@@ -886,8 +887,8 @@ async def test_AC19_14_3_sync_tolerates_concurrent_event_creation(db_engine, tes
         )
         await setup_session.commit()
     async with sessionmaker() as first_session, sessionmaker() as second_session:
-        await sync_workflow_events_for_user(first_session, user_id=test_user.id)
-        second_task = asyncio.create_task(sync_workflow_events_for_user(second_session, user_id=test_user.id))
+        await sync_workflow_events_for_user(first_session, user_id=test_user.id, base_currency="SGD")
+        second_task = asyncio.create_task(sync_workflow_events_for_user(second_session, user_id=test_user.id, base_currency="SGD"))
         await asyncio.sleep(0.2)
         await first_session.commit()
         await asyncio.wait_for(second_task, timeout=5)
@@ -927,10 +928,10 @@ async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(d
         }
 
     _override_readiness_for_test(fake_readiness)
-    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     await db.flush()
-    status = await get_workflow_status(db, user_id=test_user.id)
-    events = await list_workflow_events_response(db, user_id=test_user.id, limit=10)
+    status = await get_workflow_status(db, user_id=test_user.id, base_currency="SGD")
+    events = await list_workflow_events_response(db, user_id=test_user.id, limit=10, base_currency="SGD")
     assert status.primary_state == WorkflowPrimaryState.BLOCKED
     assert status.report_readiness.state == WorkflowReportReadinessState.BLOCKED
     assert status.active_session is not None
@@ -966,7 +967,7 @@ async def test_AC19_2_7_events_read_computes_readiness_once(db, test_user, monke
         }
 
     _override_readiness_for_test(counting_readiness)
-    events = await list_workflow_events_response(db, user_id=test_user.id, limit=10)
+    events = await list_workflow_events_response(db, user_id=test_user.id, limit=10, base_currency="SGD")
     assert call_count == 1, f"readiness must be computed once per events read, got {call_count}"
     assert events.sessions, "events response must include session summaries"
     active = [s for s in events.sessions if s.primary_state == WorkflowPrimaryState.BLOCKED]

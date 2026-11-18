@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import zipfile
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from io import BytesIO, StringIO
@@ -49,6 +47,7 @@ from src.reporting import (
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
+    package_snapshot_zip as _package_snapshot_zip,
     render_balance_sheet_csv,
     render_cash_flow_csv,
     render_income_statement_csv,
@@ -89,16 +88,19 @@ _ReportT = TypeVar("_ReportT")
 
 
 async def _run_report(  # noqa: UP047
+    ctx: RequestContext,
     *,
     currency: str | None,
     end_date: date,
     label: str,
-    build: Callable[[], Awaitable[_ReportT]],
+    build: Callable[[str, str], Awaitable[_ReportT]],
 ) -> _ReportT:
+    base_currency = await ctx.get_base_currency()
+    target_currency = currency or base_currency
     try:
-        return await build()
+        return await build(target_currency, base_currency)
     except ReportError as exc:
-        logger.warning(f"{label} failed", end_date=str(end_date), currency=currency, error=str(exc))
+        logger.warning(f"{label} failed", end_date=str(end_date), currency=target_currency, error=str(exc))
         raise
 
 
@@ -177,6 +179,7 @@ async def preview_personal_report_package(
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
+        base_currency=await ctx.get_base_currency(),
         include_restricted=include_restricted,
     )
     return package_preview(document)
@@ -207,6 +210,7 @@ async def list_personal_report_package_line_details(
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
+        base_currency=await ctx.get_base_currency(),
         line_id=line_id,
         anchor=anchor,
     )
@@ -238,6 +242,7 @@ async def list_personal_report_package_manifest_entries(
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
+        base_currency=await ctx.get_base_currency(),
     )
     return PersonalReportPackageManifestEntriesPage(**_page_fields(entries, pagination, "entries"))
 
@@ -277,7 +282,8 @@ async def generate_personal_report_package_snapshot(
     report_start, report_end, report_as_of = _package_dates(
         start_date=request.start_date, end_date=request.end_date, as_of_date=request.as_of_date
     )
-    target_currency = _package_currency(request.currency or await ctx.get_base_currency())
+    base_currency = await ctx.get_base_currency()
+    target_currency = _package_currency(request.currency or base_currency)
     snapshot_id = uuid4()
     frozen_at = datetime.now(UTC)
     document = await PackageAssembler().assemble(
@@ -288,6 +294,7 @@ async def generate_personal_report_package_snapshot(
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
+        base_currency=base_currency,
         include_restricted=PACKAGE_INCLUDE_RESTRICTED
         if request.include_restricted is None
         else request.include_restricted,
@@ -347,33 +354,6 @@ async def get_personal_report_package_snapshot(
     return _package_snapshot_response(snapshot)
 
 
-def _package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> bytes:
-    sections = snapshot.document.sections
-    files_data = [
-        ("balance_sheet.csv", render_balance_sheet_csv(sections.balance_sheet)),
-        ("income_statement.csv", render_income_statement_csv(sections.income_statement)),
-        ("cash_flow.csv", render_cash_flow_csv(sections.cash_flow)),
-    ]
-    file_entries = []
-    buffer = BytesIO()
-    with zipfile.ZipFile(buffer, "w") as zf:
-        for filename, content in files_data:
-            data = content.encode("utf-8")
-            zf.writestr(filename, data)
-            file_entries.append(
-                {"filename": filename, "sha256": hashlib.sha256(data).hexdigest(), "size_bytes": len(data)}
-            )
-        manifest = {
-            "package_id": str(snapshot.id),
-            "reporting_currency": snapshot.currency,
-            "as_of_date": str(snapshot.as_of_date),
-            "tax_year": snapshot.as_of_date.year,
-            "files": file_entries,
-        }
-        zf.writestr("manifest.json", json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8"))
-    return buffer.getvalue()
-
-
 @router.get(
     "/package/snapshots/{snapshot_id}/exports",
     responses={
@@ -428,11 +408,12 @@ async def balance_sheet(
     """Get balance sheet as of date."""
     report_date = as_of_date or date.today()
     report = await _run_report(
+        ctx,
         currency=currency,
         end_date=report_date,
         label="Balance sheet generation",
-        build=lambda: generate_balance_sheet(
-            ctx.db, ctx.user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+        build=lambda tc, bc: generate_balance_sheet(
+            ctx.db, ctx.user_id, as_of_date=report_date, currency=tc, base_currency=bc, include_restricted=include_restricted
         ),
     )
     return BalanceSheetResponse.model_validate(report)
@@ -449,11 +430,12 @@ async def balance_sheet_diagnostics(
     """Diagnose accounting equation out-of-balance root cause."""
     report_date = as_of_date or date.today()
     return await _run_report(
+        ctx,
         currency=currency,
         end_date=report_date,
         label="Balance sheet diagnostics",
-        build=lambda: run_balance_sheet_diagnostics(
-            ctx.db, ctx.user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+        build=lambda tc, bc: run_balance_sheet_diagnostics(
+            ctx.db, ctx.user_id, as_of_date=report_date, currency=tc, base_currency=bc, include_restricted=include_restricted
         ),
     )
 
@@ -468,10 +450,13 @@ async def get_data_quality_health(
     """Return personal financial data quality, invariants, timeline, and action items."""
     report_date = as_of_date or date.today()
     return await _run_report(
+        ctx,
         currency=currency,
         end_date=report_date,
         label="Data quality evaluation",
-        build=lambda: compute_personal_data_quality(ctx.db, ctx.user_id, as_of_date=report_date, currency=currency),
+        build=lambda tc, bc: compute_personal_data_quality(
+            ctx.db, ctx.user_id, as_of_date=report_date, currency=tc, base_currency=bc
+        ),
     )
 
 
@@ -506,15 +491,17 @@ async def income_statement(
     resolved_end = end_date or date.today()
     resolved_start = start_date or date(resolved_end.year, 1, 1)
     report = await _run_report(
+        ctx,
         currency=currency,
         end_date=resolved_end,
         label="Income statement generation",
-        build=lambda: generate_income_statement(
+        build=lambda tc, bc: generate_income_statement(
             ctx.db,
             ctx.user_id,
             start_date=resolved_start,
             end_date=resolved_end,
-            currency=currency,
+            currency=tc,
+            base_currency=bc,
             tags=tags,
             account_type=account_type,
         ),
@@ -534,13 +521,11 @@ async def cash_flow(
     db, user_id = ctx.db, ctx.user_id
     start, end = cash_flow_period(start_date, end_date)
 
-    async def _build():
+    async def _build(tc: str, _bc: str):
         custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
-        return await generate_cash_flow(
-            db, user_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
-        )
+        return await generate_cash_flow(db, user_id, start_date=start, end_date=end, currency=tc, cash_account_ids=custody)
 
-    report = await _run_report(currency=currency, end_date=end, label="Cash flow generation", build=_build)
+    report = await _run_report(ctx, currency=currency, end_date=end, label="Cash flow generation", build=_build)
     return CashFlowPreview.model_validate(cash_flow_preview(report))
 
 
@@ -558,13 +543,13 @@ async def list_cash_flow_line_events(
     db, user_id = ctx.db, ctx.user_id
     start, end = cash_flow_period(start_date, end_date)
 
-    async def _build():
+    async def _build(tc: str, _bc: str):
         custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
         return await cash_flow_line_events(
-            db, user_id, line_id=line_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
+            db, user_id, line_id=line_id, start_date=start, end_date=end, currency=tc, cash_account_ids=custody
         )
 
-    events = await _run_report(currency=currency, end_date=end, label="Cash flow line events", build=_build)
+    events = await _run_report(ctx, currency=currency, end_date=end, label="Cash flow line events", build=_build)
     if events is None:
         raise ResourceNotFoundError("Cash-flow line not found")
     return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
@@ -582,16 +567,17 @@ async def net_worth_timeseries(
 ) -> NetWorthTimeSeriesResponse:
     """Get daily or monthly net worth time-series."""
     report = await _run_report(
+        ctx,
         currency=currency,
         end_date=to_date,
         label="Net worth time-series generation",
-        build=lambda: get_net_worth_timeseries(
+        build=lambda tc, _bc: get_net_worth_timeseries(
             ctx.db,
             ctx.user_id,
             start_date=from_date,
             end_date=to_date,
             granularity=granularity.value,
-            currency=currency,
+            currency=tc,
             include_restricted=include_restricted,
         ),
     )
@@ -609,11 +595,12 @@ async def net_worth_allocation(
     """Get signed net-worth allocation grouped by asset class, liquidity, and source currency."""
     report_date = as_of_date or date.today()
     report = await _run_report(
+        ctx,
         currency=currency,
         end_date=report_date,
         label="Net worth allocation generation",
-        build=lambda: get_net_worth_allocation_schedule(
-            ctx.db, ctx.user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+        build=lambda tc, bc: get_net_worth_allocation_schedule(
+            ctx.db, ctx.user_id, as_of_date=report_date, currency=tc, base_currency=bc, include_restricted=include_restricted
         ),
     )
     return NetWorthAllocationResponse.model_validate(report)
@@ -643,12 +630,19 @@ async def export_report(
     """Export reports in CSV format."""
     db, user_id = ctx.db, ctx.user_id
     _ = (format, framework_id)
+    base_currency = await ctx.get_base_currency()
+    target_currency = currency or base_currency
     if report_type == ExportReportType.BALANCE_SHEET:
         report_date = as_of_date or date.today()
         bs = cast(
             dict[str, Any],
             await generate_balance_sheet(
-                db, user_id, as_of_date=report_date, currency=currency, include_restricted=include_restricted
+                db,
+                user_id,
+                as_of_date=report_date,
+                currency=target_currency,
+                base_currency=base_currency,
+                include_restricted=include_restricted,
             ),
         )
         csv_text, filename = render_balance_sheet_csv(bs), f"balance-sheet-{bs['as_of_date']}.csv"
@@ -658,7 +652,12 @@ async def export_report(
         inc = cast(
             dict[str, Any],
             await generate_income_statement(
-                db, user_id, start_date=start_date, end_date=end_date, currency=currency
+                db,
+                user_id,
+                start_date=start_date,
+                end_date=end_date,
+                currency=target_currency,
+                base_currency=base_currency,
             ),
         )
         csv_text, filename = render_income_statement_csv(inc), f"income-statement-{start_date}-to-{end_date}.csv"
@@ -673,7 +672,7 @@ async def export_report(
                 user_id,
                 start_date=start_date,
                 end_date=end_date,
-                currency=currency,
+                currency=target_currency,
                 cash_account_ids=custody_ids or None,
             ),
         )

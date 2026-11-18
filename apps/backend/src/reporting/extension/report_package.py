@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
+import zipfile
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +17,11 @@ from pydantic import ValidationError
 
 from src.audit.money.currency import normalize_currency_code
 from src.platform.base.errors import DomainError
+from src.reporting.extension.report_csv import (
+    render_balance_sheet_csv,
+    render_cash_flow_csv,
+    render_income_statement_csv,
+)
 from src.reporting.orm import ReportSnapshot
 from src.schemas import (
     PersonalReportingFrameworkId,
@@ -171,3 +179,31 @@ def package_snapshot_csv(snapshot: PersonalReportPackageSnapshotResponse) -> str
             ]
         )
     return output.getvalue()
+
+
+def package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> bytes:
+    """Build a ZIP archive and SHA-256 manifest for a personal report package snapshot."""
+    sections = snapshot.document.sections
+    files_data = [
+        ("balance_sheet.csv", render_balance_sheet_csv(sections.balance_sheet)),
+        ("income_statement.csv", render_income_statement_csv(sections.income_statement)),
+        ("cash_flow.csv", render_cash_flow_csv(sections.cash_flow)),
+    ]
+    file_entries = []
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        for filename, content in files_data:
+            data = content.encode("utf-8")
+            zf.writestr(filename, data)
+            file_entries.append(
+                {"filename": filename, "sha256": hashlib.sha256(data).hexdigest(), "size_bytes": len(data)}
+            )
+        manifest = {
+            "package_id": str(snapshot.id),
+            "reporting_currency": snapshot.currency,
+            "as_of_date": str(snapshot.as_of_date),
+            "tax_year": snapshot.as_of_date.year,
+            "files": file_entries,
+        }
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8"))
+    return buffer.getvalue()

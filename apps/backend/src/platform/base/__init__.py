@@ -12,6 +12,7 @@ adapters.
 from __future__ import annotations
 
 from src.platform.base.bus import EventBus, EventHandler, SubscriberRegistry
+from src.platform.base.currency import require_base_currency
 from src.platform.base.errors import (
     BadGatewayError,
     BaseAppException,
@@ -54,5 +55,6 @@ __all__ = [
     "TooManyRequestsError",
     "UnauthorizedError",
     "ValidationFailedError",
+    "require_base_currency",
     "validate_internal_action_href",
 ]

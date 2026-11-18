@@ -78,6 +78,7 @@ async def retire_statement(
     db: AsyncSession,
     command: RetireStatementCommand,
     *,
+    base_currency: str | None = None,
     dependencies: StatementPostingDependencies | None = None,
 ) -> StatementSummary:
     """Retire product visibility while retaining source content and lineage."""
@@ -114,6 +115,7 @@ async def retire_statement(
         command.user_id,
         was_approved=was_approved,
         reason="Statement retired",
+        base_currency=base_currency,
         dependencies=dependencies,
         tolerate_unresolved_rows=not was_approved,
     )
@@ -122,6 +124,7 @@ async def retire_statement(
             db,
             user_id=command.user_id,
             account_id=statement.account_id,
+            base_currency=base_currency,
             dependencies=dependencies,
         )
     await db.flush()

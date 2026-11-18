@@ -291,6 +291,7 @@ async def assemble_framework_income_statement(
     start_date: date,
     end_date: date,
     currency: str | None = None,
+    base_currency: str | None = None,
     decisions_by_source_id: dict[str, Any] | None = None,
     ending_unrealized_fx_gain_loss: Decimal | None = None,
 ) -> dict[str, Any]:
@@ -303,6 +304,7 @@ async def assemble_framework_income_statement(
             start_date=start_date,
             end_date=end_date,
             currency=currency,
+            base_currency=base_currency,
             include_economic_categories=True,
             ending_unrealized_fx_gain_loss=ending_unrealized_fx_gain_loss,
         ),

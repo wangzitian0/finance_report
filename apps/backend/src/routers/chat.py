@@ -105,7 +105,14 @@ async def chat_message(payload: ChatRequest, *, ctx: Ctx) -> StreamingResponse:
     db, user_id = ctx.db, ctx.user_id
     service = AIAdvisorService()
     await _validate_requested_model(service, payload.model)
-    stream = await service.chat_stream(db, user_id, payload.message, payload.session_id, payload.model)
+    stream = await service.chat_stream(
+        db,
+        user_id,
+        payload.message,
+        payload.session_id,
+        payload.model,
+        base_currency=await ctx.get_base_currency(),
+    )
     stream_iter = aiter(stream.stream)
     try:
         first_chunk = await anext(stream_iter, None)
@@ -262,8 +269,9 @@ async def suggestions(
     structured: list[Any] = []
     if include_structured and ctx.db is not None and ctx.user_id is not None:
         try:
+            base_currency = await ctx.get_base_currency()
             structured = await asyncio.wait_for(
-                AIAdvisorService().get_advisor_suggestions(ctx.db, ctx.user_id),
+                AIAdvisorService().get_advisor_suggestions(ctx.db, ctx.user_id, base_currency=base_currency),
                 timeout=SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS,
             )
         except TimeoutError as exc:

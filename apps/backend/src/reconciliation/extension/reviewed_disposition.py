@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter, canonical_json_digest
-from src.config_app import get_effective_base_currency
 from src.extraction import (
     DispositionContext,
     DispositionMode,
@@ -176,6 +175,7 @@ async def submit_reviewed_disposition(
     user_id: UUID,
     command: ReviewedDispositionCommand,
     dependencies: ReviewedDispositionDependencies,
+    base_currency: str | None = None,
 ) -> JournalEntry:
     """Append one reviewed causal decision and post its single source entry.
 
@@ -309,11 +309,13 @@ async def submit_reviewed_disposition(
     await _ensure_statement_custody_account(db, txn=txn, user_id=user_id)
 
     try:
+        from src.platform import require_base_currency
+
         return await create_entry_from_txn(
             db,
             txn,
             user_id=user_id,
-            base_currency=await get_effective_base_currency(db, user_id=user_id),
+            base_currency=require_base_currency(base_currency),
             auto_post=True,
             source_type=JournalEntrySourceType.USER_CONFIRMED,
             disposition=decision,

@@ -84,6 +84,7 @@ async def _seed_approved_statement_with_posted_txn(
         counter_account=counter_account,
         source_decision=source_decision,
         trace_emitter=trace_emitter,
+        base_currency="SGD",
     )
     await db.flush()
     return (account, statement, txn, entry)
@@ -458,6 +459,7 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
         counter_account=counter_account,
         source_decision=source_decision,
         trace_emitter=trace_emitter,
+        base_currency="SGD",
     )
     in_run_match = ReconciliationMatch(
         atomic_txn_id=txn_in_run.id,
@@ -639,6 +641,7 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
             counter_account=counter_account,
             source_decision=source_decision,
             trace_emitter=trace_emitter,
+            base_currency="SGD",
         )
     entry_result = await db.execute(
         select(JournalEntry)
@@ -722,6 +725,7 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
         counter_account=counter_account,
         source_decision=source_decision,
         trace_emitter=trace_emitter,
+        base_currency="SGD",
     )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,

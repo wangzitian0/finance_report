@@ -14,6 +14,7 @@ from src.audit.money import Currency, Money, to_money
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
+from src.platform import require_base_currency
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InsufficientDataError,
@@ -102,6 +103,8 @@ async def _report_preparation_holdings(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date,
+    *,
+    base_currency: str | None = None,
 ) -> list[HoldingResponse]:
     """Load current holdings only when post-period manual prices evidence report preparation."""
     override_rows = (
@@ -120,7 +123,9 @@ async def _report_preparation_holdings(
         return []
 
     try:
-        current_holdings = await portfolio_service.get_holdings(db=db, user_id=user_id, include_disposed=True)
+        current_holdings = await portfolio_service.get_holdings(
+            db=db, user_id=user_id, include_disposed=True, base_currency=base_currency
+        )
     except (PortfolioNotFoundError, AssetNotFoundError):
         return []
 
@@ -146,16 +151,19 @@ async def build_investment_performance_report_schedule(
         ),
     ]
 
+    resolved_base = require_base_currency(base_currency or currency)
     used_report_preparation_evidence = False
     try:
         holdings = list(
-            await portfolio_service.get_holdings(db=db, user_id=user_id, as_of_date=as_of_date, include_disposed=True)
+            await portfolio_service.get_holdings(
+                db=db, user_id=user_id, as_of_date=as_of_date, include_disposed=True, base_currency=resolved_base
+            )
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
         holdings = []
 
     if not holdings:
-        holdings = await _report_preparation_holdings(db=db, user_id=user_id, as_of_date=as_of_date)
+        holdings = await _report_preparation_holdings(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base)
         used_report_preparation_evidence = bool(holdings)
         notes.append(
             "No holdings snapshot existed on or before the as-of date; the schedule used active holdings "
@@ -190,24 +198,24 @@ async def build_investment_performance_report_schedule(
 
     xirr = await _metric_or_note(
         "XIRR",
-        lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency),
+        lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base),
     )
     twr = await _metric_or_note(
         "TWR",
         lambda: performance.calculate_time_weighted_return(
-            db=db, user_id=user_id, period_start=period_start, period_end=period_end, base_currency=base_currency
+            db=db, user_id=user_id, period_start=period_start, period_end=period_end, base_currency=resolved_base
         ),
     )
     mwr = await _metric_or_note(
         "MWR",
         lambda: performance.calculate_money_weighted_return(
-            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base
         ),
     )
     dividend_yield = await _metric_or_note(
         "Dividend yield",
         lambda: performance.calculate_dividend_yield(
-            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base
         ),
     )
 
@@ -255,7 +263,7 @@ async def build_investment_performance_report_schedule(
             ("geography", allocation.get_geography_allocation),
             ("asset_class", allocation.get_asset_class_allocation),
         )
-        for row in await loader(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=base_currency)
+        for row in await loader(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base)
     ]
     if used_report_preparation_evidence and not allocation_rows and holding_rows:
         total_market_value = sum((row.market_value for row in holding_rows), Decimal("0.00"))

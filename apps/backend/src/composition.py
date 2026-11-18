@@ -140,14 +140,18 @@ async def _post_and_settle_named_transfers(
     suggestions: dict[UUID, ClassificationSuggestion],
     *,
     default_accepted_by: str | None = None,
+    base_currency: str | None = None,
 ) -> int:
     if not named:
         return 0
+    resolved_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
     if default_accepted_by is not None:
         accepted_lit: Literal["user", "system"] = "system" if default_accepted_by == "system" else "user"
-        legs = await post_named_transfer_legs(db, user_id=user_id, named=list(named), accepted_by=accepted_lit)
+        legs = await post_named_transfer_legs(
+            db, user_id=user_id, named=list(named), accepted_by=accepted_lit, base_currency=resolved_base
+        )
     else:
-        legs = await post_named_transfer_legs(db, user_id=user_id, named=list(named))
+        legs = await post_named_transfer_legs(db, user_id=user_id, named=list(named), base_currency=resolved_base)
     classification_ids = {item.transaction.id: suggestions[item.transaction.id].classification_id for item in named}
     chosen_by_user = {item.transaction.id for item in named if item.decided_by_user}
     for leg in legs:
@@ -181,6 +185,10 @@ async def _release_reconciliation_for_user(
     return await release_transaction_dispositions(db, user_id=user_id, transaction_ids=transaction_ids, reason=reason)
 
 
+async def _resolve_user_base_currency(db: AsyncSession, user_id: UUID) -> str:
+    return await get_effective_base_currency(db, user_id=user_id)
+
+
 def compose_statement_posting_dependencies() -> StatementPostingDependencies:
     return StatementPostingDependencies(
         transfer_exclusions=accepted_transfer_txn_ids,
@@ -190,6 +198,7 @@ def compose_statement_posting_dependencies() -> StatementPostingDependencies:
         disposition_mode=DispositionMode(settings.statement_disposition_mode),
         post_named_transfers=_post_named_transfers_for_user,
         release_reconciliation=_release_reconciliation_for_user,
+        base_currency_resolver=_resolve_user_base_currency,
     )
 
 
@@ -437,11 +446,14 @@ async def auto_fill_default_statement_dispositions(db: AsyncSession, statement: 
                 intent=intent, counter_account_id=counter_account.id, category=category, rationale=rationale
             ),
             dependencies=dependencies,
+            base_currency=base_currency,
         )
         await settle_drafts_after_posting(db, txn.id, accepted_id=accepted_id)
         resolved_count += 1
 
-    resolved_count += await _post_and_settle_named_transfers(db, user_id, named_transfers, suggestions)
+    resolved_count += await _post_and_settle_named_transfers(
+        db, user_id, named_transfers, suggestions, base_currency=base_currency
+    )
     return resolved_count
 
 

@@ -11,9 +11,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import DataProvenance
-from src.config_app import get_effective_base_currency
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
+from src.platform import require_base_currency
 from src.pricing import FxWarning, PricingError, build_manual_valuation_lines, get_exchange_rate
 from src.reporting.base.balance_sheet_calculator import (
     absorb_translation_rounding,
@@ -95,11 +95,7 @@ async def _compute_unrealized_fx_gain_loss(
     try:
         fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date, base_currency)
         raw_unrealized = fx_revaluation.total_unrealized_gain_loss
-        base_curr = (
-            getattr(fx_revaluation, "base_currency", None)
-            or base_currency
-            or await get_effective_base_currency(db, user_id=user_id)
-        ).upper()
+        base_curr = require_base_currency(getattr(fx_revaluation, "base_currency", None) or base_currency)
         if normalized_target != base_curr:
             try:
                 rate = await get_exchange_rate(db, base_curr, normalized_target, as_of_date, lazy_load=True)
@@ -151,7 +147,7 @@ async def generate_balance_sheet(
     include_trust_signals: bool = True,
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date."""
-    base_curr = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+    base_curr = require_base_currency(base_currency or currency)
     target_currency = _normalize_currency(currency or base_curr)
     fx_warnings: list[FxWarning] = []
     portfolio_warnings: list[FxWarning] = []

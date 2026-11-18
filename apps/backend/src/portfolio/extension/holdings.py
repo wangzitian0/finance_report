@@ -12,11 +12,11 @@ from src.audit.money import Currency, Money, to_money
 from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
-from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.observability import get_logger
+from src.platform import require_base_currency
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InvalidDateRangeError,
@@ -112,11 +112,18 @@ class PortfolioService:
         as_of_date: date | None = None,
         include_disposed: bool = False,
         warnings: list[dict[str, str]] | None = None,
+        *,
+        base_currency: str | None = None,
     ) -> Sequence[HoldingResponse]:
         """Return portfolio holdings summary with market values and unrealized P&L."""
         if as_of_date is not None:
             return await self._get_snapshot_holdings(
-                db, user_id=user_id, as_of_date=as_of_date, include_disposed=include_disposed, warnings=warnings
+                db,
+                user_id=user_id,
+                as_of_date=as_of_date,
+                include_disposed=include_disposed,
+                warnings=warnings,
+                base_currency=base_currency,
             )
 
         eval_date = await self._default_holdings_eval_date(db, user_id)
@@ -133,12 +140,12 @@ class PortfolioService:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
 
         account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+        resolved_base = require_base_currency(base_currency)
         holdings: list[HoldingResponse] = []
 
         for position in positions:
             _, converted_value, converted_cost, unrealized_pnl, unrealized_pnl_ratio = await self._value_managed_position(
-                db, position, eval_date, user_id, base_currency, quantize=True
+                db, position, eval_date, user_id, resolved_base, quantize=True
             )
             latest_atomic = await self._get_latest_atomic(db, position.asset_identifier, user_id)
             holdings.append(
@@ -178,6 +185,7 @@ class PortfolioService:
         as_of_date: date,
         include_disposed: bool,
         warnings: list[dict[str, str]] | None = None,
+        base_currency: str | None = None,
     ) -> Sequence[HoldingResponse]:
         """Return point-in-time holdings from immutable AtomicPosition snapshots."""
         latest_snapshot_subquery = (
@@ -208,7 +216,7 @@ class PortfolioService:
 
         holdings: list[HoldingResponse] = []
         account_names: dict[UUID, str] = {}
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+        resolved_base = require_base_currency(base_currency)
         for snapshot in snapshots:
             snapshot_quantity = Quantity(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
             status = PositionStatus.DISPOSED if snapshot_quantity.is_zero() else PositionStatus.ACTIVE
@@ -258,7 +266,7 @@ class PortfolioService:
                 value_rate_date=as_of_date,
                 cost=cost_money,
                 cost_rate_date=cost_rate_date,
-                target_currency=base_currency,
+                target_currency=resolved_base,
                 quantize=True,
             )
             holdings.append(
@@ -331,6 +339,8 @@ class PortfolioService:
         user_id: UUID,
         period_start: date,
         period_end: date,
+        *,
+        base_currency: str | None = None,
     ) -> RealizedPnLResponse:
         """Calculate realized P&L for disposed positions within [period_start, period_end]."""
         if period_start > period_end:
@@ -359,13 +369,13 @@ class PortfolioService:
         total_realized_pnl = Decimal("0")
         total_converted_cost = Decimal("0")
         details: list[dict] = []
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+        resolved_base = require_base_currency(base_currency)
 
         for position in disposed_positions:
             assert position.disposal_date is not None
             disposal_price, converted_disposal, converted_cost, realized_pnl, realized_pnl_ratio = (
                 await self._value_managed_position(
-                    db, position, position.disposal_date, user_id, base_currency, quantize=False
+                    db, position, position.disposal_date, user_id, resolved_base, quantize=False
                 )
             )
             total_realized_pnl += realized_pnl.amount
@@ -400,6 +410,8 @@ class PortfolioService:
         db: AsyncSession,
         user_id: UUID,
         as_of_date: date | None = None,
+        *,
+        base_currency: str | None = None,
     ) -> UnrealizedPnLResponse:
         """Calculate unrealized P&L for active positions as of as_of_date."""
         eval_date = as_of_date or date.today()
@@ -418,11 +430,11 @@ class PortfolioService:
         total_cost_basis = Decimal("0")
         total_unrealized_pnl = Decimal("0")
         details: list[dict] = []
-        base_currency = await get_effective_base_currency(db, user_id=user_id)
+        resolved_base = require_base_currency(base_currency)
 
         for position in positions:
             latest_price, converted_market, converted_cost, unrealized_pnl, unrealized_pnl_ratio = (
-                await self._value_managed_position(db, position, eval_date, user_id, base_currency, quantize=False)
+                await self._value_managed_position(db, position, eval_date, user_id, resolved_base, quantize=False)
             )
             total_market_value += converted_market.amount
             total_cost_basis += converted_cost.amount
@@ -456,15 +468,17 @@ class PortfolioService:
         db: AsyncSession,
         user_id: UUID,
         as_of_date: date | None = None,
+        *,
+        base_currency: str | None = None,
     ) -> PortfolioSummaryResponse:
         """Return overall portfolio summary including market value, cost basis, and P&L."""
-        holdings = await self.get_holdings(db, user_id, as_of_date, include_disposed=True)
+        holdings = await self.get_holdings(db, user_id, as_of_date, include_disposed=True, base_currency=base_currency)
         total_market_value = sum((h.market_value for h in holdings), Decimal("0"))
         total_cost_basis = sum((h.cost_basis for h in holdings), Decimal("0"))
         total_unrealized_pnl = sum((h.unrealized_pnl for h in holdings), Decimal("0"))
         active_count = sum(1 for h in holdings if h.status == PositionStatus.ACTIVE)
         net_pnl_ratio = Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis)
-        currency = holdings[0].currency if holdings else await get_effective_base_currency(db, user_id=user_id)
+        currency = holdings[0].currency if holdings else require_base_currency(base_currency)
         return PortfolioSummaryResponse(
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
@@ -638,11 +652,16 @@ class PortfolioService:
         db: AsyncSession,
         user_id: UUID,
         as_of_date: date | None = None,
+        *,
+        base_currency: str | None = None,
     ) -> PortfolioSummaryDashboardResponse:
         """Build the portfolio summary dashboard with YTD realized P&L and dividend income."""
         report_date = as_of_date or date.today()
+        resolved_base = require_base_currency(base_currency)
         try:
-            summary = await self.get_portfolio_summary(db=db, user_id=user_id, as_of_date=as_of_date)
+            summary = await self.get_portfolio_summary(
+                db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base
+            )
         except (PortfolioNotFoundError, AssetNotFoundError):
             z = Decimal("0.00")
             return PortfolioSummaryDashboardResponse(
@@ -657,7 +676,7 @@ class PortfolioService:
                 holdings_count=0,
                 active_positions_count=0,
                 disposed_positions_count=0,
-                currency="SGD",
+                currency=resolved_base,
                 realized_pnl_ytd=z,
                 dividend_income_ytd=z,
             )

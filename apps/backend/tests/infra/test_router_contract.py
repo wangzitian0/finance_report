@@ -182,3 +182,39 @@ def test_legacy_router_allowlist_has_no_stale_entries() -> None:
         if rules - actual.get(name, set())
     }
     assert stale == {}, f"Stale entries in LEGACY_ROUTER_ALLOWLIST (remove fixed items): {stale}"
+
+
+_NON_DOMAIN_PACKAGE_DIRS = frozenset({"routers", "__pycache__"})
+
+
+@pytest.mark.no_db
+def test_domain_packages_do_not_import_config_app() -> None:
+    """AC-platform.router-contract.3: keep domain packages free of src.config_app imports."""
+    violators: list[str] = []
+    discovered_dirs = tuple(
+        sorted(
+            p.name
+            for p in _SRC_DIR.iterdir()
+            if p.is_dir() and p.name not in _NON_DOMAIN_PACKAGE_DIRS and not p.name.startswith(".")
+        )
+    )
+    for pkg in discovered_dirs:
+        pkg_dir = _SRC_DIR / pkg
+        for path in sorted(pkg_dir.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    mod = node.module or ""
+                    imports_config_app = (
+                        mod.startswith("src.config_app")
+                        or (mod == "src" and any(a.name == "config_app" for a in node.names))
+                        or (node.level > 0 and (mod == "config_app" or mod.startswith("config_app.") or any(a.name == "config_app" for a in node.names)))
+                    )
+                    if imports_config_app:
+                        violators.append(f"{path.relative_to(_SRC_DIR)}:{node.lineno}")
+                elif isinstance(node, ast.Import) and any(
+                    alias.name == "src.config_app" or alias.name.startswith("src.config_app.")
+                    for alias in node.names
+                ):
+                    violators.append(f"{path.relative_to(_SRC_DIR)}:{node.lineno}")
+    assert violators == [], f"Unexpected src.config_app imports in domain packages: {violators}"

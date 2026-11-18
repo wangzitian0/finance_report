@@ -11,10 +11,10 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
+from src.platform import require_base_currency
 from src.pricing import FxWarning, PrefetchedFxRates, PricingError, convert_money
 from src.reporting.base.income_statement_calculator import calculate_income_statement_totals
 from src.reporting.base.l1_registry import economic_category_line
@@ -89,6 +89,7 @@ async def generate_income_statement(
     start_date: date,
     end_date: date,
     currency: str | None = None,
+    base_currency: str | None = None,
     tags: list[str] | None = None,
     account_type: AccountType | None = None,
     include_economic_categories: bool = False,
@@ -98,7 +99,8 @@ async def generate_income_statement(
     if start_date > end_date:
         raise ReportError("start_date must be before end_date")
 
-    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
+    target_currency = _normalize_currency(require_base_currency(currency or base_currency))
+    resolved_base = require_base_currency(base_currency or currency)
     fx_warnings: list[FxWarning] = []
     account_types: tuple[AccountType, ...] = (account_type,) if account_type else (AccountType.INCOME, AccountType.EXPENSE)
 
@@ -245,6 +247,7 @@ async def generate_income_statement(
         start_date=start_date,
         end_date=end_date,
         target_currency=target_currency,
+        base_currency=resolved_base,
         ending_unrealized_fx_gain_loss=ending_unrealized_fx_gain_loss,
     )
     trend_items = [
@@ -335,16 +338,19 @@ async def _calculate_unrealized_fx_change(
     start_date: date,
     end_date: date,
     target_currency: str,
+    base_currency: str | None = None,
     ending_unrealized_fx_gain_loss: Decimal | None = None,
 ) -> Decimal:
     """Calculate Unrealized FX Gain/Loss change for the period without full balance-sheet assembly."""
     start_fx = await _compute_unrealized_fx_gain_loss(
-        db, user_id, as_of_date=start_date - timedelta(days=1), target_currency=target_currency
+        db, user_id, as_of_date=start_date - timedelta(days=1), target_currency=target_currency, base_currency=base_currency
     )
     end_fx = (
         _quantize_money(Decimal(str(ending_unrealized_fx_gain_loss)))
         if ending_unrealized_fx_gain_loss is not None
-        else await _compute_unrealized_fx_gain_loss(db, user_id, as_of_date=end_date, target_currency=target_currency)
+        else await _compute_unrealized_fx_gain_loss(
+            db, user_id, as_of_date=end_date, target_currency=target_currency, base_currency=base_currency
+        )
     )
     return _quantize_money(end_fx - start_fx)
 

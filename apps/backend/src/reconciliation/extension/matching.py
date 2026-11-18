@@ -272,6 +272,7 @@ async def execute_matching(
             matched_txn_ids=matched_txn_ids,
             repository=repo,
             user_id=user_id,
+            base_currency=currency,
         )
     )
 

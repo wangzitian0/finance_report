@@ -72,7 +72,7 @@ async def test_statement_workflow_service(monkeypatch):
     monkeypatch.setattr(statement_workflow, "auto_create_posted_entries_for_statement", fake_post)
     posting_dependencies = object()
     outcome = await statement_workflow.approve_statement_workflow(
-        _FakeSession(approve_calls), statement_id, user_id, dependencies=posting_dependencies
+        _FakeSession(approve_calls), statement_id, user_id, dependencies=posting_dependencies, base_currency="SGD"
     )
     assert outcome.created_count == 3
     assert approve_calls == [("approve_statement",), ("auto_post",), ("opening_stock",), ("commit",)]
@@ -86,7 +86,7 @@ async def test_statement_workflow_service(monkeypatch):
 
     monkeypatch.setattr(statement_workflow, "reject_statement", fake_reject)
     result = await statement_workflow.reject_statement_workflow(
-        _FakeSession(reject_calls), statement_id, user_id, reason="looks wrong"
+        _FakeSession(reject_calls), statement_id, user_id, reason="looks wrong", base_currency="SGD"
     )
     assert result is rejected_statement
     assert reject_calls == [
@@ -238,7 +238,7 @@ async def test_AC_extraction_2970_1_approve_returns_while_the_refresh_is_pending
     try:
         outcome = await asyncio.wait_for(
             statement_workflow.approve_statement_workflow(
-                _PostgresSession(calls), uuid4(), uuid4(), dependencies=object()
+                _PostgresSession(calls), uuid4(), uuid4(), dependencies=object(), base_currency="SGD"
             ),
             WAIT_SECONDS,
         )

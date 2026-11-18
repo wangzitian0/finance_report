@@ -10,7 +10,8 @@ def test_statement_disposition_mode_is_resolved_once_at_composition(monkeypatch)
 async def _fx_rate(_db, _base, _quote, _date, *, lazy_load=False): raise AssertionError('base-currency test must not request FX')
 async def _content_loader(_storage_key: str) -> bytes: return b'stored-content'
 async def _brokerage_router(**_kwargs) -> None: return None
-_posting_dependencies = lambda: StatementPostingDependencies(transfer_exclusions=_no_transfers, fx_rate_provider=_fx_rate, fx_rate_error=RuntimeError, trace_emitter_factory=compose_financial_trace_emitter, disposition_mode=DispositionMode.ENFORCE); _job = lambda *, statement_id=None, user_id=None, file_hash='statement-ingestion-ac', run_id=None: ParseJob(statement_id=statement_id or uuid4(), run_id=run_id or uuid4(), filename='statement.pdf', institution='DBS', user_id=user_id or uuid4(), account_id=None, file_hash=file_hash, storage_key='uploads/statement.pdf', model=None, request_id='req-1913')
+async def _resolve_sgd(_db, _user_id) -> str: return 'SGD'
+_posting_dependencies = lambda: StatementPostingDependencies(transfer_exclusions=_no_transfers, fx_rate_provider=_fx_rate, fx_rate_error=RuntimeError, trace_emitter_factory=compose_financial_trace_emitter, disposition_mode=DispositionMode.ENFORCE, base_currency_resolver=_resolve_sgd); _job = lambda *, statement_id=None, user_id=None, file_hash='statement-ingestion-ac', run_id=None: ParseJob(statement_id=statement_id or uuid4(), run_id=run_id or uuid4(), filename='statement.pdf', institution='DBS', user_id=user_id or uuid4(), account_id=None, file_hash=file_hash, storage_key='uploads/statement.pdf', model=None, request_id='req-1913')
 async def test_AC_extraction_1913_4_api_and_prefect_use_same_composed_use_case(monkeypatch):
     'AC-extraction.1913.4'; calls: list[tuple[ParseJob, bytes | None]] = []
     class FakeUseCase:
