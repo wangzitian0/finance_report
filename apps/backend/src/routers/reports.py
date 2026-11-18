@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, union
+from sqlalchemy import select
 
 from src.config_app import get_effective_base_currency
 from src.deps import Ctx, Pagination, ReadCtx, ReadDbSession, RequestContext
@@ -19,7 +19,7 @@ from src.extraction import coverage_bank_custody_account_ids
 from src.ledger import AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import ResourceNotFoundError, ValidationFailedError
-from src.pricing import FxRate
+from src.pricing import list_available_fx_currencies
 from src.reporting import (
     DEFAULT_INCLUDE_RESTRICTED,
     PACKAGE_INCLUDE_RESTRICTED,
@@ -130,11 +130,7 @@ def _page_fields(items: list[Any], pagination: Pagination, items_key: str, **ext
 @router.get("/currencies", response_model=list[str])
 async def get_available_currencies(*, db: ReadDbSession) -> list[str]:
     """Get list of currencies with FX data available."""
-    combined = union(select(FxRate.base_currency).distinct(), select(FxRate.quote_currency).distinct()).subquery()
-    currencies = [
-        row[0]
-        for row in (await db.execute(select(combined.c.base_currency).order_by(combined.c.base_currency))).fetchall()
-    ]
+    currencies = await list_available_fx_currencies(db)
     base_currency = await get_effective_base_currency(db)
     return currencies if base_currency in currencies else [base_currency, *currencies]
 
@@ -414,7 +410,12 @@ async def balance_sheet(
         end_date=report_date,
         label="Balance sheet generation",
         build=lambda tc, bc: generate_balance_sheet(
-            ctx.db, ctx.user_id, as_of_date=report_date, currency=tc, base_currency=bc, include_restricted=include_restricted
+            ctx.db,
+            ctx.user_id,
+            as_of_date=report_date,
+            currency=tc,
+            base_currency=bc,
+            include_restricted=include_restricted,
         ),
     )
     return BalanceSheetResponse.model_validate(report)
@@ -436,7 +437,12 @@ async def balance_sheet_diagnostics(
         end_date=report_date,
         label="Balance sheet diagnostics",
         build=lambda tc, bc: run_balance_sheet_diagnostics(
-            ctx.db, ctx.user_id, as_of_date=report_date, currency=tc, base_currency=bc, include_restricted=include_restricted
+            ctx.db,
+            ctx.user_id,
+            as_of_date=report_date,
+            currency=tc,
+            base_currency=bc,
+            include_restricted=include_restricted,
         ),
     )
 
@@ -524,7 +530,9 @@ async def cash_flow(
 
     async def _build(tc: str, _bc: str):
         custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
-        return await generate_cash_flow(db, user_id, start_date=start, end_date=end, currency=tc, cash_account_ids=custody)
+        return await generate_cash_flow(
+            db, user_id, start_date=start, end_date=end, currency=tc, cash_account_ids=custody
+        )
 
     report = await _run_report(ctx, currency=currency, end_date=end, label="Cash flow generation", build=_build)
     return CashFlowPreview.model_validate(cash_flow_preview(report))
@@ -601,7 +609,12 @@ async def net_worth_allocation(
         end_date=report_date,
         label="Net worth allocation generation",
         build=lambda tc, bc: get_net_worth_allocation_schedule(
-            ctx.db, ctx.user_id, as_of_date=report_date, currency=tc, base_currency=bc, include_restricted=include_restricted
+            ctx.db,
+            ctx.user_id,
+            as_of_date=report_date,
+            currency=tc,
+            base_currency=bc,
+            include_restricted=include_restricted,
         ),
     )
     return NetWorthAllocationResponse.model_validate(report)

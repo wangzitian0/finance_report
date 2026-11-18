@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from common.meta.extension.app_boundary import (
+    APP_ENTRYPOINT_MODULES,
     APP_REMAINDER_SUBDIRS,
     cross_boundary_edges,
     discover_and_compute_edges,
@@ -116,9 +117,30 @@ def test_app_remainder_subdirs_are_the_app_domain_logic() -> None:
     from common.meta.extension.check_app_boundary import main
 
     assert APP_REMAINDER_SUBDIRS == frozenset({"services", "routers", "prompts"})
+    assert APP_ENTRYPOINT_MODULES == frozenset(
+        {"composition", "statement_flow", "main"}
+    )
     assert not (REPO_ROOT / "common/meta/data/delivery-layer-baseline.json").exists()
     assert discover_and_compute_edges(REPO_ROOT) == []
     assert main(["--repo-root", str(REPO_ROOT)]) == 0
+
+
+def test_carved_package_cannot_import_l4_entrypoint_modules(tmp_path: Path) -> None:
+    src = tmp_path / "apps/backend/src"
+    _make_pkg(src, "extraction", ["PublicThing"])
+    (src / "extraction" / "extension" / "reverse_leak.py").write_text(
+        "def run():\n    from src.composition import compose_thing\n    return compose_thing()\n",
+        encoding="utf-8",
+    )
+    edges = cross_boundary_edges(
+        backend_src=src,
+        carved={"extraction": "extraction"},
+        published={"extraction": {"PublicThing"}},
+        repo_root=tmp_path,
+    )
+    assert any(
+        e.startswith("out::") and "src.composition::compose_thing" in e for e in edges
+    )
 
 
 def test_gate_fails_when_cross_boundary_or_l4_deep_edge_appears(

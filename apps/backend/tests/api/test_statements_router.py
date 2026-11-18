@@ -49,7 +49,15 @@ from tests.factories import AccountFactory, UserFactory
 pytestmark = pytest.mark.asyncio  # AC-platform.29.5
 
 
-def _post_upload(client: AsyncClient, filename: str, content: bytes, *, institution: str | None = "DBS", account_id=None, model: str | None = None):
+def _post_upload(
+    client: AsyncClient,
+    filename: str,
+    content: bytes,
+    *,
+    institution: str | None = "DBS",
+    account_id=None,
+    model: str | None = None,
+):
     data = {}
     if institution is not None:
         data["institution"] = institution
@@ -76,7 +84,9 @@ def _patch_parse_document(
     modifier=None,
 ):
     if side_effect is not None:
-        monkeypatch.setattr(statement_parsing_mod.ExtractionService, "parse_document", AsyncMock(side_effect=side_effect))
+        monkeypatch.setattr(
+            statement_parsing_mod.ExtractionService, "parse_document", AsyncMock(side_effect=side_effect)
+        )
         return
 
     async def fake_parse(
@@ -105,10 +115,14 @@ def _patch_parse_document(
     monkeypatch.setattr(statement_parsing_mod.ExtractionService, "parse_document", fake_parse)
 
 
-async def test_upload_statement_duplicate(client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user):
+async def test_upload_statement_duplicate(
+    client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
     content = b"duplicate-statement"
     _patch_parse_document(monkeypatch, test_user.id)
-    first = await _post_upload(client, "statement.pdf", content, institution="DBS", model="google/gemini-3-flash-preview")
+    first = await _post_upload(
+        client, "statement.pdf", content, institution="DBS", model="google/gemini-3-flash-preview"
+    )
     assert first.status_code == status.HTTP_202_ACCEPTED, first.text
     await wait_for_background_tasks()
 
@@ -121,7 +135,9 @@ async def test_upload_storage_failure(client: AsyncClient, monkeypatch, model_ca
     mock_storage.upload_bytes.side_effect = StorageError("S3 Down")
     monkeypatch.setattr("src.routers.statements.StorageService", MagicMock(return_value=mock_storage))
 
-    resp = await _post_upload(client, "statement.pdf", b"content", institution="DBS", model="google/gemini-3-flash-preview")
+    resp = await _post_upload(
+        client, "statement.pdf", b"content", institution="DBS", model="google/gemini-3-flash-preview"
+    )
     assert resp.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert "S3 Down" in resp.json()["detail"]
 
@@ -147,7 +163,7 @@ async def test_AC3_5_upload_rejects_cross_user_account_id(client: AsyncClient, d
 
 async def test_upload_uses_default_ocr_pipeline_for_pdf(client: AsyncClient, monkeypatch, storage_stub, test_user):
     mock_parse = AsyncMock(return_value=None)
-    monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
+    monkeypatch.setattr("src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
 
     resp = await _post_upload(client, "statement.pdf", b"content", institution="DBS")
     assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
@@ -168,7 +184,7 @@ async def test_AC_extraction_1913_9_upload_registers_source_before_dispatch(
     client: AsyncClient, db, monkeypatch, storage_stub
 ):
     mock_parse = AsyncMock(return_value=None)
-    monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
+    monkeypatch.setattr("src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
 
     resp = await _post_upload(client, "june-statement.csv", b"date,amount\n2026-06-01,10.00\n", institution="DBS")
     assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
@@ -199,7 +215,7 @@ async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
     content = b"audit-log-input"
     mock_parse = AsyncMock(return_value=None)
     mock_info = MagicMock()
-    monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
+    monkeypatch.setattr("src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
     monkeypatch.setattr("src.routers.statements.logger.info", mock_info)
 
     resp = await _post_upload(
@@ -252,7 +268,9 @@ async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(
     monkeypatch.setattr("src.routers.statements.StorageService", FailingStorage)
     resp = await _post_upload(client, "staging-failure.pdf", content, institution="DBS")
     assert resp.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    failed = next(call.kwargs for call in mock_error.call_args_list if call.args[0] == "statement.upload.storage_failed")
+    failed = next(
+        call.kwargs for call in mock_error.call_args_list if call.args[0] == "statement.upload.storage_failed"
+    )
     assert failed["audit_event"] == "statement.upload.storage_failed"
     assert failed["request_id"]
     assert failed["statement_id"]
@@ -310,7 +328,6 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(client: Asy
 
 
 async def test_upload_rejects_text_only_model(client: AsyncClient, monkeypatch):
-
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
@@ -320,7 +337,9 @@ async def test_upload_rejects_text_only_model(client: AsyncClient, monkeypatch):
     assert "does not support image/PDF inputs" in resp.json()["detail"]
 
 
-async def test_pending_review_and_decisions(client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user):
+async def test_pending_review_and_decisions(
+    client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
     score_by_hash = {
@@ -397,7 +416,7 @@ async def test_stage1_reject_triggers_reparse(client: AsyncClient, db, monkeypat
         queued.update(kwargs)
 
     monkeypatch.setattr(
-        statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(fake_parse_statement_background)
+        "src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(fake_parse_statement_background)
     )
     resp = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "Needs re-parse"})
     assert resp.status_code == status.HTTP_200_OK, resp.text
@@ -430,7 +449,9 @@ async def test_get_statement_not_found(client: AsyncClient):
 
 async def test_upload_file_too_large(client: AsyncClient, model_catalog_stub):
     content = b"x" * (10 * 1024 * 1024 + 1)
-    resp = await _post_upload(client, "large-statement.pdf", content, institution="DBS", model="google/gemini-3-flash-preview")
+    resp = await _post_upload(
+        client, "large-statement.pdf", content, institution="DBS", model="google/gemini-3-flash-preview"
+    )
     assert resp.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
     assert "10MB" in resp.json()["detail"]
 
@@ -442,7 +463,9 @@ async def test_upload_extraction_failure(client: AsyncClient, db, monkeypatch, m
     monkeypatch.setattr("src.routers.statements.StorageService", MagicMock(return_value=mock_storage))
     _patch_parse_document(monkeypatch, test_user.id, side_effect=ExtractionError("Failed to parse PDF"))
 
-    resp = await _post_upload(client, "statement.pdf", b"content", institution="DBS", model="google/gemini-3-flash-preview")
+    resp = await _post_upload(
+        client, "statement.pdf", b"content", institution="DBS", model="google/gemini-3-flash-preview"
+    )
     assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
     created = resp.json()
     await wait_for_background_tasks()
@@ -474,7 +497,9 @@ async def test_retry_rejects_text_only_model(client: AsyncClient, db, monkeypatc
     assert "does not support image/PDF inputs" in resp.json()["detail"]
 
 
-@pytest.mark.parametrize("prior_status", [BankStatementStatus.REJECTED, BankStatementStatus.PARSED, BankStatementStatus.PARSING])
+@pytest.mark.parametrize(
+    "prior_status", [BankStatementStatus.REJECTED, BankStatementStatus.PARSED, BankStatementStatus.PARSING]
+)
 @pytest.mark.parametrize("source_available", [True, False])
 async def test_retry_statement_storage_failure(
     client: AsyncClient, db, monkeypatch, test_user, prior_status, source_available
@@ -574,7 +599,9 @@ async def test_AC13_21_6_csv_missing_institution_rejected_sync(client: AsyncClie
     assert "institution" in resp.json()["detail"].lower()
 
 
-async def test_retry_statement_success(client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user):
+async def test_retry_statement_success(
+    client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
     _patch_parse_document(monkeypatch, test_user.id, confidence_score=60, status=BankStatementStatus.REJECTED)
     upload_resp = await _post_upload(
         client, "statement.pdf", b"statement", institution="DBS", model="google/gemini-3-flash-preview"
@@ -619,7 +646,6 @@ async def test_retry_statement_extraction_failure(
 
 
 async def test_upload_statement_rejects_invalid_model(client: AsyncClient, storage_stub, monkeypatch):
-
     async def fake_catalog_get(self, model_id):
         return None
 
@@ -630,7 +656,6 @@ async def test_upload_statement_rejects_invalid_model(client: AsyncClient, stora
 
 
 async def test_upload_statement_rejects_model_without_image_modality(client: AsyncClient, storage_stub, monkeypatch):
-
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
@@ -754,7 +779,9 @@ async def test_get_statement_for_review(client: AsyncClient, db, test_user, monk
     assert "closing_match" in result["balance_validation_result"]
 
 
-async def test_AC16_33_5_get_statement_document_streams_bytes_same_origin(client: AsyncClient, db, test_user, monkeypatch):
+async def test_AC16_33_5_get_statement_document_streams_bytes_same_origin(
+    client: AsyncClient, db, test_user, monkeypatch
+):
     statement = build_statement(test_user.id, "hash_doc_stream", 75)
     db.add(statement)
     await db.flush()
@@ -778,7 +805,9 @@ async def test_AC16_33_5_get_statement_document_404_when_no_document(client: Asy
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-async def test_AC16_33_5_get_statement_document_storage_error_maps_to_502(client: AsyncClient, db, test_user, monkeypatch):
+async def test_AC16_33_5_get_statement_document_storage_error_maps_to_502(
+    client: AsyncClient, db, test_user, monkeypatch
+):
     statement = build_statement(test_user.id, "hash_doc_storage_err", 75)
     db.add(statement)
     await db.flush()
@@ -813,7 +842,9 @@ async def test_get_statement_for_review_storage_error(client: AsyncClient, db, t
     assert result["pdf_url"] is None
 
 
-async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(client: AsyncClient, db, test_user, monkeypatch):
+async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(
+    client: AsyncClient, db, test_user, monkeypatch
+):
     statement = build_statement(test_user.id, "hash_review_short_presign", 75)
     db.add(statement)
     await db.flush()
@@ -847,7 +878,9 @@ async def test_retry_statement_invalid_model(client: AsyncClient, db, monkeypatc
     assert "Invalid model selection" in resp.json()["detail"]
 
 
-async def test_list_and_transactions_flow(client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user):
+async def test_list_and_transactions_flow(
+    client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
     from src.extraction.extension.deduplication import DeduplicationService
 
     txn_date = date(2025, 1, 2)

@@ -342,11 +342,7 @@ def test_issue3123_domain_aligned_routes_and_router_boundaries(openapi_schema: d
     assert paths["/portfolio/brokerage-imports"]["post"]["tags"] == ["portfolio"]
 
     # 4) exact 11 domain router modules under src/routers
-    router_modules = {
-        path.stem
-        for path in sorted(_ROUTER_DIR.glob("*.py"))
-        if path.name != "__init__.py"
-    }
+    router_modules = {path.stem for path in sorted(_ROUTER_DIR.glob("*.py")) if path.name != "__init__.py"}
     assert router_modules == {
         "accounts",
         "chat",
@@ -361,16 +357,33 @@ def test_issue3123_domain_aligned_routes_and_router_boundaries(openapi_schema: d
         "workflow",
     }
 
-    # 5) routers/pricing.py has no direct imports from extraction, portfolio, or reporting
-    pricing_tree = ast.parse((_ROUTER_DIR / "pricing.py").read_text(encoding="utf-8"))
-    forbidden_prefixes = ("src.extraction", "src.portfolio", "src.reporting")
-    leaks: list[str] = []
-    for node in ast.walk(pricing_tree):
-        if isinstance(node, ast.ImportFrom) and node.module:
-            if any(node.module == p or node.module.startswith(f"{p}.") for p in forbidden_prefixes):
-                leaks.append(f"line {node.lineno}: from {node.module}")
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                if any(alias.name == p or alias.name.startswith(f"{p}.") for p in forbidden_prefixes):
-                    leaks.append(f"line {node.lineno}: import {alias.name}")
-    assert leaks == [], f"routers/pricing.py leaks cross-domain imports: {leaks}"
+    # 5) routers stay decoupled from non-owning domain models & cross-domain internals
+    def _find_forbidden_imports(router_name: str, forbidden_prefixes: tuple[str, ...]) -> list[str]:
+        tree = ast.parse((_ROUTER_DIR / router_name).read_text(encoding="utf-8"))
+        leaks: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                targets = [node.module, *(f"{node.module}.{alias.name}" for alias in node.names)]
+                if any(
+                    target == prefix or target.startswith(f"{prefix}.")
+                    for target in targets
+                    for prefix in forbidden_prefixes
+                ):
+                    leaks.append(f"line {node.lineno}: from {node.module}")
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if any(alias.name == p or alias.name.startswith(f"{p}.") for p in forbidden_prefixes):
+                        leaks.append(f"line {node.lineno}: import {alias.name}")
+        return leaks
+
+    pricing_leaks = _find_forbidden_imports("pricing.py", ("src.extraction", "src.portfolio", "src.reporting"))
+    assert pricing_leaks == [], f"routers/pricing.py leaks cross-domain imports: {pricing_leaks}"
+
+    reconciliation_leaks = _find_forbidden_imports("reconciliation.py", ("src.extraction", "src.ledger"))
+    assert reconciliation_leaks == [], f"routers/reconciliation.py leaks cross-domain imports: {reconciliation_leaks}"
+
+    reports_leaks = _find_forbidden_imports("reports.py", ("src.pricing.FxRate",))
+    assert reports_leaks == [], f"routers/reports.py leaks cross-domain ORM imports: {reports_leaks}"
+
+    statements_leaks = _find_forbidden_imports("statements.py", ("src.ledger.Account",))
+    assert statements_leaks == [], f"routers/statements.py leaks cross-domain ORM imports: {statements_leaks}"

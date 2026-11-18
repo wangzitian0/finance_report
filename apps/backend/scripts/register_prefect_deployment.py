@@ -56,13 +56,13 @@ async def _ensure_work_pool_exists(name: str) -> None:
 
 
 def main() -> int:
-    from src.extraction.extension.statement_flow import parse_statement_flow
+    from src.statement_flow import parse_statement_flow
 
     asyncio.run(_ensure_work_pool_exists(WORK_POOL_NAME))
 
     parse_statement_flow.from_source(
         source=str(BACKEND_ROOT),
-        entrypoint="src/extraction/extension/statement_flow.py:parse_statement_flow",
+        entrypoint="src/statement_flow.py:parse_statement_flow",
     ).deploy(
         name=DEPLOYMENT_NAME,
         work_pool_name=WORK_POOL_NAME,

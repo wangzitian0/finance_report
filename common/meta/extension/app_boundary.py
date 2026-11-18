@@ -26,6 +26,9 @@ from common.meta.base.gate_util import parse_ast_cached
 #: are deliberately out of scope here — this gate governs the domain-logic edge,
 #: not every ``src.*`` import.
 APP_REMAINDER_SUBDIRS: frozenset[str] = frozenset({"services", "routers", "prompts"})
+APP_ENTRYPOINT_MODULES: frozenset[str] = frozenset(
+    {"composition", "statement_flow", "main"}
+)
 L4_DELIVERY_PATHS: frozenset[str] = frozenset({"routers", "schemas"})
 
 
@@ -143,7 +146,9 @@ def cross_boundary_edges(
                         inbound.append(f"in::{rel}::{module}::{name}")
                 elif len(parts) > 2:
                     inbound.append(f"in::{rel}::{module}::<import>")
-            elif in_carved and target in APP_REMAINDER_SUBDIRS:
+            elif in_carved and (
+                target in APP_REMAINDER_SUBDIRS or target in APP_ENTRYPOINT_MODULES
+            ):
                 outbound.append(f"out::{rel}::{module}::{name or '*'}")
     return sorted(set(inbound)) + sorted(set(outbound))
 
@@ -159,8 +164,7 @@ def _package_all(src_dir: Path) -> list[str]:
                     return [
                         elt.value
                         for elt in node.value.elts
-                        if isinstance(elt, ast.Constant)
-                        and isinstance(elt.value, str)
+                        if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
                     ]
     return []
 

@@ -39,6 +39,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Protocol
 
+from sqlalchemy import select, union
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import Currency, ExchangeRate, Money, MoneyError, convert as _money_convert, normalize_currency_code
@@ -48,6 +49,7 @@ from src.pricing.base.policy import ResolutionPolicy
 from src.pricing.base.subject import PriceableSubject
 from src.pricing.extension.repository import SqlObservationRepository
 from src.pricing.extension.resolve import resolve, resolve_series
+from src.pricing.orm.market_data import FxRate
 
 logger = get_logger(__name__)
 
@@ -410,3 +412,10 @@ class PrefetchedFxRates:
             else:
                 rate = await get_exchange_rate(db, base, quote, r_date, lazy_load=self._lazy_load)
             self.set_rate(base, quote, r_date, rate, a_start, a_end)
+
+
+async def list_available_fx_currencies(db: AsyncSession) -> list[str]:
+    """Return sorted distinct ISO currency codes observed in stored FX rates."""
+    combined = union(select(FxRate.base_currency).distinct(), select(FxRate.quote_currency).distinct()).subquery()
+    rows = (await db.execute(select(combined.c.base_currency).order_by(combined.c.base_currency))).fetchall()
+    return [row[0] for row in rows]

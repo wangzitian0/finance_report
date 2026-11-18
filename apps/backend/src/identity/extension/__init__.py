@@ -40,6 +40,7 @@ _LAZY = {
     "verify_password": "src.identity.extension.security",
     "SqlUserRepository": "src.identity.extension.sql",
     "User": "src.identity.extension.sql",
+    "get_user_ai_overrides": "src.identity.extension.sql",
 }
 
 __all__ = [
@@ -48,6 +49,7 @@ __all__ = [
     "PurgeReport",
     "SqlUserRepository",
     "User",
+    "get_user_ai_overrides",
     "auth_rate_limiter",
     "auth_router",
     "bind_authenticated_user_context",
@@ -101,4 +103,4 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
         hash_password,
         verify_password,
     )
-    from src.identity.extension.sql import SqlUserRepository, User
+    from src.identity.extension.sql import SqlUserRepository, User, get_user_ai_overrides
