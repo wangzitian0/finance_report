@@ -1,10 +1,68 @@
-from __future__ import annotations; from dataclasses import dataclass; from datetime import date; from decimal import Decimal; from uuid import UUID, uuid4; from sqlalchemy import select; from sqlalchemy.ext.asyncio import AsyncSession; from src.extraction import TransactionDirection; from src.extraction.base.types import RetireStatementCommand; from src.extraction.extension.source_lifecycle import retire_statement; from src.extraction.orm.layer2 import AtomicTransaction; from src.extraction.orm.statement_summary import StatementSummary; from src.identity import User; from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus; from src.reconciliation import ReconciliationMatch, ReconciliationStatus, accepted_transfer_txn_ids, execute_matching, paired_transfer_entry_ids; from src.reconciliation.extension.transfer_pairs import list_unpaired_transfer_dispositions; from tests.reconciliation.test_transfer_integration import _seed_statement, _seed_txn; from tests.statement_ingestion import posting_dependencies
-@dataclass(frozen=True)
-class MatchedTransfer: out_statement_id: UUID; out_txn_id: UUID; in_txn_id: UUID; out_match_id: UUID; in_match_id: UUID; out_entry_id: UUID; in_entry_id: UUID
-async def _seed_matched_transfer(db: AsyncSession, user_id: UUID) -> MatchedTransfer: cash = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD'); checking = Account(user_id=user_id, name='Checking', code='1002', type=AccountType.ASSET, currency='SGD'); db.add_all([cash, checking]); await db.flush(); transfer_description = 'TRANSFER BETWEEN OWN ACCOUNTS REF 2888'; cash_doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash=f'ac2888_cash_{uuid4().hex}'); checking_doc = await _seed_statement(db, user_id, account_id=checking.id, file_hash=f'ac2888_checking_{uuid4().hex}'); out_txn = await _seed_txn(db, user_id, cash_doc, description=transfer_description, amount=Decimal('500.00'), direction='OUT', txn_date=date(2025, 1, 10)); in_txn = await _seed_txn(db, user_id, checking_doc, description=transfer_description, amount=Decimal('500.00'), direction='IN', txn_date=date(2025, 1, 11)); matches = await execute_matching(db, user_id=user_id, currency='SGD'); by_txn = {match.atomic_txn_id: match for match in matches}; assert set(by_txn) == {out_txn.id, in_txn.id}; assert {match.status for match in matches} == {ReconciliationStatus.AUTO_ACCEPTED}; out_statement_id = (await db.execute(select(StatementSummary.id).where(StatementSummary.uploaded_document_id == cash_doc.id))).scalar_one(); return MatchedTransfer(out_statement_id=out_statement_id, out_txn_id=out_txn.id, in_txn_id=in_txn.id, out_match_id=by_txn[out_txn.id].id, in_match_id=by_txn[in_txn.id].id, out_entry_id=UUID(by_txn[out_txn.id].journal_entry_ids[0]), in_entry_id=UUID(by_txn[in_txn.id].journal_entry_ids[0]))
-async def _match_status(db: AsyncSession, match_id: UUID) -> ReconciliationStatus: return (await db.execute(select(ReconciliationMatch.status).where(ReconciliationMatch.id == match_id))).scalar_one()
-async def _entry_status(db: AsyncSession, entry_id: UUID) -> JournalEntryStatus: return (await db.execute(select(JournalEntry.status).where(JournalEntry.id == entry_id))).scalar_one()
-async def _retire(db: AsyncSession, user_id: UUID, statement_id: UUID) -> None: await retire_statement(db, RetireStatementCommand(statement_id=statement_id, user_id=user_id), dependencies=posting_dependencies()); await db.flush()
-async def test_AC_extraction_2888_2_retire_of_parsed_statement_releases_its_transfer_leg(db: AsyncSession, test_user): 'AC-extraction.2888.2'; seed = await _seed_matched_transfer(db, test_user.id); assert await accepted_transfer_txn_ids(db, [seed.out_txn_id, seed.in_txn_id]) == {seed.out_txn_id, seed.in_txn_id}; await _retire(db, test_user.id, seed.out_statement_id); assert await _entry_status(db, seed.out_entry_id) is JournalEntryStatus.VOID; assert await _match_status(db, seed.out_match_id) is ReconciliationStatus.SUPERSEDED; assert await _entry_status(db, seed.in_entry_id) is not JournalEntryStatus.VOID; assert await _match_status(db, seed.in_match_id) is ReconciliationStatus.AUTO_ACCEPTED; assert await accepted_transfer_txn_ids(db, [seed.out_txn_id, seed.in_txn_id]) == {seed.in_txn_id}
-async def test_AC_reconciliation_2888_1_released_leg_breaks_the_pair_for_readers(db: AsyncSession, test_user): 'AC-reconciliation.2888.1'; seed = await _seed_matched_transfer(db, test_user.id); leg_entry_ids = {seed.out_entry_id, seed.in_entry_id}; assert await paired_transfer_entry_ids(db, user_id=test_user.id) == leg_entry_ids; assert await list_unpaired_transfer_dispositions(db, user_id=test_user.id) == []; await _retire(db, test_user.id, seed.out_statement_id); assert await paired_transfer_entry_ids(db, user_id=test_user.id) == set(); unpaired = await list_unpaired_transfer_dispositions(db, user_id=test_user.id); assert [match.id for match in unpaired] == [seed.in_match_id]
-async def test_release_transaction_dispositions_ignores_rows_of_other_users(db: AsyncSession, test_user): 'AC-reconciliation.2888.1'; from src.reconciliation import release_transaction_dispositions; other_user = User(email=f'release-{uuid4()}@example.com', hashed_password='hashed'); db.add(other_user); await db.flush(); rows = {user.id: AtomicTransaction(user_id=user.id, txn_date=date(2025, 1, 12), description='Salary', amount=Decimal('20.00'), direction=TransactionDirection.IN, currency='SGD', dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(uuid4()), 'doc_type': 'bank_statement'}]) for user in (test_user, other_user)}; db.add_all(rows.values()); await db.flush(); matches = {user_id: ReconciliationMatch(atomic_txn_id=row.id, journal_entry_ids=[], match_score=95, score_breakdown={'amount': 100.0}, status=ReconciliationStatus.AUTO_ACCEPTED) for user_id, row in rows.items()}; db.add_all(matches.values()); await db.flush(); other_row_id = rows[other_user.id].id; own_row_id = rows[test_user.id].id; released = await release_transaction_dispositions(db, user_id=test_user.id, transaction_ids=[other_row_id], reason='Statement retired'); assert released == 0; other_match = (await db.execute(select(ReconciliationMatch.status, ReconciliationMatch.version).where(ReconciliationMatch.id == matches[other_user.id].id))).one(); assert (other_match.status, other_match.version) == (ReconciliationStatus.AUTO_ACCEPTED, 1); released = await release_transaction_dispositions(db, user_id=test_user.id, transaction_ids=[own_row_id], reason='Statement retired'); assert released == 1; own_match = (await db.execute(select(ReconciliationMatch.status, ReconciliationMatch.version).where(ReconciliationMatch.id == matches[test_user.id].id))).one(); assert (own_match.status, own_match.version) == (ReconciliationStatus.SUPERSEDED, 2)
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from uuid import UUID, uuid4
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction import TransactionDirection
+from src.extraction.base.types import RetireStatementCommand
+from src.extraction.extension.source_lifecycle import retire_statement
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus, accepted_transfer_txn_ids, execute_matching, paired_transfer_entry_ids, release_transaction_dispositions
+from src.reconciliation.extension.transfer_pairs import list_unpaired_transfer_dispositions
+from tests.factories import UserFactory
+from tests.reconciliation.test_transfer_integration import _seed_statement, _seed_txn
+from tests.statement_ingestion import posting_dependencies
+
+
+async def _seed_matched_transfer(db: AsyncSession, user_id: UUID):
+    cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+    checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
+    db.add_all([cash, checking])
+    await db.flush()
+    desc = "TRANSFER BETWEEN OWN ACCOUNTS REF 2888"
+    cash_doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash=f"ac2888_cash_{uuid4().hex}")
+    chk_doc = await _seed_statement(db, user_id, account_id=checking.id, file_hash=f"ac2888_checking_{uuid4().hex}")
+    out_txn = await _seed_txn(db, user_id, cash_doc, description=desc, amount=Decimal("500.00"), direction="OUT", txn_date=date(2025, 1, 10))
+    in_txn = await _seed_txn(db, user_id, chk_doc, description=desc, amount=Decimal("500.00"), direction="IN", txn_date=date(2025, 1, 11))
+    by_txn = {m.atomic_txn_id: m for m in await execute_matching(db, user_id=user_id, currency="SGD")}
+    assert set(by_txn) == {out_txn.id, in_txn.id} and {m.status for m in by_txn.values()} == {ReconciliationStatus.AUTO_ACCEPTED}
+    out_stmt_id = (await db.execute(select(StatementSummary.id).where(StatementSummary.uploaded_document_id == cash_doc.id))).scalar_one()
+    return out_stmt_id, out_txn.id, in_txn.id, by_txn[out_txn.id], by_txn[in_txn.id]
+
+
+async def test_AC_extraction_2888_2_and_AC_reconciliation_2888_1_retire_releases_leg_and_breaks_pair(db: AsyncSession, test_user):
+    out_stmt_id, out_txn_id, in_txn_id, out_m, in_m = await _seed_matched_transfer(db, test_user.id)
+    out_eid, in_eid = UUID(out_m.journal_entry_ids[0]), UUID(in_m.journal_entry_ids[0])
+    assert await accepted_transfer_txn_ids(db, [out_txn_id, in_txn_id]) == {out_txn_id, in_txn_id}
+    assert await paired_transfer_entry_ids(db, user_id=test_user.id) == {out_eid, in_eid}
+    assert await list_unpaired_transfer_dispositions(db, user_id=test_user.id) == []
+
+    await retire_statement(db, RetireStatementCommand(statement_id=out_stmt_id, user_id=test_user.id), dependencies=posting_dependencies())
+    await db.flush()
+    assert (await db.execute(select(JournalEntry.status).where(JournalEntry.id == out_eid))).scalar_one() is JournalEntryStatus.VOID
+    assert (await db.execute(select(JournalEntry.status).where(JournalEntry.id == in_eid))).scalar_one() is not JournalEntryStatus.VOID
+    assert (await db.execute(select(ReconciliationMatch.status).where(ReconciliationMatch.id == out_m.id))).scalar_one() is ReconciliationStatus.SUPERSEDED
+    assert (await db.execute(select(ReconciliationMatch.status).where(ReconciliationMatch.id == in_m.id))).scalar_one() is ReconciliationStatus.AUTO_ACCEPTED
+    assert await accepted_transfer_txn_ids(db, [out_txn_id, in_txn_id]) == {in_txn_id}
+    assert await paired_transfer_entry_ids(db, user_id=test_user.id) == set()
+    assert [m.id for m in await list_unpaired_transfer_dispositions(db, user_id=test_user.id)] == [in_m.id]
+
+
+async def test_release_transaction_dispositions_ignores_rows_of_other_users(db: AsyncSession, test_user):
+    other_user = await UserFactory.create_async(db)
+    rows = {u.id: AtomicTransaction(user_id=u.id, txn_date=date(2025, 1, 12), description="Salary", amount=Decimal("20.00"), direction=TransactionDirection.IN, currency="SGD", dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}]) for u in (test_user, other_user)}
+    db.add_all(rows.values())
+    await db.flush()
+    matches = {uid: ReconciliationMatch(atomic_txn_id=r.id, journal_entry_ids=[], match_score=95, score_breakdown={"amount": 100.0}, status=ReconciliationStatus.AUTO_ACCEPTED) for uid, r in rows.items()}
+    db.add_all(matches.values())
+    await db.flush()
+    assert await release_transaction_dispositions(db, user_id=test_user.id, transaction_ids=[rows[other_user.id].id], reason="Statement retired") == 0
+    assert (await db.execute(select(ReconciliationMatch.status, ReconciliationMatch.version).where(ReconciliationMatch.id == matches[other_user.id].id))).one() == (ReconciliationStatus.AUTO_ACCEPTED, 1)
+    assert await release_transaction_dispositions(db, user_id=test_user.id, transaction_ids=[rows[test_user.id].id], reason="Statement retired") == 1
+    assert (await db.execute(select(ReconciliationMatch.status, ReconciliationMatch.version).where(ReconciliationMatch.id == matches[test_user.id].id))).one() == (ReconciliationStatus.SUPERSEDED, 2)

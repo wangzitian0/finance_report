@@ -1,186 +1,70 @@
-from unittest.mock import AsyncMock
+from __future__ import annotations
+
+import inspect
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from fastapi import Request
 from httpx import AsyncClient
 
 
-async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch) -> None:
-    "AC-runtime.7.1"
+async def test_health_healthy_and_503_failures(client: AsyncClient, public_client: AsyncClient, monkeypatch) -> None:
     from src.boot import Bootloader, ServiceStatus
-
-    monkeypatch.setattr(Bootloader, "_check_s3", AsyncMock(return_value=ServiceStatus("s3", "ok", "Reachable")))
-    response = await client.get("/health?full=1")
-    assert response.status_code == 200
-    data = response.json()
-    assert "status" in data
-    assert "timestamp" in data
-    assert "checks" in data
-    assert data["checks"]["database"]["status"] == "present"
-    assert data["checks"]["object_storage"]["status"] == "present"
-
-
-async def test_health_endpoint_structure(client: AsyncClient) -> None:
-    "AC-runtime.7.1"
-    response = await client.get("/health?full=1")
-    assert response.status_code in [200, 503]
-    data = response.json()
-    assert "status" in data
-    assert "timestamp" in data
-    assert "checks" in data
-    checks = data["checks"]
-    assert "database" in checks
-    assert "object_storage" in checks
-    assert isinstance(checks["database"], dict)
-    assert isinstance(checks["object_storage"], dict)
-
-
-async def test_health_returns_503_on_database_failure(public_client: AsyncClient, monkeypatch) -> None:
-    "AC-runtime.7.2"
     from src.database import get_db
-
-    async def mock_get_db():
-        from unittest.mock import MagicMock
-
-        mock_session = MagicMock()
-        mock_session.execute.side_effect = Exception("DB Down")
-        yield mock_session
-
     from src.main import app
 
-    app.dependency_overrides[get_db] = mock_get_db
+    monkeypatch.setattr(Bootloader, "_check_s3", AsyncMock(return_value=ServiceStatus("s3", "ok", "Reachable")))
+    ok = await client.get("/health?full=1")
+    d = ok.json()
+    assert ok.status_code == 200 and {"status", "timestamp", "checks"} <= set(d) and (d["checks"]["database"]["status"], d["checks"]["object_storage"]["status"]) == ("present", "present")
+
+    async def bad_db():
+        s = MagicMock()
+        s.execute.side_effect = Exception("DB Down")
+        yield s
+
+    app.dependency_overrides[get_db] = bad_db
     try:
-        response = await public_client.get("/health?full=1")
-        assert response.status_code == 503
-        data = response.json()
-        assert data["status"] == "unhealthy"
-        assert data["checks"]["database"]["status"] == "absent"
+        r_db = await public_client.get("/health?full=1")
     finally:
         app.dependency_overrides.clear()
+    assert (r_db.status_code, r_db.json()["status"], r_db.json()["checks"]["database"]["status"]) == (503, "unhealthy", "absent")
+
+    monkeypatch.setattr(Bootloader, "_check_s3", AsyncMock(return_value=ServiceStatus("minio", "error", "Bucket missing")))
+    r_s3 = await public_client.get("/health?full=1")
+    assert (r_s3.status_code, r_s3.json()["status"], r_s3.json()["checks"]["object_storage"]["status"]) == (503, "unhealthy", "absent")
 
 
-async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None:
-    "AC-runtime.7.2"
-    from src.boot import Bootloader, ServiceStatus
-
-    monkeypatch.setattr(
-        Bootloader, "_check_s3", AsyncMock(return_value=ServiceStatus("minio", "error", "Bucket missing"))
-    )
-    response = await public_client.get("/health?full=1")
-    assert response.status_code == 503
-    data = response.json()
-    assert data["status"] == "unhealthy"
-    assert data["checks"]["object_storage"]["status"] == "absent"
-
-
-async def test_get_statement_not_found(client: AsyncClient) -> None:
-    response = await client.get("/statements/00000000-0000-0000-0000-000000000000")
-    assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
-
-
-async def test_get_pending_review_empty(client: AsyncClient) -> None:
-    response = await client.get("/statements/pending-review")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["items"] == []
-    assert data["total"] == 0
-
-
-async def test_upload_no_file(client: AsyncClient) -> None:
-    response = await client.post("/statements", data={"institution": "DBS"})
-    assert response.status_code == 422
-
-
-class TestSchemas:
-    def test_review_decision_approved(self):
-        from src.schemas.extraction import StatementDecisionRequest
-
-        decision = StatementDecisionRequest()
-        assert decision.notes is None
-        from src.schemas.extraction import StatementDecisionRequest
-
-        _m1_decision = StatementDecisionRequest(notes="Incorrect amount")
-        assert _m1_decision.notes == "Incorrect amount"
-        from src.extraction import BankStatementStatus
-
-        assert BankStatementStatus.UPLOADED.value == "uploaded"
-        assert BankStatementStatus.PARSED.value == "parsed"
-        assert BankStatementStatus.APPROVED.value == "approved"
-class TestDatabase:
-    def test_base_metadata(self):
-        from src.database import Base
-
-        assert Base.metadata is not None
-        import inspect
-        from src.database import get_db
-
-        assert inspect.isasyncgenfunction(get_db)
-
-
-class TestModels:
-    def test_statement_summary_model_table_name(self):
-        from src.extraction.orm.statement_summary import StatementSummary
-
-        assert StatementSummary.__tablename__ == "statement_summaries"
-        from src.extraction.orm.layer2 import AtomicTransaction
-
-        assert AtomicTransaction.__tablename__ == "atomic_transactions"
-        from src.extraction import UploadedDocument
-
-        assert UploadedDocument.__tablename__ == "uploaded_documents"
-        from src.extraction import BankStatementStatus
-
-        assert BankStatementStatus.UPLOADED.value == "uploaded"
-        assert BankStatementStatus.PARSED.value == "parsed"
-        from src.extraction.orm.statement_summary import StatementSummary
-
-        assert hasattr(StatementSummary, "uploaded_document_id")
-        assert hasattr(StatementSummary, "file_hash")
-        assert hasattr(StatementSummary, "status")
-        "AC-extraction.406.8"
-        "AC-extraction.406.8"
-        from src.extraction.orm.layer2 import AtomicTransaction
-
-        assert hasattr(AtomicTransaction, "dedup_hash")
-        assert hasattr(AtomicTransaction, "source_documents")
-        assert hasattr(AtomicTransaction, "balance_after")
-
-
-class TestConfig:
-    def test_config_defaults(self, monkeypatch):
-        "AC7.6.1"
-        from infra2_sdk.runtime.llm import LlmSettings
-        from src.config import Settings
-
-        monkeypatch.delenv("S3_BUCKET", raising=False)
-        [monkeypatch.delenv(name, raising=False) for name in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL")]
-        settings = Settings(_env_file=None)
-        sdk = LlmSettings()
-        assert settings.ai_provider == "zai"
-        assert settings.large_model == sdk.role_model("large")
-        assert settings.small_model == sdk.role_model("small")
-        assert settings.multimodal_model == sdk.role_model("multimodal")
-        assert settings.s3_bucket == "statements"
-
-    def test_config_database_url(self):
-        "AC7.6.1"
-        from src.config import Settings
-
-        settings = Settings()
-        assert "postgresql" in settings.database_url or "sqlite" in settings.database_url
-
-
-async def test_logging_middleware_tags_unhandled_exception(monkeypatch) -> None:
-    from unittest.mock import MagicMock
-    from fastapi import Request
+async def test_statement_routes_smoke_and_contracts(client: AsyncClient, monkeypatch) -> None:
+    from infra2_sdk.runtime.llm import LlmSettings
     from src import main as main_module
+    from src.config import Settings
+    from src.database import Base, get_db
+    from src.extraction import BankStatementStatus, UploadedDocument
+    from src.extraction.orm.layer2 import AtomicTransaction
+    from src.extraction.orm.statement_summary import StatementSummary
     from src.observability import ErrorIds
+    from src.schemas.extraction import StatementDecisionRequest
+
+    assert (await client.get("/statements/00000000-0000-0000-0000-000000000000")).status_code == 404
+    pending = await client.get("/statements/pending-review")
+    assert pending.status_code == 200 and (pending.json()["items"], pending.json()["total"]) == ([], 0)
+    assert (await client.post("/statements", data={"institution": "DBS"})).status_code == 422
+
+    assert StatementDecisionRequest().notes is None and StatementDecisionRequest(notes="x").notes == "x"
+    assert (BankStatementStatus.UPLOADED.value, BankStatementStatus.PARSED.value, BankStatementStatus.APPROVED.value) == ("uploaded", "parsed", "approved")
+    assert Base.metadata is not None and inspect.isasyncgenfunction(get_db)
+    assert (StatementSummary.__tablename__, AtomicTransaction.__tablename__, UploadedDocument.__tablename__) == ("statement_summaries", "atomic_transactions", "uploaded_documents")
+    assert all(hasattr(StatementSummary, a) for a in ("uploaded_document_id", "file_hash", "status")) and all(hasattr(AtomicTransaction, a) for a in ("dedup_hash", "source_documents", "balance_after"))
+
+    for key in ("S3_BUCKET", "LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+        monkeypatch.delenv(key, raising=False)
+    s, sdk = Settings(_env_file=None), LlmSettings()
+    assert (s.ai_provider, s.s3_bucket, s.large_model, s.small_model, s.multimodal_model) == ("zai", "statements", sdk.role_model("large"), sdk.role_model("small"), sdk.role_model("multimodal"))
+    assert "postgresql" in Settings().database_url or "sqlite" in Settings().database_url
 
     mock_logger = MagicMock()
     monkeypatch.setattr(main_module, "logger", mock_logger)
-    request = MagicMock(spec=Request)
-    request.state = MagicMock()
-    request.state.request_id = "req-123"
-    resp = await main_module.global_exception_handler(request, RuntimeError("boom"))
-    assert resp.status_code == 500
-    assert resp.headers["X-Request-ID"] == "req-123"
-    mock_logger.exception.assert_called_once()
-    assert mock_logger.exception.call_args.kwargs.get("error_id") == ErrorIds.UNHANDLED_EXCEPTION
+    req = MagicMock(spec=Request, state=MagicMock(request_id="req-123"))
+    resp = await main_module.global_exception_handler(req, RuntimeError("boom"))
+    assert (resp.status_code, resp.headers["X-Request-ID"], mock_logger.exception.call_args.kwargs.get("error_id")) == (500, "req-123", ErrorIds.UNHANDLED_EXCEPTION)

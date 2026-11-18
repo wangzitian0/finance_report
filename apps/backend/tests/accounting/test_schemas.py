@@ -1,4 +1,4 @@
-'AC-ledger.9.1 AC-ledger.9.2 AC-ledger.9.3 AC-ledger.9.4'; from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from pydantic import ValidationError; from src.ledger import AccountType, Direction; from src.schemas import AccountCreate, AccountUpdate, JournalEntryCreate, JournalLineCreate, VoidJournalEntryRequest
+from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from pydantic import ValidationError; from src.ledger import AccountType, Direction; from src.schemas import AccountCreate, AccountUpdate, JournalEntryCreate, JournalLineCreate, VoidJournalEntryRequest
 class TestAccountSchemas:
     def test_account_create_valid(self):
         account = AccountCreate(name='Test Account', type=AccountType.ASSET, currency='SGD'); assert account.name == 'Test Account'; assert account.type == AccountType.ASSET; assert account.currency == 'SGD'; _m1_account = AccountCreate(name='Full Account', code='1100', type=AccountType.LIABILITY, currency='USD', description='Test description'); assert _m1_account.code == '1100'; assert _m1_account.description == 'Test description'

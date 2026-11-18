@@ -1,5 +1,27 @@
-'AC-reconciliation.adjustment.1'; from decimal import Decimal; import pytest; from pydantic import ValidationError; from src.ledger import AccountType, Direction; from src.ledger.splits import SplitLine, calculate_reconciliation_adjustment
-def test_flow_18_reconciliation_adjustment_loss():
-    result = calculate_reconciliation_adjustment(bank_balance=Decimal('1000.00'), book_balance=Decimal('1000.03'), threshold=Decimal('0.05')); assert result.difference == Decimal('-0.03'); assert result.is_gain is False; assert len(result.lines) == 2; exp_line = next((item for item in result.lines if item.role == 'rounding_expense')); assert exp_line.account_kind == AccountType.EXPENSE; assert exp_line.direction == Direction.DEBIT; assert exp_line.amount == Decimal('0.03'); asset_line = next((item for item in result.lines if item.role == 'bank_adjustment')); assert asset_line.account_kind == AccountType.ASSET; assert asset_line.direction == Direction.CREDIT; assert asset_line.amount == Decimal('0.03'); _m1_result = calculate_reconciliation_adjustment(bank_balance=Decimal('1000.02'), book_balance=Decimal('1000.00'), threshold=Decimal('0.05')); assert _m1_result.difference == Decimal('0.02'); assert _m1_result.is_gain is True; assert len(_m1_result.lines) == 2; _m1_asset_line = next((_m1_item for _m1_item in _m1_result.lines if _m1_item.role == 'bank_adjustment')); assert _m1_asset_line.account_kind == AccountType.ASSET; assert _m1_asset_line.direction == Direction.DEBIT; assert _m1_asset_line.amount == Decimal('0.02'); _m1_gain_line = next((_m1_item for _m1_item in _m1_result.lines if _m1_item.role == 'rounding_income')); assert _m1_gain_line.account_kind == AccountType.INCOME; assert _m1_gain_line.direction == Direction.CREDIT; assert _m1_gain_line.amount == Decimal('0.02')
-    with pytest.raises(ValueError, match='exceeds immaterial threshold'): calculate_reconciliation_adjustment(bank_balance=Decimal('1000.00'), book_balance=Decimal('1000.10'), threshold=Decimal('0.05'))
-    with pytest.raises(ValidationError): SplitLine(role='zero_plug', account_kind=AccountType.ASSET, direction=Direction.DEBIT, amount=Decimal('0.00'))
+from decimal import Decimal
+
+import pytest
+from pydantic import ValidationError
+
+from src.ledger import AccountType, Direction
+from src.ledger.splits import SplitLine, calculate_reconciliation_adjustment
+
+
+@pytest.mark.parametrize(
+    ("bank", "book", "diff", "is_gain", "roles"),
+    [
+        ("1000.00", "1000.03", "-0.03", False, {("rounding_expense", AccountType.EXPENSE, Direction.DEBIT, "0.03"), ("bank_adjustment", AccountType.ASSET, Direction.CREDIT, "0.03")}),
+        ("1000.02", "1000.00", "0.02", True, {("bank_adjustment", AccountType.ASSET, Direction.DEBIT, "0.02"), ("rounding_income", AccountType.INCOME, Direction.CREDIT, "0.02")}),
+    ],
+)
+def test_flow_18_reconciliation_adjustment_and_validation(bank: str, book: str, diff: str, is_gain: bool, roles: set[tuple]) -> None:
+    res = calculate_reconciliation_adjustment(bank_balance=Decimal(bank), book_balance=Decimal(book), threshold=Decimal("0.05"))
+    assert res.difference == Decimal(diff) and res.is_gain is is_gain
+    assert {(item.role, item.account_kind, item.direction, str(item.amount)) for item in res.lines} == roles
+
+
+def test_flow_18_reconciliation_adjustment_threshold_and_zero_split() -> None:
+    with pytest.raises(ValueError, match="exceeds immaterial threshold"):
+        calculate_reconciliation_adjustment(bank_balance=Decimal("1000.00"), book_balance=Decimal("1000.10"), threshold=Decimal("0.05"))
+    with pytest.raises(ValidationError):
+        SplitLine(role="zero_plug", account_kind=AccountType.ASSET, direction=Direction.DEBIT, amount=Decimal("0.00"))

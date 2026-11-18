@@ -13,7 +13,6 @@ from src.routers import pricing as pricing_router, reports as reports_router
 
 
 async def test_market_data_sync_endpoints_return_counts(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    "AC-pricing.marketdata.5 AC11.10.5"
 
     async def fake_stock_sync(*_args, **_kwargs) -> market_data.MarketDataSyncResult:
         return market_data.MarketDataSyncResult(
@@ -58,7 +57,6 @@ async def test_market_data_sync_endpoints_return_counts(client: AsyncClient, mon
 
 
 async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncClient) -> None:
-    "AC11.10.5"
     response = await client.post(
         "/pricing/fx/syncs", json={"pairs": ["USD-SGD"], "start_date": "2026-01-05", "end_date": "2026-01-05"}
     )
@@ -69,7 +67,6 @@ async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncCl
 async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
     client: AsyncClient, db_engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    "AC12.26.3"
 
     async def fake_stock_sync(db: AsyncSession, *_args, **_kwargs) -> market_data.MarketDataSyncResult:
         db.add(
@@ -95,7 +92,6 @@ async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
 
 
 async def test_market_data_status_endpoint_returns_authenticated_scope_freshness(client: AsyncClient, db) -> None:
-    "AC11.10.11"
     observed_at = datetime(2026, 1, 6, tzinfo=UTC)
     db.add_all(
         [
@@ -140,7 +136,6 @@ async def test_market_data_status_endpoint_returns_authenticated_scope_freshness
 async def test_brokerage_import_runs_market_data_freshness_check_and_reports_stay_read_only(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    "AC11.10.9 AC11.10.11"
     calls: list[tuple[list[str], list[str], date]] = []
 
     async def fake_ensure(_db, *, fx_pairs, stock_symbols, end_date: date) -> market_data.MarketDataFreshnessResult:

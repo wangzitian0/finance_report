@@ -48,7 +48,6 @@ from tests.factories import UserFactory
 
 
 async def test_AC_reconciliation_review_queue_15_scopes_statement_in_sql(db, db_engine, test_user: User) -> None:
-    "AC-reconciliation.review-queue.15"
     statement = await create_test_statement(db, test_user)
     db.add(create_test_transaction(db, statement))
     await db.commit()
@@ -70,7 +69,6 @@ async def test_AC_reconciliation_review_queue_15_scopes_statement_in_sql(db, db_
 
 
 async def test_reviewed_disposition_rolls_back_its_decision_when_posting_fails(db, test_user: User, monkeypatch) -> None:
-    "AC-reconciliation.reviewed-disposition.4"
     _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Fault Injection")
     transaction_id = transaction.id
 
@@ -97,7 +95,6 @@ async def test_reviewed_disposition_rolls_back_its_decision_when_posting_fails(d
 
 
 async def test_reviewed_disposition_rolls_back_when_trace_append_fails(db, test_user: User, monkeypatch) -> None:
-    "AC-reconciliation.reviewed-disposition.4"
     _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Trace Fault")
     transaction_id = transaction.id
 
@@ -134,12 +131,10 @@ async def test_reviewed_disposition_rolls_back_when_trace_append_fails(db, test_
 
 
 def test_legacy_unmatched_create_entry_helper_removed() -> None:
-    "AC-reconciliation.review-queue.13"
     assert not hasattr(reconciliation_router, "create_entry")
 
 
 async def test_load_transactions_enforces_user_isolation(db, test_user: User) -> None:
-    "AC-reconciliation.tenant.1"
     other_user_id = uuid4()
     _, transaction, match = await _seed_router_match(db, test_user)
     loaded_owner = await reconciliation_router._load_transactions(db, [match], user_id=test_user.id)
@@ -182,7 +177,6 @@ async def test_build_match_response_includes_entries(db, test_user: User) -> Non
 
 
 async def test_AC10_8_3_reconciliation_run_audit_checkpoints(db, test_user: User, monkeypatch: pytest.MonkeyPatch) -> None:
-    "AC-observability.8.3"
     statement, _ = await _seed_router_txns(db, test_user, count=1)
     statement_id = statement.id
 
@@ -248,7 +242,6 @@ async def test_load_entry_summaries_edge_cases(db, test_user: User) -> None:
 
 
 async def test_accept_reject_tolerance_and_batch_guards(db, test_user: User) -> None:
-    "AC-reconciliation.review-hardening.2"
     _, _, rejected_match = await _seed_router_match(db, test_user, status=ReconciliationStatus.REJECTED, score=60)
     assert (await reject_match_service(db, str(rejected_match.id), user_id=test_user.id)).status == ReconciliationStatus.REJECTED
     account, statement, txn_tol, expense = await _seed_expense_setup(db, test_user)
@@ -288,7 +281,6 @@ async def test_accept_reject_tolerance_and_batch_guards(db, test_user: User) -> 
 
 
 async def test_batch_accept_router_preserves_currency_unresolved_error(db, test_user: User, monkeypatch) -> None:
-    "AC12.40.4"
     error = CurrencyUnresolvedError("Currency must be resolved")
 
     async def fail_batch(*args, **kwargs):

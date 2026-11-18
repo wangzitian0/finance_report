@@ -1,4 +1,3 @@
-"AC-counter.1.3 EPIC-025"
 
 from uuid import uuid4
 import pytest
@@ -12,7 +11,6 @@ OTHER = CounterKey("statement.uploaded")
 
 
 async def test_increment_is_per_user():
-    "AC-counter.1.3"
     repo = InMemoryCounterRepository()
     u1, u2 = (uuid4(), uuid4())
     assert await increment(repo, user_id=u1, key=KEY) == Count(1)
@@ -22,7 +20,6 @@ async def test_increment_is_per_user():
 
 
 async def test_increment_emits_incremented_event():
-    "AC-counter.1.3"
     repo = InMemoryCounterRepository()
     u1 = uuid4()
     bus = RecordingEventBus()
@@ -37,7 +34,6 @@ async def test_increment_emits_incremented_event():
 
 
 async def test_two_keys_two_users_do_not_interfere():
-    "AC-counter.1.3"
     repo = InMemoryCounterRepository()
     u1, u2 = (uuid4(), uuid4())
     await increment(repo, user_id=u1, key=KEY)

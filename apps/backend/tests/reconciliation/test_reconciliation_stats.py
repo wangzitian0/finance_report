@@ -1,17 +1,99 @@
-from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from src.extraction import TransactionDirection; from src.extraction.orm.layer2 import AtomicTransaction; from src.ledger import Account, AccountType; from src.reconciliation import ReconciliationMatch, ReconciliationStatus, get_reconciliation_stats; _make_atomic = lambda user_id, *, txn_date, description, amount, direction=TransactionDirection.IN: AtomicTransaction(user_id=user_id, txn_date=txn_date, description=description, amount=amount, direction=direction, currency='SGD', dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(uuid4()), 'doc_type': 'bank_statement'}])
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import func, select
+
+from src.extraction import BankStatementStatus, TransactionDirection
+from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+from src.ledger import AccountType
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus, execute_matching, get_reconciliation_stats
+from src.reconciliation.data import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
+from src.reconciliation.extension.repository import SqlReconciliationRepository
+from src.reporting.extension.data_quality_service import compute_personal_data_quality
 from src.request_context import RequestContext
-async def _make_account(db, user_id, name='Test Account'): account = Account(user_id=user_id, name=name, type=AccountType.ASSET, currency='SGD'); db.add(account); await db.flush(); return account
-_make_match = lambda txn_id, *, status=ReconciliationStatus.AUTO_ACCEPTED, score=95, breakdown=None, superseded_by_id=None: ReconciliationMatch(atomic_txn_id=txn_id, journal_entry_ids=[str(uuid4())], match_score=score, score_breakdown=breakdown or {'amount': 100.0, 'date': 100.0}, status=status, superseded_by_id=superseded_by_id)
-async def test_get_reconciliation_stats_basic(db, test_user): user_id = test_user.id; await _make_account(db, user_id); txn1 = _make_atomic(user_id, txn_date=date(2024, 1, 15), description='Salary', amount=Decimal('5000')); txn2 = _make_atomic(user_id, txn_date=date(2024, 1, 16), description='Groceries', amount=Decimal('100'), direction=TransactionDirection.OUT); txn3 = _make_atomic(user_id, txn_date=date(2024, 1, 17), description='Rent', amount=Decimal('2000'), direction=TransactionDirection.OUT); db.add_all([txn1, txn2, txn3]); await db.flush(); match1 = _make_match(txn1.id, score=95); match2 = _make_match(txn3.id, score=70, breakdown={'amount': 90.0, 'date': 80.0}, status=ReconciliationStatus.PENDING_REVIEW); db.add_all([match1, match2]); await db.flush(); stats = await get_reconciliation_stats(db, user_id, include_distribution=False); assert stats.total_transactions == 3; assert stats.matched_transactions == 1; assert stats.unmatched_transactions == 1; assert stats.pending_review == 1; assert stats.auto_accepted == 1; assert stats.match_rate == pytest.approx(33.33, rel=0.01); assert stats.score_distribution is None
-async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db, test_user): 'AC-reconciliation.stats.1'; user_id = test_user.id; await _make_account(db, user_id); txn = _make_atomic(user_id, txn_date=date(2024, 1, 15), description='Salary', amount=Decimal('5000')); db.add(txn); await db.flush(); match_b = _make_match(txn.id, score=91, breakdown={'amount': 100.0, 'date': 90.0}); db.add(match_b); await db.flush(); match_a = _make_match(txn.id, score=95, status=ReconciliationStatus.SUPERSEDED, superseded_by_id=match_b.id); db.add(match_a); await db.flush(); stats = await get_reconciliation_stats(db, user_id, include_distribution=False); assert stats.total_transactions == 1; assert stats.matched_transactions == 1; assert stats.unmatched_transactions == 0; assert stats.match_rate == pytest.approx(100.0); assert stats.match_rate <= 100.0
-async def test_get_reconciliation_stats_zero_division(db): user_id = uuid4(); stats = await get_reconciliation_stats(db, user_id, include_distribution=False); assert stats.total_transactions == 0; assert stats.matched_transactions == 0; assert stats.unmatched_transactions == 0; assert stats.pending_review == 0; assert stats.auto_accepted == 0; assert stats.match_rate == 0.0; assert stats.score_distribution is None
-async def test_get_reconciliation_stats_without_distribution(db, test_user):
-    user_id = test_user.id; await _make_account(db, user_id); txn = _make_atomic(user_id, txn_date=date(2024, 1, 15), description='Test', amount=Decimal('100')); db.add(txn); await db.flush()
-    match = _make_match(txn.id, score=85, breakdown={'amount': 100.0}); db.add(match); await db.flush(); stats = await get_reconciliation_stats(db, user_id, include_distribution=False); assert stats.total_transactions == 1; assert stats.matched_transactions == 1; assert stats.auto_accepted == 1; assert stats.score_distribution is None
-async def test_get_reconciliation_stats_with_distribution(db, test_user): user_id = test_user.id; await _make_account(db, user_id); scores = [50, 55, 65, 70, 75, 85, 88, 92, 95, 100]; transactions = [_make_atomic(user_id, txn_date=date(2024, 1, 1 + i), description=f'Test {i}', amount=Decimal(str(100 + i))) for i in range(len(scores))]; db.add_all(transactions); await db.commit(); matches = [_make_match(txn.id, score=score) for txn, score in zip(transactions, scores)]; db.add_all(matches); await db.commit(); stats = await get_reconciliation_stats(db, user_id, include_distribution=True); assert stats.score_distribution is not None; assert stats.score_distribution['0-59'] == 2; assert stats.score_distribution['60-79'] == 3; assert stats.score_distribution['80-89'] == 2; assert stats.score_distribution['90-100'] == 3; total_scored = sum(stats.score_distribution.values()); assert total_scored == 10
-def test_stats_reexports_ssot_confidence_thresholds(): from src.reconciliation.data import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE; assert RECONCILIATION_AUTO_ACCEPT_SCORE == 85; assert RECONCILIATION_REVIEW_SCORE == 60
-async def _seed_reviewed_statement_row(db, user_id, file_hash): from src.extraction import BankStatementStatus; from tests.api._statement_router_fixtures import add_reviewed_disposition_rule, add_txn, build_statement, create_statement_account; bank_account = await create_statement_account(db, user_id, 'DBS Stats Posted'); statement = build_statement(user_id, file_hash, 90); statement.status = BankStatementStatus.APPROVED; statement.account_id = bank_account.id; statement.closing_balance = Decimal('120.00'); db.add(statement); await db.flush(); txn = await add_txn(db, statement, txn_date=date(2025, 1, 8), description='Salary', amount=Decimal('20.00'), direction='IN'); db.add(txn); await db.flush(); await add_reviewed_disposition_rule(db, user_id=user_id, keyword='salary', account_type=AccountType.INCOME, category='SALARY'); await db.commit(); return (statement, txn)
-async def test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched(db, test_user): 'AC-reconciliation.2465.1'; from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement; from src.routers.reconciliation import _unmatched_atomic_txn_query; from tests.statement_ingestion import posting_dependencies; statement, _txn = await _seed_reviewed_statement_row(db, test_user.id, 'hash_stats_posted_2465'); before = await get_reconciliation_stats(db, test_user.id); assert before.total_transactions == 1; assert before.matched_transactions == 0; assert before.unmatched_transactions == 1; posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id, dependencies=posting_dependencies()); assert posted == 1; after = await get_reconciliation_stats(db, test_user.id); assert after.total_transactions == 1; assert after.matched_transactions == 1; assert after.unmatched_transactions == 0; assert after.match_rate == 100.0; unmatched_rows = (await db.execute(_unmatched_atomic_txn_query(test_user.id))).scalars().all(); assert unmatched_rows == []
-async def test_AC_reconciliation_2561_1_run_after_statement_posting_creates_no_self_match(db, test_user): 'AC-reconciliation.2561.1'; from sqlalchemy import func, select; from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement; from src.reconciliation import execute_matching; from src.reconciliation.extension.repository import SqlReconciliationRepository; from tests.statement_ingestion import posting_dependencies; statement, txn = await _seed_reviewed_statement_row(db, test_user.id, 'hash_stats_posted_2561'); posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id, dependencies=posting_dependencies()); assert posted == 1; repo = SqlReconciliationRepository(db); candidates = await repo.list_journal_candidates(user_id=test_user.id, start_date=txn.txn_date, end_date=txn.txn_date); assert {candidate.source_id for candidate in candidates} == {txn.id}; pending_ids = {row.id for row in await repo.list_pending_transactions(test_user.id)}; assert txn.id not in pending_ids; matches = await execute_matching(db, user_id=test_user.id, currency='SGD'); assert matches == []; match_count = await db.scalar(select(func.count(ReconciliationMatch.id)).where(ReconciliationMatch.atomic_txn_id == txn.id)); assert match_count == 0; stats = await get_reconciliation_stats(db, test_user.id); assert stats.total_transactions == 1; assert stats.matched_transactions == 1; assert stats.unmatched_transactions == 0; assert stats.auto_accepted == 0
-async def test_AC_reconciliation_2548_3_stats_unmatched_aligns_with_unmatched_query(db, test_user): 'AC-reconciliation.2548.3'; from src.extraction import BankStatementStatus, DocumentType, UploadedDocument; from src.extraction.orm.statement_summary import StatementSummary; from src.routers.reconciliation import _unmatched_atomic_txn_query; user_id = test_user.id; await _make_account(db, user_id); retired_doc = UploadedDocument(id=uuid4(), user_id=user_id, file_path='statements/retired.pdf', file_hash=f'retired_{uuid4().hex}', original_filename='retired.pdf', document_type=DocumentType.BANK_STATEMENT); db.add(retired_doc); await db.flush(); retired_stmt = StatementSummary(id=uuid4(), user_id=user_id, uploaded_document_id=retired_doc.id, file_hash=retired_doc.file_hash, institution='Bank', currency='SGD', status=BankStatementStatus.RETIRED); db.add(retired_stmt); await db.flush(); retired_txn = AtomicTransaction(user_id=user_id, txn_date=date(2026, 2, 1), description='Retired statement row', amount=Decimal('50.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(retired_doc.id), 'doc_type': DocumentType.BANK_STATEMENT.value}]); txn_auto = _make_atomic(user_id, txn_date=date(2026, 2, 2), description='Salary', amount=Decimal('3000.00')); txn_pending = _make_atomic(user_id, txn_date=date(2026, 2, 3), description='Rent', amount=Decimal('1200.00')); txn_unmatched = _make_atomic(user_id, txn_date=date(2026, 2, 4), description='Coffee', amount=Decimal('6.50')); db.add_all([retired_txn, txn_auto, txn_pending, txn_unmatched]); await db.flush(); active_auto = _make_match(txn_auto.id, score=92, status=ReconciliationStatus.AUTO_ACCEPTED); db.add(active_auto); await db.flush(); superseded_old = _make_match(txn_auto.id, score=70, status=ReconciliationStatus.PENDING_REVIEW, superseded_by_id=active_auto.id); pending_match = _make_match(txn_pending.id, score=72, status=ReconciliationStatus.PENDING_REVIEW); db.add_all([superseded_old, pending_match]); await db.commit(); stats = await get_reconciliation_stats(db, user_id, include_distribution=True); unmatched_rows = (await db.execute(_unmatched_atomic_txn_query(user_id))).scalars().all(); assert stats.total_transactions == 3; assert stats.matched_transactions == 1; assert stats.pending_review == 1; assert stats.unmatched_transactions == 1; assert stats.unmatched_transactions == len(unmatched_rows); assert [row.id for row in unmatched_rows] == [txn_unmatched.id]; assert stats.score_distribution is not None; assert sum(stats.score_distribution.values()) == 2
-async def test_AC_reconciliation_2826_1_stage2_scope_excludes_unapproved_stage1_statements(db, test_user): 'AC-reconciliation.2826.1 AC-reconciliation.2884.1'; from src.extraction import BankStatementStatus, DocumentType, UploadedDocument; from src.extraction.orm.statement_summary import StatementSummary; from src.reconciliation.extension.repository import SqlReconciliationRepository; from src.reporting.extension.data_quality_service import compute_personal_data_quality; from src.routers.reconciliation import list_unmatched; user_id = test_user.id; bank_account = await _make_account(db, user_id); parsed_doc = UploadedDocument(id=uuid4(), user_id=user_id, file_path='statements/parsed_2826.csv', file_hash=f'parsed_{uuid4().hex}', original_filename='parsed_2826.csv', document_type=DocumentType.BANK_STATEMENT); approved_doc = UploadedDocument(id=uuid4(), user_id=user_id, file_path='statements/approved_2826.csv', file_hash=f'approved_{uuid4().hex}', original_filename='approved_2826.csv', document_type=DocumentType.BANK_STATEMENT); db.add_all([parsed_doc, approved_doc]); await db.flush(); parsed_stmt = StatementSummary(id=uuid4(), user_id=user_id, uploaded_document_id=parsed_doc.id, file_hash=parsed_doc.file_hash, institution='Bank', currency='SGD', status=BankStatementStatus.PARSED, period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), opening_balance=Decimal('100.00'), closing_balance=Decimal('58.00')); approved_stmt = StatementSummary(id=uuid4(), user_id=user_id, account_id=bank_account.id, uploaded_document_id=approved_doc.id, file_hash=approved_doc.file_hash, institution='Bank', currency='SGD', status=BankStatementStatus.APPROVED, period_start=date(2026, 2, 1), period_end=date(2026, 2, 28), opening_balance=Decimal('188.00'), closing_balance=Decimal('100.00')); db.add_all([parsed_stmt, approved_stmt]); await db.flush(); parsed_txn = AtomicTransaction(user_id=user_id, txn_date=date(2026, 3, 10), description='Pending Stage-1 CSV row', amount=Decimal('42.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(parsed_doc.id), 'doc_type': DocumentType.BANK_STATEMENT.value}]); approved_txn = AtomicTransaction(user_id=user_id, txn_date=date(2026, 2, 10), description='Approved Stage-2 unmatched row', amount=Decimal('88.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(approved_doc.id), 'doc_type': DocumentType.BANK_STATEMENT.value}]); db.add_all([parsed_txn, approved_txn]); await db.commit(); stats = await get_reconciliation_stats(db, user_id); assert stats.total_transactions == 1; assert stats.unmatched_transactions == 1; unscoped_unmatched = await list_unmatched(statement_id=None, limit=100, offset=0, ctx=RequestContext(db, user_id)); assert [item.id for item in unscoped_unmatched.items] == [approved_txn.id]; assert unscoped_unmatched.total == 1; scoped_unmatched = await list_unmatched(statement_id=parsed_stmt.id, limit=100, offset=0, ctx=RequestContext(db, user_id)); assert [item.id for item in scoped_unmatched.items] == [parsed_txn.id]; assert scoped_unmatched.total == 1; repo = SqlReconciliationRepository(db); pending_txns = await repo.list_pending_transactions(user_id); assert {item.id for item in pending_txns} == {parsed_txn.id, approved_txn.id}; quality = await compute_personal_data_quality(db, user_id, as_of_date=date(2026, 3, 31), currency='SGD'); assert quality.reconciliation_purity_invariant.delta == Decimal(1)
+from src.routers.reconciliation import _unmatched_atomic_txn_query, list_unmatched
+from tests.api._statement_router_fixtures import add_reviewed_disposition_rule, add_txn, build_statement, create_statement_account
+from tests.factories import AccountFactory, AtomicTransactionFactory, ReconciliationMatchFactory, UserFactory, seed_parsed_statement
+from tests.statement_ingestion import posting_dependencies
+
+
+async def test_get_reconciliation_stats_dedup_distribution_and_unmatched_alignment(db, test_user) -> None:
+    assert (RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE) == (85, 60)
+    empty = await get_reconciliation_stats(db, uuid4(), include_distribution=False)
+    assert (empty.total_transactions, empty.matched_transactions, empty.unmatched_transactions, empty.pending_review, empty.auto_accepted, empty.match_rate, empty.score_distribution) == (0, 0, 0, 0, 0, 0.0, None)
+
+    uid = test_user.id
+    await AccountFactory.create_async(db, user_id=uid)
+    txns = [
+        await AtomicTransactionFactory.create_async(db, user_id=uid, txn_date=date(2024, 1, 15 + i), description=desc, amount=Decimal(amt), direction=direction)
+        for i, (desc, amt, direction) in enumerate([("Salary", "5000", TransactionDirection.IN), ("Groceries", "100", TransactionDirection.OUT), ("Rent", "2000", TransactionDirection.OUT)])
+    ]
+    m1 = await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[0].id, match_score=95, status=ReconciliationStatus.AUTO_ACCEPTED)
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[2].id, match_score=70, status=ReconciliationStatus.PENDING_REVIEW)
+    stats = await get_reconciliation_stats(db, uid, include_distribution=False)
+    assert (stats.total_transactions, stats.matched_transactions, stats.unmatched_transactions, stats.pending_review, stats.auto_accepted, stats.score_distribution) == (3, 1, 1, 1, 1, None)
+    assert stats.match_rate == pytest.approx(33.33, rel=0.01)
+
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=txns[0].id, match_score=91, status=ReconciliationStatus.SUPERSEDED, superseded_by_id=m1.id)
+    assert (await get_reconciliation_stats(db, uid, include_distribution=False)).matched_transactions == 1
+
+    scores = [50, 55, 65, 70, 75, 85, 88, 92, 95, 100]
+    uid2 = (await UserFactory.create_async(db)).id
+    await AccountFactory.create_async(db, user_id=uid2)
+    retired = await seed_parsed_statement(db, uid2, original_filename="retired.pdf", transactions=[{"description": "Retired", "amount": Decimal("50.00"), "direction": TransactionDirection.OUT, "date": date(2026, 2, 1)}])
+    retired.statement.status = BankStatementStatus.RETIRED
+    for i, s in enumerate(scores):
+        t = await AtomicTransactionFactory.create_async(db, user_id=uid2, txn_date=date(2024, 2, 1 + i), description=f"D{i}", amount=Decimal(str(100 + i)))
+        await ReconciliationMatchFactory.create_async(db, atomic_txn_id=t.id, match_score=s, status=ReconciliationStatus.AUTO_ACCEPTED)
+    t_pend = await AtomicTransactionFactory.create_async(db, user_id=uid2, txn_date=date(2026, 2, 3), description="Rent", amount=Decimal("1200.00"))
+    t_u = await AtomicTransactionFactory.create_async(db, user_id=uid2, txn_date=date(2026, 2, 4), description="Coffee", amount=Decimal("6.50"))
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=t_pend.id, match_score=72, status=ReconciliationStatus.PENDING_REVIEW)
+    await db.commit()
+    dist_stats = await get_reconciliation_stats(db, uid2, include_distribution=True)
+    assert dist_stats.score_distribution == {"0-59": 2, "60-79": 4, "80-89": 2, "90-100": 3}
+    assert (dist_stats.total_transactions, dist_stats.matched_transactions, dist_stats.pending_review, dist_stats.unmatched_transactions) == (12, 10, 1, 1)
+    assert [r.id for r in (await db.execute(_unmatched_atomic_txn_query(uid2))).scalars().all()] == [t_u.id]
+
+
+async def test_AC_reconciliation_2465_and_2826_posted_and_stage2_scope(db, test_user) -> None:
+    uid = test_user.id
+    bank = await create_statement_account(db, uid, "DBS Stats Posted")
+    stmt = build_statement(uid, "hash_stats_posted_2465", 90)
+    stmt.status, stmt.account_id, stmt.closing_balance = BankStatementStatus.APPROVED, bank.id, Decimal("120.00")
+    db.add(stmt)
+    await db.flush()
+    txn = await add_txn(db, stmt, txn_date=date(2025, 1, 8), description="Salary", amount=Decimal("20.00"), direction="IN")
+    db.add(txn)
+    await db.flush()
+    await add_reviewed_disposition_rule(db, user_id=uid, keyword="salary", account_type=AccountType.INCOME, category="SALARY")
+    await db.commit()
+
+    before = await get_reconciliation_stats(db, uid)
+    assert (before.total_transactions, before.matched_transactions, before.unmatched_transactions) == (1, 0, 1)
+    assert await try_auto_approve_high_confidence_statement(db, stmt.id, uid, dependencies=posting_dependencies()) == 1
+    after = await get_reconciliation_stats(db, uid)
+    assert (after.total_transactions, after.matched_transactions, after.unmatched_transactions, after.match_rate, after.auto_accepted) == (1, 1, 0, 100.0, 0)
+    assert (await db.execute(_unmatched_atomic_txn_query(uid))).scalars().all() == []
+    repo = SqlReconciliationRepository(db)
+    assert {c.source_id for c in await repo.list_journal_candidates(user_id=uid, start_date=txn.txn_date, end_date=txn.txn_date)} == {txn.id}
+    assert txn.id not in {r.id for r in await repo.list_pending_transactions(uid)}
+    assert await execute_matching(db, user_id=uid, currency="SGD") == []
+    assert await db.scalar(select(func.count(ReconciliationMatch.id)).where(ReconciliationMatch.atomic_txn_id == txn.id)) == 0
+
+    parsed = await seed_parsed_statement(db, uid, original_filename="parsed_2826.csv", transactions=[{"description": "Pending Stage-1", "amount": Decimal("42.00"), "direction": TransactionDirection.OUT, "date": date(2026, 3, 10)}])
+    approved = await seed_parsed_statement(db, uid, original_filename="approved_2826.csv", transactions=[{"description": "Approved Stage-2", "amount": Decimal("88.00"), "direction": TransactionDirection.OUT, "date": date(2026, 2, 10)}])
+    approved.statement.account_id, approved.statement.status = bank.id, BankStatementStatus.APPROVED
+    await db.commit()
+    parsed_txn, approved_txn = parsed.transactions[0], approved.transactions[0]
+    s2 = await get_reconciliation_stats(db, uid)
+    assert (s2.total_transactions, s2.unmatched_transactions) == (2, 1)
+    unscoped = await list_unmatched(statement_id=None, limit=100, offset=0, ctx=RequestContext(db, uid))
+    scoped = await list_unmatched(statement_id=parsed.statement.id, limit=100, offset=0, ctx=RequestContext(db, uid))
+    assert [i.id for i in unscoped.items] == [approved_txn.id] and unscoped.total == 1
+    assert [i.id for i in scoped.items] == [parsed_txn.id] and scoped.total == 1
+    assert {i.id for i in await repo.list_pending_transactions(uid)} == {parsed_txn.id, approved_txn.id}
+    assert (await compute_personal_data_quality(db, uid, as_of_date=date(2026, 3, 31), currency="SGD")).reconciliation_purity_invariant.delta == Decimal(1)

@@ -1,38 +1,45 @@
+from __future__ import annotations
+
+import importlib
+import re
+from pathlib import Path
+
 import pytest
+from infra2_sdk.runtime.llm import LlmSettings
 from pydantic import ValidationError
-from src.config import Settings, parse_comma_list, parse_key_value_pairs
+
+from src.config import ENV_SOURCE_CLASSES, Settings, _extract_env_candidate_names, parse_comma_list, parse_key_value_pairs, settings
 
 
-def test_parse_comma_list_defaults() -> None:
+def test_parse_helpers_and_to_llm_settings() -> None:
     assert parse_comma_list(None, ["a"]) == ["a"]
     assert parse_comma_list(["x", "y"], ["a"]) == ["x", "y"]
     assert parse_comma_list("x, y, ,z", ["a"]) == ["x", "y", "z"]
     assert parse_key_value_pairs(None) == {}
-    _m4_value = "a=1, ,invalid,b=two,=ignored,c="
-    assert parse_key_value_pairs(_m4_value) == {"a": "1", "b": "two"}
-    _m5_settings = Settings(_env_file=None)
-    _m5_llm = _m5_settings.to_llm_settings()
-    assert _m5_llm.provider == _m5_settings.ai_provider
-    assert _m5_llm.base_url == _m5_settings.ai_base_url
-    assert _m5_llm.role_model("small") == _m5_settings.small_model
-    assert _m5_llm.role_model("large") == _m5_settings.large_model
-    assert _m5_llm.role_model("multimodal") == _m5_settings.multimodal_model
+    assert parse_key_value_pairs("a=1, ,invalid,b=two,=ignored,c=") == {"a": "1", "b": "two"}
+    s = Settings(_env_file=None)
+    llm = s.to_llm_settings()
+    assert (llm.provider, llm.base_url, llm.role_model("small"), llm.role_model("large"), llm.role_model("multimodal")) == (
+        s.ai_provider,
+        s.ai_base_url,
+        s.small_model,
+        s.large_model,
+        s.multimodal_model,
+    )
 
 
-def test_environment_alias_reads_deployment_environment(monkeypatch) -> None:
+def test_env_aliases_and_closed_modes(monkeypatch) -> None:
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("ENV", "staging")
-    settings = Settings(_env_file=None)
-    assert settings.environment == "staging"
-
-
-def test_ai_base_url_defaults_to_zai_coding_endpoint(monkeypatch) -> None:
     monkeypatch.delenv("AI_BASE_URL", raising=False)
-    settings = Settings(_env_file=None)
-    assert settings.ai_base_url == "https://api.z.ai/api/coding/paas/v4"
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
+    s = Settings(_env_file=None)
+    assert (s.environment, s.ai_base_url, s.cors_origin_regex) == ("staging", "https://api.z.ai/api/coding/paas/v4", "^$")
+    assert "https://report.zitian.party" not in s.cors_origins
 
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", r"^https://.*\.example\.com$")
+    assert Settings(_env_file=None).cors_origin_regex == r"^https://.*\.example\.com$"
 
-def test_statement_disposition_mode_is_closed_configuration(monkeypatch) -> None:
     monkeypatch.setenv("STATEMENT_DISPOSITION_MODE", "observe")
     assert Settings(_env_file=None).statement_disposition_mode == "observe"
     monkeypatch.setenv("STATEMENT_DISPOSITION_MODE", "unsafe-default")
@@ -40,82 +47,77 @@ def test_statement_disposition_mode_is_closed_configuration(monkeypatch) -> None
         Settings(_env_file=None)
 
 
-def test_cors_origin_regex_defaults_to_match_nothing(monkeypatch) -> None:
-    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
-    settings_default = Settings(_env_file=None)
-    assert settings_default.cors_origin_regex == "^$"
-    assert "https://report.zitian.party" not in settings_default.cors_origins
-    monkeypatch.setenv("CORS_ORIGIN_REGEX", "^https://.*\\.example\\.com$")
-    settings_valid = Settings(_env_file=None)
-    assert settings_valid.cors_origin_regex == "^https://.*\\.example\\.com$"
-
-
 def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch, tmp_path) -> None:
-    "AC-runtime.env-empty-values.2"
-    monkeypatch.setenv("LLM_API_KEY", "")
-    monkeypatch.setenv("CORS_ORIGINS", "")
-    monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
-    settings = Settings(_env_file=None)
-    assert settings.ai_api_key == ""
-    assert "http://localhost:3000" in settings.cors_origins
-    assert settings.api_rate_limit_requests == 300
-    monkeypatch.delenv("LLM_API_KEY", raising=False)
-    monkeypatch.delenv("CORS_ORIGINS", raising=False)
-    monkeypatch.delenv("API_RATE_LIMIT_REQUESTS", raising=False)
-    env_file = tmp_path / "test.env"
-    env_file.write_text("LLM_API_KEY=\nCORS_ORIGINS=\nAPI_RATE_LIMIT_REQUESTS=\n", encoding="utf-8")
-    settings_dotenv = Settings(_env_file=str(env_file))
-    assert settings_dotenv.ai_api_key == ""
-    assert "http://localhost:3000" in settings_dotenv.cors_origins
-    assert settings_dotenv.api_rate_limit_requests == 300
-    monkeypatch.setenv("DATABASE_URL", "")
-    settings_db = Settings(_env_file=None)
-    assert settings_db.database_url == ""
-    import importlib
     import src.config
 
-    orig_settings = src.config.settings
+    for k in ("LLM_API_KEY", "CORS_ORIGINS", "API_RATE_LIMIT_REQUESTS"):
+        monkeypatch.setenv(k, "")
+    s = Settings(_env_file=None)
+    assert s.ai_api_key == "" and "http://localhost:3000" in s.cors_origins and s.api_rate_limit_requests == 300
+
+    for k in ("LLM_API_KEY", "CORS_ORIGINS", "API_RATE_LIMIT_REQUESTS"):
+        monkeypatch.delenv(k, raising=False)
+    env_file = tmp_path / "test.env"
+    env_file.write_text("LLM_API_KEY=\nCORS_ORIGINS=\nAPI_RATE_LIMIT_REQUESTS=\n", encoding="utf-8")
+    dotenv_s = Settings(_env_file=str(env_file))
+    assert dotenv_s.ai_api_key == "" and "http://localhost:3000" in dotenv_s.cors_origins and dotenv_s.api_rate_limit_requests == 300
+
+    monkeypatch.setenv("DATABASE_URL", "")
+    assert Settings(_env_file=None).database_url == ""
+
+    orig = src.config.settings
     try:
         monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
-        reloaded_module = importlib.reload(src.config)
-        assert reloaded_module.settings.api_rate_limit_requests == 300
+        reloaded = importlib.reload(src.config)
+        assert reloaded.settings.api_rate_limit_requests == 300
     finally:
-        reloaded_module.settings = orig_settings
+        reloaded.settings = orig
 
 
-def test_explicit_empty_cors_and_rate_limits() -> None:
+def test_explicit_empty_cors_rate_limits_and_thresholds(monkeypatch) -> None:
     from pydantic.fields import FieldInfo
-    from src.config import _extract_env_candidate_names
 
     assert _extract_env_candidate_names(FieldInfo(), "fallback_field") == ["fallback_field"]
     assert Settings._empty_cors_origins_is_none("   ") is None
     assert Settings._empty_cors_origins_is_none("http://localhost:3000") == "http://localhost:3000"
+    assert Settings._empty_rate_limits_use_default("", type("I", (), {"field_name": "api_rate_limit_requests"})()) == 300
 
-    class _DummyInfo:
-        field_name = "api_rate_limit_requests"
+    s = Settings(_env_file=None, cors_origins_str="   ", api_rate_limit_requests="  ")
+    assert "http://localhost:3000" in s.cors_origins and s.api_rate_limit_requests == 300
 
-    assert Settings._empty_rate_limits_use_default("", _DummyInfo()) == 300
-    settings = Settings(_env_file=None, cors_origins_str="   ", api_rate_limit_requests="  ")
-    assert "http://localhost:3000" in settings.cors_origins
-    assert settings.api_rate_limit_requests == 300
+    for k, v in (("TRUST_PROXY", "true"), ("RECONCILIATION_AUTO_ACCEPT_THRESHOLD", "92"), ("RECONCILIATION_REVIEW_THRESHOLD", "75")):
+        monkeypatch.setenv(k, v)
+    s2 = Settings(_env_file=None)
+    assert (s2.trust_proxy, s2.reconciliation_auto_accept_threshold, s2.reconciliation_review_threshold) == (True, 92, 75)
 
-
-def test_runtime_declared_env_variables(monkeypatch) -> None:
-    monkeypatch.setenv("TRUST_PROXY", "true")
-    monkeypatch.setenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD", "92")
-    monkeypatch.setenv("RECONCILIATION_REVIEW_THRESHOLD", "75")
-    settings = Settings(_env_file=None)
-    assert settings.trust_proxy is True
-    assert settings.reconciliation_auto_accept_threshold == 92
-    assert settings.reconciliation_review_threshold == 75
-
-
-def test_empty_reconciliation_thresholds_resolve_to_none(monkeypatch) -> None:
     monkeypatch.setenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD", "")
     monkeypatch.setenv("RECONCILIATION_REVIEW_THRESHOLD", "   ")
-    settings = Settings(_env_file=None)
-    assert settings.reconciliation_auto_accept_threshold is None
-    assert settings.reconciliation_review_threshold is None
+    s3 = Settings(_env_file=None)
     direct = Settings(_env_file=None, reconciliation_auto_accept_threshold="", reconciliation_review_threshold="  ")
-    assert direct.reconciliation_auto_accept_threshold is None
-    assert direct.reconciliation_review_threshold is None
+    assert (s3.reconciliation_auto_accept_threshold, s3.reconciliation_review_threshold) == (None, None)
+    assert (direct.reconciliation_auto_accept_threshold, direct.reconciliation_review_threshold) == (None, None)
+
+
+def test_config_contracts_formats_pool_and_model_roles(monkeypatch) -> None:
+    assert settings.ai_provider == "zai" and settings.small_model.startswith("glm-") and re.match(r"^glm-[\d.a-z-]+", settings.small_model)
+    env_example = (Path(__file__).parents[4] / ".env.example").read_text()
+    match = re.search(r"^SMALL_MODEL=(.+)$", env_example, re.MULTILINE)
+    assert match and settings.small_model == match.group(1).strip()
+    assert settings.base_currency.isalpha() and len(settings.base_currency) == 3 and settings.base_currency.isupper()
+    assert 3 <= len(settings.s3_bucket) <= 63 and re.match(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$", settings.s3_bucket)
+    assert settings.jwt_algorithm in {"HS256", "RS256"} and ("postgresql+asyncpg://" in settings.database_url or "sqlite" in settings.database_url)
+
+    for k in ("DB_POOL_SIZE", "DB_POOL_MAX_OVERFLOW", "LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    for k in ("NEXT_PUBLIC_APP_URL", "OTEL_RESOURCE_ATTRIBUTES"):
+        monkeypatch.setenv(k, "")
+    s, sdk = Settings(_env_file=None), LlmSettings()
+    assert (s.db_pool_size, s.db_pool_max_overflow) == (5, 10) and s.db_pool_size >= 1 and s.db_pool_max_overflow >= 0
+    assert (s.large_model, s.small_model, s.multimodal_model) == (sdk.role_model("large"), sdk.role_model("small"), sdk.role_model("multimodal"))
+    assert all(field not in ENV_SOURCE_CLASSES for field in ("large_model", "small_model", "multimodal_model"))
+    assert (s.next_public_app_url, s.otel_resource_attributes) == ("http://localhost:3000", None)
+
+    monkeypatch.setenv("DB_POOL_SIZE", "20")
+    monkeypatch.setenv("DB_POOL_MAX_OVERFLOW", "25")
+    overridden = Settings()
+    assert (overridden.db_pool_size, overridden.db_pool_max_overflow) == (20, 25)

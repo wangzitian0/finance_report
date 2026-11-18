@@ -1,4 +1,4 @@
-'AC-platform.1.6'; import pytest; from pydantic import ValidationError; import src.schemas.reporting as reporting_schemas; import src.workflow.base.types as workflow_types; from src.platform import validate_internal_action_href; MESSAGE = 'action_href must be an internal relative path'; EXTERNAL = ['https://external.example.com', '//protocol-relative.com', 'relative/path', 'javascript://alert(1)']
+import pytest; from pydantic import ValidationError; import src.schemas.reporting as reporting_schemas; import src.workflow.base.types as workflow_types; from src.platform import validate_internal_action_href; MESSAGE = 'action_href must be an internal relative path'; EXTERNAL = ['https://external.example.com', '//protocol-relative.com', 'relative/path', 'javascript://alert(1)']
 @pytest.mark.parametrize('href', ['/reports/balance-sheet', '/api/v1/export?format=csv'])
 def test_AC_platform_1_6_internal_href_passes_unchanged(href): assert validate_internal_action_href(href) == href
 @pytest.mark.parametrize('href', EXTERNAL)

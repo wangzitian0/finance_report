@@ -30,7 +30,6 @@ def _events(logs: list[dict], name: str) -> list[dict]:
 
 
 async def test_AC_extraction_2985_1_each_model_call_logs_batch_pages_rows_and_duration():
-    """AC-extraction.2985.1: Every model call of a paged extraction logs its batch, pages, rows and duration."""
     service = ExtractionService()
     meta = {"institution": "DBS", "account_last4": "1234", "currency": "SGD"}
     parts = [
@@ -55,7 +54,6 @@ async def test_AC_extraction_2985_1_each_model_call_logs_batch_pages_rows_and_du
 
 
 async def test_AC_extraction_2985_2_a_single_batch_call_logs_the_same_fields():
-    """AC-extraction.2985.2: A one-batch extraction logs one call with batch 1 of 1."""
     service = ExtractionService()
     part = {"transactions": [{"amount": "1.00"}]}
     with patch.object(service, "_extract_json_with_model", AsyncMock(return_value=part)), capture_logs() as logs:
@@ -67,7 +65,6 @@ async def test_AC_extraction_2985_2_a_single_batch_call_logs_the_same_fields():
 
 
 async def test_AC_extraction_2985_3_the_merge_logs_the_account_suffixes_with_their_part_index():
-    """AC-extraction.2985.3: A merge of two accounts logs each suffix with the parts that reported it."""
     service = ExtractionService()
     parts = [{"account_last4": "1234"}, {"transactions": []}, {"account_last4": "5678"}, {"account_last4": "XX-1234"}]
     batches = [[{"page": 1}], [{"page": 2}], [{"page": 3}]]
@@ -81,7 +78,6 @@ async def test_AC_extraction_2985_3_the_merge_logs_the_account_suffixes_with_the
 
 
 async def test_AC_extraction_2985_4_the_quarantine_log_holds_row_count_gap_directions_and_suspect_rows(tmp_path):
-    """AC-extraction.2985.4: A quarantined statement logs row count, gap, IN and OUT counts and suspect rows."""
     pdf = tmp_path / "card.pdf"
     pdf.write_bytes(b"dummy")
     rows = [("100.00", "IN"), ("700.00", "IN"), ("50.00", "OUT"), ("350.00", "OUT")]
@@ -111,7 +107,6 @@ async def test_AC_extraction_2985_4_the_quarantine_log_holds_row_count_gap_direc
 
 
 async def test_AC_extraction_2985_5_the_watchdog_log_holds_the_age_of_the_row(db, test_user):
-    """AC-extraction.2985.5: The watchdog timeout log holds the age of the run heartbeat in seconds."""
     from src.database import create_session_maker_from_db
     from tests.extraction.test_statement_parsing_supervisor import _running_statement
 
@@ -128,7 +123,6 @@ async def test_AC_extraction_2985_5_the_watchdog_log_holds_the_age_of_the_row(db
 
 
 async def test_AC_extraction_2985_6_every_log_line_of_a_pass_carries_the_attempt_number():
-    """AC-extraction.2985.6: The attempt number is bound while a pass runs and unbound after the loop."""
     seen: list[int | None] = []
 
     async def fake_extract(**_kwargs):
@@ -158,7 +152,6 @@ async def test_AC_extraction_2985_6_every_log_line_of_a_pass_carries_the_attempt
 
 
 async def test_AC_extraction_2985_7_creating_an_atomic_transaction_writes_no_per_row_log(db, test_user):
-    """AC-extraction.2985.7: One upserted row writes neither a created line nor its amount to the log."""
     service = DeduplicationService()
     amount = Decimal("123.45")
     row = ExtractedTransactionRow(

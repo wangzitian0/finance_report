@@ -1,4 +1,3 @@
-"AC4.14.11 AC4.14.12"
 
 from datetime import date
 from decimal import Decimal
@@ -67,7 +66,6 @@ async def _fixed_rate_resolver(base: str, quote: str, on_date: date) -> Decimal 
 
 
 async def test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger(db: AsyncSession, test_user):
-    "AC-reconciliation.fx-transfer.11 AC4.14.11"
     sgd_bank = await _account(db, test_user.id, name="SGD Bank", currency="SGD")
     usd_bank = await _account(db, test_user.id, name="USD Bank", currency="USD")
     transfer_out = await _account(
@@ -96,7 +94,6 @@ async def test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger(db
 
 
 async def test_AC2_discover_skips_ambiguous_candidate_legs(db: AsyncSession, test_user):
-    "AC-reconciliation.fx-transfer.12 AC4.14.12"
     sgd_bank = await _account(db, test_user.id, name="SGD Bank", currency="SGD")
     usd_bank_a = await _account(db, test_user.id, name="USD Bank A", currency="USD")
     usd_bank_b = await _account(db, test_user.id, name="USD Bank B", currency="USD")

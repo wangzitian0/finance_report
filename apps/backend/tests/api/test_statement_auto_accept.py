@@ -72,7 +72,6 @@ def _install(monkeypatch, model: _Model) -> None:
 async def test_AC_extraction_auto_accept_7_one_approval_posts_every_row_of_the_statement(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.7"
     statement, bank = await create_statement_with_bank(db, test_user.id, "auto_all", closing="550.00", confidence=70)
     interest = await add_txn(
         db, statement, txn_date=date(2025, 1, 2), description="Interest", amount=Decimal("20.00"), direction="IN"
@@ -125,7 +124,6 @@ async def test_AC_extraction_auto_accept_7_one_approval_posts_every_row_of_the_s
 async def test_AC_extraction_auto_accept_7_an_outage_does_not_turn_the_statement_into_general_entries(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.7"
     statement, _bank = await create_statement_with_bank(db, test_user.id, "auto_outage", closing="85.00", confidence=70)
     await add_txn(
         db, statement, txn_date=date(2025, 1, 4), description="Lunch", amount=Decimal("15.00"), direction="OUT"
@@ -146,7 +144,6 @@ async def test_AC_extraction_auto_accept_7_an_outage_does_not_turn_the_statement
 async def test_AC_extraction_auto_accept_1_with_the_setting_off_the_same_statement_waits_for_review(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.1"
     test_user.ai_settings = {"auto_accept_ai_suggestions": False}
     statement, _bank = await create_statement_with_bank(db, test_user.id, "auto_off", closing="85.00", confidence=70)
     await add_txn(
@@ -161,7 +158,6 @@ async def test_AC_extraction_auto_accept_1_with_the_setting_off_the_same_stateme
 
 
 async def test_AC_extraction_auto_accept_8_the_policy_threshold_follows_the_setting(db, test_user, monkeypatch):
-    "AC-extraction.auto-accept.8"
     from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 
     monkeypatch.setattr(settings, "enable_ai_classification", True)
@@ -178,7 +174,6 @@ async def test_AC_extraction_auto_accept_8_the_policy_threshold_follows_the_sett
 async def test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_without_a_click(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.9"
     statement, bank = await create_statement_with_bank(
         db, test_user.id, "auto_balance_sheet", closing="330.00", confidence=70
     )
@@ -250,7 +245,6 @@ async def test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_witho
 async def test_AC_extraction_auto_accept_5_a_weak_loan_posts_to_suspense_and_never_to_income_or_expense(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.5"
     statement, bank = await create_statement_with_bank(
         db, test_user.id, "auto_weak_loan", closing="70.00", confidence=70
     )
@@ -290,7 +284,6 @@ async def test_AC_extraction_auto_accept_5_a_weak_loan_posts_to_suspense_and_nev
 async def test_AC_extraction_auto_accept_10_a_high_confidence_statement_posts_when_it_is_parsed(
     db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.10"
     statement, bank = await create_statement_with_bank(
         db, test_user.id, "auto_parse_time", closing="85.00", confidence=95
     )
@@ -315,7 +308,6 @@ async def test_AC_extraction_auto_accept_10_a_high_confidence_statement_posts_wh
 async def test_AC_extraction_auto_accept_9_the_observe_mode_posts_no_leg(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.9"
     monkeypatch.setattr(settings, "statement_disposition_mode", "observe")
     statement, _bank = await create_statement_with_bank(
         db, test_user.id, "auto_observe", closing="80.00", confidence=70
@@ -341,7 +333,6 @@ async def test_AC_extraction_auto_accept_9_the_observe_mode_posts_no_leg(
 async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_only_the_fill_posts_the_rest(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.9"
     statement, bank = await create_statement_with_bank(
         db, test_user.id, "auto_leg_then_retry", closing="65.00", confidence=70
     )
@@ -394,7 +385,6 @@ async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_only
 async def test_AC_extraction_auto_accept_6_a_corrected_suggestion_posts_as_the_decision_of_the_person(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.auto-accept.6"
     from src.audit.orm.trace_record import TraceRecordRow
     from src.extraction import apply_suggestion_feedback
     from src.extraction.extension import transaction_classification as tc

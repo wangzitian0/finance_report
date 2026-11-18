@@ -63,7 +63,6 @@ async def _status(db, statement_id) -> BankStatementStatus:
 
 
 async def test_AC_extraction_2994_86_a_stale_tab_cannot_confirm_an_envelope_while_a_rerun_parses(db, test_user):
-    """AC-extraction.2994.86: The confirmation refuses a statement with an active run and leaves its status."""
     statement, account, result, _record = await _seed_statement_source_and_account(
         db, test_user, source_digest="b" * 64
     )
@@ -80,7 +79,6 @@ async def test_AC_extraction_2994_86_a_stale_tab_cannot_confirm_an_envelope_whil
 
 
 async def test_AC_extraction_2994_86_the_replay_of_a_confirmed_envelope_is_refused_while_a_rerun_parses(db, test_user):
-    """AC-extraction.2994.86: The idempotent replay of the same command refuses too, and leaves the status."""
     statement, account, result, _record = await _seed_statement_source_and_account(
         db, test_user, source_digest="c" * 64
     )
@@ -98,7 +96,6 @@ async def test_AC_extraction_2994_86_the_replay_of_a_confirmed_envelope_is_refus
 
 
 async def test_AC_extraction_2994_86_a_confirmation_still_works_after_a_finished_run(db, test_user):
-    """AC-extraction.2994.86: A finished run is not an active run: the confirmation writes PARSED as before."""
     statement, account, result, _record = await _seed_statement_source_and_account(
         db, test_user, source_digest="d" * 64
     )
@@ -129,7 +126,6 @@ async def test_AC_extraction_2994_86_a_confirmation_still_works_after_a_finished
 
 
 async def test_AC_extraction_2994_86_an_active_run_blocks_the_confirmation_whatever_the_status_says(db, test_user):
-    """AC-extraction.2994.86: The guard looks at the run, not only at the status: PARSED plus an active run refuses."""
     statement, account, result, _record = await _seed_statement_source_and_account(
         db, test_user, source_digest="e" * 64
     )
@@ -176,7 +172,6 @@ async def _commit_active_run(db, user, statement_id, kind: RunKind, *, running: 
 
 @pytest.mark.parametrize("running", [False, True])
 async def test_AC_extraction_2994_110_a_confirmation_passes_while_a_classify_run_is_active(db, test_user, running):
-    """AC-extraction.2994.110: The envelope holds source facts: the automatic classify run after an upload does not block it."""
     statement, account, result, _record = await _seed_statement_source_and_account(
         db, test_user, source_digest=("1" if running else "2") * 64
     )
@@ -199,7 +194,6 @@ async def test_AC_extraction_2994_110_a_confirmation_passes_while_a_classify_run
 async def test_AC_extraction_2994_110_the_replay_of_a_confirmed_envelope_passes_while_a_classify_run_is_active(
     db, test_user
 ):
-    """AC-extraction.2994.110: The replay branch has the same rule: it passes during a classify run."""
     statement, account, result, _record = await _seed_statement_source_and_account(
         db, test_user, source_digest="3" * 64
     )
@@ -217,7 +211,6 @@ async def test_AC_extraction_2994_110_the_replay_of_a_confirmed_envelope_passes_
 
 
 async def test_AC_extraction_2994_110_an_active_extract_run_refuses_with_its_id(db, test_user):
-    """AC-extraction.2994.110: An active extract run, requested or running, gives ActiveRunExists with the run id."""
     statement, account, result, _record = await _seed_statement_source_and_account(
         db, test_user, source_digest="4" * 64
     )
@@ -236,7 +229,6 @@ async def test_AC_extraction_2994_110_an_active_extract_run_refuses_with_its_id(
 async def test_AC_extraction_2994_110_the_route_answers_200_during_a_classify_run_and_409_during_an_extract_run(
     client, db, test_user
 ):
-    """AC-extraction.2994.110: POST review/envelope right after an upload works; during a parse it answers 409 with the run id."""
     import json
     from dataclasses import asdict
 

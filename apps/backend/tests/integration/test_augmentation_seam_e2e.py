@@ -1,4 +1,3 @@
-"EPIC-008"
 
 from datetime import date
 from decimal import Decimal
@@ -40,7 +39,6 @@ async def _posted(
 async def test_AC8_16_1_augmentation_seam_excludes_superseded_without_source_assurance(
     db: AsyncSession, test_user: User
 ) -> None:
-    "AC-reporting.augmentation.1"
     user_id = test_user.id
     as_of = date(2026, 5, 31)
     service = ValuationService()

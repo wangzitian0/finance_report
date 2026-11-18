@@ -121,7 +121,6 @@ async def _classified_statement(db, user, monkeypatch, rows=None, model=None):
 
 
 async def test_AC_extraction_2994_137_a_user_run_with_hints_asks_again_for_a_model_answer(db, test_user, monkeypatch):
-    """AC-extraction.2994.137: The hints reach the model. The Grab row gets a new live answer with the new category."""
     seeded, auto_run_id, automatic = await _classified_statement(db, test_user, monkeypatch)
     before = await _answer(db, test_user, "Grab")
     before_id = before.id
@@ -142,7 +141,6 @@ async def test_AC_extraction_2994_137_a_user_run_with_hints_asks_again_for_a_mod
 async def test_AC_extraction_2994_137_a_row_with_a_keyword_rule_a_decision_or_a_posted_entry_is_not_asked_again(
     client, db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.137: A keyword-rule answer, a corrected row and a posted row stay as they are."""
     seeded = await _seed(db, test_user, _rows(5))
     await _add_coffee_rule(db, test_user)
     _install(monkeypatch, ReaskModel())
@@ -182,7 +180,6 @@ async def test_AC_extraction_2994_137_a_row_with_a_keyword_rule_a_decision_or_a_
 
 
 async def test_AC_extraction_2994_138_every_answer_that_a_run_writes_carries_its_run_id(db, test_user, monkeypatch):
-    """AC-extraction.2994.138: The tags of a model answer, a re-asked answer and a rule answer name the run."""
     seeded = await _seed(db, test_user, _rows(5))
     await _add_coffee_rule(db, test_user)
     _install(monkeypatch, ReaskModel())
@@ -205,7 +202,6 @@ async def test_AC_extraction_2994_138_every_answer_that_a_run_writes_carries_its
 async def test_AC_extraction_2994_139_an_automatic_run_still_asks_only_the_rows_without_an_answer(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.139: The automatic run asks nothing for answered rows and writes no answer."""
     seeded, first_run_id, _first = await _classified_statement(db, test_user, monkeypatch)
     before = {name: (await _answer(db, test_user, name)).tags for name in ("Salary", "Grab")}
     second = _install(monkeypatch, ReaskModel())
@@ -221,7 +217,6 @@ async def test_AC_extraction_2994_139_an_automatic_run_still_asks_only_the_rows_
 async def test_AC_extraction_2994_140_a_re_ask_that_fails_in_batch_2_keeps_the_answers_of_batch_1(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.140: The answers of batch 1 are appended and committed. The rows of batch 2 keep theirs."""
     monkeypatch.setattr(tc, "CLASSIFICATION_BATCH_SIZE", 2)
     monkeypatch.setattr(tc, "CLASSIFICATION_PARALLEL_BATCHES", 1)
     seeded, auto_run_id, _automatic = await _classified_statement(db, test_user, monkeypatch)
@@ -243,7 +238,6 @@ async def test_AC_extraction_2994_140_a_re_ask_that_fails_in_batch_2_keeps_the_a
 async def test_AC_extraction_2994_141_a_re_ask_with_a_low_confidence_answer_writes_a_fallback_in_a_new_row(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.141: The new row is a fallback with the original tags of the new proposal. The old row stays."""
     seeded, auto_run_id, _automatic = await _classified_statement(db, test_user, monkeypatch)
     before_id = (await _answer(db, test_user, "Grab")).id
 
@@ -278,7 +272,6 @@ async def test_AC_extraction_2994_141_a_re_ask_with_a_low_confidence_answer_writ
 async def test_AC_extraction_2994_144_a_re_ask_appends_the_answer_and_keeps_the_old_answer_as_history(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.144: After two runs with other hints, both answers exist. Only the last one is live."""
     seeded, auto_run_id, _automatic = await _classified_statement(db, test_user, monkeypatch)
     _install(monkeypatch, ReaskModel())
     first_run_id = await _user_run(db, seeded.id, test_user, HINTS)
@@ -310,7 +303,6 @@ async def test_AC_extraction_2994_144_a_re_ask_appends_the_answer_and_keeps_the_
 async def test_AC_extraction_2994_149_a_user_run_with_no_hints_asks_only_the_rows_without_an_answer(
     db, test_user, monkeypatch, strip_run_ids
 ):
-    """AC-extraction.2994.149: With no hints the prompt equals the automatic prompt. The run asks nothing again."""
     seeded, _auto_run_id, _automatic = await _classified_statement(db, test_user, monkeypatch)
     if strip_run_ids:  # the answers that an earlier release wrote have no run id: only the empty hints protect them
         await db.execute(
@@ -330,7 +322,6 @@ async def test_AC_extraction_2994_149_a_user_run_with_no_hints_asks_only_the_row
 async def test_AC_extraction_2994_150_a_run_that_failed_resumes_and_skips_the_rows_that_it_answered(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.150: A run with the same hints skips the rows of the failed run. Other hints ask every row."""
     monkeypatch.setattr(tc, "CLASSIFICATION_BATCH_SIZE", 2)
     monkeypatch.setattr(tc, "CLASSIFICATION_PARALLEL_BATCHES", 1)
     seeded, _auto_run_id, _automatic = await _classified_statement(db, test_user, monkeypatch)

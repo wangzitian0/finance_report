@@ -1,4 +1,3 @@
-"AC-pricing.fx.3 AC-audit.31.2"
 
 from __future__ import annotations
 from datetime import date
@@ -62,7 +61,6 @@ async def test_convert_money_lazy_load_falls_back_to_the_crawler_path(db: AsyncS
 
 
 async def test_AC_pricing_fx_3_convert_amount_uses_average_rate_window(db: AsyncSession):
-    "AC-pricing.fx.3"
     db.add_all(
         [
             FxRate(
@@ -95,7 +93,6 @@ async def test_AC_pricing_fx_3_convert_amount_uses_average_rate_window(db: Async
 
 
 async def test_AC_pricing_fx_3_convert_money_average_window_falls_back_with_warning(db: AsyncSession):
-    "AC-pricing.fx.3"
     db.add(
         FxRate(
             base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=date(2026, 1, 1), source="test"
@@ -117,7 +114,6 @@ async def test_AC_pricing_fx_3_convert_money_average_window_falls_back_with_warn
 
 
 async def test_AC_pricing_fx_3_convert_amount_average_window_miss_raises(db: AsyncSession):
-    "AC-pricing.fx.3"
     with pytest.raises(PricingError):
         await convert_amount(
             db,
@@ -133,7 +129,6 @@ async def test_AC_pricing_fx_3_convert_amount_average_window_miss_raises(db: Asy
 async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
-    "AC-audit.31.2"
     import src.pricing.extension.fx as fx_module
 
     db.add(
@@ -162,7 +157,6 @@ async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
 
 
 async def test_convert_amount_wraps_invalid_currency_as_pricing_error(db: AsyncSession, monkeypatch):
-    "AC-money.22.3"
     import src.pricing.extension.fx as fx_module
 
     async def fake_get_exchange_rate(*args, **kwargs) -> Decimal:

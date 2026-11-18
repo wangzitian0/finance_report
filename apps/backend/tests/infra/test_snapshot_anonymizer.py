@@ -1,25 +1,108 @@
-'AC-runtime.snapshot-anonymizer.1'; from __future__ import annotations; from datetime import date; from decimal import Decimal; import pytest; import sqlalchemy as sa; from sqlalchemy.ext.asyncio import AsyncSession; from src.database import Base; from src.extraction import TransactionDirection; from src.extraction.orm.bank_custody_binding import BankCustodyBinding; from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction; from src.ledger import JournalLine; from src.pricing import ManualValuationComponentType, ManualValuationLiquidityClass; from src.pricing.orm.manual_valuation import ManualValuationSnapshot; from src.runtime.extension.snapshot_anonymizer import Action, anonymize, classify_columns, scan_for_residuals; from tests.factories import AccountFactory; from tests.ledger._ledger_helpers import create_valid_posted_entry; pytestmark = pytest.mark.asyncio; SECRET = 'test-anonymizer-secret'; FACTOR = 3
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+
+import pytest
+import sqlalchemy as sa
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.database import Base
+from src.extraction import TransactionDirection
+from src.extraction.orm.bank_custody_binding import BankCustodyBinding
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction
+from src.extraction.orm.statement_summary import StatementSummary
+from src.identity import User
+from src.ledger import JournalLine
+from src.pricing import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
+from src.runtime.extension.snapshot_anonymizer import Action, UnclassifiedColumnError, _pseudonym, anonymize, classify_columns, scan_for_residuals
+from tests.factories import AccountFactory
+from tests.ledger._ledger_helpers import create_valid_posted_entry
+
+pytestmark = pytest.mark.asyncio
+SECRET, FACTOR = "test-anonymizer-secret", 3
+
+
 def test_AC_runtime_snapshot_anonymizer_1_every_live_column_is_classified() -> None:
-    'AC-runtime.snapshot-anonymizer.1'; plan = classify_columns(Base.metadata); assert plan['journal_lines.amount'] is Action.SCALE; assert plan['journal_lines.fx_rate'] is Action.KEEP; assert plan['users.email'] is Action.PSEUDONYM; assert plan['users.hashed_password'] is Action.REDACT_SECRET; assert plan['atomic_transactions.source_documents'] is Action.REDACT_JSON; assert plan['opening_position_records.amount'] is Action.SCALE; assert plan['opening_position_records.fx_rate'] is Action.KEEP; assert plan['opening_position_records.currency'] is Action.KEEP; assert plan['opening_position_records.content_digest'] is Action.PSEUDONYM; assert plan['atomic_transaction_identities.currency'] is Action.KEEP; assert plan['atomic_transaction_identities.custody_scope'] is Action.PSEUDONYM; assert plan['atomic_transaction_identities.identity_hash'] is Action.PSEUDONYM; assert plan['atomic_transaction_identities.legacy_hash'] is Action.PSEUDONYM; assert plan['bank_custody_bindings.currency'] is Action.KEEP; assert plan['bank_custody_bindings.institution'] is Action.PSEUDONYM; assert plan['bank_custody_bindings.account_last4'] is Action.PSEUDONYM; total_columns = sum((len(t.columns) for t in Base.metadata.sorted_tables)); assert len(plan) == total_columns; 'AC-runtime.snapshot-anonymizer.1'; 'AC-runtime.snapshot-anonymizer.1'; from src.runtime.extension.snapshot_anonymizer import UnclassifiedColumnError; _m1_scratch = sa.MetaData(); sa.Table('brand_new_table', _m1_scratch, sa.Column('free_text', sa.String(100)))
-    with pytest.raises(UnclassifiedColumnError, match='brand_new_table.free_text'): classify_columns(_m1_scratch)
-async def _seed(db: AsyncSession, test_user) -> dict: entry = await create_valid_posted_entry(db, test_user.id, memo='Salary from Acme Corp', amount=Decimal('2500.00')); custody_account = await AccountFactory.create_async(db, user_id=test_user.id); binding = BankCustodyBinding(user_id=test_user.id, institution='Generated Private Bank', account_last4='9876', currency='SGD', account_id=custody_account.id); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2026, 5, 2), amount=Decimal('2500.00'), currency='SGD', direction=TransactionDirection.IN, description='ACME CORP PAYROLL MAY', source_documents={'documents': [{'doc_id': 'real-doc-1', 'broker': 'DBS Bank'}]}, dedup_hash='real-dedup-hash-001'); position = AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 5, 31), asset_identifier='AAPL', broker='Moomoo Real Broker', quantity=Decimal('10'), market_value=Decimal('1800.00'), currency='SGD', dedup_hash='real-dedup-hash-002', source_documents={}); valuation = ManualValuationSnapshot(user_id=test_user.id, component_type=ManualValuationComponentType.PROPERTY_VALUE, liquidity_class=ManualValuationLiquidityClass.ILLIQUID, as_of_date=date(2026, 5, 1), value=Decimal('1200000.00'), currency='SGD', source='Sunny Vale Condo', notes='Bought from John Tan in 2020'); db.add_all([txn, position, valuation, binding]); await db.flush(); return {'entry': entry, 'txn': txn, 'position': position, 'valuation': valuation, 'binding': binding}
-async def test_AC_runtime_snapshot_anonymizer_2_money_scales_and_books_still_balance(db: AsyncSession, test_user) -> None: 'AC-runtime.snapshot-anonymizer.2'; seeded = await _seed(db, test_user); entry_id = seeded['entry'].id; position_id = seeded['position'].id; connection = await db.connection(); report = await connection.run_sync(lambda conn: anonymize(conn, Base.metadata, secret=SECRET, scale_factor=FACTOR)); assert report.scale_factor == FACTOR; db.expire_all(); lines = (await db.execute(sa.select(JournalLine).where(JournalLine.journal_entry_id == entry_id))).scalars().all(); amounts = sorted((line.amount for line in lines)); assert amounts == [Decimal('7500.00'), Decimal('7500.00')]; debits = sum((line.amount for line in lines if line.direction.value == 'DEBIT')); credits = sum((line.amount for line in lines if line.direction.value == 'CREDIT')); assert debits == credits; position = await db.get(AtomicPosition, position_id); assert position.market_value == Decimal('5400.00'); assert position.quantity == Decimal('10')
-async def test_AC_runtime_snapshot_anonymizer_3_pseudonyms_consistent_and_no_residuals(db: AsyncSession, test_user) -> None: 'AC-runtime.snapshot-anonymizer.3'; seeded = await _seed(db, test_user); txn_id = seeded['txn'].id; valuation_id = seeded['valuation'].id; binding_id = seeded['binding'].id; custody_account_id = seeded['binding'].account_id; user_id = test_user.id; connection = await db.connection(); report = await connection.run_sync(lambda conn: anonymize(conn, Base.metadata, secret=SECRET, scale_factor=FACTOR)); db.expire_all(); txn = await db.get(AtomicTransaction, txn_id); valuation = await db.get(ManualValuationSnapshot, valuation_id); binding = await db.get(BankCustodyBinding, binding_id); assert binding.institution != 'Generated Private Bank'; assert binding.account_last4 != '9876'; assert len(binding.account_last4) == 4 and binding.account_last4.isdigit(); assert binding.currency == 'SGD'; assert binding.account_id == custody_account_id; assert txn.description != 'ACME CORP PAYROLL MAY'; assert txn.source_documents == {'anonymized': True}; assert valuation.source != 'Sunny Vale Condo'; assert valuation.notes != 'Bought from John Tan in 2020'; assert 'John Tan' not in (valuation.notes or ''); refreshed_user = (await db.execute(sa.text('SELECT email, hashed_password FROM users WHERE id = :id').bindparams(id=user_id))).one(); assert refreshed_user.email.endswith('@anonymized.invalid'); assert refreshed_user.hashed_password == '!anonymized'; from src.runtime.extension.snapshot_anonymizer import _pseudonym; assert _pseudonym(SECRET, 'Moomoo Real Broker', 'generic') == _pseudonym(SECRET, 'Moomoo Real Broker', 'generic'); residuals = await connection.run_sync(lambda conn: scan_for_residuals(conn, Base.metadata, report.original_values)); assert residuals == []; await db.execute(sa.update(AtomicTransaction).where(AtomicTransaction.id == txn_id).values(description='wire from ACME CORP PAYROLL MAY again')); await db.flush(); residuals = await connection.run_sync(lambda conn: scan_for_residuals(conn, Base.metadata, report.original_values)); assert residuals == ['atomic_transactions.description']
-async def test_scale_factor_one_is_rejected(db: AsyncSession) -> None:
-    connection = await db.connection()
-    with pytest.raises(ValueError, match='scale_factor'): await connection.run_sync(lambda conn: anonymize(conn, Base.metadata, secret=SECRET, scale_factor=1))
-async def test_entry_balance_invariant_property(db: AsyncSession, test_user) -> None:
-    'AC-runtime.snapshot-anonymizer.2'; user_id = test_user.id
-    for (cents, memo) in ((Decimal('33.33'), 'coffee'), (Decimal('1234.57'), 'rent x')): await create_valid_posted_entry(db, user_id, memo=f'entry {memo}', amount=cents)
-    connection = await db.connection(); await connection.run_sync(lambda conn: anonymize(conn, Base.metadata, secret=SECRET, scale_factor=7)); db.expire_all(); rows = (await db.execute(sa.text('SELECT direction, SUM(amount) FROM journal_lines jl JOIN journal_entries je ON jl.journal_entry_id = je.id WHERE je.user_id = :uid GROUP BY direction').bindparams(uid=user_id))).all(); totals = {direction: total for direction, total in rows}; assert totals.get('DEBIT') == totals.get('CREDIT') is not None
-async def test_custody_suffix_pseudonyms_preserve_unique_identity(db, test_user) -> None:
-    'AC-runtime.snapshot-anonymizer.3'; from src.extraction.orm.statement_summary import StatementSummary; bindings = []; summaries = []
-    for suffix in ('0022', '0050'): account = await AccountFactory.create_async(db, user_id=test_user.id); binding = BankCustodyBinding(user_id=test_user.id, institution='Generated Collision Bank', account_last4=suffix, currency='SGD', account_id=account.id); summary = StatementSummary(user_id=test_user.id, file_hash=f'generated-collision-{suffix}', institution=binding.institution, account_last4=suffix, currency='SGD', account_id=account.id); db.add_all([binding, summary]); bindings.append(binding); summaries.append(summary)
-    await db.flush(); binding_ids = [row.id for row in bindings]; summary_ids = [row.id for row in summaries]; connection = await db.connection(); await connection.run_sync(lambda conn: anonymize(conn, Base.metadata, secret='synthetic-review-seed', scale_factor=FACTOR)); db.expire_all(); suffixes = []
-    for (binding_id, summary_id) in zip(binding_ids, summary_ids, strict=True): binding = await db.get(BankCustodyBinding, binding_id); summary = await db.get(StatementSummary, summary_id); assert binding.account_last4 == summary.account_last4; assert binding.institution == summary.institution; assert binding.account_id == summary.account_id; suffixes.append(binding.account_last4)
-    assert len(set(suffixes)) == 2; assert not set(suffixes) & {'0022', '0050'}
-async def test_digit_suffix_mapping_is_bijective_and_fails_closed() -> None:
-    'AC-runtime.snapshot-anonymizer.3'; from src.runtime.extension.snapshot_anonymizer import _pseudonym; originals = {f'{number:04d}' for number in range(10000)}; mapped = {_pseudonym(SECRET, value, 'digits4') for value in originals}; assert mapped == originals; assert all((_pseudonym(SECRET, value, 'digits4') != value for value in originals))
-    for invalid in ('123', '12345', '12X4', '１２３４'):
-        with pytest.raises(ValueError, match='four ASCII digits'): _pseudonym(SECRET, invalid, 'digits4')
-async def test_short_digit_residual_scan_ignores_hex_pseudonym_substrings_but_catches_real_leaks(db: AsyncSession, test_user) -> None: from src.extraction.orm.statement_summary import StatementSummary; from src.identity import User; seeded = await _seed(db, test_user); binding_id = seeded['binding'].id; txn_id = seeded['txn'].id; account = await AccountFactory.create_async(db, user_id=test_user.id); summary = StatementSummary(user_id=test_user.id, file_hash='real-statement-hash-9876', institution='Generated Private Bank', account_last4='9876', currency='SGD', account_id=account.id); db.add(summary); await db.flush(); summary_id = summary.id; connection = await db.connection(); report = await connection.run_sync(lambda conn: anonymize(conn, Base.metadata, secret=SECRET, scale_factor=FACTOR)); assert '9876' in report.original_values; await db.execute(sa.update(User).where(User.id == test_user.id).values(email='anon-987600001111@snapshot.local')); await db.execute(sa.update(StatementSummary).where(StatementSummary.id == summary_id).values(file_hash='9876abcdef0123456789abcdef0123456789abcdef0123456789abcdef012345')); await db.flush(); residuals = await connection.run_sync(lambda conn: scan_for_residuals(conn, Base.metadata, report.original_values)); assert residuals == []; await db.execute(sa.update(BankCustodyBinding).where(BankCustodyBinding.id == binding_id).values(account_last4='9876')); await db.execute(sa.update(AtomicTransaction).where(AtomicTransaction.id == txn_id).values(description='Card 9876 payment')); await db.flush(); residuals = await connection.run_sync(lambda conn: scan_for_residuals(conn, Base.metadata, report.original_values)); assert sorted(residuals) == ['atomic_transactions.description', 'bank_custody_bindings.account_last4']
+    plan = classify_columns(Base.metadata)
+    expected = {"journal_lines.amount": Action.SCALE, "journal_lines.fx_rate": Action.KEEP, "users.email": Action.PSEUDONYM, "users.hashed_password": Action.REDACT_SECRET, "atomic_transactions.source_documents": Action.REDACT_JSON, "opening_position_records.amount": Action.SCALE, "opening_position_records.fx_rate": Action.KEEP, "opening_position_records.currency": Action.KEEP, "opening_position_records.content_digest": Action.PSEUDONYM, "atomic_transaction_identities.currency": Action.KEEP, "atomic_transaction_identities.custody_scope": Action.PSEUDONYM, "atomic_transaction_identities.identity_hash": Action.PSEUDONYM, "atomic_transaction_identities.legacy_hash": Action.PSEUDONYM, "bank_custody_bindings.currency": Action.KEEP, "bank_custody_bindings.institution": Action.PSEUDONYM, "bank_custody_bindings.account_last4": Action.PSEUDONYM}
+    assert {k: plan[k] for k in expected} == expected and len(plan) == sum(len(t.columns) for t in Base.metadata.sorted_tables)
+    scratch = sa.MetaData()
+    sa.Table("brand_new_table", scratch, sa.Column("free_text", sa.String(100)))
+    with pytest.raises(UnclassifiedColumnError, match="brand_new_table.free_text"):
+        classify_columns(scratch)
+
+
+async def _seed(db: AsyncSession, uid) -> tuple:
+    entry = await create_valid_posted_entry(db, uid, memo="Salary from Acme Corp", amount=Decimal("2500.00"))
+    acc = await AccountFactory.create_async(db, user_id=uid)
+    bnd = BankCustodyBinding(user_id=uid, institution="Generated Private Bank", account_last4="9876", currency="SGD", account_id=acc.id)
+    txn = AtomicTransaction(user_id=uid, txn_date=date(2026, 5, 2), amount=Decimal("2500.00"), currency="SGD", direction=TransactionDirection.IN, description="ACME CORP PAYROLL MAY", source_documents={"documents": [{"doc_id": "real-doc-1", "broker": "DBS Bank"}]}, dedup_hash="real-dedup-hash-001")
+    pos = AtomicPosition(user_id=uid, snapshot_date=date(2026, 5, 31), asset_identifier="AAPL", broker="Moomoo Real Broker", quantity=Decimal("10"), market_value=Decimal("1800.00"), currency="SGD", dedup_hash="real-dedup-hash-002", source_documents={})
+    val = ManualValuationSnapshot(user_id=uid, component_type=ManualValuationComponentType.PROPERTY_VALUE, liquidity_class=ManualValuationLiquidityClass.ILLIQUID, as_of_date=date(2026, 5, 1), value=Decimal("1200000.00"), currency="SGD", source="Sunny Vale Condo", notes="Bought from John Tan in 2020")
+    db.add_all([txn, pos, val, bnd])
+    await db.flush()
+    return entry.id, pos.id, txn.id, val.id, bnd.id, acc.id
+
+
+async def test_AC_runtime_snapshot_anonymizer_2_to_4_all_invariants(db: AsyncSession, test_user) -> None:
+    uid = test_user.id
+    conn = await db.connection()
+    with pytest.raises(ValueError, match="scale_factor"):
+        await conn.run_sync(lambda c: anonymize(c, Base.metadata, secret=SECRET, scale_factor=1))
+    originals = {f"{n:04d}" for n in range(10000)}
+    assert {_pseudonym(SECRET, v, "digits4") for v in originals} == originals and all(_pseudonym(SECRET, v, "digits4") != v for v in originals)
+    for bad in ("123", "12345", "12X4", "１２３４"):
+        with pytest.raises(ValueError, match="four ASCII digits"):
+            _pseudonym(SECRET, bad, "digits4")
+
+    eid, pid, tid, vid, bid, cid = await _seed(db, uid)
+    pair_ids = []
+    for suffix in ("0022", "0050"):
+        acc = await AccountFactory.create_async(db, user_id=uid)
+        b = BankCustodyBinding(user_id=uid, institution="Generated Collision Bank", account_last4=suffix, currency="SGD", account_id=acc.id)
+        s = StatementSummary(user_id=uid, file_hash=f"generated-collision-{suffix}", institution=b.institution, account_last4=suffix, currency="SGD", account_id=acc.id)
+        db.add_all([b, s])
+        await db.flush()
+        pair_ids.append((b.id, s.id))
+    s9876 = StatementSummary(user_id=uid, file_hash="real-statement-hash-9876", institution="Generated Private Bank", account_last4="9876", currency="SGD", account_id=(await AccountFactory.create_async(db, user_id=uid)).id)
+    db.add(s9876)
+    for cents, memo in ((Decimal("33.33"), "coffee"), (Decimal("1234.57"), "rent x")):
+        await create_valid_posted_entry(db, uid, memo=f"entry {memo}", amount=cents)
+    await db.flush()
+    s9876_id = s9876.id
+
+    report = await conn.run_sync(lambda c: anonymize(c, Base.metadata, secret=SECRET, scale_factor=FACTOR))
+    assert report.scale_factor == FACTOR
+    db.expire_all()
+
+    lines = (await db.execute(sa.select(JournalLine).where(JournalLine.journal_entry_id == eid))).scalars().all()
+    assert sorted(line.amount for line in lines) == [Decimal("7500.00"), Decimal("7500.00")]
+    totals = dict((await db.execute(sa.text("SELECT direction, SUM(amount) FROM journal_lines jl JOIN journal_entries je ON jl.journal_entry_id = je.id WHERE je.user_id = :uid GROUP BY direction").bindparams(uid=uid))).all())
+    assert totals.get("DEBIT") == totals.get("CREDIT") is not None
+
+    pos, txn, val, bnd = await db.get(AtomicPosition, pid), await db.get(AtomicTransaction, tid), await db.get(ManualValuationSnapshot, vid), await db.get(BankCustodyBinding, bid)
+    assert (pos.market_value, pos.quantity, bnd.currency, bnd.account_id, txn.source_documents) == (Decimal("5400.00"), Decimal("10"), "SGD", cid, {"anonymized": True})
+    assert bnd.institution != "Generated Private Bank" and bnd.account_last4 != "9876" and len(bnd.account_last4) == 4 and bnd.account_last4.isdigit()
+    assert txn.description != "ACME CORP PAYROLL MAY" and val.source != "Sunny Vale Condo" and "John Tan" not in (val.notes or "")
+    u = (await db.execute(sa.text("SELECT email, hashed_password FROM users WHERE id = :id").bindparams(id=uid))).one()
+    assert u.email.endswith("@anonymized.invalid") and u.hashed_password == "!anonymized" and _pseudonym(SECRET, "Moomoo Real Broker", "generic") == _pseudonym(SECRET, "Moomoo Real Broker", "generic")
+
+    suffixes = []
+    for pbid, psid in pair_ids:
+        pb, ps = await db.get(BankCustodyBinding, pbid), await db.get(StatementSummary, psid)
+        assert (pb.account_last4, pb.institution, pb.account_id) == (ps.account_last4, ps.institution, ps.account_id)
+        suffixes.append(pb.account_last4)
+    assert len(set(suffixes)) == 2 and not (set(suffixes) & {"0022", "0050"}) and "9876" in report.original_values
+
+    assert await conn.run_sync(lambda c: scan_for_residuals(c, Base.metadata, report.original_values)) == []
+    await db.execute(sa.update(User).where(User.id == uid).values(email="anon-987600001111@snapshot.local"))
+    await db.execute(sa.update(StatementSummary).where(StatementSummary.id == s9876_id).values(file_hash="9876abcdef0123456789abcdef0123456789abcdef0123456789abcdef012345"))
+    await db.flush()
+    assert await conn.run_sync(lambda c: scan_for_residuals(c, Base.metadata, report.original_values)) == []
+
+    await db.execute(sa.update(BankCustodyBinding).where(BankCustodyBinding.id == bid).values(account_last4="9876"))
+    await db.execute(sa.update(AtomicTransaction).where(AtomicTransaction.id == tid).values(description="wire from ACME CORP PAYROLL MAY Card 9876"))
+    await db.flush()
+    assert sorted(await conn.run_sync(lambda c: scan_for_residuals(c, Base.metadata, report.original_values))) == ["atomic_transactions.description", "bank_custody_bindings.account_last4"]

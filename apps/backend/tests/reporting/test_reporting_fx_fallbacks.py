@@ -1,49 +1,320 @@
-from datetime import date; from decimal import Decimal; from unittest.mock import AsyncMock, patch; import pytest; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit.money import Money; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.pricing.orm.market_data import FxRate; from src.reporting import ReportError, _aggregate_balances_sql, _aggregate_net_income_sql, generate_balance_sheet, generate_cash_flow, generate_income_statement, get_account_trend, get_category_breakdown
+from datetime import date
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit.money import Money
+from src.ledger import AccountType, Direction
+from src.pricing import PricingError
+from src.reporting import (
+    ReportError,
+    _aggregate_balances_sql,
+    _aggregate_net_income_sql,
+    generate_balance_sheet,
+    generate_cash_flow,
+    generate_income_statement,
+    get_account_trend,
+    get_category_breakdown,
+)
+from tests.reporting._report_fixtures import post_pair, seed_accounts, seed_fx_rates
+
+
 @pytest.fixture
-def user_id(test_user): return test_user.id
-@pytest.fixture
-async def accounts(db: AsyncSession, user_id):
-    accs = [Account(user_id=user_id, name='SGD Cash', type=AccountType.ASSET, currency='SGD'), Account(user_id=user_id, name='USD Savings', type=AccountType.ASSET, currency='USD'), Account(user_id=user_id, name='Capital', type=AccountType.EQUITY, currency='SGD'), Account(user_id=user_id, name='Salary', type=AccountType.INCOME, currency='SGD'), Account(user_id=user_id, name='Dining', type=AccountType.EXPENSE, currency='SGD')]; db.add_all(accs); await db.commit()
-    for a in accs: await db.refresh(a)
-    return accs
-async def test_aggregate_balances_with_start_date(db: AsyncSession, accounts, user_id): sgd_cash, _, capital, salary, _ = accounts; entry_before = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 1), memo='Before period', status=JournalEntryStatus.POSTED); db.add(entry_before); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry_before.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('500.00'), currency='SGD'), JournalLine(journal_entry_id=entry_before.id, account_id=capital.id, direction=Direction.CREDIT, amount=Decimal('500.00'), currency='SGD')]); entry_during = JournalEntry(user_id=user_id, entry_date=date(2025, 2, 1), memo='During period', status=JournalEntryStatus.POSTED); db.add(entry_during); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry_during.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('300.00'), currency='SGD'), JournalLine(journal_entry_id=entry_during.id, account_id=capital.id, direction=Direction.CREDIT, amount=Decimal('300.00'), currency='SGD')]); await db.commit(); balances_all = await _aggregate_balances_sql(db, user_id, (AccountType.ASSET,), 'SGD', date(2025, 3, 1), base_currency='SGD'); assert balances_all[sgd_cash.id] == Decimal('800.00'); balances_filtered = await _aggregate_balances_sql(db, user_id, (AccountType.ASSET,), 'SGD', date(2025, 3, 1), start_date=date(2025, 1, 15), base_currency='SGD'); assert balances_filtered[sgd_cash.id] == Decimal('300.00')
-async def test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning(db: AsyncSession, accounts, user_id): 'AC-reporting.fx.4 AC5.4.4'; _, usd_savings, capital, _, _ = accounts; entry = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 15), memo='USD opening without FX', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=usd_savings.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.00')), JournalLine(journal_entry_id=entry.id, account_id=capital.id, direction=Direction.CREDIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.00'))]); await db.commit(); fx_warnings: list[dict[str, str]] = []; balances = await _aggregate_balances_sql(db, user_id, (AccountType.ASSET,), 'SGD', date(2025, 1, 31), fx_warnings=fx_warnings, base_currency='SGD'); assert balances == {}; assert fx_warnings == [{'type': 'missing_fx_rate_partial_skip', 'base_currency': 'USD', 'quote_currency': 'SGD', 'rate_date': '2025-01-31'}]
-async def test_aggregate_net_income_with_start_date(db: AsyncSession, accounts, user_id): sgd_cash, _, _, salary, dining = accounts; entry_before = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 1), memo='Old income', status=JournalEntryStatus.POSTED); db.add(entry_before); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry_before.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('1000.00'), currency='SGD'), JournalLine(journal_entry_id=entry_before.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('1000.00'), currency='SGD')]); entry_during = JournalEntry(user_id=user_id, entry_date=date(2025, 2, 15), memo='New income', status=JournalEntryStatus.POSTED); db.add(entry_during); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry_during.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('500.00'), currency='SGD'), JournalLine(journal_entry_id=entry_during.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('500.00'), currency='SGD')]); await db.commit(); net_all, _ = await _aggregate_net_income_sql(db, user_id, 'SGD', date(2025, 3, 1)); assert net_all == Decimal('1500.00'); net_filtered, _ = await _aggregate_net_income_sql(db, user_id, 'SGD', date(2025, 3, 1), start_date=date(2025, 2, 1)); assert net_filtered == Decimal('500.00')
-async def test_net_income_fx_data_consistency_error(db: AsyncSession, accounts, user_id):
-    sgd_cash, _, _, salary, _ = accounts; entry = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 15), memo='Income', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.35')), JournalLine(journal_entry_id=entry.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.35'))]); db.add(FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=date(2025, 1, 31), source='test')); await db.commit()
-    with patch('src.reporting.extension.balance_sheet._aggregate_net_income_sql') as mock_func:
-        mock_func.side_effect = ReportError('Missing FX rate for USD/SGD on 2025-01-15 - data consistency error')
-        with pytest.raises(ReportError, match='data consistency error'): await generate_balance_sheet(db, user_id, as_of_date=date(2025, 1, 31), currency='SGD')
-async def test_balance_sheet_sqlalchemy_error_on_aggregation(db: AsyncSession, accounts, user_id):
-    with patch('src.reporting.extension.balance_sheet._aggregate_balances_sql', new_callable=AsyncMock) as mock_agg:
-        mock_agg.side_effect = SQLAlchemyError('DB connection lost')
-        with pytest.raises(ReportError, match='DB connection lost'): await generate_balance_sheet(db, user_id, as_of_date=date(2025, 1, 31), currency='SGD')
-async def test_balance_sheet_sqlalchemy_error_on_net_income(db: AsyncSession, accounts, user_id):
-    with patch('src.reporting.extension.balance_sheet._aggregate_net_income_sql', new_callable=AsyncMock) as mock_net:
-        mock_net.side_effect = SQLAlchemyError('Timeout during net income calc')
-        with pytest.raises(ReportError, match='Timeout during net income calc'): await generate_balance_sheet(db, user_id, as_of_date=date(2025, 1, 31), currency='SGD')
-async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, accounts, user_id):
-    sgd_cash, _, _, salary, _ = accounts; entry = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 15), memo='USD Income', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.35')), JournalLine(journal_entry_id=entry.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.35'))]); db.add(FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=date(2025, 1, 31), source='test')); await db.commit(); from src.pricing import PricingError
-    with patch('src.reporting.extension.income_statement.PrefetchedFxRates') as MockPrefetched:
-        mock_instance = AsyncMock(); mock_instance.prefetch = AsyncMock(); mock_get_rate = lambda currency, target, rate_date, avg_start=None, avg_end=None: None; mock_instance.get_rate = mock_get_rate; MockPrefetched.return_value = mock_instance
-        async def mock_convert(db, money, target_currency, rate_date, **kwargs):
-            if kwargs.get('average_start') is not None: raise PricingError('No average rate available')
-            return Money(money.amount * Decimal('1.35'), target_currency)
-        with patch('src.reporting.extension.income_statement.convert_money', side_effect=mock_convert): report = await generate_income_statement(db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency='SGD'); assert report['total_income'] == Decimal('135.00')
-async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts, user_id):
-    sgd_cash, _, _, salary, _ = accounts; entry = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 15), memo='USD Income', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.35')), JournalLine(journal_entry_id=entry.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('100.00'), currency='USD', fx_rate=Decimal('1.35'))]); db.add(FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=date(2025, 1, 31), source='test')); await db.commit(); from src.pricing import PricingError
-    with patch('src.reporting.extension.income_statement.PrefetchedFxRates') as MockPrefetched:
-        mock_instance = AsyncMock(); mock_instance.prefetch = AsyncMock(); mock_instance.get_rate = lambda *args, **kwargs: None; MockPrefetched.return_value = mock_instance
-        async def mock_convert_fail(db, money, target_currency, rate_date, **kwargs): raise PricingError('No rate available at all')
-        with patch('src.reporting.extension.income_statement.convert_money', side_effect=mock_convert_fail), pytest.raises(ReportError, match='FX conversion failed'): await generate_income_statement(db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency='SGD')
-async def test_trend_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
-    sgd_cash, _, _, salary, _ = accounts; entry = JournalEntry(user_id=user_id, entry_date=date.today(), memo='SGD Income', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('200.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('200.00'), currency='SGD')]); await db.commit()
-    with patch('src.reporting.extension.net_worth.PrefetchedFxRates') as MockPrefetched: mock_instance = AsyncMock(); mock_instance.prefetch = AsyncMock(); mock_instance.get_rate = lambda *args, **kwargs: None; MockPrefetched.return_value = mock_instance; result = await get_account_trend(db, user_id, account_id=sgd_cash.id, period='daily', currency='SGD'); assert isinstance(result['points'], list); MockPrefetched.assert_called()
-async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
-    sgd_cash, _, _, salary, _ = accounts; entry = JournalEntry(user_id=user_id, entry_date=date.today(), memo='SGD Income', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('300.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('300.00'), currency='SGD')]); await db.commit()
-    with patch('src.reporting.extension.net_worth.PrefetchedFxRates') as MockPrefetched: mock_instance = AsyncMock(); mock_instance.prefetch = AsyncMock(); mock_instance.get_rate = lambda *args, **kwargs: None; MockPrefetched.return_value = mock_instance; result = await get_category_breakdown(db, user_id, breakdown_type=AccountType.INCOME, period='monthly', currency='SGD'); assert isinstance(result['items'], list); MockPrefetched.assert_called()
-async def test_cash_flow_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
-    sgd_cash, _, capital, salary, _ = accounts; sgd_cash.name = 'SGD Bank Cash'; db.add(sgd_cash); entry_before = JournalEntry(user_id=user_id, entry_date=date(2024, 12, 15), memo='Before period', status=JournalEntryStatus.POSTED); db.add(entry_before); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry_before.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('500.00'), currency='SGD'), JournalLine(journal_entry_id=entry_before.id, account_id=capital.id, direction=Direction.CREDIT, amount=Decimal('500.00'), currency='SGD')]); entry_during = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 15), memo='During period', status=JournalEntryStatus.POSTED); db.add(entry_during); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry_during.id, account_id=sgd_cash.id, direction=Direction.DEBIT, amount=Decimal('300.00'), currency='SGD'), JournalLine(journal_entry_id=entry_during.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('300.00'), currency='SGD')]); await db.commit()
-    with patch('src.reporting.extension.cash_flow.PrefetchedFxRates') as MockPrefetched: mock_instance = AsyncMock(); mock_instance.prefetch = AsyncMock(); mock_instance.get_rate = lambda *args, **kwargs: None; MockPrefetched.return_value = mock_instance; result = await generate_cash_flow(db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency='SGD'); assert isinstance(result['summary'], dict); MockPrefetched.assert_called()
-async def test_currencies_endpoint_inserts_base_currency(client, db, test_user): response = await client.get('/reports/currencies'); assert response.status_code == 200; currencies = response.json(); assert 'SGD' in currencies
-async def test_currencies_endpoint_with_rates_not_including_base(client, db, test_user): db.add(FxRate(base_currency='JPY', quote_currency='KRW', rate=Decimal('10.00'), rate_date=date(2025, 1, 1), source='test')); await db.commit(); response = await client.get('/reports/currencies'); assert response.status_code == 200; currencies = response.json(); assert currencies[0] == 'SGD'; assert 'JPY' in currencies; assert 'KRW' in currencies
+async def fx_accounts(db: AsyncSession, test_user):
+    return await seed_accounts(
+        db,
+        test_user.id,
+        ("SGD Cash", AccountType.ASSET, "SGD"),
+        ("USD Savings", AccountType.ASSET, "USD"),
+        ("Capital", AccountType.EQUITY, "SGD"),
+        ("Salary", AccountType.INCOME, "SGD"),
+        ("USD Income", AccountType.INCOME, "USD"),
+        ("USD Equity", AccountType.EQUITY, "USD"),
+        commit=True,
+    )
+
+
+async def test_aggregate_balances_and_net_income_start_date_and_missing_fx(
+    db: AsyncSession, fx_accounts, test_user
+) -> None:
+    sgd_cash, usd_savings, capital, salary, usd_income, _ = fx_accounts
+    await post_pair(db, test_user.id, date(2025, 1, 1), "Before", sgd_cash, capital, "500.00")
+    await post_pair(db, test_user.id, date(2025, 2, 1), "During", sgd_cash, capital, "300.00")
+    await post_pair(db, test_user.id, date(2025, 1, 1), "Old inc", sgd_cash, salary, "1000.00")
+    await post_pair(db, test_user.id, date(2025, 2, 15), "New inc", sgd_cash, salary, "500.00")
+    await post_pair(
+        db,
+        test_user.id,
+        date(2025, 1, 15),
+        "USD open",
+        usd_savings,
+        capital,
+        "100.00",
+        currency="USD",
+        fx_rate=Decimal("1.00"),
+        commit=True,
+    )
+
+    assert (
+        await _aggregate_balances_sql(
+            db, test_user.id, (AccountType.ASSET,), "SGD", date(2025, 3, 1), base_currency="SGD"
+        )
+    )[sgd_cash.id] == Decimal("1800.00")
+    assert (
+        await _aggregate_balances_sql(
+            db,
+            test_user.id,
+            (AccountType.ASSET,),
+            "SGD",
+            date(2025, 3, 1),
+            start_date=date(2025, 1, 15),
+            base_currency="SGD",
+        )
+    )[sgd_cash.id] == Decimal("800.00")
+
+    warnings: list[dict[str, str]] = []
+    assert (
+        await _aggregate_balances_sql(
+            db, test_user.id, (AccountType.ASSET,), "SGD", date(2025, 1, 31), fx_warnings=warnings, base_currency="SGD"
+        )
+        == {}
+    )
+    assert warnings == [
+        {
+            "type": "missing_fx_rate_partial_skip",
+            "base_currency": "USD",
+            "quote_currency": "SGD",
+            "rate_date": "2025-01-31",
+        }
+    ]
+
+    assert (await _aggregate_net_income_sql(db, test_user.id, "SGD", date(2025, 3, 1)))[0] == Decimal("1500.00")
+    assert (await _aggregate_net_income_sql(db, test_user.id, "SGD", date(2025, 3, 1), start_date=date(2025, 2, 1)))[
+        0
+    ] == Decimal("500.00")
+
+    await post_pair(
+        db,
+        test_user.id,
+        date(2025, 2, 1),
+        "No FX inc",
+        usd_savings,
+        usd_income,
+        "20.00",
+        currency="USD",
+        fx_rate=Decimal("1.00"),
+        commit=True,
+    )
+    with pytest.raises(ReportError, match="No FX rate available for USD/SGD"):
+        await _aggregate_net_income_sql(db, test_user.id, "SGD", as_of_date=date(2025, 2, 1))
+
+
+async def test_net_income_sql_period_average_and_missing_map_row(db: AsyncSession, fx_accounts, test_user) -> None:
+    _, usd_savings, _, _, usd_income, _ = fx_accounts
+    await seed_fx_rates(db, ("USD", "SGD", "1.30", date(2025, 1, 1)), ("USD", "SGD", "1.50", date(2025, 1, 31)))
+    await post_pair(
+        db,
+        test_user.id,
+        date(2025, 1, 15),
+        "Sal Jan",
+        usd_savings,
+        usd_income,
+        "100",
+        currency="USD",
+        fx_rate=Decimal("1.40"),
+        commit=True,
+    )
+    assert (
+        await _aggregate_net_income_sql(
+            db, test_user.id, "SGD", as_of_date=date(2025, 1, 31), start_date=date(2025, 1, 1)
+        )
+    )[0] == Decimal("140.00")
+
+    fake_db = MagicMock()
+    r1, r2 = MagicMock(), MagicMock()
+    r1.scalars.return_value.all.return_value = []
+    r2.all.return_value = []
+    r3, r4 = MagicMock(), MagicMock()
+    r3.all.return_value = [("USD",)]
+    r4.all.return_value = [
+        SimpleNamespace(currency="EUR", type=AccountType.INCOME, direction=Direction.CREDIT, total=Decimal("10"))
+    ]
+    fake_db.execute = AsyncMock(side_effect=[r1, r2, r3, r4])
+    with (
+        patch("src.reporting.extension._core.get_average_rate", new_callable=AsyncMock, return_value=Decimal("1.35")),
+        patch("src.reporting.extension._core.get_exchange_rate", new_callable=AsyncMock, return_value=Decimal("1.35")),
+    ):
+        with pytest.raises(ReportError, match="data consistency error"):
+            await _aggregate_net_income_sql(fake_db, uuid4(), "SGD", as_of_date=date(2025, 1, 31))
+
+
+@pytest.mark.parametrize(
+    ("target", "exc", "match"),
+    [
+        (
+            "_aggregate_net_income_sql",
+            ReportError("Missing FX rate for USD/SGD on 2025-01-15 - data consistency error"),
+            "data consistency error",
+        ),
+        ("_aggregate_balances_sql", SQLAlchemyError("DB connection lost"), "DB connection lost"),
+        (
+            "_aggregate_net_income_sql",
+            SQLAlchemyError("Timeout during net income calc"),
+            "Timeout during net income calc",
+        ),
+    ],
+)
+async def test_balance_sheet_sql_and_consistency_errors(
+    db: AsyncSession, fx_accounts, test_user, target: str, exc: Exception, match: str
+) -> None:
+    with patch(f"src.reporting.extension.balance_sheet.{target}", new_callable=AsyncMock, side_effect=exc):
+        with pytest.raises(ReportError, match=match):
+            await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 1, 31), currency="SGD")
+
+
+@pytest.mark.parametrize("all_fail", [False, True])
+async def test_income_statement_fx_average_to_spot_fallback(
+    db: AsyncSession, fx_accounts, test_user, all_fail: bool
+) -> None:
+    sgd_cash, _, _, salary, _, _ = fx_accounts
+    await seed_fx_rates(db, ("USD", "SGD", "1.35", date(2025, 1, 31)))
+    await post_pair(
+        db,
+        test_user.id,
+        date(2025, 1, 15),
+        "USD Inc",
+        sgd_cash,
+        salary,
+        "100.00",
+        currency="USD",
+        fx_rate=Decimal("1.35"),
+        commit=True,
+    )
+
+    async def mock_convert(_db, money, target_ccy, _d, **kw):
+        if all_fail or kw.get("average_start") is not None:
+            raise PricingError("No rate")
+        return Money(money.amount * Decimal("1.35"), target_ccy)
+
+    with (
+        patch("src.reporting.extension.income_statement.PrefetchedFxRates") as mock_pf,
+        patch("src.reporting.extension.income_statement.convert_money", side_effect=mock_convert),
+    ):
+        mock_pf.return_value = MagicMock(prefetch=AsyncMock(), get_rate=lambda *_a, **_kw: None)
+        if all_fail:
+            with pytest.raises(ReportError, match="FX conversion failed"):
+                await generate_income_statement(
+                    db, test_user.id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
+                )
+        else:
+            rep = await generate_income_statement(
+                db, test_user.id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
+            )
+            assert rep["total_income"] == Decimal("135.00")
+
+
+@pytest.mark.parametrize(
+    ("mod", "fn_name", "kwargs"),
+    [
+        ("net_worth", "get_account_trend", {"use_cash": True, "period": "daily"}),
+        ("net_worth", "get_category_breakdown", {"breakdown_type": AccountType.INCOME, "period": "monthly"}),
+        ("cash_flow", "generate_cash_flow", {"start_date": date(2025, 1, 1), "end_date": date(2025, 1, 31)}),
+    ],
+)
+async def test_same_currency_rate_none_fallback(
+    db: AsyncSession, fx_accounts, test_user, mod: str, fn_name: str, kwargs: dict
+) -> None:
+    sgd_cash, _, capital, salary, _, _ = fx_accounts
+    sgd_cash.name = "SGD Bank Cash"
+    await post_pair(db, test_user.id, date(2024, 12, 15), "Before", sgd_cash, capital, "500.00")
+    await post_pair(db, test_user.id, date(2025, 1, 15), "During", sgd_cash, salary, "300.00", commit=True)
+    kw = dict(kwargs)
+    if kw.pop("use_cash", False):
+        kw["account_id"] = sgd_cash.id
+    with patch(f"src.reporting.extension.{mod}.PrefetchedFxRates") as mock_pf:
+        mock_pf.return_value = MagicMock(prefetch=AsyncMock(), get_rate=lambda *_a, **_kw: None)
+        res = await globals()[fn_name](db, test_user.id, currency="SGD", **kw)
+        assert res is not None
+        mock_pf.assert_called()
+
+
+@pytest.mark.parametrize(
+    ("fn_name", "entry_dt", "d_idx", "c_idx", "kwargs", "match", "side_effect"),
+    [
+        (
+            "get_account_trend",
+            date.today(),
+            1,
+            5,
+            {"use_usd": True, "period": "daily"},
+            "No FX rate available for USD/SGD",
+            None,
+        ),
+        (
+            "get_category_breakdown",
+            date.today(),
+            4,
+            1,
+            {"breakdown_type": AccountType.INCOME, "period": "monthly"},
+            "No FX rate available for USD/SGD",
+            None,
+        ),
+        (
+            "generate_cash_flow",
+            date(2024, 12, 20),
+            1,
+            5,
+            {"start_date": date(2025, 1, 1), "end_date": date(2025, 1, 31)},
+            "on 2025-01-01",
+            None,
+        ),
+        (
+            "generate_cash_flow",
+            date(2025, 1, 20),
+            1,
+            5,
+            {"start_date": date(2025, 1, 1), "end_date": date(2025, 1, 31)},
+            "on 2025-01-31",
+            lambda _s, _t, rd: None if rd == date(2025, 1, 31) else Decimal("1"),
+        ),
+    ],
+)
+async def test_prefetched_rate_missing_raises(
+    db: AsyncSession,
+    fx_accounts,
+    test_user,
+    fn_name: str,
+    entry_dt: date,
+    d_idx: int,
+    c_idx: int,
+    kwargs: dict,
+    match: str,
+    side_effect,
+) -> None:
+    await post_pair(
+        db,
+        test_user.id,
+        entry_dt,
+        "Missing PF",
+        fx_accounts[d_idx],
+        fx_accounts[c_idx],
+        "10",
+        currency="USD",
+        fx_rate=Decimal("1.00"),
+        commit=True,
+    )
+    kw = dict(kwargs)
+    if kw.pop("use_usd", False):
+        kw["account_id"] = fx_accounts[1].id
+    get_rate_kw = {"side_effect": side_effect} if side_effect else {"return_value": None}
+    with (
+        patch("src.pricing.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
+        patch("src.pricing.PrefetchedFxRates.get_rate", **get_rate_kw),
+        pytest.raises(ReportError, match=match),
+    ):
+        await globals()[fn_name](db, test_user.id, currency="SGD", **kw)

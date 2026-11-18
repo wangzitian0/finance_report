@@ -1,33 +1,49 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
+from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
 from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+
+from src.audit import SqlTraceRecordRepository, TraceEmitter
 from src.extraction import (
     BankStatementStatus,
     ClassificationStatus,
     DocumentSource,
     DocumentType,
+    ExtractedTransactionFact,
     ExtractedTransactionRow,
     ExtractionMethod,
     RuleType,
+    SourceProvenance,
     StatementEvidenceType,
+    StatementExtractionResult,
+    StatementSourceType,
     TransactionDirection,
     UploadedDocument,
+    extraction_trace_policy_registry,
+    persist_statement_extraction_result,
 )
+from src.extraction.extension.classification import ClassificationService
 from src.extraction.extension.deduplication import dual_write_layer2
+from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.transaction_classification import POLICY_RULE_NAME
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry
+from src.llm.base import Modality, ModelSpec
+from src.platform import DomainError
 from src.reconciliation.orm.reconciliation import ReconciliationMatch
+from src.runtime import StorageError
 
 
 def _compose_mock_ingestion(mock_execute):
@@ -65,6 +81,62 @@ def build_statement(user_id, file_hash: str, confidence_score: int) -> Statement
     )
 
 
+async def add_statement(
+    db,
+    user_id,
+    file_hash: str,
+    *,
+    confidence: int = 88,
+    status: BankStatementStatus = BankStatementStatus.PARSED,
+    account_id=None,
+    closing: str | None = "100.00",
+    **kwargs,
+) -> StatementSummary:
+    statement = build_statement(user_id, file_hash, confidence)
+    statement.status = status
+    statement.account_id = account_id
+    if closing is not None:
+        statement.closing_balance = Decimal(closing)
+    for key, value in kwargs.items():
+        setattr(statement, key, value)
+    db.add(statement)
+    await db.flush()
+    return statement
+
+
+async def expect_status(
+    awaitable,
+    status_code: int,
+    *,
+    match: str | None = None,
+    exc_types: type[Exception] | tuple[type[Exception], ...] = DomainError,
+):
+    with pytest.raises(exc_types) as exc:
+        await awaitable
+    assert exc.value.status_code == status_code
+    if match is not None:
+        assert match.lower() in str(exc.value.detail).lower()
+    return exc.value
+
+
+def patch_catalog(monkeypatch: pytest.MonkeyPatch, modalities: frozenset[Modality] | None = None) -> None:
+    async def fake_catalog_get(self, model_id):
+        if modalities is None:
+            return None
+        return ModelSpec(id=model_id, provider_id="env", modalities=modalities)
+
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+
+
+def failing_storage(
+    monkeypatch: pytest.MonkeyPatch, method: str = "upload_bytes", detail: str = "S3 Down"
+) -> MagicMock:
+    mock_storage = MagicMock()
+    getattr(mock_storage, method).side_effect = StorageError(detail)
+    monkeypatch.setattr("src.routers.statements.StorageService", MagicMock(return_value=mock_storage))
+    return mock_storage
+
+
 async def seed_uploaded_document(
     db,
     statement: StatementSummary,
@@ -92,8 +164,6 @@ async def seed_uploaded_document(
 
 
 async def seed_historical_source_evidence(db, statement: StatementSummary) -> None:
-    from pathlib import Path
-
     from tests.extraction.test_source_ingestion_integrity import _parse, _payload, _store_result
 
     document = await seed_uploaded_document(db, statement)
@@ -105,6 +175,64 @@ async def seed_historical_source_evidence(db, statement: StatementSummary) -> No
         source=source,
     )
     await _store_result(db, statement, result)
+
+
+async def seed_reviewed_envelope(
+    db,
+    user_id,
+    statement: StatementSummary,
+    *,
+    digest: str = "a" * 64,
+    description: str = "Salary",
+    direction: str = "IN",
+) -> tuple[StatementExtractionResult, AtomicTransaction]:
+    source_result = StatementExtractionResult.create(
+        producer_version="csv-parser@1",
+        source_content_digest=digest,
+        source_type=StatementSourceType.BANK,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        institution="DBS",
+        account_last4="1234",
+        period_start=None,
+        period_end=None,
+        balances=(),
+        transactions=(
+            ExtractedTransactionFact(
+                fact_id="row-1",
+                transaction_date=date(2025, 1, 2),
+                description=description,
+                amount=Decimal("10.00"),
+                direction=direction,
+                currency="SGD",
+                balance_after=None,
+                confidence=Decimal("0.95"),
+            ),
+        ),
+        positions=(),
+        confidence=Decimal("0.90"),
+        balance_validated=None,
+        warnings=(),
+        review_reasons=("source facts require confirmation",),
+        provenance=SourceProvenance(
+            intake_mode="csv", method=ExtractionMethod.DETERMINISTIC, provider="csv-parser", model="csv-parser@1"
+        ),
+        statement_currency=None,
+    )
+    trace_records = build_extraction_trace_records(
+        source_result,
+        user_id=user_id,
+        execution_id=f"test:{statement.id}:result:{source_result.result_id}",
+        occurred_at=datetime.now(UTC),
+    )
+    await TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())).emit_many(trace_records)
+    await persist_statement_extraction_result(
+        db, statement=statement, result=source_result, source_trace_record_id=trace_records[0].record_id
+    )
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 2), description=description, amount=Decimal("10.00"), direction=direction
+    )
+    txn.dedup_hash = "row-1"
+    return source_result, txn
 
 
 async def persist_mock_result(
@@ -147,10 +275,7 @@ async def add_reviewed_disposition_rule(
     category: str,
 ) -> None:
     account = Account(
-        user_id=user_id,
-        name=f"{account_type.value.title()} - {category}",
-        type=account_type,
-        currency="SGD",
+        user_id=user_id, name=f"{account_type.value.title()} - {category}", type=account_type, currency="SGD"
     )
     db.add(account)
     await db.flush()
@@ -168,17 +293,8 @@ async def add_reviewed_disposition_rule(
         )
     )
     await db.flush()
-    await _apply_rules_to_existing_rows(db, user_id)
-
-
-async def _apply_rules_to_existing_rows(db, user_id) -> None:
-    from src.extraction.extension.classification import ClassificationService
-
-    transactions = (
-        (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == user_id))).scalars().all()
-    )
-    # The classify run applies stored rules; approve no longer does (#2994).
-    await ClassificationService().apply_rules(db, user_id, list(transactions))
+    txns = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == user_id))).scalars().all()
+    await ClassificationService().apply_rules(db, user_id, list(txns))
 
 
 async def add_txn(
@@ -275,11 +391,7 @@ async def create_statement_with_bank(
     bank_name: str | None = None,
 ) -> tuple[StatementSummary, Account]:
     bank = await create_statement_account(db, user_id, bank_name or f"Bank {file_hash}")
-    statement = build_statement(user_id, file_hash, confidence)
-    statement.account_id = bank.id
-    statement.closing_balance = Decimal(closing)
-    db.add(statement)
-    await db.flush()
+    statement = await add_statement(db, user_id, file_hash, confidence=confidence, account_id=bank.id, closing=closing)
     return statement, bank
 
 

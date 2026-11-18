@@ -1,4 +1,3 @@
-"AC-ledger.3.5 AC-ledger.3.6 AC-ledger.5.1 AC-ledger.5.2 AC-ledger.5.3 AC-ledger.6.1 AC-ledger.6.2 AC-ledger.6.3 AC-ledger.6.4 EPIC-002"
 
 from datetime import date
 from decimal import Decimal
@@ -136,7 +135,6 @@ async def test_accounting_equation_violation_detected(
 async def test_accounting_equation_holds_with_all_account_types(
     db: AsyncSession, test_user_id, asset_account, liability_account, equity_account, income_account, expense_account
 ):
-    "AC-ledger.5.2 AC-audit.global-invariant.1"
     entries_data = [
         (asset_account.id, Direction.DEBIT, equity_account.id, Direction.CREDIT, "10000"),
         (asset_account.id, Direction.DEBIT, income_account.id, Direction.CREDIT, "3000"),
@@ -330,7 +328,6 @@ async def test_amount_precision_loss_detection():
 
 
 async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id):
-    "AC-ledger.6.4"
     accounts_config = [
         ("Bank", AccountType.ASSET),
         ("CPF Contribution", AccountType.EXPENSE),

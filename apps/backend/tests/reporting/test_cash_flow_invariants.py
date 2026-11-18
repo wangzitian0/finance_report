@@ -1,7 +1,194 @@
-from dataclasses import dataclass; from datetime import date; from decimal import Decimal; from uuid import UUID; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import Money; from src.identity import User; from src.ledger import Account, AccountType, Entry, calculate_account_balance, post_entry; from src.reporting import generate_cash_flow
-@dataclass(frozen=True)
-class DirectMethodScenario: user_id: UUID; period_start: date; period_end: date; cash_accounts: list[Account]; cash_account_ids: frozenset[UUID]
-async def _create_account(db: AsyncSession, user_id, name: str, account_type: AccountType, code: str, currency: str='SGD') -> Account: account = Account(user_id=user_id, name=name, code=code, type=account_type, currency=currency, is_active=True); db.add(account); await db.flush(); return account
-async def _seed_direct_method_scenario_ledger(db: AsyncSession, user_id: UUID) -> DirectMethodScenario: period_start = date(2026, 1, 1); period_end = date(2026, 1, 31); cash_hand = await _create_account(db, user_id, 'Cash on Hand', AccountType.ASSET, '1000'); cash_bank = await _create_account(db, user_id, 'Bank Checking Account', AccountType.ASSET, '1001'); equity_opening = await _create_account(db, user_id, 'Opening Balance Equity', AccountType.EQUITY, '3000'); revenue = await _create_account(db, user_id, 'Consulting Revenue', AccountType.INCOME, '4000'); office_expense = await _create_account(db, user_id, 'Office Supplies Expense', AccountType.EXPENSE, '5000'); equipment = await _create_account(db, user_id, 'Office Equipment', AccountType.ASSET, '1500'); investments = await _create_account(db, user_id, 'Marketable Securities', AccountType.ASSET, '1200'); capital_gains = await _create_account(db, user_id, 'Realized Capital Gains', AccountType.INCOME, '4100'); loan_payable = await _create_account(db, user_id, 'Bank Loan Payable', AccountType.LIABILITY, '2100'); await post_entry(db, user_id=user_id, entry_date=date(2025, 12, 31), memo='Initial Cash on Hand', entry=Entry.transfer(debit=cash_hand.id, credit=equity_opening.id, money=Money(Decimal('2000.00'), 'SGD')), base_currency='SGD', operation='flow26-init-cash-hand'); await post_entry(db, user_id=user_id, entry_date=date(2025, 12, 31), memo='Initial Bank Checking', entry=Entry.transfer(debit=cash_bank.id, credit=equity_opening.id, money=Money(Decimal('8000.00'), 'SGD')), base_currency='SGD', operation='flow26-init-cash-bank'); await post_entry(db, user_id=user_id, entry_date=date(2025, 12, 31), memo='Initial Securities Holding', entry=Entry.transfer(debit=investments.id, credit=equity_opening.id, money=Money(Decimal('5000.00'), 'SGD')), base_currency='SGD', operation='flow26-init-investments'); await post_entry(db, user_id=user_id, entry_date=date(2026, 1, 5), memo='Client Project Retainer', entry=Entry.transfer(debit=cash_bank.id, credit=revenue.id, money=Money(Decimal('6000.00'), 'SGD')), base_currency='SGD', operation='operating-revenue'); await post_entry(db, user_id=user_id, entry_date=date(2026, 1, 10), memo='Office Supplies & Software Subscriptions', entry=Entry.transfer(debit=office_expense.id, credit=cash_bank.id, money=Money(Decimal('1800.00'), 'SGD')), base_currency='SGD', operation='operating-expense'); await post_entry(db, user_id=user_id, entry_date=date(2026, 1, 12), memo='Purchase Ergonomic Workstations', entry=Entry.transfer(debit=equipment.id, credit=cash_bank.id, money=Money(Decimal('3500.00'), 'SGD'), event_type='investment_buy'), base_currency='SGD', operation='investing-fixed-asset-purchase'); await post_entry(db, user_id=user_id, entry_date=date(2026, 1, 15), memo='Partial Sale of Securities', entry=Entry.of(Entry.transfer(debit=cash_bank.id, credit=investments.id, money=Money(Decimal('2500.00'), 'SGD'), event_type='investment_sell').legs[0], Entry.transfer(debit=cash_bank.id, credit=investments.id, money=Money(Decimal('2000.00'), 'SGD'), event_type='investment_sell').legs[1], Entry.transfer(debit=cash_bank.id, credit=capital_gains.id, money=Money(Decimal('500.00'), 'SGD'), event_type='investment_realized_pnl').legs[1]), base_currency='SGD', operation='investing-securities-sale'); await post_entry(db, user_id=user_id, entry_date=date(2026, 1, 18), memo='Short-term Bank Credit Facility Drawdown', entry=Entry.transfer(debit=cash_bank.id, credit=loan_payable.id, money=Money(Decimal('10000.00'), 'SGD'), event_type='bank_txn', tags={'economic_category': 'LOAN_PRINCIPAL'}), base_currency='SGD', operation='financing-loan-drawdown'); await post_entry(db, user_id=user_id, entry_date=date(2026, 1, 25), memo='Amortization Principal Repayment', entry=Entry.transfer(debit=loan_payable.id, credit=cash_bank.id, money=Money(Decimal('4000.00'), 'SGD'), event_type='bank_txn', tags={'economic_category': 'LOAN_PRINCIPAL'}), base_currency='SGD', operation='financing-loan-repayment'); await db.commit(); return DirectMethodScenario(user_id=user_id, period_start=period_start, period_end=period_end, cash_accounts=[cash_hand, cash_bank], cash_account_ids=frozenset((acc.id for acc in (cash_hand, cash_bank))))
-async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_user: User): scenario = await _seed_direct_method_scenario_ledger(db, test_user.id); report = await generate_cash_flow(db, scenario.user_id, start_date=scenario.period_start, end_date=scenario.period_end, currency='SGD', cash_account_ids=scenario.cash_account_ids); summary = report['summary']; net_operating = summary['operating_activities']; net_investing = summary['investing_activities']; net_financing = summary['financing_activities']; net_cash_change = summary['net_cash_flow']; beginning_cash = summary['beginning_cash']; ending_cash = summary['ending_cash']; expected_beginning = Decimal('10000.00'); expected_net_operating = Decimal('4200.00'); expected_net_investing = Decimal('-1000.00'); expected_net_financing = Decimal('6000.00'); expected_net_cash_change = expected_net_operating + expected_net_investing + expected_net_financing; expected_ending = expected_beginning + expected_net_cash_change; assert net_operating == expected_net_operating, f'Operating: {net_operating} != {expected_net_operating}'; assert net_investing == expected_net_investing, f'Investing: {net_investing} != {expected_net_investing}'; assert net_financing == expected_net_financing, f'Financing: {net_financing} != {expected_net_financing}'; assert net_cash_change == expected_net_cash_change, f'Net change: {net_cash_change} != {expected_net_cash_change}'; assert beginning_cash == expected_beginning, f'Beginning: {beginning_cash} != {expected_beginning}'; assert ending_cash == expected_ending, f'Ending: {ending_cash} != {expected_ending}'; assert net_operating + net_investing + net_financing == net_cash_change; assert beginning_cash + net_cash_change == ending_cash; ledger_cash_balances = [await calculate_account_balance(db, acc.id, scenario.user_id) for acc in scenario.cash_accounts]; total_ledger_ending_cash = sum(ledger_cash_balances, Decimal('0.00')); assert ending_cash == total_ledger_ending_cash, f'Ending cash {ending_cash} deviates from ledger balances {total_ledger_ending_cash}'; cash_bridge = report['cash_bridge']; assert cash_bridge['reconciles'] is True; assert cash_bridge['cash_delta'] == net_cash_change; assert cash_bridge['unclassified_cash'] == Decimal('0.00'); assert cash_bridge['fx_effect'] == Decimal('0.00'); assert cash_bridge['discrepancy'] == Decimal('0.00'); assert len(report['operating']) >= 2; assert len(report['investing']) >= 2; assert len(report['financing']) >= 2; assert report['proof_state'] == 'proven'; assert report['proof_reasons'] == []
-async def test_flow26_cash_flow_bridge_exposes_discrepancy_when_imbalanced(db: AsyncSession, test_user: User, monkeypatch): import src.reporting.extension.cash_flow as cf_mod; user_id = test_user.id; period_start = date(2026, 2, 1); period_end = date(2026, 2, 28); cash_acc = await _create_account(db, user_id, 'Checking Imbalance Test', AccountType.ASSET, '1002'); revenue = await _create_account(db, user_id, 'Sales Imbalance Test', AccountType.INCOME, '4001'); await post_entry(db, user_id=user_id, entry_date=date(2026, 2, 10), memo='Inflow', entry=Entry.transfer(debit=cash_acc.id, credit=revenue.id, money=Money(Decimal('500.00'), 'SGD')), base_currency='SGD', operation='cf-inflow-test'); await db.commit(); report = await generate_cash_flow(db, user_id, start_date=period_start, end_date=period_end, currency='SGD', cash_account_ids=frozenset([cash_acc.id])); assert report['cash_bridge']['fx_effect'] == Decimal('0.00'); assert report['cash_bridge']['discrepancy'] == Decimal('0.00'); assert report['cash_bridge']['reconciles'] is True; monkeypatch.setattr(cf_mod, '_line_total', lambda items: Decimal('0.00')); imbalanced_report = await generate_cash_flow(db, user_id, start_date=period_start, end_date=period_end, currency='SGD', cash_account_ids=frozenset([cash_acc.id])); assert imbalanced_report['cash_bridge']['fx_effect'] == Decimal('0.00'); assert imbalanced_report['cash_bridge']['discrepancy'] == Decimal('500.00'); assert imbalanced_report['cash_bridge']['reconciles'] is False
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+import src.reporting.extension.cash_flow as cf_mod
+from src.audit import Money
+from src.identity import User
+from src.ledger import AccountType, Entry, calculate_account_balance, post_entry
+from src.reporting import generate_cash_flow
+from tests.reporting._report_fixtures import seed_accounts
+
+
+async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_user: User) -> None:
+    cash_hand, cash_bank, eq, rev, off, equip, inv, cap_gain, loan = await seed_accounts(
+        db,
+        test_user.id,
+        ("Cash on Hand", AccountType.ASSET, "SGD", {"code": "1000"}),
+        ("Bank Checking", AccountType.ASSET, "SGD", {"code": "1001"}),
+        ("Opening Equity", AccountType.EQUITY, "SGD", {"code": "3000"}),
+        ("Consulting", AccountType.INCOME, "SGD", {"code": "4000"}),
+        ("Office Exp", AccountType.EXPENSE, "SGD", {"code": "5000"}),
+        ("Equipment", AccountType.ASSET, "SGD", {"code": "1500"}),
+        ("Securities", AccountType.ASSET, "SGD", {"code": "1200"}),
+        ("Capital Gains", AccountType.INCOME, "SGD", {"code": "4100"}),
+        ("Loan Payable", AccountType.LIABILITY, "SGD", {"code": "2100"}),
+    )
+    for dt, memo, op, entry in (
+        (
+            date(2025, 12, 31),
+            "Init hand",
+            "flow26-init-hand",
+            Entry.transfer(debit=cash_hand.id, credit=eq.id, money=Money(Decimal("2000.00"), "SGD")),
+        ),
+        (
+            date(2025, 12, 31),
+            "Init bank",
+            "flow26-init-bank",
+            Entry.transfer(debit=cash_bank.id, credit=eq.id, money=Money(Decimal("8000.00"), "SGD")),
+        ),
+        (
+            date(2025, 12, 31),
+            "Init inv",
+            "flow26-init-inv",
+            Entry.transfer(debit=inv.id, credit=eq.id, money=Money(Decimal("5000.00"), "SGD")),
+        ),
+        (
+            date(2026, 1, 5),
+            "Retainer",
+            "op-rev",
+            Entry.transfer(debit=cash_bank.id, credit=rev.id, money=Money(Decimal("6000.00"), "SGD")),
+        ),
+        (
+            date(2026, 1, 10),
+            "Supplies",
+            "op-exp",
+            Entry.transfer(debit=off.id, credit=cash_bank.id, money=Money(Decimal("1800.00"), "SGD")),
+        ),
+        (
+            date(2026, 1, 12),
+            "Equip",
+            "inv-buy",
+            Entry.transfer(
+                debit=equip.id, credit=cash_bank.id, money=Money(Decimal("3500.00"), "SGD"), event_type="investment_buy"
+            ),
+        ),
+        (
+            date(2026, 1, 15),
+            "Sec sale",
+            "inv-sale",
+            Entry.of(
+                Entry.transfer(
+                    debit=cash_bank.id,
+                    credit=inv.id,
+                    money=Money(Decimal("2500.00"), "SGD"),
+                    event_type="investment_sell",
+                ).legs[0],
+                Entry.transfer(
+                    debit=cash_bank.id,
+                    credit=inv.id,
+                    money=Money(Decimal("2000.00"), "SGD"),
+                    event_type="investment_sell",
+                ).legs[1],
+                Entry.transfer(
+                    debit=cash_bank.id,
+                    credit=cap_gain.id,
+                    money=Money(Decimal("500.00"), "SGD"),
+                    event_type="investment_realized_pnl",
+                ).legs[1],
+            ),
+        ),
+        (
+            date(2026, 1, 18),
+            "Drawdown",
+            "fin-draw",
+            Entry.transfer(
+                debit=cash_bank.id,
+                credit=loan.id,
+                money=Money(Decimal("10000.00"), "SGD"),
+                event_type="bank_txn",
+                tags={"economic_category": "LOAN_PRINCIPAL"},
+            ),
+        ),
+        (
+            date(2026, 1, 25),
+            "Repay",
+            "fin-rep",
+            Entry.transfer(
+                debit=loan.id,
+                credit=cash_bank.id,
+                money=Money(Decimal("4000.00"), "SGD"),
+                event_type="bank_txn",
+                tags={"economic_category": "LOAN_PRINCIPAL"},
+            ),
+        ),
+    ):
+        await post_entry(
+            db, user_id=test_user.id, entry_date=dt, memo=memo, entry=entry, base_currency="SGD", operation=op
+        )
+    await db.commit()
+
+    cash_ids = frozenset((cash_hand.id, cash_bank.id))
+    rep = await generate_cash_flow(
+        db,
+        test_user.id,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+        currency="SGD",
+        cash_account_ids=cash_ids,
+    )
+    s, b = rep["summary"], rep["cash_bridge"]
+    assert (
+        s["operating_activities"],
+        s["investing_activities"],
+        s["financing_activities"],
+        s["net_cash_flow"],
+        s["beginning_cash"],
+        s["ending_cash"],
+    ) == (
+        Decimal("4200.00"),
+        Decimal("-1000.00"),
+        Decimal("6000.00"),
+        Decimal("9200.00"),
+        Decimal("10000.00"),
+        Decimal("19200.00"),
+    )
+    ledger_sum = sum((await calculate_account_balance(db, aid, test_user.id) for aid in cash_ids), Decimal("0.00"))
+    assert s["ending_cash"] == ledger_sum
+    assert (b["reconciles"], b["cash_delta"], b["unclassified_cash"], b["fx_effect"], b["discrepancy"]) == (
+        True,
+        Decimal("9200.00"),
+        Decimal("0.00"),
+        Decimal("0.00"),
+        Decimal("0.00"),
+    )
+    assert all(len(rep[sec]) >= 2 for sec in ("operating", "investing", "financing"))
+    assert (rep["proof_state"], rep["proof_reasons"]) == ("proven", [])
+
+
+async def test_flow26_cash_flow_bridge_exposes_discrepancy_when_imbalanced(
+    db: AsyncSession, test_user: User, monkeypatch
+) -> None:
+    cash, rev = await seed_accounts(
+        db,
+        test_user.id,
+        ("Checking Imbalance", AccountType.ASSET, "SGD", {"code": "1002"}),
+        ("Sales Imbalance", AccountType.INCOME, "SGD", {"code": "4001"}),
+    )
+    await post_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 2, 10),
+        memo="Inflow",
+        entry=Entry.transfer(debit=cash.id, credit=rev.id, money=Money(Decimal("500.00"), "SGD")),
+        base_currency="SGD",
+        operation="cf-inflow-test",
+    )
+    await db.commit()
+    kw = dict(
+        start_date=date(2026, 2, 1), end_date=date(2026, 2, 28), currency="SGD", cash_account_ids=frozenset([cash.id])
+    )
+    ok = await generate_cash_flow(db, test_user.id, **kw)
+    assert (ok["cash_bridge"]["fx_effect"], ok["cash_bridge"]["discrepancy"], ok["cash_bridge"]["reconciles"]) == (
+        Decimal("0.00"),
+        Decimal("0.00"),
+        True,
+    )
+    monkeypatch.setattr(cf_mod, "_line_total", lambda _items: Decimal("0.00"))
+    bad = await generate_cash_flow(db, test_user.id, **kw)
+    assert (bad["cash_bridge"]["fx_effect"], bad["cash_bridge"]["discrepancy"], bad["cash_bridge"]["reconciles"]) == (
+        Decimal("0.00"),
+        Decimal("500.00"),
+        False,
+    )

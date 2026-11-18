@@ -75,7 +75,6 @@ async def _fresh(db, statement_id) -> StatementSummary:
 
 
 async def test_AC_extraction_2994_83_a_normal_approve_of_a_parsed_statement_still_posts(client, db, test_user):
-    """AC-extraction.2994.83: Approve of a PARSED statement works: it posts its entries and sets APPROVED."""
     statement_id = await _approvable_statement(db, test_user)
 
     response = await client.post(f"/statements/{statement_id}/approvals", json={})
@@ -89,7 +88,6 @@ async def test_AC_extraction_2994_83_a_normal_approve_of_a_parsed_statement_stil
 async def test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_nothing(
     client, db, monkeypatch, test_user
 ):
-    """AC-extraction.2994.83: Approve sees the committed PARSING under its lock: no entry is posted, the status stays."""
     statement_id = await _approvable_statement(db, test_user)
     maker = create_session_maker_from_db(db)
     original = real_approve_statement_workflow
@@ -129,7 +127,6 @@ async def test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_no
 async def test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statement_and_its_entries(
     client, db, test_user
 ):
-    """AC-extraction.2994.84: The failure handler writes the final status only while the statement is PARSING."""
     statement_id = await _approvable_statement(db, test_user)
     approved = await client.post(f"/statements/{statement_id}/approvals", json={})
     assert approved.status_code == 200, approved.text
@@ -193,7 +190,6 @@ async def _running_run(db, statement_id, user):
 
 
 async def test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run(client, db, test_user):
-    """AC-extraction.2994.87: Approve refuses an active run, also when the statement still says PARSED."""
     statement_id = await _approvable_statement(db, test_user)
     run_id = await _running_run(db, statement_id, test_user)  # The state that a stale envelope confirmation left behind.
 
@@ -217,7 +213,6 @@ async def _candidate_for_auto_approve(db, user):
 
 
 async def test_AC_extraction_2994_87_the_auto_approve_with_its_own_run_exempt_still_posts(db, test_user):
-    """AC-extraction.2994.87: The run of the worker is still active at its auto-approve: only that run id is exempt."""
     statement_id = await _candidate_for_auto_approve(db, test_user)
     run_id = await _running_run(db, statement_id, test_user)
 
@@ -233,7 +228,6 @@ async def test_AC_extraction_2994_87_the_auto_approve_with_its_own_run_exempt_st
 
 
 async def test_AC_extraction_2994_87_the_auto_approve_of_a_still_running_run_posts_nothing(db, test_user):
-    """AC-extraction.2994.87: The order matters: against a running run the approve refuses, and nothing is posted."""
     statement_id = await _candidate_for_auto_approve(db, test_user)
     run_id = await _running_run(db, statement_id, test_user)
     user_id = test_user.id

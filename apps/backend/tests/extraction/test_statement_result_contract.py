@@ -68,7 +68,6 @@ _complete_result = lambda: StatementExtractionResult.create(
 
 
 def test_AC_extraction_result_envelope_1_rejects_unknown_versions_and_defaults():
-    "AC-extraction.result-envelope.1"
     payload = _complete_result().to_payload()
     payload["schema_version"] = "999"
     with pytest.raises(ValueError, match="schema version"):
@@ -85,7 +84,6 @@ def test_AC_extraction_result_envelope_1_rejects_unknown_versions_and_defaults()
 
 
 def test_AC_extraction_result_envelope_2_round_trips_complete_facts():
-    "AC-extraction.result-envelope.2"
     result = _complete_result()
     restored = StatementExtractionResult.from_payload(result.to_payload())
     assert restored == result
@@ -168,13 +166,11 @@ def test_AC_extraction_result_envelope_2_round_trips_complete_facts():
 
 
 def test_AC_extraction_11_1_partial_period_rejects_without_copying():
-    "AC-extraction.11.1"
     with pytest.raises(ValueError, match="period bounds must both be present or both be absent"):
         replace(_complete_result(), period_start=None)
 
 
 def test_AC_extraction_11_2_transaction_dates_do_not_establish_statement_period():
-    "AC-extraction.11.2"
     result = replace(_complete_result(), period_start=None, period_end=None)
     assert result.transactions[0].transaction_date == date(2026, 1, 12)
     assert result.period_start is None
@@ -184,7 +180,6 @@ def test_AC_extraction_11_2_transaction_dates_do_not_establish_statement_period(
 
 
 async def test_AC_extraction_11_3_missing_transaction_date_rejects():
-    "AC-extraction.11.3"
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
         return_value={
@@ -221,7 +216,6 @@ async def test_AC_extraction_11_3_missing_transaction_date_rejects():
 
 
 def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():
-    "AC-extraction.source-capability.1 AC-extraction.112.1"
     by_id = {capability.capability_id: capability for capability in SOURCE_CAPABILITIES}
     assert len(by_id) == len(SOURCE_CAPABILITIES)
     assert {capability_id: capability.status for capability_id, capability in by_id.items()} == {
@@ -250,7 +244,6 @@ def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():
 
 
 def test_AC_extraction_result_envelope_1_rejects_malformed_source_facts():
-    "AC-extraction.result-envelope.1"
     complete = _complete_result()
     with pytest.raises(ValueError, match="provider is required"):
         SourceProvenance("pdf", ExtractionMethod.DETERMINISTIC, " ", "model")

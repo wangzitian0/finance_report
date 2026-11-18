@@ -1,4 +1,3 @@
-"AC18.1.1"
 
 from __future__ import annotations
 import fcntl

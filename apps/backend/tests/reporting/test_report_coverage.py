@@ -1,67 +1,722 @@
-from __future__ import annotations; from collections.abc import Iterator; from contextlib import contextmanager; from datetime import UTC, date, datetime, timedelta; from decimal import Decimal; from hashlib import sha256; from types import SimpleNamespace; from uuid import UUID, uuid4; import pytest; from tests._support.trusted_year import TRUSTED_YEAR_SCENARIO; from sqlalchemy import event, select; from sqlalchemy.ext.asyncio import AsyncSession; import src.reporting.extension.package_document as package_document_mod; import tests.integration.test_trusted_year_scenario as trusted_year_mod; from src.audit import SqlTraceRecordRepository, TraceEmitter; from src.config import settings; from src.database import create_session_maker_from_db; from src.extraction import BankStatementStatus, ExtractedTransactionFact, ExtractionMethod, ParseJob, RetireStatementCommand, RuleType, SourceProvenance, StatementBalanceFact, StatementEvidenceType, StatementExtractionResult, StatementSourceType, StatementSummary, coverage_bank_custody_account_ids, extraction_trace_policy_registry, persist_statement_extraction_result, retire_statement; from src.extraction.extension import statement_posting as statement_posting_mod, transaction_classification; from src.extraction.extension.extraction_trace import build_extraction_trace_records; from src.extraction.extension.reviewed_statement_envelope import current_reviewed_statement_envelope; from src.extraction.extension.statement_contribution import resolve_statement_contribution; from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory; from src.extraction.orm.layer3 import ClassificationRule; from src.extraction.orm.reviewed_statement_envelope import ReviewedStatementEnvelope, StatementExtractionResultRecord; from src.identity import User; from src.ledger import Account, AccountType, initialize_opening_positions; from src.reporting import current_package_readiness, generate_cash_flow, report_coverage; from src.routers import reports as reports_router; from tests.integration.test_trusted_year_scenario import _bank_csv, _ingest_reviewed_bank_statement; from tests.statement_ingestion import execute_statement_ingestion, posting_dependencies; AS_OF = date(2026, 10, 22)
+from __future__ import annotations
+
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+from hashlib import sha256
+from types import SimpleNamespace
+from uuid import UUID, uuid4
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+import src.reporting.extension.package_document as package_document_mod
+import tests.integration.test_trusted_year_scenario as trusted_year_mod
+from src.audit import SqlTraceRecordRepository, TraceEmitter
+from src.database import create_session_maker_from_db
+from src.extraction import (
+    BankStatementStatus,
+    ExtractedTransactionFact,
+    ExtractionMethod,
+    ParseJob,
+    RetireStatementCommand,
+    SourceProvenance,
+    StatementBalanceFact,
+    StatementEvidenceType,
+    StatementExtractionResult,
+    StatementSourceType,
+    StatementSummary,
+    coverage_bank_custody_account_ids,
+    extraction_trace_policy_registry,
+    persist_statement_extraction_result,
+    retire_statement,
+)
+from src.extraction.extension import statement_posting as statement_posting_mod
+from src.extraction.extension.extraction_trace import build_extraction_trace_records
+from src.extraction.extension.reviewed_statement_envelope import current_reviewed_statement_envelope
+from src.extraction.extension.statement_contribution import resolve_statement_contribution
+from src.extraction.orm.reviewed_statement_envelope import ReviewedStatementEnvelope, StatementExtractionResultRecord
+from src.identity import User
+from src.ledger import Account, AccountType, initialize_opening_positions
+from src.reporting import current_package_readiness, generate_cash_flow, report_coverage
 from src.request_context import RequestContext
-from tests.statement_ingestion import run_for
-async def _approved_statement(db: AsyncSession, user_id: UUID, account: Account, period_start: date) -> None: db.add(StatementSummary(user_id=user_id, file_hash=sha256(f'{user_id}:{account.id}:{period_start}'.encode()).hexdigest(), institution='DBS', account_id=account.id, currency='SGD', period_start=period_start, period_end=period_start + timedelta(days=27), opening_balance=Decimal('1000.00'), closing_balance=Decimal('1200.00'), status=BankStatementStatus.APPROVED)); await db.flush()
-async def _statement_with_source(db: AsyncSession, user_id: UUID, account: Account, *, period_start: date | None, period_end: date | None, status: BankStatementStatus=BankStatementStatus.APPROVED, source_type: StatementSourceType=StatementSourceType.BANK, earlier_source_type: StatementSourceType | None=None, result_period_start: date | str | None=None, envelope_period_start: date | None=None, superseded_envelope_period_start: date | None=None, earlier_envelope_period_start: date | None=None) -> StatementSummary:
-    statement = StatementSummary(user_id=user_id, file_hash=sha256(f'{user_id}:{account.id}:{period_start}:{status}:{source_type}'.encode()).hexdigest(), institution='DBS', account_id=account.id, currency='SGD', period_start=period_start, period_end=period_end, opening_balance=Decimal('1000.00'), closing_balance=Decimal('1200.00'), status=status); db.add(statement); await db.flush(); records = []
-    for (index, kind) in enumerate(([earlier_source_type] if earlier_source_type else []) + [source_type]): record = StatementExtractionResultRecord(user_id=user_id, statement_id=statement.id, content_digest=sha256(f'result:{statement.id}:{index}'.encode()).hexdigest(), source_content_digest=sha256(f'source:{statement.id}'.encode()).hexdigest(), schema_version='2', producer_version='coverage-fixture', payload={'source_type': kind.value} | ({} if result_period_start is None else {'period_start': result_period_start if isinstance(result_period_start, str) else result_period_start.isoformat()}), source_trace_record_id=uuid4(), created_at=datetime.now(UTC)); db.add(record); records.append(record)
-    await db.flush(); statement.current_extraction_result_id = records[-1].id; chains = [(records[-1], (superseded_envelope_period_start, envelope_period_start))]; chains.append((records[0], (earlier_envelope_period_start,))) if earlier_source_type else None; created_at = datetime.now(UTC)
-    for (record, starts) in chains:
-        previous: ReviewedStatementEnvelope | None = None
-        for (index, envelope_start) in enumerate((start for start in starts if start is not None)): envelope = ReviewedStatementEnvelope(user_id=user_id, statement_id=statement.id, source_result_id=record.id, account_id=account.id, currency='SGD', period_start=envelope_start, period_end=envelope_start + timedelta(days=27), opening_balance=Decimal('1000.00'), closing_balance=Decimal('1200.00'), rationale='coverage fixture', command_digest=sha256(f'envelope:{record.id}:{index}'.encode()).hexdigest(), review_trace_record_id=uuid4(), supersedes_id=previous.id if previous is not None else None, created_at=created_at + timedelta(seconds=index)); db.add(envelope); await db.flush(); previous = envelope
-    await db.flush(); return statement
-async def _account(db: AsyncSession, user_id: UUID, name: str, account_type: AccountType=AccountType.ASSET) -> Account: account = Account(user_id=user_id, name=name, type=account_type, currency='SGD'); db.add(account); await db.flush(); return account
-async def _open(db: AsyncSession, user_id: UUID, account: Account, on: date, amount: str='1000') -> None: await initialize_opening_positions(db, user_id, entry_date=on, balances={account.id: Decimal(amount)}, currency='SGD', base_currency='SGD')
-def _record_readiness_periods(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
-    periods: list[tuple[date, date]] = []; real_evaluate = package_document_mod.PackageAssembler.evaluate_readiness
-    async def recording_evaluate(self, db, **kwargs): periods.append((kwargs['start_date'], kwargs['end_date'])); return await real_evaluate(self, db, **kwargs)
-    monkeypatch.setattr(package_document_mod.PackageAssembler, 'evaluate_readiness', recording_evaluate); return periods
-async def _seed_first_bank_statement(db: AsyncSession, user_id: UUID, monkeypatch: pytest.MonkeyPatch) -> Account:
-    monkeypatch.setattr(settings, 'enable_ai_classification', True)
-    async def proposer(transactions, _policy): categories = {'Salary credit': TransactionCategory.SALARY, 'Rent debit': TransactionCategory.HOUSING}; return [CategoryProposal(category=categories[item.description].value, confidence=99, reason='coverage-fixture') for item in transactions]
-    monkeypatch.setattr(transaction_classification, 'propose_categories', proposer); bank = await _account(db, user_id, 'DBS'); securities = await _account(db, user_id, 'Securities'); card = await _account(db, user_id, 'Visa card', AccountType.LIABILITY); await initialize_opening_positions(db, user_id, entry_date=date(2026, 6, 5), balances={bank.id: TRUSTED_YEAR_SCENARIO.opening_cash, securities.id: Decimal('0')}, currency='SGD', base_currency='SGD'); await _approved_statement(db, user_id, card, date(2026, 5, 1)); db.add(ClassificationRule(user_id=user_id, created_by=user_id, version_number=1, effective_date=date(2026, 1, 1), rule_name='Reviewed investment', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': ['Buy security']}, tag_mappings={'intent': 'transfer'}, default_account_id=securities.id)); await _ingest_reviewed_bank_statement(db, user_id=user_id, bank=bank, securities_id=securities.id); await db.commit(); return bank
-async def test_AC_reporting_2646_1_first_statement_opening_has_no_coverage_blocker(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None: 'AC-reporting.2646.1'; user_id = test_user.id; await _seed_first_bank_statement(db, user_id, monkeypatch); readiness = await current_package_readiness(db, user_id=user_id, as_of_date=date(2026, 6, 30), base_currency='SGD'); assert [blocker.code for blocker in readiness.blockers] == []; coverage = await report_coverage(db, user_id=user_id, as_of=date(2026, 6, 30)); assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ('DBS',))
-async def test_AC_reporting_2646_2_a_statement_that_closes_after_the_date_bounds_the_period(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; await _seed_first_bank_statement(db, user_id, monkeypatch); as_of = date(2026, 6, 12); coverage = await report_coverage(db, user_id=user_id, as_of=as_of); assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ('DBS',)); readiness = await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency='SGD'); assert [blocker.code for blocker in readiness.blockers] == []
-async def test_AC_reporting_2646_2_custody_accounts_are_the_bank_statements_of_the_user_in_any_status(db: AsyncSession, test_user) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; as_of = date(2026, 6, 12); names = ('Approved', 'Closes later', 'Retired', 'Rejected', 'Parsed', 'Brokerage', 'Brokerage over bank', 'Starts later', 'Starts on the date'); accounts = {name: await _account(db, user_id, name) for name in names}; window = {'period_start': date(2026, 5, 1), 'period_end': date(2026, 5, 28)}; await _statement_with_source(db, user_id, accounts['Approved'], **window); await _statement_with_source(db, user_id, accounts['Closes later'], period_start=date(2026, 6, 5), period_end=date(2026, 6, 15)); await _statement_with_source(db, user_id, accounts['Retired'], status=BankStatementStatus.RETIRED, **window); await _statement_with_source(db, user_id, accounts['Rejected'], status=BankStatementStatus.REJECTED, **window); await _statement_with_source(db, user_id, accounts['Parsed'], status=BankStatementStatus.PARSED, **window); await _statement_with_source(db, user_id, accounts['Brokerage'], source_type=StatementSourceType.BROKERAGE, **window); await _statement_with_source(db, user_id, accounts['Brokerage over bank'], source_type=StatementSourceType.BROKERAGE, earlier_source_type=StatementSourceType.BANK, **window); await _statement_with_source(db, user_id, accounts['Starts later'], period_start=date(2026, 6, 13), period_end=date(2026, 7, 10)); await _statement_with_source(db, user_id, accounts['Starts on the date'], period_start=as_of, period_end=date(2026, 7, 10)); other = User(email='custody-other@example.com', hashed_password='hashed'); db.add(other); await db.flush(); other_bank = await _account(db, other.id, 'Other Bank'); await _statement_with_source(db, other.id, other_bank, **window); await db.commit(); selected = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of); by_id = {account.id: name for name, account in accounts.items()} | {other_bank.id: 'Other Bank'}; assert sorted((by_id[account_id] for account_id in selected)) == ['Approved', 'Closes later', 'Parsed', 'Rejected', 'Retired', 'Starts on the date']
-async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_result_then_the_summary(db: AsyncSession, test_user) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; as_of = date(2026, 6, 12); before, after = (date(2026, 5, 1), date(2026, 6, 20)); names = ('Result start only', 'Summary start only', 'Envelope moves the start before', 'Envelope moves the start after', 'Newest envelope moves the start before', 'Newest envelope moves the start after', 'Result over summary', 'Result moves the start before', 'Envelope on an older result'); accounts = {name: await _account(db, user_id, name) for name in names}; await _statement_with_source(db, user_id, accounts['Result start only'], period_start=None, period_end=None, status=BankStatementStatus.PARSED, result_period_start=before); await _statement_with_source(db, user_id, accounts['Summary start only'], period_start=before, period_end=date(2026, 5, 28)); await _statement_with_source(db, user_id, accounts['Envelope moves the start before'], period_start=after, period_end=date(2026, 7, 10), result_period_start=after, envelope_period_start=before); await _statement_with_source(db, user_id, accounts['Envelope moves the start after'], period_start=before, period_end=date(2026, 7, 10), result_period_start=before, envelope_period_start=after); await _statement_with_source(db, user_id, accounts['Newest envelope moves the start before'], period_start=after, period_end=date(2026, 7, 10), result_period_start=after, superseded_envelope_period_start=after, envelope_period_start=before); await _statement_with_source(db, user_id, accounts['Newest envelope moves the start after'], period_start=before, period_end=date(2026, 7, 10), result_period_start=before, superseded_envelope_period_start=before, envelope_period_start=after); await _statement_with_source(db, user_id, accounts['Result over summary'], period_start=before, period_end=date(2026, 7, 10), result_period_start=after); await _statement_with_source(db, user_id, accounts['Result moves the start before'], period_start=after, period_end=date(2026, 7, 10), result_period_start=before); await _statement_with_source(db, user_id, accounts['Envelope on an older result'], period_start=after, period_end=date(2026, 7, 10), earlier_source_type=StatementSourceType.BANK, result_period_start=after, earlier_envelope_period_start=before); await db.commit(); selected = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of); by_id = {account.id: name for name, account in accounts.items()}; assert sorted((by_id[account_id] for account_id in selected)) == ['Envelope moves the start before', 'Newest envelope moves the start before', 'Result moves the start before', 'Result start only', 'Summary start only']
-async def test_AC_reporting_2646_2_an_empty_result_start_reads_as_no_start(db: AsyncSession, test_user) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; as_of = date(2026, 6, 12); with_summary = await _account(db, user_id, 'Empty result start, summary start before'); without_summary = await _account(db, user_id, 'Empty result start, no summary start'); await _statement_with_source(db, user_id, with_summary, period_start=date(2026, 5, 1), period_end=date(2026, 5, 28), result_period_start=''); await _statement_with_source(db, user_id, without_summary, period_start=None, period_end=None, status=BankStatementStatus.PARSED, result_period_start=''); await db.commit(); assert await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of) == frozenset({with_summary.id})
-def _keep_the_statement_parsed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def not_approved(db, statement_id, _user_id): return await db.get(StatementSummary, statement_id), []
-    async def no_posting(*_args, **_kwargs): return SimpleNamespace(review_reasons=(), created_count=2)
-    monkeypatch.setattr(trusted_year_mod, 'approve_statement_with_transactions', not_approved); monkeypatch.setattr(trusted_year_mod, 'auto_create_posted_entries_for_statement', no_posting)
-@pytest.mark.parametrize(('path', 'status'), [('approved', BankStatementStatus.APPROVED), ('envelope confirmed, not approved', BankStatementStatus.PARSED), ('retired after approval', BankStatementStatus.RETIRED)])
-async def test_AC_reporting_2646_2_the_custody_set_contains_the_package_cash_set(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch, path: str, status: BankStatementStatus) -> None:
-    'AC-reporting.2646.2'; user_id = test_user.id; _keep_the_statement_parsed(monkeypatch) if status is BankStatementStatus.PARSED else None; bank = await _seed_first_bank_statement(db, user_id, monkeypatch); statement = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank.id))).scalar_one()
-    if path == 'retired after approval': await retire_statement(db, RetireStatementCommand(statement_id=statement.id, user_id=user_id), base_currency='SGD'); await db.commit()
-    await db.refresh(statement); assert statement.status is status; as_of = date(2026, 6, 30); contributions = await package_document_mod.PackageAssembler()._contributions(db, user_id=user_id, start_date=as_of - timedelta(days=365), end_date=as_of, as_of_date=as_of); package_cash = package_document_mod._cash_inputs_from_contributions(contributions).account_ids; custody = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of); assert bank.id in package_cash; assert package_cash <= custody; coverage = await report_coverage(db, user_id=user_id, as_of=as_of); assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ('DBS',)); readiness = await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency='SGD'); assert [blocker.code for blocker in readiness.blockers] == []
-async def _package_cash_and_custody(db: AsyncSession, user_id: UUID, as_of: date) -> tuple[frozenset, frozenset]: contributions = await package_document_mod.PackageAssembler()._contributions(db, user_id=user_id, start_date=as_of - timedelta(days=365), end_date=as_of, as_of_date=as_of); package_cash = package_document_mod._cash_inputs_from_contributions(contributions).account_ids; return (package_cash, await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of))
-async def test_AC_reporting_2646_2_a_reparse_that_clears_the_summary_period_keeps_the_statement(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; _keep_the_statement_parsed(monkeypatch); bank = await _seed_first_bank_statement(db, user_id, monkeypatch); bank_id = bank.id; statement = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank_id))).scalar_one(); statement_id, file_hash, result_before = (statement.id, statement.file_hash, statement.current_extraction_result_id); as_of = date(2026, 6, 30); statement.status = BankStatementStatus.PARSING; statement.validation_error = None; await db.commit(); await execute_statement_ingestion(ParseJob(statement_id=statement_id, run_id=await run_for(db, statement_id), filename='trusted-year-v0.csv', institution='DBS', user_id=user_id, account_id=bank_id, file_hash=file_hash, storage_key='trusted-year/v0.csv', model=None), content=_bank_csv(), session_maker=create_session_maker_from_db(db)); db.expire_all(); reparsed = await db.get(StatementSummary, statement_id); assert reparsed is not None; envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement_id); assert (reparsed.current_extraction_result_id, reparsed.period_start) == (result_before, date(2026, 6, 5)); assert envelope is not None; assert envelope.period_start == date(2026, 6, 5); reparsed.period_start = None; reparsed.period_end = None; await db.commit(); package_cash, custody = await _package_cash_and_custody(db, user_id, as_of); assert bank_id in package_cash; assert package_cash <= custody; coverage = await report_coverage(db, user_id=user_id, as_of=as_of); assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ('DBS',)); readiness = await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency='SGD'); assert 'opening_coverage_starts_after_period' not in [blocker.code for blocker in readiness.blockers]
-_GUARD_MESSAGE = 'Custody account must be a non-system asset account'
-async def test_AC_reporting_2646_2_an_auto_approval_that_falls_back_keeps_the_statement(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.2646.2'; user_id = test_user.id; bank = await _account(db, user_id, 'DBS'); statement = StatementSummary(user_id=user_id, file_hash=sha256(b'coverage-auto-approval-fallback').hexdigest(), institution='DBS', account_id=bank.id, currency='SGD', period_start=date(2026, 6, 5), period_end=date(2026, 6, 15), opening_balance=Decimal('1000.00'), closing_balance=Decimal('1100.00'), status=BankStatementStatus.APPROVED, confidence_score=99, balance_validated=True); db.add(statement); await db.flush(); source_result = StatementExtractionResult.create(producer_version='csv-parser@1', source_content_digest='c' * 64, source_type=StatementSourceType.BANK, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER, institution='DBS', account_last4='7174', period_start=date(2026, 6, 5), period_end=date(2026, 6, 15), balances=(StatementBalanceFact(currency='SGD', opening=Decimal('1000.00'), closing=Decimal('1100.00')),), transactions=(ExtractedTransactionFact(fact_id='row-1', transaction_date=date(2026, 6, 10), description='Salary credit', amount=Decimal('100.00'), direction='IN', currency='SGD', balance_after=Decimal('1100.00'), confidence=Decimal('0.95')),), positions=(), confidence=Decimal('0.95'), balance_validated=True, warnings=(), review_reasons=(), provenance=SourceProvenance(intake_mode='csv', method=ExtractionMethod.DETERMINISTIC, provider='csv-parser', model='csv-parser@1'), statement_currency='SGD'); trace_records = build_extraction_trace_records(source_result, user_id=user_id, execution_id=f'test:{statement.id}:result:{source_result.result_id}', occurred_at=datetime.now(UTC)); await TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())).emit_many(trace_records); await persist_statement_extraction_result(db, statement=statement, result=source_result, source_trace_record_id=trace_records[0].record_id); await initialize_opening_positions(db, user_id, entry_date=date(2026, 6, 5), balances={bank.id: Decimal('1000.00')}, currency='SGD', base_currency='SGD'); await db.commit()
-    async def guard_fails(*_args, **_kwargs): raise ValueError(_GUARD_MESSAGE)
-    monkeypatch.setattr(statement_posting_mod, 'approve_statement_with_transactions', guard_fails); created = await statement_posting_mod.try_auto_approve_high_confidence_statement(db, statement.id, user_id, dependencies=posting_dependencies()); await db.commit(); await db.refresh(statement); assert (created, statement.status, statement.validation_error) == (0, BankStatementStatus.PARSED, _GUARD_MESSAGE); assert await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id) is None; contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=statement.id); assert contribution.state == 'authoritative', contribution.reason_code; assert contribution.decision is not None; assert contribution.decision.target.kind == 'statement_extraction_result'; as_of = date(2026, 6, 30); package_cash, custody = await _package_cash_and_custody(db, user_id, as_of); assert bank.id in package_cash; assert package_cash <= custody; coverage = await report_coverage(db, user_id=user_id, as_of=as_of); assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ('DBS',))
-async def test_AC_reporting_2646_2_two_cash_accounts_opened_on_the_bound_pass_the_check(db: AsyncSession, test_user) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; first = await _account(db, user_id, 'DBS Savings'); second = await _account(db, user_id, 'OCBC Bank'); await initialize_opening_positions(db, user_id, entry_date=date(2026, 6, 5), balances={first.id: Decimal('1000'), second.id: Decimal('500')}, currency='SGD', base_currency='SGD'); await db.commit(); cash_ids = frozenset({first.id, second.id}); coverage = await report_coverage(db, user_id=user_id, as_of=date(2026, 6, 30)); assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ('DBS Savings', 'OCBC Bank')); on_bound = await generate_cash_flow(db, user_id, start_date=date(2026, 6, 5), end_date=date(2026, 6, 30), currency='SGD', cash_account_ids=cash_ids); assert 'opening_coverage_starts_after_period' not in on_bound['proof_reasons']; before_bound = await generate_cash_flow(db, user_id, start_date=date(2026, 6, 4), end_date=date(2026, 6, 30), currency='SGD', cash_account_ids=cash_ids); assert 'opening_coverage_starts_after_period' in before_bound['proof_reasons']
-async def test_AC_reporting_2646_2_coverage_start_is_the_latest_cash_opening(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; periods = _record_readiness_periods(monkeypatch); assert await report_coverage(db, user_id=user_id, as_of=AS_OF) == package_document_mod.CashCoverage(None, ()); await current_package_readiness(db, user_id=user_id, as_of_date=AS_OF, base_currency='SGD'); assert periods[-1] == (AS_OF - timedelta(days=365), AS_OF); savings = await _account(db, user_id, 'DBS Savings'); second_bank = await _account(db, user_id, 'OCBC Bank'); card = await _account(db, user_id, 'Visa card', AccountType.LIABILITY); await _open(db, user_id, savings, date(2026, 6, 5)); await _open(db, user_id, second_bank, date(2026, 3, 1)); await _open(db, user_id, card, date(2026, 5, 1), amount='-300'); await _approved_statement(db, user_id, card, date(2026, 5, 1)); db.add(StatementSummary(user_id=user_id, file_hash='b' * 64, institution='DBS', account_id=savings.id, currency='SGD', period_start=date(2026, 1, 1), period_end=date(2026, 1, 31), status=BankStatementStatus.PARSED)); other = User(email='coverage-other@example.com', hashed_password='hashed'); db.add(other); await db.flush(); other_bank = await _account(db, other.id, 'Other Bank'); await _open(db, other.id, other_bank, date(2025, 12, 1)); await _approved_statement(db, other.id, other_bank, date(2025, 12, 1)); await db.commit(); coverage = await report_coverage(db, user_id=user_id, as_of=AS_OF); assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ('DBS Savings',)); await current_package_readiness(db, user_id=user_id, as_of_date=AS_OF, base_currency='SGD'); assert periods[-1] == (date(2026, 6, 5), AS_OF); await current_package_readiness(db, user_id=user_id, as_of_date=date(2026, 5, 31), base_currency='SGD'); assert periods[-1] == (date(2026, 3, 1), date(2026, 5, 31)); response = await reports_router.report_coverage(as_of_date=AS_OF, ctx=RequestContext(db, user_id)); assert (response.as_of_date, response.coverage_start, response.limiting_accounts) == (AS_OF, date(2026, 6, 5), ['DBS Savings'])
-async def test_AC_reporting_2646_2_an_opening_balance_before_the_first_statement_keeps_its_history(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None: 'AC-reporting.2646.2'; user_id = test_user.id; periods = _record_readiness_periods(monkeypatch); savings = await _account(db, user_id, 'DBS Savings'); await _open(db, user_id, savings, date(2026, 1, 1)); await _approved_statement(db, user_id, savings, date(2026, 6, 5)); await db.commit(); assert (await report_coverage(db, user_id=user_id, as_of=AS_OF)).start == date(2026, 1, 1); await current_package_readiness(db, user_id=user_id, as_of_date=AS_OF, base_currency='SGD'); assert periods[-1] == (date(2026, 1, 1), AS_OF)
-@contextmanager
-def _count_statements(db_engine) -> Iterator[list[str]]:
-    statements: list[str] = []
-    def _record(conn, cursor, statement, parameters, context, executemany): statements.append(statement)
-    event.listen(db_engine.sync_engine, 'before_cursor_execute', _record)
-    try: yield statements
-    finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', _record)
-COVERAGE_QUERY_BUDGET = 6; YEAR_SCALE_STATEMENTS = 36
-async def test_AC_reporting_2646_3_coverage_reads_a_fixed_number_of_queries_at_year_scale(db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.2646.3'; user_id = test_user.id; bank = await _seed_first_bank_statement(db, user_id, monkeypatch); bank_id = bank.id; seeded = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank_id))).scalar_one(); template = await db.get(StatementExtractionResultRecord, seeded.current_extraction_result_id); assert template is not None
-    for index in range(YEAR_SCALE_STATEMENTS - 1): period_start = date(2023, 6, 5) + timedelta(days=30 * index); summary = StatementSummary(user_id=user_id, file_hash=sha256(f'year-scale-{index}'.encode()).hexdigest(), institution='DBS', account_id=bank_id, currency='SGD', period_start=period_start, period_end=period_start + timedelta(days=27), opening_balance=Decimal('1000.00'), closing_balance=Decimal('1000.00'), status=BankStatementStatus.APPROVED); db.add(summary); await db.flush(); record = StatementExtractionResultRecord(user_id=user_id, statement_id=summary.id, content_digest=template.content_digest, source_content_digest=template.source_content_digest, schema_version=template.schema_version, producer_version=template.producer_version, payload=template.payload, source_trace_record_id=template.source_trace_record_id, created_at=template.created_at); db.add(record); await db.flush(); summary.current_extraction_result_id = record.id
-    await db.commit(); as_of = date(2026, 6, 30)
-    with _count_statements(db_engine) as statements: response = await reports_router.report_coverage(as_of_date=as_of, ctx=RequestContext(db, user_id))
-    assert response.coverage_start == date(2026, 6, 5); assert len(statements) <= COVERAGE_QUERY_BUDGET, statements; await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency='SGD')
-    with _count_statements(db_engine) as bounded: await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency='SGD')
+from src.routers import reports as reports_router
+from tests._support.trusted_year import TRUSTED_YEAR_SCENARIO
+from tests.integration.test_trusted_year_scenario import _bank_csv
+from tests.reporting._report_fixtures import count_sql_statements, seed_accounts, seed_ready_package_state
+from tests.statement_ingestion import execute_statement_ingestion, posting_dependencies, run_for
+
+AS_OF = date(2026, 10, 22)
+COVERAGE_QUERY_BUDGET = 6
+
+
+async def _approved_statement(db: AsyncSession, user_id: UUID, account: Account, period_start: date) -> None:
+    db.add(
+        StatementSummary(
+            user_id=user_id,
+            file_hash=sha256(f"{user_id}:{account.id}:{period_start}".encode()).hexdigest(),
+            institution="DBS",
+            account_id=account.id,
+            currency="SGD",
+            period_start=period_start,
+            period_end=period_start + timedelta(days=27),
+            opening_balance=Decimal("1000.00"),
+            closing_balance=Decimal("1200.00"),
+            status=BankStatementStatus.APPROVED,
+        )
+    )
+    await db.flush()
+
+
+async def _statement_with_source(
+    db: AsyncSession,
+    user_id: UUID,
+    account: Account,
+    *,
+    period_start: date | None,
+    period_end: date | None,
+    status: BankStatementStatus = BankStatementStatus.APPROVED,
+    source_type: StatementSourceType = StatementSourceType.BANK,
+    earlier_source_type: StatementSourceType | None = None,
+    result_period_start: date | str | None = None,
+    envelope_period_start: date | None = None,
+    superseded_envelope_period_start: date | None = None,
+    earlier_envelope_period_start: date | None = None,
+) -> StatementSummary:
+    stmt = StatementSummary(
+        user_id=user_id,
+        file_hash=sha256(f"{user_id}:{account.id}:{period_start}:{status}:{source_type}".encode()).hexdigest(),
+        institution="DBS",
+        account_id=account.id,
+        currency="SGD",
+        period_start=period_start,
+        period_end=period_end,
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1200.00"),
+        status=status,
+    )
+    db.add(stmt)
+    await db.flush()
+    records = []
+    for idx, kind in enumerate(([earlier_source_type] if earlier_source_type else []) + [source_type]):
+        extra = (
+            {}
+            if result_period_start is None
+            else {
+                "period_start": result_period_start
+                if isinstance(result_period_start, str)
+                else result_period_start.isoformat()
+            }
+        )
+        rec = StatementExtractionResultRecord(
+            user_id=user_id,
+            statement_id=stmt.id,
+            content_digest=sha256(f"result:{stmt.id}:{idx}".encode()).hexdigest(),
+            source_content_digest=sha256(f"source:{stmt.id}".encode()).hexdigest(),
+            schema_version="2",
+            producer_version="coverage-fixture",
+            payload={"source_type": kind.value} | extra,
+            source_trace_record_id=uuid4(),
+            created_at=datetime.now(UTC),
+        )
+        db.add(rec)
+        records.append(rec)
+    await db.flush()
+    stmt.current_extraction_result_id = records[-1].id
+    chains = [(records[-1], (superseded_envelope_period_start, envelope_period_start))] + (
+        [(records[0], (earlier_envelope_period_start,))] if earlier_source_type else []
+    )
+    for rec, starts in chains:
+        prev = None
+        for idx, env_start in enumerate(s for s in starts if s is not None):
+            env = ReviewedStatementEnvelope(
+                user_id=user_id,
+                statement_id=stmt.id,
+                source_result_id=rec.id,
+                account_id=account.id,
+                currency="SGD",
+                period_start=env_start,
+                period_end=env_start + timedelta(days=27),
+                opening_balance=Decimal("1000.00"),
+                closing_balance=Decimal("1200.00"),
+                rationale="coverage",
+                command_digest=sha256(f"env:{rec.id}:{idx}".encode()).hexdigest(),
+                review_trace_record_id=uuid4(),
+                supersedes_id=prev.id if prev else None,
+                created_at=datetime.now(UTC) + timedelta(seconds=idx),
+            )
+            db.add(env)
+            await db.flush()
+            prev = env
+    return stmt
+
+
+async def _seed_first_bank(db: AsyncSession, user_id: UUID, monkeypatch: pytest.MonkeyPatch) -> Account:
+    bank, _, _ = await seed_ready_package_state(
+        db,
+        user_id,
+        monkeypatch,
+        opening_date=date(2026, 6, 5),
+        opening_cash=TRUSTED_YEAR_SCENARIO.opening_cash,
+        with_card=True,
+    )
+    return bank
+
+
+def _keep_parsed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        trusted_year_mod, "approve_statement_with_transactions", lambda db, sid, _uid: _get_stmt(db, sid)
+    )
+    monkeypatch.setattr(
+        trusted_year_mod,
+        "auto_create_posted_entries_for_statement",
+        lambda *_a, **_kw: _async_val(SimpleNamespace(review_reasons=(), created_count=2)),
+    )
+
+
+async def _get_stmt(db, sid):
+    return await db.get(StatementSummary, sid), []
+
+
+async def _async_val(v):
+    return v
+
+
+async def _package_cash_and_custody(db: AsyncSession, user_id: UUID, as_of: date) -> tuple[frozenset, frozenset]:
+    contribs = await package_document_mod.PackageAssembler()._contributions(
+        db, user_id=user_id, start_date=as_of - timedelta(days=365), end_date=as_of, as_of_date=as_of
+    )
+    return package_document_mod._cash_inputs_from_contributions(
+        contribs
+    ).account_ids, await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+
+
+@pytest.mark.parametrize("as_of", [date(2026, 6, 30), date(2026, 6, 12)])
+async def test_AC_reporting_2646_first_statement_coverage_and_readiness(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch, as_of: date
+) -> None:
+    await _seed_first_bank(db, test_user.id, monkeypatch)
+    cov = await report_coverage(db, user_id=test_user.id, as_of=as_of)
+    assert (cov.start, cov.limiting_account_names) == (date(2026, 6, 5), ("DBS",))
+    assert [
+        b.code
+        for b in (
+            await current_package_readiness(db, user_id=test_user.id, as_of_date=as_of, base_currency="SGD")
+        ).blockers
+    ] == []
+
+
+@pytest.mark.parametrize(
+    ("specs", "expected_names", "with_foreign"),
+    [
+        (
+            [
+                ("Approved", {"period_start": date(2026, 5, 1), "period_end": date(2026, 5, 28)}),
+                ("Closes later", {"period_start": date(2026, 6, 5), "period_end": date(2026, 6, 15)}),
+                (
+                    "Retired",
+                    {
+                        "status": BankStatementStatus.RETIRED,
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 5, 28),
+                    },
+                ),
+                (
+                    "Rejected",
+                    {
+                        "status": BankStatementStatus.REJECTED,
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 5, 28),
+                    },
+                ),
+                (
+                    "Parsed",
+                    {
+                        "status": BankStatementStatus.PARSED,
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 5, 28),
+                    },
+                ),
+                (
+                    "Brokerage",
+                    {
+                        "source_type": StatementSourceType.BROKERAGE,
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 5, 28),
+                    },
+                ),
+                (
+                    "Brokerage over bank",
+                    {
+                        "source_type": StatementSourceType.BROKERAGE,
+                        "earlier_source_type": StatementSourceType.BANK,
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 5, 28),
+                    },
+                ),
+                ("Starts later", {"period_start": date(2026, 6, 13), "period_end": date(2026, 7, 10)}),
+                ("Starts on the date", {"period_start": date(2026, 6, 12), "period_end": date(2026, 7, 10)}),
+            ],
+            ["Approved", "Closes later", "Parsed", "Rejected", "Retired", "Starts on the date"],
+            True,
+        ),
+        (
+            [
+                (
+                    "Result start only",
+                    {
+                        "period_start": None,
+                        "period_end": None,
+                        "status": BankStatementStatus.PARSED,
+                        "result_period_start": date(2026, 5, 1),
+                    },
+                ),
+                ("Summary start only", {"period_start": date(2026, 5, 1), "period_end": date(2026, 5, 28)}),
+                (
+                    "Envelope moves the start before",
+                    {
+                        "period_start": date(2026, 6, 20),
+                        "period_end": date(2026, 7, 10),
+                        "result_period_start": date(2026, 6, 20),
+                        "envelope_period_start": date(2026, 5, 1),
+                    },
+                ),
+                (
+                    "Envelope moves the start after",
+                    {
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 7, 10),
+                        "result_period_start": date(2026, 5, 1),
+                        "envelope_period_start": date(2026, 6, 20),
+                    },
+                ),
+                (
+                    "Newest envelope moves the start before",
+                    {
+                        "period_start": date(2026, 6, 20),
+                        "period_end": date(2026, 7, 10),
+                        "result_period_start": date(2026, 6, 20),
+                        "superseded_envelope_period_start": date(2026, 6, 20),
+                        "envelope_period_start": date(2026, 5, 1),
+                    },
+                ),
+                (
+                    "Newest envelope moves the start after",
+                    {
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 7, 10),
+                        "result_period_start": date(2026, 5, 1),
+                        "superseded_envelope_period_start": date(2026, 5, 1),
+                        "envelope_period_start": date(2026, 6, 20),
+                    },
+                ),
+                (
+                    "Result over summary",
+                    {
+                        "period_start": date(2026, 5, 1),
+                        "period_end": date(2026, 7, 10),
+                        "result_period_start": date(2026, 6, 20),
+                    },
+                ),
+                (
+                    "Result moves the start before",
+                    {
+                        "period_start": date(2026, 6, 20),
+                        "period_end": date(2026, 7, 10),
+                        "result_period_start": date(2026, 5, 1),
+                    },
+                ),
+                (
+                    "Envelope on an older result",
+                    {
+                        "period_start": date(2026, 6, 20),
+                        "period_end": date(2026, 7, 10),
+                        "earlier_source_type": StatementSourceType.BANK,
+                        "result_period_start": date(2026, 6, 20),
+                        "earlier_envelope_period_start": date(2026, 5, 1),
+                    },
+                ),
+                (
+                    "Empty result start, summary start before",
+                    {"period_start": date(2026, 5, 1), "period_end": date(2026, 5, 28), "result_period_start": ""},
+                ),
+                (
+                    "Empty result start, no summary start",
+                    {
+                        "period_start": None,
+                        "period_end": None,
+                        "status": BankStatementStatus.PARSED,
+                        "result_period_start": "",
+                    },
+                ),
+            ],
+            [
+                "Empty result start, summary start before",
+                "Envelope moves the start before",
+                "Newest envelope moves the start before",
+                "Result moves the start before",
+                "Result start only",
+                "Summary start only",
+            ],
+            False,
+        ),
+    ],
+)
+async def test_AC_reporting_2646_2_custody_account_selection_and_precedence(
+    db: AsyncSession, test_user, specs: list[tuple], expected_names: list[str], with_foreign: bool
+) -> None:
+    accounts = await seed_accounts(db, test_user.id, *[(n, AccountType.ASSET) for n, _ in specs])
+    for acc, (_, kw) in zip(accounts, specs):
+        await _statement_with_source(db, test_user.id, acc, **kw)
+    by_id = {acc.id: acc.name for acc in accounts}
+    if with_foreign:
+        other = User(email="custody-other@example.com", hashed_password="hashed")
+        db.add(other)
+        await db.flush()
+        [other_bank] = await seed_accounts(db, other.id, ("Other Bank", AccountType.ASSET))
+        await _statement_with_source(
+            db, other.id, other_bank, period_start=date(2026, 5, 1), period_end=date(2026, 5, 28)
+        )
+        by_id[other_bank.id] = "Other Bank"
+    await db.commit()
+    selected = await coverage_bank_custody_account_ids(db, user_id=test_user.id, as_of=date(2026, 6, 12))
+    assert sorted(by_id[aid] for aid in selected) == expected_names
+
+
+@pytest.mark.parametrize(
+    ("path", "status"),
+    [
+        ("approved", BankStatementStatus.APPROVED),
+        ("envelope confirmed, not approved", BankStatementStatus.PARSED),
+        ("retired after approval", BankStatementStatus.RETIRED),
+    ],
+)
+async def test_AC_reporting_2646_2_the_custody_set_contains_the_package_cash_set(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch, path: str, status: BankStatementStatus
+) -> None:
+    as_of = date(2026, 6, 30)
+    if status is BankStatementStatus.PARSED:
+        _keep_parsed(monkeypatch)
+    bank = await _seed_first_bank(db, test_user.id, monkeypatch)
+    stmt = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank.id))).scalar_one()
+    if path == "retired after approval":
+        await retire_statement(
+            db, RetireStatementCommand(statement_id=stmt.id, user_id=test_user.id), base_currency="SGD"
+        )
+        await db.commit()
+    await db.refresh(stmt)
+    assert stmt.status is status
+    pkg_cash, custody = await _package_cash_and_custody(db, test_user.id, as_of)
+    assert bank.id in pkg_cash and pkg_cash <= custody
+    assert (await report_coverage(db, user_id=test_user.id, as_of=as_of)).start == date(2026, 6, 5)
+    assert [
+        b.code
+        for b in (
+            await current_package_readiness(db, user_id=test_user.id, as_of_date=as_of, base_currency="SGD")
+        ).blockers
+    ] == []
+
+
+async def test_AC_reporting_2646_2_reparse_and_auto_approval_fallback_keep_statement(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, as_of = test_user.id, date(2026, 6, 30)
+    _keep_parsed(monkeypatch)
+    bank = await _seed_first_bank(db, user_id, monkeypatch)
+    stmt = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank.id))).scalar_one()
+    res_before = stmt.current_extraction_result_id
+    stmt.status, stmt.validation_error = BankStatementStatus.PARSING, None
+    await db.commit()
+    await execute_statement_ingestion(
+        ParseJob(
+            statement_id=stmt.id,
+            run_id=await run_for(db, stmt.id),
+            filename="trusted-year-v0.csv",
+            institution="DBS",
+            user_id=user_id,
+            account_id=bank.id,
+            file_hash=stmt.file_hash,
+            storage_key="trusted-year/v0.csv",
+            model=None,
+        ),
+        content=_bank_csv(),
+        session_maker=create_session_maker_from_db(db),
+    )
+    db.expire_all()
+    reparsed = await db.get(StatementSummary, stmt.id)
+    env = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=stmt.id)
+    assert (reparsed.current_extraction_result_id, reparsed.period_start, env.period_start) == (
+        res_before,
+        date(2026, 6, 5),
+        date(2026, 6, 5),
+    )
+    reparsed.period_start = reparsed.period_end = None
+    await db.commit()
+    pkg_cash, custody = await _package_cash_and_custody(db, user_id, as_of)
+    assert (
+        bank.id in pkg_cash
+        and pkg_cash <= custody
+        and (await report_coverage(db, user_id=user_id, as_of=as_of)).start == date(2026, 6, 5)
+    )
+    assert "opening_coverage_starts_after_period" not in [
+        b.code
+        for b in (await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency="SGD")).blockers
+    ]
+
+    [fb_bank] = await seed_accounts(db, user_id, ("Fallback DBS", AccountType.ASSET))
+    fb_stmt = StatementSummary(
+        user_id=user_id,
+        file_hash=sha256(b"fb").hexdigest(),
+        institution="DBS",
+        account_id=fb_bank.id,
+        currency="SGD",
+        period_start=date(2026, 6, 5),
+        period_end=date(2026, 6, 15),
+        opening_balance=Decimal("1000"),
+        closing_balance=Decimal("1100"),
+        status=BankStatementStatus.APPROVED,
+        confidence_score=99,
+        balance_validated=True,
+    )
+    db.add(fb_stmt)
+    await db.flush()
+    src_res = StatementExtractionResult.create(
+        producer_version="csv-parser@1",
+        source_content_digest="c" * 64,
+        source_type=StatementSourceType.BANK,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        institution="DBS",
+        account_last4="7174",
+        period_start=date(2026, 6, 5),
+        period_end=date(2026, 6, 15),
+        balances=(StatementBalanceFact(currency="SGD", opening=Decimal("1000"), closing=Decimal("1100")),),
+        transactions=(
+            ExtractedTransactionFact(
+                fact_id="r1",
+                transaction_date=date(2026, 6, 10),
+                description="Salary",
+                amount=Decimal("100"),
+                direction="IN",
+                currency="SGD",
+                balance_after=Decimal("1100"),
+                confidence=Decimal("0.95"),
+            ),
+        ),
+        positions=(),
+        confidence=Decimal("0.95"),
+        balance_validated=True,
+        warnings=(),
+        review_reasons=(),
+        provenance=SourceProvenance(
+            intake_mode="csv", method=ExtractionMethod.DETERMINISTIC, provider="csv", model="csv@1"
+        ),
+        statement_currency="SGD",
+    )
+    traces = build_extraction_trace_records(
+        src_res, user_id=user_id, execution_id=f"t:{fb_stmt.id}", occurred_at=datetime.now(UTC)
+    )
+    await TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())).emit_many(traces)
+    await persist_statement_extraction_result(
+        db, statement=fb_stmt, result=src_res, source_trace_record_id=traces[0].record_id
+    )
+    await initialize_opening_positions(
+        db,
+        user_id,
+        entry_date=date(2026, 6, 5),
+        balances={fb_bank.id: Decimal("1000")},
+        currency="SGD",
+        base_currency="SGD",
+    )
+    await db.commit()
+
+    async def guard_fails(*_a, **_kw):
+        raise ValueError("Custody account must be a non-system asset account")
+
+    monkeypatch.setattr(statement_posting_mod, "approve_statement_with_transactions", guard_fails)
+    created = await statement_posting_mod.try_auto_approve_high_confidence_statement(
+        db, fb_stmt.id, user_id, dependencies=posting_dependencies()
+    )
+    await db.commit()
+    await db.refresh(fb_stmt)
+    assert (created, fb_stmt.status) == (0, BankStatementStatus.PARSED) and await current_reviewed_statement_envelope(
+        db, user_id=user_id, statement_id=fb_stmt.id
+    ) is None
+    assert (
+        await resolve_statement_contribution(db, user_id=user_id, statement_id=fb_stmt.id)
+    ).decision.target.kind == "statement_extraction_result"
+    pkg_cash2, custody2 = await _package_cash_and_custody(db, user_id, as_of)
+    assert fb_bank.id in pkg_cash2 and pkg_cash2 <= custody2
+
+
+async def test_AC_reporting_2646_2_bound_checks_latest_opening_and_pre_statement_history(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user.id
+    periods: list[tuple[date, date]] = []
+    real_eval = package_document_mod.PackageAssembler.evaluate_readiness
+
+    async def rec_eval(self, db, **kw):
+        periods.append((kw["start_date"], kw["end_date"]))
+        return await real_eval(self, db, **kw)
+
+    monkeypatch.setattr(package_document_mod.PackageAssembler, "evaluate_readiness", rec_eval)
+    assert await report_coverage(db, user_id=user_id, as_of=AS_OF) == package_document_mod.CashCoverage(None, ())
+    await current_package_readiness(db, user_id=user_id, as_of_date=AS_OF, base_currency="SGD")
+    assert periods[-1] == (AS_OF - timedelta(days=365), AS_OF)
+
+    s1, s2, card = await seed_accounts(
+        db,
+        user_id,
+        ("DBS Savings", AccountType.ASSET),
+        ("OCBC Bank", AccountType.ASSET),
+        ("Visa card", AccountType.LIABILITY),
+    )
+    await initialize_opening_positions(
+        db,
+        user_id,
+        entry_date=date(2026, 6, 5),
+        balances={s1.id: Decimal("1000"), s2.id: Decimal("500")},
+        currency="SGD",
+        base_currency="SGD",
+    )
+    await initialize_opening_positions(
+        db, user_id, entry_date=date(2026, 3, 1), balances={s2.id: Decimal("500")}, currency="SGD", base_currency="SGD"
+    )
+    await initialize_opening_positions(
+        db,
+        user_id,
+        entry_date=date(2026, 5, 1),
+        balances={card.id: Decimal("-300")},
+        currency="SGD",
+        base_currency="SGD",
+    )
+    await _approved_statement(db, user_id, card, date(2026, 5, 1))
+    db.add(
+        StatementSummary(
+            user_id=user_id,
+            file_hash="b" * 64,
+            institution="DBS",
+            account_id=s1.id,
+            currency="SGD",
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            status=BankStatementStatus.PARSED,
+        )
+    )
+    other = User(email="coverage-other@example.com", hashed_password="hashed")
+    db.add(other)
+    await db.flush()
+    [o_bank] = await seed_accounts(db, other.id, ("Other Bank", AccountType.ASSET))
+    await initialize_opening_positions(
+        db,
+        other.id,
+        entry_date=date(2025, 12, 1),
+        balances={o_bank.id: Decimal("1000")},
+        currency="SGD",
+        base_currency="SGD",
+    )
+    await _approved_statement(db, other.id, o_bank, date(2025, 12, 1))
+    await db.commit()
+
+    cash_ids = frozenset({s1.id, s2.id})
+    assert (
+        "opening_coverage_starts_after_period"
+        not in (
+            await generate_cash_flow(
+                db,
+                user_id,
+                start_date=date(2026, 6, 5),
+                end_date=date(2026, 6, 30),
+                currency="SGD",
+                cash_account_ids=cash_ids,
+            )
+        )["proof_reasons"]
+    )
+    assert (
+        "opening_coverage_starts_after_period"
+        in (
+            await generate_cash_flow(
+                db,
+                user_id,
+                start_date=date(2026, 6, 4),
+                end_date=date(2026, 6, 30),
+                currency="SGD",
+                cash_account_ids=cash_ids,
+            )
+        )["proof_reasons"]
+    )
+    cov = await report_coverage(db, user_id=user_id, as_of=AS_OF)
+    assert (cov.start, cov.limiting_account_names) == (date(2026, 6, 5), ("DBS Savings", "OCBC Bank"))
+    await current_package_readiness(db, user_id=user_id, as_of_date=AS_OF, base_currency="SGD")
+    assert periods[-1] == (date(2026, 6, 5), AS_OF)
+    await current_package_readiness(db, user_id=user_id, as_of_date=date(2026, 5, 31), base_currency="SGD")
+    assert periods[-1] == (date(2026, 3, 1), date(2026, 5, 31))
+    resp = await reports_router.report_coverage(as_of_date=AS_OF, ctx=RequestContext(db, user_id))
+    assert (resp.as_of_date, resp.coverage_start, resp.limiting_accounts) == (
+        AS_OF,
+        date(2026, 6, 5),
+        ["DBS Savings", "OCBC Bank"],
+    )
+
+    await initialize_opening_positions(
+        db, user_id, entry_date=date(2026, 1, 1), balances={s1.id: Decimal("100")}, currency="SGD", base_currency="SGD"
+    )
+    await _approved_statement(db, user_id, s1, date(2026, 6, 5))
+    await db.commit()
+    assert (await report_coverage(db, user_id=user_id, as_of=AS_OF)).start == date(2026, 3, 1)
+
+
+async def test_AC_reporting_2646_3_and_2726_1_query_budget_and_latest_approved_end(
+    db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id, as_of = test_user.id, date(2026, 6, 30)
+    assert (
+        await reports_router.report_coverage(as_of_date=date(2026, 10, 27), ctx=RequestContext(db, user_id))
+    ).latest_statement_end is None
+    bank = await _seed_first_bank(db, user_id, monkeypatch)
+    seeded = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank.id))).scalar_one()
+    tpl = await db.get(StatementExtractionResultRecord, seeded.current_extraction_result_id)
+    for idx in range(35):
+        ps = date(2023, 6, 5) + timedelta(days=30 * idx)
+        s = StatementSummary(
+            user_id=user_id,
+            file_hash=sha256(f"ys-{idx}".encode()).hexdigest(),
+            institution="DBS",
+            account_id=bank.id,
+            currency="SGD",
+            period_start=ps,
+            period_end=ps + timedelta(days=27),
+            opening_balance=Decimal("1000"),
+            closing_balance=Decimal("1000"),
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add(s)
+        await db.flush()
+        rec = StatementExtractionResultRecord(
+            user_id=user_id,
+            statement_id=s.id,
+            content_digest=tpl.content_digest,
+            source_content_digest=tpl.source_content_digest,
+            schema_version=tpl.schema_version,
+            producer_version=tpl.producer_version,
+            payload=tpl.payload,
+            source_trace_record_id=tpl.source_trace_record_id,
+            created_at=tpl.created_at,
+        )
+        db.add(rec)
+        await db.flush()
+        s.current_extraction_result_id = rec.id
+    await db.commit()
+    with count_sql_statements(db_engine) as c_cov:
+        resp = await reports_router.report_coverage(as_of_date=as_of, ctx=RequestContext(db, user_id))
+    assert (resp.coverage_start, resp.latest_statement_end) == (date(2026, 6, 5), date(2026, 6, 30)) and c_cov[
+        "count"
+    ] <= COVERAGE_QUERY_BUDGET
+    await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency="SGD")
+    with count_sql_statements(db_engine) as c_b:
+        await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency="SGD")
     known = await report_coverage(db, user_id=user_id, as_of=as_of)
-    async def known_bound(db, *, user_id, as_of): return known
-    monkeypatch.setattr(package_document_mod, 'report_coverage', known_bound)
-    with _count_statements(db_engine) as without_bound: await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency='SGD')
-    assert len(bounded) - len(without_bound) <= COVERAGE_QUERY_BUDGET, (len(bounded), len(without_bound))
-async def test_AC_reporting_2726_1_coverage_exposes_latest_approved_statement_end(db: AsyncSession, test_user) -> None: 'AC-reporting.2726.1'; user_id = test_user.id; as_of = date(2026, 10, 27); assert (await reports_router.report_coverage(as_of_date=as_of, ctx=RequestContext(db, user_id))).latest_statement_end is None; bank = await _account(db, user_id, 'DBS Savings'); await _open(db, user_id, bank, date(2025, 1, 1)); await _approved_statement(db, user_id, bank, date(2025, 1, 1)); await _approved_statement(db, user_id, bank, date(2025, 3, 1)); db.add(StatementSummary(user_id=user_id, file_hash='c' * 64, institution='DBS', account_id=bank.id, currency='SGD', period_start=date(2026, 6, 1), period_end=date(2026, 6, 30), status=BankStatementStatus.PARSED)); await _approved_statement(db, user_id, bank, date(2026, 11, 1)); other = User(email='latest-stmt-other@example.com', hashed_password='hashed'); db.add(other); await db.flush(); other_bank = await _account(db, other.id, 'Other Bank'); await _approved_statement(db, other.id, other_bank, date(2026, 9, 1)); await db.commit(); response = await reports_router.report_coverage(as_of_date=as_of, ctx=RequestContext(db, user_id)); assert response.coverage_start == date(2025, 1, 1); assert response.latest_statement_end == date(2025, 3, 28); assert (await report_coverage(db, user_id=user_id, as_of=as_of)).latest_statement_end == date(2025, 3, 28)
+    monkeypatch.setattr(package_document_mod, "report_coverage", lambda *_a, **_kw: _async_val(known))
+    with count_sql_statements(db_engine) as c_u:
+        await current_package_readiness(db, user_id=user_id, as_of_date=as_of, base_currency="SGD")
+    assert c_b["count"] - c_u["count"] <= COVERAGE_QUERY_BUDGET

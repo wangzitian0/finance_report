@@ -130,12 +130,10 @@ def _capturing_provider(monkeypatch) -> list[str]:
 @pytest.mark.no_db
 @pytest.mark.parametrize("hints", EMPTY_HINTS)
 def test_AC_extraction_2994_124_empty_hints_leave_the_classification_prompt_byte_identical(hints):
-    """AC-extraction.2994.124: The prompt of main, captured before the change, equals the prompt with empty hints."""
     assert _prompt(V2, hints).encode() == GOLDEN["indexed_v2"].encode()
 
 
 async def test_AC_extraction_2994_124_the_prompt_that_reaches_the_provider_equals_the_golden_without_hints(monkeypatch):
-    """AC-extraction.2994.124: The real batch call sends the golden prompt when no hint is given."""
     sent: list[str] = []
 
     def stream_ai_json(**kwargs):
@@ -155,7 +153,6 @@ async def test_AC_extraction_2994_124_the_prompt_that_reaches_the_provider_equal
 
 @pytest.mark.no_db
 def test_AC_extraction_2994_125_hints_append_one_block_as_the_last_part_of_the_prompt():
-    """AC-extraction.2994.125: The unchanged prompt comes first. One block of data follows and ends the prompt."""
     hints = RunHints(keywords=["rent", "FX fee"], note='Rows with "CR" are credits.')
 
     prompt = _prompt(V2, hints)
@@ -174,7 +171,6 @@ def test_AC_extraction_2994_125_hints_append_one_block_as_the_last_part_of_the_p
 
 @pytest.mark.no_db
 def test_AC_extraction_2994_125_a_hint_with_one_part_writes_only_that_part():
-    """AC-extraction.2994.125: Keywords only, or a note only, write only their own line."""
     keywords_only = _prompt(V2, RunHints(keywords=["rent"]))[len(GOLDEN["indexed_v2"]) :]
     note_only = _prompt(V2, RunHints(note="Check FX."))[len(GOLDEN["indexed_v2"]) :]
 
@@ -184,7 +180,6 @@ def test_AC_extraction_2994_125_a_hint_with_one_part_writes_only_that_part():
 
 @pytest.mark.no_db
 def test_AC_extraction_2994_125_hostile_hint_text_stays_inside_its_json_string():
-    """AC-extraction.2994.125: A fake end marker or an order in a hint cannot leave its JSON string."""
     prompt = _prompt(V2, RunHints(keywords=[HOSTILE_KEYWORD, "ok"], note=HOSTILE_NOTE))
 
     block_lines = prompt[len(GOLDEN["indexed_v2"]) :].split("\n")
@@ -203,7 +198,6 @@ def test_AC_extraction_2994_125_hostile_hint_text_stays_inside_its_json_string()
 async def test_AC_extraction_2994_125_an_answer_outside_the_catalog_is_still_no_answer_with_hostile_hints(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.125: Hints cannot widen the catalog: an off-catalog answer is stored nowhere and counts as other."""
     seeded = await _seed(db, test_user, _rows(2))
     run_id = await _classify_run_with_hints(db, seeded.id, test_user, RunHints(note=HOSTILE_NOTE))
 
@@ -228,7 +222,6 @@ async def test_AC_extraction_2994_125_an_answer_outside_the_catalog_is_still_no_
 
 @pytest.mark.no_db
 def test_AC_extraction_2994_126_every_template_part_is_pinned_to_its_template_version():
-    """AC-extraction.2994.126: One fingerprint over every part of the classification prompt is pinned to its version."""
     pinned = PINNED_CLASSIFICATION_FINGERPRINTS.get(CLASSIFICATION_PROMPT_TEMPLATE_VERSION)
     assert pinned is not None, "Add the fingerprint of the new template to PINNED_CLASSIFICATION_FINGERPRINTS."
     assert classification_template_fingerprint() == pinned, (
@@ -240,7 +233,6 @@ def test_AC_extraction_2994_126_every_template_part_is_pinned_to_its_template_ve
 @pytest.mark.no_db
 @pytest.mark.parametrize("category", sorted(tc.NON_PNL_GUIDANCE, key=lambda item: item.value))
 def test_AC_extraction_2994_126_the_fingerprint_changes_with_each_guidance_line(monkeypatch, category):
-    """AC-extraction.2994.126: An edit of any single guidance line changes the fingerprint."""
     before = classification_template_fingerprint()
 
     monkeypatch.setitem(tc.NON_PNL_GUIDANCE, category, tc.NON_PNL_GUIDANCE[category] + " An edit.")
@@ -260,7 +252,6 @@ def test_AC_extraction_2994_126_the_fingerprint_changes_with_each_guidance_line(
     ],
 )
 def test_AC_extraction_2994_126_the_fingerprint_changes_with_each_other_template_part(monkeypatch, module, name, value):
-    """AC-extraction.2994.126: An edit of a template, the sentence on the other buckets or the hints block changes it."""
     before = classification_template_fingerprint()
 
     monkeypatch.setattr(module, name, value)
@@ -270,7 +261,6 @@ def test_AC_extraction_2994_126_the_fingerprint_changes_with_each_other_template
 
 @pytest.mark.no_db
 def test_AC_extraction_2994_126_the_fingerprint_changes_with_the_catalog(monkeypatch):
-    """AC-extraction.2994.126: A new category changes the prompt, so it changes the fingerprint."""
     before = classification_template_fingerprint()
 
     monkeypatch.setattr(
@@ -282,7 +272,6 @@ def test_AC_extraction_2994_126_the_fingerprint_changes_with_the_catalog(monkeyp
 
 @pytest.mark.no_db
 def test_AC_extraction_2994_127_one_digest_function_serves_both_kinds_of_run():
-    """AC-extraction.2994.127: The digest is the SHA-256 of the canonical JSON of the version, the model and the hints."""
     hints = RunHints(keywords=["a"], note="n")
     canonical = json.dumps(
         {"template_version": "7", "model": "vendor/model-x", "hints": {"keywords": ["a"], "note": "n"}},
@@ -343,7 +332,6 @@ async def _classify_run_with_hints(db, statement_id, user, hints: RunHints, *, a
 
 
 async def test_AC_extraction_2994_127_every_classify_run_stores_the_template_version_and_the_digest(db, test_user):
-    """AC-extraction.2994.127: The run row of a classify run holds the version and the digest of its hints, as an extract run does."""
     statement_id = await _statement_for_runs(db, test_user)
     hints = RunHints(keywords=["rent"], note="Look at rent.")
 
@@ -367,7 +355,6 @@ async def test_AC_extraction_2994_127_every_classify_run_stores_the_template_ver
 async def test_AC_extraction_2994_128_the_run_passes_the_hints_of_its_row_to_every_model_call(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.128: Each batch call gets the hints of the claimed run row. A run without hints passes none."""
     monkeypatch.setattr(tc, "CLASSIFICATION_BATCH_SIZE", 2)
     seeded = await _seed(db, test_user, _rows(5))
     hints = RunHints(keywords=["rent", "salary"], note="Credits are salary.")
@@ -391,7 +378,6 @@ async def test_AC_extraction_2994_128_the_run_passes_the_hints_of_its_row_to_eve
 async def test_AC_extraction_2994_128_the_prompt_that_reaches_the_provider_carries_the_hints_of_the_run(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.128: Through the real proposer, every provider prompt of the run ends with the hints block."""
     prompts = _capturing_provider(monkeypatch)
     seeded = await _seed(db, test_user, _rows(4))
     hints = RunHints(keywords=["rent"], note=HOSTILE_NOTE)
@@ -408,7 +394,6 @@ async def test_AC_extraction_2994_128_the_prompt_that_reaches_the_provider_carri
 async def test_AC_extraction_2994_128_stored_hints_that_no_longer_validate_fail_the_run_without_their_text(
     db, test_user, monkeypatch, caplog
 ):
-    """AC-extraction.2994.128: A stored row that the rules reject fails the run. No model call, no hint text in the logs."""
     caplog.set_level(logging.DEBUG)
     seeded = await _seed(db, test_user, _rows(2))
     secret = "SECRET-HINT-" + "x" * 80  # a keyword of more than 64 characters
@@ -445,7 +430,6 @@ async def test_AC_extraction_2994_128_stored_hints_that_no_longer_validate_fail_
 
 
 async def test_AC_extraction_2994_129_a_user_classify_run_links_its_parent_and_changes_no_status(db, test_user):
-    """AC-extraction.2994.129: Kind classify, actor user, trigger rerun, the latest run as parent, the hints as typed."""
     statement_id = await _statement_for_runs(db, test_user)
     parent = await _classify_run_with_hints(db, statement_id, test_user, RunHints(), actor=RunActorKind.SYSTEM)
     await db.execute(
@@ -474,7 +458,6 @@ async def test_AC_extraction_2994_129_a_user_classify_run_links_its_parent_and_c
     "status", [BankStatementStatus.APPROVED, BankStatementStatus.REJECTED, BankStatementStatus.PARSING]
 )
 async def test_AC_extraction_2994_129_only_a_parsed_statement_starts_a_classify_run(db, test_user, status):
-    """AC-extraction.2994.129: A status other than PARSED raises StatementStatusChanged and inserts no run."""
     statement_id = await _statement_for_runs(db, test_user, status)
 
     with pytest.raises(StatementStatusChanged):
@@ -485,7 +468,6 @@ async def test_AC_extraction_2994_129_only_a_parsed_statement_starts_a_classify_
 
 
 async def test_AC_extraction_2994_129_an_active_run_gives_active_run_exists_with_its_id(db, test_user):
-    """AC-extraction.2994.129: A second active run is refused with the id of the active run."""
     statement_id = await _statement_for_runs(db, test_user)
     active = await _classify_run_with_hints(db, statement_id, test_user, RunHints(), actor=RunActorKind.SYSTEM)
     await claim_run(db, active)
@@ -501,7 +483,6 @@ async def test_AC_extraction_2994_129_an_active_run_gives_active_run_exists_with
 async def test_AC_extraction_2994_129_the_run_insert_does_not_commit_and_holds_the_statement_row_without_key_share(
     db, test_user
 ):
-    """AC-extraction.2994.129: No commit inside. The row lock is FOR NO KEY UPDATE: a key share passes, a writer waits."""
     statement_id = await _statement_for_runs(db, test_user)
     maker = create_session_maker_from_db(db)
     sql = "SELECT id FROM statement_summaries WHERE id = :id FOR {mode} NOWAIT"
@@ -522,7 +503,6 @@ async def test_AC_extraction_2994_129_the_run_insert_does_not_commit_and_holds_t
 async def test_AC_extraction_2994_129_a_statement_without_a_row_to_ask_still_runs_to_nothing_to_classify(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.129: The run is accepted and ends succeeded with the outcome nothing_to_classify."""
     from tests.factories import seed_parsed_statement
 
     empty = await seed_parsed_statement(db, test_user.id, original_filename="empty.pdf", transactions=[])

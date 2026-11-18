@@ -54,7 +54,6 @@ pytestmark = pytest.mark.asyncio
 async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_description(
     client: AsyncClient, db, test_user
 ):
-    "AC-extraction.statement-memo.1"
     bank_account = Account(user_id=test_user.id, name="DBS Autosave", type=AccountType.ASSET, currency="SGD")
     db.add(bank_account)
     await db.flush()
@@ -103,7 +102,6 @@ async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_d
 async def test_AC_extraction_disposition_5_stage1_requires_economic_review(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.disposition.5"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     bank_account = await create_statement_account(db, test_user.id, "DBS Economic Review")
     statement = build_statement(test_user.id, "hash_s1_economic_review", 88)
@@ -130,7 +128,6 @@ async def test_AC_extraction_disposition_5_stage1_requires_economic_review(
 async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition(
     client: AsyncClient, db, test_user
 ):
-    "AC-extraction.reviewed-envelope.4"
     user_id = test_user.id
     statement = build_statement(user_id, "hash_reviewed_envelope_approval", 80)
     statement.currency = None
@@ -227,7 +224,6 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
 
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(client: AsyncClient, db, test_user):
-    "AC-extraction.6.1"
     bank_account = Account(user_id=test_user.id, name="DBS Confirmed Account", type=AccountType.ASSET, currency="SGD")
     db.add(bank_account)
     await db.flush()
@@ -276,7 +272,6 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
 
 
 async def test_auto_approve_high_confidence_statement_creates_posted_entries(db, test_user):
-    "AC-extraction.3.1"
     bank_account = await create_statement_account(db, test_user.id, "DBS Auto Approval")
     statement = build_statement(test_user.id, "hash_s1_high_confidence_auto", 90)
     statement.status = BankStatementStatus.APPROVED
@@ -311,7 +306,6 @@ async def test_auto_approve_high_confidence_statement_creates_posted_entries(db,
 
 
 async def test_AC_extraction_disposition_6_auto_post_requires_authoritative_trace_decision(db, test_user, monkeypatch):
-    "AC-extraction.disposition.6"
     bank_account = await create_statement_account(db, test_user.id, "DBS Missing Source Authority")
     statement = build_statement(test_user.id, "hash_s1_missing_source_authority", 90)
     statement.status = BankStatementStatus.APPROVED
@@ -350,7 +344,6 @@ async def test_AC_extraction_disposition_6_auto_post_requires_authoritative_trac
 
 
 async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, test_user):
-    "AC-extraction.3.1"
     unsafe_account = Account(
         user_id=test_user.id, name="Uncommitted Liability", type=AccountType.LIABILITY, currency="SGD"
     )
@@ -431,7 +424,6 @@ async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correct
 
 
 async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping(client: AsyncClient, db, test_user):
-    "AC-extraction.6.5"
     user_id = test_user.id
     bank_account = await create_statement_account(db, user_id, "DBS Unconfirmed Prior")
     prior = build_statement(user_id, "hash_s1_prior_unconfirmed", 95)
@@ -458,7 +450,6 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
 async def test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting(
     client: AsyncClient, db, test_user
 ):
-    "AC-extraction.6.6"
     user_id = test_user.id
     bank_account = await create_statement_account(db, user_id, "DBS Period Guard")
     prior = build_statement(user_id, "hash_s1_prior_period", 95)
@@ -508,7 +499,6 @@ async def test_statement_summary_rejects_a_period_that_ends_before_it_starts(db,
 
 
 async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(client: AsyncClient, db, test_user):
-    "AC-extraction.6.2"
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_unmapped", 90)
     statement.status = BankStatementStatus.PARSED
@@ -548,7 +538,6 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
 async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     client: AsyncClient, db, test_user, account_type, account_currency, is_active, expected_detail
 ):
-    "AC-extraction.6.2"
     user_id = test_user.id
     account = Account(
         user_id=user_id,
@@ -578,7 +567,6 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
 
 
 async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(client: AsyncClient, db, test_user):
-    "AC-extraction.6.4"
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_confirm_create_account", 90)
     statement.status = BankStatementStatus.PARSED
@@ -626,7 +614,6 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
 
 
 async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(client: AsyncClient, db, test_user):
-    "AC-extraction.6.3"
     user_id = test_user.id
     first_account = Account(user_id=user_id, name="DBS Account A", type=AccountType.ASSET, currency="SGD")
     second_account = Account(user_id=user_id, name="DBS Account B", type=AccountType.ASSET, currency="SGD")
@@ -662,7 +649,6 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(client:
 async def test_approve_statement_stage1_authorizes_before_balance_validation(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC16.18.1"
     other_user = User(email="stage1-other@example.com", hashed_password="hashed")
     db.add(other_user)
     await db.flush()
@@ -681,7 +667,6 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(
 
 
 async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(client: AsyncClient, db, test_user, monkeypatch):
-    "AC-extraction.2822.2"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     selected_account = await create_statement_account(db, test_user.id, "User Selected Custody Account")
     statement = build_statement(test_user.id, "hash_explicit_account_2822", 88)
@@ -707,7 +692,6 @@ async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(client: As
 
 
 async def test_AC_extraction_2826_1_review_response_inherits_bank_statement_response(client: AsyncClient, db, test_user):
-    "AC-extraction.2826.1"
     from src.schemas.extraction import BankStatementResponse
     from src.schemas.extraction import StatementReviewResponse
 

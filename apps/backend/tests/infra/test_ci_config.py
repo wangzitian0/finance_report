@@ -1,12 +1,70 @@
-import shutil; import subprocess; from pathlib import Path; import pytest; import yaml; ROOT = Path(__file__).resolve().parents[4]
-def test_moon_cli_static_contract_available(): 'AC-meta.phase0.19 AC7.8.1'; moon_toolchain = yaml.safe_load((ROOT / '.moon/toolchain.yml').read_text()); ci_workflow = (ROOT / '.github/workflows/ci.yml').read_text(); assert (ROOT / 'moon.yml').exists(); assert (ROOT / 'apps/backend/moon.yml').exists(); assert moon_toolchain['node']['packageManager'] == 'npm'; assert moon_toolchain['node']['version'] == '20.19.0'; assert moon_toolchain['node']['npm']['version'] == '10.8.2'; assert 'moonrepo/setup-toolchain@v0' not in ci_workflow; 'AC7.8.2'; 'AC7.8.2'; _m1_workflow_dir = ROOT / '.github' / 'workflows'; pytest.skip('.github/workflows not found') if not _m1_workflow_dir.exists() else None; _m1_actionlint_path = shutil.which('actionlint'); pytest.skip('actionlint is not installed') if not _m1_actionlint_path else None; _m1_result = subprocess.run([_m1_actionlint_path, '-color'], cwd=_m1_workflow_dir.parent.parent, capture_output=True, text=True); pytest.fail(f'GitHub Actions Lint Failed:\n{_m1_result.stdout}\n{_m1_result.stderr}') if _m1_result.returncode != 0 else None
-def test_docker_compose_integrity():
-    'AC-meta.phase0.11 AC7.8.2'; import yaml; compose_path = ROOT / 'docker-compose.yml'
-    with open(compose_path) as f: config = yaml.safe_load(f)
-    services = config.get('services') or {}; assert len(services) > 0, 'docker-compose.yml must declare services'; build_contexts_checked = 0
-    for (service_name, service) in services.items():
-        if 'build' in service: context = service['build'].get('context'); assert context, f"Service '{service_name}' declared build but missing context"; full_path = compose_path.parent / context; assert full_path.exists(), f"Service '{service_name}' has non-existent build context: {context}"; build_contexts_checked += 1
-    assert build_contexts_checked > 0, 'docker-compose.yml must have at least one service with build context'; 'AC7.8.2'; 'AC7.8.2'; _m2_compose_path = ROOT / 'docker-compose.yml'
-    with open(_m2_compose_path) as _m2_f: _m2_config = yaml.safe_load(_m2_f)
-    _m2_backend_env = _m2_config['services']['backend']['environment']; assert _m2_backend_env['S3_ENDPOINT'] == '${S3_ENDPOINT:-http://minio:9000}'; _m2_minio_entrypoint = _m2_config['services']['minio-init']['entrypoint']; assert '$$(seq 1 10)' in _m2_minio_entrypoint; assert '\\$(seq 1 10)' not in _m2_minio_entrypoint
-def test_moon_project_graph_static_contract(): 'AC-meta.phase0.15 AC7.8.3'; root_project = yaml.safe_load((ROOT / 'moon.yml').read_text()); backend_project = yaml.safe_load((ROOT / 'apps/backend/moon.yml').read_text()); assert root_project['tasks']['dev']['command'] == 'python3 tools/cli.py dev'; assert root_project['tasks']['test']['command'] == 'python3 tools/cli.py test'; assert root_project['tasks']['lint']['command'] == 'python3 tools/cli.py lint'; assert backend_project['language'] == 'python'; assert backend_project['layer'] == 'application'; assert backend_project['fileGroups']['sources'] == ['src/**/*.py']; assert backend_project['fileGroups']['tests'] == ['tests/**/*.py']
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+import yaml
+
+ROOT = Path(__file__).resolve().parents[4]
+
+
+def test_moon_ci_and_compose_contracts() -> None:
+    moon_tc = yaml.safe_load((ROOT / ".moon/toolchain.yml").read_text())
+    workspace = yaml.safe_load((ROOT / ".moon/workspace.yml").read_text())
+    root_proj = yaml.safe_load((ROOT / "moon.yml").read_text())
+    backend_proj = yaml.safe_load((ROOT / "apps/backend/moon.yml").read_text())
+    ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+
+    assert (moon_tc["node"]["packageManager"], moon_tc["node"]["version"], moon_tc["node"]["npm"]["version"]) == ("npm", "20.19.0", "10.8.2")
+    assert workspace["projects"] == ["apps/*", "."] and not (ROOT / "infra").exists()
+    assert "moonrepo/setup-toolchain@v0" not in ci_workflow
+    assert (root_proj["tasks"]["dev"]["command"], root_proj["tasks"]["test"]["command"], root_proj["tasks"]["lint"]["command"]) == ("python3 tools/cli.py dev", "python3 tools/cli.py test", "python3 tools/cli.py lint")
+    assert (backend_proj["language"], backend_proj["layer"], backend_proj["fileGroups"]["sources"], backend_proj["fileGroups"]["tests"]) == ("python", "application", ["src/**/*.py"], ["tests/**/*.py"])
+
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    services = compose.get("services") or {}
+    assert "postgres" in services and services["postgres"]["image"].startswith("postgres:15") and "postgres_data" in compose.get("volumes", {})
+    assert any((ROOT / s["build"]["context"]).exists() for s in services.values() if "build" in s and s["build"].get("context"))
+    assert services["backend"]["environment"]["S3_ENDPOINT"] == "${S3_ENDPOINT:-http://minio:9000}"
+    assert "$$(seq 1 10)" in services["minio-init"]["entrypoint"] and "\\$(seq 1 10)" not in services["minio-init"]["entrypoint"]
+
+    if (ROOT / ".github/workflows").exists() and (actionlint := shutil.which("actionlint")):
+        res = subprocess.run([actionlint, "-color"], cwd=ROOT, capture_output=True, text=True)
+        assert res.returncode == 0, f"GitHub Actions Lint Failed:\n{res.stdout}\n{res.stderr}"
+
+
+def test_epic_001_skeleton_and_frontend_contracts() -> None:
+    required = (
+        "moon.yml",
+        "apps/backend/moon.yml",
+        "apps/frontend/moon.yml",
+        "tools/smoke_test.sh",
+        "common/runtime/shell/smoke_test.sh",
+        "apps/backend/src/main.py",
+        "apps/backend/src/database.py",
+        "apps/backend/src/identity/extension/api/auth.py",
+        "apps/backend/src/observability/__init__.py",
+        "apps/frontend/src/app/layout.tsx",
+        "apps/frontend/src/app/(main)/page.tsx",
+        "apps/frontend/tailwind.config.ts",
+        "apps/frontend/src/app/providers.tsx",
+        ".pre-commit-config.yaml",
+    )
+    assert all((ROOT / p).exists() for p in required)
+    assert not (ROOT / "apps/frontend/src/app/ping-pong/page.tsx").exists()
+    assert "ruff" in (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    route_map = json.loads((ROOT / "apps/frontend/src/lib/route-map.json").read_text(encoding="utf-8"))
+    assert all(r["path"] != "/ping-pong" for r in route_map["routes"])
+    pkg = json.loads((ROOT / "apps/frontend/package.json").read_text(encoding="utf-8"))
+    assert "@tanstack/react-query" in pkg.get("dependencies", {})
+
+    if moon_bin := shutil.which("moon"):
+        res = subprocess.run([moon_bin, "--cache", "off", "project", "frontend", "--json"], capture_output=True, text=True, cwd=ROOT)
+        assert res.returncode == 0, res.stderr
+        data, _ = json.JSONDecoder().raw_decode(res.stdout.lstrip())
+        assert data.get("language") == "javascript"
+    else:
+        pytest.skip("moon CLI not installed")

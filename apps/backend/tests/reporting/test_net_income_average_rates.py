@@ -1,21 +1,65 @@
-from datetime import date; from decimal import Decimal; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.pricing.orm.market_data import FxRate; from src.reporting import ReportError, _aggregate_net_income_sql
-@pytest.fixture
-def user_id(test_user): return test_user.id
-@pytest.fixture
-async def income_expense_accounts(db: AsyncSession, user_id):
-    accounts = [Account(user_id=user_id, name='Checking', type=AccountType.ASSET, currency='SGD'), Account(user_id=user_id, name='Capital', type=AccountType.EQUITY, currency='SGD'), Account(user_id=user_id, name='Salary', type=AccountType.INCOME, currency='USD'), Account(user_id=user_id, name='Food', type=AccountType.EXPENSE, currency='USD')]; db.add_all(accounts); await db.commit()
-    for a in accounts: await db.refresh(a)
-    return accounts
-@pytest.fixture
-async def fx_rates_varying(db: AsyncSession): rates = [FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.20'), rate_date=date(2025, 1, 1), source='test'), FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.30'), rate_date=date(2025, 1, 15), source='test'), FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.40'), rate_date=date(2025, 1, 31), source='test')]; db.add_all(rates); await db.commit(); return rates
-async def test_aggregate_net_income_uses_average_rate(db: AsyncSession, income_expense_accounts, fx_rates_varying, user_id): checking, capital, salary, food = income_expense_accounts; entry_early = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 1), memo='Early', status=JournalEntryStatus.POSTED); entry_late = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 31), memo='Late', status=JournalEntryStatus.POSTED); db.add_all([entry_early, entry_late]); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry_early.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal('1000'), currency='USD', fx_rate=Decimal('1.20')), JournalLine(journal_entry_id=entry_early.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('1000'), currency='USD', fx_rate=Decimal('1.20')), JournalLine(journal_entry_id=entry_late.id, account_id=food.id, direction=Direction.DEBIT, amount=Decimal('200'), currency='USD', fx_rate=Decimal('1.40')), JournalLine(journal_entry_id=entry_late.id, account_id=checking.id, direction=Direction.CREDIT, amount=Decimal('200'), currency='USD', fx_rate=Decimal('1.40'))]); await db.commit(); net_income, _ = await _aggregate_net_income_sql(db, user_id, 'SGD', date(2025, 1, 31), start_date=date(2025, 1, 1)); assert abs(net_income - Decimal('1040.00')) < Decimal('1.00'), f'Expected ~1040 (average-rate approach), got {net_income}. This suggests historical-cost rates are still being used.'
-async def test_aggregate_net_income_no_start_date_uses_all_time_average(db: AsyncSession, income_expense_accounts, fx_rates_varying, user_id): checking, capital, salary, food = income_expense_accounts; entry = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 15), memo='Salary', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal('500'), currency='USD', fx_rate=Decimal('1.30')), JournalLine(journal_entry_id=entry.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal('500'), currency='USD', fx_rate=Decimal('1.30'))]); await db.commit(); net_income, _ = await _aggregate_net_income_sql(db, user_id, 'SGD', date(2025, 1, 15)); assert net_income > Decimal('0'), f'Net income should be positive, got {net_income}'
-async def test_aggregate_net_income_same_currency_no_conversion(db: AsyncSession, user_id):
-    accounts = [Account(user_id=user_id, name='Cash', type=AccountType.ASSET, currency='SGD'), Account(user_id=user_id, name='Revenue', type=AccountType.INCOME, currency='SGD'), Account(user_id=user_id, name='Rent', type=AccountType.EXPENSE, currency='SGD')]; db.add_all(accounts); await db.commit()
-    for a in accounts: await db.refresh(a)
-    cash, revenue, rent = accounts; entry = JournalEntry(user_id=user_id, entry_date=date(2025, 3, 1), memo='March', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.DEBIT, amount=Decimal('3000'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=revenue.id, direction=Direction.CREDIT, amount=Decimal('3000'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=rent.id, direction=Direction.DEBIT, amount=Decimal('1200'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal('1200'), currency='SGD')]); await db.commit(); net_income, _ = await _aggregate_net_income_sql(db, user_id, 'SGD', date(2025, 3, 31)); assert net_income == Decimal('1800.00')
-async def test_aggregate_net_income_raises_on_missing_fx_rate(db: AsyncSession, user_id):
-    accounts = [Account(user_id=user_id, name='Cash', type=AccountType.ASSET, currency='EUR'), Account(user_id=user_id, name='Sales', type=AccountType.INCOME, currency='EUR')]; db.add_all(accounts); await db.commit()
-    for a in accounts: await db.refresh(a)
-    cash, sales = accounts; entry = JournalEntry(user_id=user_id, entry_date=date(2025, 6, 1), memo='Sales', status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.DEBIT, amount=Decimal('100'), currency='EUR', fx_rate=Decimal('1.00')), JournalLine(journal_entry_id=entry.id, account_id=sales.id, direction=Direction.CREDIT, amount=Decimal('100'), currency='EUR', fx_rate=Decimal('1.00'))]); await db.commit()
-    with pytest.raises(ReportError, match='No FX rate available'): await _aggregate_net_income_sql(db, user_id, 'SGD', date(2025, 6, 30))
+from datetime import date
+from decimal import Decimal
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.ledger import AccountType
+from src.reporting import ReportError, _aggregate_net_income_sql
+from tests.reporting._report_fixtures import post_pair, seed_accounts, seed_fx_rates
+
+
+async def test_aggregate_net_income_average_rate_all_time_and_same_currency(db: AsyncSession, test_user) -> None:
+    uid = test_user.id
+    checking, salary, food, sgd_cash, sgd_rev, sgd_rent = await seed_accounts(
+        db,
+        uid,
+        ("Checking", AccountType.ASSET, "SGD"),
+        ("Salary", AccountType.INCOME, "USD"),
+        ("Food", AccountType.EXPENSE, "USD"),
+        ("Cash", AccountType.ASSET, "SGD"),
+        ("Revenue", AccountType.INCOME, "SGD"),
+        ("Rent", AccountType.EXPENSE, "SGD"),
+    )
+    await seed_fx_rates(
+        db,
+        ("USD", "SGD", "1.20", date(2025, 1, 1)),
+        ("USD", "SGD", "1.30", date(2025, 1, 15)),
+        ("USD", "SGD", "1.40", date(2025, 1, 31)),
+        commit=False,
+    )
+    await post_pair(
+        db, uid, date(2025, 1, 1), "Early", checking, salary, "1000", currency="USD", fx_rate=Decimal("1.20")
+    )
+    await post_pair(
+        db, uid, date(2025, 1, 31), "Late", food, checking, "200", currency="USD", fx_rate=Decimal("1.40"), commit=True
+    )
+    net_avg, _ = await _aggregate_net_income_sql(db, uid, "SGD", date(2025, 1, 31), start_date=date(2025, 1, 1))
+    assert abs(net_avg - Decimal("1040.00")) < Decimal("1.00")
+    assert (await _aggregate_net_income_sql(db, uid, "SGD", date(2025, 1, 15)))[0] > Decimal("0")
+
+    await post_pair(db, uid, date(2025, 3, 1), "Rev", sgd_cash, sgd_rev, "3000", currency="SGD")
+    await post_pair(db, uid, date(2025, 3, 1), "Rent", sgd_rent, sgd_cash, "1200", currency="SGD", commit=True)
+    assert (await _aggregate_net_income_sql(db, uid, "SGD", date(2025, 3, 31), start_date=date(2025, 3, 1)))[
+        0
+    ] == Decimal("1800.00")
+
+
+async def test_aggregate_net_income_raises_on_missing_fx_rate(db: AsyncSession, test_user) -> None:
+    cash, sales = await seed_accounts(
+        db, test_user.id, ("Cash", AccountType.ASSET, "EUR"), ("Sales", AccountType.INCOME, "EUR")
+    )
+    await post_pair(
+        db,
+        test_user.id,
+        date(2025, 6, 1),
+        "Sales",
+        cash,
+        sales,
+        "100",
+        currency="EUR",
+        fx_rate=Decimal("1.00"),
+        commit=True,
+    )
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await _aggregate_net_income_sql(db, test_user.id, "SGD", date(2025, 6, 30))

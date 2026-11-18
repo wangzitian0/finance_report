@@ -22,65 +22,23 @@ async def app_client() -> AsyncClient:
         yield client
 
 
-def _stub_health_dependencies(monkeypatch, *, s3_status: str) -> None:
-    probe_names = [name for name in dir(Bootloader) if name.startswith("_check_")]
-    assert "_check_s3" in probe_names
-    for name in probe_names:
-        monkeypatch.setattr(Bootloader, name, AsyncMock(return_value=ServiceStatus(name, "ok", "OK")))
-    monkeypatch.setattr(Bootloader, "_check_s3", AsyncMock(return_value=ServiceStatus("s3", s3_status, "stub")))
+def _stub_health(monkeypatch, *, s3_status: str) -> None:
+    for name in (n for n in dir(Bootloader) if n.startswith("_check_")):
+        monkeypatch.setattr(Bootloader, name, AsyncMock(return_value=ServiceStatus(name, s3_status if name == "_check_s3" else "ok", "stub")))
 
 
-async def test_AC_observability_19_1_successful_health_probe_sets_request_id_and_suppresses_access_logs(
-    app_client: AsyncClient, monkeypatch
-) -> None:
-    "AC-observability.19.1"
-    _stub_health_dependencies(monkeypatch, s3_status="ok")
-    liveness = await app_client.get("/livez")
-    readiness = await app_client.get("/readyz")
-    health = await app_client.get("/health?full=1")
-    assert liveness.status_code == 200
-    assert readiness.status_code == 200
-    assert health.status_code == 200
-    assert liveness.headers["X-Request-ID"]
-    assert readiness.headers["X-Request-ID"]
-    assert health.headers["X-Request-ID"]
+@pytest.mark.parametrize(("s3_status", "paths", "expected_code"), [("ok", ("/livez", "/readyz", "/health?full=1"), 200), ("error", ("/health?full=1",), 503)])
+async def test_AC_observability_19_1_and_2_health_probes(app_client: AsyncClient, monkeypatch, s3_status: str, paths: tuple[str, ...], expected_code: int) -> None:
+    _stub_health(monkeypatch, s3_status=s3_status)
+    for path in paths:
+        resp = await app_client.get(path)
+        assert resp.status_code == expected_code and resp.headers["X-Request-ID"]
+
+
+def test_AC_observability_19_1_and_3_probe_access_filter_and_routes() -> None:
     flt = _ProbeAccessFilter()
-    for path in PROBE_PATHS:
-        rec = logging.LogRecord(
-            "uvicorn.access",
-            logging.INFO,
-            "",
-            0,
-            '%s - "%s %s HTTP/%s" %d',
-            ("127.0.0.1", "GET", path, "1.1", 200),
-            None,
-        )
-        assert flt.filter(rec) is False
-
-
-async def test_AC_observability_19_2_failed_health_probe_returns_503_with_request_id(
-    app_client: AsyncClient, monkeypatch
-) -> None:
-    "AC-observability.19.2"
-    _stub_health_dependencies(monkeypatch, s3_status="error")
-    response = await app_client.get("/health?full=1")
-    assert response.status_code == 503
-    assert response.headers["X-Request-ID"]
-
-
-@pytest.mark.parametrize("path", ["/openapi.json", "/healthz", "/health/", "/api/health", "/healthcheck", "/ping"])
-def test_AC_observability_19_3_non_probe_path_keeps_uvicorn_access_log(path: str) -> None:
-    "AC-observability.19.3"
-    flt = _ProbeAccessFilter()
-    rec = logging.LogRecord(
-        "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("127.0.0.1", "GET", path, "1.1", 200), None
-    )
-    assert flt.filter(rec) is True
-
-
-def test_AC_observability_19_1_probe_paths_are_routes_the_app_serves() -> None:
-    """AC-observability.19.1: probe and rate-limit exempt paths must be served routes."""
-    served_paths = {getattr(context.route, "path", None) for context in iter_route_contexts(main_module.app.routes)}
-    assert main_module._PROBE_PATHS
-    assert main_module._PROBE_PATHS <= served_paths
-    assert main_module._RATE_LIMIT_EXEMPT_PATHS <= served_paths
+    make_rec = lambda p: logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("127.0.0.1", "GET", p, "1.1", 200), None)
+    assert all(flt.filter(make_rec(p)) is False for p in PROBE_PATHS)
+    assert all(flt.filter(make_rec(p)) is True for p in ("/openapi.json", "/healthz", "/health/", "/api/health", "/healthcheck", "/ping"))
+    served = {getattr(ctx.route, "path", None) for ctx in iter_route_contexts(main_module.app.routes)}
+    assert main_module._PROBE_PATHS and main_module._PROBE_PATHS <= served and main_module._RATE_LIMIT_EXEMPT_PATHS <= served

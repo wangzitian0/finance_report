@@ -1,149 +1,525 @@
-from src.extraction.base.normalization_engine import sanitize_account_last4; from datetime import date; from decimal import Decimal; from pathlib import Path; from typing import cast; from unittest.mock import AsyncMock, patch; from uuid import uuid4; import pytest; from sqlalchemy import select; from src.extraction import BankStatementStatus, DocumentSource, DocumentStatus, ExtractedTransactionRow, ParseJob, TransactionDirection, UploadedDocument; from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2; from src.extraction.extension.service import ExtractionError, ExtractionService; from src.extraction.extension.statement_parsing import handle_parse_failure; from src.extraction.orm.statement_summary import StatementSummary; from tests.factories import StatementSummaryFactory
-from tests.statement_ingestion import run_for
-async def mock_stream_generator(content: str): yield content
-async def test_handle_parse_failure_persists_failed_document_lineage(db, test_user): 'AC-extraction.1622.10'; statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSING); await db.commit(); await handle_parse_failure(statement, db, job=ParseJob(statement_id=statement.id, run_id=await run_for(db, statement.id), filename='futu-2506.pdf', institution=statement.institution, user_id=test_user.id, account_id=statement.account_id, file_hash=statement.file_hash, storage_key=f'statements/{statement.id}/abc123.pdf', model=None), message='Extraction failed (json_parse): AI response must be a strict JSON object.'); doc = (await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id).where(UploadedDocument.file_hash == statement.file_hash))).scalar_one(); assert doc.status == DocumentStatus.FAILED; assert doc.original_filename == 'futu-2506.pdf'; assert doc.file_path == f'statements/{statement.id}/abc123.pdf'; refreshed = await db.get(StatementSummary, statement.id); assert refreshed.status == BankStatementStatus.REJECTED; assert refreshed.uploaded_document_id == doc.id
-async def test_parse_document_csv_no_content():
-    service = ExtractionService()
-    with pytest.raises(ExtractionError, match='File content is required for CSV parsing'): await service.parse_document(DocumentSource(path=Path('test.csv'), content=None, url=None, content_hash='0' * 64, filename='test.csv'), institution='DBS', user_id=uuid4(), file_type='csv')
-async def test_parse_document_unsupported_type():
-    service = ExtractionService()
-    with pytest.raises(ExtractionError, match='Unsupported file type: exe'): await service.parse_document(DocumentSource.resolve(path=Path('test.exe'), content=b'content'), institution='DBS', user_id=uuid4(), file_type='exe')
-    _m1_service = ExtractionService()
-    with pytest.raises(ExtractionError, match='File content is required'): await _m1_service.extract_financial_data(None, 'DBS', 'pdf')
-def test_safe_date_invalid():
-    service = ExtractionService()
-    with pytest.raises(ValueError, match='Invalid date format'): service._safe_date('not-a-date')
-    _m2_service = ExtractionService(); assert _m2_service._validate_external_url(cast(str, object())) is False
-async def test_extract_financial_data_no_api_key(monkeypatch):
-    from src.config import settings; monkeypatch.setattr(settings, 'ai_api_key', ''); service = ExtractionService()
-    with pytest.raises(ExtractionError, match='AI provider API key not configured'): await service.extract_financial_data(b'content', 'DBS', 'pdf')
-async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
-    'AC-extraction.812.6 AC-extraction.118.1'; service = ExtractionService(); service.api_key = 'test-key'; service.multimodal_model = 'test-vision-model'; mock_extract = AsyncMock(return_value={'transactions': []}); service._extract_json_with_model = mock_extract; image_payload = {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,iVBORw0KGgo='}}
-    with patch.object(service, '_build_vision_media_payload_batches', return_value=[[image_payload]]): result = await service.extract_financial_data(b'content', 'DBS', 'pdf')
-    assert result == {'transactions': []}; call = mock_extract.await_args.kwargs; assert call['model'] == 'test-vision-model'; assert call['messages'][0]['content'][1] == image_payload; 'AC-extraction.812.6'; 'AC-extraction.812.6'; import httpx; _m4_service = ExtractionService()
-    with patch('src.extraction.extension.service.stream_ai_json', side_effect=httpx.TimeoutException('slow')), pytest.raises(ExtractionError, match='Extraction failed \\(timeout\\): Model test-vision-model timed out'): await _m4_service._extract_json_with_model(messages=[{'role': 'user', 'content': 'Extract'}], model='test-vision-model')
-    'AC-extraction.812.6'; 'AC-extraction.812.6'; _m5_service = ExtractionService(); _m5_service.api_key = 'test-key'
-    with patch('src.extraction.extension._csv.stream_ai_json'), patch('src.extraction.extension._csv.accumulate_stream', new_callable=AsyncMock) as _m5_mock_accum:
-        _m5_mock_accum.return_value = '  '
-        with pytest.raises(ExtractionError, match='AI CSV mapping returned empty response'): await _m5_service._ai_parse_csv(headers=['Date', 'Description', 'Amount'], rows=[{'Date': '2026-01-01', 'Description': 'Test', 'Amount': '1.00'}], institution='DBS', parse_date=lambda value: date.fromisoformat(value), parse_amount=lambda value: Decimal(value))
-    _m6_service = ExtractionService(); _m6_service.api_key = 'test-key'; from src.llm import AIStreamError
-    with patch('src.extraction.extension.service.stream_ai_json') as _m6_mock_stream:
-        _m6_mock_stream.side_effect = AIStreamError('HTTP 429: Quota Exceeded')
-        with pytest.raises(ExtractionError, match='Extraction failed \\(rate_limit\\): Model .* rate limited'): await _m6_service.extract_financial_data(b'content', 'DBS', 'pdf', file_url='https://example.com/file.pdf')
-    'AC-extraction.114.5'; 'AC-extraction.114.5'; _m7_service = ExtractionService(); _m7_service.api_key = 'test-key'; _m7_content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
-    with patch('src.extraction.extension.service.stream_ai_json') as _m7_mock_stream: _m7_mock_stream.return_value = mock_stream_generator(_m7_content); _m7_result = await _m7_service.extract_financial_data(b'content', 'DBS', 'pdf', file_url='https://example.com/file.pdf'); assert _m7_result == {'account_last4': '1234'}
-    _m8_service = ExtractionService(); _m8_service.api_key = 'test-key'; _m8_content = 'Invalid JSON without markdown that is clearly not empty'
-    with patch('src.extraction.extension.service.stream_ai_json') as _m8_mock_stream:
-        _m8_mock_stream.return_value = mock_stream_generator(_m8_content)
-        with pytest.raises(ExtractionError, match='strict JSON object'): await _m8_service.extract_financial_data(b'content', 'DBS', 'pdf', file_url='https://example.com/file.pdf')
-    _m9_service = ExtractionService(); _m9_service.extract_financial_data = AsyncMock(return_value={'period_start': '2023-01-01', 'period_end': '2023-01-31', 'opening_balance': '100.00', 'closing_balance': '150.00', 'transactions': [{'amount': '50.00', 'direction': 'IN', 'description': 'No date'}, {'date': '2023-01-15', 'amount': '50.00', 'direction': 'IN', 'description': 'Valid'}]})
-    with pytest.raises(ExtractionError, match='Transaction missing required fields'): await _m9_service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='DBS', user_id=uuid4())
-    _m10_service = ExtractionService(); _m10_service.extract_financial_data = AsyncMock(return_value={'period_start': '2023-01-01', 'period_end': '2023-01-31', 'opening_balance': '100.00', 'closing_balance': '150.00', 'transactions': [{'date': 'invalid-date', 'amount': '50.00', 'direction': 'IN', 'description': 'Bad date'}, {'date': 'None', 'amount': '50.00', 'direction': 'IN', 'description': 'None string'}]})
-    with pytest.raises(ExtractionError, match='Transaction date'): await _m10_service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='DBS', user_id=uuid4())
-    _m11_service = ExtractionService(); _m11_service.extract_financial_data = AsyncMock(side_effect=RuntimeError('Boom'))
-    with pytest.raises(ExtractionError, match='Failed to parse document: Boom'): await _m11_service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='DBS', user_id=uuid4())
-    'AC-extraction.parse-robustness.1'; 'AC-extraction.parse-robustness.1'; _m12_result = await _parse(_statement_payload(_transaction('  Salary March  '))); assert _m12_result.transactions[0].description == 'Salary March'; 'AC-extraction.parse-robustness.1'; 'AC-extraction.parse-robustness.1'; _m13_result = await _parse(_statement_payload(_transaction(12345))); assert _m13_result.transactions[0].description == '12345'; 'AC-extraction.parse-robustness.1'; 'AC-extraction.parse-robustness.1'; _m14_result = await _parse(_statement_payload(_transaction(None), _transaction(None))); assert len(_m14_result.transactions) == 2; assert len({_m14_row.fact_id for _m14_row in _m14_result.transactions}) == 2; _m18_service = ExtractionService(); _m18_service.extract_financial_data = AsyncMock(return_value={'period_start': '2023-01-01', 'period_end': '2023-01-31', 'opening_balance': '100.00', 'closing_balance': '200.00', 'transactions': [{'date': True, 'amount': '100.00', 'direction': 'IN', 'description': 'Bool date'}]})
-    with pytest.raises(ExtractionError, match='Transaction date'): await _m18_service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='DBS', user_id=uuid4())
-    _m19_service = ExtractionService(); _m19_service.extract_financial_data = AsyncMock(return_value={'period_start': '2023-01-01', 'period_end': '2023-01-31', 'opening_balance': '100.00', 'closing_balance': '200.00', 'transactions': [{'date': 'None', 'amount': '50.00', 'direction': 'IN', 'description': 'None string date'}, {'date': 'null', 'amount': '70.00', 'direction': 'IN', 'description': 'Null string date'}, {'date': '2023-01-15', 'amount': '100.00', 'direction': 'IN', 'description': 'Valid'}]})
-    with pytest.raises(ExtractionError, match='Transaction date'): await _m19_service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='DBS', user_id=uuid4())
-    _m20_service = ExtractionService(); _m20_service.extract_financial_data = AsyncMock(return_value={'period_start': '2023-01-01', 'period_end': '2023-01-31', 'opening_balance': '100.00', 'closing_balance': '200.00', 'transactions': [{'date': '2023-01-15', 'amount': 'not-a-number', 'direction': 'IN', 'description': 'Bad amount'}]})
-    with pytest.raises(ExtractionError, match='Invalid transaction amount'): await _m20_service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='DBS', user_id=uuid4())
-    _m21_service = ExtractionService(); _m21_service.api_key = 'test-key'
-    with pytest.raises(ExtractionError, match='No valid file content or accessible URL'): await _m21_service.extract_financial_data(file_content=None, institution='DBS', file_type='pdf', file_url='http://minio:9000/bucket/file.pdf')
-    _m22_service = ExtractionService(); _m22_service.api_key = 'test-key'
-    with pytest.raises(ExtractionError, match='No valid file content or accessible URL'): await _m22_service.extract_financial_data(file_content=None, institution='DBS', file_type='png', file_url='http://192.168.1.1:9000/bucket/file.png')
-    _m23_service = ExtractionService(); _m23_service.api_key = 'test-key'; _m23_valid_json = '{"account_last4": "1234", "transactions": []}'
-    with patch('src.extraction.extension.service.stream_ai_json') as _m23_mock_stream, patch('src.extraction.extension.service.accumulate_stream', new_callable=AsyncMock) as _m23_mock_accum: _m23_mock_accum.return_value = _m23_valid_json; _m23_result = await _m23_service.extract_financial_data(file_content=b'content', file_url='https://example.com/file.pdf', institution='DBS', file_type='pdf', force_model='google/gemini-2.0-test')
-    assert _m23_result['account_last4'] == '1234'; _m23_call_kwargs = _m23_mock_stream.call_args; assert _m23_call_kwargs.kwargs.get('model') == 'google/gemini-2.0-test' or _m23_call_kwargs[1].get('model') == 'google/gemini-2.0-test'; _m24_service = ExtractionService(); _m24_service.api_key = 'test-key'; _m24_service.multimodal_model = ''
-    with patch.object(_m24_service, '_build_vision_media_payload_batches') as _m24_build_media, patch('src.extraction.extension.service.stream_ai_json') as _m24_stream, pytest.raises(ExtractionError, match='Multimodal model is not configured'): await _m24_service.extract_financial_data(file_content=b'content', institution='DBS', file_type='pdf')
-    _m24_build_media.assert_not_called(); _m24_stream.assert_not_called(); _m25_service = ExtractionService(); _m25_service.api_key = 'test-key'
-    with patch('src.extraction.extension.service.stream_ai_json'), patch('src.extraction.extension.service.accumulate_stream', new_callable=AsyncMock) as _m25_mock_accum:
-        _m25_mock_accum.return_value = ''
-        with pytest.raises(ExtractionError, match='Extraction failed \\(empty_response\\): Model .* returned empty response'): await _m25_service.extract_financial_data(file_content=b'content', file_url='https://example.com/file.pdf', institution='DBS', file_type='pdf')
-    _m26_service = ExtractionService(); _m26_service.api_key = 'test-key'
-    with patch('src.extraction.extension.service.stream_ai_json'), patch('src.extraction.extension.service.accumulate_stream', new_callable=AsyncMock) as _m26_mock_accum:
-        _m26_mock_accum.side_effect = ValueError('some programming error')
-        with pytest.raises(ExtractionError, match='Internal error: ValueError'): await _m26_service.extract_financial_data(file_content=b'content', file_url='https://example.com/file.pdf', institution='DBS', file_type='pdf')
-    _m30_service = ExtractionService(); _m30_service.extract_financial_data = AsyncMock(return_value={'period_start': '2023-01-01', 'period_end': '2023-01-31', 'opening_balance': '500.00', 'closing_balance': '350.00', 'transactions': [{'date': '2023-01-10', 'amount': '150.00', 'direction': 'OUT', 'description': 'ATM Withdrawal'}]}); _m30_result = await _m30_service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='DBS', user_id=uuid4()); assert len(_m30_result.transactions) == 1; assert _m30_result.transactions[0].direction == 'OUT'; _m31_service = ExtractionService(); _m31_service.api_key = 'test-key'
-    with patch('src.extraction.extension.service.stream_ai_json'), patch('src.extraction.extension.service.accumulate_stream', new_callable=AsyncMock) as _m31_mock_accum:
-        _m31_mock_accum.return_value = '[{"amount": "100.00"}]'
-        with pytest.raises(ExtractionError, match='strict JSON object.*no arrays'): await _m31_service.extract_financial_data(file_content=b'content', file_url='https://example.com/file.pdf', institution='DBS', file_type='pdf')
-    from src.llm import AIStreamError; _m32_service = ExtractionService(); _m32_service.api_key = 'test-key'
-    with patch('src.extraction.extension.service.stream_ai_json') as _m32_mock_stream:
-        _m32_mock_stream.side_effect = AIStreamError('Request timed out after 30s')
-        with pytest.raises(ExtractionError, match='timed out'): await _m32_service.extract_financial_data(file_content=b'content', file_url='https://example.com/file.pdf', institution='DBS', file_type='pdf')
-    from src.llm import AIStreamError; _m33_service = ExtractionService(); _m33_service.api_key = 'test-key'
-    with patch('src.extraction.extension.service.stream_ai_json') as _m33_mock_stream:
-        _m33_mock_stream.side_effect = AIStreamError('HTTP 502: Bad Gateway')
-        with pytest.raises(ExtractionError, match='failed.*HTTP 502'): await _m33_service.extract_financial_data(file_content=b'content', file_url='https://example.com/file.pdf', institution='DBS', file_type='pdf')
-    _m34_service = ExtractionService(); _m34_service.api_key = 'test-key'
-    with patch('src.extraction.extension.service.stream_ai_json'), patch('src.extraction.extension.service.accumulate_stream', new_callable=AsyncMock) as _m34_mock_accum:
-        _m34_mock_accum.side_effect = ExtractionError('Custom extraction failure')
-        with pytest.raises(ExtractionError, match='Custom extraction failure'): await _m34_service.extract_financial_data(file_content=b'content', file_url='https://example.com/file.pdf', institution='DBS', file_type='pdf')
-    _m35_service = ExtractionService(); _m35_service.api_key = 'test-key'; _m35_valid_json = '{"account_last4": "9999", "transactions": []}'
-    with patch('src.extraction.extension.service.stream_ai_json'), patch('src.extraction.extension.service.accumulate_stream', new_callable=AsyncMock) as _m35_mock_accum: _m35_mock_accum.return_value = _m35_valid_json; _m35_result = await _m35_service.extract_financial_data(file_content=None, institution='DBS', file_type='pdf', file_url='https://example.com/statement.pdf')
-    assert _m35_result['account_last4'] == '9999'; _m36_service = ExtractionService(); _m36_service.api_key = 'test-key'; _m36_valid_json = '{"account_last4": "8888", "transactions": []}'
-    with patch('src.extraction.extension.service.stream_ai_json'), patch('src.extraction.extension.service.accumulate_stream', new_callable=AsyncMock) as _m36_mock_accum: _m36_mock_accum.return_value = _m36_valid_json; _m36_result = await _m36_service.extract_financial_data(file_content=None, institution='DBS', file_type='png', file_url='https://example.com/statement.png')
-    assert _m36_result['account_last4'] == '8888'; _m37_service = ExtractionService()
-    with pytest.raises(ExtractionError, match='Institution is required for CSV parsing'): await _m37_service.parse_document(DocumentSource.resolve(path=Path('test.csv'), content=b'some,csv,data'), institution=None, user_id=uuid4(), file_type='csv')
-async def test_vision_path_does_not_fall_back_to_another_model_on_a_non_retryable_error():
-    'AC-extraction.118.2'; from src.llm import AIStreamError; service = ExtractionService(); service.api_key = 'test-key'; service.multimodal_model = 'test-vision-model'; attempted_models: list[str] = []
-    def fake_stream_ai_json(*, model, **kwargs): attempted_models.append(model); raise AIStreamError('provider=zai model=test-vision-model status_code=400 {"code":"1210","message":"Invalid API parameter"}', retryable=False)
-    image_payload = {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,iVBORw0KGgo='}}
-    with patch.object(service, '_build_vision_media_payload_batches', return_value=[[image_payload]]), patch('src.extraction.extension.service.stream_ai_json', side_effect=fake_stream_ai_json), pytest.raises(ExtractionError, match='Extraction failed \\(http_error\\): Model test-vision-model failed'): await service.extract_financial_data(b'content', 'DBS', 'pdf')
-    assert attempted_models == ['test-vision-model']
-def test_a_service_has_one_multimodal_model_role():
-    'AC-extraction.118.1'; from src.config import settings; service = ExtractionService(); assert service.multimodal_model == settings.multimodal_model
-    for retired in ('ocr_model', 'vision_model', '_vision_extraction_models', '_uses_dedicated_layout_ocr', '_extract_ocr_markdown', '_extract_json_with_models'): assert not hasattr(service, retired), retired
-    'AC-extraction.812.6'; 'AC-extraction.812.6'; _m3_service = ExtractionService()
-    with pytest.raises(ExtractionError, match='requires file content'): _m3_service._render_pdf_pages_as_image_payload_batches(b'')
-def test_build_vision_media_payload_batches_rejects_non_url_pdf_input(monkeypatch):
-    'AC-extraction.812.6'; from src.config import settings; monkeypatch.setattr(settings, 'ai_provider', 'zai'); service = ExtractionService()
-    with patch.object(service, '_build_ai_file_input', return_value='data:application/pdf;base64,abc'), pytest.raises(ExtractionError, match='requires file content or an external PDF URL'): service._build_vision_media_payload_batches(file_content=None, file_url='https://example.com/statement.pdf', file_type='pdf', mime_type='application/pdf')
-def test_build_vision_media_payload_batches_gemini_sends_native_pdf_not_rendered_images(monkeypatch):
-    from src.config import settings; monkeypatch.setattr(settings, 'ai_provider', 'gemini'); service = ExtractionService()
-    with patch.object(service, '_render_pdf_pages_as_image_payload_batches', side_effect=AssertionError('Gemini must not render PDF pages to images')): batches = service._build_vision_media_payload_batches(file_content=b'%PDF-1.4 fake pdf bytes', file_url=None, file_type='pdf', mime_type='application/pdf')
-    assert len(batches) == 1; assert len(batches[0]) == 1; assert batches[0][0]['type'] == 'file'; assert batches[0][0]['file']['file_data'].startswith('data:application/pdf;base64,')
-def test_build_vision_media_payload_batches_reraises_render_error_without_external_url(monkeypatch):
-    'AC-extraction.812.6'; from src.config import settings; monkeypatch.setattr(settings, 'ai_provider', 'zai'); service = ExtractionService()
-    with patch.object(service, '_render_pdf_pages_as_image_payload_batches', side_effect=ExtractionError('render failed')), pytest.raises(ExtractionError, match='render failed'): service._build_vision_media_payload_batches(file_content=b'pdf bytes', file_url=None, file_type='pdf', mime_type='application/pdf')
-_ABSENT = object(); _statement_payload = lambda *transactions: {'currency': 'CNY', 'period_start': '2025-02-01', 'period_end': '2025-02-28', 'opening_balance': '100.00', 'closing_balance': str(Decimal('100.00') + sum((Decimal(t['amount']) for t in transactions))), 'transactions': list(transactions)}
-def _transaction(description: object, amount: str='50.00') -> dict:
-    row = {'date': '2025-02-03', 'amount': amount, 'direction': 'IN'}
-    if description is not _ABSENT: row['description'] = description
-    return row
-async def _parse(payload: dict): service = ExtractionService(); service.extract_financial_data = AsyncMock(return_value=payload); return await service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'content'), institution='CMB', user_id=uuid4())
-@pytest.mark.parametrize('description', [None, '', '   ', _ABSENT], ids=['null', 'empty', 'blank', 'absent'])
-async def test_parse_document_uses_placeholder_for_missing_description(description): 'AC-extraction.parse-robustness.1'; result = await _parse(_statement_payload(_transaction(description))); assert len(result.transactions) == 1; assert result.transactions[0].description == 'Unknown'
-def test_safe_decimal_invalid():
-    service = ExtractionService(); assert service._safe_decimal('1.23') == Decimal('1.23')
-    with pytest.raises(ValueError, match='Invalid decimal value'): service._safe_decimal('not-a-number')
-    assert service._safe_decimal(None) is None
-    with pytest.raises(ValueError, match='Decimal value is required'): service._safe_decimal(None, required=True)
-    _m15_service = ExtractionService(); assert _m15_service._validate_external_url('http:///path') is False; assert _m15_service._validate_external_url('http://localhost:8000') is False; assert _m15_service._validate_external_url('http://192.168.1.1') is False; assert _m15_service._validate_external_url('http://minio:9000') is False; assert _m15_service._validate_external_url('https://google.com') is True; assert _m15_service._validate_external_url('not a url') is False; _m16_service = ExtractionService(); _m16_result = _m16_service._safe_decimal(None, default='42.50'); assert _m16_result == Decimal('42.50'); _m17_service = ExtractionService(); assert _m17_service._validate_external_url(cast(str, None)) is False; _m27_service = ExtractionService()
-    with pytest.raises(ValueError, match='Date is required'): _m27_service._safe_date(None)
-    with pytest.raises(ValueError, match='Date is required'): _m27_service._safe_date('')
-    _m28_service = ExtractionService(); assert _m28_service._extract_status_code('HTTP 429: Quota Exceeded') == '429'; assert _m28_service._extract_status_code('HTTP 500 Internal Server Error') == '500'; assert _m28_service._extract_status_code('no status code here') is None; assert _m28_service._extract_status_code('') is None; _m29_service = ExtractionService(); _m29_result = _m29_service._build_media_payload(file_type='png', mime_type='image/png', data='data:image/png;base64,iVBOR'); assert _m29_result['type'] == 'image_url'; assert _m29_result['image_url']['url'] == 'data:image/png;base64,iVBOR'
-async def test_handle_parse_failure(db, test_user): from src.extraction.extension.statement_parsing import handle_parse_failure; sid = uuid4(); statement = StatementSummaryFactory.build(id=sid, user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash='h_fail', institution='DBS'); db.add(statement); await db.commit(); await handle_parse_failure(statement, db, message='Something went wrong'); await db.refresh(statement); assert statement.status == BankStatementStatus.REJECTED; assert statement.validation_error == 'Something went wrong'; assert statement.confidence_score == 0
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+from typing import cast
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+
+import httpx
+import pytest
+from sqlalchemy import text
+
+from src.config import settings
+from src.extraction import BankStatementStatus, DocumentSource
+from src.extraction.base.normalization_engine import sanitize_account_last4
+from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_parsing import handle_parse_failure
+from src.extraction.orm.statement_summary import StatementSummary
+from src.llm import AIStreamError
+from tests.extraction._statement_run_helpers import (
+    assert_stream_extract_case,
+    mock_statement_payload,
+    mock_txn_dict,
+    parse_mock_payload,
+    verify_dual_write_non_fatal,
+    verify_handle_parse_failure_lineage,
+    verify_parse_background_storage_error,
+)
+from tests.factories import StatementSummaryFactory
+
+_ABSENT = object()
+
+
+async def test_handle_parse_failure_persists_failed_document_lineage(db, test_user):
+    await verify_handle_parse_failure_lineage(db, test_user)
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_error", "cause_db_error"),
+    [
+        ("Something went wrong", "Something went wrong", False),
+        ("x" * 1000, "x" * 500, False),
+        (None, None, False),
+        ("DB error occurred", "DB error occurred", True),
+    ],
+)
+async def test_handle_parse_failure_variants(db, test_user, message, expected_error, cause_db_error):
+    sid = uuid4()
+    statement = StatementSummaryFactory.build(
+        id=sid,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSING,
+        file_hash=f"h_{sid.hex[:8]}",
+        institution="DBS",
+    )
+    db.add(statement)
+    await db.commit()
+    if cause_db_error:
+        with pytest.raises(Exception, match="nonexistent_table_xyz"):
+            await db.execute(text("SELECT * FROM nonexistent_table_xyz"))
+    await handle_parse_failure(statement, db, message=message)
+    result = await db.get(StatementSummary, sid)
+    assert (result.status, result.validation_error, result.confidence_score) == (
+        BankStatementStatus.REJECTED,
+        expected_error,
+        0,
+    ) and ((not cause_db_error) or (result.balance_validated is False))
+
+
 async def test_parse_statement_background_storage_error(db, test_user, monkeypatch):
-    from src.database import create_session_maker_from_db; from src.runtime import StorageError; from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background; sid = uuid4(); uid = test_user.id; statement = StatementSummaryFactory.build(id=sid, user_id=uid, status=BankStatementStatus.PARSING, file_hash='h_storage_err', institution='DBS'); db.add(statement); await db.commit()
-    async def mock_run_in_threadpool(func, *args, **kwargs):
-        if 'generate_presigned_url' in str(func): raise StorageError('Presigned fail')
-        return func(*args, **kwargs)
-    monkeypatch.setattr('fastapi.concurrency.run_in_threadpool', mock_run_in_threadpool); mock_parse = AsyncMock(side_effect=ExtractionError('API key not configured')); monkeypatch.setattr('src.extraction.extension.service.ExtractionService.parse_document', mock_parse); await parse_statement_background(job=ParseJob(statement_id=sid, run_id=await run_for(db, sid), filename='f.pdf', institution='DBS', user_id=uid, account_id=None, file_hash='h_storage_err', storage_key='p', model=None), content=b'content', session_maker=create_session_maker_from_db(db)); await db.refresh(statement); assert statement.status == BankStatementStatus.REJECTED; assert statement.validation_error is not None; error_msg = statement.validation_error.lower(); assert 'api key' in error_msg or 'configured' in error_msg
-class TestSanitizeAccountLast4:
-    def test_strips_hyphens(self): result = sanitize_account_last4('553-3'); assert result == '5533'; _m1_result = sanitize_account_last4('XXX-553-3'); assert _m1_result == '5533'; assert sanitize_account_last4(None) is None; assert sanitize_account_last4('') is None; assert sanitize_account_last4('12') == '12'; assert sanitize_account_last4('---') is None; assert sanitize_account_last4('1234') == '1234'; assert sanitize_account_last4('12 34') == '1234'; assert sanitize_account_last4('AB-12') == 'AB12'; assert sanitize_account_last4('ABCDEF1234') == '1234'; assert sanitize_account_last4('12号34') == '1234'; assert sanitize_account_last4('A') == 'A'
-async def test_handle_parse_failure_truncates_long_message(db, test_user): from src.extraction.extension.statement_parsing import handle_parse_failure; sid = uuid4(); statement = StatementSummaryFactory.build(id=sid, user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash='h_trunc', institution='DBS'); db.add(statement); await db.commit(); long_message = 'x' * 1000; await handle_parse_failure(statement, db, message=long_message); await db.refresh(statement); assert statement.status == BankStatementStatus.REJECTED; assert statement.validation_error is not None; assert len(statement.validation_error) == 500
-async def test_handle_parse_failure_after_db_error(db, test_user):
-    from sqlalchemy import text; from src.extraction.extension.statement_parsing import handle_parse_failure; sid = uuid4(); statement = StatementSummaryFactory.build(id=sid, user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash='h_dberr', institution='DBS'); db.add(statement); await db.commit()
-    try: await db.execute(text('SELECT * FROM nonexistent_table_xyz'))
-    except Exception as exc: assert 'nonexistent_table_xyz' in str(exc)
-    await handle_parse_failure(statement, db, message='DB error occurred'); from src.extraction.orm.statement_summary import StatementSummary; result = await db.get(StatementSummary, sid); assert result is not None; assert result.status == BankStatementStatus.REJECTED; assert result.validation_error == 'DB error occurred'; assert result.confidence_score == 0; assert result.balance_validated is False
-async def test_handle_parse_failure_none_message(db, test_user): from src.extraction.extension.statement_parsing import handle_parse_failure; sid = uuid4(); statement = StatementSummaryFactory.build(id=sid, user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash='h_none_msg', institution='DBS'); db.add(statement); await db.commit(); await handle_parse_failure(statement, db, message=None); await db.refresh(statement); assert statement.status == BankStatementStatus.REJECTED; assert statement.validation_error is None
-async def test_dual_write_layer2_integrity_error_is_non_fatal(db, test_user): 'AC-extraction.111.1'; txn_date = date(2025, 1, 1); amount = Decimal('1.00'); direction = TransactionDirection.IN; description = 'txn'; txn = ExtractedTransactionRow(user_id=test_user.id, txn_date=txn_date, amount=amount, direction=direction.value, description=description, reference=None, currency='SGD', currency_unresolved=False, balance_after=None, occurrence_index=0, dedup_hash=DeduplicationService.calculate_transaction_hash(test_user.id, txn_date, amount, direction, description)); first = StatementSummaryFactory.build(user_id=test_user.id, file_hash='abc123', institution='DBS', currency='SGD'); await dual_write_layer2(db=db, user_id=test_user.id, statement=first, transactions=[txn], file_path=Path('statement.pdf'), original_filename='statement.pdf'); await db.commit(); repeated = StatementSummaryFactory.build(user_id=test_user.id, file_hash='abc123', institution='DBS', currency='SGD'); await dual_write_layer2(db=db, user_id=test_user.id, statement=repeated, transactions=[txn], file_path=Path('statement.pdf'), original_filename='statement.pdf'); await db.commit(); rows = (await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id, UploadedDocument.file_hash == 'abc123'))).scalars().all(); assert len(rows) == 1
-async def test_extract_financial_data_pdf_private_url_raises():
-    'AC-extraction.812.4'; service = ExtractionService(); service.api_key = 'test-key'
-    with pytest.raises(ExtractionError, match='No valid file content or accessible URL'): await service.extract_financial_data(file_content=None, institution='DBS', file_type='pdf', file_url='http://localhost:9000/private-bucket/file.pdf')
-async def test_extract_financial_data_image_private_url_raises():
-    'AC-extraction.812.5'; service = ExtractionService(); service.api_key = 'test-key'
-    with pytest.raises(ExtractionError, match='No valid file content or accessible URL'): await service.extract_financial_data(file_content=None, institution='DBS', file_type='png', file_url='http://192.168.1.100/internal/image.png')
+    await verify_parse_background_storage_error(db, test_user, monkeypatch)
+
+
+async def test_dual_write_layer2_integrity_error_is_non_fatal(db, test_user):
+    await verify_dual_write_non_fatal(db, test_user)
+
+
+@pytest.mark.parametrize(
+    ("source", "institution", "file_type", "match"),
+    [
+        (
+            DocumentSource(path=Path("test.csv"), content=None, url=None, content_hash="0" * 64, filename="test.csv"),
+            "DBS",
+            "csv",
+            "File content is required for CSV parsing",
+        ),
+        (
+            DocumentSource.resolve(path=Path("test.csv"), content=b"some,csv,data"),
+            None,
+            "csv",
+            "Institution is required for CSV parsing",
+        ),
+        (DocumentSource.resolve(path=Path("test.exe"), content=b"content"), "DBS", "exe", "Unsupported file type: exe"),
+    ],
+)
+async def test_parse_document_input_errors(source, institution, file_type, match):
+    with pytest.raises(ExtractionError, match=match):
+        await ExtractionService().parse_document(source, institution=institution, user_id=uuid4(), file_type=file_type)
+
+
+@pytest.mark.parametrize(
+    ("content", "file_type", "file_url", "api_key", "match"),
+    [
+        (None, "pdf", None, "test-key", "File content is required"),
+        (b"content", "pdf", None, "", "AI provider API key not configured"),
+        (
+            None,
+            "pdf",
+            "http://localhost:9000/private-bucket/file.pdf",
+            "test-key",
+            "No valid file content or accessible URL",
+        ),
+        (None, "pdf", "http://minio:9000/bucket/file.pdf", "test-key", "No valid file content or accessible URL"),
+        (None, "png", "http://192.168.1.100/internal/image.png", "test-key", "No valid file content or accessible URL"),
+        (None, "png", "http://192.168.1.1:9000/bucket/file.png", "test-key", "No valid file content or accessible URL"),
+    ],
+)
+async def test_extract_financial_data_input_guards(monkeypatch, content, file_type, file_url, api_key, match):
+    monkeypatch.setattr(settings, "ai_api_key", api_key)
+    with pytest.raises(ExtractionError, match=match):
+        await ExtractionService().extract_financial_data(content, "DBS", file_type, file_url=file_url)
+
+
+@pytest.mark.parametrize(
+    ("stream_exc", "accum_val", "file_content", "file_type", "file_url", "force_model", "expected", "err_match"),
+    [
+        (
+            AIStreamError("HTTP 429: Quota Exceeded"),
+            None,
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "Extraction failed \\(rate_limit\\): Model .* rate limited",
+        ),
+        (
+            AIStreamError("Request timed out after 30s"),
+            None,
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "timed out",
+        ),
+        (
+            AIStreamError("HTTP 502: Bad Gateway"),
+            None,
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "failed.*HTTP 502",
+        ),
+        (
+            None,
+            'Here is data: ```json\n{"account_last4": "1234"}\n```',
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            {"account_last4": "1234"},
+            None,
+        ),
+        (
+            None,
+            "Invalid JSON without markdown that is clearly not empty",
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "strict JSON object",
+        ),
+        (
+            None,
+            '{"account_last4": "1234", "transactions": []}',
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            "google/gemini-2.0-test",
+            {"account_last4": "1234", "transactions": []},
+            None,
+        ),
+        (
+            None,
+            "",
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "Extraction failed \\(empty_response\\): Model .* returned empty response",
+        ),
+        (
+            None,
+            ValueError("some programming error"),
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "Internal error: ValueError",
+        ),
+        (
+            None,
+            '[{"amount": "100.00"}]',
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "strict JSON object.*no arrays",
+        ),
+        (
+            None,
+            ExtractionError("Custom extraction failure"),
+            b"content",
+            "pdf",
+            "https://example.com/file.pdf",
+            None,
+            None,
+            "Custom extraction failure",
+        ),
+        (
+            None,
+            '{"account_last4": "9999", "transactions": []}',
+            None,
+            "pdf",
+            "https://example.com/statement.pdf",
+            None,
+            {"account_last4": "9999", "transactions": []},
+            None,
+        ),
+        (
+            None,
+            '{"account_last4": "8888", "transactions": []}',
+            None,
+            "png",
+            "https://example.com/statement.png",
+            None,
+            {"account_last4": "8888", "transactions": []},
+            None,
+        ),
+    ],
+)
+async def test_extract_financial_data_stream_outcomes(
+    stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+):
+    await assert_stream_extract_case(
+        stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+    )
+
+
+async def test_extract_json_timeout_and_ai_csv_empty():
+    service = ExtractionService()
+    service.api_key = "test-key"
+    with (
+        patch("src.extraction.extension.service.stream_ai_json", side_effect=httpx.TimeoutException("slow")),
+        pytest.raises(ExtractionError, match="Extraction failed \\(timeout\\): Model test-vision-model timed out"),
+    ):
+        await service._extract_json_with_model(
+            messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
+        )
+    with (
+        patch("src.extraction.extension._csv.stream_ai_json"),
+        patch("src.extraction.extension._csv.accumulate_stream", new_callable=AsyncMock, return_value="  "),
+        pytest.raises(ExtractionError, match="AI CSV mapping returned empty response"),
+    ):
+        await service._ai_parse_csv(
+            headers=["Date", "Description", "Amount"],
+            rows=[{"Date": "2026-01-01", "Description": "Test", "Amount": "1.00"}],
+            institution="DBS",
+            parse_date=date.fromisoformat,
+            parse_amount=Decimal,
+        )
+
+
+@pytest.mark.parametrize(
+    ("side_effect", "payload", "match"),
+    [
+        (
+            None,
+            mock_statement_payload({"amount": "50.00", "direction": "IN", "description": "No date"}),
+            "Transaction missing required fields",
+        ),
+        (
+            None,
+            mock_statement_payload(
+                {"date": "invalid-date", "amount": "50.00", "direction": "IN", "description": "Bad"}
+            ),
+            "Transaction date",
+        ),
+        (
+            None,
+            mock_statement_payload({"date": True, "amount": "100.00", "direction": "IN", "description": "Bool"}),
+            "Transaction date",
+        ),
+        (
+            None,
+            mock_statement_payload(
+                {"date": "None", "amount": "50.00", "direction": "IN", "description": "N"},
+                {"date": "null", "amount": "70.00", "direction": "IN", "description": "Null"},
+            ),
+            "Transaction date",
+        ),
+        (
+            None,
+            mock_statement_payload(
+                {"date": "2023-01-15", "amount": "not-a-number", "direction": "IN", "description": "Bad"},
+                closing="200.00",
+            ),
+            "Invalid transaction amount",
+        ),
+        (RuntimeError("Boom"), None, "Failed to parse document: Boom"),
+    ],
+)
+async def test_parse_document_transaction_error_paths(side_effect, payload, match):
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(side_effect=side_effect, return_value=payload)
+    with pytest.raises(ExtractionError, match=match):
+        await service.parse_document(
+            DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
+        )
+
+
+@pytest.mark.parametrize(
+    ("txns", "expected_descriptions", "expected_direction"),
+    [
+        ([mock_txn_dict(None)], ["Unknown"], "IN"),
+        ([mock_txn_dict("")], ["Unknown"], "IN"),
+        ([mock_txn_dict("   ")], ["Unknown"], "IN"),
+        ([mock_txn_dict(_ABSENT, absent_marker=_ABSENT)], ["Unknown"], "IN"),
+        ([mock_txn_dict("  Salary March  ")], ["Salary March"], "IN"),
+        ([mock_txn_dict(12345)], ["12345"], "IN"),
+        ([mock_txn_dict(None), mock_txn_dict(None)], ["Unknown", "Unknown"], "IN"),
+        ([mock_txn_dict("ATM Withdrawal", "150.00", "OUT")], ["ATM Withdrawal"], "OUT"),
+    ],
+)
+async def test_parse_document_normalizes_descriptions_and_direction(txns, expected_descriptions, expected_direction):
+    result = await parse_mock_payload(mock_statement_payload(*txns, direction=expected_direction))
+    assert (
+        [row.description for row in result.transactions],
+        result.transactions[0].direction,
+        len({row.fact_id for row in result.transactions}),
+    ) == (expected_descriptions, expected_direction, len(txns))
+
+
+async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
+    service = ExtractionService()
+    service.api_key, service.multimodal_model = "test-key", "test-vision-model"
+    mock_extract = AsyncMock(return_value={"transactions": []})
+    service._extract_json_with_model = mock_extract
+    image_payload = {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}}
+    with patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]):
+        assert await service.extract_financial_data(b"content", "DBS", "pdf") == {"transactions": []}
+    assert (mock_extract.await_args.kwargs["model"], mock_extract.await_args.kwargs["messages"][0]["content"][1]) == (
+        "test-vision-model",
+        image_payload,
+    )
+
+    service.multimodal_model = ""
+    with (
+        patch.object(service, "_build_vision_media_payload_batches") as build_media,
+        patch("src.extraction.extension.service.stream_ai_json") as stream_mock,
+        pytest.raises(ExtractionError, match="Multimodal model is not configured"),
+    ):
+        await service.extract_financial_data(file_content=b"content", institution="DBS", file_type="pdf")
+    build_media.assert_not_called()
+    stream_mock.assert_not_called()
+
+
+async def test_vision_path_does_not_fall_back_to_another_model_on_a_non_retryable_error():
+    service = ExtractionService()
+    service.api_key, service.multimodal_model = "test-key", "test-vision-model"
+    attempted: list[str] = []
+
+    def fake_stream(*, model, **_kwargs):
+        attempted.append(model)
+        raise AIStreamError(
+            'provider=zai model=test-vision-model status_code=400 {"code":"1210","message":"Invalid API parameter"}',
+            retryable=False,
+        )
+
+    image_payload = {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}}
+    with (
+        patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]),
+        patch("src.extraction.extension.service.stream_ai_json", side_effect=fake_stream),
+        pytest.raises(ExtractionError, match="Extraction failed \\(http_error\\): Model test-vision-model failed"),
+    ):
+        await service.extract_financial_data(b"content", "DBS", "pdf")
+    assert attempted == ["test-vision-model"]
+
+
+def test_a_service_has_one_multimodal_model_role():
+    service = ExtractionService()
+    assert service.multimodal_model == settings.multimodal_model and all(
+        not hasattr(service, r)
+        for r in (
+            "ocr_model",
+            "vision_model",
+            "_vision_extraction_models",
+            "_uses_dedicated_layout_ocr",
+            "_extract_ocr_markdown",
+            "_extract_json_with_models",
+        )
+    )
+    with pytest.raises(ExtractionError, match="requires file content"):
+        service._render_pdf_pages_as_image_payload_batches(b"")
+
+
+@pytest.mark.parametrize(
+    ("provider", "patch_target", "side_effect", "file_content", "file_url", "err_match"),
+    [
+        (
+            "zai",
+            "_build_ai_file_input",
+            "data:application/pdf;base64,abc",
+            None,
+            "https://example.com/statement.pdf",
+            "requires file content or an external PDF URL",
+        ),
+        (
+            "zai",
+            "_render_pdf_pages_as_image_payload_batches",
+            ExtractionError("render failed"),
+            b"pdf bytes",
+            None,
+            "render failed",
+        ),
+        (
+            "gemini",
+            "_render_pdf_pages_as_image_payload_batches",
+            AssertionError("Gemini must not render PDF pages to images"),
+            b"%PDF-1.4 fake pdf bytes",
+            None,
+            None,
+        ),
+    ],
+)
+def test_build_vision_media_payload_batches_variants(
+    monkeypatch, provider, patch_target, side_effect, file_content, file_url, err_match
+):
+    monkeypatch.setattr(settings, "ai_provider", provider)
+    service = ExtractionService()
+    patch_kw = {"return_value": side_effect} if isinstance(side_effect, str) else {"side_effect": side_effect}
+    with patch.object(service, patch_target, **patch_kw):
+        if err_match:
+            with pytest.raises(ExtractionError, match=err_match):
+                service._build_vision_media_payload_batches(
+                    file_content=file_content, file_url=file_url, file_type="pdf", mime_type="application/pdf"
+                )
+        else:
+            batches = service._build_vision_media_payload_batches(
+                file_content=file_content, file_url=file_url, file_type="pdf", mime_type="application/pdf"
+            )
+            assert (
+                len(batches) == 1
+                and len(batches[0]) == 1
+                and batches[0][0]["type"] == "file"
+                and batches[0][0]["file"]["file_data"].startswith("data:application/pdf;base64,")
+            )
+
+
+def test_extraction_service_low_level_helpers():
+    service = ExtractionService()
+    assert (
+        service._safe_decimal("1.23"),
+        service._safe_decimal(None),
+        service._safe_decimal(None, default="42.50"),
+    ) == (Decimal("1.23"), None, Decimal("42.50"))
+    for fn, arg, match in [
+        (service._safe_decimal, "not-a-number", "Invalid decimal value"),
+        (lambda x: service._safe_decimal(x, required=True), None, "Decimal value is required"),
+        (service._safe_date, "not-a-date", "Invalid date format"),
+        (service._safe_date, None, "Date is required"),
+        (service._safe_date, "", "Date is required"),
+    ]:
+        with pytest.raises(ValueError, match=match):
+            fn(arg)
+    assert all(
+        service._validate_external_url(u) is ok
+        for u, ok in [
+            ("http:///path", False),
+            ("http://localhost:8000", False),
+            ("http://192.168.1.1", False),
+            ("http://minio:9000", False),
+            ("https://google.com", True),
+            ("not a url", False),
+            (cast(str, None), False),
+            (cast(str, object()), False),
+        ]
+    )
+    assert (
+        service._extract_status_code("HTTP 429: Quota Exceeded"),
+        service._extract_status_code("HTTP 500 Internal Server Error"),
+        service._extract_status_code("no status code here"),
+        service._extract_status_code(""),
+    ) == ("429", "500", None, None)
+    assert service._build_media_payload(file_type="png", mime_type="image/png", data="data:image/png;base64,iVBOR") == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,iVBOR"},
+    }
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("553-3", "5533"),
+        ("XXX-553-3", "5533"),
+        (None, None),
+        ("", None),
+        ("12", "12"),
+        ("---", None),
+        ("1234", "1234"),
+        ("12 34", "1234"),
+        ("AB-12", "AB12"),
+        ("ABCDEF1234", "1234"),
+        ("12号34", "1234"),
+        ("A", "A"),
+    ],
+)
+def test_sanitize_account_last4(raw, expected):
+    assert sanitize_account_last4(raw) == expected

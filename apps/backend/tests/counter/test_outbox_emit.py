@@ -1,4 +1,3 @@
-"AC-platform.1.5"
 
 from uuid import uuid4
 import pytest
@@ -17,7 +16,6 @@ async def _outbox_rows(db):
 
 
 async def test_record_increment_writes_incremented_atomically(db):
-    "AC-platform.1.5"
     user_id = uuid4()
     count = await record_increment(db, user_id=user_id, key=KEY)
     await db.commit()
@@ -35,7 +33,6 @@ async def test_record_increment_writes_incremented_atomically(db):
 
 
 async def test_rollback_leaves_neither_tally_nor_event(db):
-    "AC-platform.1.5"
     user_id = uuid4()
     await record_increment(db, user_id=user_id, key=KEY)
     await db.flush()
@@ -45,7 +42,6 @@ async def test_rollback_leaves_neither_tally_nor_event(db):
 
 
 async def test_increment_op_publishes_through_bus_fake():
-    "AC-platform.1.5"
     from tests.counter._fake import InMemoryCounterRepository
 
     repo = InMemoryCounterRepository()

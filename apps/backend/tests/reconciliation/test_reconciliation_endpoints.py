@@ -1,9 +1,55 @@
-'AC4.3.1 AC4.3.8'; from __future__ import annotations; from datetime import date; from decimal import Decimal; from uuid import uuid4; from httpx import AsyncClient; from sqlalchemy.ext.asyncio import AsyncSession; from src.extraction import TransactionDirection; from src.extraction.orm.layer2 import AtomicTransaction; from src.ledger import Account, AccountType, Direction, JournalEntry, post_journal_entry, submit_manual_journal_entry, validate_manual_journal_entry_for_post; from src.reconciliation import ReconciliationMatch, ReconciliationStatus; _atomic = lambda user_id, *, description, amount, direction=TransactionDirection.OUT: AtomicTransaction(user_id=user_id, txn_date=date.today(), description=description, amount=amount, direction=direction, currency='SGD', dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(uuid4()), 'doc_type': 'bank_statement'}]); _match = lambda txn_id, *, entry_id=None, score=90, breakdown_amount=95.0: ReconciliationMatch(atomic_txn_id=txn_id, journal_entry_ids=[str(entry_id)] if entry_id else [], match_score=score, score_breakdown={'amount': breakdown_amount}, status=ReconciliationStatus.PENDING_REVIEW)
-async def _post_manual_entry(db: AsyncSession, *, user_id, entry_date: date, memo: str, debit_account: Account, credit_account: Account, amount: Decimal) -> JournalEntry: entry = await submit_manual_journal_entry(db, user_id=user_id, entry_date=entry_date, memo=memo, rationale=f'Test operator attested reconciliation candidate: {memo}', lines_data=[{'account_id': debit_account.id, 'direction': Direction.DEBIT, 'amount': amount, 'currency': 'SGD'}, {'account_id': credit_account.id, 'direction': Direction.CREDIT, 'amount': amount, 'currency': 'SGD'}], base_currency='SGD'); await db.refresh(entry, ['lines']); await validate_manual_journal_entry_for_post(db, user_id=user_id, entry=entry, base_currency='SGD'); return await post_journal_entry(db, entry.id, user_id, base_currency='SGD')
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction import TransactionDirection
+from src.ledger import AccountType, Direction, post_journal_entry, submit_manual_journal_entry, validate_manual_journal_entry_for_post
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from tests.factories import AccountFactory, AtomicTransactionFactory
+
+
+async def _post_manual(db: AsyncSession, uid, debit_acc, credit_acc, amount: Decimal, memo: str):
+    e = await submit_manual_journal_entry(db, user_id=uid, entry_date=date.today(), memo=memo, rationale=f"Test: {memo}", lines_data=[{"account_id": debit_acc.id, "direction": Direction.DEBIT, "amount": amount, "currency": "SGD"}, {"account_id": credit_acc.id, "direction": Direction.CREDIT, "amount": amount, "currency": "SGD"}], base_currency="SGD")
+    await db.refresh(e, ["lines"])
+    await validate_manual_journal_entry_for_post(db, user_id=uid, entry=e, base_currency="SGD")
+    return await post_journal_entry(db, e.id, uid, base_currency="SGD")
+
+
 async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, test_user) -> None:
-    session = db; bank_account = Account(user_id=test_user.id, name='Bank - Main', type=AccountType.ASSET, currency='SGD'); income_account = Account(user_id=test_user.id, name='Income - Salary', type=AccountType.INCOME, currency='SGD'); expense_account = Account(user_id=test_user.id, name='Expense - Misc', type=AccountType.EXPENSE, currency='SGD'); session.add_all([bank_account, income_account, expense_account]); await session.flush(); await _post_manual_entry(session, user_id=test_user.id, entry_date=date.today(), memo='Salary Payment', debit_account=bank_account, credit_account=income_account, amount=Decimal('1000.00'))
-    async def _post_expense(memo: str, amount: str) -> JournalEntry: return await _post_manual_entry(session, user_id=test_user.id, entry_date=date.today(), memo=memo, debit_account=expense_account, credit_account=bank_account, amount=Decimal(amount))
-    entry_accept = await _post_expense('Coffee', '12.00'); entry_reject = await _post_expense('Snacks', '8.00'); entry_batch = await _post_expense('Lunch', '20.00'); txn_run = _atomic(test_user.id, description='Salary Payment', amount=Decimal('1000.00'), direction=TransactionDirection.IN); session.add(txn_run); await session.commit(); run_resp = await client.post('/reconciliation/runs', json={}); assert run_resp.status_code == 200; assert run_resp.json()['matches_created'] >= 0; txn_accept = _atomic(test_user.id, description='Coffee', amount=Decimal('12.00')); txn_reject = _atomic(test_user.id, description='Snacks', amount=Decimal('8.00')); txn_batch = _atomic(test_user.id, description='Lunch', amount=Decimal('20.00')); txn_unmatched = _atomic(test_user.id, description='Odd Vendor', amount=Decimal('5.00')); txn_low = _atomic(test_user.id, description='Small Charge', amount=Decimal('9.00')); session.add_all([txn_accept, txn_reject, txn_batch, txn_unmatched, txn_low]); await session.flush(); match_accept = _match(txn_accept.id, entry_id=entry_accept.id, score=82, breakdown_amount=90.0); match_reject = _match(txn_reject.id, entry_id=entry_reject.id, score=70, breakdown_amount=80.0); match_batch = _match(txn_batch.id, entry_id=entry_batch.id, score=90, breakdown_amount=95.0); match_low = _match(txn_low.id, score=50, breakdown_amount=40.0); session.add_all([match_accept, match_reject, match_batch, match_low]); await session.commit(); pending_resp = await client.get('/reconciliation/pending'); assert pending_resp.status_code == 200; pending_data = pending_resp.json(); assert pending_data['total'] == 4; accept_resp = await client.patch(f'/reconciliation/matches/{match_accept.id}', json={'action': 'accept'}); assert accept_resp.status_code == 200; assert accept_resp.json()['status'] == 'accepted'; reject_resp = await client.patch(f'/reconciliation/matches/{match_reject.id}', json={'action': 'reject'}); assert reject_resp.status_code == 200; assert reject_resp.json()['status'] == 'rejected'; batch_resp = await client.post('/reconciliation/matches', json={'action': 'accept', 'match_ids': [str(match_batch.id)]}); assert batch_resp.status_code == 200; assert batch_resp.json()['approved_count'] == 1; matches_resp = await client.get('/reconciliation/matches', params={'status': 'pending_review'}); assert matches_resp.status_code == 200; matches_data = matches_resp.json(); assert matches_data['total'] == 1; matches_all_resp = await client.get('/reconciliation/matches'); assert matches_all_resp.status_code == 200; matches_all_data = matches_all_resp.json(); entries_item = next((item for item in matches_all_data['items'] if item.get('entries')), None); assert entries_item is not None; entry_summary = entries_item['entries'][0]; assert entry_summary['memo']; assert entry_summary['entry_date']; assert Decimal(str(entry_summary['total_amount'])) > 0; stats_resp = await client.get('/reconciliation/stats'); assert stats_resp.status_code == 200; unmatched_resp = await client.get('/reconciliation/unmatched'); assert unmatched_resp.status_code == 200; assert unmatched_resp.json()['total'] >= 1; create_entry_resp = await client.post(f'/reconciliation/unmatched/{txn_unmatched.id}/create-entry'); assert create_entry_resp.status_code == 404; anomalies_resp = await client.get(f'/reconciliation/transactions/{txn_unmatched.id}/anomalies'); assert anomalies_resp.status_code == 200
-async def test_reconciliation_error_paths(client: AsyncClient) -> None: missing_accept = await client.patch(f'/reconciliation/matches/{uuid4()}', json={'action': 'accept'}); assert missing_accept.status_code == 404; missing_reject = await client.patch(f'/reconciliation/matches/{uuid4()}', json={'action': 'reject'}); assert missing_reject.status_code == 404; missing_create_entry = await client.post(f'/reconciliation/unmatched/{uuid4()}/create-entry'); assert missing_create_entry.status_code == 404; missing_anomalies = await client.get(f'/reconciliation/transactions/{uuid4()}/anomalies'); assert missing_anomalies.status_code == 404
-async def test_reconciliation_stats_empty(client: AsyncClient) -> None: resp = await client.get('/reconciliation/stats'); assert resp.status_code == 200; data = resp.json(); assert data['total_transactions'] == 0; assert data['match_rate'] == 0.0
-async def test_reconciliation_run_defaults(client: AsyncClient) -> None: resp = await client.post('/reconciliation/runs', json={}); assert resp.status_code == 200
+    uid = test_user.id
+    empty = await client.get("/reconciliation/stats")
+    assert empty.status_code == 200 and (empty.json()["total_transactions"], empty.json()["match_rate"]) == (0, 0.0)
+
+    bank = await AccountFactory.create_async(db, user_id=uid, name="Bank - Main")
+    inc = await AccountFactory.create_async(db, user_id=uid, name="Income", type=AccountType.INCOME)
+    exp = await AccountFactory.create_async(db, user_id=uid, name="Expense", type=AccountType.EXPENSE)
+    await _post_manual(db, uid, bank, inc, Decimal("1000.00"), "Salary Payment")
+    await AtomicTransactionFactory.create_async(db, user_id=uid, description="Salary Payment", amount=Decimal("1000.00"), direction=TransactionDirection.IN)
+    await db.commit()
+    run_resp = await client.post("/reconciliation/runs", json={})
+    assert run_resp.status_code == 200 and run_resp.json()["matches_created"] >= 0
+
+    matches = []
+    for desc, amt, score, bamt, create_entry in (("Coffee", "12.00", 82, 90.0, True), ("Snacks", "8.00", 70, 80.0, True), ("Lunch", "20.00", 90, 95.0, True), ("Small Charge", "9.00", 50, 40.0, False)):
+        e = await _post_manual(db, uid, exp, bank, Decimal(amt), desc) if create_entry else None
+        t = await AtomicTransactionFactory.create_async(db, user_id=uid, description=desc, amount=Decimal(amt), direction=TransactionDirection.OUT)
+        m = ReconciliationMatch(atomic_txn_id=t.id, journal_entry_ids=[str(e.id)] if e else [], match_score=score, score_breakdown={"amount": bamt}, status=ReconciliationStatus.PENDING_REVIEW)
+        db.add(m)
+        matches.append(m)
+    t_unm = await AtomicTransactionFactory.create_async(db, user_id=uid, description="Odd Vendor", amount=Decimal("5.00"), direction=TransactionDirection.OUT)
+    await db.commit()
+
+    assert (await client.get("/reconciliation/pending")).json()["total"] == 4
+    assert (await client.patch(f"/reconciliation/matches/{matches[0].id}", json={"action": "accept"})).json()["status"] == "accepted"
+    assert (await client.patch(f"/reconciliation/matches/{matches[1].id}", json={"action": "reject"})).json()["status"] == "rejected"
+    assert (await client.post("/reconciliation/matches", json={"action": "accept", "match_ids": [str(matches[2].id)]})).json()["approved_count"] == 1
+    assert (await client.get("/reconciliation/matches", params={"status": "pending_review"})).json()["total"] == 1
+    es = next(i for i in (await client.get("/reconciliation/matches")).json()["items"] if i.get("entries"))["entries"][0]
+    assert es["memo"] and es["entry_date"] and Decimal(str(es["total_amount"])) > 0 and (await client.get("/reconciliation/stats")).status_code == 200
+    assert (await client.get("/reconciliation/unmatched")).json()["total"] >= 1
+    assert (await client.post(f"/reconciliation/unmatched/{t_unm.id}/create-entry")).status_code == 404
+    assert (await client.get(f"/reconciliation/transactions/{t_unm.id}/anomalies")).status_code == 200

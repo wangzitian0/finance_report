@@ -1,18 +1,43 @@
-import uuid; from unittest.mock import patch; from httpx import AsyncClient; from src.platform import RateLimitConfig, RateLimiter; _unique_key = lambda: f'test-{uuid.uuid4().hex}'
-def test_rate_limiter_allows_requests_within_limit() -> None:
-    limiter = RateLimiter(RateLimitConfig(max_requests=3, window_seconds=60, block_seconds=300)); key = _unique_key()
-    for _ in range(3): allowed, retry_after = limiter.is_allowed(key); assert allowed is True; assert retry_after == 0
-    limiter.reset(key); _m1_limiter = RateLimiter(RateLimitConfig(max_requests=2, window_seconds=60, block_seconds=10)); _m1_key = _unique_key(); assert _m1_limiter.is_allowed(_m1_key)[0] is True; assert _m1_limiter.is_allowed(_m1_key)[0] is True; _m1_allowed, _m1_retry_after = _m1_limiter.is_allowed(_m1_key); assert _m1_allowed is False; assert _m1_retry_after > 0; _m1_limiter.reset(_m1_key); _m2_limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300)); _m2_key1 = _unique_key(); _m2_key2 = _unique_key(); assert _m2_limiter.is_allowed(_m2_key1)[0] is True; assert _m2_limiter.is_allowed(_m2_key1)[0] is False; assert _m2_limiter.is_allowed(_m2_key2)[0] is True; _m2_limiter.reset(_m2_key1); _m2_limiter.reset(_m2_key2); _m3_limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300)); _m3_key = _unique_key(); assert _m3_limiter.is_allowed(_m3_key)[0] is True; assert _m3_limiter.is_allowed(_m3_key)[0] is False; _m3_limiter.reset(_m3_key); assert _m3_limiter.is_allowed(_m3_key)[0] is True; _m3_limiter.reset(_m3_key); _m4_limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=100)); _m4_key = _unique_key(); assert _m4_limiter.is_allowed(_m4_key)[0] is True; _m4_allowed, _m4_retry_after = _m4_limiter.is_allowed(_m4_key); assert _m4_allowed is False; assert _m4_retry_after == 100; _m4_allowed, _m4_retry_after = _m4_limiter.is_allowed(_m4_key); assert _m4_allowed is False; assert 0 < _m4_retry_after <= 100; _m4_limiter.reset(_m4_key); _m5_limiter = RateLimiter(RateLimitConfig(max_requests=5, window_seconds=60, block_seconds=300)); _m5_limiter.reset(_unique_key())
-async def test_global_rate_limit_middleware_exempts_health(public_client: AsyncClient) -> None:
-    'AC-platform.23.1'; from src.main import api_rate_limiter
-    with patch.object(api_rate_limiter, 'is_allowed', return_value=(False, 30)):
-        for _ in range(3): response = await public_client.get('/health'); assert response.status_code != 429
-async def test_global_rate_limit_middleware_blocks_after_limit(public_client: AsyncClient) -> None:
-    'AC-platform.23.2'; from src.main import api_rate_limiter
-    with patch.object(api_rate_limiter, 'is_allowed', return_value=(False, 30)): response = await public_client.post('/auth/login', json={'email': 'x@x.com', 'password': 'x'}); assert response.status_code == 429; assert 'Retry-After' in response.headers; assert response.headers['X-Request-ID']; data = response.json(); assert 'Rate limit exceeded' in data['detail']
-async def test_global_rate_limit_middleware_allows_normal_requests(public_client: AsyncClient) -> None:
-    'AC-platform.23.3'; from src.main import api_rate_limiter
-    with patch.object(api_rate_limiter, 'is_allowed', return_value=(True, 0)) as mock_is_allowed: response = await public_client.post('/auth/login', json={'email': 'x@x.com', 'password': 'x'}); assert response.status_code != 429; assert mock_is_allowed.called
-async def test_global_rate_limit_middleware_exempts_docs(public_client: AsyncClient) -> None:
-    'AC-platform.23.4'; from src.main import api_rate_limiter
-    with patch.object(api_rate_limiter, 'is_allowed', return_value=(False, 30)): response = await public_client.get('/docs'); assert response.status_code != 429
+from __future__ import annotations
+
+import uuid
+from unittest.mock import patch
+
+import pytest
+from httpx import AsyncClient
+
+from src.platform import RateLimitConfig, RateLimiter
+
+
+def _unique_key() -> str:
+    return f"test-{uuid.uuid4().hex}"
+
+
+def test_rate_limiter_allows_blocks_isolates_and_resets() -> None:
+    limiter = RateLimiter(RateLimitConfig(max_requests=2, window_seconds=60, block_seconds=100))
+    k1, k2 = _unique_key(), _unique_key()
+    assert [limiter.is_allowed(k1) for _ in range(2)] == [(True, 0), (True, 0)]
+    allowed, retry = limiter.is_allowed(k1)
+    assert not allowed and retry == 100
+    assert limiter.is_allowed(k2)[0] is True
+    limiter.reset(k1)
+    assert limiter.is_allowed(k1)[0] is True
+    limiter.reset(k1)
+    limiter.reset(k2)
+    limiter.reset(_unique_key())
+
+
+@pytest.mark.parametrize(("method", "path", "allowed_rv", "expected_status"), [("get", "/health", (False, 30), None), ("get", "/docs", (False, 30), None), ("post", "/auth/login", (False, 30), 429), ("post", "/auth/login", (True, 0), None)])
+async def test_global_rate_limit_middleware(public_client: AsyncClient, method: str, path: str, allowed_rv: tuple[bool, int], expected_status: int | None) -> None:
+    from src.main import api_rate_limiter
+
+    kwargs = {"json": {"email": "x@x.com", "password": "x"}} if method == "post" else {}
+    with patch.object(api_rate_limiter, "is_allowed", return_value=allowed_rv) as mock_is_allowed:
+        response = await getattr(public_client, method)(path, **kwargs)
+    if expected_status == 429:
+        assert response.status_code == 429 and "Retry-After" in response.headers and response.headers["X-Request-ID"]
+        assert "Rate limit exceeded" in response.json()["detail"]
+    else:
+        assert response.status_code != 429
+        if allowed_rv[0]:
+            assert mock_is_allowed.called

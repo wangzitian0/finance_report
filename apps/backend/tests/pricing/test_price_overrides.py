@@ -32,7 +32,6 @@ async def position_for_override(db: AsyncSession, test_user):
 
 
 async def test_update_prices_happy(db: AsyncSession, test_user, position_for_override):
-    "AC-pricing.providers.1 AC17.5.1"
     obs = await record_override(
         db,
         test_user.id,
@@ -47,7 +46,6 @@ async def test_update_prices_happy(db: AsyncSession, test_user, position_for_ove
 
 
 async def test_create_price_overrides_endpoint(client: AsyncClient, position_for_override):
-    "AC-pricing.providers.6 AC17.6.13"
     payload = {
         "updates": [
             {
@@ -75,7 +73,6 @@ async def test_create_price_overrides_endpoint(client: AsyncClient, position_for
 
 
 async def test_create_price_overrides_batch_and_validation(client: AsyncClient, db: AsyncSession, test_user, position_for_override):
-    "AC-pricing.providers.7 AC17.6.14 AC17.6.15"
     db.add(
         ManagedPosition(
             user_id=test_user.id,

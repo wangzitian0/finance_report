@@ -1,4 +1,3 @@
-"EPIC-023"
 
 from __future__ import annotations
 from pathlib import Path
@@ -89,7 +88,6 @@ def committed_store() -> CassetteStore:
 
 
 async def test_AC23_6_1_replay_synthesises_stream_from_frozen_text_cassette(monkeypatch, committed_store):
-    "AC-llm.6.1"
 
     async def explode(**kwargs):
         raise AssertionError("replay must not call litellm")
@@ -123,7 +121,6 @@ async def test_AC23_6_1_replay_synthesises_stream_from_frozen_text_cassette(monk
 
 
 async def test_AC23_6_1_replay_vision_cassette_synthesises_stream(monkeypatch, committed_store):
-    "AC-llm.6.1"
 
     async def explode(**kwargs):
         raise AssertionError("replay must not call litellm")
@@ -143,7 +140,6 @@ async def test_AC23_6_1_replay_vision_cassette_synthesises_stream(monkeypatch, c
 
 
 async def test_AC23_6_2_replay_miss_is_hard_failure(monkeypatch, tmp_path):
-    "AC-llm.6.2"
 
     async def explode(**kwargs):
         raise AssertionError("replay must not call litellm")
@@ -163,7 +159,6 @@ async def test_AC23_6_2_replay_miss_is_hard_failure(monkeypatch, tmp_path):
 
 
 async def test_AC23_6_3_record_accumulates_and_writes_cassette(monkeypatch, tmp_path):
-    "AC-llm.6.3"
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream('{"a"', ":1", "}"))
     store = CassetteStore(directory=tmp_path / "c")
     out = await accumulate_stream(
@@ -186,7 +181,6 @@ async def test_AC23_6_3_record_accumulates_and_writes_cassette(monkeypatch, tmp_
 
 
 async def test_AC23_6_3_record_is_idempotent(monkeypatch, tmp_path):
-    "AC-llm.6.3"
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("frozen"))
     store = CassetteStore(directory=tmp_path / "c")
     key = fingerprint(role="text", messages=_TEXT_MESSAGES, decode_params=_TEXT_DECODE)
@@ -213,7 +207,6 @@ async def test_AC23_6_3_record_is_idempotent(monkeypatch, tmp_path):
 
 
 async def test_AC23_6_4_off_mode_passes_stream_through_untouched(monkeypatch, tmp_path):
-    "AC-llm.6.4"
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("Hel", "", "lo"))
     store = CassetteStore(directory=tmp_path / "c")
     chunks = [
@@ -231,7 +224,6 @@ async def test_AC23_6_4_off_mode_passes_stream_through_untouched(monkeypatch, tm
 
 
 async def test_AC23_6_4_off_mode_normalises_provider_error(monkeypatch):
-    "AC-llm.6.4"
 
     async def boom(**kwargs):
         raise ValueError("bad request")
@@ -245,7 +237,6 @@ async def test_AC23_6_4_off_mode_normalises_provider_error(monkeypatch):
 
 
 def test_AC23_6_5_role_derivation_text_vs_vision_distinct_keys():
-    "AC-llm.6.5"
     assert client_mod._stream_role(_VISION_MESSAGES) == "vision"
     assert client_mod._stream_role(_TEXT_MESSAGES) == "text"
     k_text = fingerprint(role="text", messages=_TEXT_MESSAGES, decode_params=_TEXT_DECODE)
@@ -254,7 +245,6 @@ def test_AC23_6_5_role_derivation_text_vs_vision_distinct_keys():
 
 
 async def test_AC23_6_5_model_id_swap_resolves_same_cassette(monkeypatch, committed_store):
-    "AC-llm.6.5"
 
     async def explode(**kwargs):
         raise AssertionError("replay must not call litellm")
@@ -286,7 +276,6 @@ async def test_AC23_6_5_model_id_swap_resolves_same_cassette(monkeypatch, commit
 
 
 async def test_AC23_6_3_record_correctness_requires_validator(monkeypatch, tmp_path):
-    "AC-llm.6.3"
     from src.llm.extension.cassette import CassetteValidationError
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("anything"))
@@ -304,7 +293,6 @@ async def test_AC23_6_3_record_correctness_requires_validator(monkeypatch, tmp_p
 
 
 async def test_AC23_6_3_record_correctness_validated_freezes_text(monkeypatch, tmp_path):
-    "AC-llm.6.3"
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream('{"closing_balance":', ' "100.00"}'))
     store = CassetteStore(directory=tmp_path / "c")
     validator = lambda response: response["stream_text"] == '{"closing_balance": "100.00"}'
@@ -327,7 +315,6 @@ async def test_AC23_6_3_record_correctness_validated_freezes_text(monkeypatch, t
 
 
 async def test_AC23_6_3_record_correctness_refuses_wrong_answer(monkeypatch, tmp_path):
-    "AC-llm.6.3"
     from src.llm.extension.cassette import CassetteValidationError
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("wrong answer"))
@@ -348,7 +335,6 @@ async def test_AC23_6_3_record_correctness_refuses_wrong_answer(monkeypatch, tmp
 
 
 async def test_AC23_6_3_record_correctness_validator_error_refuses(monkeypatch, tmp_path):
-    "AC-llm.6.3"
     from src.llm.extension.cassette import CassetteValidationError
 
     def boom(_response: dict) -> bool:

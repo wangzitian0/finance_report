@@ -1,4 +1,3 @@
-"AC-platform.1.1"
 
 from datetime import UTC, datetime
 import pytest
@@ -16,7 +15,6 @@ async def _outbox_count(db) -> int:
 
 
 async def test_commit_leaves_exactly_one_outbox_row(db):
-    "AC-platform.1.1"
     bus = OutboxEventBus(db, source_pkg="test")
     bus.publish(_event())
     await db.commit()
@@ -29,7 +27,6 @@ async def test_commit_leaves_exactly_one_outbox_row(db):
 
 
 async def test_rollback_leaves_no_outbox_row(db):
-    "AC-platform.1.1"
     bus = OutboxEventBus(db, source_pkg="test")
     bus.publish(_event())
     await db.flush()

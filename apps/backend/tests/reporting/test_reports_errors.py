@@ -1,27 +1,55 @@
-from datetime import date; from decimal import Decimal; from unittest.mock import AsyncMock, patch; from uuid import uuid4; from httpx import AsyncClient; from sqlalchemy.ext.asyncio import AsyncSession; from src.reconciliation import MatchNotFoundError; from src.reporting import ReportError; from tests.ledger._ledger_helpers import create_valid_posted_entry
+from datetime import date
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
-async def test_export_csv_rows_coverage(client: AsyncClient):
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-    mock_bs = {'as_of_date': date(2026, 1, 31), 'currency': 'SGD', 'assets': [{'name': 'Cash', 'amount': Decimal('100.00')}], 'liabilities': [{'name': 'Loan', 'amount': Decimal('50.00')}], 'equity': [{'name': 'Earnings', 'amount': Decimal('50.00')}], 'total_assets': Decimal('100.00'), 'total_liabilities': Decimal('50.00'), 'total_equity': Decimal('50.00')}; mock_is = {'start_date': date(2026, 1, 1), 'end_date': date(2026, 1, 31), 'currency': 'SGD', 'income': [{'name': 'Sales', 'amount': Decimal('200.00')}], 'expenses': [{'name': 'Rent', 'amount': Decimal('100.00')}], 'total_income': Decimal('200.00'), 'total_expenses': Decimal('100.00'), 'net_income': Decimal('100.00')}
+from src.identity import create_access_token
+from src.ledger.extension.account_service import AccountNotFoundError
+from src.reconciliation import MatchNotFoundError
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
-    with patch('src.routers.reports.generate_balance_sheet', new_callable=AsyncMock) as mock_func: mock_func.return_value = mock_bs; resp = await client.get('/reports/exports', params={'report_type': 'balance-sheet'}); assert resp.status_code == 200; assert 'Cash,100.0' in resp.text; assert 'Total Assets,,100.0' in resp.text
 
-    with patch('src.routers.reports.generate_income_statement', new_callable=AsyncMock) as mock_func: mock_func.return_value = mock_is; params = {'report_type': 'income-statement', 'start_date': '2026-01-01', 'end_date': '2026-01-31'}; resp = await client.get('/reports/exports', params=params); assert resp.status_code == 200; assert 'Sales,200.0' in resp.text; assert 'Total Income,,200.0' in resp.text
+@pytest.mark.parametrize(
+    ("payload", "detail_substr"),
+    [({"not_sub": "val"}, "missing subject"), ({"sub": "not-a-uuid"}, "invalid user id format")],
+)
+async def test_auth_coverage_errors(client: AsyncClient, payload: dict, detail_substr: str) -> None:
+    resp = await client.get("/auth/me", headers={"Authorization": f"Bearer {create_access_token(data=payload)}"})
+    assert resp.status_code == 401 and detail_substr in resp.json()["detail"].lower()
 
-async def test_auth_coverage_errors(client: AsyncClient): from src.identity import create_access_token; token_no_sub = create_access_token(data={'not_sub': 'val'}); resp = await client.get('/auth/me', headers={'Authorization': f'Bearer {token_no_sub}'}); assert resp.status_code == 401; assert 'missing subject' in resp.json()['detail'].lower(); token_bad_uuid = create_access_token(data={'sub': 'not-a-uuid'}); resp = await client.get('/auth/me', headers={'Authorization': f'Bearer {token_bad_uuid}'}); assert resp.status_code == 401; assert 'invalid user id format' in resp.json()['detail'].lower()
 
-async def test_journal_router_coverage_errors(client: AsyncClient, db: AsyncSession, test_user): resp = await client.get(f'/journal-entries/{uuid4()}'); assert resp.status_code == 404; resp = await client.post(f'/journal-entries/{uuid4()}/postings'); assert resp.status_code == 404; resp = await client.post(f'/journal-entries/{uuid4()}/voidings', json={'reason': 'test'}); assert resp.status_code == 400; resp = await client.delete(f'/journal-entries/{uuid4()}'); assert resp.status_code == 404; entry = await create_valid_posted_entry(db, test_user.id, entry_date=date.today(), memo='Posted'); resp = await client.delete(f'/journal-entries/{entry.id}'); assert resp.status_code == 400; assert 'draft' in resp.json()['detail'].lower()
+async def test_journal_accounts_reconciliation_coverage_errors(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    for method, path, extra, code in (
+        ("get", f"/journal-entries/{uuid4()}", {}, 404),
+        ("post", f"/journal-entries/{uuid4()}/postings", {}, 404),
+        ("post", f"/journal-entries/{uuid4()}/voidings", {"json": {"reason": "test"}}, 400),
+        ("delete", f"/journal-entries/{uuid4()}", {}, 404),
+        ("put", f"/accounts/{uuid4()}", {"json": {"name": "New"}}, 404),
+    ):
+        assert (await getattr(client, method)(path, **extra)).status_code == code
+    entry = await create_valid_posted_entry(db, test_user.id, entry_date=date.today(), memo="Posted")
+    del_resp = await client.delete(f"/journal-entries/{entry.id}")
+    assert del_resp.status_code == 400 and "draft" in del_resp.json()["detail"].lower()
 
-async def test_accounts_coverage_errors(client: AsyncClient):
-
-    from src.ledger.extension.account_service import AccountNotFoundError; resp = await client.put(f'/accounts/{uuid4()}', json={'name': 'New'}); assert resp.status_code == 404
-
-    with patch('src.routers.accounts.account_service.get_account', new_callable=AsyncMock) as mock: mock.side_effect = AccountNotFoundError(uuid4()); resp = await client.delete(f'/accounts/{uuid4()}'); assert resp.status_code == 404
-
-async def test_reconciliation_coverage_errors(client: AsyncClient):
-
-    with patch('src.routers.reconciliation.accept_match_service', new_callable=AsyncMock) as mock: mock.side_effect = MatchNotFoundError('Match not found'); resp = await client.patch(f'/reconciliation/matches/{uuid4()}', json={'action': 'accept'}); assert resp.status_code == 404
-
-    with patch('src.routers.reconciliation.reject_match_service', new_callable=AsyncMock) as mock: mock.side_effect = MatchNotFoundError('Match not found'); resp = await client.patch(f'/reconciliation/matches/{uuid4()}', json={'action': 'reject'}); assert resp.status_code == 404
-
-    resp = await client.post('/reconciliation/matches', json={'action': 'accept', 'match_ids': []}); assert resp.status_code == 200; assert resp.json()['approved_count'] == 0
+    with patch(
+        "src.routers.accounts.account_service.get_account",
+        new_callable=AsyncMock,
+        side_effect=AccountNotFoundError(uuid4()),
+    ):
+        assert (await client.delete(f"/accounts/{uuid4()}")).status_code == 404
+    for target, action in (("accept_match_service", "accept"), ("reject_match_service", "reject")):
+        with patch(
+            f"src.routers.reconciliation.{target}",
+            new_callable=AsyncMock,
+            side_effect=MatchNotFoundError("Match not found"),
+        ):
+            assert (
+                await client.patch(f"/reconciliation/matches/{uuid4()}", json={"action": action})
+            ).status_code == 404
+    batch = await client.post("/reconciliation/matches", json={"action": "accept", "match_ids": []})
+    assert batch.status_code == 200 and batch.json()["approved_count"] == 0

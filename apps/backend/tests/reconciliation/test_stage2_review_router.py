@@ -1,13 +1,17 @@
 from __future__ import annotations
+
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
+
 import pytest
 from fastapi import status
 from sqlalchemy import select
+
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction import BankStatementStatus, EconomicIntent, Stage1Status
 from src.extraction.extension import statement_validation as statement_validation_mod
+from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
@@ -15,745 +19,218 @@ from src.platform import DomainError
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-from src.routers import (
-    reconciliation as reconciliation_router,
-    statements as statements_router,
-)
-from src.schemas.extraction import ResolveConflictsRequest, Stage1ApprovalRequest
-from src.schemas.reconciliation import (
-    ConsistencyCheckRunRequest,
-    ReconciliationMatchBatchRequest,
-    ResolveCheckRequest,
-)
-from tests.api._statement_router_fixtures import (
-    add_reviewed_disposition_rule,
-    add_txn,
-    build_statement,
-    create_statement_account,
-)
-from tests.statement_ingestion import anchored_reviewed_posting_inputs
 from src.request_context import RequestContext
+from src.routers import reconciliation as reconciliation_router, statements as statements_router
+from src.schemas.extraction import ResolveConflictsRequest, Stage1ApprovalRequest
+from src.schemas.reconciliation import ConsistencyCheckRunRequest, ReconciliationMatchBatchRequest, ResolveCheckRequest
+from tests.api._statement_router_fixtures import add_reviewed_disposition_rule, add_txn, build_statement, create_statement_account
+from tests.statement_ingestion import anchored_reviewed_posting_inputs
 
 
-async def _seed_approved_statement_with_txn(
-    db,
-    user_id,
-    name: str = "DBS",
-    amount: Decimal = Decimal("50.00"),
-    description: str = "Payment",
-    txn_date: date = date(2025, 1, 15),
-    direction: str = "OUT",
-):
+async def _seed_approved_statement_with_txn(db, user_id, name: str = "DBS", amount: Decimal = Decimal("50.00"), description: str = "Payment", txn_date: date = date(2025, 1, 15), direction: str = "OUT"):
     account = await create_statement_account(db, user_id, f"{name} Account")
     statement = build_statement(user_id, f"hash_{uuid4().hex[:8]}", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
+    statement.status, statement.account_id = BankStatementStatus.APPROVED, account.id
     db.add(statement)
     await db.commit()
     txn = await add_txn(db, statement, txn_date=txn_date, description=description, amount=amount, direction=direction)
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
-    return (account, statement, txn)
+    return account, statement, txn
 
 
-async def _seed_approved_statement_with_posted_txn(
-    db,
-    user_id,
-    name: str = "DBS",
-    amount: Decimal = Decimal("50.00"),
-    description: str = "Payment",
-    txn_date: date = date(2025, 1, 15),
-    direction: str = "OUT",
-    intent: EconomicIntent = EconomicIntent.EXPENSE,
-    source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
-):
-    account, statement, txn = await _seed_approved_statement_with_txn(
-        db, user_id, name=name, amount=amount, description=description, txn_date=txn_date, direction=direction
-    )
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db, user_id=user_id, transaction=txn, intent=intent
-    )
-    entry = await create_entry_from_txn(
-        db,
-        txn,
-        user_id=user_id,
-        auto_post=True,
-        source_type=source_type,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
-        base_currency="SGD",
-    )
+async def _seed_approved_statement_with_posted_txn(db, user_id, name: str = "DBS", amount: Decimal = Decimal("50.00"), description: str = "Payment", txn_date: date = date(2025, 1, 15), direction: str = "OUT", intent: EconomicIntent = EconomicIntent.EXPENSE, source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED):
+    account, statement, txn = await _seed_approved_statement_with_txn(db, user_id, name=name, amount=amount, description=description, txn_date=txn_date, direction=direction)
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(db, user_id=user_id, transaction=txn, intent=intent)
+    entry = await create_entry_from_txn(db, txn, user_id=user_id, auto_post=True, source_type=source_type, disposition=decision, counter_account=counter_account, source_decision=source_decision, trace_emitter=trace_emitter, base_currency="SGD")
     await db.flush()
-    return (account, statement, txn, entry)
+    return account, statement, txn, entry
 
 
-async def test_get_stage2_review_queue_with_pending_match(db, test_user):
-    "AC-reconciliation.bank-side-amount.4 AC4.9.4"
-    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+def _chk(uid, *, ctype=CheckType.DUPLICATE, cstat=CheckStatus.PENDING, run_id: str | None = None, related=None, sev: str = "high") -> ConsistencyCheck:
+    return ConsistencyCheck(user_id=uid, run_id=run_id, check_type=ctype, status=cstat, related_txn_ids=related or ["txn1"], details={"count": 1}, severity=sev)
 
-    empty_result = await reconciliation_router.get_stage2_review_queue(RequestContext(db, test_user.id))
-    assert empty_result.pending_matches == []
-    assert empty_result.consistency_checks == []
-    assert empty_result.has_unresolved_checks is False
-    _, _, txn = await _seed_approved_statement_with_txn(db, test_user.id, "Stage 2 Queue")
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id, match_score=75, status=ReconciliationStatus.PENDING_REVIEW, version=1
-    )
-    db.add(match)
+
+def _match(txn_id, *, eids=None, score: int = 85, run_id: str | None = None) -> ReconciliationMatch:
+    return ReconciliationMatch(atomic_txn_id=txn_id, journal_entry_ids=eids or [], run_id=run_id, match_score=score, status=ReconciliationStatus.PENDING_REVIEW, version=1)
+
+
+async def test_stage2_queue_checks_and_resolution(db, test_user):
+    ctx = RequestContext(db, test_user.id)
+    eq, el = await reconciliation_router.get_stage2_review_queue(ctx), await reconciliation_router.list_consistency_checks(ctx)
+    assert (eq.pending_matches, eq.consistency_checks, eq.has_unresolved_checks, el.total, el.items) == ([], [], False, 0, [])
+
+    _, stmt, txn = await _seed_approved_statement_with_txn(db, test_user.id, "Stage 2 Queue")
+    db.add(_match(txn.id, score=75))
     await db.commit()
-    result = await reconciliation_router.get_stage2_review_queue(RequestContext(db, test_user.id))
-    assert len(result.pending_matches) == 1
-    assert result.pending_matches[0].status == "pending_review"
-    assert result.pending_matches[0].match_score == 75
-    assert result.pending_matches[0].confidence_tier == "MEDIUM"
+    res = await reconciliation_router.get_stage2_review_queue(ctx)
+    assert len(res.pending_matches) == 1 and (res.pending_matches[0].status, res.pending_matches[0].match_score, res.pending_matches[0].confidence_tier) == ("pending_review", 75, "MEDIUM")
 
+    run_res = await reconciliation_router.run_stage2_checks(request=ConsistencyCheckRunRequest(statement_id=stmt.id), ctx=ctx)
+    assert run_res.total >= 0 and isinstance(run_res.items, list)
+    with pytest.raises(DomainError) as exc_404:
+        await reconciliation_router.run_stage2_checks(request=ConsistencyCheckRunRequest(statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000")), ctx=ctx)
+    assert exc_404.value.status_code == status.HTTP_404_NOT_FOUND
 
-async def test_run_stage2_checks_success(db, test_user):
-    account = await create_statement_account(db, test_user.id, "Stage 2 Checks Account")
-    statement = build_statement(test_user.id, "hash_s2_checks", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
+    c1, c2 = _chk(test_user.id, related=["txn1", "txn2"]), _chk(test_user.id, ctype=CheckType.TRANSFER_PAIR, cstat=CheckStatus.APPROVED, sev="medium")
+    db.add_all([c1, c2])
     await db.commit()
-    statement_id = statement.id
-    result = await reconciliation_router.run_stage2_checks(
-        request=ConsistencyCheckRunRequest(statement_id=statement_id), ctx=RequestContext(db, test_user.id)
-    )
-    assert result.total >= 0
-    assert isinstance(result.items, list)
+    await db.refresh(c1)
+    assert (await reconciliation_router.list_consistency_checks(ctx, status=CheckStatus.PENDING)).items[0].check_type == CheckType.DUPLICATE
+    assert (await reconciliation_router.list_consistency_checks(ctx, check_type=CheckType.TRANSFER_PAIR)).items[0].status == CheckStatus.APPROVED
+
+    for cid, req, code in ((c1.id, ResolveCheckRequest(action="invalid"), 400), (statements_router.UUID("00000000-0000-0000-0000-000000000000"), ResolveCheckRequest(action="approve"), 404)):
+        with pytest.raises(DomainError) as exc:
+            await reconciliation_router.resolve_consistency_check(check_id=cid, request=req, ctx=ctx)
+        assert exc.value.status_code == code
+
+    with pytest.raises(DomainError) as exc_blk:
+        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[]), ctx=ctx)
+    assert exc_blk.value.status_code == status.HTTP_409_CONFLICT and "unresolved" in exc_blk.value.detail
+    resolved = await reconciliation_router.resolve_consistency_check(check_id=c1.id, request=ResolveCheckRequest(action="approve", note="Looks fine"), ctx=ctx)
+    assert (resolved.status, resolved.resolution_note) == (CheckStatus.APPROVED, "Looks fine")
 
 
-async def test_run_stage2_checks_not_found(db, test_user):
-    with pytest.raises(DomainError) as exc:
-        await reconciliation_router.run_stage2_checks(
-            request=ConsistencyCheckRunRequest(
-                statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000")
-            ),
-            ctx=RequestContext(db, test_user.id),
-        )
-    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_resolve_consistency_check_success(db, test_user):
-    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-
-    check = ConsistencyCheck(
-        user_id=test_user.id,
-        check_type=CheckType.DUPLICATE,
-        status=CheckStatus.PENDING,
-        related_txn_ids=["txn1", "txn2"],
-        details={"count": 2, "amount": "100.00"},
-        severity="high",
-    )
-    db.add(check)
+@pytest.mark.parametrize(("txns_spec", "closing"), [([("Duplicate deposit", "20.00", "IN"), ("Duplicate deposit", "20.00", "IN")], "140.00"), ([("Transfer out", "20.00", "OUT"), ("Transfer in", "20.00", "IN")], "100.00")])
+async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_user, txns_spec, closing):
+    acc = await create_statement_account(db, test_user.id, f"Stage1 Conflict {uuid4().hex[:4]}")
+    stmt = build_statement(test_user.id, f"hash_{uuid4().hex[:8]}", 90)
+    stmt.status, stmt.stage1_status, stmt.account_id, stmt.opening_balance, stmt.closing_balance = BankStatementStatus.PARSED, Stage1Status.PENDING_REVIEW, acc.id, Decimal("100.00"), Decimal(closing)
+    db.add(stmt)
     await db.commit()
-    await db.refresh(check)
-    check_id = check.id
-    result = await reconciliation_router.resolve_consistency_check(
-        check_id=check_id, request=ResolveCheckRequest(action="approve", note="Looks fine"), ctx=RequestContext(db, test_user.id)
-    )
-    assert result.status == CheckStatus.APPROVED
-    assert result.resolution_note == "Looks fine"
-
-
-async def test_resolve_consistency_check_invalid_action(db, test_user):
-    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-
-    check = ConsistencyCheck(
-        user_id=test_user.id,
-        check_type=CheckType.DUPLICATE,
-        status=CheckStatus.PENDING,
-        related_txn_ids=["txn1"],
-        details={"count": 1},
-        severity="high",
-    )
-    db.add(check)
-    await db.commit()
-    await db.refresh(check)
-    check_id = check.id
-    with pytest.raises(DomainError) as exc:
-        await reconciliation_router.resolve_consistency_check(
-            check_id=check_id, request=ResolveCheckRequest(action="invalid"), ctx=RequestContext(db, test_user.id)
-        )
-    assert exc.value.status_code == 400
-
-
-async def test_resolve_consistency_check_not_found(db, test_user):
-    with pytest.raises(DomainError) as exc:
-        await reconciliation_router.resolve_consistency_check(
-            check_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            request=ResolveCheckRequest(action="approve"),
-            ctx=RequestContext(db, test_user.id),
-        )
-    assert exc.value.status_code == 404
-
-
-async def test_list_consistency_checks_with_filters(db, test_user):
-    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-
-    empty = await reconciliation_router.list_consistency_checks(RequestContext(db, test_user.id))
-    assert empty.total == 0
-    assert empty.items == []
-    check1 = ConsistencyCheck(
-        user_id=test_user.id,
-        check_type=CheckType.DUPLICATE,
-        status=CheckStatus.PENDING,
-        related_txn_ids=["txn1"],
-        details={"count": 1},
-        severity="high",
-    )
-    check2 = ConsistencyCheck(
-        user_id=test_user.id,
-        check_type=CheckType.TRANSFER_PAIR,
-        status=CheckStatus.APPROVED,
-        related_txn_ids=["txn2"],
-        details={"amount": "50.00"},
-        severity="medium",
-    )
-    db.add(check1)
-    db.add(check2)
-    await db.commit()
-    result = await reconciliation_router.list_consistency_checks(
-        RequestContext(db, test_user.id), status=CheckStatus.PENDING
-    )
-    assert result.total == 1
-    assert result.items[0].check_type == CheckType.DUPLICATE
-    result2 = await reconciliation_router.list_consistency_checks(
-        RequestContext(db, test_user.id), check_type=CheckType.TRANSFER_PAIR
-    )
-    assert result2.total == 1
-    assert result2.items[0].status == CheckStatus.APPROVED
-
-
-async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user):
-    "AC-reconciliation.stage2-batch.1 AC16.22.3"
-    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-
-    check = ConsistencyCheck(
-        user_id=test_user.id,
-        check_type=CheckType.DUPLICATE,
-        status=CheckStatus.PENDING,
-        related_txn_ids=["txn1"],
-        details={"count": 1},
-        severity="high",
-    )
-    db.add(check)
+    for desc, amt, dir_ in txns_spec:
+        await add_txn(db, stmt, txn_date=date(2025, 1, 15), description=desc, amount=Decimal(amt), direction=dir_)
     await db.commit()
     with pytest.raises(DomainError) as exc:
-        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[]), ctx=RequestContext(db, test_user.id))
-    assert exc.value.status_code == status.HTTP_409_CONFLICT
-    assert "unresolved" in exc.value.detail
+        await statements_router.approve_statement_stage1(statement_id=stmt.id, request=Stage1ApprovalRequest(notes=None), ctx=RequestContext(db, test_user.id))
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST and "unresolved duplicate or transfer-pair" in exc.value.detail
 
 
-async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_user):
-    "AC-reconciliation.conflict-resolution.1 AC16.32.1"
-    account = await create_statement_account(db, test_user.id, "DBS Stage 1 Conflict")
-    statement = build_statement(test_user.id, "hash_stage1_conflict", 90)
-    statement.status = BankStatementStatus.PARSED
-    statement.stage1_status = Stage1Status.PENDING_REVIEW
-    statement.account_id = account.id
-    statement.opening_balance = Decimal("100.00")
-    statement.closing_balance = Decimal("140.00")
-    db.add(statement)
+async def test_AC16_34_resolve_conflicts_and_reject_reset(db, test_user):
+    uid, ctx = test_user.id, RequestContext(db, test_user.id)
+    acc = await create_statement_account(db, uid, "Resolve Conflict Account")
+    stmt = build_statement(uid, "hash_stage1_resolve", 90)
+    stmt.status, stmt.stage1_status, stmt.account_id, stmt.opening_balance, stmt.closing_balance = BankStatementStatus.PARSED, Stage1Status.PENDING_REVIEW, acc.id, Decimal("100.00"), Decimal("140.00")
+    db.add(stmt)
     await db.commit()
     for _ in range(2):
-        await add_txn(
-            db,
-            statement,
-            txn_date=date(2025, 1, 15),
-            description="Duplicate deposit",
-            amount=Decimal("20.00"),
-            direction="IN",
-        )
+        await add_txn(db, stmt, txn_date=date(2025, 1, 15), description="Duplicate deposit", amount=Decimal("20.00"), direction="IN")
+    await add_reviewed_disposition_rule(db, user_id=uid, keyword="duplicate deposit", account_type=AccountType.INCOME, category="SALARY")
     await db.commit()
-    with pytest.raises(DomainError) as exc_info:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), ctx=RequestContext(db, test_user.id))
-    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
 
+    with pytest.raises(DomainError) as exc_blk:
+        await statements_router.approve_statement_stage1(statement_id=stmt.id, request=Stage1ApprovalRequest(), ctx=ctx)
+    assert exc_blk.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert (await statements_router.resolve_review_conflicts(statement_id=stmt.id, request=ResolveConflictsRequest(action="confirm_distinct"), ctx=ctx)).resolved is True
+    assert (await statements_router.get_review_conflicts(statement_id=stmt.id, ctx=ctx)).resolved is True
+    approved = await statements_router.approve_statement_stage1(statement_id=stmt.id, request=Stage1ApprovalRequest(), ctx=ctx)
+    assert (approved.id, approved.status) == (stmt.id, BankStatementStatus.APPROVED)
 
-async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, test_user):
-    "AC16.32.1"
-    account = await create_statement_account(db, test_user.id, "Transfer Conflict Account")
-    statement = build_statement(test_user.id, "hash_stage1_transfer_conflict", 90)
-    statement.status = BankStatementStatus.PARSED
-    statement.account_id = account.id
-    statement.closing_balance = Decimal("100.00")
-    db.add(statement)
+    with pytest.raises(DomainError) as exc_404:
+        await statements_router.resolve_review_conflicts(statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"), request=ResolveConflictsRequest(action="confirm_distinct"), ctx=ctx)
+    assert exc_404.value.status_code == status.HTTP_404_NOT_FOUND
+
+    stmt2 = build_statement(uid, "hash_stage1_resolve_reset", 90)
+    stmt2.status = BankStatementStatus.PARSED
+    db.add(stmt2)
     await db.commit()
-    await add_txn(
-        db, statement, txn_date=date(2025, 1, 15), description="Transfer out", amount=Decimal("20.00"), direction="OUT"
-    )
-    await add_txn(
-        db, statement, txn_date=date(2025, 1, 15), description="Transfer in", amount=Decimal("20.00"), direction="IN"
-    )
+    await statements_router.resolve_review_conflicts(statement_id=stmt2.id, request=ResolveConflictsRequest(action="confirm_distinct"), ctx=ctx)
+    await db.refresh(stmt2)
+    assert stmt2.stage1_conflicts_resolved_at is not None
+    await statement_validation_mod.reject_statement(db, stmt2.id, uid, reason="reparse")
     await db.commit()
-    with pytest.raises(DomainError) as exc_info:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, request=Stage1ApprovalRequest(notes=None), ctx=RequestContext(db, test_user.id))
-    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
+    await db.refresh(stmt2)
+    assert stmt2.stage1_conflicts_resolved_at is None
 
 
-async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
-    "AC-reconciliation.conflict-resolution.2 AC16.34.1"
-    user_id = test_user.id
-    account = await create_statement_account(db, test_user.id, "Resolve Conflict Account")
-    statement = build_statement(test_user.id, "hash_stage1_resolve", 90)
-    statement.status = BankStatementStatus.PARSED
-    statement.stage1_status = Stage1Status.PENDING_REVIEW
-    statement.account_id = account.id
-    statement.opening_balance = Decimal("100.00")
-    statement.closing_balance = Decimal("140.00")
-    db.add(statement)
+async def test_AC16_32_3_and_AC19_11_1_queue_and_run_id_scoping(db, test_user):
+    ctx = RequestContext(db, test_user.id)
+    db.add_all([_chk(test_user.id, related=[f"txn-{i}"]) for i in range(55)])
+    db.add_all([_chk(test_user.id, run_id="run-123", related=["txn-in-run"]), _chk(test_user.id, run_id="run-456", related=["txn-other-run"])])
     await db.commit()
-    statement_id = statement.id
-    for _ in range(2):
-        await add_txn(
-            db,
-            statement,
-            txn_date=date(2025, 1, 15),
-            description="Duplicate deposit",
-            amount=Decimal("20.00"),
-            direction="IN",
-        )
-    await add_reviewed_disposition_rule(
-        db, user_id=user_id, keyword="duplicate deposit", account_type=AccountType.INCOME, category="SALARY"
-    )
+    assert len((await reconciliation_router.get_stage2_review_queue(ctx)).consistency_checks) == 57
+    listed = await reconciliation_router.list_consistency_checks(ctx, run_id="run-123")
+    assert listed.total == 1 and listed.items[0].related_txn_ids == ["txn-in-run"]
+
+    _, _, txn_in, _ = await _seed_approved_statement_with_posted_txn(db, test_user.id, "DBS Run Scope")
+    _, _, txn_out = await _seed_approved_statement_with_txn(db, test_user.id, "DBS Other Run")
+    m_in, m_out = _match(txn_in.id, score=95, run_id="run-123"), _match(txn_out.id, score=95, run_id="run-456")
+    db.add_all([m_in, m_out])
     await db.commit()
-    with pytest.raises(DomainError) as exc_info:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, request=Stage1ApprovalRequest(), ctx=RequestContext(db, user_id))
-    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-    resolve_response = await statements_router.resolve_review_conflicts(
-        statement_id=statement_id, request=ResolveConflictsRequest(action="confirm_distinct"), ctx=RequestContext(db, user_id)
-    )
-    assert resolve_response.resolved is True
-    assert resolve_response.resolved_at is not None
-    conflicts_after = await statements_router.get_review_conflicts(statement_id=statement_id, ctx=RequestContext(db, user_id))
-    assert conflicts_after.resolved is True
-    approved = await statements_router.approve_statement_stage1(statement_id=statement_id, request=Stage1ApprovalRequest(), ctx=RequestContext(db, user_id))
-    assert approved.id == statement_id
-    assert approved.status == BankStatementStatus.APPROVED
+    assert [str(m.id) for m in (await reconciliation_router.get_stage2_review_queue(ctx, run_id="run-123")).pending_matches] == [str(m_in.id)]
+    assert (await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[m_in.id, m_out.id], run_id="run-123"), ctx=ctx)).approved_count == 1
+    await db.refresh(m_in)
+    await db.refresh(m_out)
+    assert (m_in.status, m_out.status) == (ReconciliationStatus.ACCEPTED, ReconciliationStatus.PENDING_REVIEW)
 
 
-async def test_AC16_34_1_resolve_conflicts_404_for_unknown_statement(db, test_user):
-    "AC16.34.1"
-    with pytest.raises(DomainError) as exc_info:
-        await statements_router.resolve_review_conflicts(
-            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            request=ResolveConflictsRequest(action="confirm_distinct"),
-            ctx=RequestContext(db, test_user.id),
-        )
-    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_AC16_34_2_reject_clears_conflict_resolution(db, test_user):
-    "AC-reconciliation.conflict-resolution.3 AC16.34.2"
-    statement = build_statement(test_user.id, "hash_stage1_resolve_reset", 90)
-    statement.status = BankStatementStatus.PARSED
-    db.add(statement)
+async def test_batch_accept_reject_idempotency_errors_and_evidence_graph(db, test_user):
+    uid, ctx = test_user.id, RequestContext(db, test_user.id)
+    _, _, txn_ref, entry_ref = await _seed_approved_statement_with_posted_txn(db, uid, "DBS Ref", txn_date=date(2025, 1, 16))
+    _, _, txn_exist, entry_exist = await _seed_approved_statement_with_posted_txn(db, uid, "DBS Existing", txn_date=date(2025, 1, 18))
+    m_ref, m_exist = _match(txn_ref.id, eids=[str(entry_ref.id)]), _match(txn_exist.id)
+    db.add_all([m_ref, m_exist])
     await db.commit()
-    statement_id = statement.id
-    await statements_router.resolve_review_conflicts(
-        statement_id=statement_id,
-        request=ResolveConflictsRequest(action="confirm_distinct"),
-        ctx=RequestContext(db, test_user.id),
-    )
-    await db.refresh(statement)
-    assert statement.stage1_conflicts_resolved_at is not None
-    await statement_validation_mod.reject_statement(db, statement_id, test_user.id, reason="reparse")
-    await db.commit()
-    await db.refresh(statement)
-    assert statement.stage1_conflicts_resolved_at is None
+    r1 = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[m_ref.id, m_exist.id]), ctx=ctx)
+    await db.refresh(m_ref)
+    await db.refresh(m_exist)
+    await db.refresh(entry_ref)
+    await db.refresh(entry_exist)
+    assert (r1.approved_count, r1.journal_entries_reconciled, m_ref.status, entry_ref.status, m_exist.journal_entry_ids, entry_exist.status) == (2, 2, ReconciliationStatus.ACCEPTED, JournalEntryStatus.RECONCILED, [str(entry_exist.id)], JournalEntryStatus.RECONCILED)
 
-
-async def test_AC16_32_3_stage2_queue_returns_all_pending_checks(db, test_user):
-    "AC-reconciliation.review-hardening.1 AC16.32.3"
-    db.add_all(
-        [
-            ConsistencyCheck(
-                user_id=test_user.id,
-                check_type=CheckType.DUPLICATE,
-                status=CheckStatus.PENDING,
-                related_txn_ids=[f"txn-{idx}"],
-                details={"message": f"Duplicate candidate {idx}"},
-                severity="high",
-            )
-            for idx in range(55)
-        ]
-    )
+    _, stmt_miss, txn_miss = await _seed_approved_statement_with_txn(db, uid, "DBS Miss", txn_date=date(2025, 1, 17))
+    m_miss = _match(txn_miss.id)
+    db.add(m_miss)
     await db.commit()
-    result = await reconciliation_router.get_stage2_review_queue(RequestContext(db, test_user.id))
-    assert len(result.consistency_checks) == 55
-
-
-async def test_AC19_11_1_consistency_check_list_filters_by_run_id(db, test_user):
-    "AC19.11.1"
-    db.add_all(
-        [
-            ConsistencyCheck(
-                user_id=test_user.id,
-                run_id="run-123",
-                check_type=CheckType.DUPLICATE,
-                status=CheckStatus.PENDING,
-                related_txn_ids=["txn-in-run"],
-                details={"message": "Run scoped duplicate"},
-                severity="high",
-            ),
-            ConsistencyCheck(
-                user_id=test_user.id,
-                run_id="run-456",
-                check_type=CheckType.DUPLICATE,
-                status=CheckStatus.PENDING,
-                related_txn_ids=["txn-other-run"],
-                details={"message": "Other run duplicate"},
-                severity="high",
-            ),
-        ]
-    )
-    await db.commit()
-    result = await reconciliation_router.list_consistency_checks(RequestContext(db, test_user.id), run_id="run-123")
-    assert result.total == 1
-    assert result.items[0].related_txn_ids == ["txn-in-run"]
-
-
-async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
-    "AC-reconciliation.run-scoped-review.1 AC19.11.1"
-    account = await create_statement_account(db, test_user.id, "DBS Run Scope")
-    statement = build_statement(test_user.id, "hash_stage2_run_scope", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-    txn_in_run = await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 16),
-        description="Run scoped payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
-    )
-    txn_other_run = await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 17),
-        description="Other run payment",
-        amount=Decimal("60.00"),
-        direction="OUT",
-    )
-    db.add_all([txn_in_run, txn_other_run])
-    await db.commit()
-    await db.refresh(txn_in_run)
-    await db.refresh(txn_other_run)
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db, user_id=test_user.id, transaction=txn_in_run, intent=EconomicIntent.EXPENSE
-    )
-    await create_entry_from_txn(
-        db,
-        txn_in_run,
-        user_id=test_user.id,
-        auto_post=True,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
-        base_currency="SGD",
-    )
-    in_run_match = ReconciliationMatch(
-        atomic_txn_id=txn_in_run.id,
-        run_id="run-123",
-        match_score=95,
-        status=ReconciliationStatus.PENDING_REVIEW,
-        version=1,
-    )
-    other_run_match = ReconciliationMatch(
-        atomic_txn_id=txn_other_run.id,
-        run_id="run-456",
-        match_score=95,
-        status=ReconciliationStatus.PENDING_REVIEW,
-        version=1,
-    )
-    db.add_all([in_run_match, other_run_match])
-    await db.commit()
-    queue = await reconciliation_router.get_stage2_review_queue(RequestContext(db, test_user.id), run_id="run-123")
-    assert [str(match.id) for match in queue.pending_matches] == [str(in_run_match.id)]
-    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[in_run_match.id, other_run_match.id], run_id='run-123'), ctx=RequestContext(db, test_user.id))
-    assert result.approved_count == 1
-    await db.refresh(in_run_match)
-    await db.refresh(other_run_match)
-    assert in_run_match.status == ReconciliationStatus.ACCEPTED
-    assert other_run_match.status == ReconciliationStatus.PENDING_REVIEW
-async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
-    "AC-reconciliation.stage2-batch.5 AC16.24.4"
-    _, _, txn, entry = await _seed_approved_statement_with_posted_txn(
-        db, test_user.id, "DBS Batch Referenced", txn_date=date(2025, 1, 16), description="Referenced entry payment"
-    )
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        match_score=85,
-        status=ReconciliationStatus.PENDING_REVIEW,
-        version=1,
-    )
-    db.add(match)
-    await db.commit()
-    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, test_user.id))
-    assert result.approved_count == 1
-    assert result.journal_entries_reconciled == 1
-    await db.refresh(match)
-    await db.refresh(txn)
-    await db.refresh(entry)
-    assert match.status == ReconciliationStatus.ACCEPTED
-    assert entry.status == JournalEntryStatus.RECONCILED
-
-
-async def test_batch_approve_matches_without_entry_requires_review(db, test_user):
-    "AC-reconciliation.stage2-batch.2"
-    user_id = test_user.id
-    _, _, txn = await _seed_approved_statement_with_txn(
-        db, user_id, "DBS Batch Missing", txn_date=date(2025, 1, 17), description="Missing entry payment"
-    )
-    txn_id = txn.id
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[],
-        match_score=85,
-        status=ReconciliationStatus.PENDING_REVIEW,
-        version=1,
-    )
-    db.add(match)
-    await db.commit()
-    with pytest.raises(DomainError) as exc_info:
-        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, user_id))
-    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Authoritative economic disposition" in str(exc_info.value.detail)
+    with pytest.raises(DomainError) as exc_miss:
+        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[m_miss.id]), ctx=ctx)
+    assert exc_miss.value.status_code == 400 and "Authoritative economic disposition" in str(exc_miss.value.detail)
     await db.rollback()
-    await db.refresh(match)
-    assert match.status == ReconciliationStatus.PENDING_REVIEW
-    assert match.journal_entry_ids == []
-    entry_result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id == txn_id)
-    )
-    assert list(entry_result.scalars().all()) == []
+    await db.refresh(m_miss)
+    assert m_miss.status == ReconciliationStatus.PENDING_REVIEW and m_miss.journal_entry_ids == []
+    assert list((await db.execute(select(JournalEntry).where(JournalEntry.user_id == uid, JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES), JournalEntry.source_id == txn_miss.id))).scalars()) == []
 
+    _, _, txn_retry, _ = await _seed_approved_statement_with_posted_txn(db, uid, "DBS Retry", txn_date=date(2025, 1, 18))
+    m_retry = _match(txn_retry.id)
+    db.add(m_retry)
+    await db.commit()
+    first = await accept_match_service(db, str(m_retry.id), user_id=uid)
+    await db.commit()
+    second = await accept_match_service(db, str(m_retry.id), user_id=uid)
+    await db.commit()
+    assert (second.status, second.version, second.journal_entry_ids) == (ReconciliationStatus.ACCEPTED, first.version, list(first.journal_entry_ids or []))
 
-async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
-    "AC-reconciliation.bank-side-amount.2 AC4.9.2"
-    _, _, txn, _ = await _seed_approved_statement_with_posted_txn(
-        db, test_user.id, "DBS Accept Retry", txn_date=date(2025, 1, 18), description="Retry-safe payment"
-    )
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[],
-        match_score=85,
-        status=ReconciliationStatus.PENDING_REVIEW,
-        version=1,
-    )
-    db.add(match)
+    other_txn = await add_txn(db, stmt_miss, txn_date=date(2025, 1, 19), description="Diff", amount=Decimal("100.00"), direction="OUT")
+    db.add(other_txn)
     await db.commit()
-    first = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    await db.refresh(other_txn)
+    dec, c_acc, s_dec, emitter = await anchored_reviewed_posting_inputs(db, user_id=uid, transaction=other_txn, intent=EconomicIntent.EXPENSE)
+    e_bad = await create_entry_from_txn(db, other_txn, user_id=uid, auto_post=True, disposition=dec, counter_account=c_acc, source_decision=s_dec, trace_emitter=emitter, base_currency="SGD")
+    m_bad, m_rej = _match(txn_miss.id, eids=[str(e_bad.id)]), _match(txn_miss.id, score=70)
+    db.add_all([m_bad, m_rej])
     await db.commit()
-    first_version = first.version
-    first_entry_ids = list(first.journal_entry_ids or [])
-    second = await accept_match_service(db, str(match.id), user_id=test_user.id)
-    await db.commit()
-    assert second.status == ReconciliationStatus.ACCEPTED
-    assert second.version == first_version
-    assert second.journal_entry_ids == first_entry_ids
-    entry_result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id == txn.id)
-    )
-    assert len(list(entry_result.scalars().all())) == 1
+    with pytest.raises(DomainError) as exc_amt:
+        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="accept", match_ids=[m_bad.id]), ctx=ctx)
+    assert exc_amt.value.status_code == 400 and "Amount mismatch" in exc_amt.value.detail
+    assert (await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="reject", match_ids=[]), ctx=ctx)).rejected_count == 0
+    assert (await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action="reject", match_ids=[m_rej.id]), ctx=ctx)).rejected_count == 1
 
-
-async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user):
-    "AC16.24.4"
-    _, _, txn, entry = await _seed_approved_statement_with_posted_txn(
-        db,
-        test_user.id,
-        "DBS Batch Existing Source",
-        txn_date=date(2025, 1, 18),
-        description="Existing source entry payment",
-    )
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[],
-        match_score=85,
-        status=ReconciliationStatus.PENDING_REVIEW,
-        version=1,
-    )
-    db.add(match)
+    acc_inact, _, txn_inact = await _seed_approved_statement_with_txn(db, uid, "DBS Inactive", txn_date=date(2025, 1, 20))
+    acc_inact.is_active = False
     await db.commit()
-    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, test_user.id))
-    assert result.approved_count == 1
-    assert result.journal_entries_reconciled == 1
-    await db.refresh(match)
-    await db.refresh(entry)
-    assert match.journal_entry_ids == [str(entry.id)]
-    assert entry.status == JournalEntryStatus.RECONCILED
-    entry_result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id == txn.id)
-    )
-    assert len(list(entry_result.scalars().all())) == 1
-
-
-async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_account(db, test_user):
-    "AC-reconciliation.bank-side-amount.3 AC4.9.3"
-    account = await create_statement_account(db, test_user.id, "DBS Inactive Statement Account")
-    account.is_active = False
-    statement = build_statement(test_user.id, "hash_batch_inactive_account", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-    txn = await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 20),
-        description="Inactive mapped account payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db, user_id=test_user.id, transaction=txn, intent=EconomicIntent.EXPENSE
-    )
+    dec2, ca2, sd2, em2 = await anchored_reviewed_posting_inputs(db, user_id=uid, transaction=txn_inact, intent=EconomicIntent.EXPENSE)
     with pytest.raises(ValueError, match="active asset"):
-        await create_entry_from_txn(
-            db,
-            txn,
-            user_id=test_user.id,
-            auto_post=True,
-            disposition=decision,
-            counter_account=counter_account,
-            source_decision=source_decision,
-            trace_emitter=trace_emitter,
-            base_currency="SGD",
-        )
-    entry_result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id == txn.id)
-    )
-    assert list(entry_result.scalars().all()) == []
-    assert (
-        await db.scalar(
-            select(Account.id)
-            .where(Account.user_id == test_user.id)
-            .where(Account.name.in_(("Income - Uncategorized", "Expense - Uncategorized")))
-            .limit(1)
-        )
-        is None
-    )
+        await create_entry_from_txn(db, txn_inact, user_id=uid, auto_post=True, disposition=dec2, counter_account=ca2, source_decision=sd2, trace_emitter=em2, base_currency="SGD")
+    assert await db.scalar(select(Account.id).where(Account.user_id == uid, Account.name.in_(("Income - Uncategorized", "Expense - Uncategorized"))).limit(1)) is None
 
-
-async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledger_graph(db, test_user):
-    "AC-extraction.1808.3 AC-extraction.1808.6 AC18.8.3 AC18.8.6 AC18.8.7"
-    _, _, txn, entry = await _seed_approved_statement_with_posted_txn(
-        db,
-        test_user.id,
-        "DBS Evidence Graph Posting",
-        txn_date=date(2025, 1, 21),
-        description="Evidence graph salary",
-        direction="IN",
-        intent=EconomicIntent.INCOME,
-        source_type=JournalEntrySourceType.AUTO_PARSED,
-    )
+    _, _, g_txn, g_entry = await _seed_approved_statement_with_posted_txn(db, uid, "DBS Graph", txn_date=date(2025, 1, 21), description="Evidence salary", direction="IN", intent=EconomicIntent.INCOME, source_type=JournalEntrySourceType.AUTO_PARSED)
     await db.commit()
-    assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
-    assert entry.source_id == txn.id
-    from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
-
-    await EvidenceGraphMaterializationService().materialize_for_entity(
-        db, user_id=test_user.id, entity_type="journal_entry", entity_id=entry.id
-    )
+    assert (g_entry.source_type, g_entry.source_id) == (JournalEntrySourceType.AUTO_PARSED, g_txn.id)
+    await EvidenceGraphMaterializationService().materialize_for_entity(db, user_id=uid, entity_type="journal_entry", entity_id=g_entry.id)
     await db.commit()
-    nodes = {
-        (node.node_kind, node.entity_type, node.entity_id): node
-        for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()
-    }
-    extracted_node = nodes["atomic_fact", "atomic_transaction", txn.id]
-    ledger_entry_node = nodes["ledger_entry", "journal_entry", entry.id]
-    ledger_line_nodes = [nodes["ledger_line", "journal_line", line.id] for line in entry.lines]
-    edges = {
-        (edge.from_node_id, edge.to_node_id, edge.relation)
-        for edge in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == test_user.id))).scalars()
-    }
-    assert (extracted_node.id, ledger_entry_node.id, "posted_as") in edges
-    assert {(ledger_entry_node.id, ledger_line_node.id, "contains") for ledger_line_node in ledger_line_nodes} <= edges
-
-
-async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_user):
-    "AC16.24.4"
-    account, statement, txn, _ = await _seed_approved_statement_with_posted_txn(
-        db, test_user.id, "DBS Batch Mismatch", txn_date=date(2025, 1, 19), description="Mismatched payment"
-    )
-    entry_source_txn = await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 19),
-        description="Different payment",
-        amount=Decimal("100.00"),
-        direction="OUT",
-    )
-    db.add(entry_source_txn)
-    await db.commit()
-    await db.refresh(entry_source_txn)
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db, user_id=test_user.id, transaction=entry_source_txn, intent=EconomicIntent.EXPENSE
-    )
-    entry = await create_entry_from_txn(
-        db,
-        entry_source_txn,
-        user_id=test_user.id,
-        auto_post=True,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
-        base_currency="SGD",
-    )
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        match_score=85,
-        status=ReconciliationStatus.PENDING_REVIEW,
-        version=1,
-    )
-    db.add(match)
-    await db.commit()
-    with pytest.raises(DomainError) as exc_info:
-        await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='accept', match_ids=[match.id]), ctx=RequestContext(db, test_user.id))
-    assert exc_info.value.status_code == 400
-    assert "Amount mismatch" in exc_info.value.detail
-
-
-async def test_batch_reject_matches_success(db, test_user):
-    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-
-    empty_res = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='reject', match_ids=[]), ctx=RequestContext(db, test_user.id))
-    assert empty_res.rejected_count == 0
-    _, _, txn = await _seed_approved_statement_with_txn(db, test_user.id, "DBS Batch Reject")
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id, match_score=70, status=ReconciliationStatus.PENDING_REVIEW, version=1
-    )
-    db.add(match)
-    await db.commit()
-    await db.refresh(match)
-    match_id = match.id
-    result = await reconciliation_router.batch_update_matches(payload=ReconciliationMatchBatchRequest(action='reject', match_ids=[match_id]), ctx=RequestContext(db, test_user.id))
-    assert result.rejected_count == 1
+    nodes = {(n.node_kind, n.entity_type, n.entity_id): n for n in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == uid))).scalars()}
+    edges = {(e.from_node_id, e.to_node_id, e.relation) for e in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == uid))).scalars()}
+    le_node = nodes["ledger_entry", "journal_entry", g_entry.id]
+    assert (nodes["atomic_fact", "atomic_transaction", g_txn.id].id, le_node.id, "posted_as") in edges
+    assert {(le_node.id, nodes["ledger_line", "journal_line", item.id].id, "contains") for item in g_entry.lines} <= edges

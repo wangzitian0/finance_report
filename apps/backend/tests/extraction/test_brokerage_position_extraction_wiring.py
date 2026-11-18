@@ -1,4 +1,3 @@
-"AC-extraction.304.9 AC-extraction.304.10 AC-extraction.304.11 AC-extraction.304.12 EPIC-017"
 
 from datetime import date
 from decimal import Decimal
@@ -54,14 +53,11 @@ from tests.statement_ingestion import run_for
 
 
 def test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution():
-    "AC-extraction.304.9"
     assert looks_like_brokerage_document(filename="moomoo-2506.pdf", institution=None)
     assert looks_like_brokerage_document(filename="statement.pdf", institution="Futu Securities")
     assert looks_like_brokerage_document(filename="activity.csv", institution="Interactive Brokers")
     assert not looks_like_brokerage_document(filename="dbs-statement.pdf", institution="DBS")
     assert not looks_like_brokerage_document(filename="statement.pdf", institution=None)
-    "AC-extraction.304.9 AC-extraction.304.10"
-    "AC-extraction.304.9 AC-extraction.304.10"
     _m1_brokerage_prompt = get_parsing_prompt("Moomoo", document_kind="brokerage")
     assert _m1_brokerage_prompt.startswith(BROKERAGE_POSITIONS_PROMPT)
     assert '"positions"' in _m1_brokerage_prompt
@@ -72,7 +68,6 @@ def test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution(
 
 
 async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_call(monkeypatch):
-    "AC-extraction.304.9"
     service = ExtractionService()
     service.api_key = "test-key"
     captured: dict[str, str] = {}
@@ -93,7 +88,6 @@ async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_c
 
 
 async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(monkeypatch):
-    "AC-extraction.304.9"
     service = ExtractionService()
     service.api_key = "test-key"
     captured: dict[str, str] = {}
@@ -114,7 +108,6 @@ async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(mo
 
 
 def test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser():
-    "AC-extraction.304.10"
     payload = {
         "institution": "Moomoo",
         "snapshot_date": "2026-06-30",
@@ -139,7 +132,6 @@ def test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser():
 
 
 async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, test_user):
-    "AC-extraction.304.11"
     statement_id = uuid4()
     statement = StatementSummaryFactory.build(
         id=statement_id,
@@ -168,7 +160,6 @@ async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, 
 
 
 async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, db, test_user, monkeypatch):
-    "AC-extraction.304.12"
     fixture = _synthetic_moomoo_positions_payload()
     expected_rows = fixture["positions"]
     statement_id = uuid4()
@@ -266,7 +257,6 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
 
 
 async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
-    "AC-extraction.304.12"
     service = BrokeragePositionImportService()
     fixture = _synthetic_moomoo_positions_payload()
     result = await service.import_positions(
@@ -289,14 +279,12 @@ async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
 
 
 def test_AC_B3_multi_currency_brokerage_does_not_fabricate_cash_balances():
-    "AC-extraction.304.13"
     fixture = _synthetic_ibkr_multicurrency_payload()
     balances = brokerage_currency_balances(fixture, filename="ibkr-multicurrency-2506.pdf")
     assert balances == []
 
 
 async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum(test_user):
-    "AC-extraction.304.13"
     from unittest.mock import AsyncMock
 
     service = ExtractionService()

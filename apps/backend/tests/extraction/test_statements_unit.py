@@ -27,7 +27,6 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_build_statement_storage_key_sanitizes_extension() -> None:
-    "AC-extraction.105.1"
     statement_id = uuid4()
     assert (
         statements_router.build_statement_storage_key(
@@ -175,7 +174,6 @@ async def test_create_statement_account_from_confirmation_reuses_existing_active
 
 
 async def test_AC_extraction_2994_21_the_retry_flag_and_the_watchdog_are_gone() -> None:
-    """AC-extraction.2994.21: The reparse has no reset_for_retry parameter and the watchdog no longer exists."""
     from src.extraction.extension import statement_parsing_supervisor as supervisor
 
     assert "reset_for_retry" not in inspect.signature(statements_router._queue_statement_reparse).parameters

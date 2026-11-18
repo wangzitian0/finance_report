@@ -1,4 +1,11 @@
+from __future__ import annotations
+
+import json
+from unittest.mock import MagicMock
+
 import pytest
+
+from src import platform as platform_pkg
 from src.platform import (
     BadGatewayError,
     BaseAppException,
@@ -18,46 +25,17 @@ from src.platform import (
 
 
 class TestBaseAppException:
-    def test_base_app_exception_has_error_id(self):
-        "AC-platform.21.1"
-        exc = BaseAppException(error_id="ERR_001", message="test error")
-        assert exc.error_id == "ERR_001"
-
-    def test_base_app_exception_has_status_code(self):
-        "AC-platform.21.2"
-        exc = BaseAppException(error_id="ERR_002", message="bad request", status_code=400)
-        assert exc.status_code == 400
-
-    def test_base_app_exception_is_subclass_of_exception(self):
-        "AC-platform.21.3"
-        exc = BaseAppException(error_id="ERR_003", message="error")
-        assert isinstance(exc, Exception)
-        "BaseAppException defaults to status_code=500 when not specified."
-        exc = BaseAppException(error_id="ERR_003", message="error")
-        assert exc.status_code == 500
-
-    def test_base_app_exception_raise_and_catch(self):
-        "AC-platform.21.4"
+    def test_base_app_exception_fields_and_raise(self) -> None:
+        default_exc = BaseAppException(error_id="ERR_003", message="error")
+        assert isinstance(default_exc, Exception) and (default_exc.error_id, default_exc.status_code) == ("ERR_003", 500)
         with pytest.raises(BaseAppException) as exc_info:
             raise BaseAppException(error_id="ERR_004", message="raised!", status_code=422)
-        assert exc_info.value.error_id == "ERR_004"
-        assert exc_info.value.status_code == 422
-        assert exc_info.value.message == "raised!"
-        assert str(exc_info.value) == "raised!"
-
-    async def test_base_app_exception_handler_returns_structured_json(self):
-        "AC-platform.21.5"
-        import json
-        from unittest.mock import MagicMock
-        from src.main import base_app_exception_handler
-
-        mock_request = MagicMock()
-        exc = BaseAppException(error_id="TEST_ERR", message="test message", status_code=422)
-        response = await base_app_exception_handler(mock_request, exc)
-        assert response.status_code == 422
-        body = json.loads(response.body)
-        assert body["error_id"] == "TEST_ERR"
-        assert body["detail"] == "test message"
+        assert (exc_info.value.error_id, exc_info.value.status_code, exc_info.value.message, str(exc_info.value)) == (
+            "ERR_004",
+            422,
+            "raised!",
+            "raised!",
+        )
 
     @pytest.mark.parametrize(
         ("cls", "expected_status", "expected_error_id"),
@@ -77,63 +55,30 @@ class TestBaseAppException:
             (GatewayTimeoutError, 504, "gateway_timeout"),
         ],
     )
-    def test_domain_error_subclasses_bridge_value_error_and_base_app_exception(
-        self, cls, expected_status, expected_error_id
-    ):
-        "AC-platform.21.5"
+    def test_domain_error_subclasses_bridge_value_error_and_base_app_exception(self, cls, expected_status, expected_error_id) -> None:
         exc = cls("domain rule failed")
-        assert isinstance(exc, DomainError)
-        assert isinstance(exc, BaseAppException)
-        assert isinstance(exc, ValueError)
-        assert str(exc) == "domain rule failed"
-        assert exc.message == "domain rule failed"
-        assert exc.status_code == expected_status
-        assert exc.error_id == expected_error_id
+        assert isinstance(exc, DomainError) and isinstance(exc, BaseAppException) and isinstance(exc, ValueError)
+        assert (str(exc), exc.message, exc.status_code, exc.error_id) == ("domain rule failed", "domain rule failed", expected_status, expected_error_id)
 
-    async def test_domain_error_detail_payload_serializes_structured_detail(self):
-        "AC-platform.21.5"
-        import json
-        from unittest.mock import MagicMock
+    async def test_base_app_exception_handler_serializes_json_and_headers(self) -> None:
         from src.main import base_app_exception_handler
+
+        resp = await base_app_exception_handler(MagicMock(), BaseAppException(error_id="TEST_ERR", message="test message", status_code=422))
+        assert resp.status_code == 422 and json.loads(resp.body) == {"error_id": "TEST_ERR", "detail": "test message"}
 
         payload = {"error": "evidence_authority_revoked", "message": "revoked"}
-        exc = ConflictError("revoked", detail_payload=payload)
-        assert exc.detail == payload
-        response = await base_app_exception_handler(MagicMock(), exc)
-        assert response.status_code == 409
-        body = json.loads(response.body)
-        assert body["error_id"] == "conflict"
-        assert body["detail"] == payload
+        conflict_exc = ConflictError("revoked", detail_payload=payload)
+        assert conflict_exc.detail == payload
+        conflict_resp = await base_app_exception_handler(MagicMock(), conflict_exc)
+        assert conflict_resp.status_code == 409 and json.loads(conflict_resp.body) == {"error_id": "conflict", "detail": payload}
 
-    async def test_base_app_exception_handler_forwards_headers(self):
-        "AC-platform.21.5"
-        from unittest.mock import MagicMock
-        from src.main import base_app_exception_handler
-
-        exc = UnauthorizedError("Not authenticated", headers={"WWW-Authenticate": "Bearer"})
-        response = await base_app_exception_handler(MagicMock(), exc)
-        assert response.status_code == 401
-        assert response.headers.get("www-authenticate") == "Bearer"
-
-        rate_exc = TooManyRequestsError("Slow down", headers={"Retry-After": "42"})
-        rate_resp = await base_app_exception_handler(MagicMock(), rate_exc)
-        assert rate_resp.status_code == 429
-        assert rate_resp.headers.get("retry-after") == "42"
-
-    def test_legacy_procedural_http_helpers_removed_from_platform(self):
-        "AC-platform.21.5"
-        import src.platform as platform_pkg
-
-        for obsolete in (
-            "raise_bad_request",
-            "raise_not_found",
-            "raise_conflict",
-            "raise_too_large",
-            "raise_service_unavailable",
-            "raise_internal_error",
-            "raise_unauthorized",
-            "raise_too_many_requests",
-            "raise_gateway_timeout",
-            "get_owned_or_404",
+        for exc, status_code, header, expected in (
+            (UnauthorizedError("Not authenticated", headers={"WWW-Authenticate": "Bearer"}), 401, "www-authenticate", "Bearer"),
+            (TooManyRequestsError("Slow down", headers={"Retry-After": "42"}), 429, "retry-after", "42"),
         ):
-            assert not hasattr(platform_pkg, obsolete), f"Obsolete helper still exported: {obsolete}"
+            r = await base_app_exception_handler(MagicMock(), exc)
+            assert (r.status_code, r.headers.get(header)) == (status_code, expected)
+
+    def test_legacy_procedural_http_helpers_removed_from_platform(self) -> None:
+        obsolete = ("raise_bad_request", "raise_not_found", "raise_conflict", "raise_too_large", "raise_service_unavailable", "raise_internal_error", "raise_unauthorized", "raise_too_many_requests", "raise_gateway_timeout", "get_owned_or_404")
+        assert all(not hasattr(platform_pkg, name) for name in obsolete)

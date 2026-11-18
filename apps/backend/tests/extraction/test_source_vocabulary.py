@@ -49,7 +49,6 @@ pytestmark = pytest.mark.no_db
     ],
 )
 def test_source_enum_persistence_compatibility(name, model, column, type_name, values):
-    "AC-extraction.source-vocabulary.2"
     from src.extraction.base import source_vocabulary
 
     enum = getattr(source_vocabulary, name)

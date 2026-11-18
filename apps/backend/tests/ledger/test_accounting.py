@@ -5,7 +5,6 @@ from src.ledger import Direction, JournalLine, ValidationError, validate_fx_rate
 
 
 async def test_balanced_entry_passes():
-    "AC-ledger.2.1"
     lines = [
         JournalLine(
             id=uuid4(),
@@ -32,7 +31,6 @@ async def test_balanced_entry_passes():
 
 
 async def test_unbalanced_entry_fails():
-    "AC-ledger.2.2"
     lines = [
         JournalLine(
             id=uuid4(),
@@ -56,7 +54,6 @@ async def test_unbalanced_entry_fails():
 
 
 async def test_single_line_entry_fails():
-    "AC-ledger.2.3"
     lines = [
         JournalLine(
             id=uuid4(),
@@ -72,7 +69,6 @@ async def test_single_line_entry_fails():
 
 
 async def test_decimal_precision():
-    "AC-ledger.2.4"
     amount1 = Decimal("100.50")
     amount2 = Decimal("50.25")
     total = amount1 + amount2
@@ -81,7 +77,6 @@ async def test_decimal_precision():
 
 
 async def test_fx_rate_required_for_non_base_currency():
-    "AC-ledger.2.5 AC-ledger.11.4"
     lines = [
         JournalLine(
             id=uuid4(),
@@ -95,8 +90,6 @@ async def test_fx_rate_required_for_non_base_currency():
     ]
     with pytest.raises(ValidationError, match="fx_rate required"):
         validate_fx_rates(lines)
-    "AC-ledger.2.7"
-    "AC-ledger.2.7"
     _m1_lines = [
         JournalLine(
             id=uuid4(),
@@ -112,7 +105,6 @@ async def test_fx_rate_required_for_non_base_currency():
 
 
 async def test_missing_currency_balances_as_base_currency():
-    "AC-ledger.2.7"
     lines = [
         JournalLine(
             id=uuid4(),
@@ -134,8 +126,6 @@ async def test_missing_currency_balances_as_base_currency():
         ),
     ]
     validate_journal_balance(lines)
-    "AC-ledger.2.5"
-    "AC-ledger.2.5"
     _m2_lines = [
         JournalLine(
             id=uuid4(),

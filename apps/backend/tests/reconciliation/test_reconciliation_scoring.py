@@ -1,44 +1,120 @@
-from datetime import date, timedelta; from decimal import Decimal; from uuid import uuid4; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import JournalEntrySourceType; from src.extraction import TransactionDirection; from src.extraction.orm.layer2 import AtomicTransaction; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.reconciliation import DEFAULT_CONFIG, ReconciliationMatch, ReconciliationStatus, auto_accept, build_many_to_one_groups, entry_total_amount, extract_merchant_tokens, is_entry_balanced, load_reconciliation_config, normalize_text, prune_candidates, score_amount, score_business_logic, score_date, score_description, score_group, score_pattern, weighted_total
-def _make_entry_with_types(account_types: list[AccountType]) -> JournalEntry:
-    entry = JournalEntry(id=uuid4(), user_id=uuid4(), entry_date=date.today(), memo='Test entry', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED)
-    for (index, account_type) in enumerate(account_types): account = Account(id=uuid4(), user_id=uuid4(), name=f'Account {index}', type=account_type, currency='SGD'); line = JournalLine(journal_entry_id=entry.id, account_id=account.id, direction=Direction.DEBIT, amount=Decimal('1.00'), currency='SGD'); line.account = account; entry.lines.append(line)
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import JournalEntrySourceType
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, fit_journal_memo
+from src.reconciliation import (
+    DEFAULT_CONFIG,
+    ReconciliationConfig,
+    _find_many_to_one_candidates,
+    _find_normal_candidates,
+    _find_transfer_candidates,
+    build_many_to_one_groups,
+    derive_reconciliation_score_tier,
+    extract_merchant_tokens,
+    is_cross_period,
+    normalize_text,
+    score_amount,
+    score_date,
+    score_description,
+    score_single,
+    weighted_total,
+)
+
+
+def _txn(description: str, amount: str = "10.00", *, user_id=None, txn_date: date = date(2024, 1, 1), direction: str = "OUT", statement_id=None) -> AtomicTransaction:
+    return AtomicTransaction(id=uuid4(), user_id=user_id or uuid4(), txn_date=txn_date, description=description, amount=Decimal(amount), direction=TransactionDirection(direction), currency="SGD", dedup_hash=uuid4().hex, source_documents=[{"doc_id": str(statement_id or uuid4()), "doc_type": "bank_statement"}])
+
+
+def _entry(memo: str = "Entry", amount: Decimal = Decimal("100.00"), entry_date: date = date(2024, 1, 1), *, debit_type: AccountType = AccountType.EXPENSE, credit_type: AccountType = AccountType.ASSET, user_id=None) -> JournalEntry:
+    uid = user_id or uuid4()
+    entry = JournalEntry(id=uuid4(), user_id=uid, entry_date=entry_date, memo=memo, source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED)
+    da, ca = Account(id=uuid4(), user_id=uid, name="D", type=debit_type, currency="SGD"), Account(id=uuid4(), user_id=uid, name="C", type=credit_type, currency="SGD")
+    entry.lines = [JournalLine(journal_entry_id=entry.id, account_id=da.id, account=da, direction=Direction.DEBIT, amount=amount, currency="SGD"), JournalLine(journal_entry_id=entry.id, account_id=ca.id, account=ca, direction=Direction.CREDIT, amount=amount, currency="SGD")]
     return entry
-def _make_entry(amount: Decimal, entry_date: date) -> JournalEntry: entry = JournalEntry(id=uuid4(), user_id=uuid4(), entry_date=entry_date, memo='Amount entry', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); entry.lines.append(JournalLine(journal_entry_id=entry.id, account_id=uuid4(), direction=Direction.DEBIT, amount=amount, currency='SGD')); return entry
-def test_load_reconciliation_config_reads_yaml_and_env(monkeypatch: pytest.MonkeyPatch) -> None: config = load_reconciliation_config(); assert config.auto_accept == 85; assert config.pending_review == 60; monkeypatch.setenv('RECONCILIATION_AUTO_ACCEPT_THRESHOLD', '90'); monkeypatch.setenv('RECONCILIATION_REVIEW_THRESHOLD', '70'); updated = load_reconciliation_config(force_reload=True); assert updated.auto_accept == 90
-def test_load_reconciliation_config_malformed_yaml(monkeypatch):
-    import src.reconciliation as reconciliation; from src.reconciliation.extension import config as reconciliation_config
-    class MockPath:
-        def exists(self): return True
-        def read_text(self): return 'invalid: : yaml'
-        def resolve(self): return self
-        @property
-        def parents(self): return [self, self, self, self]
-        def __truediv__(self, other): return self
-    monkeypatch.setattr(reconciliation_config, 'Path', lambda *args: MockPath()); config = reconciliation.load_reconciliation_config(force_reload=True); assert config.auto_accept == 85
-def test_load_reconciliation_config_no_yaml_module(monkeypatch):
-    import sys; import src.reconciliation as reconciliation; from src.reconciliation.extension import config as reconciliation_config
-    class MockPath:
-        def exists(self): return True
-        def resolve(self): return self
-        @property
-        def parents(self): return [self, self, self, self]
-        def __truediv__(self, other): return self
-    monkeypatch.setattr(reconciliation_config, 'Path', lambda *args: MockPath())
-    with monkeypatch.context() as m: m.setitem(sys.modules, 'yaml', None); config = reconciliation.load_reconciliation_config(force_reload=True); assert config.auto_accept == 85
-def test_normalize_and_description_scoring() -> None: 'AC-reconciliation.matching-core.4 AC4.1.4'; assert normalize_text('  ACME-CO.  ') == 'acme co'; assert score_description(None, 'value') == 0.0; assert score_description('   ', 'value') == 0.0; similarity = score_description('Coffee Shop', 'coffee shop'); assert similarity >= 95.0; _m1_tokens = extract_merchant_tokens('STARBUCKS COFFEE DOWNTOWN'); assert 'starbucks' in _m1_tokens; assert len(_m1_tokens) <= 3; _m1_tokens = extract_merchant_tokens('POS VISA DEBIT STARBUCKS'); assert 'starbucks' in _m1_tokens; assert 'pos' not in _m1_tokens; assert 'visa' not in _m1_tokens; _m1_tokens = extract_merchant_tokens('123 AB COMPANY 456'); assert 'company' in _m1_tokens; assert '123' not in _m1_tokens; assert 'ab' not in _m1_tokens; _m1_tokens = extract_merchant_tokens('POS VISA 12'); assert _m1_tokens == []; _m1_tokens = extract_merchant_tokens(''); assert _m1_tokens == []
-def test_build_many_to_one_groups_skips_empty_descriptions() -> None:
-    from dataclasses import dataclass
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize(("score", "expected"), [(None, "LOW"), (59, "LOW"), (60, "MEDIUM"), (84, "MEDIUM"), (85, "HIGH"), (100, "HIGH")])
+def test_ac4_9_4_derive_reconciliation_score_tier(score: int | None, expected: str) -> None:
+    assert derive_reconciliation_score_tier(score) == expected
+
+
+@pytest.mark.no_db
+def test_pure_scoring_engine_and_candidate_finders() -> None:
+    cfg = replace(DEFAULT_CONFIG, amount_percent=Decimal("0.02"), amount_absolute=Decimal("1.00"), date_days=7)
+    for a, b, expected in (("100.00", "100.00", 100.0), ("100.00", "100.01", 100.0), ("100.00", "101.50", 90.0), ("100.00", "104.00", 70.0), ("100.00", "200.00", 0.0)):
+        assert score_amount(Decimal(a), Decimal(b), cfg) == expected
+    assert score_amount(Decimal("10.00"), Decimal("10.10"), DEFAULT_CONFIG) == 90.0 and score_amount(Decimal("10.00"), Decimal("10.11"), DEFAULT_CONFIG) < 90.0
+
+    d1, apr_27, may_02 = date(2025, 4, 15), date(2025, 4, 27), date(2025, 5, 2)
+    assert (score_date(d1, d1, cfg), score_date(d1, date(2025, 4, 17), cfg), score_date(d1, date(2025, 4, 21), cfg)) == (100.0, 90.0, 70.0)
+    assert is_cross_period(apr_27, may_02, max_days=7) is True and score_date(apr_27, may_02, cfg) == 75.0
+    assert normalize_text("  GRAB* TAXI / TRIP #123  ") == "grab taxi trip 123"
+    tokens = extract_merchant_tokens("POS DEBIT 987654 NETFLIX COM SINGAPORE")
+    assert {"netflix", "singapore"} <= set(tokens) and "pos" not in tokens and "debit" not in tokens
+    assert (score_description(None, "Grab Taxi"), score_description("Grab Taxi", None), score_description("Grab Taxi Singapore", "Grab Taxi Singapore")) == (0.0, 0.0, 100.0) and score_description("Grab Taxi", "Grab Car") > 40.0
+
+    w_cfg = ReconciliationConfig(weight_amount=Decimal("0.40"), weight_date=Decimal("0.20"), weight_description=Decimal("0.20"), weight_business=Decimal("0.15"), weight_history=Decimal("0.05"), auto_accept=85, pending_review=60, amount_percent=Decimal("5.0"), amount_absolute=Decimal("1.00"), date_days=3)
+    assert weighted_total({"amount": 100.0, "date": 80.0, "description": 60.0, "business": 50.0, "history": 0.0}, w_cfg) == 76 and weighted_total({"amount": 0.0, "date": 0.0, "description": 0.0, "business": 0.0, "history": 0.0}, w_cfg) == 0
+
     @dataclass
-    class MockTxn: description: str; txn_date: date; direction: str = 'OUT'; currency: str = 'SGD'
-    txns = [MockTxn(description='', txn_date=date(2024, 1, 1)), MockTxn(description='   ', txn_date=date(2024, 1, 1)), MockTxn(description='Regular payment', txn_date=date(2024, 1, 1)), MockTxn(description='Batch settlement', txn_date=date(2024, 1, 1)), MockTxn(description='Batch settlement', txn_date=date(2024, 1, 1))]; groups = build_many_to_one_groups(txns); assert len(groups) == 1; assert len(groups[0]) == 2
-def test_score_amount_branches() -> None: 'AC-reconciliation.matching-core.1 AC-reconciliation.matching-core.3 AC4.1.1 AC4.1.3'; config = DEFAULT_CONFIG; exact = score_amount(Decimal('100.00'), Decimal('100.00'), config); assert exact == 100.0; tolerance = score_amount(Decimal('100.00'), Decimal('100.40'), config); assert tolerance == 90.0; assert score_amount(Decimal('100.00'), Decimal('104.00'), config) == 70.0; assert score_amount(Decimal('1000.00'), Decimal('994.00'), config, is_multi=True) == 70.0; assert score_amount(Decimal('0'), Decimal('10.00'), config) == 0.0; assert score_amount(Decimal('100.00'), Decimal('160.00'), config) == 40.0
-def test_amount_tolerance_0_10_boundary() -> None: 'AC-reconciliation.source-type-transfer.1 AC4.6.1'; config = DEFAULT_CONFIG; inside = score_amount(Decimal('10.00'), Decimal('10.10'), config); outside = score_amount(Decimal('10.00'), Decimal('10.11'), config); assert inside == 90.0; assert outside < 90.0
-def test_score_date_branches() -> None: 'AC-reconciliation.matching-core.2 AC4.1.2'; config = DEFAULT_CONFIG; assert score_date(date(2024, 1, 1), date(2024, 1, 1), config) == 100.0; fuzzy = score_date(date(2024, 1, 1), date(2024, 1, 3), config); assert fuzzy == 90.0; assert score_date(date(2024, 1, 30), date(2024, 2, 4), config) == 75.0; assert score_date(date(2024, 1, 1), date(2024, 2, 1), config) == 0.0
-@pytest.mark.parametrize(('direction', 'types', 'expected'), [('IN', [AccountType.ASSET, AccountType.INCOME], 100.0), ('IN', [AccountType.ASSET, AccountType.LIABILITY], 85.0), ('IN', [AccountType.ASSET, AccountType.EQUITY], 75.0), ('IN', [AccountType.ASSET], 70.0), ('IN', [AccountType.EXPENSE], 40.0), ('OUT', [AccountType.ASSET, AccountType.EXPENSE], 100.0), ('OUT', [AccountType.ASSET, AccountType.LIABILITY], 90.0), ('OUT', [AccountType.ASSET], 70.0), ('OUT', [AccountType.INCOME], 40.0), ('OTHER', [AccountType.ASSET], 50.0)])
-def test_score_business_logic_variants(direction: str, types: list[AccountType], expected: float) -> None: txn = AtomicTransaction(user_id=uuid4(), txn_date=date.today(), description='Test', amount=Decimal('10.00'), direction=direction, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); entry = _make_entry_with_types(types); assert score_business_logic(txn, entry) == expected
-def test_weighted_total_and_balance_helpers() -> None: 'AC-reconciliation.score.1'; scores = {'amount': 100.0, 'date': 100.0, 'description': 100.0, 'business': 100.0, 'history': 0.0}; assert weighted_total(scores, DEFAULT_CONFIG) == 95; entry = JournalEntry(id=uuid4(), user_id=uuid4(), entry_date=date.today(), memo='Balance check', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); entry.lines.append(JournalLine(journal_entry_id=entry.id, account_id=uuid4(), direction=Direction.DEBIT, amount=Decimal('50.00'), currency='SGD')); entry.lines.append(JournalLine(journal_entry_id=entry.id, account_id=uuid4(), direction=Direction.CREDIT, amount=Decimal('50.00'), currency='SGD')); assert entry_total_amount(entry, currency='SGD') == Decimal('50.00'); assert is_entry_balanced(entry, base_currency='SGD'); entry.lines.append(JournalLine(journal_entry_id=entry.id, account_id=uuid4(), direction=Direction.DEBIT, amount=Decimal('10.00'), currency='SGD')); assert not is_entry_balanced(entry, base_currency='SGD'); _m2_txn_date = date.today(); _m2_entry_close = _make_entry(Decimal('100.00'), _m2_txn_date); _m2_entry_far_amount = _make_entry(Decimal('90.00'), _m2_txn_date); _m2_entry_far_date = _make_entry(Decimal('100.00'), _m2_txn_date - timedelta(days=2)); _m2_candidates = [_m2_entry_far_date, _m2_entry_far_amount, _m2_entry_close]; _m2_pruned = prune_candidates(_m2_candidates, txn_date=_m2_txn_date, target_amount=Decimal('100.00'), currency='SGD', limit=2); assert _m2_pruned == [_m2_entry_close, _m2_entry_far_date]; assert prune_candidates(_m2_candidates, txn_date=_m2_txn_date, target_amount=Decimal('100.00'), currency='SGD', limit=5) == _m2_candidates
-async def test_score_pattern_variants(db: AsyncSession, test_user) -> None:
-    txn_empty = AtomicTransaction(user_id=uuid4(), txn_date=date.today(), description='', amount=Decimal('10.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); assert await score_pattern(db, txn_empty, DEFAULT_CONFIG, user_id=uuid4()) == 0.0; txn_no_history = AtomicTransaction(user_id=uuid4(), txn_date=date.today(), description='Coffee Shop', amount=Decimal('10.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); assert await score_pattern(db, txn_no_history, DEFAULT_CONFIG, user_id=uuid4()) == 0.0; user_id = test_user.id; past_txn = AtomicTransaction(user_id=user_id, txn_date=date.today(), description='Coffee Shop', amount=Decimal('10.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); db.add(past_txn); await db.flush()
-    match = ReconciliationMatch(atomic_txn_id=past_txn.id, journal_entry_ids=[], match_score=88, score_breakdown={'amount': 100.0}, status=ReconciliationStatus.ACCEPTED); db.add(match); await db.commit(); txn_match = AtomicTransaction(user_id=user_id, txn_date=date.today(), description='Coffee Shop', amount=Decimal('10.05'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); txn_miss = AtomicTransaction(user_id=user_id, txn_date=date.today(), description='Coffee Shop', amount=Decimal('10.50'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); assert await score_pattern(db, txn_match, DEFAULT_CONFIG, user_id=user_id) == 80.0; assert await score_pattern(db, txn_miss, DEFAULT_CONFIG, user_id=user_id) == 40.0
-async def test_score_group_many_to_one_bonus(db: AsyncSession) -> None: 'AC-reconciliation.group-matching.2'; user_id = uuid4(); bank = Account(id=uuid4(), user_id=user_id, name='Bank', type=AccountType.ASSET, currency='SGD'); expense = Account(id=uuid4(), user_id=user_id, name='Expense', type=AccountType.EXPENSE, currency='SGD'); entry = JournalEntry(id=uuid4(), user_id=user_id, entry_date=date.today(), memo='Batch payment', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); debit_line = JournalLine(journal_entry_id=entry.id, account_id=expense.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='SGD'); debit_line.account = expense; credit_line = JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.CREDIT, amount=Decimal('100.00'), currency='SGD'); credit_line.account = bank; entry.lines.extend([debit_line, credit_line]); txn = AtomicTransaction(user_id=user_id, txn_date=date.today(), description='Batch payment', amount=Decimal('100.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); candidate = await score_group(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id, group_amount=Decimal('100.00')); assert candidate.journal_entry_ids == [str(entry.id)]; assert candidate.breakdown['many_to_one_bonus'] == 10.0; assert auto_accept(candidate.score, DEFAULT_CONFIG)
-async def test_AC_reconciliation_2548_1_cjk_and_truncated_memo_scoring(db: AsyncSession) -> None: 'AC-reconciliation.2548.1'; from src.ledger import fit_journal_memo; from src.reconciliation.extension.matching import score_single; assert normalize_text('微信支付-星巴克') == '微信支付 星巴克'; assert score_description('微信支付-星巴克', '微信支付-星巴克') == 100.0; assert score_description('微信支付星巴克', '星巴克咖啡') > 0.0; assert '星巴克' in extract_merchant_tokens('微信支付-星巴克'); assert '美团' in extract_merchant_tokens('微信支付美团'); user_id = uuid4(); bank = Account(id=uuid4(), user_id=user_id, name='Bank', type=AccountType.ASSET, currency='SGD'); expense = Account(id=uuid4(), user_id=user_id, name='Dining', type=AccountType.EXPENSE, currency='SGD'); cjk_entry = JournalEntry(id=uuid4(), user_id=user_id, entry_date=date(2026, 3, 1), memo='微信支付-星巴克', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); cjk_debit = JournalLine(journal_entry_id=cjk_entry.id, account_id=expense.id, direction=Direction.DEBIT, amount=Decimal('38.00'), currency='SGD'); cjk_debit.account = expense; cjk_credit = JournalLine(journal_entry_id=cjk_entry.id, account_id=bank.id, direction=Direction.CREDIT, amount=Decimal('38.00'), currency='SGD'); cjk_credit.account = bank; cjk_entry.lines.extend([cjk_debit, cjk_credit]); cjk_txn = AtomicTransaction(user_id=user_id, txn_date=date(2026, 3, 1), description='微信支付-星巴克', amount=Decimal('38.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); cjk_candidate = await score_single(db, cjk_txn, [cjk_entry], DEFAULT_CONFIG, user_id=user_id, history_score=0.0); assert cjk_candidate.breakdown['description'] == 100.0; assert cjk_candidate.score >= 85; assert auto_accept(cjk_candidate.score, DEFAULT_CONFIG); long_desc = 'PAYNOW ' + 'A' * 593; assert len(long_desc) == 600; cut_memo = fit_journal_memo(long_desc); assert len(cut_memo) == 500; long_entry = JournalEntry(id=uuid4(), user_id=user_id, entry_date=date(2026, 3, 2), memo=cut_memo, source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); long_debit = JournalLine(journal_entry_id=long_entry.id, account_id=expense.id, direction=Direction.DEBIT, amount=Decimal('120.00'), currency='SGD'); long_debit.account = expense; long_credit = JournalLine(journal_entry_id=long_entry.id, account_id=bank.id, direction=Direction.CREDIT, amount=Decimal('120.00'), currency='SGD'); long_credit.account = bank; long_entry.lines.extend([long_debit, long_credit]); long_txn = AtomicTransaction(user_id=user_id, txn_date=date(2026, 3, 2), description=long_desc, amount=Decimal('120.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); short_txn = AtomicTransaction(user_id=user_id, txn_date=date(2026, 3, 2), description=cut_memo, amount=Decimal('120.00'), direction=TransactionDirection.OUT, currency='SGD', dedup_hash=uuid4().hex, source_documents=[]); long_candidate = await score_single(db, long_txn, [long_entry], DEFAULT_CONFIG, user_id=user_id, history_score=0.0); short_candidate = await score_single(db, short_txn, [long_entry], DEFAULT_CONFIG, user_id=user_id, history_score=0.0); assert long_candidate.breakdown['description'] == 100.0; assert long_candidate.score == short_candidate.score; assert long_candidate.score >= 85
+    class MockTxn:
+        description: str
+        txn_date: date
+        direction: str = "OUT"
+        currency: str = "SGD"
+
+    groups = build_many_to_one_groups([MockTxn("", d1), MockTxn("   ", d1), MockTxn("Regular", d1), MockTxn("Batch settlement", d1), MockTxn("Batch settlement", d1)])
+    assert len(groups) == 1 and len(groups[0]) == 2
+
+    t_out, t_in = _txn("Transfer to savings account", "500.00", direction="OUT"), _txn("Transfer from checking", "200.00", direction="IN")
+    res_out = _find_transfer_candidates(pending_txns=[t_out, _txn("Coffee Shop", "5.00")], atomic_txns=[], pattern_scores={}, config=DEFAULT_CONFIG)
+    res_in = _find_transfer_candidates(pending_txns=[t_in], atomic_txns=[], pattern_scores={}, config=DEFAULT_CONFIG)
+    assert len(res_out) == 1 and res_out[0][0] is t_out and res_out[0][1].score == 100 and "transfer_out" in res_out[0][1].breakdown and res_out[0][2] is None
+    assert len(res_in) == 1 and "transfer_in" in res_in[0][1].breakdown and _find_transfer_candidates(pending_txns=[_txn("Grocery Store")], atomic_txns=[], pattern_scores={}, config=DEFAULT_CONFIG) == []
+
+    t_sal, e_sal = _txn("Salary Payment", "1000.00", direction="IN", txn_date=date(2024, 1, 15)), _entry("Salary Payment", Decimal("1000.00"), date(2024, 1, 15), debit_type=AccountType.ASSET, credit_type=AccountType.INCOME)
+    norm = _find_normal_candidates(pending_txns=[t_sal], atomic_txns=[e_sal], pattern_scores={}, config=DEFAULT_CONFIG, base_currency="SGD")
+    assert len(norm) == 1 and norm[0][0] is t_sal and str(e_sal.id) in norm[0][1].journal_entry_ids
+    assert _find_normal_candidates(pending_txns=[_txn("Random", "999.00")], atomic_txns=[_entry("Other", Decimal("1.00"))], pattern_scores={}, config=DEFAULT_CONFIG, base_currency="SGD") == []
+    assert _find_normal_candidates(pending_txns=[_txn("Test", "100.00")], atomic_txns=[], pattern_scores={}, config=DEFAULT_CONFIG, base_currency="SGD") == []
+    split = _find_normal_candidates(pending_txns=[_txn("Split Payment", "100.00", txn_date=date(2024, 4, 5))], atomic_txns=[_entry("Split Payment", Decimal("50.00"), date(2024, 4, 5)) for _ in range(2)], pattern_scores={}, config=DEFAULT_CONFIG, base_currency="SGD")
+    triple = _find_normal_candidates(pending_txns=[_txn("Vendor ABC combined", "300.00")], atomic_txns=[_entry(f"Vendor ABC part {i}", Decimal("100.00")) for i in range(3)], pattern_scores={"vendor": 90.0}, config=DEFAULT_CONFIG, base_currency="SGD")
+    assert len(split) == 1 and split[0][1].breakdown.get("multi_entry") == 1 and len(split[0][1].journal_entry_ids) == 2
+    assert len(triple) == 1 and len(triple[0][1].journal_entry_ids) == 3 and triple[0][1].breakdown["multi_entry"] == 2
+
+    m2o_txns = [_txn("Batch settlement ACME", a, txn_date=date(2024, 4, 1), statement_id=uuid4()) for a in ("40.00", "60.00")]
+    m2o = _find_many_to_one_candidates(pending_txns=m2o_txns, atomic_txns=[_entry("Batch settlement ACME", Decimal("100.00"), date(2024, 4, 1))], pattern_scores={}, config=DEFAULT_CONFIG, base_currency="SGD")
+    assert len(m2o) == 1 and m2o[0][0] in m2o_txns and m2o[0][1].breakdown.get("many_to_one_bonus") == 10.0 and m2o[0][1].breakdown.get("group_total") == "100.00"
+    assert _find_many_to_one_candidates(pending_txns=[_txn("Coffee Shop", "5.00") for _ in range(2)], atomic_txns=[_entry("Coffee", Decimal("10.00"))], pattern_scores={}, config=DEFAULT_CONFIG, base_currency="SGD") == []
+    assert _find_many_to_one_candidates(pending_txns=m2o_txns, atomic_txns=[], pattern_scores={}, config=DEFAULT_CONFIG, base_currency="SGD") == []
+
+
+async def test_AC4_9_1_and_2548_1_bank_side_cjk_and_truncated_memo_scoring(db: AsyncSession) -> None:
+    uid = uuid4()
+    bank, expense, clearing, payable = [Account(id=uuid4(), user_id=uid, name=n, type=t, currency="SGD") for n, t in (("Chk", AccountType.ASSET), ("Exp", AccountType.EXPENSE), ("Clr", AccountType.ASSET), ("Pay", AccountType.LIABILITY))]
+    entry = JournalEntry(id=uuid4(), user_id=uid, entry_date=date(2026, 1, 5), memo="Vendor split", lines=[JournalLine(account=expense, direction=Direction.DEBIT, amount=Decimal("100.00")), JournalLine(account=clearing, direction=Direction.DEBIT, amount=Decimal("20.00")), JournalLine(account=bank, direction=Direction.CREDIT, amount=Decimal("100.00")), JournalLine(account=payable, direction=Direction.CREDIT, amount=Decimal("20.00"))])
+    assert (await score_single(db, _txn("Vendor payment", "100.00", user_id=uid, txn_date=date(2026, 1, 5)), [entry], DEFAULT_CONFIG, user_id=uid, history_score=0)).breakdown["amount"] == 100.0
+
+    assert normalize_text("微信支付-星巴克") == "微信支付 星巴克" and score_description("微信支付-星巴克", "微信支付-星巴克") == 100.0 and score_description("微信支付星巴克", "星巴克咖啡") > 0.0
+    assert "星巴克" in extract_merchant_tokens("微信支付-星巴克") and "美团" in extract_merchant_tokens("微信支付美团")
+    cjk = await score_single(db, _txn("微信支付-星巴克", "38.00", user_id=uid, txn_date=date(2026, 3, 1)), [_entry("微信支付-星巴克", Decimal("38.00"), date(2026, 3, 1), user_id=uid)], DEFAULT_CONFIG, user_id=uid, history_score=0.0)
+    assert cjk.breakdown["description"] == 100.0 and cjk.score >= 85
+
+    long_desc = "PAYNOW " + "A" * 593
+    cut_memo = fit_journal_memo(long_desc)
+    assert len(long_desc) == 600 and len(cut_memo) == 500
+    long_entry = _entry(cut_memo, Decimal("120.00"), date(2026, 3, 2), user_id=uid)
+    c_long = await score_single(db, _txn(long_desc, "120.00", user_id=uid, txn_date=date(2026, 3, 2)), [long_entry], DEFAULT_CONFIG, user_id=uid, history_score=0.0)
+    c_short = await score_single(db, _txn(cut_memo, "120.00", user_id=uid, txn_date=date(2026, 3, 2)), [long_entry], DEFAULT_CONFIG, user_id=uid, history_score=0.0)
+    assert c_long.breakdown["description"] == 100.0 and c_long.score == c_short.score >= 85
