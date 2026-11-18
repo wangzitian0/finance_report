@@ -62,6 +62,7 @@ from src.extraction.base.types import (
     StatementIngestionStatus,
     StatementPostingOutcome,
     StatementPostingStatus,
+    extraction_artifact_dependency_digest,
 )
 from src.extraction.base.validation import (
     compute_confidence_score,
@@ -84,6 +85,7 @@ from src.extraction.extension.brokerage_import_failure import (
     record_brokerage_import_failure,
 )
 from src.extraction.extension.brokerage_positions import (
+    BROKERAGE_POSITIONS_MISSING,
     BrokerageImportRejectedError,
     BrokeragePositionImportService,
     looks_like_brokerage_document,
@@ -341,6 +343,7 @@ __all__ = [
     "BROKERAGE_IMPORT_FAILED_MESSAGE",
     "BROKERAGE_IMPORT_FAILURE_KEY",
     "BROKERAGE_IMPORTABLE_STATUSES",
+    "BROKERAGE_POSITIONS_MISSING",
     "brokerage_import_failure_reason",
     "clear_brokerage_import_failure",
     "record_brokerage_import_failure",
@@ -379,6 +382,7 @@ __all__ = [
     "detect_balance_chain_break",
     "dual_write_layer2",
     "emit_disposition_trace_records",
+    "extraction_artifact_dependency_digest",
     "extraction_trace_policy_registry",
     "fail_run",
     "find_statement_review_conflicts",

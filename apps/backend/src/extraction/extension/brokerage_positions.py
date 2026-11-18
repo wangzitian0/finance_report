@@ -67,6 +67,7 @@ class BrokerageImportResult:
 
 BROKERAGE_SNAPSHOT_DATE_MISSING = "brokerage_snapshot_date_missing"
 BROKERAGE_POSITION_OUT_OF_RANGE = "brokerage_position_out_of_range"
+BROKERAGE_POSITIONS_MISSING = "brokerage_positions_missing"
 
 
 class BrokerageImportRejectedError(BaseAppException, ValueError):

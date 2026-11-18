@@ -18,6 +18,17 @@ class Transaction:
 
 
 @dataclass(frozen=True)
+class Position:
+    symbol: str
+    description: str
+    quantity: Decimal
+    price: Decimal
+    market_value: Decimal
+    currency: str
+    asset_type: str
+
+
+@dataclass(frozen=True)
 class StatementFixture:
     institution: str
     pdf_name: str
@@ -31,6 +42,13 @@ class StatementFixture:
     opening_balance: Decimal
     confidence_score: int
     transactions: tuple[Transaction, ...]
+    positions: tuple[Position, ...] = ()
+
+
+def _pos(
+    symbol: str, desc: str, qty: str, price: str, value: str, currency: str, asset_type: str = "stock"
+) -> Position:
+    return Position(symbol, desc, Decimal(qty), Decimal(price), Decimal(value), currency, asset_type)
 
 
 def _tx(
@@ -51,6 +69,7 @@ def _sf(
     opening: str,
     score: int,
     rows: tuple[tuple[str, str, str, str, str, str], ...],
+    positions: tuple[tuple[str, str, str, str, str, str, str], ...] = (),
 ) -> StatementFixture:
     return StatementFixture(
         institution=institution,
@@ -65,6 +84,7 @@ def _sf(
         opening_balance=Decimal(opening),
         confidence_score=score,
         transactions=tuple(_tx(*r) for r in rows),
+        positions=tuple(_pos(*p) for p in positions),
     )
 
 
@@ -703,6 +723,10 @@ STATEMENT_FIXTURES: tuple[StatementFixture, ...] = (
                 "0.93",
             ),
         ),
+        positions=(
+            ("NVDA", "NVIDIA Corp", "50.00", "120.00", "6000.00", "USD", "stock"),
+            ("VOO", "Vanguard S&P 500 ETF", "20.00", "510.00", "10200.00", "USD", "etf"),
+        ),
     ),
     _sf(
         "Futu",
@@ -756,6 +780,10 @@ STATEMENT_FIXTURES: tuple[StatementFixture, ...] = (
                 "Other",
                 "0.85",
             ),
+        ),
+        positions=(
+            ("00700.HK", "Tencent Holdings Ltd", "200.00", "450.00", "90000.00", "HKD", "stock"),
+            ("02800.HK", "Tracker Fund of Hong Kong", "1000.00", "22.50", "22500.00", "HKD", "etf"),
         ),
     ),
 )

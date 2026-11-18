@@ -38,4 +38,6 @@ echo "🎬 Starting Prefect worker (pool: finance-report)..."
 # --type process: belt-and-suspenders auto-create if the pool is somehow
 # missing (registration above already creates it) — non-interactive per
 # Prefect's documented `worker start --pool <name> --type <type>` behavior.
-exec prefect worker start --pool finance-report --type process
+# --limit bounds simultaneous child OS flow subprocesses so multi-PDF batch
+# uploads do not exhaust container memory/DB connections and stall heartbeats.
+exec prefect worker start --pool finance-report --type process --limit "${PREFECT_WORKER_CONCURRENCY_LIMIT:-4}"

@@ -569,3 +569,19 @@ async def test_classify_run_dispatch_failure_409_and_rejections_validation(clien
     bad_reject = await client.post(f"/statements/{sid}/rejections", json={"notes": "bell\x07"})
     assert bad_reject.status_code == 422
     assert set(bad_reject.json()["detail"][0]) >= {"loc", "msg", "type"}
+
+
+async def test_post_runs_preserves_explicit_default_multimodal_model(
+    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
+    from src.config import settings
+
+    statement = await _statement(db, test_user, status=BankStatementStatus.REJECTED)
+    jobs = _capture_dispatch(monkeypatch)
+    default_model = settings.multimodal_model
+
+    response = await client.post(f"/statements/{statement.id}/runs", json={"model": default_model})
+
+    assert response.status_code == 202, response.text
+    assert response.json()["model"] == default_model
+    assert [job.model for job in jobs] == [default_model]

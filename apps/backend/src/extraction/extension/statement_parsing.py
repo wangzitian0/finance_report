@@ -18,7 +18,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import TraceEmitter
-from src.extraction.base.result import StatementExtractionResult
+from src.config import settings
+from src.extraction.base.result import SCHEMA_VERSION, StatementExtractionResult
 from src.extraction.base.run_vocabulary import ERROR_MESSAGE_MAX_LENGTH, RunActorKind, RunKind, RunTrigger
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentStatus, DocumentType, Stage1Status
 from src.extraction.base.types import (
@@ -29,6 +30,12 @@ from src.extraction.base.types import (
     StatementIngestionConfigurationError,
     StatementIngestionOutcome,
     StatementIngestionStatus,
+    extraction_artifact_dependency_digest,
+)
+from src.extraction.extension.prompts.statement import (
+    PARSING_PROMPT_TEMPLATE_VERSION,
+    PROMPT_FILE_TYPES,
+    parsing_template_fingerprint,
 )
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
 from src.extraction.extension.brokerage_statement_payload import _extract_brokerage_payload_from_metadata
@@ -683,6 +690,28 @@ async def _execute_statement_ingestion(
             await persist_statement_extraction_result(
                 session, statement=statement, result=persisted_result, source_trace_record_id=trace_records[0].record_id
             )
+            prompt_fp = (
+                parsing_template_fingerprint()
+                if file_type in PROMPT_FILE_TYPES
+                else f"non-prompt:{file_type}"
+            )
+            resolved_model_id = job.model or persisted_result.provenance.model or settings.multimodal_model
+            artifact_digest = extraction_artifact_dependency_digest(
+                source_hash=job.file_hash,
+                preprocess_version="pdf-text-vision@1" if file_type in PROMPT_FILE_TYPES else f"{file_type}@1",
+                prompt_template_fingerprint=prompt_fp,
+                schema_version=SCHEMA_VERSION,
+                normalizer_version="1",
+                hints=hints,
+            )
+            statement.extraction_metadata = {
+                **(statement.extraction_metadata or {}),
+                "artifact_provenance": {
+                    "resolved_model_id": resolved_model_id,
+                    "artifact_dependency_digest": artifact_digest,
+                    "prompt_template_version": PARSING_PROMPT_TEMPLATE_VERSION,
+                },
+            }
 
             candidate = is_high_confidence_auto_approve_candidate(statement)
             if candidate:

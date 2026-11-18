@@ -109,7 +109,7 @@ def build_expected_json(fixture: StatementFixture, balances: list[Decimal]) -> d
         }
         for txn, bal in zip(fixture.transactions, balances, strict=True)
     ]
-    return {
+    payload = {
         "file": fixture.pdf_name,
         "institution": fixture.institution,
         "success": True,
@@ -125,6 +125,21 @@ def build_expected_json(fixture: StatementFixture, balances: list[Decimal]) -> d
         },
         "events": events,
     }
+    if fixture.positions:
+        payload["positions"] = [
+            {
+                "symbol": pos.symbol,
+                "description": pos.description,
+                "quantity": money_str(pos.quantity),
+                "price": money_str(pos.price),
+                "market_value": money_str(pos.market_value),
+                "currency": pos.currency,
+                "asset_type": pos.asset_type,
+                "snapshot_date": fixture.period_end,
+            }
+            for pos in fixture.positions
+        ]
+    return payload
 
 
 def draw_common_header(
@@ -372,6 +387,26 @@ def write_fixture_pdf_and_json(fixture: StatementFixture) -> None:
             fixture.institution, _TABLE_SPECS["DEFAULT"]
         )
         _draw_table(pdf, fixture, balances, y, headers, row_fn, h_font, b_font)
+
+    if fixture.positions:
+        pos_y = y - 24 - (len(fixture.transactions) * 17)
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(48, pos_y, f"Holdings / Positions (As of {fixture.period_end})")
+        pos_y -= 18
+        pdf.setFont("Helvetica-Bold", 9)
+        for x, label in ((48, "Symbol"), (116, "Description"), (310, "Qty"), (380, "Price"), (465, "Market Value"), (525, "CCY")):
+            pdf.drawString(x, pos_y, label)
+        pdf.line(48, pos_y - 4, 545, pos_y - 4)
+        pos_y -= 18
+        pdf.setFont("Helvetica", 9)
+        for pos in fixture.positions:
+            pdf.drawString(48, pos_y, pos.symbol)
+            pdf.drawString(116, pos_y, pos.description)
+            pdf.drawRightString(345, pos_y, money_with_commas(pos.quantity))
+            pdf.drawRightString(420, pos_y, money_with_commas(pos.price))
+            pdf.drawRightString(515, pos_y, money_with_commas(pos.market_value))
+            pdf.drawString(525, pos_y, pos.currency)
+            pos_y -= 16
 
     pdf.showPage()
     pdf.save()

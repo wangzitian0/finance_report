@@ -16,6 +16,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints, field_validator
 
+from src.audit import canonical_json_digest
+
 
 class PrefectParseParams(TypedDict):
     """JSON-safe wire representation of :class:`ParseJob`."""
@@ -319,3 +321,30 @@ def extract_source_document_ids(
             seen.add(doc_id)
             ordered.append(doc_id)
     return ordered
+
+
+def extraction_artifact_dependency_digest(
+    *,
+    source_hash: str,
+    preprocess_version: str,
+    prompt_template_fingerprint: str,
+    schema_version: str,
+    normalizer_version: str,
+    hints: RunHints | None = None,
+) -> str:
+    """Compute a deterministic SHA-256 dependency digest over code, prompt, and source inputs.
+
+    Model ID is intentionally excluded so CI cassette lookup remains model-agnostic while
+    runtime provenance records `resolved_model_id` alongside this digest.
+    """
+    normalized_hints = (hints or RunHints()).model_dump(mode="json")
+    return canonical_json_digest(
+        {
+            "source_hash": source_hash,
+            "preprocess_version": preprocess_version,
+            "prompt_template_fingerprint": prompt_template_fingerprint,
+            "schema_version": schema_version,
+            "normalizer_version": normalizer_version,
+            "hints": normalized_hints,
+        }
+    )

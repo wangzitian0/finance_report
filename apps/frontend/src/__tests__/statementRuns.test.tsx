@@ -66,18 +66,20 @@ function makeRun(overrides: Partial<StatementRun> = {}): StatementRun {
 const mockedApi = vi.mocked(apiOperation);
 
 function mockApi(options: {
-  status?: string;
+  status?: string | (() => string);
   filename?: string;
   runs: () => StatementRun[];
   post?: (body: unknown) => Promise<unknown>;
   reject?: (body: unknown) => Promise<unknown>;
 }) {
+  const currentStatus = () => (typeof options.status === "function" ? options.status() : options.status) ?? "rejected";
   mockedApi.mockImplementation(((operationId: string, request?: { body?: unknown }) => {
+    const resolvedStatus = currentStatus();
     switch (operationId) {
       case "get_statement_statements__statement_id__get":
-        return Promise.resolve({ ...statement, status: options.status ?? "rejected", original_filename: options.filename ?? statement.original_filename });
+        return Promise.resolve({ ...statement, status: resolvedStatus, original_filename: options.filename ?? statement.original_filename });
       case "get_statement_for_review_statements__statement_id__review_get":
-        return Promise.resolve({ ...statement, status: options.status ?? "rejected", original_filename: options.filename ?? statement.original_filename, balance_validation_result: null, source_missing_facts: [], source_envelope_reviewable: false, reviewed_envelope: null });
+        return Promise.resolve({ ...statement, status: resolvedStatus, original_filename: options.filename ?? statement.original_filename, balance_validation_result: null, source_missing_facts: [], source_envelope_reviewable: false, reviewed_envelope: null });
       case "list_pending_review_statements_pending_review_get":
         return Promise.resolve({ items: [], total: 0 });
       case "get_review_conflicts_statements__statement_id__conflicts_get":
@@ -391,13 +393,49 @@ describe("Parsing attempts and Run again on the statement page", () => {
     await screen.findByText(/Parsing in progress/);
 
     await act(async () => {
-      vi.setSystemTime(new Date("2026-01-01T00:05:01Z"));
+      vi.setSystemTime(new Date("2026-01-01T00:05:30Z"));
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    expect(screen.queryByText("Auto-refresh Stopped")).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.setSystemTime(new Date("2026-01-01T00:07:01Z"));
       await vi.advanceTimersByTimeAsync(3100);
     });
 
     expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();
     expect(await screen.findByText(/A run is in progress/)).toBeInTheDocument();
     expect(runAgainButton()).toBeDisabled();
+  });
+
+  it("refreshes a parsing statement when the active heartbeat_lost run fails and allows Run again after consecutive heartbeat_lost failures", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let activeFinished = false;
+    mockApi({
+      status: () => (activeFinished ? "rejected" : "parsing"),
+      runs: () =>
+        activeFinished
+          ? [
+              makeRun({ seq: 1, state: "failed", error_code: "heartbeat_lost", trigger: "upload" }),
+              makeRun({ seq: 2, state: "failed", error_code: "heartbeat_lost", trigger: "rerun" }),
+            ]
+          : [
+              makeRun({ seq: 1, state: "failed", error_code: "heartbeat_lost", trigger: "upload" }),
+              makeRun({ seq: 2, state: "running", trigger: "rerun", finished_at: null }),
+            ],
+    });
+    render(<StatementDetailPage />);
+    await screen.findByText(/Parsing in progress/);
+
+    activeFinished = true;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+
+    expect(await screen.findByText("Parsing Failed")).toBeInTheDocument();
+    await waitFor(() => expect(runAgainButton()).toBeEnabled());
+    fireEvent.click(runAgainButton());
+    await waitFor(() => expect(runPosts()).toHaveLength(1));
   });
 
   it("AC-extraction.2994.81 sends a reject note with U+2028 and U+2029 as new lines", async () => {
