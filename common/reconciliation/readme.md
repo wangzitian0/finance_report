@@ -1,6 +1,6 @@
 # `reconciliation` — transaction-to-journal matching (domain package)
 
-> Conforming backend implementation: [`apps/backend/src/reconciliation`](../../apps/backend/src/reconciliation) (`contract.implementations["be"]`). Machine contract: [`contract.py`](./contract.py). See also: `common/ledger/readme.md#decimal-rule`, `common/ledger/readme.md#async-tx-boundary`.
+> Conforming backend implementation: [`apps/backend/src/reconciliation`](../../apps/backend/src/reconciliation). See also: `common/ledger/readme.md#decimal-rule`, `common/ledger/readme.md#async-tx-boundary`.
 
 ## Why & Ubiquitous Language
 
@@ -17,7 +17,7 @@
 
 ## Governance
 
-ACs (`AC-reconciliation.*`, including migrated Stage-1/Stage-2 frontend review ACs) live in [`contract.py`](./contract.py) and are validated by `tools/check_package_contract.py`. Accuracy harness (`apps/backend/tests/reconciliation/test_reconciliation_audit.py`) gates `>= 95%` accuracy, `< 0.5%` FP, `< 2%` FN, `< 10s` runtime.
+Boundary and tier checks run via `tools/check_app_boundary.py`, `tools/check_base_purity.py`, and `tools/check_tier_imports.py`. Accuracy harness (`apps/backend/tests/reconciliation/test_reconciliation_audit.py`) gates `>= 95%` accuracy, `< 0.5%` FP, `< 2%` FN, `< 10s` runtime.
 
 ## Scoring, thresholds, and the state machine
 

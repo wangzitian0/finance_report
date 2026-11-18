@@ -1,0 +1,1030 @@
+{
+  "version": "2.0.0",
+  "description": "Single Source of Truth (SSOT) Registry for the 47 End-to-End Business User Cases in Finance Report (preserving all 30 legacy wealth flows 1:1 plus 17 lifecycle user cases across 8 domains)",
+  "domains": [
+    {
+      "id": 1,
+      "name": "Setup, Identity & Chart of Accounts",
+      "user_cases": [
+        {
+          "id": "UC-01",
+          "legacy_flow_id": null,
+          "name": "Multi-Tenant Registration, Login & Session Isolation",
+          "title": "注册登录与多租户隔离",
+          "owning_packages": [
+            "identity"
+          ],
+          "ui_surface": "/login",
+          "component": "LoginPage",
+          "backend_endpoint": "POST /auth/register",
+          "invariant": "Every user session, account, statement, and report query is strictly isolated by user_id",
+          "backend_test_ref": "apps/backend/tests/identity/test_auth_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/loginPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_auth_flows.py",
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-02",
+          "legacy_flow_id": null,
+          "name": "Base Reporting Currency Configuration",
+          "title": "设定个人基准报告币种",
+          "owning_packages": [
+            "identity",
+            "pricing"
+          ],
+          "ui_surface": "/settings?tab=general",
+          "component": "GeneralSettingsPanel",
+          "backend_endpoint": "PUT /app-config/base-currency",
+          "invariant": "Base currency is a valid ISO 4217 code and governs consolidated net worth and report conversion",
+          "backend_test_ref": "apps/backend/tests/api/test_app_config_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/generalSettingsPage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-03",
+          "legacy_flow_id": null,
+          "name": "Three-Tier AI Model & Scene Binding Configuration",
+          "title": "配置三角色 AI 模型与场景绑定",
+          "owning_packages": [
+            "llm"
+          ],
+          "ui_surface": "/settings?tab=llm",
+          "component": "LlmSettingsPanel",
+          "backend_endpoint": "PUT /llm/scenes",
+          "invariant": "Provider credentials stay masked at rest and unconfigured scenes fail closed with explicit readiness status",
+          "backend_test_ref": "apps/backend/tests/api/test_app_config_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/llmSettingsPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_ai_provider_connectivity.py",
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-04",
+          "legacy_flow_id": null,
+          "name": "Chart of Accounts Creation & Hierarchy Management",
+          "title": "自定义会计科目表",
+          "owning_packages": [
+            "ledger"
+          ],
+          "ui_surface": "/settings?tab=accounts",
+          "component": "AccountFormModal",
+          "backend_endpoint": "POST /accounts",
+          "invariant": "Account hierarchy is acyclic, tenant-owned, and protects system clearing/equity accounts",
+          "backend_test_ref": "apps/backend/tests/accounting/test_accounts_endpoints.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/accountsPage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-05",
+          "legacy_flow_id": null,
+          "name": "Opening Balance Initialization",
+          "title": "录入各账户期初余额",
+          "owning_packages": [
+            "ledger"
+          ],
+          "ui_surface": "/settings?tab=accounts",
+          "component": "OpeningBalanceModal",
+          "backend_endpoint": "POST /accounts/opening-balances",
+          "invariant": "Opening balance posting generates balanced entries against OpeningBalanceEquity and rejects prior-activity conflicts",
+          "backend_test_ref": "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/openingBalanceModal.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_opening_balance_browser_journey.py",
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Ingestion & Multimodal Extraction",
+      "user_cases": [
+        {
+          "id": "UC-06",
+          "legacy_flow_id": 1,
+          "name": "Standard Statement Drag & Drop Upload and OCR",
+          "title": "标准银行账单拖拽上传与解析",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/upload",
+          "component": "StatementUploader",
+          "backend_endpoint": "POST /statements",
+          "invariant": "Parsed opening + sum(IN) - sum(OUT) == calculated_closing",
+          "backend_test_ref": "apps/backend/tests/extraction/test_extraction_invariants.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_statement_full_journey.py",
+          "benchmark_cases": [
+            "1"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-07",
+          "legacy_flow_id": 2,
+          "name": "Batch Multi-Month Ingestion & Continuity Gap Detection",
+          "title": "多月份账单批量连续导入与断流预警",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/upload",
+          "component": "StatementUploader",
+          "backend_endpoint": "POST /statements",
+          "invariant": "Statement[M].closing_balance == Statement[M+1].opening_balance",
+          "backend_test_ref": "apps/backend/tests/accounting/test_account_statement_coverage.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_twelve_month_journey.py",
+          "benchmark_cases": [
+            "1"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-08",
+          "legacy_flow_id": 3,
+          "name": "Custom Non-Standard CSV Column Mapping",
+          "title": "非标机构 CSV 流水导入与表头映射",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/upload",
+          "component": "StatementUploader",
+          "backend_endpoint": "POST /statements",
+          "invariant": "All mapped rows have valid txn_date, description, and Decimal amount",
+          "backend_test_ref": "apps/backend/tests/extraction/test_csv_parsing.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py",
+          "benchmark_cases": [
+            "2"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-09",
+          "legacy_flow_id": null,
+          "name": "Multi-Currency Combined Bank Statement Extraction",
+          "title": "多币种综合月结单拆解",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/upload",
+          "component": "StatementUploader",
+          "backend_endpoint": "POST /statements",
+          "invariant": "Each currency sub-ledger validates opening + sum(IN) - sum(OUT) == closing independently",
+          "backend_test_ref": "apps/backend/tests/extraction/test_bank_multi_currency_balances.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-10",
+          "legacy_flow_id": null,
+          "name": "Duplicate Statement Upload Idempotency",
+          "title": "重复上传同一账单幂等拦截",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/upload",
+          "component": "StatementUploader",
+          "backend_endpoint": "POST /statements",
+          "invariant": "Re-uploading an identical document digest/period never duplicates parsed transactions or ledger postings",
+          "backend_test_ref": "apps/backend/tests/extraction/test_source_ingestion_integrity.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-11",
+          "legacy_flow_id": null,
+          "name": "Hint-Guided Statement Re-Parse & Re-Classification Run",
+          "title": "带用户提示词发起重析与重分类运行",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/statements/{id}",
+          "component": "RunAgainPanel",
+          "backend_endpoint": "POST /statements/{statement_id}/runs",
+          "invariant": "New StatementRun supersedes prior drafts append-only without overwriting posted journal entries",
+          "backend_test_ref": "apps/backend/tests/api/test_statement_run_routes.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/statementRuns.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-12",
+          "legacy_flow_id": null,
+          "name": "Upload-to-Report Workflow Status & Event Tracking",
+          "title": "实时跟踪上传到报表工作流状态",
+          "owning_packages": [
+            "workflow"
+          ],
+          "ui_surface": "/upload",
+          "component": "WorkflowNotificationCenter",
+          "backend_endpoint": "GET /workflow/status",
+          "invariant": "WorkflowSession and WorkflowEvent reflect deterministic readiness and surface actionable blockers",
+          "backend_test_ref": "apps/backend/tests/api/test_workflow_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/workflowSurfaces.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Fact Review & Human-in-the-Loop",
+      "user_cases": [
+        {
+          "id": "UC-13",
+          "legacy_flow_id": 6,
+          "name": "Stage-1 Review Quick Human Approval",
+          "title": "事实核对快速批准",
+          "owning_packages": [
+            "extraction",
+            "ledger"
+          ],
+          "ui_surface": "/statements/{id}",
+          "component": "ReviewActionBar",
+          "backend_endpoint": "POST /statements/{id}/approvals",
+          "invariant": "Approved statements create posted journal entries with matching custody account",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/statementDetailReview.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_accounts_and_statements_ui_journey.py",
+          "benchmark_cases": [
+            "1"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-14",
+          "legacy_flow_id": 7,
+          "name": "Stage-1 Balance Mismatch Defense & Rejection Guidance",
+          "title": "链断裂防御与驳回重析引导",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/statements/{id}",
+          "component": "LowConfidenceReviewModal",
+          "backend_endpoint": "POST /statements/{id}/rejections",
+          "invariant": "Mismatch prevents silent corruption; rejects in-place mutation and routes to re-parse",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/LowConfidenceReviewModal.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_stage1_routing_journey.py",
+          "benchmark_cases": [
+            "1"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-15",
+          "legacy_flow_id": 8,
+          "name": "Cross-Statement Overlapping Transaction Deduplication",
+          "title": "跨账单重叠交易去重",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/statements/{id}",
+          "component": "ConflictResolutionDialog",
+          "backend_endpoint": "POST /reconciliation/consistency-checks/runs",
+          "invariant": "Duplicate transactions flagged and linked without double-counting in ledger",
+          "backend_test_ref": "apps/backend/tests/extraction/test_deduplication.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "2"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-16",
+          "legacy_flow_id": 9,
+          "name": "Low Quality Document Triage and Rejection Recovery",
+          "title": "劣质文档排查与废弃",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/statements/{id}",
+          "component": "ConfirmDialog",
+          "backend_endpoint": "POST /statements/{id}/rejections",
+          "invariant": "Rejected statements excluded from general ledger and marked with taxonomy reason",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/confirmDialogComponent.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "2"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-17",
+          "legacy_flow_id": 10,
+          "name": "Contextual In-Page AI Assistant & Recovery",
+          "title": "页内伴随式 AI 问答与容错",
+          "owning_packages": [
+            "advisor"
+          ],
+          "ui_surface": "/statements/{id}",
+          "component": "StatementDetailPage",
+          "backend_endpoint": "POST /chat",
+          "invariant": "Metadata-preserving navigation: Chat prompt carries immutable statement metadata and gracefully recovers from SSE disconnects",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/statementDetailReview.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "1"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-18",
+          "legacy_flow_id": null,
+          "name": "Manual Category Correction & AI Feedback Logging",
+          "title": "人工修改交易分类并沉淀纠偏样本",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/audit?tab=needs-you",
+          "component": "AiSuggestionsQueue",
+          "backend_endpoint": "POST /statements/classification-feedback",
+          "invariant": "User category overrides persist CorrectionLog and AiFeedback entries for downstream confidence improvement",
+          "backend_test_ref": "apps/backend/tests/extraction/test_classification_feedback_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-19",
+          "legacy_flow_id": null,
+          "name": "High-Confidence AI Auto-Accept Policy",
+          "title": "开启高置信度 AI 建议自动采纳",
+          "owning_packages": [
+            "extraction",
+            "identity"
+          ],
+          "ui_surface": "/settings?tab=ai",
+          "component": "AiSettingsPanel",
+          "backend_endpoint": "PATCH /users/me/settings",
+          "invariant": "Only suggestions meeting the user's confidence threshold auto-accept; low-confidence items route to human review",
+          "backend_test_ref": "apps/backend/tests/api/test_statement_auto_accept.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/aiSettingsPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_zero_click_statement_journey.py",
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-20",
+          "legacy_flow_id": null,
+          "name": "North-Star Correction-Loop Replay Evaluation",
+          "title": "纠偏闭环回放评估与低置信度占比监测",
+          "owning_packages": [
+            "extraction"
+          ],
+          "ui_surface": "/audit",
+          "component": "CorrectionLoopProof",
+          "backend_endpoint": "GET /statements/correction-loop/replay",
+          "invariant": "Read-only replay measures low-confidence proportion drop before vs after user corrections",
+          "backend_test_ref": "apps/backend/tests/extraction/test_correction_loop_replay.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/correctionLoopPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_confidence_metrics_journey.py",
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Economic Intent & Categorization",
+      "user_cases": [
+        {
+          "id": "UC-21",
+          "legacy_flow_id": 11,
+          "name": "Stage-2 Interactive Economic Intent Allocation",
+          "title": "未归类意图交互分配",
+          "owning_packages": [
+            "reconciliation"
+          ],
+          "ui_surface": "/reconciliation?tab=unmatched",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /reconciliation/unmatched/{txn_id}/reviewed-dispositions",
+          "invariant": "Each transaction disposition assigns counter account and posts debit/credit",
+          "backend_test_ref": "apps/backend/tests/api/test_reconciliation_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_reconciliation_ui_journey.py",
+          "benchmark_cases": [
+            "2"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-22",
+          "legacy_flow_id": 13,
+          "name": "On-the-Fly Counter Account Creation During Review",
+          "title": "审核中即时新建会计科目",
+          "owning_packages": [
+            "ledger",
+            "reconciliation"
+          ],
+          "ui_surface": "/reconciliation?tab=unmatched",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /accounts",
+          "invariant": "Created account is added to choices but requires explicit reviewer confirmation",
+          "backend_test_ref": "apps/backend/tests/accounting/test_accounts_endpoints.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "2"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-23",
+          "legacy_flow_id": 12,
+          "name": "Batch Rule Commit & Clearing",
+          "title": "规则批量自动回填与提交",
+          "owning_packages": [
+            "reconciliation"
+          ],
+          "ui_surface": "/reconciliation?tab=review-queue",
+          "component": "Stage2ReviewQueue",
+          "backend_endpoint": "POST /reconciliation/matches",
+          "invariant": "Batch approve commits all matching rules atomically when checks resolved",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reviewQueuePage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "2"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-24",
+          "legacy_flow_id": 14,
+          "name": "Payroll Gross-to-Net & Tax/CPF Deductions Split",
+          "title": "薪资净额与税费/公积金拆分",
+          "owning_packages": [
+            "ledger"
+          ],
+          "ui_surface": "/journal",
+          "component": "JournalPage",
+          "backend_endpoint": "POST /journal-entries",
+          "invariant": "Gross Salary == Net Cash Payout + Income Tax Withholding + Employee Pension Deductions",
+          "backend_test_ref": "apps/backend/tests/reporting/test_bench_articulation_matrix.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/journalPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_journal_ui_journey.py",
+          "benchmark_cases": [
+            "2",
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-25",
+          "legacy_flow_id": 22,
+          "name": "Mortgage Principal Amortization and Interest Split",
+          "title": "房贷月供本息摊销拆解",
+          "owning_packages": [
+            "ledger"
+          ],
+          "ui_surface": "/reconciliation?tab=unmatched",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /journal-entries",
+          "invariant": "Total Mortgage Payment == Principal Reduction (Liability) + Interest Expense",
+          "backend_test_ref": "apps/backend/tests/reporting/test_bench_articulation_matrix.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Cross-Source Reconciliation & Transfers",
+      "user_cases": [
+        {
+          "id": "UC-26",
+          "legacy_flow_id": 15,
+          "name": "Inter-Account Transfer Automatic Pairing",
+          "title": "内部转账自动配对",
+          "owning_packages": [
+            "reconciliation",
+            "ledger"
+          ],
+          "ui_surface": "/reconciliation",
+          "component": "Workbench",
+          "backend_endpoint": "POST /reconciliation/runs",
+          "invariant": "Source account Dr == Target account Cr; Transfer clearing account net balance == 0",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_transfer_processing_journey.py",
+          "benchmark_cases": [
+            "3"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-27",
+          "legacy_flow_id": null,
+          "name": "Cross-Period In-Transit Processing Funds Visibility",
+          "title": "跨期在途资金追踪与核销",
+          "owning_packages": [
+            "ledger",
+            "reconciliation"
+          ],
+          "ui_surface": "/upload",
+          "component": "ProcessingTransfers",
+          "backend_endpoint": "GET /reconciliation/transfers/pending",
+          "invariant": "Unpaired in-transit transfers remain visible on the balance sheet as Processing assets until cleared",
+          "backend_test_ref": "apps/backend/tests/ledger/test_processing_read_only.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_transfer_processing_journey.py",
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-28",
+          "legacy_flow_id": 16,
+          "name": "Credit Card Repayment & Refund Clearing",
+          "title": "信用卡还款勾稽",
+          "owning_packages": [
+            "reconciliation"
+          ],
+          "ui_surface": "/reconciliation",
+          "component": "Workbench",
+          "backend_endpoint": "PATCH /reconciliation/matches/{match_id}",
+          "invariant": "Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow",
+          "backend_test_ref": "tests/tooling/test_benchmark_scenario_suite.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "3"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-29",
+          "legacy_flow_id": 17,
+          "name": "Multi-Currency Transfer Realized FX Gain/Loss Decomposition",
+          "title": "跨币种电汇汇兑损益分解",
+          "owning_packages": [
+            "reconciliation",
+            "pricing"
+          ],
+          "ui_surface": "/journal",
+          "component": "JournalPage",
+          "backend_endpoint": "POST /journal-entries",
+          "invariant": "OutflowValueInBase + RealizedGain == InflowValueInBase + RealizedLoss",
+          "backend_test_ref": "apps/backend/tests/reporting/test_bench_articulation_matrix.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/journalPage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "4"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-30",
+          "legacy_flow_id": 18,
+          "name": "Reconciliation Immaterial Adjustment & Penny Rounding Write-Off",
+          "title": "悬空微小差额平账",
+          "owning_packages": [
+            "reconciliation"
+          ],
+          "ui_surface": "/reconciliation",
+          "component": "ReconciliationPage",
+          "backend_endpoint": "POST /reconciliation/adjustments",
+          "invariant": "Immaterial discrepancy (|delta| <= 0.05) balances to BankRoundingDifference",
+          "backend_test_ref": "apps/backend/tests/api/test_reconciliation_adjustment_api.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "3"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Investments & Multi-Asset Valuation",
+      "user_cases": [
+        {
+          "id": "UC-31",
+          "legacy_flow_id": 19,
+          "name": "Brokerage Monthly Statement Position Sync",
+          "title": "券商月结单持仓更新",
+          "owning_packages": [
+            "portfolio",
+            "extraction"
+          ],
+          "ui_surface": "/portfolio",
+          "component": "HoldingsTable",
+          "backend_endpoint": "POST /statements",
+          "invariant": "Position quantity * average_cost == Book cost; synced across statement boundaries",
+          "backend_test_ref": "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/holdingsTable.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+          "benchmark_cases": [
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-32",
+          "legacy_flow_id": null,
+          "name": "Stock/Fund Trade Lots & Cost-Basis Accounting (FIFO/LIFO/AvgCost)",
+          "title": "股票基金买卖交易与成本批次核算",
+          "owning_packages": [
+            "portfolio"
+          ],
+          "ui_surface": "/portfolio",
+          "component": "HoldingsTable",
+          "backend_endpoint": "POST /portfolio/brokerage-imports",
+          "invariant": "Disposals consume InvestmentLot cost basis deterministically per CostBasisMethod and post balanced realized PnL",
+          "backend_test_ref": "apps/backend/tests/portfolio/test_investment_accounting.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/holdingDetailPage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "partial",
+          "gap_issue": "#2922"
+        },
+        {
+          "id": "UC-33",
+          "legacy_flow_id": 20,
+          "name": "Dividend Gross-to-Net & Withholding Tax Split",
+          "title": "股票分红预扣税拆分",
+          "owning_packages": [
+            "portfolio",
+            "ledger"
+          ],
+          "ui_surface": "/reconciliation?tab=unmatched",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /journal-entries",
+          "invariant": "Gross Dividend Income == Net Cash Received + Withholding Tax Expense",
+          "backend_test_ref": "apps/backend/tests/reporting/test_bench_articulation_matrix.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-34",
+          "legacy_flow_id": 21,
+          "name": "Real-Time Market Price Refresh & Unrealized PnL",
+          "title": "实时市价刷新与重估",
+          "owning_packages": [
+            "pricing",
+            "portfolio"
+          ],
+          "ui_surface": "/portfolio?panel=prices",
+          "component": "PriceUpdateForm",
+          "backend_endpoint": "POST /pricing/price-overrides",
+          "invariant": "Market value == Quantity * Latest Price; Unrealized PnL == Market value - Cost",
+          "backend_test_ref": "apps/backend/tests/pricing/test_valuation_lines.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/portfolioPricesPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_market_data_price_paths.py",
+          "benchmark_cases": [
+            "5",
+            "6"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-35",
+          "legacy_flow_id": 4,
+          "name": "Physical Receipt & Screenshot Mobile Capture",
+          "title": "纸质小票/手机银行截图拍照识别",
+          "owning_packages": [
+            "extraction",
+            "pricing"
+          ],
+          "ui_surface": "/portfolio?panel=evidence",
+          "component": "GuidedEvidenceForm",
+          "backend_endpoint": "POST /pricing/manual-valuations",
+          "invariant": "Evidence file anchored to transaction or asset with SHA-256 digest",
+          "backend_test_ref": "apps/backend/tests/pricing/test_manual_valuations_api.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-36",
+          "legacy_flow_id": 5,
+          "name": "Alternative Asset Appraisal & Valuation Ingestion",
+          "title": "不动产/车辆/私募等另类资产凭证录入",
+          "owning_packages": [
+            "pricing",
+            "portfolio"
+          ],
+          "ui_surface": "/portfolio?panel=evidence",
+          "component": "GuidedEvidenceForm",
+          "backend_endpoint": "POST /pricing/manual-valuations",
+          "invariant": "Valuation creates journal entry adjusting Asset and UnrealizedGain",
+          "backend_test_ref": "apps/backend/tests/pricing/test_manual_valuations_api.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_four_asset_net_worth_golden_path.py",
+          "benchmark_cases": [
+            "5",
+            "6"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-37",
+          "legacy_flow_id": null,
+          "name": "Multi-Dimensional Asset Allocation Breakdown",
+          "title": "多维度资产配置透视",
+          "owning_packages": [
+            "portfolio"
+          ],
+          "ui_surface": "/portfolio",
+          "component": "AllocationChart",
+          "backend_endpoint": "GET /portfolio/allocation/sector",
+          "invariant": "Sector, geography, and asset-class allocation buckets sum strictly to total portfolio market value in base currency",
+          "backend_test_ref": "apps/backend/tests/portfolio/test_allocation_service.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/allocationChart.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-38",
+          "legacy_flow_id": null,
+          "name": "Investment Performance Disclosure Schedule (TWR / XIRR)",
+          "title": "投资业绩披露附表与收益率核算",
+          "owning_packages": [
+            "portfolio"
+          ],
+          "ui_surface": "/portfolio",
+          "component": "InvestmentPerformanceSchedule",
+          "backend_endpoint": "GET /portfolio/performance/report-schedule",
+          "invariant": "TWR and XIRR isolate external capital flows from investment return and preserve source lineage links",
+          "backend_test_ref": "apps/backend/tests/portfolio/test_performance_service.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Financial Reporting & Accounting Equation Governance",
+      "user_cases": [
+        {
+          "id": "UC-39",
+          "legacy_flow_id": 23,
+          "name": "Balance Sheet Accounting Equation Validation",
+          "title": "资产负债表恒等式检验",
+          "owning_packages": [
+            "reporting",
+            "ledger"
+          ],
+          "ui_surface": "/reports?tab=balance-sheet",
+          "component": "BalanceSheetPanel",
+          "backend_endpoint": "GET /reports/balance-sheet",
+          "invariant": "Assets == Liabilities + Equity + RetainedEarnings (Equation Delta == 0.00)",
+          "backend_test_ref": "apps/backend/tests/ledger/test_accounting_equation.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/balanceSheetPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_four_asset_net_worth_golden_path.py",
+          "benchmark_cases": [
+            "1",
+            "4",
+            "6"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-40",
+          "legacy_flow_id": 24,
+          "name": "Accounting Equation Out-of-Balance Diagnostic Triage",
+          "title": "会计恒等式失衡智能排错",
+          "owning_packages": [
+            "reporting"
+          ],
+          "ui_surface": "/reports?tab=balance-sheet",
+          "component": "BalanceSheetPanel",
+          "backend_endpoint": "GET /reports/balance-sheet/diagnostics",
+          "invariant": "When Equation Delta != 0, returns classified cause: UNPOSTED_DRAFT, FX_ROUNDING_DRIFT, UNKNOWN_DISCREPANCY",
+          "backend_test_ref": "apps/backend/tests/reporting/test_equation_diagnostics.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/balanceSheetPage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "1",
+            "6"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-41",
+          "legacy_flow_id": 25,
+          "name": "Income Statement Comparative Trend Analysis",
+          "title": "损益表多期环比分析",
+          "owning_packages": [
+            "reporting"
+          ],
+          "ui_surface": "/reports?tab=income-statement",
+          "component": "IncomeStatementPanel",
+          "backend_endpoint": "GET /reports/income-statement",
+          "invariant": "Comparative periodic columns display balance variations without silent drop",
+          "backend_test_ref": "apps/backend/tests/reporting/test_reports_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/incomeStatementPage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "1"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-42",
+          "legacy_flow_id": 26,
+          "name": "Cash Flow Statement Multi-Activity Invariant Verification",
+          "title": "现金流量表健康度与自洽检验",
+          "owning_packages": [
+            "reporting"
+          ],
+          "ui_surface": "/reports?tab=cash-flow",
+          "component": "CashFlowPanel",
+          "backend_endpoint": "GET /reports/cash-flow",
+          "invariant": "Net Cash Change == Operating Cash Flow + Investing Cash Flow + Financing Cash Flow",
+          "backend_test_ref": "apps/backend/tests/reporting/test_cash_flow_invariants.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/cashFlowPage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "1"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-43",
+          "legacy_flow_id": null,
+          "name": "Frozen Personal Financial Report Package Snapshot & Export",
+          "title": "冻结并导出个人财务报告包快照",
+          "owning_packages": [
+            "reporting"
+          ],
+          "ui_surface": "/reports?tab=package",
+          "component": "PackagePanel",
+          "backend_endpoint": "POST /reports/package/snapshots",
+          "invariant": "Frozen report package snapshots remain immutable against subsequent ledger postings",
+          "backend_test_ref": "apps/backend/tests/api/test_personal_report_package_contract.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/personalReportPackagePage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_personal_financial_report_package.py",
+          "benchmark_cases": [],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-44",
+          "legacy_flow_id": 28,
+          "name": "Annual Tax & Audit Package ZIP Export",
+          "title": "年度报税合规包导出",
+          "owning_packages": [
+            "reporting"
+          ],
+          "ui_surface": "/reports?tab=package",
+          "component": "PackagePanel",
+          "backend_endpoint": "GET /reports/package/snapshots/{snapshot_id}/exports",
+          "invariant": "ZIP contains manifest.json with SHA-256 hashes of all schedule CSVs and audit trail",
+          "backend_test_ref": "apps/backend/tests/reporting/test_annual_tax_package.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/personalReportPackagePage.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-45",
+          "legacy_flow_id": 27,
+          "name": "Financial Report to PDF Provenance Drilldown",
+          "title": "报表到 PDF 凭证穿透",
+          "owning_packages": [
+            "reporting",
+            "extraction"
+          ],
+          "ui_surface": "/reports?tab=balance-sheet",
+          "component": "ProvenanceBadge",
+          "backend_endpoint": "GET /reports/account-lineage",
+          "invariant": "Report Line drilldown traces to underlying journal entries and source statement metadata",
+          "backend_test_ref": "apps/backend/tests/reporting/test_reports_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/provenanceBadge.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_institution_statement_journeys.py",
+          "benchmark_cases": [
+            "1",
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Anomaly Monitoring & Explainable AI Financial Advisor",
+      "user_cases": [
+        {
+          "id": "UC-46",
+          "legacy_flow_id": 29,
+          "name": "Recurring Subscriptions & Anomaly Alerts",
+          "title": "周期扣费/重复扣款异常告警",
+          "owning_packages": [
+            "reconciliation",
+            "workflow"
+          ],
+          "ui_surface": "/upload",
+          "component": "WorkflowNotices",
+          "backend_endpoint": "GET /reconciliation/transactions/{txn_id}/anomalies",
+          "invariant": "Identifies recurring cadence and flags unexpected amount increases or duplicate runs",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_anomaly_detection.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/workflowSurfaces.test.tsx",
+          "e2e_test_ref": null,
+          "benchmark_cases": [
+            "2"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        },
+        {
+          "id": "UC-47",
+          "legacy_flow_id": 30,
+          "name": "Natural Language Financial AI Assistant with Tool Calling",
+          "title": "自然语言财务 AI 顾问",
+          "owning_packages": [
+            "advisor"
+          ],
+          "ui_surface": "/chat",
+          "component": "ChatPageClient",
+          "backend_endpoint": "POST /chat",
+          "invariant": "AI operates in read-only sandbox calling accounting queries with streaming response",
+          "backend_test_ref": "apps/backend/tests/ai/test_ai_advisor_service.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx",
+          "e2e_test_ref": "tests/e2e/test_assistant_chat_journey.py",
+          "benchmark_cases": [
+            "1",
+            "5"
+          ],
+          "status": "verified",
+          "gap_issue": null
+        }
+      ]
+    }
+  ]
+}

@@ -6,9 +6,9 @@
 > **Status**: Design Doc
 > **Vision Anchor**: `decision-filter-accuracy-auditability`
 
-Docs explain **why** and **how**; executable tests and CI checks enforce **what is mandatory**. Authoritative package metadata lives in `common/<pkg>/contract.py` and [common/meta/data/MANIFEST.yaml](../../common/meta/data/MANIFEST.yaml).
+Docs explain **why** and **how**; executable tests and structural checks enforce **what is mandatory**. Bounded-context specifications live in `common/<pkg>/readme.md`, and end-to-end user cases live in [`common/meta/flows/user_cases_ssot.json`](../../common/meta/flows/user_cases_ssot.json).
 
-## HLS Families (`MANIFEST.yaml`)
+## HLS Families (`common/<pkg>/readme.md`)
 
 - **concept vs clause**: A `concept` is an independently governed SSOT owner; a `clause`/`matrix`/`registry`/`baseline` parameterizes a parent concept.
 - **FR families (7)**: `accounting`, `reporting`, `extraction`, `schema`, `platform`, `identity`, `governance`.

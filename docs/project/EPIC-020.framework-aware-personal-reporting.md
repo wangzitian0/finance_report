@@ -1,7 +1,7 @@
 # EPIC-020: Framework-Aware Personal Financial Reporting
 
 <!-- epic-file: design-doc -->
-<!-- 0 AC rows by design (#1719): ACs migrated to common/reporting/contract.py and common/extraction/contract.py. -->
+<!-- 0 AC rows by design (#1719): reporting/extraction specs live in common/reporting/readme.md and common/extraction/readme.md. -->
 
 > **Status**: Design Doc (deferred post-Usable)
 > **Vision Anchor**: `decision-filter-accuracy-auditability`

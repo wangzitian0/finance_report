@@ -4,7 +4,7 @@ Finance Report publishes generated references for mutable implementation facts. 
 | Reference | Source | Use |
 |---|---|---|
 | [Swagger UI](https://report.zitian.party/api/docs) | Runtime OpenAPI | Field-level request/response details | | [ReDoc](https://report.zitian.party/api/redoc) | Runtime OpenAPI | Long-form runtime API browsing | | [Generated API Reference](api.md) | `python tools/generate_api_reference.py` | Static endpoint inventory for GitHub Pages | | [Generated DB Schema Reference](db-schema.md) | MkDocs hook + `python tools/generate_db_schema_reference.py` | Build-time table, column, enum, index, constraint, and FK inventory |
-| [30 Wealth Flows Reference](thirty-wealth-flows.md) | `common/meta/flows/thirty_flows_ssot.json` | Authoritative specification of 30 core wealth & accounting flows | The production base URL is:
+| [47 User Cases Reference](user-cases.md) | `common/meta/flows/user_cases_ssot.json` | Authoritative specification of 47 core business user cases | The production base URL is:
 ```text https://report.zitian.party/api ```
 ## Contract Ownership
 Endpoint paths, methods, parameters, request bodies, response schemas, and enum values are owned by FastAPI OpenAPI and backend schema code. Static Markdown must not hand-copy those mutable facts. Use these owners instead: | Contract | Owner |

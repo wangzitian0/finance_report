@@ -1,4 +1,4 @@
-"""Core smoke contract tests for financial scenario benchmarks (referenced by thirty_flows_ssot)."""
+"""Core smoke contract tests for financial scenario benchmarks (referenced by user_cases_ssot)."""
 
 from __future__ import annotations
 

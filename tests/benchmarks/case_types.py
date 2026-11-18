@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 FLOWS_SSOT_PATH = (
-    Path(__file__).resolve().parents[2] / "common/meta/flows/thirty_flows_ssot.json"
+    Path(__file__).resolve().parents[2] / "common/meta/flows/user_cases_ssot.json"
 )
 
 
@@ -30,16 +30,37 @@ def _read_registry(path: Path) -> list[dict[str, Any]]:
         return domains
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ValueError(
-            f"Cannot read the 30-flow registry {path}: {type(exc).__name__}: {exc}"
+            f"Cannot read the user-cases/30-flow registry {path}: {type(exc).__name__}: {exc}"
         ) from exc
+
+
+def _domain_items(domain: dict[str, Any]) -> list[dict[str, Any]]:
+    items = domain.get("user_cases")
+    if items is None:
+        items = domain["flows"]
+    return items
+
+
+def _legacy_flow_id(item: dict[str, Any]) -> int | None:
+    if "legacy_flow_id" in item:
+        val = item["legacy_flow_id"]
+        return int(val) if val is not None else None
+    fid = item["id"]
+    return int(fid) if isinstance(fid, int) else None
 
 
 def load_flow_to_domain(path: Path = FLOWS_SSOT_PATH) -> dict[int, int]:
     try:
-        return {f["id"]: d["id"] for d in _read_registry(path) for f in d["flows"]}
-    except (KeyError, TypeError) as exc:
+        out: dict[int, int] = {}
+        for d in _read_registry(path):
+            for f in _domain_items(d):
+                fid = _legacy_flow_id(f)
+                if fid is not None:
+                    out[fid] = d["id"]
+        return out
+    except (KeyError, TypeError, ValueError) as exc:
         raise ValueError(
-            f"Cannot read the 30-flow registry {path}: {type(exc).__name__}: {exc}"
+            f"Cannot read the user-cases/30-flow registry {path}: {type(exc).__name__}: {exc}"
         ) from exc
 
 
@@ -50,35 +71,46 @@ def load_flow_to_cases(path: Path = FLOWS_SSOT_PATH) -> dict[int, list[str]]:
     try:
         out: dict[int, list[str]] = {}
         for d in _read_registry(path):
-            for f in d["flows"]:
+            for f in _domain_items(d):
+                fid = _legacy_flow_id(f)
                 cases = f["benchmark_cases"]
-                if (
-                    not isinstance(cases, list)
-                    or not cases
-                    or not all(isinstance(c, str) and c for c in cases)
+                if not isinstance(cases, list) or not all(
+                    isinstance(c, str) and c for c in cases
                 ):
-                    raise ValueError(f"Invalid benchmark_cases for flow {f.get('id')}")
-                out[f["id"]] = list(cases)
+                    raise ValueError(f"Invalid benchmark_cases for item {f.get('id')}")
+                if fid is None:
+                    continue
+                if not cases:
+                    raise ValueError(f"Invalid benchmark_cases for flow {fid}")
+                out[fid] = list(cases)
         return out
     except (ValueError, KeyError, TypeError) as exc:
         raise ValueError(
-            f"Cannot read the 30-flow registry {path}: {type(exc).__name__}: {exc}"
+            f"Cannot read the user-cases/30-flow registry {path}: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
+def load_domain_to_cases(path: Path = FLOWS_SSOT_PATH) -> dict[int, list[str]]:
+    try:
+        out: dict[int, list[str]] = {}
+        for d in _read_registry(path):
+            collected: set[str] = set()
+            for f in _domain_items(d):
+                for c in f.get("benchmark_cases", ()):
+                    if isinstance(c, str) and c:
+                        collected.add(c)
+            out[int(d["id"])] = sorted(
+                collected, key=lambda c: int(c) if c.isdigit() else c
+            )
+        return out
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError(
+            f"Cannot read the user-cases/30-flow registry {path}: {type(exc).__name__}: {exc}"
         ) from exc
 
 
 FLOW_TO_CASES: dict[int, list[str]] = load_flow_to_cases()
-DOMAIN_TO_CASES: dict[int, list[str]] = {
-    dom: sorted(
-        {
-            c
-            for fl, fd in FLOW_TO_DOMAIN.items()
-            if fd == dom
-            for c in FLOW_TO_CASES.get(fl, ())
-        },
-        key=lambda c: int(c) if c.isdigit() else c,
-    )
-    for dom in sorted(set(FLOW_TO_DOMAIN.values()))
-}
+DOMAIN_TO_CASES: dict[int, list[str]] = load_domain_to_cases()
 
 
 def get_case_to_flows() -> dict[str, set[int]]:

@@ -3,10 +3,9 @@ This file indexes project consistency and traceability audits. Use generated rep
 ## Current Generated Evidence
 | Source | Purpose |
 |---|---|
-| `python tools/check_ac_index.py` | AC integrity and protection ratchet gate |
-| [traceability-exceptions.md](traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
-Current generated AC snapshot values are owned by: - `python tools/check_ac_index.py` Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced by the in-memory AC traceability gate. Fixture-only fake AC IDs in tooling tests are classified separately in the
-generated AC-to-EPIC mismatch output.
+| `tools/preflight.py --tier=static` | Pre-push structural, lint, OpenAPI, and boundary verification |
+| [traceability-exceptions.md](traceability-exceptions.md) | Classified helper/SSOT tests that serve as shared test infrastructure |
+Live verification runs through `check_app_boundary.py`, `check_base_purity.py`, `check_tier_imports.py`, `check_public_orm_exports.py`, and CI unit/E2E suites (`common/meta/flows/user_cases_ssot.json`).
 ## Historical Audits
 | Report | Date | Scope | Status |
 |---|---|---|---|

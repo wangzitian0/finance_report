@@ -1,6 +1,8 @@
 # `counter` — per-(user, key) tallies (middleware package)
-> The **canonical worked example of the package model** (a package = DDD bounded > context). Model spec: [`../meta/readme.md`](../meta/readme.md). > Machine contract: [`contract.py`](./contract.py). > > This `common/counter/` directory is the **spec + review surface**; the > conforming implementation lives at > [`apps/backend/src/counter`](../../apps/backend/src/counter)
-> (`contract.implementations["be"]`).
+> The **canonical worked example of the package model** (a package = DDD bounded context). Model spec: [`../meta/readme.md`](../meta/readme.md).
+>
+> This `common/counter/` directory is the **spec + review surface**; the
+> conforming implementation lives at [`apps/backend/src/counter`](../../apps/backend/src/counter).
 ## Why
 Insight reports ask "**how many times did X happen** — overall, or for this user?". `counter` is the small, reusable middleware capability that answers that: it tallies named events per user and lets a report read either the per-user count or the global count (sum across users). **Status (2026-07-09, issue #1672):** this is real, in a real reusable shape —
 but currently unwired. No router or report-generation path calls `increment`/`get_count` today; `identity` and `pricing` reference its *pattern* in comments ("like `counter`'s `CounterTally`") without importing it. It already served its original purpose (the worked example the package-model migration's Step 0 built to prove the base/extension/data +
@@ -27,5 +29,4 @@ implementation detail behind the `CounterRepository` port. A frontend mirror and
 `counter_tally(user_id, key, count)` with a composite primary key `(user_id, key)` (which is also the unique constraint and the upsert conflict target) and a `count >= 0` check. `bump` is a single atomic upsert-increment (`INSERT ... ON CONFLICT (user_id, key) DO UPDATE SET count = count + 1`), so concurrent increments cannot lose updates. Migration:
 `apps/backend/migrations/versions/0048_counter_tally.py`.
 ## Governance
-The package's ACs (`AC-counter.1.1`–`AC-counter.1.4`) live in [`contract.py`](./contract.py)'s `roadmap` and are sourced **directly** from there into the AC registry (no EPIC mirror); its invariants pin to the tests that prove them. `tools/check_package_contract.py` validates the implementation against this contract (interface == `__all__`, every test reference resolves, no upward import
-edge).
+`tools/check_app_boundary.py` and `tools/check_base_purity.py` validate layering and boundary conformance against `apps/backend/src/counter`, and backend unit tests verify the tally invariants.

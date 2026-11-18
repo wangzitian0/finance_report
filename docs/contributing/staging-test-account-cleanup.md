@@ -2,7 +2,7 @@
 
 QA and E2E runs create disposable accounts on dev and staging databases. `common.runtime.dev.purge_test_accounts` reclaims aged test tenants safely.
 
-The deletion logic, email predicates, and safety guards live in `apps/backend/src/identity/extension/account_purge.py` (`src.identity`, #1677, #3050) and are tested via `AC-identity.purge.*` in `common/identity/contract.py`.
+The deletion logic, email predicates, and safety guards live in `apps/backend/src/identity/extension/account_purge.py` (`src.identity`, #1677, #3050) and are covered by backend identity tests.
 
 ## Usage
 

@@ -1,6 +1,6 @@
 # Project EPIC Index
 
-Package contract roadmaps (`common/<pkg>/contract.py`) own migrated `AC-<pkg>.*` criteria. `docs/project/EPIC-*.md` holds only horizontal/FE residue marked with `<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->` or `<!-- epic-file: design-doc|goal-stub -->` (`tests/tooling/test_epic_residue_ratchet.py`, `tests/tooling/test_terminal_centers_allowlist.py`). Live status lives in GitHub issues and CI outputs.
+Package specifications live in `common/<pkg>/readme.md`, and end-to-end business journeys (`UC-01..UC-47`) live in `common/meta/flows/user_cases_ssot.json`. `docs/project/EPIC-*.md` is a shrink-only historical goal/design index. Live status lives in GitHub issues and CI outputs.
 
 ## Current Milestone: Usable
 
@@ -39,4 +39,4 @@ Tracked by [milestone "Usable: a year of real data on prod"](https://github.com/
 ## Reports & Governance
 
 - [AUDITS.md](./AUDITS.md) · [DELIVERY_ENGINE_RECOMMENDATIONS.md](./DELIVERY_ENGINE_RECOMMENDATIONS.md) · [traceability-exceptions.md](./traceability-exceptions.md)
-- [Project vision](../target.md) · [common/meta/data/MANIFEST.yaml](../../common/meta/data/MANIFEST.yaml) · [orchestration.md](../agents/orchestration.md)
+- [Project vision](../target.md) · [Package specs](../../common/readme.md) · [orchestration.md](../agents/orchestration.md)

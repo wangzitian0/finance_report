@@ -2,8 +2,8 @@
 <!-- epic-file: goal-stub -->
 > **Status**: ✅ Complete — shipped and cut over to the `reporting` package.
 > **Vision Anchor**: `non-goals-not-budgeting-app`
-> **Goal**: generate standard financial statements (balance sheet, income statement, cash flow statement) and visualize asset structure and trends. All ACs, contracts, and roadmaps are owned by the `reporting` package: [`common/reporting/contract.py`](../../common/reporting/contract.py) and [`common/reporting/readme.md`](../../common/reporting/readme.md).
-This file is a goal stub kept as a product anchor; it defines no AC rows.
+> **Goal**: generate standard financial statements (balance sheet, income statement, cash flow statement) and visualize asset structure and trends. Package specifications live in [`common/reporting/readme.md`](../../common/reporting/readme.md).
+This file is a historical goal stub; it defines no AC rows.
 ## Macro Proof Ownership
 - `personal-financial-report-package` - `asset-distribution-net-worth` - `monthly-income-spending` - `investment-performance` - `annualized-income-long-term`
 ## Framework Policy Result Consumption

@@ -14,9 +14,9 @@ Agents deliver a mergeable branch/PR (never commit directly to `main`):
 ## Development Work Order (TDD-First)
 
 1. **MECE**: Split work into non-overlapping slices.
-2. **AC**: Register active `AC-<pkg>.<group>.<seq>` in `common/<pkg>/contract.py` (`roadmap`) — never mirror package ACs into `docs/project/EPIC-*.md` tables ([common/meta/migration-standard.md](../../common/meta/migration-standard.md)).
-3. **Test**: Write failing tests first referencing AC IDs with synthetic/anonymized fixtures ([red-lines.md](./red-lines.md)).
-4. **Code & Doc**: Implement minimal code and update the owning package `readme.md` / `contract.py`.
+2. **User Cases & Invariants**: Update `common/meta/flows/user_cases_ssot.json` when adding or changing an end-to-end business user case — never mirror test tables into `docs/project/EPIC-*.md` ([common/meta/migration-standard.md](../../common/meta/migration-standard.md)).
+3. **Test**: Write failing tests first with synthetic/anonymized fixtures ([red-lines.md](./red-lines.md)).
+4. **Code & Doc**: Implement minimal code and update the owning package `readme.md` or `common/meta/flows/user_cases_ssot.json`.
 
 Never hand-author LLM cassettes under `tests/fixtures/llm_cassettes/` (always record with `make llm-record`).
 

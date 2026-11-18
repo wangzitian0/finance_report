@@ -370,7 +370,7 @@ def build_trace_observation(
     contract_path: Path | None = None,
 ) -> TraceRecord:
     """Build canonical TraceRecord observation for staging AI/OCR gate run (#1906)."""
-    path = contract_path or (ROOT_DIR / "common" / "testing" / "contract.py")
+    path = contract_path or Path(__file__)
     owner_digest = sha256(path.read_bytes()).hexdigest() if path.exists() else "0" * 64
     manifest_digest = sha256(
         json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")

@@ -10,24 +10,25 @@ reconciliation, reports, AI-assisted review, and portfolio tracking.
 
 ## Operating Model
 
-Engineering truth is organized as:
+Engineering truth uses a streamlined two-layer model:
 
 ```text
-README -> owning package contract -> roadmap AC -> test
+vision.md -> bounded-context invariants & tests -> user_cases_ssot.json -> UI / API / E2E
 ```
 
-- **README** is the project fact entry point: stable EPIC navigation, tracker
-  entry points, and links to generated reports.
-- **EPIC documents** in `docs/project/EPIC-*.md` retain existing horizontal and
-  frontend-exception scope as terminal, shrink-only residue.
-- **AC homes**: a **migrated package** owns its ACs as `AC-<pkg>.<group>.<seq>`
-  in that package's `contract.py` `roadmap` (aggregated by `meta`'s data layer,
-  never mirrored back into an EPIC table — see
-  [`common/meta/migration-standard.md`](common/meta/migration-standard.md)).
-  Existing residue-marked EPIC ACs and package roadmaps are loaded in memory by
-  `common/meta/extension/generate_ac_registry.py`.
-- **Tests** are the proof. A referenced AC is not enough; behavior must be
-  asserted by real tests.
+- **README** is the project entry point: EPIC navigation, governance checks,
+  and local development commands.
+- **Layer 1 — Bounded Contexts & Structural Boundaries** (`common/<pkg>/`,
+  `apps/backend/src/<pkg>/`): each package owns its domain rules, verified by
+  executable domain tests and structural boundary guards
+  (`tools/check_app_boundary.py`, `tools/check_base_purity.py`,
+  `tools/check_tier_imports.py`, `tools/check_public_orm_exports.py`).
+- **Layer 2 — Business User Cases** (`common/meta/flows/user_cases_ssot.json`):
+  owns the 47 end-to-end business user cases (`UC-01..UC-47` across 8 domains),
+  binding UI routes, backend endpoints, and backend/frontend/E2E tests (see
+  [`docs/reference/user-cases.md`](docs/reference/user-cases.md)).
+- **EPIC documents** (`docs/project/EPIC-*.md`) retain historical goal stubs and
+  architectural context as a closed, shrink-only directory.
 
 `vision.md` is intentionally different. It owns the product's north-star goal
 and culture — the axioms, trade-off rules, and decision filter for ambiguous
@@ -36,54 +37,27 @@ own implementation status.
 
 ## Structure & SSOT Layers
 
-The structure-level SSOT is visible from the README so new work can navigate
-from project intent to executable proof without reading archive fragments.
-
 | Layer | Owner | What It Shows | Proof / Guard |
 |---|---|---|---|
-| Project entry | `README.md` | EPIC map, tracker entry points, and proof commands | `tools/check_ac_index.py` |
-| Goal & culture | `vision.md` | North-star goal, axioms, trade-off rules, and direction for ambiguous choices | Referenced by EPIC vision anchors |
-| Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
-| Package scope | `common/<pkg>/contract.py` | New acceptance criteria in each package roadmap | Package contract and AC proof gates |
-| EPIC residue | `docs/project/EPIC-*.md` | Existing non-package-owned scope and known gaps; shrink-only | AC index and residue ratchet |
-| AC registry | `common/meta/extension/generate_ac_registry.py` | In-memory acceptance criteria inventory from package roadmaps and marked EPIC residue | `tools/check_ac_index.py` |
-| Concept ownership registry | `common/meta/data/MANIFEST.yaml` | Technical truth ownership map (which package owns which concept) | `tools/check_manifest.py`, `tools/check_ssot_ownership.py` |
-| Testing proof | AC-to-test proof graph | AC proof, coverage floors, and traceability consistency | `tools/check_ac_index.py` |
+| Goal & culture | `vision.md` | North-star goal, axioms, trade-off rules, and direction for ambiguous choices | Decision filter |
+| Bounded contexts & boundaries | `common/<pkg>/`, `apps/backend/src/<pkg>/` | Package specs (`readme.md`) and five-layer dependency/purity boundaries | `check_app_boundary.py`, `check_base_purity.py`, `check_tier_imports.py`, `check_public_orm_exports.py` |
+| Business user cases | `common/meta/flows/user_cases_ssot.json` | 47 end-to-end business user cases (`UC-01..UC-47`) across 8 domains | `test_user_cases_consistency.py`, `userCasesConsistency.test.tsx` |
+| Historical EPIC index | `docs/project/EPIC-*.md` | Closed, shrink-only goal stubs and design context | [EPIC Index](docs/project/README.md) |
 
-Implementation facts should be code-owned where possible. Prose SSOT documents
-explain rationale and link to code, tests, generated registries, or issues
-rather than duplicating code behavior.
-
-## Proof Snapshot
-
-Do not hand-write generated counts in this README. AC totals, per-EPIC proof
-percentages, and coverage floors are code-owned or report-owned facts that
-change whenever registries, tests, or coverage baselines change.
-
-Use these sources instead:
-
-- Traceability gate: `python tools/check_ac_index.py`
-- Coverage policy owner: `common/meta/extension/coverage/policy.py`
-
-Important caveat: the current AC coverage analyzer excludes `_ac_stubs`,
-trivial placeholder assertions, pure `pass`, and pure skipped tests from
-covered counts. CI fails mandatory AC coverage that is missing,
-placeholder-only, or stub-only.
+Implementation facts live in code and executable tests rather than prose.
 
 ### LLM & Data-Driven Verification Guardrail
 
 - **Persist real LLM outputs (`tests/fixtures/llm_cassettes/`)**: Generalization belongs to the LLM; committed cassettes freeze real provider responses to verify full-pipeline wiring. **Never hand-write LLM cassettes** — always record via real execution (`make llm-record` / `common/extraction/record_hf_cassettes.py`).
 - **Zero-token deterministic PR CI (`github_ci.merge_authority`)**: Development/PR CI runs with `LLM_CASSETTE_MODE=replay` (zero network, zero API key) through the real extraction/conform/approval pipeline. Never bypass extraction post-processing when testing corpus replay.
-- **Live-token Staging E2E, Smoke & 3-Statement Oracle (`staging_gate` / `scheduled_audit`)**: Deployed Staging hooks (`runtime-hooks.manifest.json`) run with real tokens (`AI_API_KEY`, `glm-5.3-flash`) to execute live E2E journeys, the 20-PDF 7-invariant 3-Statement Oracle (`tests/benchmarks/pdf_corpus_oracle.py`), and the 30-Flow Financial Scenario Benchmark (`tests/benchmarks/run_financial_scenario_benchmark.py`).
+- **Live-token Staging E2E, Smoke & 3-Statement Oracle (`staging_gate` / `scheduled_audit`)**: Deployed Staging hooks (`runtime-hooks.manifest.json`) run with real tokens (`AI_API_KEY`, `glm-5.3-flash`) to execute live E2E journeys, the 20-PDF 7-invariant 3-Statement Oracle (`tests/benchmarks/pdf_corpus_oracle.py`), and the Business Scenario Benchmark (`tests/benchmarks/run_financial_scenario_benchmark.py`).
 
 See [`common/llm/readme.md#cassettes`](common/llm/readme.md#cassettes) and [`common/testing/ci-cd.md`](common/testing/ci-cd.md).
 
 ## EPIC Map
 
-This map is for navigation only. AC-graph consistency across the EPIC set is
-CI-validated by `tools/check_ac_index.py`. Project
-status and AC proof counts should be read from EPIC documents, generated
-registries, and generated reports rather than duplicated here.
+Historical index for navigation. Live tracker status lives in GitHub Issues and
+CI outputs.
 
 | EPIC | Scope |
 |---|---|
@@ -111,75 +85,11 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-023](docs/project/EPIC-023.llm-provider-abstraction.md) | LLM provider abstraction (litellm) |
 | [EPIC-024](docs/project/EPIC-024.frontend-observability.md) | Frontend browser observability |
 | [EPIC-025](docs/project/EPIC-025.dry-ssot-simplification.md) | DRY/SSOT simplification (reporting, statements, FE contracts, tests) |
-| [EPIC-026](docs/project/EPIC-026.ac-authority-tiers.md) | AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY) and the tier-to-valid-proof matrix |
+| [EPIC-026](docs/project/EPIC-026.ac-authority-tiers.md) | AC authority tiers (`CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY`) and tier-import separation |
 
-## EPIC Status (Generated)
+## Core Business Journeys
 
-EPIC completion is a **derived view** of the one AC-keyed graph, rendered on
-demand from the AC registries and test reports, never hand-written and never
-committed-materialized (a committed snapshot churns on every AC change). Real,
-placeholder-only, stub-only and
-missing ACs are reported separately so a high coverage number cannot hide
-placeholder debt; mutable live CI/deploy run status is deliberately excluded.
-
-<!-- BEGIN GENERATED: epic-status -->
-
-> EPIC status is a DERIVED view of the one AC-keyed graph (see
-> [`common/testing/tdd.md`](common/testing/tdd.md) "Cross-Cutting Index Artifacts"). The
-> per-EPIC completion numbers are **not committed** here, because a committed
-> snapshot churns on every AC change and is the merge-train false-sharing
-> hotspot this model removes.
->
-> The "Coverage by EPIC" classification of the graph reports real,
-> placeholder-only, stub-only and missing ACs per EPIC and excludes
-> deprecated ACs. Consistency (no dangling / missing proof) is gated by
-> `python tools/check_ac_index.py`; live CI and deploy run status are
-> intentionally excluded.
-
-<!-- END GENERATED: epic-status -->
-
-Known proof-quality caveats:
-
-- Placeholder and stub references do not count as covered; mandatory ACs fail
-  CI when they are missing, placeholder-only, or stub-only.
-- Manual-verification ACs need automation or an explicit manual-gate category.
-  See [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
-- AC-to-EPIC mismatch audit output is validated by
-  `python tools/check_ac_index.py`; do not copy current mismatch
-  counts into this README.
-- README EPIC status and completion metrics are a derived view of the AC
-  graph; the mutable numbers
-  are not committed (they churn on every AC change), and the AC-graph
-  consistency gate `python tools/check_ac_index.py` enforces no dangling/missing
-  proof. See [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
-
-## Vision Tracking
-
-Do not hand-maintain open/closed blocker lists here. GitHub issue state and
-labels are the source of truth for current tracker status.
-
-- Macro proof tracker: [#521](https://github.com/wangzitian0/finance_report/issues/521)
-- Personal report package tracker:
-  [#563](https://github.com/wangzitian0/finance_report/issues/563)
-- Related live work is tracked with labels such as `flow: upload-to-report`,
-  `flow: net-worth`, and `scope: valuation`.
-- If a stable proof path is needed in docs, write a parseable matrix and attach
-  a checker rather than copying issue state by hand.
-
-## Core Proof Paths
-
-Macro correctness is a DERIVED view of the one AC-keyed graph. Its hand-curated
-outcome source is
-[`common/testing/data/critical-proof-outcomes.yaml`](common/testing/data/critical-proof-outcomes.yaml)
-(macro outcome -> owner EPICs + proof_ids); the proof paths come from the
-co-located `@ac_proof` decorators. The matrix is rendered on demand by
-`python -m common.testing.generate_critical_proof_matrix` (never committed) and validated
-by `python tools/check_ac_index.py`; the single internal-consistency
-gate `python tools/check_ac_index.py` fails on any dangling/missing link. This is
-the README -> EPIC -> E2E contract. The EPIC -> AC -> test contract remains owned
-by the generated AC registries and AC traceability reports.
-
-The macro outcome set is closed and parseable:
+The 47 end-to-end business user cases live in [`common/meta/flows/user_cases_ssot.json`](common/meta/flows/user_cases_ssot.json) and are documented in [`docs/reference/user-cases.md`](docs/reference/user-cases.md). Six core financial outcomes anchor E2E and benchmark proof:
 
 | Outcome ID | Purpose |
 |---|---|
@@ -189,26 +99,6 @@ The macro outcome set is closed and parseable:
 | `investment-performance` | Portfolio import, valuation, and performance proof path |
 | `annualized-income-long-term` | Salary, dividends, ESOP/restricted holdings, and long-term income proof path |
 | `source-ledger-report-traceability` | Source document -> ledger -> report traceability |
-
-The checker enforces README -> EPIC -> E2E closure: this table must match the
-matrix, owner EPICs must reverse-declare their outcomes, covered outcomes need
-explicit E2E proof anchors, and partial/gap outcomes need an issue. The separate
-E2E EPIC closure gate ensures the README EPIC map matches project EPIC files and
-that E2E-like assets outside product roots are explicitly classified.
-
-## Documentation Debt Tracked As Issues
-
-- [#453](https://github.com/wangzitian0/finance_report/issues/453):
-  Move code-owned SSOT facts into common packages or generated contracts.
-- [#454](https://github.com/wangzitian0/finance_report/issues/454):
-  Convert manual-verification ACs into automated tests or explicit manual gates.
-- [#455](https://github.com/wangzitian0/finance_report/issues/455):
-  Generate README EPIC status and completion metrics from registries and test
-  reports.
-- [#456](https://github.com/wangzitian0/finance_report/issues/456):
-  Fix AC-to-EPIC mismatch and invalid test references.
-- AC-to-EPIC mismatch is gated by `python tools/check_ac_index.py` and
-  `python tools/lint_doc_consistency.py`.
 
 ## Quick Start
 
@@ -277,26 +167,21 @@ apps/
 ├── backend/     # FastAPI + SQLAlchemy + PostgreSQL
 └── frontend/    # Next.js + TypeScript
 
-common/          # The package model: per-domain packages (meta, testing, runtime,
-                 # ledger, extraction, llm, ...) each owning its contract + roadmap ACs
-                 # and prose readme.md; meta/data/ holds cross-cutting gate data
-                 # (MANIFEST.yaml, the concept-ownership registry)
+common/          # Bounded-context domain specs (meta, testing, runtime,
+                 # ledger, extraction, llm, ...), meta/flows/user_cases_ssot.json,
+                 # and shared cross-cutting validators
 tools/           # Command entry points that delegate to common libraries
-docs/project/    # EPICs (terminal, shrink-only residue) and project audit reports
+docs/project/    # Historical EPIC stubs and project audit reports
 ```
-
-Code-owned facts should live in code or generated contracts, not prose. The
-migration path is tracked in
-[issue #453](https://github.com/wangzitian0/finance_report/issues/453).
 
 ## Key Links
 
 | Resource | Purpose |
 |---|---|
 | [vision.md](vision.md) | Decision filter and long-term direction |
-| [docs/project/](docs/project/) | EPIC documents (terminal residue) and project audits |
-| [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) | Concept ownership registry — routes to each owning package's `readme.md` / `contract.py` |
-| `python tools/check_ac_index.py` | AC-graph consistency gate (no dangling or missing proof) |
+| [common/meta/flows/user_cases_ssot.json](common/meta/flows/user_cases_ssot.json) | 47 end-to-end business user cases SSOT ([docs/reference/user-cases.md](docs/reference/user-cases.md)) |
+| [docs/project/](docs/project/) | Historical EPIC index and project audits |
+| [common/readme.md](common/readme.md) | Bounded-context architecture and structural boundary guards |
 | [docs/index.md](docs/index.md) | Documentation portal and system architecture |
 | [docs/agents/](docs/agents/) | Agent workflow and red-line rules |
 
