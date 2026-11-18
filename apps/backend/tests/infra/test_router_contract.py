@@ -68,10 +68,6 @@ _ALLOWED_TX_ROUTER_FUNCTIONS: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
-# Shrink-only allowlist of remaining legacy router violations.
-# Each cleanup PR deletes fixed entries until this mapping is empty.
-LEGACY_ROUTER_ALLOWLIST: dict[str, set[str]] = {}
-
 
 def _route_methods(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
     methods: set[str] = set()
@@ -161,27 +157,10 @@ def _all_router_violations() -> dict[str, set[str]]:
 
 
 @pytest.mark.no_db
-def test_routers_have_no_unallowlisted_legacy_patterns() -> None:
-    """AC-platform.router-contract.1: reject unallowlisted router violations."""
+def test_routers_have_no_legacy_patterns() -> None:
+    """AC-platform.router-contract.1: reject legacy router violations with zero allowlist exceptions."""
     actual = _all_router_violations()
-    unexpected = {
-        name: sorted(rules - LEGACY_ROUTER_ALLOWLIST.get(name, set()))
-        for name, rules in actual.items()
-        if rules - LEGACY_ROUTER_ALLOWLIST.get(name, set())
-    }
-    assert unexpected == {}, f"Unexpected legacy router violations: {unexpected}"
-
-
-@pytest.mark.no_db
-def test_legacy_router_allowlist_has_no_stale_entries() -> None:
-    """AC-platform.router-contract.2: require allowlist entries to shrink as violations are fixed."""
-    actual = _all_router_violations()
-    stale = {
-        name: sorted(rules - actual.get(name, set()))
-        for name, rules in LEGACY_ROUTER_ALLOWLIST.items()
-        if rules - actual.get(name, set())
-    }
-    assert stale == {}, f"Stale entries in LEGACY_ROUTER_ALLOWLIST (remove fixed items): {stale}"
+    assert actual == {}, f"Unexpected legacy router violations: {actual}"
 
 
 _NON_DOMAIN_PACKAGE_DIRS = frozenset({"routers", "__pycache__"})
