@@ -19,26 +19,19 @@ from src.runtime.extension.storage import StorageError, StorageService
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    KnownStoragePathsProvider = Callable[[AsyncSession, "list[str]"], Awaitable["set[str]"]]
+    KnownStoragePathsProvider = Callable[[AsyncSession, list[str]], Awaitable[set[str]]]
 
-_known_paths_provider: KnownStoragePathsProvider | None = None
 logger = get_logger(__name__)
 settings = src.config.settings
 STATEMENT_PREFIX = "statements/"
 
 
-def register_known_storage_paths_provider(provider: KnownStoragePathsProvider) -> None:
-    global _known_paths_provider
-    _known_paths_provider = provider
-
-
-def _get_known_paths_provider() -> KnownStoragePathsProvider:
-    if _known_paths_provider is None:
-        raise RuntimeError(
-            "storage_sweep.register_known_storage_paths_provider() was never called — "
-            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
-        )
-    return _known_paths_provider
+def _require_known_paths_provider(
+    known_paths_provider: KnownStoragePathsProvider | None,
+) -> KnownStoragePathsProvider:
+    if known_paths_provider is None:
+        raise RuntimeError("sweep_orphaned_storage_objects() requires known_paths_provider.")
+    return known_paths_provider
 
 
 def _list_storage_keys(storage: StorageService) -> list[tuple[str, datetime]]:
@@ -61,6 +54,8 @@ def _is_preview() -> bool:
 
 async def sweep_orphaned_storage_objects(
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
+    *,
+    known_paths_provider: KnownStoragePathsProvider | None = None,
 ) -> int:
     """Identify and delete S3 objects older than grace period without a DB record."""
     if _is_preview() or not settings.s3_bucket:
@@ -77,8 +72,9 @@ async def sweep_orphaned_storage_objects(
     candidate_keys = [key for key, modified in storage_keys if modified < cutoff]
     if not candidate_keys:
         return 0
+    provider = _require_known_paths_provider(known_paths_provider)
     async with (sessionmaker or async_session_maker)() as session:
-        known_paths = await _get_known_paths_provider()(session, candidate_keys)
+        known_paths = await provider(session, candidate_keys)
     orphaned = [key for key in candidate_keys if key not in known_paths]
     if not orphaned:
         return 0
@@ -94,13 +90,17 @@ async def sweep_orphaned_storage_objects(
     return deleted
 
 
-async def run_storage_sweep(stop_event: asyncio.Event) -> None:
+async def run_storage_sweep(
+    stop_event: asyncio.Event,
+    *,
+    known_paths_provider: KnownStoragePathsProvider | None = None,
+) -> None:
     """Run periodic storage sweeps until stop_event is set."""
     if not settings.enable_storage_sweep or _is_preview():
         return
     while not stop_event.is_set():
         try:
-            if deleted := await sweep_orphaned_storage_objects():
+            if deleted := await sweep_orphaned_storage_objects(known_paths_provider=known_paths_provider):
                 logger.info("Storage sweep removed orphaned objects", count=deleted)
         except Exception:
             logger.exception("Storage sweep encountered an unexpected error")

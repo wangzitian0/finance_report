@@ -3,7 +3,7 @@
   "endpoints": {
     "statement_upload_accepted": {
       "method": "POST",
-      "fe_path": "/api/statements/upload",
+      "fe_path": "/api/statements",
       "response_model": "src.schemas.extraction.BankStatementResponse",
       "response": {
         "id": "00000000-0000-4000-8000-000000000601",

@@ -7,10 +7,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from src.audit import JournalEntrySourceType
+from src.audit import JournalEntrySourceType, normalize_currency_code
 from src.audit.money import Currency, Money, to_money
 from src.pricing import FxConversion
-from src.schemas.base import normalize_currency_code
 
 DEFAULT_RATE_TOLERANCE = Decimal("0.005")
 DEFAULT_TIME_WINDOW = timedelta(days=2)

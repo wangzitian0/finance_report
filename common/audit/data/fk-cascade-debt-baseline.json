@@ -1,6 +1,7 @@
 {
   "debt_sites": [
     "advisor/orm/chat.py::ChatSession.user_id->users.id",
+    "extraction/orm/ai_feedback.py::AiFeedback.user_id->users.id",
     "extraction/orm/correction.py::CorrectionLog.transaction_id->atomic_transactions.id",
     "extraction/orm/correction.py::CorrectionLog.user_id->users.id",
     "extraction/orm/evidence.py::EvidenceEdge.user_id->users.id",

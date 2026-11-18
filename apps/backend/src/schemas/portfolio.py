@@ -1,24 +1,23 @@
 """Pydantic schemas for portfolio management."""
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
+from src.audit import DataProvenance
 from src.extraction import CostBasisMethod, PositionStatus, reject_json_floats
 from src.schemas.base import (
     BaseResponse,
     CurrencyCode,
     ListResponse,
     MoneyAmount,
-    NonNegativeMoneyAmount,
     Percent,
     Quantity,
     default_list,
 )
-from src.schemas.provenance import DataProvenance
 
 NonNegInt = Annotated[int, Field(ge=0)]
 OptionalRate = Annotated[Decimal | None, Field(decimal_places=2)]
@@ -79,29 +78,6 @@ class UnrealizedPnLResponse(BaseModel):
     total_cost_basis: MoneyAmount
     holdings_count: int
     details: list[dict]
-
-
-class PriceUpdateRequest(BaseModel):
-    asset_identifier: Annotated[str, Field(min_length=1, max_length=100)]
-    price_date: date
-    price: NonNegativeMoneyAmount
-    currency: CurrencyCode
-
-
-class PriceUpdateResponse(BaseModel):
-    success: bool
-    message: str
-    asset_identifier: str
-    price_date: date
-    price: MoneyAmount
-    currency: str
-    source: str
-    created_at: datetime | None = None
-
-
-class PriceUpdateBatchResponse(BaseModel):
-    updated_count: int
-    results: list[PriceUpdateResponse] = default_list()
 
 
 class CostBasisMethodUpdateResponse(BaseModel):
@@ -230,3 +206,27 @@ class BrokerageImportResponse(BaseModel):
     reconcile_disposed: NonNegInt
     skipped: NonNegInt
     account_id: UUID | None = None
+
+
+class AllocationBreakdownResponse(BaseModel):
+    category: str
+    value: Decimal = Field(decimal_places=2, description="Allocated monetary value for the category.")
+    percentage: Decimal = Field(decimal_places=2, description="Share of total portfolio value as a percentage.")
+    count: int
+
+
+class DividendCreateRequest(BaseModel):
+    payment_date: date
+    amount: Decimal = Field(decimal_places=2, gt=0, description="Gross dividend payout amount.")
+    currency: str = Field(min_length=3, max_length=3, description="ISO 4217 dividend currency code.")
+    dividend_type: str = "ordinary"
+    notes: str | None = None
+    cash_account_id: UUID | None = None
+    dividend_income_account_id: UUID | None = None
+    withholding_tax: Decimal = Field(
+        default=Decimal("0.00"),
+        decimal_places=2,
+        ge=0,
+        description="Tax withheld at source in the dividend currency.",
+    )
+    withholding_tax_account_id: UUID | None = None

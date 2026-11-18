@@ -6,14 +6,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import normalize_currency_code
+from src.audit import DataProvenance, normalize_currency_code
 from src.audit.money import to_money
 from src.observability import get_logger
 from src.platform.base.errors import DomainError
@@ -26,7 +26,6 @@ from src.pricing.base.manual_valuation import (
 )
 from src.pricing.extension.manual import record_manual_valuation
 from src.pricing.orm.manual_valuation import ManualValuationSnapshot
-from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 
@@ -299,61 +298,6 @@ class ValuationService:
                 ManualValuationSnapshot.user_id == user_id,
                 ManualValuationSnapshot.id == snapshot_id,
             )
-        )
-
-    async def update_valuation_snapshot(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        snapshot_id: UUID,
-        *,
-        values: dict,
-    ) -> ManualValuationSnapshot | None:
-        """Append a correction through the sole decision-backed write command."""
-        snapshot = await self.get_valuation_snapshot(db, user_id, snapshot_id)
-        if not snapshot:
-            return None
-        if snapshot.superseded_by_id is not None:
-            raise ValuationServiceError("Cannot edit a superseded valuation version; submit a correction instead")
-
-        for field_name in ("component_type", "as_of_date", "source"):
-            requested = values.get(field_name)
-            if requested is not None and requested != getattr(snapshot, field_name):
-                raise ValuationServiceError(
-                    f"Cannot change valuation {field_name} in place; record a separate valuation instead"
-                )
-
-        value = to_money(cast(Decimal, values["value"])) if values.get("value") is not None else snapshot.value
-        currency = cast(str, values["currency"]) if values.get("currency") is not None else snapshot.currency
-
-        def _val(key: str) -> Any:
-            return values[key] if key in values else getattr(snapshot, key)
-
-        observation = await record_manual_valuation(
-            db,
-            user_id,
-            component_type=snapshot.component_type,
-            liquidity_class=values.get("liquidity_class") or snapshot.liquidity_class,
-            as_of=snapshot.as_of_date,
-            value=value,
-            currency=currency,
-            source=snapshot.source,
-            valuation_basis=_val("valuation_basis"),
-            notes=_val("notes"),
-            recurrence_days=_val("recurrence_days"),
-            reminder_date=_val("reminder_date"),
-        )
-        corrected = await self.get_valuation_snapshot(db, user_id, observation.id)
-        if corrected is None:  # pragma: no cover
-            raise ValuationServiceError("decision-backed valuation correction did not produce a snapshot")
-        return corrected
-
-    async def delete_valuation_snapshot(self, db: AsyncSession, user_id: UUID, snapshot_id: UUID) -> bool:
-        """Reject destructive deletion of an immutable decision-backed input."""
-        if await self.get_valuation_snapshot(db, user_id, snapshot_id) is None:
-            return False
-        raise ValuationServiceError(
-            "Cannot delete a decision-backed valuation snapshot; submit a correcting valuation instead"
         )
 
     async def get_latest_valuation_components(

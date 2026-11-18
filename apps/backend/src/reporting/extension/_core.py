@@ -31,6 +31,7 @@ from src.pricing import (
     get_average_rate,
     get_exchange_rate,
 )
+from src.audit import DataProvenance
 from src.reporting.extension.internal_transfer import _internal_transfer_adjustment
 from src.reporting.extension.reporting_calc import (
     ReportError,
@@ -38,7 +39,6 @@ from src.reporting.extension.reporting_calc import (
     _provenance_from_source_type,
     _quantize_money,
 )
-from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 

@@ -256,7 +256,6 @@ moon run :test -- --smart  # Default local loop: changed-file/affected coverage 
 moon run :test -- --fast   # Fast TDD loop without coverage
 moon run :test             # Full local confidence gate with coverage
 moon run :test -- --e2e    # Root deployment E2E tests
-moon run :test -- --backend-e2e # Backend Tier-1 API E2E tests
 
 moon run :build            # Build frontend
 moon run :clean            # Clean local resources

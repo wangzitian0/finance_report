@@ -1,4 +1,4 @@
-from datetime import UTC, datetime; import pytest; from pydantic import ValidationError; from src.schemas.audit import AuditTrailItem, AuditTrailResponse
+from datetime import UTC, datetime; import pytest; from pydantic import ValidationError; from src.schemas.journal import AuditTrailItem, AuditTrailResponse
 def test_audit_trail_item_alias_created_at_to_timestamp():
     item = AuditTrailItem.model_validate({'created_at': datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC), 'actor': 'alice', 'action': 'approve'}); assert item.actor == 'alice'; assert item.action == 'approve'; assert item.timestamp == datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC); _m1_item = AuditTrailItem.model_validate({'created_at': datetime(2025, 1, 1, tzinfo=UTC), 'actor': 'bob', 'action': 'edit', 'old_value': {'amount': '10'}, 'new_value': {'amount': '20'}}); assert _m1_item.old_value == {'amount': '10'}; assert _m1_item.new_value == {'amount': '20'}
     with pytest.raises(ValidationError): AuditTrailItem.model_validate({'created_at': datetime.now(UTC), 'actor': 'a'})

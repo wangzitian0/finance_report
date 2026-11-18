@@ -20,7 +20,7 @@ from src.ledger import (
 )
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
 from src.routers import statements as statements_router
-from src.schemas.review import Stage1ApprovalRequest
+from src.schemas.extraction import Stage1ApprovalRequest
 from tests.api._statement_router_fixtures import (
     add_txn,
     counter_account_names,

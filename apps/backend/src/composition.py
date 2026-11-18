@@ -24,6 +24,7 @@ from src.extraction import (
     AtomicTransaction,
     BankStatementStatus,
     BrokerageImportRejectedError,
+    BrokeragePositionImportService,
     ClassificationSuggestion,
     DispositionMode,
     DispositionPolicy,
@@ -64,6 +65,7 @@ from src.platform import PreconditionFailedError
 from src.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
+    PositionService,
     PositionServiceError,
     active_stock_symbols,
     position_currencies,
@@ -523,6 +525,11 @@ async def _supersede_transfer_legs_for_correction(
     db: AsyncSession, user_id: UUID, transaction_id: UUID, reason: str
 ) -> None:
     await supersede_transaction_transfer_legs(db, user_id=user_id, transaction_id=transaction_id, reason=reason)
+
+
+def compose_brokerage_import_service() -> BrokeragePositionImportService:
+    """Wire portfolio's PositionService reconciler into extraction's brokerage importer."""
+    return BrokeragePositionImportService(position_reconciler=PositionService().reconcile_positions)
 
 
 def compose_correction_callbacks() -> dict[str, Any]:

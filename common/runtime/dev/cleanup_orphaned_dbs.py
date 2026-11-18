@@ -170,7 +170,7 @@ def _resolve_target() -> str | None:
         log("❌ No container runtime (docker/podman) or host PostgreSQL found.", RED)
     else:
         log(f"⚠️  Container '{DB_CONTAINER_NAME}' not running and host PostgreSQL unavailable", YELLOW)
-        log("   Start infrastructure: bash tools/infra.sh up", YELLOW)
+        log("   Start infrastructure: moon run :dev -- --infra", YELLOW)
     return None
 
 

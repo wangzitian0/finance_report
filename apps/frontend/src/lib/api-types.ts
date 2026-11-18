@@ -35,28 +35,18 @@ type _P<T> = { parameters: _NP } & T & Partial<Record<Exclude<_M, keyof T>, neve
 
 export interface paths {
   "/accounts": _P<{ get: _O["list_accounts_accounts_get"]; post: _O["create_account_accounts_post"] }>;
-  "/accounts/coverage": _P<{ get: _O["list_account_statement_coverage_accounts_coverage_get"] }>;
   "/accounts/opening-balance-readiness": _P<{ get: _O["get_opening_balance_readiness_status_accounts_opening_balance_readiness_get"] }>;
   "/accounts/opening-balances": _P<{ post: _O["post_opening_balances_accounts_opening_balances_post"] }>;
-  "/accounts/processing/pending": _P<{ get: _O["list_processing_pending_accounts_processing_pending_get"] }>;
-  "/accounts/processing/summary": _P<{ get: _O["get_processing_summary_accounts_processing_summary_get"] }>;
   "/accounts/{account_id}": _P<{ put: _O["update_account_accounts__account_id__put"]; delete: _O["delete_account_accounts__account_id__delete"] }>;
-  "/ai/feedback": _P<{ post: _O["create_ai_feedback_ai_feedback_post"] }>;
-  "/ai/suggestions": _P<{ get: _O["list_ai_suggestions_ai_suggestions_get"] }>;
   "/app-config/base-currency": _P<{ get: _O["get_base_currency_app_config_base_currency_get"]; put: _O["update_base_currency_app_config_base_currency_put"] }>;
-  "/assets/positions/{position_id}/depreciation": _P<{ get: _O["get_position_depreciation_assets_positions__position_id__depreciation_get"] }>;
-  "/assets/valuation-components": _P<{ get: _O["list_valuation_components_assets_valuation_components_get"] }>;
-  "/assets/valuation-snapshots": _P<{ get: _O["list_valuation_snapshots_assets_valuation_snapshots_get"]; post: _O["create_valuation_snapshot_assets_valuation_snapshots_post"] }>;
-  "/assets/valuation-snapshots/{snapshot_id}": _P<{ get: _O["get_valuation_snapshot_assets_valuation_snapshots__snapshot_id__get"]; delete: _O["delete_valuation_snapshot_assets_valuation_snapshots__snapshot_id__delete"]; patch: _O["update_valuation_snapshot_assets_valuation_snapshots__snapshot_id__patch"] }>;
   "/auth/login": _P<{ post: _O["login_auth_login_post"] }>;
   "/auth/logout": _P<{ post: _O["logout_auth_logout_post"] }>;
   "/auth/me": _P<{ get: _O["get_me_auth_me_get"] }>;
   "/auth/register": _P<{ post: _O["register_auth_register_post"] }>;
   "/chat": _P<{ post: _O["chat_message_chat_post"] }>;
   "/chat/history": _P<{ get: _O["chat_history_chat_history_get"] }>;
-  "/chat/session/{session_id}": _P<{ delete: _O["delete_session_chat_session__session_id__delete"] }>;
+  "/chat/sessions/{session_id}": _P<{ delete: _O["delete_session_chat_sessions__session_id__delete"] }>;
   "/chat/suggestions": _P<{ get: _O["suggestions_chat_suggestions_get"] }>;
-  "/corrections": _P<{ post: _O["create_correction_corrections_post"] }>;
   "/evidence/lineage": _P<{ get: _O["get_evidence_lineage_evidence_lineage_get"] }>;
   "/health": _P<{ get: _O["health_health_get"] }>;
   "/journal-entries": _P<{ get: _O["list_journal_entries_journal_entries_get"]; post: _O["create_entry_journal_entries_post"] }>;
@@ -70,32 +60,38 @@ export interface paths {
   "/llm/providers": _P<{ get: _O["list_providers_llm_providers_get"]; post: _O["create_provider_llm_providers_post"] }>;
   "/llm/providers/{provider_id}": _P<{ delete: _O["delete_provider_llm_providers__provider_id__delete"] }>;
   "/llm/scenes": _P<{ get: _O["get_scenes_llm_scenes_get"]; put: _O["put_scenes_llm_scenes_put"] }>;
-  "/market-data/fx/syncs": _P<{ post: _O["sync_fx_endpoint_market_data_fx_syncs_post"] }>;
-  "/market-data/status": _P<{ get: _O["market_data_status_endpoint_market_data_status_get"] }>;
-  "/market-data/stocks/syncs": _P<{ post: _O["sync_stocks_endpoint_market_data_stocks_syncs_post"] }>;
-  "/metrics/correction-loop/replay": _P<{ get: _O["get_correction_loop_replay_metrics_correction_loop_replay_get"] }>;
   "/portfolio/allocation/asset-class": _P<{ get: _O["get_asset_class_allocation_portfolio_allocation_asset_class_get"] }>;
   "/portfolio/allocation/geography": _P<{ get: _O["get_geography_allocation_portfolio_allocation_geography_get"] }>;
   "/portfolio/allocation/sector": _P<{ get: _O["get_sector_allocation_portfolio_allocation_sector_get"] }>;
-  "/portfolio/brokerage/import": _P<{ post: _O["import_brokerage_positions_portfolio_brokerage_import_post"] }>;
+  "/portfolio/brokerage-imports": _P<{ post: _O["import_brokerage_positions_portfolio_brokerage_imports_post"] }>;
   "/portfolio/holdings": _P<{ get: _O["get_holdings_portfolio_holdings_get"] }>;
   "/portfolio/performance/report-schedule": _P<{ get: _O["get_investment_performance_report_schedule_portfolio_performance_report_schedule_get"] }>;
-  "/portfolio/prices/update": _P<{ post: _O["update_prices_portfolio_prices_update_post"] }>;
   "/portfolio/summary": _P<{ get: _O["get_portfolio_summary_portfolio_summary_get"] }>;
   "/portfolio/{ticker}": _P<{ patch: _O["update_holding_cost_basis_method_portfolio__ticker__patch"] }>;
   "/portfolio/{ticker}/dividends": _P<{ get: _O["get_holding_dividends_portfolio__ticker__dividends_get"]; post: _O["create_holding_dividend_portfolio__ticker__dividends_post"] }>;
   "/portfolio/{ticker}/realized": _P<{ get: _O["get_holding_realized_lots_portfolio__ticker__realized_get"] }>;
+  "/pricing/fx/syncs": _P<{ post: _O["sync_fx_endpoint_pricing_fx_syncs_post"] }>;
+  "/pricing/manual-valuations": _P<{ get: _O["list_manual_valuations_pricing_manual_valuations_get"]; post: _O["create_manual_valuation_pricing_manual_valuations_post"] }>;
+  "/pricing/market-data/status": _P<{ get: _O["market_data_status_endpoint_pricing_market_data_status_get"] }>;
+  "/pricing/price-overrides": _P<{ post: _O["create_price_overrides_pricing_price_overrides_post"] }>;
+  "/pricing/stocks/syncs": _P<{ post: _O["sync_stocks_endpoint_pricing_stocks_syncs_post"] }>;
+  "/pricing/valuation-components": _P<{ get: _O["list_valuation_components_pricing_valuation_components_get"] }>;
   "/readyz": _P<{ get: _O["readyz_readyz_get"] }>;
-  "/reconciliation/adjustment": _P<{ post: _O["post_reconciliation_adjustment_reconciliation_adjustment_post"] }>;
+  "/reconciliation/adjustments": _P<{ post: _O["post_reconciliation_adjustment_reconciliation_adjustments_post"] }>;
+  "/reconciliation/consistency-checks": _P<{ get: _O["list_consistency_checks_reconciliation_consistency_checks_get"] }>;
+  "/reconciliation/consistency-checks/runs": _P<{ post: _O["run_stage2_checks_reconciliation_consistency_checks_runs_post"] }>;
+  "/reconciliation/consistency-checks/{check_id}/resolutions": _P<{ post: _O["resolve_consistency_check_reconciliation_consistency_checks__check_id__resolutions_post"] }>;
   "/reconciliation/matches": _P<{ get: _O["list_matches_reconciliation_matches_get"]; post: _O["batch_update_matches_reconciliation_matches_post"] }>;
-  "/reconciliation/matches/{match_id}/accept": _P<{ post: _O["accept_match_reconciliation_matches__match_id__accept_post"] }>;
-  "/reconciliation/matches/{match_id}/reject": _P<{ post: _O["reject_match_reconciliation_matches__match_id__reject_post"] }>;
+  "/reconciliation/matches/{match_id}": _P<{ patch: _O["update_match_decision_reconciliation_matches__match_id__patch"] }>;
   "/reconciliation/pending": _P<{ get: _O["pending_review_queue_reconciliation_pending_get"] }>;
+  "/reconciliation/review-queue": _P<{ get: _O["get_stage2_review_queue_reconciliation_review_queue_get"] }>;
   "/reconciliation/runs": _P<{ post: _O["run_reconciliation_reconciliation_runs_post"] }>;
   "/reconciliation/stats": _P<{ get: _O["reconciliation_stats_reconciliation_stats_get"] }>;
   "/reconciliation/transactions/{txn_id}/anomalies": _P<{ get: _O["list_anomalies_reconciliation_transactions__txn_id__anomalies_get"] }>;
+  "/reconciliation/transfers/pending": _P<{ get: _O["list_processing_pending_reconciliation_transfers_pending_get"] }>;
+  "/reconciliation/transfers/summary": _P<{ get: _O["get_processing_summary_reconciliation_transfers_summary_get"] }>;
   "/reconciliation/unmatched": _P<{ get: _O["list_unmatched_reconciliation_unmatched_get"] }>;
-  "/reconciliation/unmatched/{txn_id}/reviewed-disposition": _P<{ post: _O["submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post"] }>;
+  "/reconciliation/unmatched/{txn_id}/reviewed-dispositions": _P<{ post: _O["submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_dispositions_post"] }>;
   "/reports/account-lineage": _P<{ get: _O["account_lineage_reports_account_lineage_get"] }>;
   "/reports/balance-sheet": _P<{ get: _O["balance_sheet_reports_balance_sheet_get"] }>;
   "/reports/balance-sheet/diagnostics": _P<{ get: _O["balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get"] }>;
@@ -104,36 +100,34 @@ export interface paths {
   "/reports/coverage": _P<{ get: _O["report_coverage_reports_coverage_get"] }>;
   "/reports/currencies": _P<{ get: _O["get_available_currencies_reports_currencies_get"] }>;
   "/reports/data-quality": _P<{ get: _O["get_data_quality_health_reports_data_quality_get"] }>;
-  "/reports/export": _P<{ get: _O["export_report_reports_export_get"] }>;
+  "/reports/exports": _P<{ get: _O["export_report_reports_exports_get"] }>;
   "/reports/income-statement": _P<{ get: _O["income_statement_reports_income_statement_get"] }>;
   "/reports/net-worth/allocation": _P<{ get: _O["net_worth_allocation_reports_net_worth_allocation_get"] }>;
   "/reports/net-worth/timeseries": _P<{ get: _O["net_worth_timeseries_reports_net_worth_timeseries_get"] }>;
   "/reports/package": _P<{ get: _O["preview_personal_report_package_reports_package_get"] }>;
-  "/reports/package/annual-archive": _P<{ post: _O["export_annual_tax_archive_reports_package_annual_archive_post"] }>;
-  "/reports/package/generate": _P<{ post: _O["generate_personal_report_package_snapshot_reports_package_generate_post"] }>;
   "/reports/package/line-details": _P<{ get: _O["list_personal_report_package_line_details_reports_package_line_details_get"] }>;
   "/reports/package/manifest-entries": _P<{ get: _O["list_personal_report_package_manifest_entries_reports_package_manifest_entries_get"] }>;
   "/reports/package/policy-decisions": _P<{ get: _O["list_personal_report_package_policy_decisions_reports_package_policy_decisions_get"] }>;
-  "/reports/package/snapshots": _P<{ get: _O["list_personal_report_package_snapshots_reports_package_snapshots_get"] }>;
+  "/reports/package/snapshots": _P<{ get: _O["list_personal_report_package_snapshots_reports_package_snapshots_get"]; post: _O["generate_personal_report_package_snapshot_reports_package_snapshots_post"] }>;
   "/reports/package/snapshots/{snapshot_id}": _P<{ get: _O["get_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__get"] }>;
-  "/reports/package/snapshots/{snapshot_id}/export": _P<{ get: _O["export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get"] }>;
-  "/statements": _P<{ get: _O["list_statements_statements_get"] }>;
-  "/statements/consistency-checks": _P<{ get: _O["list_consistency_checks_statements_consistency_checks_get"] }>;
-  "/statements/consistency-checks/{check_id}/resolve": _P<{ post: _O["resolve_consistency_check_statements_consistency_checks__check_id__resolve_post"] }>;
+  "/reports/package/snapshots/{snapshot_id}/exports": _P<{ get: _O["export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__exports_get"] }>;
+  "/statements": _P<{ get: _O["list_statements_statements_get"]; post: _O["upload_statement_statements_post"] }>;
+  "/statements/classification-feedback": _P<{ post: _O["create_classification_feedback_statements_classification_feedback_post"] }>;
+  "/statements/classification-suggestions": _P<{ get: _O["list_classification_suggestions_statements_classification_suggestions_get"] }>;
+  "/statements/correction-loop/replay": _P<{ get: _O["get_correction_loop_replay_statements_correction_loop_replay_get"] }>;
+  "/statements/corrections": _P<{ post: _O["create_correction_statements_corrections_post"] }>;
+  "/statements/coverage": _P<{ get: _O["list_statement_coverage_statements_coverage_get"] }>;
   "/statements/pending-review": _P<{ get: _O["list_pending_review_statements_pending_review_get"] }>;
-  "/statements/stage2/queue": _P<{ get: _O["get_stage2_review_queue_statements_stage2_queue_get"] }>;
-  "/statements/upload": _P<{ post: _O["upload_statement_statements_upload_post"] }>;
   "/statements/{statement_id}": _P<{ get: _O["get_statement_statements__statement_id__get"]; delete: _O["delete_statement_statements__statement_id__delete"] }>;
-  "/statements/{statement_id}/brokerage/import": _P<{ post: _O["import_brokerage_statement_positions_statements__statement_id__brokerage_import_post"] }>;
+  "/statements/{statement_id}/approvals": _P<{ post: _O["approve_statement_stage1_statements__statement_id__approvals_post"] }>;
+  "/statements/{statement_id}/brokerage-imports": _P<{ post: _O["import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post"] }>;
+  "/statements/{statement_id}/conflict-resolutions": _P<{ post: _O["resolve_review_conflicts_statements__statement_id__conflict_resolutions_post"] }>;
   "/statements/{statement_id}/conflicts": _P<{ get: _O["get_review_conflicts_statements__statement_id__conflicts_get"] }>;
-  "/statements/{statement_id}/conflicts/resolve": _P<{ post: _O["resolve_review_conflicts_statements__statement_id__conflicts_resolve_post"] }>;
   "/statements/{statement_id}/document": _P<{ get: _O["get_statement_document_statements__statement_id__document_get"] }>;
+  "/statements/{statement_id}/rejections": _P<{ post: _O["reject_statement_stage1_statements__statement_id__rejections_post"] }>;
   "/statements/{statement_id}/review": _P<{ get: _O["get_statement_for_review_statements__statement_id__review_get"] }>;
-  "/statements/{statement_id}/review/approve": _P<{ post: _O["approve_statement_stage1_statements__statement_id__review_approve_post"] }>;
-  "/statements/{statement_id}/review/envelope": _P<{ post: _O["confirm_statement_review_envelope_statements__statement_id__review_envelope_post"] }>;
-  "/statements/{statement_id}/review/reject": _P<{ post: _O["reject_statement_stage1_statements__statement_id__review_reject_post"] }>;
+  "/statements/{statement_id}/review-envelopes": _P<{ post: _O["confirm_statement_review_envelope_statements__statement_id__review_envelopes_post"] }>;
   "/statements/{statement_id}/runs": _P<{ get: _O["list_statement_runs_statements__statement_id__runs_get"]; post: _O["create_statement_run_statements__statement_id__runs_post"] }>;
-  "/statements/{statement_id}/stage2/run-checks": _P<{ post: _O["run_stage2_checks_statements__statement_id__stage2_run_checks_post"] }>;
   "/users/me/settings": _P<{ get: _O["get_current_user_settings_users_me_settings_get"]; patch: _O["patch_current_user_settings_users_me_settings_patch"] }>;
   "/workflow/events": _P<{ get: _O["list_workflow_events_endpoint_workflow_events_get"] }>;
   "/workflow/events/{event_id}": _P<{ patch: _O["update_workflow_event_status_endpoint_workflow_events__event_id__patch"] }>;
@@ -267,11 +261,6 @@ export interface components {
       count: number;
       percentage: string;
       value: string;
-    };
-    AnnualTaxArchiveRequest: {
-      currency: string;
-      framework_id: _S["PersonalReportingFrameworkId"];
-      year: number;
     };
     AnnualizedIncomeScheduleHolding: {
       compensation_type: string;
@@ -467,7 +456,7 @@ export interface components {
     BaseCurrencyUpdate: {
       base_currency: string;
     };
-    Body_upload_statement_statements_upload_post: {
+    Body_upload_statement_statements_post: {
       account_id?: string | null;
       file: string;
       institution?: string | null;
@@ -660,6 +649,9 @@ export interface components {
       status: _S["CheckStatus"];
       updated_at: string;
     };
+    ConsistencyCheckRunRequest: {
+      statement_id: string;
+    };
     CorrectionLoopReplayResponse: {
       grounded: number;
       high_confidence_count: number;
@@ -689,16 +681,6 @@ export interface components {
     CostBasisMethodUpdateResponse: {
       cost_basis_method: _S["CostBasisMethod"];
       updated_count: number;
-    };
-    DepreciationResponse: {
-      accumulated_depreciation: string;
-      asset_identifier: string;
-      book_value: string;
-      method: string;
-      period_depreciation: string;
-      position_id: string;
-      salvage_value: string;
-      useful_life_years: number;
     };
     Direction: "DEBIT" | "CREDIT";
     DividendCreateRequest: {
@@ -1118,18 +1100,6 @@ export interface components {
       user_id: string;
       valuation_basis?: _S["ManualValuationBasis"] | null;
       value: string;
-    };
-    ManualValuationSnapshotUpdate: {
-      as_of_date?: string | null;
-      component_type?: _S["ManualValuationComponentType"] | null;
-      currency?: string | null;
-      liquidity_class?: _S["ManualValuationLiquidityClass"] | null;
-      notes?: string | null;
-      recurrence_days?: number | null;
-      reminder_date?: string | null;
-      source?: string | null;
-      valuation_basis?: _S["ManualValuationBasis"] | null;
-      value?: number | string | null;
     };
     MarketDataStatusResponse: {
       fresh: boolean;
@@ -1631,6 +1601,9 @@ export interface components {
       journal_entries_reconciled: number;
       rejected_count: number;
     };
+    ReconciliationMatchDecisionRequest: {
+      action: "accept" | "reject";
+    };
     ReconciliationMatchResponse: {
       atomic_txn_id?: string | null;
       created_at: string;
@@ -1977,18 +1950,8 @@ export interface operations {
     responses: _R<_S["ListResponse_AccountResponse_"]>;
   };
   create_account_accounts_post: _Op<_S["AccountResponse"], _NP, _S["AccountCreate"], 201>;
-  list_account_statement_coverage_accounts_coverage_get: {
-    parameters: _QP<{
-        as_of?: string | null;
-        stale_after_days?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["AccountCoverageListResponse"]>;
-  };
   get_opening_balance_readiness_status_accounts_opening_balance_readiness_get: _OpN<_S["OpeningBalanceReadinessResponse"]>;
   post_opening_balances_accounts_opening_balances_post: _Op<_S["JournalEntryResponse"], _NP, _S["OpeningBalanceRequest"], 201>;
-  list_processing_pending_accounts_processing_pending_get: _OpN<_S["ListResponse_ProcessingPendingItem_"]>;
-  get_processing_summary_accounts_processing_summary_get: _OpN<_S["ProcessingSummaryResponse"]>;
   update_account_accounts__account_id__put: {
     parameters: _PP<{
         account_id: string;
@@ -2003,70 +1966,8 @@ export interface operations {
     requestBody?: never;
     responses: _R204;
   };
-  create_ai_feedback_ai_feedback_post: _Op<_S["AiFeedbackResponse"], _NP, _S["AiFeedbackRequest"], 201>;
-  list_ai_suggestions_ai_suggestions_get: {
-    parameters: _QP<{
-        limit?: number;
-        offset?: number;
-        statement_id?: string | null;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["AiSuggestionListResponse"]>;
-  };
   get_base_currency_app_config_base_currency_get: _OpN<_S["BaseCurrencyResponse"]>;
   update_base_currency_app_config_base_currency_put: _Op<_S["BaseCurrencyResponse"], _NP, _S["BaseCurrencyUpdate"]>;
-  get_position_depreciation_assets_positions__position_id__depreciation_get: {
-    parameters: _PQP<{
-        position_id: string;
-      }, {
-        method?: "straight-line" | "declining-balance";
-        useful_life_years?: number;
-        salvage_value?: number | string;
-        as_of_date?: string | null;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["DepreciationResponse"]>;
-  };
-  list_valuation_components_assets_valuation_components_get: {
-    parameters: _QP<{
-        as_of_date?: string | null;
-        include_restricted?: boolean;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ValuationComponentsResponse"]>;
-  };
-  list_valuation_snapshots_assets_valuation_snapshots_get: {
-    parameters: _QP<{
-        as_of_date?: string | null;
-        component_type?: string | null;
-        limit?: number;
-        offset?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ListResponse_ManualValuationSnapshotResponse_"]>;
-  };
-  create_valuation_snapshot_assets_valuation_snapshots_post: _Op<_S["ManualValuationSnapshotResponse"], _NP, _S["ManualValuationSnapshotCreate"], 201>;
-  get_valuation_snapshot_assets_valuation_snapshots__snapshot_id__get: {
-    parameters: _PP<{
-        snapshot_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ManualValuationSnapshotResponse"]>;
-  };
-  delete_valuation_snapshot_assets_valuation_snapshots__snapshot_id__delete: {
-    parameters: _PP<{
-        snapshot_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R204;
-  };
-  update_valuation_snapshot_assets_valuation_snapshots__snapshot_id__patch: {
-    parameters: _PP<{
-        snapshot_id: string;
-      }>;
-    requestBody: _B<_S["ManualValuationSnapshotUpdate"]>;
-    responses: _R<_S["ManualValuationSnapshotResponse"]>;
-  };
   login_auth_login_post: _Op<_S["AuthResponse"], _NP, _S["LoginRequest"]>;
   logout_auth_logout_post: {
     parameters: _NP;
@@ -2112,7 +2013,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["ChatHistoryResponse"]>;
   };
-  delete_session_chat_session__session_id__delete: {
+  delete_session_chat_sessions__session_id__delete: {
     parameters: _PP<{
         session_id: string;
       }>;
@@ -2128,7 +2029,6 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["ChatSuggestionsResponse"]>;
   };
-  create_correction_corrections_post: _Op<_S["CorrectionResponse"], _NP, _S["CorrectionRequest"], 201>;
   get_evidence_lineage_evidence_lineage_get: {
     parameters: _QPR<{
         entity_type: string;
@@ -2222,18 +2122,6 @@ export interface operations {
   };
   get_scenes_llm_scenes_get: _OpN<_S["LlmScenesResponse"]>;
   put_scenes_llm_scenes_put: _Op<_S["LlmScenesResponse"], _NP, _S["LlmScenesUpdate"]>;
-  sync_fx_endpoint_market_data_fx_syncs_post: _Op<_S["MarketDataSyncResponse"], _NP, _S["MarketDataSyncRequest"]>;
-  market_data_status_endpoint_market_data_status_get: {
-    parameters: _QP<{
-        pairs?: string[] | null;
-        symbols?: string[] | null;
-        include_default_fx?: boolean;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["MarketDataStatusResponse"][]>;
-  };
-  sync_stocks_endpoint_market_data_stocks_syncs_post: _Op<_S["MarketDataSyncResponse"], _NP, _S["MarketDataSyncRequest"]>;
-  get_correction_loop_replay_metrics_correction_loop_replay_get: _OpN<_S["CorrectionLoopReplayResponse"]>;
   get_asset_class_allocation_portfolio_allocation_asset_class_get: {
     parameters: _QP<{
         as_of_date?: string | null;
@@ -2261,7 +2149,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["AllocationBreakdownResponse"][]>;
   };
-  import_brokerage_positions_portfolio_brokerage_import_post: _Op<_S["BrokerageImportResponse"], _NP, _S["BrokerageImportRequest"]>;
+  import_brokerage_positions_portfolio_brokerage_imports_post: _Op<_S["BrokerageImportResponse"], _NP, _S["BrokerageImportRequest"]>;
   get_holdings_portfolio_holdings_get: {
     parameters: _QP<{
         as_of_date?: string | null;
@@ -2282,7 +2170,6 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["InvestmentPerformanceReportScheduleResponse"]>;
   };
-  update_prices_portfolio_prices_update_post: _Op<_S["PriceUpdateBatchResponse"], _NP, _S["PriceUpdateBatchRequest"]>;
   get_portfolio_summary_portfolio_summary_get: {
     parameters: _QP<{
         as_of_date?: string | null;
@@ -2324,6 +2211,37 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["RealizedLotResponse"][]>;
   };
+  sync_fx_endpoint_pricing_fx_syncs_post: _Op<_S["MarketDataSyncResponse"], _NP, _S["MarketDataSyncRequest"]>;
+  list_manual_valuations_pricing_manual_valuations_get: {
+    parameters: _QP<{
+        as_of_date?: string | null;
+        component_type?: string | null;
+        limit?: number;
+        offset?: number;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ListResponse_ManualValuationSnapshotResponse_"]>;
+  };
+  create_manual_valuation_pricing_manual_valuations_post: _Op<_S["ManualValuationSnapshotResponse"], _NP, _S["ManualValuationSnapshotCreate"], 201>;
+  market_data_status_endpoint_pricing_market_data_status_get: {
+    parameters: _QP<{
+        pairs?: string[] | null;
+        symbols?: string[] | null;
+        include_default_fx?: boolean;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["MarketDataStatusResponse"][]>;
+  };
+  create_price_overrides_pricing_price_overrides_post: _Op<_S["PriceUpdateBatchResponse"], _NP, _S["PriceUpdateBatchRequest"]>;
+  sync_stocks_endpoint_pricing_stocks_syncs_post: _Op<_S["MarketDataSyncResponse"], _NP, _S["MarketDataSyncRequest"]>;
+  list_valuation_components_pricing_valuation_components_get: {
+    parameters: _QP<{
+        as_of_date?: string | null;
+        include_restricted?: boolean;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ValuationComponentsResponse"]>;
+  };
   readyz_readyz_get: {
     parameters: _NP;
     requestBody?: never;
@@ -2332,7 +2250,26 @@ export interface operations {
       503: _J<_S["ProbeResponse"]>;
     };
   };
-  post_reconciliation_adjustment_reconciliation_adjustment_post: _Op<_S["ReconciliationAdjustmentResponse"], _NP, _S["ReconciliationAdjustmentRequest"]>;
+  post_reconciliation_adjustment_reconciliation_adjustments_post: _Op<_S["ReconciliationAdjustmentResponse"], _NP, _S["ReconciliationAdjustmentRequest"]>;
+  list_consistency_checks_reconciliation_consistency_checks_get: {
+    parameters: _QP<{
+        status?: _S["CheckStatus"] | null;
+        check_type?: _S["CheckType"] | null;
+        run_id?: string | null;
+        limit?: number;
+        offset?: number;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ConsistencyCheckListResponse"]>;
+  };
+  run_stage2_checks_reconciliation_consistency_checks_runs_post: _Op<_S["ConsistencyCheckListResponse"], _NP, _S["ConsistencyCheckRunRequest"]>;
+  resolve_consistency_check_reconciliation_consistency_checks__check_id__resolutions_post: {
+    parameters: _PP<{
+        check_id: string;
+      }>;
+    requestBody: _B<_S["ResolveCheckRequest"]>;
+    responses: _R<_S["ConsistencyCheckResponse"]>;
+  };
   list_matches_reconciliation_matches_get: {
     parameters: _QP<{
         status?: _S["ReconciliationStatusEnum"] | null;
@@ -2343,18 +2280,11 @@ export interface operations {
     responses: _R<_S["ListResponse_ReconciliationMatchResponse_"]>;
   };
   batch_update_matches_reconciliation_matches_post: _Op<_S["ReconciliationMatchBatchResponse"], _NP, _S["ReconciliationMatchBatchRequest"]>;
-  accept_match_reconciliation_matches__match_id__accept_post: {
+  update_match_decision_reconciliation_matches__match_id__patch: {
     parameters: _PP<{
         match_id: string;
       }>;
-    requestBody?: never;
-    responses: _R<_S["ReconciliationMatchResponse"]>;
-  };
-  reject_match_reconciliation_matches__match_id__reject_post: {
-    parameters: _PP<{
-        match_id: string;
-      }>;
-    requestBody?: never;
+    requestBody: _B<_S["ReconciliationMatchDecisionRequest"]>;
     responses: _R<_S["ReconciliationMatchResponse"]>;
   };
   pending_review_queue_reconciliation_pending_get: {
@@ -2364,6 +2294,13 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<_S["ListResponse_ReconciliationMatchResponse_"]>;
+  };
+  get_stage2_review_queue_reconciliation_review_queue_get: {
+    parameters: _QP<{
+        run_id?: string | null;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["Stage2ReviewQueueResponse"]>;
   };
   run_reconciliation_reconciliation_runs_post: _Op<_S["ReconciliationRunResponse"], _NP, _S["ReconciliationRunRequest"]>;
   reconciliation_stats_reconciliation_stats_get: _OpN<_S["ReconciliationStatsResponse"]>;
@@ -2377,6 +2314,8 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["AnomalyResponse"][]>;
   };
+  list_processing_pending_reconciliation_transfers_pending_get: _OpN<_S["ListResponse_ProcessingPendingItem_"]>;
+  get_processing_summary_reconciliation_transfers_summary_get: _OpN<_S["ProcessingSummaryResponse"]>;
   list_unmatched_reconciliation_unmatched_get: {
     parameters: _QP<{
         statement_id?: string | null;
@@ -2386,7 +2325,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["ListResponse_BankTransactionSummary_"]>;
   };
-  submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post: {
+  submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_dispositions_post: {
     parameters: _PP<{
         txn_id: string;
       }>;
@@ -2458,7 +2397,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["PersonalDataQualityHealthResponse"]>;
   };
-  export_report_reports_export_get: {
+  export_report_reports_exports_get: {
     parameters: _QPR<{
         report_type: _S["ExportReportType"];
         format?: _S["ExportFormat"];
@@ -2531,28 +2470,6 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["PersonalReportPackagePreview"]>;
   };
-  export_annual_tax_archive_reports_package_annual_archive_post: {
-    parameters: _NP;
-    requestBody: _B<_S["AnnualTaxArchiveRequest"]>;
-    responses: {
-      200: {
-        headers: _H;
-        content: {
-          "application/json": unknown;
-          "application/zip": unknown;
-        };
-      };
-      400: _E;
-      401: _E;
-      403: _E;
-      404: _E;
-      409: _E;
-      422: _VE;
-      429: _E;
-      500: _E;
-    };
-  };
-  generate_personal_report_package_snapshot_reports_package_generate_post: _Op<_S["PersonalReportPackageSnapshotResponse"], _NP, _S["PersonalReportPackageGenerateRequest"]>;
   list_personal_report_package_line_details_reports_package_line_details_get: {
     parameters: _QPR<{
         line_id: string;
@@ -2599,6 +2516,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["PersonalReportPackageSnapshotSummary"][]>;
   };
+  generate_personal_report_package_snapshot_reports_package_snapshots_post: _Op<_S["PersonalReportPackageSnapshotResponse"], _NP, _S["PersonalReportPackageGenerateRequest"]>;
   get_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__get: {
     parameters: _PP<{
         snapshot_id: string;
@@ -2606,7 +2524,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["PersonalReportPackageSnapshotResponse"]>;
   };
-  export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get: {
+  export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__exports_get: {
     parameters: _PQP<{
         snapshot_id: string;
       }, {
@@ -2633,41 +2551,36 @@ export interface operations {
     };
   };
   list_statements_statements_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
-  list_consistency_checks_statements_consistency_checks_get: {
-    parameters: _QP<{
-        status?: _S["CheckStatus"] | null;
-        check_type?: _S["CheckType"] | null;
-        run_id?: string | null;
-        limit?: number;
-        offset?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ConsistencyCheckListResponse"]>;
-  };
-  resolve_consistency_check_statements_consistency_checks__check_id__resolve_post: {
-    parameters: _PP<{
-        check_id: string;
-      }>;
-    requestBody: _B<_S["ResolveCheckRequest"]>;
-    responses: _R<_S["ConsistencyCheckResponse"]>;
-  };
-  list_pending_review_statements_pending_review_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
-  get_stage2_review_queue_statements_stage2_queue_get: {
-    parameters: _QP<{
-        run_id?: string | null;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["Stage2ReviewQueueResponse"]>;
-  };
-  upload_statement_statements_upload_post: {
+  upload_statement_statements_post: {
     parameters: _NP;
     requestBody: {
       content: {
-        "multipart/form-data": _S["Body_upload_statement_statements_upload_post"];
+        "multipart/form-data": _S["Body_upload_statement_statements_post"];
       };
     };
     responses: _R<_S["BankStatementResponse"], 202>;
   };
+  create_classification_feedback_statements_classification_feedback_post: _Op<_S["AiFeedbackResponse"], _NP, _S["AiFeedbackRequest"], 201>;
+  list_classification_suggestions_statements_classification_suggestions_get: {
+    parameters: _QP<{
+        limit?: number;
+        offset?: number;
+        statement_id?: string | null;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["AiSuggestionListResponse"]>;
+  };
+  get_correction_loop_replay_statements_correction_loop_replay_get: _OpN<_S["CorrectionLoopReplayResponse"]>;
+  create_correction_statements_corrections_post: _Op<_S["CorrectionResponse"], _NP, _S["CorrectionRequest"], 201>;
+  list_statement_coverage_statements_coverage_get: {
+    parameters: _QP<{
+        as_of?: string | null;
+        stale_after_days?: number;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["AccountCoverageListResponse"]>;
+  };
+  list_pending_review_statements_pending_review_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
   get_statement_statements__statement_id__get: {
     parameters: _PP<{
         statement_id: string;
@@ -2682,12 +2595,26 @@ export interface operations {
     requestBody?: never;
     responses: _R204;
   };
-  import_brokerage_statement_positions_statements__statement_id__brokerage_import_post: {
+  approve_statement_stage1_statements__statement_id__approvals_post: {
+    parameters: _PP<{
+        statement_id: string;
+      }>;
+    requestBody?: _B<_S["Stage1ApprovalRequest"] | null>;
+    responses: _R<_S["Stage1ApprovalResponse"]>;
+  };
+  import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post: {
     parameters: _PP<{
         statement_id: string;
       }>;
     requestBody?: never;
     responses: _R<_S["BrokerageImportResponse"]>;
+  };
+  resolve_review_conflicts_statements__statement_id__conflict_resolutions_post: {
+    parameters: _PP<{
+        statement_id: string;
+      }>;
+    requestBody: _B<_S["ResolveConflictsRequest"]>;
+    responses: _R<_S["ReviewConflictsResolveResponse"]>;
   };
   get_review_conflicts_statements__statement_id__conflicts_get: {
     parameters: _PP<{
@@ -2695,13 +2622,6 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<_S["ReviewConflictsResponse"]>;
-  };
-  resolve_review_conflicts_statements__statement_id__conflicts_resolve_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody: _B<_S["ResolveConflictsRequest"]>;
-    responses: _R<_S["ReviewConflictsResolveResponse"]>;
   };
   get_statement_document_statements__statement_id__document_get: {
     parameters: _PP<{
@@ -2729,6 +2649,13 @@ export interface operations {
       500: _E;
     };
   };
+  reject_statement_stage1_statements__statement_id__rejections_post: {
+    parameters: _PP<{
+        statement_id: string;
+      }>;
+    requestBody: _B<_S["StatementDecisionRequest"]>;
+    responses: _R<_S["BankStatementResponse"]>;
+  };
   get_statement_for_review_statements__statement_id__review_get: {
     parameters: _PP<{
         statement_id: string;
@@ -2736,26 +2663,12 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["StatementReviewResponse"]>;
   };
-  approve_statement_stage1_statements__statement_id__review_approve_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody?: _B<_S["Stage1ApprovalRequest"] | null>;
-    responses: _R<_S["Stage1ApprovalResponse"]>;
-  };
-  confirm_statement_review_envelope_statements__statement_id__review_envelope_post: {
+  confirm_statement_review_envelope_statements__statement_id__review_envelopes_post: {
     parameters: _PP<{
         statement_id: string;
       }>;
     requestBody: _B<_S["ReviewedStatementEnvelopeRequest"]>;
     responses: _R<_S["ReviewedStatementEnvelopeResponse"]>;
-  };
-  reject_statement_stage1_statements__statement_id__review_reject_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody: _B<_S["StatementDecisionRequest"]>;
-    responses: _R<_S["BankStatementResponse"]>;
   };
   list_statement_runs_statements__statement_id__runs_get: {
     parameters: _PP<{
@@ -2770,13 +2683,6 @@ export interface operations {
       }>;
     requestBody: _B<_S["StatementRunRequest"]>;
     responses: _R<_S["StatementRunRecord"], 202>;
-  };
-  run_stage2_checks_statements__statement_id__stage2_run_checks_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["ConsistencyCheckListResponse"]>;
   };
   get_current_user_settings_users_me_settings_get: _OpN<_S["UserAiSettingsResponse"]>;
   patch_current_user_settings_users_me_settings_patch: _Op<_S["UserAiSettingsResponse"], _NP, _S["UserAiSettingsUpdate"]>;

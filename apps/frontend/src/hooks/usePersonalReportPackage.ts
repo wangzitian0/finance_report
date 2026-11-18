@@ -30,7 +30,7 @@ export async function generatePackageSnapshot(
   currency?: string,
 ): Promise<PersonalReportPackageSnapshotViewModel> {
   const snapshot = await apiOperation(
-    "generate_personal_report_package_snapshot_reports_package_generate_post",
+    "generate_personal_report_package_snapshot_reports_package_snapshots_post",
     { body: packageSnapshotRequest(frameworkId, reportDate, startDate, currency) },
   );
   return normalizePersonalReportPackageSnapshot(snapshot);

@@ -7,26 +7,68 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.reporting import CashFlowResponse
-    from src.schemas.account import AccountCoverageListResponse, AccountCreate, AccountListResponse, AccountResponse, AccountUpdate, ProcessingPendingItem, ProcessingPendingListResponse, ProcessingSummaryResponse
-    from src.schemas.extraction import BankStatementListResponse, BankStatementResponse, StatementDecisionRequest, StatementRunListResponse, StatementRunRequest
-    from src.schemas.journal import JournalEntryCreate, JournalEntryListResponse, JournalEntryResponse, JournalLineCreate, VoidJournalEntryRequest
-    from src.schemas.reporting import AccountLineageResponse, AnnualizedIncomeScheduleHolding, AnnualizedIncomeScheduleIncome, AnnualizedIncomeScheduleNetWorthTreatment, AnnualizedIncomeScheduleResponse, BalanceSheetResponse, IncomeStatementResponse, NetWorthAllocationResponse, NetWorthGranularity, NetWorthTimeSeriesResponse, PersonalDataQualityHealthResponse, PersonalReportingFrameworkId, PersonalReportPackageContractResponse, PersonalReportPackageDocument, PersonalReportPackageDocumentLifecycle, PersonalReportPackageGenerateRequest, PersonalReportPackageLineDetailsPage, PersonalReportPackageManifestEntriesPage, PersonalReportPackageNotesResponse, PersonalReportPackagePreview, PersonalReportPackageReadinessState, PersonalReportPackageSnapshotResponse, PersonalReportPackageSnapshotStatus, PersonalReportPackageSnapshotSummary, PersonalReportPackageTraceabilityAnchorName, PersonalReportPackageTraceabilityResponse
+    from src.schemas.account import AccountCreate, AccountListResponse, AccountResponse, AccountUpdate
+    from src.schemas.extraction import (
+        AccountCoverageListResponse,
+        BankStatementListResponse,
+        BankStatementResponse,
+        StatementDecisionRequest,
+        StatementRunListResponse,
+        StatementRunRequest,
+    )
+    from src.schemas.journal import (
+        JournalEntryCreate,
+        JournalEntryListResponse,
+        JournalEntryResponse,
+        JournalLineCreate,
+        VoidJournalEntryRequest,
+    )
+    from src.schemas.reconciliation import (
+        ProcessingPendingItem,
+        ProcessingPendingListResponse,
+        ProcessingSummaryResponse,
+    )
+    from src.schemas.reporting import (
+        AccountLineageResponse,
+        AnnualizedIncomeScheduleHolding,
+        AnnualizedIncomeScheduleIncome,
+        AnnualizedIncomeScheduleNetWorthTreatment,
+        AnnualizedIncomeScheduleResponse,
+        BalanceSheetResponse,
+        IncomeStatementResponse,
+        NetWorthAllocationResponse,
+        NetWorthGranularity,
+        NetWorthTimeSeriesResponse,
+        PersonalDataQualityHealthResponse,
+        PersonalReportingFrameworkId,
+        PersonalReportPackageContractResponse,
+        PersonalReportPackageDocument,
+        PersonalReportPackageDocumentLifecycle,
+        PersonalReportPackageGenerateRequest,
+        PersonalReportPackageLineDetailsPage,
+        PersonalReportPackageManifestEntriesPage,
+        PersonalReportPackageNotesResponse,
+        PersonalReportPackagePreview,
+        PersonalReportPackageReadinessState,
+        PersonalReportPackageSnapshotResponse,
+        PersonalReportPackageSnapshotStatus,
+        PersonalReportPackageSnapshotSummary,
+        PersonalReportPackageTraceabilityAnchorName,
+        PersonalReportPackageTraceabilityResponse,
+    )
 
 _GROUPS: dict[str, tuple[str, ...]] = {
     "src.reporting": (
         "CashFlowResponse",
     ),
     "src.schemas.account": (
-        "AccountCoverageListResponse",
         "AccountCreate",
         "AccountListResponse",
         "AccountResponse",
         "AccountUpdate",
-        "ProcessingPendingItem",
-        "ProcessingPendingListResponse",
-        "ProcessingSummaryResponse",
     ),
     "src.schemas.extraction": (
+        "AccountCoverageListResponse",
         "BankStatementListResponse",
         "BankStatementResponse",
         "StatementDecisionRequest",
@@ -39,6 +81,11 @@ _GROUPS: dict[str, tuple[str, ...]] = {
         "JournalEntryResponse",
         "JournalLineCreate",
         "VoidJournalEntryRequest",
+    ),
+    "src.schemas.reconciliation": (
+        "ProcessingPendingItem",
+        "ProcessingPendingListResponse",
+        "ProcessingSummaryResponse",
     ),
     "src.schemas.reporting": (
         "AccountLineageResponse",

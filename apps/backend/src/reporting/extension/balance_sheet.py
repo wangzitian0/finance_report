@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import inspect
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import DataProvenance
 from src.config_app import get_effective_base_currency
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
-from src.pricing import FxWarning, PricingError, get_exchange_rate
+from src.pricing import FxWarning, PricingError, build_manual_valuation_lines, get_exchange_rate
 from src.reporting.base.balance_sheet_calculator import (
     absorb_translation_rounding,
     calculate_balance_sheet_equation,
@@ -37,72 +37,11 @@ from src.reporting.extension.reporting_calc import (
     _normalize_currency,
     _quantize_money,
 )
-from src.schemas.provenance import DataProvenance
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Sequence
-
-    ManualValuationLinesProvider = Callable[..., "Awaitable[tuple[list[dict], list[dict]]]"]
-    ManualValuationLinesSeriesProvider = Callable[..., "Awaitable[dict[date, tuple[list[dict], list[dict]]]]"]
+    from collections.abc import Sequence
 
 logger = get_logger(__name__)
-
-_PROVIDER_MISSING_MSG = (
-    "balance_sheet.register_manual_valuation_lines_provider() was never "
-    "called — main.py wires it at startup (#1666); a test exercising this "
-    "path without the app must call it too (the backend test conftest does)."
-)
-_manual_valuation_lines_provider: ManualValuationLinesProvider | None = None
-_manual_valuation_lines_series_provider: ManualValuationLinesSeriesProvider | None = None
-
-
-def register_manual_valuation_lines_provider(
-    provider: ManualValuationLinesProvider,
-    *,
-    series_provider: ManualValuationLinesSeriesProvider,
-) -> None:
-    """Wire the manual-valuation balance-sheet-lines builders (#1666)."""
-    global _manual_valuation_lines_provider, _manual_valuation_lines_series_provider
-    _manual_valuation_lines_provider = provider
-    _manual_valuation_lines_series_provider = series_provider
-
-
-def _bind_supported_kwargs(
-    provider: Callable[..., Any] | None, **optional_kwargs: Any
-) -> tuple[Callable[..., Any], dict[str, Any]]:
-    if provider is None:
-        raise RuntimeError(_PROVIDER_MISSING_MSG)
-    non_null = {k: v for k, v in optional_kwargs.items() if v is not None}
-    if not non_null:
-        return provider, {}
-    params = inspect.signature(provider).parameters
-    has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
-    return provider, {k: v for k, v in non_null.items() if has_var_kw or k in params}
-
-
-async def _build_manual_valuation_lines(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    as_of_date: date,
-    target_currency: str,
-    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
-    warnings: list[FxWarning] | None = None,
-    excluded_lines: list[dict] | None = None,
-    liability_lines: list[dict] | None = None,
-) -> tuple[list[dict], list[dict]]:
-    """Dispatch to the registered manual-valuation lines provider."""
-    provider, extra = _bind_supported_kwargs(_manual_valuation_lines_provider, liability_lines=liability_lines)
-    return await provider(
-        db,
-        user_id,
-        as_of_date=as_of_date,
-        target_currency=target_currency,
-        include_restricted=include_restricted,
-        warnings=warnings,
-        excluded_lines=excluded_lines,
-        **extra,
-    )
 
 
 def _excluded_holdings(excluded_lines: Sequence[dict]) -> list[dict[str, object]]:
@@ -140,32 +79,6 @@ def _excluded_holdings(excluded_lines: Sequence[dict]) -> list[dict[str, object]
             }
         )
     return rows
-
-
-async def _build_manual_valuation_lines_series(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    as_of_dates: Sequence[date],
-    target_currency: str,
-    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
-    ledger_liability_names: dict[UUID, str] | None = None,
-    excluded_ledger_ids_by_date: dict[date, set[UUID]] | None = None,
-) -> dict[date, tuple[list[dict], list[dict]]]:
-    """Dispatch to the registered manual-valuation lines series provider."""
-    provider, extra = _bind_supported_kwargs(
-        _manual_valuation_lines_series_provider,
-        ledger_liability_names=ledger_liability_names,
-        excluded_ledger_ids_by_date=excluded_ledger_ids_by_date,
-    )
-    return await provider(
-        db,
-        user_id,
-        as_of_dates=as_of_dates,
-        target_currency=target_currency,
-        include_restricted=include_restricted,
-        **extra,
-    )
 
 
 async def _compute_unrealized_fx_gain_loss(
@@ -297,7 +210,7 @@ async def generate_balance_sheet(
     excluded_valuation_lines: list[dict] = []
     ledger_liabilities_before = _line_total(liabilities)
     try:
-        valuation_assets, valuation_liabilities = await _build_manual_valuation_lines(
+        valuation_assets, valuation_liabilities = await build_manual_valuation_lines(
             db,
             user_id,
             as_of_date=as_of_date,

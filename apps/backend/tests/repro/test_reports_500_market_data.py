@@ -49,7 +49,7 @@ async def test_brokerage_import_does_not_500_when_market_data_sync_raises(client
     monkeypatch.setattr(composition.settings, "market_data_lazy_fetch_enabled", True)
     monkeypatch.setattr(composition, "ensure_market_data_fresh", _raise)
     resp = await client.post(
-        "/portfolio/brokerage/import",
+        "/portfolio/brokerage-imports",
         json={
             "filename": "resilience.json",
             "payload": {
@@ -60,5 +60,5 @@ async def test_brokerage_import_does_not_500_when_market_data_sync_raises(client
         },
     )
     assert resp.status_code == 200, (
-        f"POST /portfolio/brokerage/import returned {resp.status_code}; freshness is best-effort"
+        f"POST /portfolio/brokerage-imports returned {resp.status_code}; freshness is best-effort"
     )

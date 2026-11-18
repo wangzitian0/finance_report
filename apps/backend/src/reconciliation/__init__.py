@@ -6,6 +6,7 @@ from src.reconciliation.base import (
     DEFAULT_CONFIG,
     MAX_COMBINATION_CANDIDATES,
     RECONCILIATION_SEMANTIC_PROMPT,
+    AdjustmentValidationError,
     AmountMismatchError,
     CheckResolutionAction,
     ConsistencyCheckNotFoundError,
@@ -17,9 +18,15 @@ from src.reconciliation.base import (
     ReconciliationError,
     ReviewedDispositionCommand,
     ReviewedDispositionError,
+    UnresolvedConsistencyChecksError,
     build_reconciliation_prompt,
 )
+from src.reconciliation.base.processing_summary import ProcessingTransferSummary
 from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats, posted_statement_source_ids
+from src.reconciliation.extension.adjustment import (
+    ReconciliationAdjustmentResult,
+    apply_reconciliation_adjustment,
+)
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.extension.candidate_policy import (
     _find_many_to_one_candidates,
@@ -62,10 +69,15 @@ from src.reconciliation.extension.matching import (
     sync_reconciliation_matches_journal_entry_links_batch,
 )
 from src.reconciliation.extension.named_transfers import NamedTransfer, post_named_transfer_legs
+from src.reconciliation.extension.processing_transfers import (
+    get_processing_transfer_summary,
+    list_pending_processing_transfers,
+)
 from src.reconciliation.extension.review_queue import (
+    BatchMatchDecisionResult,
     accept_match,
     accept_pending_matches,
-    apply_reconciliation_feedback,
+    batch_decide_matches,
     count_pending_review_items,
     get_pending_items,
     get_stage2_queue,
@@ -103,7 +115,9 @@ from src.reconciliation.orm.reconciliation import (
 )
 
 __all__ = [
+    "AdjustmentValidationError",
     "AmountMismatchError",
+    "BatchMatchDecisionResult",
     "CheckResolutionAction",
     "CheckStatus",
     "CheckType",
@@ -120,6 +134,7 @@ __all__ = [
     "MatchNotFoundError",
     "MatchingContext",
     "NamedTransfer",
+    "ProcessingTransferSummary",
     "RECONCILIATION_SEMANTIC_PROMPT",
     "ReconciliationConfig",
     "ReconciliationError",
@@ -127,10 +142,12 @@ __all__ = [
     "ReconciliationMatchJournalEntry",
     "ReconciliationStats",
     "ReconciliationStatus",
+    "ReconciliationAdjustmentResult",
     "ReviewedDispositionCommand",
     "ReviewedDispositionDependencies",
     "ReviewedDispositionError",
     "TransferLeg",
+    "UnresolvedConsistencyChecksError",
     "_candidate_is_better",
     "_find_many_to_one_candidates",
     "_find_normal_candidates",
@@ -139,8 +156,9 @@ __all__ = [
     "accept_match",
     "accept_pending_matches",
     "accepted_transfer_txn_ids",
-    "apply_reconciliation_feedback",
+    "apply_reconciliation_adjustment",
     "auto_accept",
+    "batch_decide_matches",
     "build_many_to_one_groups",
     "build_reconciliation_prompt",
     "classify_internal_transfer",
@@ -153,6 +171,7 @@ __all__ = [
     "execute_matching",
     "extract_merchant_tokens",
     "get_pending_items",
+    "get_processing_transfer_summary",
     "get_reconciliation_stats",
     "posted_statement_source_ids",
     "get_stage2_queue",
@@ -160,6 +179,7 @@ __all__ = [
     "is_cross_period",
     "is_entry_balanced",
     "list_checks",
+    "list_pending_processing_transfers",
     "load_reconciliation_config",
     "normalize_text",
     "pair_fx_legs",

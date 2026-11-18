@@ -7,14 +7,12 @@ import json
 import zipfile
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
-from enum import Enum
 from io import BytesIO, StringIO
 from typing import Any, TypeVar, cast
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 from sqlalchemy import select, union
 
 from src.config_app import get_effective_base_currency
@@ -75,7 +73,13 @@ from src.schemas import (
     PersonalReportPackageSnapshotSummary,
     PersonalReportPackageTraceabilityAnchorName,
 )
-from src.schemas.reporting import PersonalReportPackagePolicyDecisionsPage, ReportCoverageResponse
+from src.schemas.reporting import (
+    ExportFormat,
+    ExportReportType,
+    PackageSnapshotExportFormat,
+    PersonalReportPackagePolicyDecisionsPage,
+    ReportCoverageResponse,
+)
 from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -131,28 +135,6 @@ async def get_available_currencies(*, db: ReadDbSession) -> list[str]:
     ]
     base_currency = await get_effective_base_currency(db)
     return currencies if base_currency in currencies else [base_currency, *currencies]
-
-
-class ExportFormat(str, Enum):
-    CSV = "csv"
-
-
-class PackageSnapshotExportFormat(str, Enum):
-    JSON = "json"
-    CSV = "csv"
-    ZIP = "zip"
-
-
-class AnnualTaxArchiveRequest(BaseModel):
-    year: int = Field(ge=1900, le=2100)
-    currency: str = Field(default="SGD", min_length=3, max_length=3)
-    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE
-
-
-class ExportReportType(str, Enum):
-    BALANCE_SHEET = "balance-sheet"
-    INCOME_STATEMENT = "income-statement"
-    CASH_FLOW = "cash-flow"
 
 
 async def _package_period(
@@ -285,7 +267,7 @@ async def list_personal_report_package_policy_decisions(
     return PersonalReportPackagePolicyDecisionsPage(**_page_fields(decisions, pagination, "decisions"))
 
 
-@router.post("/package/generate", response_model=PersonalReportPackageSnapshotResponse)
+@router.post("/package/snapshots", response_model=PersonalReportPackageSnapshotResponse)
 async def generate_personal_report_package_snapshot(
     ctx: Ctx,
     request: PersonalReportPackageGenerateRequest,
@@ -393,7 +375,7 @@ def _package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> by
 
 
 @router.get(
-    "/package/snapshots/{snapshot_id}/export",
+    "/package/snapshots/{snapshot_id}/exports",
     responses={
         200: {
             "description": "Exported personal report package snapshot.",
@@ -416,34 +398,6 @@ async def export_personal_report_package_snapshot(
             json.dumps(snapshot.model_dump(mode="json"), sort_keys=True), ExportStreamMediaType.JSON, f"{stem}.json"
         )
     return _stream_envelope_text(_package_snapshot_csv(snapshot), ExportStreamMediaType.CSV, f"{stem}.csv")
-
-
-@router.post(
-    "/package/annual-archive",
-    responses={
-        200: {
-            "description": "Annual tax & audit package archive ZIP.",
-            "content": {"application/zip": {}},
-        }
-    },
-)
-async def export_annual_tax_archive(
-    request: AnnualTaxArchiveRequest, ctx: Ctx
-) -> StreamingResponse:
-    """Generate and stream an annual tax & audit package archive ZIP."""
-    start_date, end_date = date(request.year, 1, 1), date(request.year, 12, 31)
-    target_currency = _package_currency(request.currency)
-    snapshot = await generate_personal_report_package_snapshot(
-        ctx=ctx,
-        request=PersonalReportPackageGenerateRequest(
-            framework_id=request.framework_id,
-            start_date=start_date,
-            end_date=end_date,
-            as_of_date=end_date,
-            currency=target_currency,
-        ),
-    )
-    return _zip_streaming_response(_package_snapshot_zip(snapshot), f"annual-tax-archive-{request.year}.zip")
 
 
 @router.get("/coverage", response_model=ReportCoverageResponse)
@@ -666,7 +620,7 @@ async def net_worth_allocation(
 
 
 @router.get(
-    "/export",
+    "/exports",
     responses={
         200: {
             "description": "Exported financial report CSV stream.",

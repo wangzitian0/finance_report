@@ -40,12 +40,9 @@ from src.config import settings
 from src.database import async_session_maker, engine, get_db, get_test_session_maker, init_db
 from src.extraction import (
     get_known_storage_paths,
-    get_statement_coverage_rows,
-    register_position_reconciler,
     run_parsing_supervisor,
 )
 from src.identity import auth_router
-from src.ledger import register_statement_coverage_reader
 from src.observability import (
     ErrorIds,
     configure_database_pool_metrics,
@@ -66,47 +63,28 @@ from src.platform import (
     SubscriberRegistry,
     get_client_ip,
 )
-from src.portfolio import PositionService
-from src.pricing import (
-    build_manual_valuation_lines,
-    build_manual_valuation_lines_series,
-    run_market_data_scheduler,
-    subscribe_price_ingest,
-)
-from src.reporting import register_manual_valuation_lines_provider
+from src.pricing import run_market_data_scheduler, subscribe_price_ingest
 from src.routers import (
     accounts,
-    ai_feedback,
     app_config,
-    assets,
-    audit,
     chat,
-    corrections,
     evidence,
     journal,
     llm,
-    market_data,
-    metrics,
     portfolio,
+    pricing,
     reports,
-    review,
     statements,
     user_settings,
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
-from src.runtime import DEPENDENCY_MANIFEST, register_known_storage_paths_provider, resolve_env_tier, run_storage_sweep
+from src.runtime import DEPENDENCY_MANIFEST, resolve_env_tier, run_storage_sweep
 from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, error_code_for_status
 
 logger = get_logger(__name__)
 
 register_fx_pairs_read(observed_fx_pairs)
-register_manual_valuation_lines_provider(
-    build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
-)
-register_known_storage_paths_provider(get_known_storage_paths)
-register_statement_coverage_reader(get_statement_coverage_rows)
-register_position_reconciler(PositionService().reconcile_positions)
 
 outbox_subscribers = SubscriberRegistry()
 subscribe_price_ingest(outbox_subscribers, session_factory=async_session_maker)
@@ -200,7 +178,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     tasks = [
         asyncio.create_task(run_parsing_supervisor(stop_event)),
         asyncio.create_task(run_market_data_scheduler(stop_event, market_data_scopes)),
-        asyncio.create_task(run_storage_sweep(stop_event)),
+        asyncio.create_task(run_storage_sweep(stop_event, known_paths_provider=get_known_storage_paths)),
         asyncio.create_task(run_outbox_relay(stop_event)),
     ]
     log_observability_startup(logger)
@@ -467,22 +445,16 @@ for _router in (
     auth_router,
     accounts.router,
     app_config.router,
-    ai_feedback.router,
-    audit.router,
-    assets.router,
     chat.router,
-    corrections.router,
     evidence.router,
     journal.router,
-    market_data.router,
-    metrics.router,
     reports.router,
-    review.router,
     statements.router,
     reconciliation_router,
     user_settings.router,
     llm.router,
     portfolio.router,
+    pricing.router,
     workflow.router,
 ):
     app.include_router(_router, responses=COMMON_ERROR_RESPONSES)

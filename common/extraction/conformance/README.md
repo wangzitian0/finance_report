@@ -8,4 +8,4 @@ a regenerated breaking shape reds the frontend tests that consume it. Either way
 ## Regeneration (never hand-edit)
 ```bash apps/backend/.venv/bin/python tools/api_response_vectors.py ``` All values are sanitized placeholders (fixed UUIDs, `Vector *` names). Real financial data is forbidden here.
 ## Endpoints vectored
-- `statement_upload_accepted` — `POST /api/statements/upload` 202 envelope (`BankStatementResponse`, freshly accepted upload) - `statement_parsed` — `GET /api/statements/{id}` once parsing settled (`BankStatementResponse` with transactions)
+- `statement_upload_accepted` — `POST /api/statements` 202 envelope (`BankStatementResponse`, freshly accepted upload) - `statement_parsed` — `GET /api/statements/{id}` once parsing settled (`BankStatementResponse` with transactions)

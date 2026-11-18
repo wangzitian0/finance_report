@@ -78,7 +78,7 @@ async def test_AC_extraction_2994_83_a_normal_approve_of_a_parsed_statement_stil
     """AC-extraction.2994.83: Approve of a PARSED statement works: it posts its entries and sets APPROVED."""
     statement_id = await _approvable_statement(db, test_user)
 
-    response = await client.post(f"/statements/{statement_id}/review/approve", json={})
+    response = await client.post(f"/statements/{statement_id}/approvals", json={})
 
     assert response.status_code == 200, response.text
     assert response.json()["journal_entries_created"] == len(ROWS)
@@ -116,7 +116,7 @@ async def test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_no
 
     monkeypatch.setattr(statements_router, "approve_statement_workflow", approve_after_a_rerun)
 
-    response = await client.post(f"/statements/{statement_id}/review/approve", json={})
+    response = await client.post(f"/statements/{statement_id}/approvals", json={})
 
     assert response.status_code == 409, response.text
     assert response.json()["active_run_id"] == str(rerun_ids[0])
@@ -131,7 +131,7 @@ async def test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statemen
 ):
     """AC-extraction.2994.84: The failure handler writes the final status only while the statement is PARSING."""
     statement_id = await _approvable_statement(db, test_user)
-    approved = await client.post(f"/statements/{statement_id}/review/approve", json={})
+    approved = await client.post(f"/statements/{statement_id}/approvals", json={})
     assert approved.status_code == 200, approved.text
     entries_before = await _entry_count(db, test_user)
     statement = await _fresh(db, statement_id)
@@ -197,7 +197,7 @@ async def test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_acti
     statement_id = await _approvable_statement(db, test_user)
     run_id = await _running_run(db, statement_id, test_user)  # The state that a stale envelope confirmation left behind.
 
-    response = await client.post(f"/statements/{statement_id}/review/approve", json={})
+    response = await client.post(f"/statements/{statement_id}/approvals", json={})
 
     assert response.status_code == 409, response.text
     assert response.json()["active_run_id"] == str(run_id)

@@ -22,10 +22,10 @@ Stage 2: reconciliation_match -> (>= 85 auto_accepted | 60..84 pending_review ->
 
 - Always scope mutations by `user_id`. Reject + re-parse instead of in-place editing (no edit-and-approve endpoint exists).
 - Block Stage 1 approval on `> 0.001 USD` balance-chain error or unresolved duplicate/transfer-pair candidates.
-- Render Stage 1 rows with LOW rows on top, unrated rows marked `Not rated`, wrapped descriptions, and source preview only for PDF/PNG/JPG (`GET /api/statements/pending-review`, `POST /api/statements/{id}/review/{approve,reject}`).
+- Render Stage 1 rows with LOW rows on top, unrated rows marked `Not rated`, wrapped descriptions, and source preview only for PDF/PNG/JPG (`GET /api/statements/pending-review`, `POST /api/statements/{id}/{approvals,rejections}`).
 
 ### <a id="confidence-tier-rollup"></a>Confidence Tier Rollup & Promotion Gate
 
 Confidence ranks `TRUSTED > HIGH > MEDIUM > LOW`. Aggregates take the minimum tier of contributing rated facts (excluding unrated adjustments; `null` if none rated). `src.audit.promotion` enforces `authoritative <=> invariants_pass and confidence >= tau`; `extraction/extension/correction_loop.py` feeds user overrides into `CorrectionLog`.
 
-Related: [common/extraction/readme.md](./readme.md) · [common/audit/readme.md](../audit/readme.md#source-type-trust-hierarchy-provenance) · [common/meta/schema.md](../meta/schema.md)
+Related: [common/extraction/readme.md](./readme.md) · [common/reconciliation/readme.md#thresholds](../reconciliation/readme.md#thresholds) · [common/audit/readme.md](../audit/readme.md#source-type-trust-hierarchy-provenance) · [common/meta/schema.md](../meta/schema.md)

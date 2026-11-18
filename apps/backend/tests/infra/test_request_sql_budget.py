@@ -20,7 +20,7 @@ from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEnt
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.request_context import RequestContext
 from src.workflow.extension.events import ensure_workflow_events_synced
-from tests.api.test_review_router import _seed_approved_statement_with_posted_txn
+from tests.reconciliation.test_stage2_review_router import _seed_approved_statement_with_posted_txn
 from tests.factories import seed_parsed_statement
 from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 
@@ -61,7 +61,7 @@ async def test_get_accounts_and_processing_summary_are_read_only_and_bounded(cli
 
     proc_statements, proc_detach = _capture_sql(db_engine)
     try:
-        proc_resp = await client.get("/accounts/processing/summary")
+        proc_resp = await client.get("/reconciliation/transfers/summary")
     finally:
         proc_detach()
     assert proc_resp.status_code == 200, proc_resp.text
@@ -171,7 +171,7 @@ async def test_post_statement_approve_sql_count_is_bounded(
 
     statements, detach = _capture_sql(db_engine)
     try:
-        resp = await client.post(f"/statements/{seeded.id}/review/approve", json={"create_account_if_missing": True})
+        resp = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
     finally:
         detach()
     assert resp.status_code == 200, resp.text

@@ -156,7 +156,7 @@ async def test_AC_extraction_2994_107_a_manual_approve_before_the_auto_approve_g
         assert (classify.kind, classify.state) == (RunKind.CLASSIFY, RunState.RUNNING)
         assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSED
 
-        refused = await client.post(f"/statements/{statement_id}/review/approve", json={})
+        refused = await client.post(f"/statements/{statement_id}/approvals", json={})
 
         assert refused.status_code == 409, refused.text
         assert refused.json()["active_run_id"] == str(classify.id)

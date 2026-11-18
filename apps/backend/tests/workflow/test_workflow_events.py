@@ -684,7 +684,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
                     "label": "Processing account unresolved",
                     "count": 1,
                     "reason": "In-transit transfer legs must net to zero.",
-                    "action_href": "/accounts/processing",
+                    "action_href": "/upload",
                 },
             ],
         }
@@ -709,7 +709,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
     )
     assert [(event.family, event.action_href, event.source_type) for event in events] == [
         (WorkflowEventFamily.RECONCILIATION_BLOCKED, "/reconciliation?tab=review-queue", "readiness_blocker"),
-        (WorkflowEventFamily.REPORT_BLOCKED, "/accounts/processing", "readiness_blocker"),
+        (WorkflowEventFamily.REPORT_BLOCKED, "/upload", "readiness_blocker"),
     ]
     assert all((event.severity == WorkflowEventSeverity.BLOCKED for event in events))
     assert all((event.report_impact == WorkflowReportImpact.BLOCKED for event in events))

@@ -255,7 +255,7 @@ async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(
 async def test_export_endpoint(client, test_data_setup_reports):
     await test_data_setup_reports()
     params = {"report_type": "balance-sheet", "format": "csv", "currency": "SGD"}
-    response = await client.get("/reports/export", params=params)
+    response = await client.get("/reports/exports", params=params)
     assert response.status_code == 200
     assert "text/csv" in response.headers["content-type"]
     assert "attachment" in response.headers["content-disposition"]
@@ -267,7 +267,7 @@ async def test_export_endpoint(client, test_data_setup_reports):
         "end_date": today.isoformat(),
         "currency": "SGD",
     }
-    response_is = await client.get("/reports/export", params=params_is)
+    response_is = await client.get("/reports/exports", params=params_is)
     assert response_is.status_code == 200
     assert "text/csv" in response_is.headers["content-type"]
 
@@ -278,7 +278,7 @@ async def test_AC6_33_8_export_response_matches_typed_envelope(client, test_data
 
     await test_data_setup_reports()
     params = {"report_type": "balance-sheet", "format": "csv", "currency": "SGD"}
-    response = await client.get("/reports/export", params=params)
+    response = await client.get("/reports/exports", params=params)
     assert response.status_code == 200
     assert "text/csv" in response.headers["content-type"]
     disposition = response.headers["content-disposition"]
@@ -308,7 +308,7 @@ async def test_AC5_16_1_balance_sheet_export_honors_restricted_query(client, mon
 
     monkeypatch.setattr(reports_router, "generate_balance_sheet", fake_generate_balance_sheet)
     response = await client.get(
-        "/reports/export",
+        "/reports/exports",
         params={
             "report_type": "balance-sheet",
             "format": "csv",
@@ -354,7 +354,7 @@ async def test_AC5_17_1_cash_flow_export_returns_csv(client, monkeypatch: pytest
 
     monkeypatch.setattr(reports_router, "generate_cash_flow", fake_generate_cash_flow)
     response = await client.get(
-        "/reports/export",
+        "/reports/exports",
         params={
             "report_type": "cash-flow",
             "format": "csv",
@@ -404,7 +404,7 @@ async def test_export_balance_sheet_report_error(client, db, test_user) -> None:
     "AC-reporting.errors.2 AC5.5.1"
     with patch("src.routers.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_gen:
         mock_gen.side_effect = ReportError("Export failed")
-        response = await client.get("/reports/export", params={"report_type": "balance-sheet", "format": "csv"})
+        response = await client.get("/reports/exports", params={"report_type": "balance-sheet", "format": "csv"})
         assert response.status_code == 400
         assert "export" in response.json()["detail"].lower()
 
@@ -432,14 +432,14 @@ async def test_export_csv_rows_coverage(client) -> None:
     }
     with patch("src.routers.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_func:
         mock_func.return_value = mock_bs
-        resp = await client.get("/reports/export", params={"report_type": "balance-sheet"})
+        resp = await client.get("/reports/exports", params={"report_type": "balance-sheet"})
         assert resp.status_code == 200
         assert "Cash,100.0" in resp.text
         assert "Total Assets,,100.0" in resp.text
     with patch("src.routers.reports.generate_income_statement", new_callable=AsyncMock) as mock_func:
         mock_func.return_value = mock_is
         resp = await client.get(
-            "/reports/export",
+            "/reports/exports",
             params={"report_type": "income-statement", "start_date": "2026-01-01", "end_date": "2026-01-31"},
         )
         assert resp.status_code == 200
@@ -478,14 +478,14 @@ async def test_currencies_endpoint(client, db: AsyncSession, test_user) -> None:
 async def test_export_report_invalid_format(client, test_data_setup_reports) -> None:
     await test_data_setup_reports()
     params = {"report_type": "balance-sheet", "format": "json", "currency": "SGD"}
-    response = await client.get("/reports/export", params=params)
+    response = await client.get("/reports/exports", params=params)
     assert response.status_code == 422
 
 
 async def test_export_report_missing_income_dates(client, test_data_setup_reports) -> None:
     await test_data_setup_reports()
     params = {"report_type": "income-statement", "format": "csv", "currency": "SGD"}
-    response = await client.get("/reports/export", params=params)
+    response = await client.get("/reports/exports", params=params)
     assert response.status_code == 400
     assert "start_date and end_date are required" in response.json()["detail"]
 
@@ -493,7 +493,7 @@ async def test_export_report_missing_income_dates(client, test_data_setup_report
 async def test_export_report_unsupported_type(client, test_data_setup_reports) -> None:
     await test_data_setup_reports()
     params = {"report_type": "unsupported", "format": "csv", "currency": "SGD"}
-    response = await client.get("/reports/export", params=params)
+    response = await client.get("/reports/exports", params=params)
     assert response.status_code == 422
 
 
@@ -581,6 +581,6 @@ async def test_cash_flow_endpoints_include_statement_custody_accounts_without_ke
     assert events_page["total"] == 1
     assert events_page["events"][0]["memo"] == "Multiplier Bonus"
     assert events_page["events"][0]["amount"] == "1500.00"
-    export_resp = await client.get("/reports/export", params={**params, "report_type": "cash-flow", "format": "csv"})
+    export_resp = await client.get("/reports/exports", params={**params, "report_type": "cash-flow", "format": "csv"})
     assert export_resp.status_code == 200
     assert "Operating,Bonus Income,1500.00,SGD,Inflow - Bonus Income" in export_resp.text

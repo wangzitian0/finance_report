@@ -84,7 +84,7 @@ def diagnose_equation_imbalance(
             confidence=0.85,
             suggested_action=(
                 f"Multi-currency conversion created a penny drift of {delta}. "
-                "Record an immaterial rounding adjustment with POST /reconciliation/adjustment."
+                "Record an immaterial rounding adjustment with POST /reconciliation/adjustments."
             ),
             details={"is_multicurrency": True, "threshold": str(FX_DRIFT_THRESHOLD)},
         )

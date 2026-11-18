@@ -5,11 +5,11 @@ class RecordedRequest: method: str; path: str
 def _recording_hook(requests: list[RecordedRequest]):
     async def record(request: httpx.Request) -> None: requests.append(RecordedRequest(request.method, request.url.path))
     return record
-_person_actions = lambda requests: [request for request in requests if '/review/approve' in request.path or (request.method != 'GET' and ('/review/' in request.path or 'reviewed-disposition' in request.path or request.path.endswith('/users/me/settings')))]
+_person_actions = lambda requests: [request for request in requests if '/approvals' in request.path or '/rejections' in request.path or (request.method != 'GET' and ('/review-envelopes' in request.path or 'reviewed-dispositions' in request.path or request.path.endswith('/users/me/settings')))]
 async def _get(client: httpx.AsyncClient, path: str, **params) -> dict: response = await client.get(_api_url(path), params=params or None); assert response.status_code == 200, f'GET {path} failed: {response.status_code} {response.text}'; return response.json()
 async def _default_image_model(client: httpx.AsyncClient) -> str: payload = await _get(client, '/llm/catalog', modality='image'); return payload.get('default_model') or payload['models'][0]['id']
 async def _upload_pdf(client: httpx.AsyncClient, *, pdf_path: Path, model: str) -> str:
-    with pdf_path.open('rb') as handle: response = await client.post(_api_url('/statements/upload'), data={'model': model}, files={'file': (pdf_path.name, handle, 'application/pdf')})
+    with pdf_path.open('rb') as handle: response = await client.post(_api_url('/statements'), data={'model': model}, files={'file': (pdf_path.name, handle, 'application/pdf')})
     assert response.status_code in (200, 201, 202), f'upload failed: {response.status_code} {response.text}'; statement_id = response.json().get('id'); assert statement_id, f'upload response missing id: {response.text}'; return str(statement_id)
 _live_entries_by_source = lambda entries, transaction_ids: Counter((entry['source_id'] for entry in entries if entry['source_id'] in transaction_ids and entry['status'] in LIVE_ENTRY_STATUSES))
 async def _wait_until_every_row_has_its_effect(client: httpx.AsyncClient, statement_id: str, *, rows: int) -> tuple[dict, list[dict]]:
@@ -35,4 +35,4 @@ async def test_upload_alone_produces_the_base_tables_and_the_three_statements(au
             description = by_transaction.get(entry['source_id'])
             if description is None: continue
             counter = sorted((names.get(line['account_id'], 'hidden system account') for line in entry['lines'] if line['account_id'] != statement['account_id'])); record_property(f"booked {entry['source_id'][:8]} {description[:24]}", ', '.join(counter))
-        processing = await _get(client, '/accounts/processing/summary'); record_property('processing_balance', processing['current_balance']); record_property('net_income', str(net_income))
+        processing = await _get(client, '/reconciliation/transfers/summary'); record_property('processing_balance', processing['current_balance']); record_property('net_income', str(net_income))

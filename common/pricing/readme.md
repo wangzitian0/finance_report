@@ -12,7 +12,7 @@
 
 ## Market data (pre-#1610-cutover shipped model)
 
-Supports lazy report FX/price resolution and daily scheduled sync (`run_market_data_scheduler()` at 22:00 Asia/Singapore via `MarketDataScopeProvider`) from Yahoo Finance and Stooq (`<= 2%` cross-source check; `POST /api/market-data/{fx,stocks}/syncs`, read-only `GET /api/market-data/status` and `GET /api/reports/*`).
+Supports lazy report FX/price resolution and daily scheduled sync (`run_market_data_scheduler()` at 22:00 Asia/Singapore via `MarketDataScopeProvider`) from Yahoo Finance and Stooq (`<= 2%` cross-source check; `POST /api/pricing/fx/syncs`, `POST /api/pricing/stocks/syncs`, read-only `GET /api/pricing/market-data/status` and `GET /api/reports/*`).
 
 - **FX precision & conversion**: Store 6 dp rates in `fx_rates`/`stock_prices`, convert amounts solely via `ExchangeRate(` and `Money(` (`convert(Money(Decimal("1000.00"), "SGD"), ExchangeRate("SGD", "USD", Decimal("0.741523"))).amount` -> `741.52 USD`), never raw floats or ad-hoc multiplication. Missing paths raise `NoObservationError` (`PricingError`).
 - **Seeding**: `uv run python tools/seed_fx_rates.py --env local`.

@@ -5,22 +5,18 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import to_money
-from src.composition import refresh_market_data_for_brokerage_import
+from src.composition import compose_brokerage_import_service, refresh_market_data_for_brokerage_import
 from src.deps import Ctx, ReadCtx
-from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
 from src.observability import get_logger
 from src.platform import PreconditionFailedError, ResourceNotFoundError
 from src.portfolio import (
     AssetNotFoundError,
     InvestmentAccountingService,
-    InvestmentTransaction,
-    InvestmentTransactionType,
     PortfolioNotFoundError,
+    PositionService,
     build_investment_performance_report_schedule,
     get_asset_class_allocation as asset_class_allocation_breakdowns,
     get_geography_allocation as geography_allocation_breakdowns,
@@ -28,16 +24,16 @@ from src.portfolio import (
     portfolio_service,
 )
 from src.schemas.portfolio import (
+    AllocationBreakdownResponse,
     BrokerageImportRequest,
     BrokerageImportResponse,
     CostBasisMethodUpdateRequest,
     CostBasisMethodUpdateResponse,
+    DividendCreateRequest,
     DividendEventResponse,
     HoldingsListResponse,
     InvestmentPerformanceReportScheduleResponse,
     PortfolioSummaryDashboardResponse,
-    PriceUpdateBatchResponse,
-    PriceUpdateRequest,
     RealizedLotResponse,
 )
 
@@ -47,8 +43,8 @@ logger = get_logger(__name__)
 _DEFAULT_LIST_LIMIT = 100
 _MAX_LIST_LIMIT = 500
 
-_portfolio_service = portfolio_service
-_brokerage_import_service = BrokeragePositionImportService()
+_position_service = PositionService()
+_brokerage_import_service = compose_brokerage_import_service()
 _investment_accounting_service = InvestmentAccountingService()
 
 
@@ -71,30 +67,7 @@ async def _paged_allocation(fn, *, db: AsyncSession, user_id: UUID, as_of_date: 
     return [AllocationBreakdownResponse(**b.to_dict()) for b in list(breakdowns)[offset : offset + limit]]
 
 
-class AllocationBreakdownResponse(BaseModel):
-    category: str
-    value: Decimal = Field(decimal_places=2)
-    percentage: Decimal = Field(decimal_places=2)
-    count: int
-
-
-class PriceUpdateBatchRequest(BaseModel):
-    updates: list[PriceUpdateRequest]
-
-
-class DividendCreateRequest(BaseModel):
-    payment_date: date
-    amount: Decimal = Field(decimal_places=2, gt=0)
-    currency: str = Field(min_length=3, max_length=3)
-    dividend_type: str = "ordinary"
-    notes: str | None = None
-    cash_account_id: UUID | None = None
-    dividend_income_account_id: UUID | None = None
-    withholding_tax: Decimal = Field(default=Decimal("0.00"), decimal_places=2, ge=0)
-    withholding_tax_account_id: UUID | None = None
-
-
-@router.post("/brokerage/import", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
+@router.post("/brokerage-imports", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
 async def import_brokerage_positions(
     request: BrokerageImportRequest, ctx: Ctx
 ) -> BrokerageImportResponse:
@@ -124,7 +97,7 @@ async def get_holdings(
     warnings: list[dict[str, str]] = []
     try:
         holdings = list(
-            await _portfolio_service.get_holdings(
+            await portfolio_service.get_holdings(
                 db=db, user_id=user_id, as_of_date=as_of_date, include_disposed=include_disposed, warnings=warnings
             )
         )
@@ -139,7 +112,7 @@ async def get_portfolio_summary(
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
 ) -> PortfolioSummaryDashboardResponse:
     """Get portfolio summary with YTD realized P&L and dividend income."""
-    return await _portfolio_service.get_portfolio_summary_dashboard(db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date)
+    return await portfolio_service.get_portfolio_summary_dashboard(db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date)
 
 
 @router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
@@ -192,21 +165,9 @@ async def get_holding_realized_lots(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[RealizedLotResponse]:
     """List lot-level realized P&L rows for a holding ticker."""
-    db, user_id = ctx.db, ctx.user_id
-    rows = (
-        await db.execute(
-            select(InvestmentTransaction, ManagedPosition)
-            .outerjoin(ManagedPosition, InvestmentTransaction.position_id == ManagedPosition.id)
-            .where(
-                InvestmentTransaction.user_id == user_id,
-                InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL,
-                InvestmentTransaction.asset_identifier == ticker,
-            )
-            .order_by(InvestmentTransaction.transaction_date.desc(), InvestmentTransaction.id.desc())
-            .offset(offset)
-            .limit(limit)
-        )
-    ).all()
+    rows = await _position_service.list_realized_lots(
+        ctx.db, user_id=ctx.user_id, ticker=ticker, limit=limit, offset=offset
+    )
     return [
         RealizedLotResponse(
             lot_id=txn.id,
@@ -230,26 +191,13 @@ async def update_holding_cost_basis_method(
     ctx: Ctx,
 ) -> CostBasisMethodUpdateResponse:
     """Persist cost-basis method for all active positions matching a holding ticker."""
-    db, user_id = ctx.db, ctx.user_id
-    positions = list(
-        (
-            await db.execute(
-                select(ManagedPosition).where(
-                    ManagedPosition.user_id == user_id,
-                    ManagedPosition.asset_identifier == ticker,
-                    ManagedPosition.status == PositionStatus.ACTIVE,
-                )
-            )
-        )
-        .scalars()
-        .all()
+    updated_count = await _position_service.update_cost_basis_method(
+        ctx.db, user_id=ctx.user_id, ticker=ticker, cost_basis_method=request.cost_basis_method
     )
-    if not positions:
+    if updated_count == 0:
         raise ResourceNotFoundError("Holding not found")
-    for p in positions:
-        p.cost_basis_method = request.cost_basis_method
-    await db.flush()
-    return CostBasisMethodUpdateResponse(updated_count=len(positions), cost_basis_method=request.cost_basis_method)
+    await ctx.db.flush()
+    return CostBasisMethodUpdateResponse(updated_count=updated_count, cost_basis_method=request.cost_basis_method)
 
 
 @router.get("/performance/report-schedule", response_model=InvestmentPerformanceReportScheduleResponse)
@@ -319,11 +267,3 @@ async def get_asset_class_allocation(
         limit=limit,
         offset=offset,
     )
-
-
-@router.post("/prices/update", response_model=PriceUpdateBatchResponse, status_code=status.HTTP_200_OK)
-async def update_prices(ctx: Ctx, request: PriceUpdateBatchRequest) -> PriceUpdateBatchResponse:
-    """Update market prices manually (batch)."""
-    results = await _portfolio_service.update_market_prices(db=ctx.db, user_id=ctx.user_id, updates=request.updates)
-    await ctx.db.flush()
-    return PriceUpdateBatchResponse(updated_count=len(results), results=results)

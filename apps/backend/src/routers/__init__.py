@@ -2,15 +2,18 @@
 
 from src.routers import (
     accounts,
-    assets,
+    app_config,
     chat,
     evidence,
     journal,
     llm,
-    market_data,
+    portfolio,
+    pricing,
     reconciliation,
     reports,
     statements,
+    user_settings,
+    workflow,
 )
 
 # NOTE: ``auth`` and ``users`` routers moved into the identity package
@@ -19,13 +22,16 @@ from src.routers import (
 
 __all__ = [
     "accounts",
-    "assets",
+    "app_config",
     "chat",
     "evidence",
     "journal",
     "llm",
-    "market_data",
+    "portfolio",
+    "pricing",
     "reconciliation",
     "reports",
     "statements",
+    "user_settings",
+    "workflow",
 ]

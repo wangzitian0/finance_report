@@ -14,7 +14,9 @@ from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import extract_source_document_ids
 from src.extraction.extension.evidence_lineage import (
+    DEFAULT_MAX_DEPTH,
     EvidenceLineageService,
+    EvidenceTraversalStep,
     doc_node_props,
     entry_node_props,
     line_node_props,
@@ -468,3 +470,145 @@ class EvidenceGraphMaterializationService:
         blocker = EvidenceMaterializationBlocker(code=code, message=message)
         if blocker not in result.blockers:
             result.blockers.append(blocker)
+
+
+_LAZY_MATERIALIZATION_ENTITY_NODE_KINDS = {
+    "journal_line": {"ledger_line"},
+    "journal_entry": {"ledger_entry"},
+    "uploaded_document": {"source_document"},
+    "atomic_transaction": {"atomic_fact"},
+    "opening_position": {"atomic_fact"},
+}
+_GENUINE_FAILURE_BLOCKER_CODES = {
+    "materialization_write_cap_reached": 503,
+    "cross_user_lineage_blocked": 409,
+    "unsupported_provenance": 422,
+    "opening_authority_unproven": 409,
+}
+
+
+class EvidenceLineageQueryError(Exception):
+    """Raised when Evidence Graph lineage resolution encounters an authoritative blocker."""
+
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        message: str,
+        blockers: list[EvidenceMaterializationBlocker],
+        has_writes: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.message = message
+        self.blockers = blockers
+        self.has_writes = has_writes
+
+
+@dataclass(frozen=True)
+class EvidenceLineageBundle:
+    """Resolved bounded Evidence Graph subgraph around an entity anchor."""
+
+    anchor: EvidenceNode | None
+    nodes: list[EvidenceNode]
+    up_steps: list[EvidenceTraversalStep]
+    down_steps: list[EvidenceTraversalStep]
+    blockers: list[EvidenceMaterializationBlocker]
+    has_writes: bool = False
+
+
+def _should_attempt_lazy_materialization(*, entity_type: str, node_kind: str | None, anchor: EvidenceNode | None) -> bool:
+    if anchor is not None and entity_type not in {"opening_position", "journal_entry", "journal_line"}:
+        return False
+    expected = _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS.get(entity_type)
+    return expected is not None and (node_kind is None or node_kind in expected)
+
+
+def _materialization_failure_status(blockers: list[EvidenceMaterializationBlocker]) -> int | None:
+    statuses = [_GENUINE_FAILURE_BLOCKER_CODES[b.code] for b in blockers if b.code in _GENUINE_FAILURE_BLOCKER_CODES]
+    return max(statuses) if statuses else None
+
+
+async def load_evidence_lineage(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    entity_type: str,
+    entity_id: UUID,
+    node_kind: str | None = None,
+    direction: str = "both",
+    max_depth: int = DEFAULT_MAX_DEPTH,
+) -> EvidenceLineageBundle:
+    """Load Evidence Graph lineage for an anchor entity, lazily materializing supported nodes."""
+    lineage = EvidenceLineageService()
+    materializer = EvidenceGraphMaterializationService()
+    anchor = await lineage.get_node_for_entity(
+        db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
+    )
+    mat_blockers: list[EvidenceMaterializationBlocker] = []
+    mat_has_writes = False
+    if _should_attempt_lazy_materialization(entity_type=entity_type, node_kind=node_kind, anchor=anchor):
+        mat = await materializer.materialize_for_entity(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
+        )
+        mat_blockers = [b for b in mat.blockers if anchor is None or b.code != "entity_missing"]
+        mat_has_writes = mat.has_writes
+        if mat_has_writes:
+            await db.flush()
+        failure_status = _materialization_failure_status(mat_blockers)
+        if failure_status is not None:
+            raise EvidenceLineageQueryError(
+                status_code=failure_status,
+                message="Evidence Graph materialization could not complete for this entity.",
+                blockers=mat_blockers,
+                has_writes=mat_has_writes,
+            )
+        anchor = await lineage.get_node_for_entity(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
+        )
+
+    if anchor is None:
+        missing = EvidenceMaterializationBlocker(
+            code="graph_node_missing",
+            message="No owned Evidence Graph node exists for this entity identity.",
+        )
+        return EvidenceLineageBundle(
+            anchor=None,
+            nodes=[],
+            up_steps=[],
+            down_steps=[],
+            blockers=[missing, *(b for b in mat_blockers if b.code != "entity_missing")],
+            has_writes=mat_has_writes,
+        )
+
+    up_steps = (
+        await lineage.get_upstream(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth
+        )
+        if direction in {"upstream", "both"}
+        else []
+    )
+    down_steps = (
+        await lineage.get_downstream(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth
+        )
+        if direction in {"downstream", "both"}
+        else []
+    )
+    nodes = list({n.id: n for n in (anchor, *(s.node for s in up_steps), *(s.node for s in down_steps))}.values())
+    opening_blockers = await materializer.validate_opening_nodes(db, user_id=user_id, nodes=nodes)
+    if opening_blockers:
+        raise EvidenceLineageQueryError(
+            status_code=409,
+            message="Opening lineage no longer has current source authority.",
+            blockers=list(opening_blockers),
+            has_writes=mat_has_writes,
+        )
+    return EvidenceLineageBundle(
+        anchor=anchor,
+        nodes=nodes,
+        up_steps=up_steps,
+        down_steps=down_steps,
+        blockers=mat_blockers,
+        has_writes=mat_has_writes,
+    )

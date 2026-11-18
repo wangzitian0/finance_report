@@ -170,7 +170,7 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
         if (!currentIsCsv) formData.append("model", selectedModel);
 
         track(ANALYTICS_EVENTS.UPLOAD_STARTED, { is_csv: currentIsCsv });
-        await apiOperationUpload("upload_statement_statements_upload_post", { body: formData });
+        await apiOperationUpload("upload_statement_statements_post", { body: formData });
         track(ANALYTICS_EVENTS.UPLOAD_SUCCEEDED, { is_csv: currentIsCsv });
       }
 

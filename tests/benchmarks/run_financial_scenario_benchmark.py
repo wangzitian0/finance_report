@@ -70,6 +70,16 @@ def _post_json(
     return _check_resp(client.post(url, **kwargs), label, expected).json()
 
 
+def _patch_json(
+    client: httpx.Client,
+    url: str,
+    label: str,
+    expected: tuple[int, ...] = (200,),
+    **kwargs: Any,
+) -> Any:
+    return _check_resp(client.patch(url, **kwargs), label, expected).json()
+
+
 def _qs(*pairs: tuple[str, Any]) -> str:
     parts = [f"{k}={v}" for k, v in pairs if v is not None and v != ""]
     return f"?{'&'.join(parts)}" if parts else ""
@@ -183,7 +193,7 @@ class ScenarioBenchmarkRunner:
         }
         body = _post_json(
             client,
-            "/api/statements/upload",
+            "/api/statements",
             "Statement upload failed",
             expected=(200, 201, 202),
             files={"file": (filename, file_bytes, content_type)},
@@ -307,7 +317,7 @@ class ScenarioBenchmarkRunner:
                 }
             _post_json(
                 client,
-                f"/api/reconciliation/unmatched/{txn_id}/reviewed-disposition",
+                f"/api/reconciliation/unmatched/{txn_id}/reviewed-dispositions",
                 f"Adjudication failed for txn {txn_id}",
                 json=payload,
             )
@@ -332,7 +342,7 @@ class ScenarioBenchmarkRunner:
             )
         _post_json(
             client,
-            f"/api/statements/{statement_id}/review/envelope",
+            f"/api/statements/{statement_id}/review-envelopes",
             f"Review envelope confirmation failed for statement {statement_id}",
             expected=(200, 201),
             json={
@@ -351,7 +361,7 @@ class ScenarioBenchmarkRunner:
             return current.json()
         # The approval answers 409 while the classify run of the statement is active (#2994).
         wait_for_statement_runs_sync(client, f"/api/statements/{statement_id}/runs")
-        url = f"/api/statements/{statement_id}/review/approve"
+        url = f"/api/statements/{statement_id}/approvals"
         resp = client.post(url, json={"create_account_if_missing": True})
         if (
             resp.status_code == 400
@@ -369,7 +379,7 @@ class ScenarioBenchmarkRunner:
     ) -> dict[str, Any]:
         data = _post_json(
             client,
-            f"/api/statements/{statement_id}/review/reject",
+            f"/api/statements/{statement_id}/rejections",
             f"Rejection failed for statement {statement_id}",
             json={"notes": notes},
         )
@@ -382,7 +392,7 @@ class ScenarioBenchmarkRunner:
     def assert_approval_blocked_by_balance_mismatch(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        resp = client.post(f"/api/statements/{statement_id}/review/approve", json={})
+        resp = client.post(f"/api/statements/{statement_id}/approvals", json={})
         if resp.status_code not in (400, 422):
             raise RuntimeError(
                 f"Expected balance mismatch approval block (400/422) for {statement_id}, got {resp.status_code}: {resp.text}"
@@ -398,7 +408,7 @@ class ScenarioBenchmarkRunner:
     def assert_brokerage_import_requires_snapshot_date(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        resp = client.post(f"/api/statements/{statement_id}/brokerage/import", json={})
+        resp = client.post(f"/api/statements/{statement_id}/brokerage-imports", json={})
         if resp.status_code != 422:
             raise RuntimeError(
                 f"Expected undated brokerage CSV import to fail with 422 for {statement_id}, got {resp.status_code}: {resp.text}"
@@ -437,8 +447,9 @@ class ScenarioBenchmarkRunner:
     ) -> dict[str, Any]:
         return _post_json(
             client,
-            f"/api/statements/{statement_id}/stage2/run-checks",
+            "/api/reconciliation/consistency-checks/runs",
             f"Stage 2 consistency checks failed for {statement_id}",
+            json={"statement_id": statement_id},
         )
 
     def batch_approve_matches(
@@ -470,10 +481,11 @@ class ScenarioBenchmarkRunner:
         ).get("items", [])
         for match in items:
             match_id = match["id"]
-            _post_json(
+            _patch_json(
                 client,
-                f"/api/reconciliation/matches/{match_id}/accept",
+                f"/api/reconciliation/matches/{match_id}",
                 f"Accepting reconciliation match {match_id} failed",
+                json={"action": "accept"},
             )
         return len(items)
 
@@ -496,7 +508,7 @@ class ScenarioBenchmarkRunner:
     ) -> dict[str, Any]:
         return _post_json(
             client,
-            "/api/reconciliation/adjustment",
+            "/api/reconciliation/adjustments",
             "Reconciliation adjustment failed",
             json={
                 "account_id": account_id,
@@ -552,10 +564,25 @@ class ScenarioBenchmarkRunner:
         year: int = 2025,
         currency: str = "SGD",
     ) -> dict[str, Any]:
+        snapshot = _post_json(
+            client,
+            "/api/reports/package/snapshots",
+            "Annual tax snapshot creation failed",
+            json={
+                "framework_id": "personal_us_gaap_like",
+                "start_date": f"{year}-01-01",
+                "end_date": f"{year}-12-31",
+                "as_of_date": f"{year}-12-31",
+                "currency": currency,
+            },
+        )
+        snapshot_id = snapshot.get("id")
+        if not snapshot_id:
+            raise RuntimeError(f"Annual tax snapshot response missing id: {snapshot}")
         resp = _check_resp(
-            client.post(
-                "/api/reports/package/annual-archive",
-                json={"year": year, "currency": currency},
+            client.get(
+                f"/api/reports/package/snapshots/{snapshot_id}/exports",
+                params={"format": "zip"},
             ),
             "Annual tax archive export failed",
         )
@@ -616,7 +643,7 @@ class ScenarioBenchmarkRunner:
             body["source_document_id"] = source_document_id
         return _post_json(
             client,
-            "/api/portfolio/brokerage/import",
+            "/api/portfolio/brokerage-imports",
             "Brokerage import request failed",
             json=body,
         )
@@ -635,7 +662,7 @@ class ScenarioBenchmarkRunner:
     ) -> dict[str, Any]:
         return _post_json(
             client,
-            "/api/portfolio/prices/update",
+            "/api/pricing/price-overrides",
             "Price update failed",
             json={"updates": updates},
         )
@@ -708,7 +735,7 @@ class ScenarioBenchmarkRunner:
             payload["notes"] = notes
         return _post_json(
             client,
-            "/api/assets/valuation-snapshots",
+            "/api/pricing/manual-valuations",
             "Valuation snapshot failed",
             expected=(200, 201),
             json=payload,
@@ -719,7 +746,7 @@ class ScenarioBenchmarkRunner:
     ) -> dict[str, Any]:
         return _get_json(
             client,
-            f"/api/assets/valuation-components{_qs(('as_of_date', as_of_date))}",
+            f"/api/pricing/valuation-components{_qs(('as_of_date', as_of_date))}",
             "Valuation components request failed",
         )
 

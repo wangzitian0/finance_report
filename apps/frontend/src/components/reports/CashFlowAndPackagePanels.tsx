@@ -462,7 +462,7 @@ export function PackagePanel({ filters }: { filters: ReportFilters }) {
     setSnapshotError(null);
     try {
       const { blob, filename } = await apiOperationDownload(
-        "export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get",
+        "export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__exports_get",
         { path: { snapshot_id: snapshot.id }, query: { format } },
       );
       const url = URL.createObjectURL(blob);

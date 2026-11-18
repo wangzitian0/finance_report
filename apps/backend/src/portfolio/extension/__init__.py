@@ -2,7 +2,7 @@
 
 Write side: ``InvestmentAccountingService`` (``post_buy``/``post_sell``/
 ``post_dividend``, moved from ``services/investment_accounting.py``) and
-``PositionService`` (reconcile/depreciation).
+``PositionService`` (reconcile).
 
 Read side (#1643): the holdings/P&L query service (``holdings.py``, moved
 from ``services/portfolio.py``), allocation breakdowns (``allocation.py``),

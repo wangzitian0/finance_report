@@ -23,7 +23,7 @@ isOpen={true}
 onClose={onClose}
 transaction={mockTransaction}
 onSuccess={onSuccess}
-/> ); const diningChip = screen.getByRole("button", { name: "Dining" }); fireEvent.click(diningChip); const saveButton = screen.getByRole("button", { name: /Save Correction/i }); fireEvent.click(saveButton); await waitFor(() => { expect(mockApiOperation).toHaveBeenCalledWith("create_correction_corrections_post", { body: { transaction_id: "txn-123", corrected_category: "DINING", }, }); expect(mockShowToast).toHaveBeenCalledWith('Category updated to "Dining"', "success"); expect(onSuccess).toHaveBeenCalled(); expect(onClose).toHaveBeenCalled(); }); }); it("handles apiOperation rejection with error display", async () => { mockApiOperation.mockRejectedValueOnce(new Error("Database write error")); render( <LowConfidenceReviewModal
+/> ); const diningChip = screen.getByRole("button", { name: "Dining" }); fireEvent.click(diningChip); const saveButton = screen.getByRole("button", { name: /Save Correction/i }); fireEvent.click(saveButton); await waitFor(() => { expect(mockApiOperation).toHaveBeenCalledWith("create_correction_statements_corrections_post", { body: { transaction_id: "txn-123", corrected_category: "DINING", }, }); expect(mockShowToast).toHaveBeenCalledWith('Category updated to "Dining"', "success"); expect(onSuccess).toHaveBeenCalled(); expect(onClose).toHaveBeenCalled(); }); }); it("handles apiOperation rejection with error display", async () => { mockApiOperation.mockRejectedValueOnce(new Error("Database write error")); render( <LowConfidenceReviewModal
 isOpen={true}
 onClose={vi.fn()}
 transaction={mockTransaction}

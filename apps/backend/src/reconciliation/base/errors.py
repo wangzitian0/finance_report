@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from src.platform.base.errors import DomainError, ResourceNotFoundError
+from src.platform.base.errors import ConflictError, DomainError, ResourceNotFoundError
 
 
 class ReconciliationError(DomainError):
@@ -33,6 +33,14 @@ class ConsistencyCheckNotFoundError(ResourceNotFoundError, ReconciliationError):
 
 class InvalidCheckActionError(ReconciliationError):
     """A consistency-check resolution action is unsupported."""
+
+
+class UnresolvedConsistencyChecksError(ConflictError, ReconciliationError):
+    """Batch approval is blocked while unresolved consistency checks remain."""
+
+
+class AdjustmentValidationError(ReconciliationError):
+    """A reconciliation rounding adjustment fails threshold or FX preconditions."""
 
 
 class CheckResolutionAction(StrEnum):

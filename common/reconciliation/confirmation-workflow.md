@@ -21,10 +21,9 @@ See [`common/extraction/confirmation-workflow.md §3`](../extraction/confirmatio
 
 | Endpoint | Input | Side Effect |
 |---|---|---|
-| `POST /api/reconciliation/matches/{id}/accept` | `match_id`, bearer token | `status -> accepted`; reconciles linked journal entry |
-| `POST /api/reconciliation/matches/{id}/reject` | `match_id`, bearer token | `status -> rejected` |
+| `PATCH /api/reconciliation/matches/{id}` | `match_id`, `action` (`accept` \| `reject`), optional `reason`, bearer token | `status -> accepted` (reconciles linked journal entry) or `status -> rejected` |
 | `POST /api/reconciliation/matches` | `action`, `match_ids`, optional `run_id`/`min_score`, bearer token | Batch-accepts or rejects matches in scope, reconciles linked journal entries, returns `approved_count`, `rejected_count`, and `journal_entries_reconciled` |
-| `GET /api/statements/stage2/queue` | optional `run_id`, bearer token | Returns pending matches and unresolved consistency checks in scope |
+| `GET /api/reconciliation/review-queue` | optional `run_id`, bearer token | Returns pending matches and unresolved consistency checks in scope |
 | `GET /api/reconciliation/pending` | bearer token | Returns `pending_review` matches |
 
 Stage 1 endpoints: [`common/extraction/confirmation-workflow.md`](../extraction/confirmation-workflow.md#6-api-contract--stage-1-endpoints-in-routersstatementspy).
@@ -33,10 +32,10 @@ Stage 1 endpoints: [`common/extraction/confirmation-workflow.md`](../extraction/
 
 | Test | File | Verifies |
 |---|---|---|
-| `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `api/test_review_router.py` | Stage 2 queue returns complete unresolved blocker set |
-| `test_AC19_11_1_stage2_run_queue_filters_by_run_id` | `api/test_review_router.py` | Run-scoped Stage 2 queue and approval stay isolated by `run_id` |
-| `test_batch_approve_matches_reconciles_referenced_entry` | `api/test_review_router.py` | Batch approval transitions linked entries to `reconciled` without creating entries |
-| `test_batch_approve_matches_accepts_match_without_creating_entry` | `api/test_review_router.py` | Match without linked entry accepts cleanly with `journal_entries_reconciled == 0` |
-| `test_batch_approve_matches_blocked_by_unresolved_check` | `api/test_review_router.py` | Unresolved check blocks batch approval with 400 |
+| `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `reconciliation/test_stage2_review_router.py` | Stage 2 queue returns complete unresolved blocker set |
+| `test_AC19_11_1_stage2_run_queue_filters_by_run_id` | `reconciliation/test_stage2_review_router.py` | Run-scoped Stage 2 queue and approval stay isolated by `run_id` |
+| `test_batch_approve_matches_reconciles_referenced_entry` | `reconciliation/test_stage2_review_router.py` | Batch approval transitions linked entries to `reconciled` without creating entries |
+| `test_batch_approve_matches_accepts_match_without_creating_entry` | `reconciliation/test_stage2_review_router.py` | Match without linked entry accepts cleanly with `journal_entries_reconciled == 0` |
+| `test_batch_approve_matches_blocked_by_unresolved_check` | `reconciliation/test_stage2_review_router.py` | Unresolved check blocks batch approval with 400 |
 
 Stage 1 proof: [`common/extraction/confirmation-workflow.md`](../extraction/confirmation-workflow.md#7-verification-the-proof--stage-1).

@@ -22,7 +22,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 
 const RUNS_GET = "list_statement_runs_statements__statement_id__runs_get";
 const RUNS_POST = "create_statement_run_statements__statement_id__runs_post";
-const REJECT_POST = "reject_statement_stage1_statements__statement_id__review_reject_post";
+const REJECT_POST = "reject_statement_stage1_statements__statement_id__rejections_post";
 
 const statement = {
   id: "s1",

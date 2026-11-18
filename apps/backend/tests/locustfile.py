@@ -13,16 +13,16 @@ class FinanceReportUser(HttpUser):
             else: logger.error('Unexpected status in load test', extra={'endpoint': '/api/accounts', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
     @task(2)
     def list_journal_entries(self) -> None:
-        params = {'skip': random.randint(0, 100), 'limit': 20}
-        with self.client.get('/api/journal', params=params, catch_response=True) as response:
+        params = {'offset': random.randint(0, 100), 'limit': 20}
+        with self.client.get('/api/journal-entries', params=params, catch_response=True) as response:
             if response.status_code == 200: response.success()
             elif response.status_code in (401, 403): logger.warning(f'Auth failed in load test: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
-            else: logger.error('Unexpected status', extra={'endpoint': '/api/journal', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
+            else: logger.error('Unexpected status', extra={'endpoint': '/api/journal-entries', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
     @task(1)
     def upload_statement(self) -> None:
         pdf_buffer = generate_test_pdf(); files = {'file': ('test_statement.pdf', pdf_buffer, 'application/pdf')}; data = {'institution': 'Test Bank', 'account_number': f'ACC{random.randint(1000, 9999)}', 'account_name': 'Test Account'}
-        with self.client.post('/api/statements/upload', files=files, data=data, catch_response=True, timeout=60) as response:
-            if response.status_code == 201: response.success()
+        with self.client.post('/api/statements', files=files, data=data, catch_response=True, timeout=60) as response:
+            if response.status_code == 202: response.success()
             elif response.status_code == 400: logger.warning(f'Validation failed: {response.text[:200]}'); response.failure(f'Validation failed: {response.text[:200]}')
             elif response.status_code in (401, 403): logger.warning(f'Auth failed: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
             elif response.status_code == 429: logger.warning('Rate limited'); response.failure('Rate limited')
@@ -43,7 +43,7 @@ class FinanceReportUser(HttpUser):
             else: logger.error('Unexpected status', extra={'endpoint': '/api/reconciliation/stats', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
     @task(2)
     def view_reports(self) -> None:
-        report_type = random.choice(['balance-sheet', 'income-statement', 'trial-balance']); endpoint = f'/api/reports/{report_type}'; params = {'as_of_date': '2024-01-31'}
+        report_type = random.choice(['balance-sheet', 'income-statement', 'cash-flow']); endpoint = f'/api/reports/{report_type}'; params = {'as_of_date': '2024-01-31'} if report_type == 'balance-sheet' else {}
         with self.client.get(endpoint, params=params, catch_response=True, timeout=30) as response:
             if response.status_code == 200: response.success()
             elif response.status_code in (401, 403): logger.warning(f'Auth failed: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')

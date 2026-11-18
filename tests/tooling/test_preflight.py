@@ -213,7 +213,7 @@ def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(
     preflight.run_checks(
         _m4_schema_check,
         changed_files=(
-            "apps/backend/src/schemas/review.py",
+            "apps/backend/src/schemas/extraction.py",
             "apps/backend/src/extraction/extension/service.py",
         ),
         runner=lambda argv, cwd: _m4_commands.append(list(argv)) or 0,
@@ -224,11 +224,9 @@ def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(
             "python3",
             "tools/validate_schemas.py",
             "--paths",
-            "apps/backend/src/schemas/review.py",
+            "apps/backend/src/schemas/extraction.py",
         ]
     ]
-
-
 def test_run_checks_passes_each_check_cwd_to_the_runner():
     seen: list[str] = []
 

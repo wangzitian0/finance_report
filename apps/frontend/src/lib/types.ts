@@ -11,7 +11,7 @@ export type { BankStatementTransactionViewModel, JournalEntryViewModel };
 
 export type DecimalValue = string;
 export type MoneyValue = DecimalValue;
-export type DataProvenance = "imported" | "manual" | "derived";
+export type DataProvenance = Schemas["ManualValuationSnapshotResponse"]["provenance"];
 export const MONEY_VALUE_CONTRACT = "decimal-string" as const;
 
 export interface ListResponse<T> {
@@ -143,7 +143,7 @@ export interface PackageFrameworkPolicy
   })[];
 }
 
-export const PACKAGE_POLICY_PREVIEW_DECISIONS = 25;
+const PACKAGE_POLICY_PREVIEW_DECISIONS = 25;
 
 export function evidenceReferences(
   items: readonly { evidence_anchors?: readonly Schemas["FrameworkPolicyEvidenceAnchor"][] }[],
@@ -276,7 +276,7 @@ function summarizeTraceabilityAppendix(
   };
 }
 
-export function normalizePersonalReportPackageDocument(
+function normalizePersonalReportPackageDocument(
   document: Schemas["PersonalReportPackageDocument"],
 ): PersonalReportPackageDocument {
   const snapshotId = document.snapshot_id ?? null;

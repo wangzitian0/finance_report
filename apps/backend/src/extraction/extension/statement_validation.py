@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, desc, or_, select
@@ -504,3 +505,28 @@ async def resolve_statement_conflicts(db: AsyncSession, statement_id: UUID, user
     statement.stage1_conflicts_resolved_at = datetime.now(UTC)
     await db.flush()
     return statement
+
+
+def find_statement_review_conflicts(
+    transactions: list[AtomicTransaction],
+) -> tuple[list[AtomicTransaction], list[AtomicTransaction]]:
+    """Identify duplicate and opposite-direction transfer-pair candidates within a statement."""
+    duplicates: list[AtomicTransaction] = []
+    transfer_pairs: list[AtomicTransaction] = []
+    seen: dict[tuple[Any, ...], AtomicTransaction] = {}
+    by_abs_amount: dict[tuple[Any, ...], AtomicTransaction] = {}
+    for txn in transactions:
+        balance_key = None if txn.balance_after is None else txn.balance_after.normalize()
+        dedup_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction, balance_key)
+        if dedup_key in seen:
+            duplicates.extend([seen[dedup_key], txn])
+        else:
+            seen[dedup_key] = txn
+
+        transfer_key = (txn.txn_date, txn.amount.copy_abs())
+        paired = by_abs_amount.get(transfer_key)
+        if paired and paired.direction != txn.direction:
+            transfer_pairs.extend([paired, txn])
+        else:
+            by_abs_amount[transfer_key] = txn
+    return duplicates, transfer_pairs

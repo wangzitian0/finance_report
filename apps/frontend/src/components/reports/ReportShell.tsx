@@ -264,7 +264,7 @@ export function OpeningBalanceWarningBanner({ warnings }: { warnings?: FxWarning
   );
 }
 
-export function ExportCsvButton({ request }: { request: ApiOperationRequest<"export_report_reports_export_get"> }) {
+export function ExportCsvButton({ request }: { request: ApiOperationRequest<"export_report_reports_exports_get"> }) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -272,7 +272,7 @@ export function ExportCsvButton({ request }: { request: ApiOperationRequest<"exp
     setDownloading(true);
     setError(null);
     try {
-      const { blob, filename } = await apiOperationDownload("export_report_reports_export_get", request);
+      const { blob, filename } = await apiOperationDownload("export_report_reports_exports_get", request);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

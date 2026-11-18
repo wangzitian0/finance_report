@@ -470,7 +470,7 @@ export function PriceUpdateForm({
 
   const mutation = useMutation({
     mutationFn: (updates: PriceUpdate[]) =>
-      apiOperation("update_prices_portfolio_prices_update_post", {
+      apiOperation("create_price_overrides_pricing_price_overrides_post", {
         body: { updates },
       }),
     onSuccess: (result) => {

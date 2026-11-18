@@ -427,7 +427,7 @@ export function LowConfidenceReviewModal({ isOpen, onClose, transaction, currenc
     setSaving(true);
     setError(null);
     try {
-      await apiOperation("create_correction_corrections_post", { body: { transaction_id: transaction.id, corrected_category: trimmed } });
+      await apiOperation("create_correction_statements_corrections_post", { body: { transaction_id: transaction.id, corrected_category: trimmed } });
       void invalidateLedgerDerivedQueries(queryClient);
       showToast(`Category updated to "${formatCategoryLabel(trimmed)}"`, "success");
       onSuccess?.();

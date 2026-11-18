@@ -38,13 +38,11 @@ _LAZY = {
     "decode_access_token": "src.identity.extension.security",
     "hash_password": "src.identity.extension.security",
     "verify_password": "src.identity.extension.security",
-    "AiFeedback": "src.identity.extension.sql",
     "SqlUserRepository": "src.identity.extension.sql",
     "User": "src.identity.extension.sql",
 }
 
 __all__ = [
-    "AiFeedback",
     "DEFAULT_TEST_EMAIL_PATTERN",
     "PERSISTENT_TEST_EMAILS",
     "PurgeReport",
@@ -103,4 +101,4 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
         hash_password,
         verify_password,
     )
-    from src.identity.extension.sql import AiFeedback, SqlUserRepository, User
+    from src.identity.extension.sql import SqlUserRepository, User

@@ -40,7 +40,7 @@ from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.routers import statements as statements_router
 from src.schemas import StatementDecisionRequest
-from src.schemas.review import ReviewedStatementEnvelopeRequest, Stage1ApprovalRequest
+from src.schemas.extraction import ReviewedStatementEnvelopeRequest, Stage1ApprovalRequest
 from tests.api._statement_router_fixtures import (
     add_reviewed_disposition_rule,
     add_txn,
@@ -685,7 +685,7 @@ async def test_AC_extraction_2822_2_approve_binds_explicit_account_id(db, test_u
 async def test_AC_extraction_2826_1_review_response_inherits_bank_statement_response(db, test_user):
     "AC-extraction.2826.1"
     from src.schemas.extraction import BankStatementResponse
-    from src.schemas.review import StatementReviewResponse
+    from src.schemas.extraction import StatementReviewResponse
 
     assert issubclass(StatementReviewResponse, BankStatementResponse)
     statement = build_statement(test_user.id, "hash_review_inherits_2826", 85)

@@ -18,12 +18,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import ClassVar
 
-from src.audit import JournalEntrySourceType, normalize_source_type
+from src.audit import DataProvenance, JournalEntrySourceType, normalize_currency_code, normalize_source_type
 from src.audit.money import to_money
 from src.ledger import Account, AccountType, Direction, JournalLine
 from src.platform.base.errors import DomainError
-from src.schemas.base import normalize_currency_code
-from src.schemas.provenance import DataProvenance
 
 _IMPORTED_SOURCE_TYPES = {
     JournalEntrySourceType.AUTO_PARSED,

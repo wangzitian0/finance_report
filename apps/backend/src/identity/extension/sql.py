@@ -1,11 +1,11 @@
 """SQLAlchemy-backed identity persistence (the only role that touches the ORM).
 
-``User`` (the aggregate root) and ``AiFeedback`` (its child entity) are the ORM
-table models; ``SqlUserRepository`` is the async adapter implementing the
-``UserRepository`` port against an ``AsyncSession``. The table definitions are
-unchanged from the pre-migration ``src/models/user.py`` — same table names
-(``users``/``ai_feedback``), columns, and the unique case-insensitive email index
-(the aggregate's invariant) — so this is a pure code move with no schema change.
+``User`` (the aggregate root) is the ORM table model; ``SqlUserRepository`` is
+the async adapter implementing the ``UserRepository`` port against an
+``AsyncSession``. The table definition is unchanged from the pre-migration
+``src/models/user.py`` — same table name (``users``), columns, and the unique
+case-insensitive email index (the aggregate's invariant) — so this is a pure
+code move with no schema change.
 
 The repository *port* lives in ``base/repository.py`` (the abstraction the pure
 core depends on); this async adapter is the production implementation
@@ -14,11 +14,10 @@ core depends on); this async adapter is the production implementation
 
 from __future__ import annotations
 
-from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, func, select, text
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy import Boolean, Index, String, func, select, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,23 +53,6 @@ class User(Base, UUIDMixin, TimestampMixin):
     is_deleted: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, server_default=text("false"), index=True
     )
-
-
-class AiFeedback(Base, UUIDMixin, TimestampMixin):
-    """User feedback for AI classification and reconciliation suggestions.
-
-    A child entity of the ``User`` aggregate (FK to ``users.id`` with cascade
-    delete); persisted by the identity package.
-    """
-
-    __tablename__ = "ai_feedback"
-
-    suggestion_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
-    user_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    action: Mapped[str] = mapped_column(String(20), nullable=False)
-    corrected_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
 
 class SqlUserRepository:

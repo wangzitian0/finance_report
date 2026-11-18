@@ -7,6 +7,7 @@ from src.reconciliation.base.config import (
     ReconciliationConfig,
 )
 from src.reconciliation.base.errors import (
+    AdjustmentValidationError,
     AmountMismatchError,
     CheckResolutionAction,
     ConsistencyCheckNotFoundError,
@@ -15,6 +16,7 @@ from src.reconciliation.base.errors import (
     MatchNotFoundError,
     ReconciliationError,
     ReviewedDispositionError,
+    UnresolvedConsistencyChecksError,
 )
 from src.reconciliation.base.prompts import (
     RECONCILIATION_SEMANTIC_PROMPT,
@@ -24,6 +26,7 @@ from src.reconciliation.base.repository import ReconciliationRepository
 from src.reconciliation.base.reviewed_disposition import ReviewedDispositionCommand
 
 __all__ = [
+    "AdjustmentValidationError",
     "AmountMismatchError",
     "CheckResolutionAction",
     "ConsistencyCheckNotFoundError",
@@ -39,5 +42,6 @@ __all__ = [
     "ReviewedDispositionError",
     "ReconciliationRepository",
     "ReviewedDispositionCommand",
+    "UnresolvedConsistencyChecksError",
     "build_reconciliation_prompt",
 ]

@@ -380,7 +380,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const clearSession = async () => {
     if (sessionId) {
       try {
-        await apiOperation("delete_session_chat_session__session_id__delete", {
+        await apiOperation("delete_session_chat_sessions__session_id__delete", {
           path: { session_id: sessionId },
         });
       } catch {

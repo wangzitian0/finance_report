@@ -187,7 +187,7 @@ export default function UnmatchedBoard() {
         ...(needsCategory(activeDraft.intent) ? { category: activeDraft.category.trim() } : {}),
       };
       const entry = await apiOperation(
-        "submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post",
+        "submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_dispositions_post",
         { path: { txn_id: selected.id }, body: payload },
       );
       setPostedEntry(entry);

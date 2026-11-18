@@ -6,7 +6,7 @@ Finance Report generates deterministic point-in-time and period financial statem
 
 Preview and generate immutable multi-statement packages via:
 - Preview: `GET /api/reports/package?framework_id=personal_us_gaap_like` (with paginated drill-downs: `/api/reports/package/line-details`, `/api/reports/package/manifest-entries`, `/api/reports/package/policy-decisions`, `/api/reports/package/cash-flow-events`).
-- Generate / reopen / export: `POST /api/reports/package/generate`, `GET /api/reports/package/snapshots`, `GET /api/reports/package/snapshots/{snapshot_id}`, `GET /api/reports/package/snapshots/{snapshot_id}/export?format=json|csv`.
+- Generate / reopen / export: `POST /api/reports/package/snapshots`, `GET /api/reports/package/snapshots`, `GET /api/reports/package/snapshots/{snapshot_id}`, `GET /api/reports/package/snapshots/{snapshot_id}/exports?format=json|csv|zip`.
 
 ## Statements & Investment Performance
 

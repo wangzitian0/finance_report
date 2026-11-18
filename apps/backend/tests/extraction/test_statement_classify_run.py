@@ -544,7 +544,7 @@ async def test_AC_extraction_2994_97_the_classify_run_answers_a_keyword_rule_row
         ),
     )
     assert rule_answers == 1, "the row of the keyword rule has its answer from the rule"
-    response = await client.post(f"/statements/{seeded.id}/review/approve", json={"create_account_if_missing": True})
+    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
     assert response.status_code == 200, response.text
     assert response.json()["journal_entries_created"] == 5
     assert proposer.rows_asked == 4, "the approve asks no model"
@@ -563,7 +563,7 @@ async def test_AC_extraction_2994_98_approve_with_an_active_classify_run_gives_4
     run_id = await classify_run_for(db, seeded_id)
 
     started = time.perf_counter()
-    refused = await client.post(f"/statements/{seeded_id}/review/approve", json={"create_account_if_missing": True})
+    refused = await client.post(f"/statements/{seeded_id}/approvals", json={"create_account_if_missing": True})
     elapsed = time.perf_counter() - started
 
     assert refused.status_code == 409, refused.text
@@ -577,7 +577,7 @@ async def test_AC_extraction_2994_98_approve_with_an_active_classify_run_gives_4
         create_session_maker_from_db(db), run_id=run_id, posting_dependencies=compose_statement_posting_dependencies()
     )
     assert posted == 0
-    response = await client.post(f"/statements/{seeded_id}/review/approve", json={"create_account_if_missing": True})
+    response = await client.post(f"/statements/{seeded_id}/approvals", json={"create_account_if_missing": True})
     assert response.status_code == 200, response.text
     assert response.json()["journal_entries_created"] == 5
     assert proposer.rows_asked == 5, "the approve asks no row"
@@ -592,7 +592,7 @@ async def test_AC_extraction_2994_98_approve_of_rows_after_a_failed_classify_run
     run_id = await classify_statement(db, seeded.id)
     assert (await _run(db, run_id)).state is RunState.FAILED
 
-    response = await client.post(f"/statements/{seeded.id}/review/approve", json={"create_account_if_missing": True})
+    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
 
     assert response.status_code == 409, response.text
     assert response.json()["detail"].startswith("Economic review required:")
@@ -633,7 +633,7 @@ async def test_AC_extraction_2994_99_a_high_confidence_statement_is_approved_onl
         assert review.status_code == 200, review.text
         assert len(review.json()["transactions"]) == len(rows), "the rows are visible while the classify run is active"
         started = time.perf_counter()
-        refused = await client.post(f"/statements/{statement_id}/review/approve", json={})
+        refused = await client.post(f"/statements/{statement_id}/approvals", json={})
         assert refused.status_code == 409 and refused.json()["active_run_id"] == str(classify.id)
         assert time.perf_counter() - started < 1.0
     finally:
@@ -746,7 +746,7 @@ async def test_AC_extraction_2994_99_the_auto_approve_leaves_a_statement_that_a_
     statement_id, run_id = await _parsed_candidate_after_an_extract_run(db, test_user, marked=False)
     maker = create_session_maker_from_db(db)
     await execute_classify_run(maker, run_id=run_id, posting_dependencies=compose_statement_posting_dependencies())
-    response = await client.post(f"/statements/{statement_id}/review/approve", json={})
+    response = await client.post(f"/statements/{statement_id}/approvals", json={})
     assert response.status_code == 200, response.text
     approved = await _statement(db, statement_id)
     reviewed_at, entries = approved.stage1_reviewed_at, await _count(db, JournalEntry)
@@ -783,7 +783,7 @@ async def test_AC_extraction_2994_99_a_candidate_with_a_refused_row_waits_in_the
     healthy = _install(monkeypatch, Proposer())
     await classify_statement(db, statement_id)
     assert healthy.rows_asked == 1, "the next run asks only the row without an answer"
-    response = await client.post(f"/statements/{statement_id}/review/approve", json={})
+    response = await client.post(f"/statements/{statement_id}/approvals", json={})
     assert response.status_code == 200, response.text
     assert response.json()["journal_entries_created"] == len(rows)
     assert healthy.rows_asked == 1
@@ -851,7 +851,7 @@ async def test_AC_extraction_2994_101_the_approve_route_with_the_fill_option_giv
     run_id = await classify_run_for(db, seeded.id)
 
     response = await client.post(
-        f"/statements/{seeded.id}/review/approve",
+        f"/statements/{seeded.id}/approvals",
         json={"create_account_if_missing": True, "auto_fill_default_categories": True},
     )
 
@@ -883,7 +883,7 @@ async def _active_classify_run(db, user, monkeypatch, proposer):
 
 def test_AC_extraction_2994_103_the_review_response_has_no_classification_flag(openapi_schema):
     """AC-extraction.2994.103: The review payload carries no preclassification_in_progress. The runs list shows the state."""
-    from src.schemas.review import StatementReviewResponse
+    from src.schemas.extraction import StatementReviewResponse
 
     assert "preclassification_in_progress" not in StatementReviewResponse.model_fields
     assert (

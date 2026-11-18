@@ -47,7 +47,7 @@ import src.workflow  # noqa: F401,E402
 # `import src.identity.extension.sql` (a deep, unpublished-internal import)
 # would cross the app-boundary gate from this app-remainder module — so the
 # published-name form is both the correct trigger and the boundary-clean one.
-from src.identity import AiFeedback as _AiFeedback, User as _User  # noqa: F401,E402
+from src.identity import User as _User  # noqa: F401,E402
 
 # observability publishes its one ORM class lazily (importing its root must
 # stay light for logging consumers); the published-name import below IS the

@@ -239,7 +239,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
 
   const fetchData = useCallback(async () => {
     try {
-      const result = await apiOperation("get_stage2_review_queue_statements_stage2_queue_get", { query: { run_id: runId } });
+      const result = await apiOperation("get_stage2_review_queue_reconciliation_review_queue_get", { query: { run_id: runId } });
       setData(result);
       setError(null);
     } catch (err) {
@@ -254,7 +254,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
   const fetchProcessingSummary = useCallback(async () => {
     if (!isRunReview) return;
     try {
-      setProcessingSummary(await apiOperation("get_processing_summary_accounts_processing_summary_get"));
+      setProcessingSummary(await apiOperation("get_processing_summary_reconciliation_transfers_summary_get"));
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to load processing summary", "error");
     }
@@ -282,7 +282,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
 
   const fetchFilteredChecks = useCallback(async () => {
     try {
-      const result = await apiOperation("list_consistency_checks_statements_consistency_checks_get", {
+      const result = await apiOperation("list_consistency_checks_reconciliation_consistency_checks_get", {
         query: { check_type: checkTypeParameter(checkTypeFilter), status: checkStatusParameter(statusFilter), run_id: runId, limit: 500 },
       });
       setFilteredChecks(severityFilter.length > 0 ? result.items.filter((c) => severityFilter.includes(c.severity)) : result.items);
@@ -368,7 +368,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
     if (!selectedCheck) return;
     setActionLoading(true);
     try {
-      await apiOperation("resolve_consistency_check_statements_consistency_checks__check_id__resolve_post", { path: { check_id: selectedCheck.id }, body: { action, note } });
+      await apiOperation("resolve_consistency_check_reconciliation_consistency_checks__check_id__resolutions_post", { path: { check_id: selectedCheck.id }, body: { action, note } });
       const labels: Record<string, string> = { approve: "approved", reject: "rejected", flag: "flagged" };
       showToast(`Check ${labels[action] ?? `${action}ed`}`, "success");
       setResolveDialogOpen(false);
