@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"; import { render, screen, fireEvent } from "@testing-library/react"; import { ConflictResolutionDialog } from "@/components/review/StatementReview"; describe("ConflictResolutionDialog", () => { const onClose = vi.fn(); beforeEach(() => { vi.clearAllMocks(); }); it("shows empty state when no candidates and closes on overlay and Close button", () => { render( <ConflictResolutionDialog
+import { describe, it, expect, vi, beforeEach } from "vitest"; import { render, screen, fireEvent } from "@testing-library/react"; import { ConflictResolutionDialog } from "@/components/statements/StatementReview"; describe("ConflictResolutionDialog", () => { const onClose = vi.fn(); beforeEach(() => { vi.clearAllMocks(); }); it("shows empty state when no candidates and closes on overlay and Close button", () => { render( <ConflictResolutionDialog
 isOpen={true}
 onClose={onClose}
 duplicateCandidates={[]}

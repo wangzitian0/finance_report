@@ -18,7 +18,7 @@ import type {
 import {
   AdvisorBrief,
   safeAdvisorHref,
-} from "@/components/advisor/AdvisorBrief";
+} from "@/components/chat/AdvisorBrief";
 import { Sheet } from "@/components/ui/Overlay";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 

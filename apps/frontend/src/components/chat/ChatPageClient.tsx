@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-import ChatPanel from "@/components/ChatPanel";
+import ChatPanel from "@/components/chat/ChatPanel";
 import { CONSENT_KEY, PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
 
 export default function ChatPageClient() {

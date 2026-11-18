@@ -15,7 +15,7 @@ import { BankStatement, BrokerageImportResponse, StatementRunHints, StatementRun
 import { PARSING_POLL_MS, canImportBrokerageStatement, currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
-import { INVALID_HINTS_MESSAGE, ParsingAttempts, RunAgainPanel, isRunActive, noteProblem, normalizeNote } from "@/components/review/StatementRuns";
+import { INVALID_HINTS_MESSAGE, ParsingAttempts, RunAgainPanel, isRunActive, noteProblem, normalizeNote } from "@/components/statements/StatementRuns";
 import {
   PdfPreviewPane,
   hasInlinePreview,
@@ -29,7 +29,7 @@ import {
   TransactionTable,
   type EnvelopeDraft,
   type Transaction,
-} from "@/components/review/StatementReview";
+} from "@/components/statements/StatementReview";
 
 const PARSING_TIMEOUT_MS = 5 * 60 * 1000;
 const MISSING_FACT_LABELS: Record<string, string> = { statement_currency: "statement currency", period: "statement period", balances: "opening and closing balances", transaction_currency: "transaction currency" };

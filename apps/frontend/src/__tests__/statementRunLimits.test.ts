@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { HINT_KEYWORD_MAX_LENGTH, HINT_MAX_KEYWORDS, HINT_NOTE_MAX_LENGTH } from "@/components/review/StatementRuns";
+import { HINT_KEYWORD_MAX_LENGTH, HINT_MAX_KEYWORDS, HINT_NOTE_MAX_LENGTH } from "@/components/statements/StatementRuns";
 
 type SchemaNode = { maxItems?: number; maxLength?: number; minLength?: number; items?: SchemaNode; anyOf?: SchemaNode[]; type?: string };
 const openapi = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../openapi.json"), "utf-8")) as {
