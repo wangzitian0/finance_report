@@ -2,13 +2,13 @@
   "adapter": "rules-v2",
   "dirty_inputs": [],
   "inputs": {
-    "repo": "eaa8ab95f30900de9874bbcfe3399819321e5eac851bfe083b4962d4702705ed",
-    "root": "a98a5103952bbb04364d5fe2ef6ba166ac0cb434bb22a61f53ab7fe2efe29720",
-    "skills": "d77a562f89748b7f169feaae613c6f549fdd727470db30339eef36c8fdfbc4fc"
+    "repo": "0af62e52be336eb46527b4062f1fad092221d75a4da83802555d3548345847ca",
+    "root": "952ce94f8eccea81de8eb2ca233b2cc186d5db1339724f95ac2cdb7c16e5c161",
+    "skills": "309bb1243baffc97b6f62c90e4d112e3fddac77f7ec1028fd9fc812c46fcf066"
   },
   "language": "en",
   "outputs": {
-    "AGENTS.md": "d63cac9b2803d33208d4292dbbfde1e437f4d224321630bf5d02fed0393bbf36"
+    "AGENTS.md": "800b28d72cc69f4b40612a224d51f7c879b58769fd4fc18a73eb916657f386aa"
   },
   "profiles": [
     "code",
@@ -18,12 +18,12 @@
   "schema": 2,
   "skills": {
     "files": {
-      ".agents/skills/ac-workflow/SKILL.md": "7d88f5cb327bbc5006b1ad3e1cbc0f4d8c209b233d57488887789a0c4bb8add4",
+      ".agents/skills/ac-workflow/SKILL.md": "187f3c3698a5ea464a1aa5ff3ceb08ebb84af69ac9763a4a4dd466bd9a841245",
       ".agents/skills/accounting/SKILL.md": "2ab994e557d82493088edcd9c9de8dd7d83be3329a6949f687a7cc3c160ed037",
       ".agents/skills/deploy-evidence/SKILL.md": "e4c61daad3538b9d75c497e1689cdb4ff312c41b43506ce5f3786ea36280223d",
       ".agents/skills/secrets-management/SKILL.md": "2f8a99c7198a06efc3b23ca227f3049816095715eb7d93e76d400e56b4bc02b4",
       ".agents/skills/ux-review/SKILL.md": "8223f47efd1cf26930191c7d02222f78fcb9056c13415dd8c1f4479f03c04876",
-      ".claude/skills/ac-workflow/SKILL.md": "7d88f5cb327bbc5006b1ad3e1cbc0f4d8c209b233d57488887789a0c4bb8add4",
+      ".claude/skills/ac-workflow/SKILL.md": "187f3c3698a5ea464a1aa5ff3ceb08ebb84af69ac9763a4a4dd466bd9a841245",
       ".claude/skills/accounting/SKILL.md": "2ab994e557d82493088edcd9c9de8dd7d83be3329a6949f687a7cc3c160ed037",
       ".claude/skills/deploy-evidence/SKILL.md": "e4c61daad3538b9d75c497e1689cdb4ff312c41b43506ce5f3786ea36280223d",
       ".claude/skills/secrets-management/SKILL.md": "2f8a99c7198a06efc3b23ca227f3049816095715eb7d93e76d400e56b4bc02b4",
@@ -35,7 +35,7 @@
     "links": {},
     "root": ".agents/skills"
   },
-  "source_revision": "bda76ae93aa87bfcdff257e68ccbdf8bcd773cdb",
+  "source_revision": "8bf2bc3d1c6e5467e01d91063455def45b21b400",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
