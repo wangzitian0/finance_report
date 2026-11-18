@@ -1,4 +1,4 @@
-from __future__ import annotations; import asyncio; import os; import time; from collections import Counter; from dataclasses import dataclass; from datetime import date; from decimal import Decimal; from pathlib import Path; import httpx; import pytest; from common.testing.ac_proof import ac_proof; from deployment_pin import assert_pinned_deployment, resolve_expected_commit; from journey_checkpoint import checkpoint; from playwright.async_api import Page; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); POLL_SECONDS = 3; SETTLE_SECONDS = 5; AUTO_ACCEPT_CONFIDENCE = 85; INSTITUTION = 'Stage One Routing Bank'; CLEAN_ACCOUNT_NUMBER = '5551-234-8901'; BROKEN_ACCOUNT_NUMBER = '5551-234-7702'; CURRENCY = 'SGD'; PERIOD_START = date(2026, 5, 1); PERIOD_END = date(2026, 5, 31); OPENING_BALANCE = Decimal('2000.00'); CLEAN_CLOSING_BALANCE = Decimal('4837.50'); BROKEN_CLOSING_BALANCE = CLEAN_CLOSING_BALANCE + Decimal('0.05'); BROKEN_REVIEW_REASON = 'Balance mismatch: delta=0.05 exceeds tolerance 0.001'
+from __future__ import annotations; import asyncio; import os; from collections import Counter; from dataclasses import dataclass; from datetime import date; from decimal import Decimal; from pathlib import Path; import httpx; import pytest; from common.testing.ac_proof import ac_proof; from deployment_pin import assert_pinned_deployment, resolve_expected_commit; from journey_checkpoint import checkpoint; from playwright.async_api import Page; from tests.e2e.auto_accept_poll import wait_for_auto_approved_statement; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); POLL_SECONDS = 3; SETTLE_SECONDS = 5; AUTO_ACCEPT_CONFIDENCE = 85; INSTITUTION = 'Stage One Routing Bank'; CLEAN_ACCOUNT_NUMBER = '5551-234-8901'; BROKEN_ACCOUNT_NUMBER = '5551-234-7702'; CURRENCY = 'SGD'; PERIOD_START = date(2026, 5, 1); PERIOD_END = date(2026, 5, 31); OPENING_BALANCE = Decimal('2000.00'); CLEAN_CLOSING_BALANCE = Decimal('4837.50'); BROKEN_CLOSING_BALANCE = CLEAN_CLOSING_BALANCE + Decimal('0.05'); BROKEN_REVIEW_REASON = 'Balance mismatch: delta=0.05 exceeds tolerance 0.001'
 @dataclass(frozen=True)
 class FixtureRow: txn_date: date; description: str; direction: str; amount: Decimal
 FIXTURE_ROWS = (FixtureRow(date(2026, 5, 3), 'Salary Credit ACME PTE LTD', 'IN', Decimal('3000.00')), FixtureRow(date(2026, 5, 7), 'FairPrice Supermarket Groceries', 'OUT', Decimal('85.40')), FixtureRow(date(2026, 5, 12), 'ComfortDelGro Taxi Fare', 'OUT', Decimal('23.60')), FixtureRow(date(2026, 5, 20), 'Singtel Mobile Bill', 'OUT', Decimal('55.00')), FixtureRow(date(2026, 5, 31), 'Interest Credited', 'IN', Decimal('1.50'))); _api_url = lambda path: f"{APP_URL.rstrip('/')}/api{path}"
@@ -16,17 +16,24 @@ async def _get_statement(client: httpx.AsyncClient, statement_id: str) -> dict: 
 async def _get_journal_entries(client: httpx.AsyncClient) -> list[dict]: response = await client.get(_api_url('/journal-entries?limit=100')); assert response.status_code == 200, f'journal entry read failed: {response.status_code} {response.text}'; payload = response.json(); assert payload['total'] == len(payload['items']), 'the user holds more entries than one page; the count check needs every entry'; return payload['items']
 def _posted_entries_for(entries: list[dict], statement: dict) -> list[dict]: transaction_ids = {transaction['id'] for transaction in statement['transactions']}; return [entry for entry in entries if entry['source_id'] in transaction_ids and entry['status'] == 'posted']
 async def _wait_for_auto_accept(client: httpx.AsyncClient, statement_id: str) -> tuple[dict, list[dict]]:
-    deadline = time.monotonic() + PARSING_TIMEOUT_MS / 1000; statement: dict = {}; posted: list[dict] = []
-    while time.monotonic() < deadline:
-        statement = await _get_statement(client, statement_id); status = statement['status']; pytest.fail(f"clean statement was not auto-accepted: status={status} confidence_score={statement.get('confidence_score')} balance_validated={statement.get('balance_validated')} validation_error={statement.get('validation_error')!r}") if status in ('parsed', 'rejected', 'uploaded') else None
-        if status == 'approved':
-            posted = _posted_entries_for(await _get_journal_entries(client), statement)
-            if len(posted) == len(FIXTURE_ROWS): return (statement, posted)
-        await asyncio.sleep(POLL_SECONDS)
-    pytest.fail(f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms (clean statement: approved with every entry posted): status={statement.get('status')} posted_entries={len(posted)}")
+    async def _fetch_posted(statement: dict) -> tuple[bool, list[dict]]:
+        posted = _posted_entries_for(await _get_journal_entries(client), statement)
+        return (len(posted) == len(FIXTURE_ROWS), posted)
+
+    return await wait_for_auto_approved_statement(
+        client,
+        api_url=_api_url,
+        statement_id=statement_id,
+        timeout_ms=PARSING_TIMEOUT_MS,
+        poll_seconds=POLL_SECONDS,
+        fetch_entries=_fetch_posted,
+        terminal_fail_statuses=frozenset({'rejected', 'uploaded'}),
+        failure_prefix='clean statement was not auto-accepted',
+        timeout_message=lambda st, entries: f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms (clean statement: approved with every entry posted): status={st.get('status')} posted_entries={len(entries)}",
+    )
 async def _wait_for_parse_end(client: httpx.AsyncClient, statement_id: str) -> dict:
-    deadline = time.monotonic() + PARSING_TIMEOUT_MS / 1000; statement: dict = {}
-    while time.monotonic() < deadline:
+    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000; statement: dict = {}
+    while asyncio.get_running_loop().time() < deadline:
         statement = await _get_statement(client, statement_id)
         if statement['status'] != 'parsing': return statement
         await asyncio.sleep(POLL_SECONDS)
