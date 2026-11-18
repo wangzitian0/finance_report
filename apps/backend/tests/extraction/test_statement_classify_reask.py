@@ -34,7 +34,7 @@ from tests.extraction.test_statement_classify_run import (
     _run,
     _seed,
 )
-from tests.extraction.test_statement_classify_run_phases import _worker
+from tests.extraction._statement_run_helpers import _worker
 from tests.statement_ingestion import classify_statement
 
 HINTS = RunHints(keywords=["Grab"], note="Grab rides are transport.")
@@ -356,9 +356,7 @@ async def test_AC_extraction_2994_150_a_run_that_failed_resumes_and_skips_the_ro
     assert other.asked_kinds == set(ANSWERS), "other hints ask every row"
 
 
-async def test_AC_extraction_3057_superseded_row_for_current_policy_does_not_block_classify(
-    db, test_user, monkeypatch
-):
+async def test_AC_extraction_3057_superseded_row_for_current_policy_does_not_block_classify(db, test_user, monkeypatch):
     """#3057: An orphaned SUPERSEDED row under the current policy version must not skip automatic classification."""
     seeded, _auto_run_id, _automatic = await _classified_statement(db, test_user, monkeypatch)
     grab_answer = await _answer(db, test_user, "Grab")
@@ -373,3 +371,48 @@ async def test_AC_extraction_3057_superseded_row_for_current_policy_does_not_blo
     live_grab = await _answer(db, test_user, "Grab")
     assert live_grab.status in (ClassificationStatus.APPLIED, ClassificationStatus.DRAFT)
     assert live_grab.tags["run_id"] == str(second_run_id)
+
+
+async def test_void_entry_allows_reask_and_settlement_skips_covered(db, test_user, monkeypatch):
+    from src.composition import compose_reviewed_disposition_dependencies
+    from src.config import settings
+    from src.extraction import EconomicIntent, settle_drafts_after_posting
+    from src.ledger import JournalEntry, JournalEntryStatus, void_journal_entry
+    from src.reconciliation import ReviewedDispositionCommand, submit_reviewed_disposition
+
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", False)
+    seeded, _auto_run_id, _ = await _classified_statement(
+        db, test_user, monkeypatch, model=ReaskModel(confidence={"Grab": 75})
+    )
+    grab_txn = next(t for t in seeded.transactions if t.description.startswith("Grab"))
+    draft = await _answer(db, test_user, "Grab")
+    bank = Account(user_id=test_user.id, name="Bank void test", type=AccountType.ASSET, currency="SGD")
+    db.add(bank)
+    await db.flush()
+    seeded.statement.account_id = bank.id
+    await db.flush()
+    await submit_reviewed_disposition(
+        db,
+        transaction_id=grab_txn.id,
+        user_id=test_user.id,
+        command=ReviewedDispositionCommand(
+            intent=EconomicIntent.EXPENSE,
+            counter_account_id=draft.account_id,
+            category="GENERAL",
+            rationale="Posted before voiding.",
+        ),
+        dependencies=compose_reviewed_disposition_dependencies(db),
+        base_currency="SGD",
+    )
+    posted_entry = await db.scalar(select(JournalEntry).where(JournalEntry.source_id == grab_txn.id))
+    assert posted_entry is not None
+    await void_journal_entry(db, posted_entry.id, "Voided before re-ask", test_user.id)
+    await settle_drafts_after_posting(db, grab_txn.id, accepted_id=None)
+    await db.commit()
+    assert posted_entry.status is JournalEntryStatus.VOID
+
+    reasked = _install(monkeypatch, ReaskModel())
+    run_id = await _user_run(db, seeded.id, test_user)
+    await _worker(create_session_maker_from_db(db), run_id)
+    assert (await _run(db, run_id)).state is RunState.SUCCEEDED
+    assert "Grab" in reasked.asked_kinds

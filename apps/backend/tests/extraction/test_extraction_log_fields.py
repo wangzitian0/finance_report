@@ -183,3 +183,18 @@ async def test_AC_extraction_2985_7_creating_an_atomic_transaction_writes_no_per
     assert txn.id is not None
     assert not [e for e in logs if "atomic transaction" in str(e["event"]).lower()]
     assert "123.45" not in str(logs)
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("HTTP 400 occurred, retry returned HTTP 500", "400"),
+        ("HTTP 429: Rate limit exceeded", "429"),
+        ("Connection timeout", None),
+        ("HTTPS 200", None),
+    ],
+)
+def test_extract_status_code(message: str, expected: str | None) -> None:
+    from src.extraction.extension.service import ExtractionService
+
+    assert ExtractionService()._extract_status_code(message) == expected

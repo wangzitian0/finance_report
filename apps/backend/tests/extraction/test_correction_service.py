@@ -1,16 +1,128 @@
-'EPIC-018'; from uuid import uuid4; import pytest; from src.extraction.extension.correction_service import clear_all_correction_cache, get_few_shot_examples, record_correction; from src.extraction.extension.prompts.statement import get_parsing_prompt; from tests.factories import AccountFactory, AtomicTransactionFactory, UserFactory
+"EPIC-018"
+
+from uuid import uuid4
+import pytest
+from src.extraction.extension.correction_service import (
+    clear_all_correction_cache,
+    get_few_shot_examples,
+    record_correction,
+)
+from src.extraction.extension.prompts.statement import get_parsing_prompt
+from tests.factories import AccountFactory, AtomicTransactionFactory, UserFactory
+
+
 @pytest.fixture(autouse=True)
-def _clear_cache(): clear_all_correction_cache(); yield; clear_all_correction_cache()
-async def test_record_correction_stores_corrected_category(db, test_user): 'AC-extraction.1802.1 AC18.2.1'; txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description='Grab taxi'); await db.commit(); correction = await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category='Transport'); await db.commit(); assert correction.original_category is None; assert correction.corrected_category == 'Transport'; assert correction.transaction_description == 'Grab taxi'; assert correction.user_id == test_user.id
-async def test_record_correction_handles_null_original(db, test_user): txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description='Unknown merchant'); await db.commit(); correction = await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category='Entertainment'); await db.commit(); assert correction.original_category is None; assert correction.corrected_category == 'Entertainment'
+def _clear_cache():
+    clear_all_correction_cache()
+    yield
+    clear_all_correction_cache()
+
+
+async def test_record_correction_stores_corrected_category(db, test_user):
+    "AC-extraction.1802.1 AC18.2.1"
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Grab taxi")
+    await db.commit()
+    correction = await record_correction(
+        db, user_id=test_user.id, transaction_id=txn.id, corrected_category="Transport"
+    )
+    await db.commit()
+    assert correction.original_category is None
+    assert correction.corrected_category == "Transport"
+    assert correction.transaction_description == "Grab taxi"
+    assert correction.user_id == test_user.id
+
+
+async def test_record_correction_handles_null_original(db, test_user):
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Unknown merchant")
+    await db.commit()
+    correction = await record_correction(
+        db, user_id=test_user.id, transaction_id=txn.id, corrected_category="Entertainment"
+    )
+    await db.commit()
+    assert correction.original_category is None
+    assert correction.corrected_category == "Entertainment"
+
+
 async def test_record_correction_not_found_raises(db, test_user):
-    with pytest.raises(ValueError, match='not found'): await record_correction(db, user_id=test_user.id, transaction_id=uuid4(), corrected_category='Transport')
+    with pytest.raises(ValueError, match="not found"):
+        await record_correction(db, user_id=test_user.id, transaction_id=uuid4(), corrected_category="Transport")
+
+
 async def test_AC18_2_2_record_correction_rejects_cross_user_corrected_account(db, test_user):
-    'AC-extraction.1802.2 AC18.2.2'; txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description='Grab taxi'); other_user = await UserFactory.create_async(db); other_account = await AccountFactory.create_async(db, user_id=other_user.id, name='Other User Account'); await db.commit()
-    with pytest.raises(ValueError, match='Account .* not found'): await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category='Transport', corrected_account_id=other_account.id)
-async def test_few_shot_examples_returns_corrections(db, test_user): 'AC18.2.3'; txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description='Coffee at Starbucks'); await db.flush(); await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category='Dining'); await db.commit(); examples = await get_few_shot_examples(db, user_id=test_user.id); assert len(examples) == 1; assert examples[0]['description'] == 'Coffee at Starbucks'; assert examples[0]['original_category'] == 'Other'; assert examples[0]['corrected_category'] == 'Dining'
+    "AC-extraction.1802.2 AC18.2.2"
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Grab taxi")
+    other_user = await UserFactory.create_async(db)
+    other_account = await AccountFactory.create_async(db, user_id=other_user.id, name="Other User Account")
+    await db.commit()
+    with pytest.raises(ValueError, match="Account .* not found"):
+        await record_correction(
+            db,
+            user_id=test_user.id,
+            transaction_id=txn.id,
+            corrected_category="Transport",
+            corrected_account_id=other_account.id,
+        )
+
+
+async def test_few_shot_examples_returns_corrections(db, test_user):
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Coffee at Starbucks")
+    await db.flush()
+    await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category="Dining")
+    await db.commit()
+    examples = await get_few_shot_examples(db, user_id=test_user.id)
+    assert len(examples) == 1
+    assert examples[0]["description"] == "Coffee at Starbucks"
+    assert examples[0]["original_category"] == "Other"
+    assert examples[0]["corrected_category"] == "Dining"
+
+
 async def test_record_correction_invalid_category_raises(db, test_user):
-    from src.extraction import SuggestionCorrectionError; txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description='Coffee at Starbucks'); await db.flush()
-    with pytest.raises(SuggestionCorrectionError): await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category='Food & Dining')
-async def test_few_shot_examples_empty_returns_empty(db, test_user): examples = await get_few_shot_examples(db, user_id=test_user.id); assert examples == []
-async def test_few_shot_cache_invalidates(db, test_user): 'AC-extraction.1802.4 AC18.2.4'; examples = await get_few_shot_examples(db, user_id=test_user.id); assert examples == []; txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description='Uber ride'); await db.flush(); await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category='Transport'); await db.commit(); examples = await get_few_shot_examples(db, user_id=test_user.id); assert len(examples) == 1
+    from src.extraction import SuggestionCorrectionError
+
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Coffee at Starbucks")
+    await db.flush()
+    with pytest.raises(SuggestionCorrectionError):
+        await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category="Food & Dining")
+
+
+async def test_few_shot_examples_empty_returns_empty(db, test_user):
+    examples = await get_few_shot_examples(db, user_id=test_user.id)
+    assert examples == []
+
+
+async def test_few_shot_cache_invalidates(db, test_user):
+    "AC-extraction.1802.4 AC18.2.4"
+    examples = await get_few_shot_examples(db, user_id=test_user.id)
+    assert examples == []
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Uber ride")
+    await db.flush()
+    await record_correction(db, user_id=test_user.id, transaction_id=txn.id, corrected_category="Transport")
+    await db.commit()
+    examples = await get_few_shot_examples(db, user_id=test_user.id)
+    assert len(examples) == 1
+
+
+async def test_get_few_shot_examples_cache_hit_and_limit(db, test_user):
+    categories = [
+        "DINING",
+        "GROCERIES",
+        "TRANSPORT",
+        "HOUSING",
+        "UTILITIES",
+        "SHOPPING",
+        "HEALTHCARE",
+        "ENTERTAINMENT",
+        "TRAVEL",
+        "EDUCATION",
+        "INSURANCE",
+        "FEES",
+    ]
+    for i in range(12):
+        txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description=f"Txn {i}")
+        await record_correction(
+            db, user_id=test_user.id, transaction_id=txn.id, corrected_category=categories[i % len(categories)]
+        )
+    await db.commit()
+    examples = await get_few_shot_examples(db, user_id=test_user.id)
+    assert len(examples) == 10
+    assert await get_few_shot_examples(db, user_id=test_user.id) == examples

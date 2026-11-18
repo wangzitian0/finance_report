@@ -7,7 +7,6 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 import pytest
-from common.testing.ac_proof import ac_proof
 from src.extraction import ClassificationStatus, RuleType, TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
@@ -205,15 +204,6 @@ def test_corpus_manifest_is_diverse():
     assert actual_unpostable == {}, f"unpostable rows found in corpus manifest (zero allowed): {actual_unpostable}"
 
 
-@ac_proof(
-    "extraction-corpus-journeys-pr",
-    ac_ids=["AC-llm.11.2", "AC-llm.11.4", "AC-llm.11.5"],
-    scope="behavioral",
-    ci_tier="pr_ci",
-    trust_mode="deterministic_pr",
-    source_classes=["bank_statement"],
-    issue="#1613",
-)
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):
@@ -355,15 +345,6 @@ MULTI_STATEMENT_FINGERPRINTS: tuple[str, ...] = (
 )
 
 
-@ac_proof(
-    "extraction-corpus-multi-statement-pr",
-    ac_ids=["AC-llm.11.6"],
-    scope="behavioral",
-    ci_tier="pr_ci",
-    trust_mode="deterministic_pr",
-    source_classes=["bank_statement"],
-    issue="#1681",
-)
 @pytest.mark.e2e
 async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user):
     "AC-llm.11.6 AC8.15.1 EPIC-023"

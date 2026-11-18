@@ -156,10 +156,14 @@ async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_
     _capture_dispatch(monkeypatch)
     hints = {"keywords": ["salary"], "note": None}
 
-    body = (await client.post(f"/statements/{statement.id}/runs", json={"hints": hints, "model": "vendor/vision-x"})).json()
+    body = (
+        await client.post(f"/statements/{statement.id}/runs", json={"hints": hints, "model": "vendor/vision-x"})
+    ).json()
 
     assert body["prompt_template_version"] == PARSING_PROMPT_TEMPLATE_VERSION
-    assert body["prompt_digest"] == run_prompt_digest(PARSING_PROMPT_TEMPLATE_VERSION, "vendor/vision-x", RunHints(**hints))
+    assert body["prompt_digest"] == run_prompt_digest(
+        PARSING_PROMPT_TEMPLATE_VERSION, "vendor/vision-x", RunHints(**hints)
+    )
 
 
 @pytest.mark.parametrize(
@@ -174,7 +178,16 @@ async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_
         {"hints": {"note": "bell\x07"}},
         {"hints": {"keywords": ["a"], "unknown": 1}},
     ],
-    ids=["unknown_kind", "actor_in_body", "21_keywords", "65_chars", "empty_keyword", "501_note", "control", "extra_hint_field"],
+    ids=[
+        "unknown_kind",
+        "actor_in_body",
+        "21_keywords",
+        "65_chars",
+        "empty_keyword",
+        "501_note",
+        "control",
+        "extra_hint_field",
+    ],
 )
 async def test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits(
     body, client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
@@ -247,9 +260,7 @@ async def test_AC_extraction_2994_53_post_runs_of_a_csv_statement_with_hints_giv
     assert len(jobs) == 1
 
 
-async def test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_their_hints(
-    client, db, test_user
-):
+async def test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_their_hints(client, db, test_user):
     """AC-extraction.2994.54: GET runs returns each attempt by seq with its hints, actor, state and error."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
@@ -275,7 +286,11 @@ async def test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_t
     first, latest = body["items"]
     assert set(first) == RUN_FIELDS and set(latest) == RUN_FIELDS
     assert [first["seq"], latest["seq"]] == [1, 2]
-    assert (first["state"], first["error_code"], first["error_message"]) == ("failed", "extraction_error", "The parse failed.")
+    assert (first["state"], first["error_code"], first["error_message"]) == (
+        "failed",
+        "extraction_error",
+        "The parse failed.",
+    )
     assert first["finished_at"] is not None and first["hints"] == {"keywords": [], "note": None}
     assert (latest["id"], latest["state"], latest["actor_kind"], latest["trigger"]) == (
         str(second.id),
@@ -452,7 +467,9 @@ async def test_AC_extraction_2994_69_reject_on_a_pdf_statement_still_records_its
 
 
 @pytest.mark.no_db
-@pytest.mark.parametrize("file_type,applies", [("pdf", True), ("png", True), ("jpg", True), ("jpeg", True), ("csv", False)])
+@pytest.mark.parametrize(
+    "file_type,applies", [("pdf", True), ("png", True), ("jpg", True), ("jpeg", True), ("csv", False)]
+)
 def test_AC_extraction_2994_69_hints_apply_only_to_the_file_types_that_send_a_prompt(file_type, applies):
     """AC-extraction.2994.69: The package rule says which file types send a prompt, and the parse uses the same set."""
     from src.extraction import hints_apply_to_file_type
@@ -466,9 +483,7 @@ async def test_AC_extraction_2994_54_get_runs_lists_a_run_whose_stored_hints_no_
     statement_id = statement.id
     run_id = await _failed_first_run(db, test_user, statement_id)
     await db.execute(
-        update(StatementRun)
-        .where(StatementRun.id == run_id)
-        .values(hints={"keywords": ["ok"], "note": "bell\x07"})
+        update(StatementRun).where(StatementRun.id == run_id).values(hints={"keywords": ["ok"], "note": "bell\x07"})
     )
     await db.commit()
 
@@ -517,7 +532,9 @@ async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_afte
     async def resolve_after_a_retirement(*args, **kwargs):
         async with maker() as other_tab:
             await other_tab.execute(
-                update(StatementSummary).where(StatementSummary.id == statement_id).values(status=BankStatementStatus.RETIRED)
+                update(StatementSummary)
+                .where(StatementSummary.id == statement_id)
+                .values(status=BankStatementStatus.RETIRED)
             )
             await other_tab.commit()
         return await original(*args, **kwargs)
@@ -527,7 +544,9 @@ async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_afte
     response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check again"})
 
     assert response.status_code == 409, response.text
-    assert await _status(db, statement_id) is BankStatementStatus.RETIRED, "the reject must not revive a retired statement"
+    assert await _status(db, statement_id) is BankStatementStatus.RETIRED, (
+        "the reject must not revive a retired statement"
+    )
     assert await _runs(db, statement_id) == []
     assert jobs == []
 
@@ -542,9 +561,9 @@ async def test_AC_extraction_2994_78_a_reject_and_a_rerun_at_once_give_one_winne
         statement_id = statement.id
         first, second = await asyncio.gather(
             client.post(f"/statements/{statement_id}/rejections", json={"notes": "again"}),
-            client.post(f"/statements/{statement_id}/runs", json={}) if round_number % 2 else client.post(
-                f"/statements/{statement_id}/rejections", json={"notes": "twice"}
-            ),
+            client.post(f"/statements/{statement_id}/runs", json={})
+            if round_number % 2
+            else client.post(f"/statements/{statement_id}/rejections", json={"notes": "twice"}),
         )
 
         codes = sorted([first.status_code, second.status_code])
@@ -553,3 +572,22 @@ async def test_AC_extraction_2994_78_a_reject_and_a_rerun_at_once_give_one_winne
         assert await _status(db, statement_id) is BankStatementStatus.PARSING
     await statements_router.wait_for_parse_tasks()
     assert len(jobs) == 6
+
+
+async def test_classify_run_dispatch_failure_409_and_rejections_validation(client, db, monkeypatch, test_user):
+    statement = await _statement(db, test_user)
+    sid = statement.id
+    hints = {"keywords": ["Grab"], "note": "Check"}
+
+    def broken_dispatch(run_id, *, db):
+        raise RuntimeError("secret dispatch failure")
+
+    monkeypatch.setattr(statements_router, "submit_classify_run", broken_dispatch)
+    resp_503 = await client.post(f"/statements/{sid}/runs", json={"kind": "classify", "hints": hints})
+    assert resp_503.status_code == 503
+    runs = await _runs(db, sid)
+    assert len(runs) == 1 and runs[0].error_code == "dispatch_failed"
+
+    bad_reject = await client.post(f"/statements/{sid}/rejections", json={"notes": "bell\x07"})
+    assert bad_reject.status_code == 422
+    assert set(bad_reject.json()["detail"][0]) >= {"loc", "msg", "type"}

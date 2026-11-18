@@ -1,22 +1,367 @@
-'AC-extraction.304.9 AC-extraction.304.10 AC-extraction.304.11 AC-extraction.304.12 EPIC-017'; from datetime import date; from decimal import Decimal; from pathlib import Path; from uuid import uuid4; from sqlalchemy import select; from src.database import create_session_maker_from_db; from src.extraction import BankStatementStatus, DocumentSource, DocumentType, ExtractionMethod, ParseJob, Stage1Status, StatementEvidenceType, UploadedDocument; from src.extraction.extension.brokerage_positions import BrokeragePositionImportService, brokerage_currency_balances, looks_like_brokerage_document, parse_brokerage_positions; from src.extraction.extension.prompts.statement import BROKERAGE_POSITIONS_PROMPT, SYSTEM_PROMPT, get_parsing_prompt; from src.extraction.extension.result_contract import build_statement_extraction_result; from src.extraction.extension.service import ExtractionService; from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present; from src.extraction.orm.layer2 import AtomicPosition; from src.extraction.orm.statement_summary import StatementSummary; from tests.factories import StatementSummaryFactory; from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background; _synthetic_moomoo_positions_payload = lambda: {'institution': 'Moomoo', 'snapshot_date': '2026-06-30', 'currency': 'USD', 'positions': [{'symbol': 'ACME', 'quantity': '10', 'market_value': '100.00', 'currency': 'USD', 'asset_type': 'stock'}, {'symbol': 'GLOBEX', 'quantity': '5', 'market_value': '250.00', 'currency': 'USD', 'asset_type': 'stock'}]}; _synthetic_ibkr_multicurrency_payload = lambda: {'institution': 'Interactive Brokers', 'snapshot_date': '2026-06-30', 'positions': [{'symbol': 'ACME', 'quantity': '10', 'market_value': '2124.00', 'currency': 'USD'}, {'symbol': 'GLOBEX', 'quantity': '5', 'market_value': '2276.00', 'currency': 'USD'}, {'symbol': 'INITECH', 'quantity': '100', 'market_value': '80500.00', 'currency': 'HKD'}, {'symbol': 'UMBRELLA', 'quantity': '3', 'market_value': '3810.00', 'currency': 'SGD'}]}
+"AC-extraction.304.9 AC-extraction.304.10 AC-extraction.304.11 AC-extraction.304.12 EPIC-017"
+
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
+from sqlalchemy import select
+from src.database import create_session_maker_from_db
+from src.extraction import (
+    BankStatementStatus,
+    DocumentSource,
+    DocumentType,
+    ExtractionMethod,
+    ParseJob,
+    Stage1Status,
+    StatementEvidenceType,
+    UploadedDocument,
+)
+from src.extraction.extension.brokerage_positions import (
+    BrokeragePositionImportService,
+    brokerage_currency_balances,
+    looks_like_brokerage_document,
+    parse_brokerage_positions,
+)
+from src.extraction.extension.prompts.statement import BROKERAGE_POSITIONS_PROMPT, SYSTEM_PROMPT, get_parsing_prompt
+from src.extraction.extension.result_contract import build_statement_extraction_result
+from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
+from src.extraction.orm.layer2 import AtomicPosition
+from src.extraction.orm.statement_summary import StatementSummary
+from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
+
+_synthetic_moomoo_positions_payload = lambda: {
+    "institution": "Moomoo",
+    "snapshot_date": "2026-06-30",
+    "currency": "USD",
+    "positions": [
+        {"symbol": "ACME", "quantity": "10", "market_value": "100.00", "currency": "USD", "asset_type": "stock"},
+        {"symbol": "GLOBEX", "quantity": "5", "market_value": "250.00", "currency": "USD", "asset_type": "stock"},
+    ],
+}
+_synthetic_ibkr_multicurrency_payload = lambda: {
+    "institution": "Interactive Brokers",
+    "snapshot_date": "2026-06-30",
+    "positions": [
+        {"symbol": "ACME", "quantity": "10", "market_value": "2124.00", "currency": "USD"},
+        {"symbol": "GLOBEX", "quantity": "5", "market_value": "2276.00", "currency": "USD"},
+        {"symbol": "INITECH", "quantity": "100", "market_value": "80500.00", "currency": "HKD"},
+        {"symbol": "UMBRELLA", "quantity": "3", "market_value": "3810.00", "currency": "SGD"},
+    ],
+}
 from tests.statement_ingestion import run_for
-def test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution(): 'AC-extraction.304.9'; assert looks_like_brokerage_document(filename='moomoo-2506.pdf', institution=None); assert looks_like_brokerage_document(filename='statement.pdf', institution='Futu Securities'); assert looks_like_brokerage_document(filename='activity.csv', institution='Interactive Brokers'); assert not looks_like_brokerage_document(filename='dbs-statement.pdf', institution='DBS'); assert not looks_like_brokerage_document(filename='statement.pdf', institution=None); 'AC-extraction.304.9 AC-extraction.304.10'; 'AC-extraction.304.9 AC-extraction.304.10'; _m1_brokerage_prompt = get_parsing_prompt('Moomoo', document_kind='brokerage'); assert _m1_brokerage_prompt.startswith(BROKERAGE_POSITIONS_PROMPT); assert '"positions"' in _m1_brokerage_prompt; _m1_bank_prompt = get_parsing_prompt('DBS'); assert _m1_bank_prompt.startswith(SYSTEM_PROMPT); assert _m1_bank_prompt == get_parsing_prompt('DBS', document_kind='bank'); assert '"positions"' not in SYSTEM_PROMPT
+
+
+def test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution():
+    "AC-extraction.304.9"
+    assert looks_like_brokerage_document(filename="moomoo-2506.pdf", institution=None)
+    assert looks_like_brokerage_document(filename="statement.pdf", institution="Futu Securities")
+    assert looks_like_brokerage_document(filename="activity.csv", institution="Interactive Brokers")
+    assert not looks_like_brokerage_document(filename="dbs-statement.pdf", institution="DBS")
+    assert not looks_like_brokerage_document(filename="statement.pdf", institution=None)
+    "AC-extraction.304.9 AC-extraction.304.10"
+    "AC-extraction.304.9 AC-extraction.304.10"
+    _m1_brokerage_prompt = get_parsing_prompt("Moomoo", document_kind="brokerage")
+    assert _m1_brokerage_prompt.startswith(BROKERAGE_POSITIONS_PROMPT)
+    assert '"positions"' in _m1_brokerage_prompt
+    _m1_bank_prompt = get_parsing_prompt("DBS")
+    assert _m1_bank_prompt.startswith(SYSTEM_PROMPT)
+    assert _m1_bank_prompt == get_parsing_prompt("DBS", document_kind="bank")
+    assert '"positions"' not in SYSTEM_PROMPT
+
+
 async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_call(monkeypatch):
-    'AC-extraction.304.9'; service = ExtractionService(); service.api_key = 'test-key'; captured: dict[str, str] = {}
-    async def capture_prompt(*, messages, **kwargs): captured['prompt'] = messages[0]['content'][0]['text']; return {'institution': 'Moomoo', 'positions': []}
-    monkeypatch.setattr(service, '_extract_json_with_model', capture_prompt); await service.extract_financial_data(file_content=b'\x89PNG\r\n', institution='Moomoo', file_type='png', force_model='test-vision-model', filename='moomoo-positions-2506.png'); assert captured['prompt'].startswith(BROKERAGE_POSITIONS_PROMPT)
+    "AC-extraction.304.9"
+    service = ExtractionService()
+    service.api_key = "test-key"
+    captured: dict[str, str] = {}
+
+    async def capture_prompt(*, messages, **kwargs):
+        captured["prompt"] = messages[0]["content"][0]["text"]
+        return {"institution": "Moomoo", "positions": []}
+
+    monkeypatch.setattr(service, "_extract_json_with_model", capture_prompt)
+    await service.extract_financial_data(
+        file_content=b"\x89PNG\r\n",
+        institution="Moomoo",
+        file_type="png",
+        force_model="test-vision-model",
+        filename="moomoo-positions-2506.png",
+    )
+    assert captured["prompt"].startswith(BROKERAGE_POSITIONS_PROMPT)
+
+
 async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(monkeypatch):
-    'AC-extraction.304.9'; service = ExtractionService(); service.api_key = 'test-key'; captured: dict[str, str] = {}
-    async def capture_prompt(*, messages, **kwargs): captured['prompt'] = messages[0]['content'][0]['text']; return {'institution': 'DBS', 'transactions': []}
-    monkeypatch.setattr(service, '_extract_json_with_model', capture_prompt); await service.extract_financial_data(file_content=b'\x89PNG\r\n', institution='DBS', file_type='png', force_model='test-vision-model', filename='dbs-statement.png'); assert captured['prompt'].startswith(SYSTEM_PROMPT)
-def test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser(): 'AC-extraction.304.10'; payload = {'institution': 'Moomoo', 'snapshot_date': '2026-06-30', 'currency': 'USD', 'positions': [{'symbol': 'AAPL', 'quantity': '15', 'price': '212.40', 'market_value': '3186.00', 'currency': 'USD', 'asset_type': 'stock'}]}; snapshots = parse_brokerage_positions(payload, filename='moomoo-positions-2506.pdf'); assert len(snapshots) == 1; assert snapshots[0].asset_identifier == 'AAPL'; assert snapshots[0].quantity == Decimal('15'); assert snapshots[0].market_value == Decimal('3186.00'); assert snapshots[0].currency == 'USD'
-async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, test_user): 'AC-extraction.304.11'; statement_id = uuid4(); statement = StatementSummaryFactory.build(id=statement_id, user_id=test_user.id, status=BankStatementStatus.PARSED, stage1_status=None, file_hash='b5-empty-positions', institution='Futu'); db.add(statement); await db.commit(); await route_brokerage_for_review_if_present(summary=statement, db=db, user_id=test_user.id, filename='futu-empty.pdf', institution='Futu', payload={'institution': 'Futu', 'positions': []}); db.expire_all(); refreshed = await db.get(StatementSummary, statement_id); assert refreshed is not None; assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW; assert refreshed.validation_error is not None; assert 'no positions detected' in refreshed.validation_error
+    "AC-extraction.304.9"
+    service = ExtractionService()
+    service.api_key = "test-key"
+    captured: dict[str, str] = {}
+
+    async def capture_prompt(*, messages, **kwargs):
+        captured["prompt"] = messages[0]["content"][0]["text"]
+        return {"institution": "DBS", "transactions": []}
+
+    monkeypatch.setattr(service, "_extract_json_with_model", capture_prompt)
+    await service.extract_financial_data(
+        file_content=b"\x89PNG\r\n",
+        institution="DBS",
+        file_type="png",
+        force_model="test-vision-model",
+        filename="dbs-statement.png",
+    )
+    assert captured["prompt"].startswith(SYSTEM_PROMPT)
+
+
+def test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser():
+    "AC-extraction.304.10"
+    payload = {
+        "institution": "Moomoo",
+        "snapshot_date": "2026-06-30",
+        "currency": "USD",
+        "positions": [
+            {
+                "symbol": "AAPL",
+                "quantity": "15",
+                "price": "212.40",
+                "market_value": "3186.00",
+                "currency": "USD",
+                "asset_type": "stock",
+            }
+        ],
+    }
+    snapshots = parse_brokerage_positions(payload, filename="moomoo-positions-2506.pdf")
+    assert len(snapshots) == 1
+    assert snapshots[0].asset_identifier == "AAPL"
+    assert snapshots[0].quantity == Decimal("15")
+    assert snapshots[0].market_value == Decimal("3186.00")
+    assert snapshots[0].currency == "USD"
+
+
+async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, test_user):
+    "AC-extraction.304.11"
+    statement_id = uuid4()
+    statement = StatementSummaryFactory.build(
+        id=statement_id,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSED,
+        stage1_status=None,
+        file_hash="b5-empty-positions",
+        institution="Futu",
+    )
+    db.add(statement)
+    await db.commit()
+    await route_brokerage_for_review_if_present(
+        summary=statement,
+        db=db,
+        user_id=test_user.id,
+        filename="futu-empty.pdf",
+        institution="Futu",
+        payload={"institution": "Futu", "positions": []},
+    )
+    db.expire_all()
+    refreshed = await db.get(StatementSummary, statement_id)
+    assert refreshed is not None
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+    assert refreshed.validation_error is not None
+    assert "no positions detected" in refreshed.validation_error
+
+
 async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, db, test_user, monkeypatch):
-    'AC-extraction.304.12'; fixture = _synthetic_moomoo_positions_payload(); expected_rows = fixture['positions']; statement_id = uuid4(); user_id = test_user.id; file_hash = 'b4-b6-moomoo-positions-table'; statement = StatementSummaryFactory.build(id=statement_id, user_id=user_id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution='Moomoo'); db.add(statement); await db.commit()
-    async def fake_parse_document(*args, **kwargs): source = args[1]; session = kwargs['db']; summary = await session.get(StatementSummary, statement_id); summary.institution = 'Moomoo'; summary.currency = 'USD'; summary.status = BankStatementStatus.PARSED; summary.confidence_score = 90; summary.balance_validated = True; summary.currency_balances = [{'currency': 'USD', 'opening': '350.00', 'closing': '350.00'}]; extraction_result = build_statement_extraction_result(source=source, file_type='pdf', statement=summary, transactions=[], provider_payload=fixture, model='fixture-model', provider='fixture-provider', method=ExtractionMethod.GOLDEN_FIXTURE, is_brokerage=True, evidence_type=StatementEvidenceType.POSITION_SNAPSHOT, positions=parse_brokerage_positions(fixture, filename=source.filename, institution='Moomoo')); result_metadata = {'statement_extraction_result': extraction_result.to_payload()}; summary.extraction_metadata = result_metadata; doc = UploadedDocument(user_id=user_id, file_path='statements/moomoo-positions.pdf', file_hash=file_hash, original_filename='moomoo-positions-2506.pdf', document_type=DocumentType.BROKERAGE_STATEMENT, extraction_metadata=result_metadata); session.add(doc); await session.flush(); summary.uploaded_document_id = doc.id; await session.flush(); return extraction_result
-    monkeypatch.setattr('src.extraction.extension.statement_parsing.ExtractionService.parse_document', fake_parse_document); monkeypatch.setattr('src.extraction.extension.statement_parsing.StorageService.generate_presigned_url', lambda *args, **kwargs: 'https://example.com/moomoo-positions-2506.pdf'); await parse_statement_background(job=ParseJob(statement_id=statement_id, run_id=await run_for(db, statement_id), filename='moomoo-positions-2506.pdf', institution='Moomoo', user_id=user_id, account_id=None, file_hash=file_hash, storage_key='statements/moomoo-positions.pdf', model=None), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); db.expire_all(); atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all(); assert len(atomic_rows) == 0; refreshed = await db.get(StatementSummary, statement_id); assert refreshed is not None; assert refreshed.status == BankStatementStatus.PARSED; assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW; assert refreshed.validation_error is None; import_response = await client.post(f'/statements/{statement_id}/brokerage-imports'); assert import_response.status_code == 200, import_response.text; db.expire_all(); atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all(); assert len(atomic_rows) == len(expected_rows); by_identifier = {row.asset_identifier: row for row in atomic_rows}
-    for spec in expected_rows: identifier = spec['symbol']; assert identifier in by_identifier, f'missing imported position {identifier}'; row = by_identifier[identifier]; assert row.market_value == Decimal(spec['market_value']); assert row.quantity == Decimal(spec['quantity']); assert row.currency == spec['currency']; assert row.snapshot_date == date(2026, 6, 30)
-async def test_AC_B6_positions_payload_imports_via_service(db, test_user): 'AC-extraction.304.12'; service = BrokeragePositionImportService(); fixture = _synthetic_moomoo_positions_payload(); result = await service.import_positions(db, user_id=test_user.id, payload=fixture, filename='moomoo-positions-2506.pdf', source_document_id='doc-moomoo-positions', reconcile=False); await db.commit(); assert result.broker == 'Moomoo'; assert result.parsed_positions == len(fixture['positions']); assert result.created_atomic_positions == len(fixture['positions']); rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all(); assert len(rows) == len(fixture['positions']); total_market_value = sum((row.market_value for row in rows), Decimal('0')); expected_total = sum((Decimal(p['market_value']) for p in fixture['positions']), Decimal('0')); assert total_market_value == expected_total
-def test_AC_B3_multi_currency_brokerage_does_not_fabricate_cash_balances(): 'AC-extraction.304.13'; fixture = _synthetic_ibkr_multicurrency_payload(); balances = brokerage_currency_balances(fixture, filename='ibkr-multicurrency-2506.pdf'); assert balances == []
-async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum(test_user): 'AC-extraction.304.13'; from unittest.mock import AsyncMock; service = ExtractionService(); payload = _synthetic_ibkr_multicurrency_payload(); service.extract_financial_data = AsyncMock(return_value=payload); result = await service.parse_document(DocumentSource.resolve(path=Path('ibkr-multicurrency-2506.pdf'), content=b'%PDF-1.7'), institution='Interactive Brokers', user_id=test_user.id); assert result.transactions == (); assert result.evidence_type is StatementEvidenceType.POSITION_SNAPSHOT; assert result.period_start == date(2026, 6, 30); assert result.period_end == date(2026, 6, 30); assert result.balances == (); assert result.missing_required_facts == ()
-async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_user, monkeypatch): from unittest.mock import AsyncMock; service = ExtractionService(); payload = _synthetic_ibkr_multicurrency_payload(); payload['balances'] = [{'currency': 'USD', 'opening': '4400.00', 'closing': '4400.00'}, {'currency': 'HKD', 'opening': '80500.00', 'closing': '80500.00'}, {'currency': 'SGD', 'opening': '3810.00', 'closing': '3810.00'}]; service.extract_financial_data = AsyncMock(return_value=payload); _failing_per_currency = lambda _extracted: {'balance_valid': False, 'balance_computable': True, 'per_currency': [{'currency': 'USD', 'balance_valid': False, 'expected_closing': '4400.00', 'actual_closing': '4000.00'}, {'currency': 'HKD', 'balance_valid': True}]}; monkeypatch.setattr('src.extraction.extension.service.validate_balance_per_currency', _failing_per_currency); result = await service.parse_document(DocumentSource.resolve(path=Path('ibkr-multicurrency-2506.pdf'), content=b'%PDF-1.7'), institution='Interactive Brokers', user_id=test_user.id); assert len(result.balances) == 3; assert result.balance_validated is False; assert result.review_reasons; assert 'USD' in result.review_reasons[0]; assert 'self-check failed' in result.review_reasons[0].lower()
+    "AC-extraction.304.12"
+    fixture = _synthetic_moomoo_positions_payload()
+    expected_rows = fixture["positions"]
+    statement_id = uuid4()
+    user_id = test_user.id
+    file_hash = "b4-b6-moomoo-positions-table"
+    statement = StatementSummaryFactory.build(
+        id=statement_id, user_id=user_id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution="Moomoo"
+    )
+    db.add(statement)
+    await db.commit()
+
+    async def fake_parse_document(*args, **kwargs):
+        source = args[1]
+        session = kwargs["db"]
+        summary = await session.get(StatementSummary, statement_id)
+        summary.institution = "Moomoo"
+        summary.currency = "USD"
+        summary.status = BankStatementStatus.PARSED
+        summary.confidence_score = 90
+        summary.balance_validated = True
+        summary.currency_balances = [{"currency": "USD", "opening": "350.00", "closing": "350.00"}]
+        extraction_result = build_statement_extraction_result(
+            source=source,
+            file_type="pdf",
+            statement=summary,
+            transactions=[],
+            provider_payload=fixture,
+            model="fixture-model",
+            provider="fixture-provider",
+            method=ExtractionMethod.GOLDEN_FIXTURE,
+            is_brokerage=True,
+            evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+            positions=parse_brokerage_positions(fixture, filename=source.filename, institution="Moomoo"),
+        )
+        result_metadata = {"statement_extraction_result": extraction_result.to_payload()}
+        summary.extraction_metadata = result_metadata
+        doc = UploadedDocument(
+            user_id=user_id,
+            file_path="statements/moomoo-positions.pdf",
+            file_hash=file_hash,
+            original_filename="moomoo-positions-2506.pdf",
+            document_type=DocumentType.BROKERAGE_STATEMENT,
+            extraction_metadata=result_metadata,
+        )
+        session.add(doc)
+        await session.flush()
+        summary.uploaded_document_id = doc.id
+        await session.flush()
+        return extraction_result
+
+    monkeypatch.setattr(
+        "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
+    )
+    monkeypatch.setattr(
+        "src.extraction.extension.statement_parsing.StorageService.generate_presigned_url",
+        lambda *args, **kwargs: "https://example.com/moomoo-positions-2506.pdf",
+    )
+    await parse_statement_background(
+        job=ParseJob(
+            statement_id=statement_id,
+            run_id=await run_for(db, statement_id),
+            filename="moomoo-positions-2506.pdf",
+            institution="Moomoo",
+            user_id=user_id,
+            account_id=None,
+            file_hash=file_hash,
+            storage_key="statements/moomoo-positions.pdf",
+            model=None,
+        ),
+        content=b"%PDF-1.7",
+        session_maker=create_session_maker_from_db(db),
+    )
+    db.expire_all()
+    atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
+    assert len(atomic_rows) == 0
+    refreshed = await db.get(StatementSummary, statement_id)
+    assert refreshed is not None
+    assert refreshed.status == BankStatementStatus.PARSED
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+    assert refreshed.validation_error is None
+    import_response = await client.post(f"/statements/{statement_id}/brokerage-imports")
+    assert import_response.status_code == 200, import_response.text
+    db.expire_all()
+    atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
+    assert len(atomic_rows) == len(expected_rows)
+    by_identifier = {row.asset_identifier: row for row in atomic_rows}
+    for spec in expected_rows:
+        identifier = spec["symbol"]
+        assert identifier in by_identifier, f"missing imported position {identifier}"
+        row = by_identifier[identifier]
+        assert row.market_value == Decimal(spec["market_value"])
+        assert row.quantity == Decimal(spec["quantity"])
+        assert row.currency == spec["currency"]
+        assert row.snapshot_date == date(2026, 6, 30)
+
+
+async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
+    "AC-extraction.304.12"
+    service = BrokeragePositionImportService()
+    fixture = _synthetic_moomoo_positions_payload()
+    result = await service.import_positions(
+        db,
+        user_id=test_user.id,
+        payload=fixture,
+        filename="moomoo-positions-2506.pdf",
+        source_document_id="doc-moomoo-positions",
+        reconcile=False,
+    )
+    await db.commit()
+    assert result.broker == "Moomoo"
+    assert result.parsed_positions == len(fixture["positions"])
+    assert result.created_atomic_positions == len(fixture["positions"])
+    rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
+    assert len(rows) == len(fixture["positions"])
+    total_market_value = sum((row.market_value for row in rows), Decimal("0"))
+    expected_total = sum((Decimal(p["market_value"]) for p in fixture["positions"]), Decimal("0"))
+    assert total_market_value == expected_total
+
+
+def test_AC_B3_multi_currency_brokerage_does_not_fabricate_cash_balances():
+    "AC-extraction.304.13"
+    fixture = _synthetic_ibkr_multicurrency_payload()
+    balances = brokerage_currency_balances(fixture, filename="ibkr-multicurrency-2506.pdf")
+    assert balances == []
+
+
+async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum(test_user):
+    "AC-extraction.304.13"
+    from unittest.mock import AsyncMock
+
+    service = ExtractionService()
+    payload = _synthetic_ibkr_multicurrency_payload()
+    service.extract_financial_data = AsyncMock(return_value=payload)
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("ibkr-multicurrency-2506.pdf"), content=b"%PDF-1.7"),
+        institution="Interactive Brokers",
+        user_id=test_user.id,
+    )
+    assert result.transactions == ()
+    assert result.evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
+    assert result.period_start == date(2026, 6, 30)
+    assert result.period_end == date(2026, 6, 30)
+    assert result.balances == ()
+    assert result.missing_required_facts == ()
+
+
+async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_user, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    service = ExtractionService()
+    payload = _synthetic_ibkr_multicurrency_payload()
+    payload["balances"] = [
+        {"currency": "USD", "opening": "4400.00", "closing": "4400.00"},
+        {"currency": "HKD", "opening": "80500.00", "closing": "80500.00"},
+        {"currency": "SGD", "opening": "3810.00", "closing": "3810.00"},
+    ]
+    service.extract_financial_data = AsyncMock(return_value=payload)
+    _failing_per_currency = lambda _extracted: {
+        "balance_valid": False,
+        "balance_computable": True,
+        "per_currency": [
+            {"currency": "USD", "balance_valid": False, "expected_closing": "4400.00", "actual_closing": "4000.00"},
+            {"currency": "HKD", "balance_valid": True},
+        ],
+    }
+    monkeypatch.setattr("src.extraction.extension.service.validate_balance_per_currency", _failing_per_currency)
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("ibkr-multicurrency-2506.pdf"), content=b"%PDF-1.7"),
+        institution="Interactive Brokers",
+        user_id=test_user.id,
+    )
+    assert len(result.balances) == 3
+    assert result.balance_validated is False
+    assert result.review_reasons
+    assert "USD" in result.review_reasons[0]
+    assert "self-check failed" in result.review_reasons[0].lower()
+
+
+def test_brokerage_position_prefers_ticker_over_company_name():
+    from src.extraction.extension.brokerage_positions import _parse_structured_positions
+
+    payload = {
+        "currency": "USD",
+        "positions": [
+            {
+                "asset_identifier": "Synthetic Chips Incorporated",
+                "symbol": "SYNC",
+                "quantity": "100",
+                "market_value": "12345.00",
+                "currency": "USD",
+            }
+        ],
+    }
+    snapshots = _parse_structured_positions(payload, broker="SynthBroker", snapshot_date=date(2025, 6, 30))
+    assert len(snapshots) == 1
+    assert snapshots[0].asset_identifier == "SYNC"
