@@ -5,10 +5,11 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from src.audit import DataProvenance
-from src.extraction import CostBasisMethod, PositionStatus, reject_json_floats
+from src.extraction import reject_json_floats
+from src.portfolio import CostBasisMethod, PositionStatus
 from src.schemas.base import (
     BaseResponse,
     CurrencyCode,
@@ -185,15 +186,23 @@ class CostBasisMethodUpdateRequest(BaseModel):
 
 
 class BrokerageImportRequest(BaseModel):
-    payload: dict
+    statement_id: UUID | None = None
+    payload: dict | None = None
     filename: str | None = None
     source_document_id: str | None = None
 
     @field_validator("payload")
     @classmethod
-    def _payload_carries_no_floats(cls, value: dict) -> dict:
-        reject_json_floats(value, "payload")
+    def _payload_carries_no_floats(cls, value: dict | None) -> dict | None:
+        if value is not None:
+            reject_json_floats(value, "payload")
         return value
+
+    @model_validator(mode="after")
+    def _require_statement_or_payload(self) -> "BrokerageImportRequest":
+        if (self.statement_id is None) == (self.payload is None):
+            raise ValueError("Provide either statement_id or payload, not both")
+        return self
 
 
 class BrokerageImportResponse(BaseModel):

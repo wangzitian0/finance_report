@@ -93,7 +93,7 @@ def test_AC12_29_6_verb_in_path_urls_renamed_to_resources(openapi_schema: dict[s
         "/statements/{statement_id}/review/approve": "/statements/{statement_id}/approvals",
         "/statements/{statement_id}/review/reject": "/statements/{statement_id}/rejections",
         "/statements/{statement_id}/review/envelope": "/statements/{statement_id}/review-envelopes",
-        "/statements/{statement_id}/brokerage/import": "/statements/{statement_id}/brokerage-imports",
+        "/statements/{statement_id}/brokerage/import": "/portfolio/brokerage-imports",
         "/portfolio/brokerage/import": "/portfolio/brokerage-imports",
         "/portfolio/prices/update": "/pricing/price-overrides",
         "/reports/package/generate": "/reports/package/snapshots",
@@ -229,6 +229,7 @@ def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(openapi_schema
             "default"
         ]
         for path in (
+            "/pricing/valuation-components",
             "/reports/balance-sheet",
             "/reports/balance-sheet/diagnostics",
             "/reports/exports",
@@ -238,6 +239,7 @@ def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(openapi_schema
         )
     }
     assert defaults == {
+        "/pricing/valuation-components": DEFAULT_INCLUDE_RESTRICTED,
         "/reports/balance-sheet": DEFAULT_INCLUDE_RESTRICTED,
         "/reports/balance-sheet/diagnostics": DEFAULT_INCLUDE_RESTRICTED,
         "/reports/exports": DEFAULT_INCLUDE_RESTRICTED,
@@ -437,3 +439,61 @@ async def test_issue2994_the_backfill_route_is_removed(client: AsyncClient, open
     assert not any(path.startswith("/classifications") for path in openapi_schema["paths"])
     response = await client.post("/classifications/backfill")
     assert response.status_code == 404, f"the backfill route still answers: {response.status_code}"
+
+
+def test_issue3123_domain_aligned_routes_and_router_boundaries(openapi_schema: dict[str, Any]) -> None:
+    """#3123: fold evidence & app-config routers, unify brokerage-imports, and keep pricing router domain-pure."""
+    paths = openapi_schema["paths"]
+
+    # 1) evidence -> /statements/evidence-lineage
+    assert not any(p.startswith("/evidence") for p in paths)
+    assert "/statements/evidence-lineage" in paths
+    assert "get" in paths["/statements/evidence-lineage"]
+    assert paths["/statements/evidence-lineage"]["get"]["tags"] == ["statements"]
+
+    # 2) app-config -> /users/me/settings/base-currency
+    assert not any(p.startswith("/app-config") for p in paths)
+    assert "/users/me/settings/base-currency" in paths
+    assert set(paths["/users/me/settings/base-currency"].keys()) == {"get", "put"}
+    assert paths["/users/me/settings/base-currency"]["get"]["tags"] == ["user-settings"]
+    assert paths["/users/me/settings/base-currency"]["put"]["tags"] == ["user-settings"]
+
+    # 3) unified brokerage-imports under /portfolio/brokerage-imports
+    assert "/statements/{statement_id}/brokerage-imports" not in paths
+    assert "/portfolio/brokerage-imports" in paths
+    assert "post" in paths["/portfolio/brokerage-imports"]
+    assert paths["/portfolio/brokerage-imports"]["post"]["tags"] == ["portfolio"]
+
+    # 4) exact 11 domain router modules under src/routers
+    router_modules = {
+        path.stem
+        for path in sorted(_ROUTER_DIR.glob("*.py"))
+        if path.name != "__init__.py"
+    }
+    assert router_modules == {
+        "accounts",
+        "chat",
+        "journal",
+        "llm",
+        "portfolio",
+        "pricing",
+        "reconciliation",
+        "reports",
+        "statements",
+        "user_settings",
+        "workflow",
+    }
+
+    # 5) routers/pricing.py has no direct imports from extraction, portfolio, or reporting
+    pricing_tree = ast.parse((_ROUTER_DIR / "pricing.py").read_text(encoding="utf-8"))
+    forbidden_prefixes = ("src.extraction", "src.portfolio", "src.reporting")
+    leaks: list[str] = []
+    for node in ast.walk(pricing_tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if any(node.module == p or node.module.startswith(f"{p}.") for p in forbidden_prefixes):
+                leaks.append(f"line {node.lineno}: from {node.module}")
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if any(alias.name == p or alias.name.startswith(f"{p}.") for p in forbidden_prefixes):
+                    leaks.append(f"line {node.lineno}: import {alias.name}")
+    assert leaks == [], f"routers/pricing.py leaks cross-domain imports: {leaks}"

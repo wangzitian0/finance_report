@@ -6,7 +6,7 @@
 
 - API title: `Finance Report API`
 - API version: `contract`
-- Endpoint count: `113`
+- Endpoint count: `112`
 - Schema count: `262`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
@@ -17,10 +17,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---:|
 | `Observability` | 3 |
 | `accounts` | 6 |
-| `app-config` | 2 |
 | `auth` | 4 |
 | `chat` | 4 |
-| `evidence` | 1 |
 | `journal-entries` | 7 |
 | `llm` | 7 |
 | `portfolio` | 11 |
@@ -28,7 +26,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `reconciliation` | 16 |
 | `reports` | 20 |
 | `statements` | 20 |
-| `user-settings` | 2 |
+| `user-settings` | 4 |
 | `workflow` | 3 |
 
 ## Endpoints
@@ -52,13 +50,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `PUT` | `/accounts/{account_id}` | yes | `account_id`* (path) | `AccountUpdate` | `200` `AccountResponse` | Update Account |
 | `DELETE` | `/accounts/{account_id}` | yes | `account_id`* (path) | - | `204` - | Delete Account |
 
-### app-config
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/app-config/base-currency` | yes | - | - | `200` `BaseCurrencyResponse` | Get Base Currency |
-| `PUT` | `/app-config/base-currency` | yes | - | `BaseCurrencyUpdate` | `200` `BaseCurrencyResponse` | Update Base Currency |
-
 ### auth
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
@@ -76,12 +67,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/chat/history` | yes | `session_id` (query), `limit` (query) | - | `200` `ChatHistoryResponse` | Chat History |
 | `DELETE` | `/chat/sessions/{session_id}` | yes | `session_id`* (path) | - | `204` - | Delete Session |
 | `GET` | `/chat/suggestions` | yes | `language` (query), `message` (query), `include_structured` (query) | - | `200` `ChatSuggestionsResponse` | Suggestions |
-
-### evidence
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/evidence/lineage` | yes | `entity_type`* (query), `entity_id`* (query), `node_kind` (query), `direction` (query), `max_depth` (query) | - | `200` `EvidenceLineageResponse` | Get Evidence Lineage |
 
 ### journal-entries
 
@@ -192,11 +177,11 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/statements/correction-loop/replay` | yes | - | - | `200` `CorrectionLoopReplayResponse` | Get Correction Loop Replay |
 | `POST` | `/statements/corrections` | yes | - | `CorrectionRequest` | `201` `CorrectionResponse` | Create Correction |
 | `GET` | `/statements/coverage` | yes | `as_of` (query), `stale_after_days` (query) | - | `200` `AccountCoverageListResponse` | List Statement Coverage |
+| `GET` | `/statements/evidence-lineage` | yes | `entity_type`* (query), `entity_id`* (query), `node_kind` (query), `direction` (query), `max_depth` (query) | - | `200` `EvidenceLineageResponse` | Get Evidence Lineage |
 | `GET` | `/statements/pending-review` | yes | - | - | `200` `ListResponse_BankStatementListItemResponse_` | List Pending Review |
 | `GET` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `200` `BankStatementResponse` | Get Statement |
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |
 | `POST` | `/statements/{statement_id}/approvals` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
-| `POST` | `/statements/{statement_id}/brokerage-imports` | yes | `statement_id`* (path) | - | `200` `BrokerageImportResponse` | Import Brokerage Statement Positions |
 | `POST` | `/statements/{statement_id}/conflict-resolutions` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
 | `GET` | `/statements/{statement_id}/conflicts` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
 | `GET` | `/statements/{statement_id}/document` | yes | `statement_id`* (path) | - | `200` - | Get Statement Document |
@@ -212,6 +197,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `GET` | `/users/me/settings` | yes | - | - | `200` `UserAiSettingsResponse` | Get Current User Settings |
 | `PATCH` | `/users/me/settings` | yes | - | `UserAiSettingsUpdate` | `200` `UserAiSettingsResponse` | Patch Current User Settings |
+| `GET` | `/users/me/settings/base-currency` | yes | - | - | `200` `BaseCurrencyResponse` | Get Base Currency |
+| `PUT` | `/users/me/settings/base-currency` | yes | - | `BaseCurrencyUpdate` | `200` `BaseCurrencyResponse` | Update Base Currency |
 
 ### workflow
 

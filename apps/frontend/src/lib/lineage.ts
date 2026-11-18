@@ -6,7 +6,7 @@ export type LineageAnchor = {
 
 // Shared evidence-lineage helpers (EPIC-022 AC22.3.4). Used by the Personal
 // Report Package traceability appendix and by Balance Sheet / Income Statement
-// amount drill-down, so both reach the same `/api/evidence/lineage` graph.
+// amount drill-down, so both reach the same `/api/statements/evidence-lineage` graph.
 
 export const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

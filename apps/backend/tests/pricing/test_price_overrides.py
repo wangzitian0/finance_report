@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
 from src.pricing import record_override
 

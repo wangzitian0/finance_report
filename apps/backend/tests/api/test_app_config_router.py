@@ -48,7 +48,7 @@ async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncS
 
 async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient) -> None:
     "AC-audit.39.1 AC12.39.1"
-    response = await client.get("/app-config/base-currency")
+    response = await client.get("/users/me/settings/base-currency")
     assert response.status_code == 200
     assert response.json() == {"base_currency": Currency(settings.base_currency).code}
 
@@ -58,11 +58,11 @@ async def test_AC12_39_4_update_persists_and_effective_accessor_returns_new_valu
 ) -> None:
     "AC-audit.39.4 AC12.39.4"
     target = "EUR" if Currency(settings.base_currency).code != "EUR" else "USD"
-    response = await client.put("/app-config/base-currency", json={"base_currency": target.lower()})
+    response = await client.put("/users/me/settings/base-currency", json={"base_currency": target.lower()})
     assert response.status_code == 200
     assert response.json() == {"base_currency": target}
     assert await get_effective_base_currency(db, user_id=test_user.id) == target
-    get_response = await client.get("/app-config/base-currency")
+    get_response = await client.get("/users/me/settings/base-currency")
     assert get_response.json() == {"base_currency": target}
 
 
@@ -70,7 +70,7 @@ async def test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
     "AC-audit.39.5 AC12.39.1"
-    response = await client.put("/app-config/base-currency", json={"base_currency": "XYZ"})
+    response = await client.put("/users/me/settings/base-currency", json={"base_currency": "XYZ"})
     assert response.status_code == 422
     assert await get_effective_base_currency(db, user_id=test_user.id) == Currency(settings.base_currency).code
 
@@ -83,10 +83,10 @@ async def test_AC_audit_39_6_put_changes_only_the_callers_base_currency(client: 
     db.add(other)
     await db.commit()
     other_headers = {"Authorization": f"Bearer {create_access_token(data={'sub': str(other.id)})}"}
-    response = await client.put("/app-config/base-currency", json={"base_currency": target})
+    response = await client.put("/users/me/settings/base-currency", json={"base_currency": target})
     assert response.status_code == 200, response.text
-    assert (await client.get("/app-config/base-currency")).json() == {"base_currency": target}
-    other_response = await client.get("/app-config/base-currency", headers=other_headers)
+    assert (await client.get("/users/me/settings/base-currency")).json() == {"base_currency": target}
+    other_response = await client.get("/users/me/settings/base-currency", headers=other_headers)
     assert other_response.json() == {"base_currency": default}
     operator_row = await db.scalar(select(AppConfig).where(AppConfig.key == BASE_CURRENCY_KEY))
     assert operator_row is None

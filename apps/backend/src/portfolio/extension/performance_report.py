@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import cast, overload
+from typing import TYPE_CHECKING, cast, overload
 from uuid import UUID
 
 from sqlalchemy import select
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Currency, Money, to_money
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
-from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import ManagedPosition, PositionStatus
 from src.platform import require_base_currency
 from src.portfolio.base.errors import (
     AssetNotFoundError,
@@ -24,14 +24,21 @@ from src.portfolio.base.errors import (
 from src.portfolio.extension import allocation, performance
 from src.portfolio.extension.holdings import portfolio_service
 from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_money
-from src.schemas.portfolio import (
-    HoldingResponse,
-    InvestmentPerformanceAllocationRow,
-    InvestmentPerformanceDataFreshness,
-    InvestmentPerformanceHoldingRow,
-    InvestmentPerformanceMarketValuationSelection,
-    InvestmentPerformanceReportScheduleResponse,
-)
+
+if TYPE_CHECKING:
+    from src.schemas.portfolio import (
+        HoldingResponse,
+        InvestmentPerformanceAllocationRow,
+        InvestmentPerformanceHoldingRow,
+        InvestmentPerformanceMarketValuationSelection,
+        InvestmentPerformanceReportScheduleResponse,
+    )
+
+
+def _portfolio_schemas():
+    from src.schemas import portfolio as _schemas
+
+    return _schemas
 
 
 @overload
@@ -64,6 +71,7 @@ def _market_valuation_selections(
     if used_report_preparation_evidence:
         return []
 
+    schemas = _portfolio_schemas()
     selections: dict[tuple[str, UUID], InvestmentPerformanceMarketValuationSelection] = {}
     for holding in holdings:
         if holding.quantity == Decimal("0"):
@@ -72,7 +80,7 @@ def _market_valuation_selections(
         if stock_price is None:
             continue
         observation_id = cast(UUID, stock_price.id)
-        selections[(holding.asset_identifier, observation_id)] = InvestmentPerformanceMarketValuationSelection(
+        selections[(holding.asset_identifier, observation_id)] = schemas.InvestmentPerformanceMarketValuationSelection(
             asset_identifier=holding.asset_identifier,
             observation_id=observation_id,
             requested_as_of=as_of_date,
@@ -227,6 +235,7 @@ async def build_investment_performance_report_schedule(
         db, user_id, start_date=period_start, end_date=period_end, target_currency=currency
     )
 
+    schemas = _portfolio_schemas()
     holding_rows: list[InvestmentPerformanceHoldingRow] = []
     for holding in holdings:
         position = position_by_asset.get(holding.asset_identifier)
@@ -238,7 +247,7 @@ async def build_investment_performance_report_schedule(
         cost_basis = (await convert_money(db, base_money, currency, acq_date, lazy_load=True)).quantize()
         market_value = to_money(holding.market_value)
         holding_rows.append(
-            InvestmentPerformanceHoldingRow(
+            schemas.InvestmentPerformanceHoldingRow(
                 asset_identifier=holding.asset_identifier,
                 quantity=holding.quantity,
                 cost_basis=cost_basis.amount,
@@ -251,7 +260,7 @@ async def build_investment_performance_report_schedule(
         )
 
     allocation_rows: list[InvestmentPerformanceAllocationRow] = [
-        InvestmentPerformanceAllocationRow(
+        schemas.InvestmentPerformanceAllocationRow(
             dimension=dimension,
             category=row.category,
             value=to_money(row.value),
@@ -275,7 +284,7 @@ async def build_investment_performance_report_schedule(
                 grouped[category] = (cur_val + holding_row.market_value, cur_cnt + 1)
             for category, (value, count) in grouped.items():
                 allocation_rows.append(
-                    InvestmentPerformanceAllocationRow(
+                    schemas.InvestmentPerformanceAllocationRow(
                         dimension=dimension,
                         category=category,
                         value=to_money(value),
@@ -372,7 +381,7 @@ async def build_investment_performance_report_schedule(
         if evidence_date < as_of_date:
             stale_holdings.append(asset_identifier)
 
-    data_freshness = InvestmentPerformanceDataFreshness(
+    data_freshness = schemas.InvestmentPerformanceDataFreshness(
         latest_price_date=max(price_dates) if price_dates else None,
         market_data_provider=", ".join(sorted(providers)) if providers else None,
         stale=bool(stale_holdings),
@@ -386,7 +395,7 @@ async def build_investment_performance_report_schedule(
     if data_freshness.stale:
         notes.append("One or more market values use stale data relative to the requested as-of date.")
 
-    return InvestmentPerformanceReportScheduleResponse(
+    return schemas.InvestmentPerformanceReportScheduleResponse(
         period_start=period_start,
         period_end=period_end,
         as_of_date=as_of_date,

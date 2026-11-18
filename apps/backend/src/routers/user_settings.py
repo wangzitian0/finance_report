@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 from sqlalchemy import select
 
+from src.config_app import set_base_currency
 from src.deps import Ctx, ReadCtx
 from src.extraction import (
     auto_accept_preference,
@@ -10,7 +11,13 @@ from src.extraction import (
     effective_classification,
     effective_reconciliation,
 )
-from src.identity import User, UserAiSettingsResponse, UserAiSettingsUpdate
+from src.identity import (
+    BaseCurrencyResponse,
+    BaseCurrencyUpdate,
+    User,
+    UserAiSettingsResponse,
+    UserAiSettingsUpdate,
+)
 from src.platform import ResourceNotFoundError
 
 router = APIRouter(prefix="/users/me/settings", tags=["user-settings"])
@@ -57,3 +64,21 @@ async def patch_current_user_settings(
     await db.flush()
     await db.refresh(user)
     return _effective_settings(user.ai_settings)
+
+
+@router.get("/base-currency", response_model=BaseCurrencyResponse)
+async def get_base_currency(
+    ctx: ReadCtx,
+) -> BaseCurrencyResponse:
+    """Return the caller's effective base currency (own value, operator default, env default)."""
+    return BaseCurrencyResponse(base_currency=await ctx.get_base_currency())
+
+
+@router.put("/base-currency", response_model=BaseCurrencyResponse)
+async def update_base_currency(
+    payload: BaseCurrencyUpdate,
+    ctx: Ctx,
+) -> BaseCurrencyResponse:
+    """Persist the caller's own base currency. Invalid ISO 4217 code -> HTTP 422."""
+    stored = await set_base_currency(ctx.db, payload.base_currency, user_id=ctx.user_id)
+    return BaseCurrencyResponse(base_currency=stored)

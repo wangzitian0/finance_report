@@ -1,6 +1,6 @@
 """The record of a failed brokerage import on its statement (#2648).
 
-A failed ``POST /statements/{id}/brokerage-imports`` keeps the statement ``parsed`` and records the
+A failed ``POST /portfolio/brokerage-imports`` keeps the statement ``parsed`` and records the
 failure in ``extraction_metadata[BROKERAGE_IMPORT_FAILURE_KEY]``: the reason, the request id and the
 time. ``validation_error`` does not change, so an earlier note stays and a later write of that note
 (an envelope confirmation, a blocked approval) keeps the record. Only a successful import removes
@@ -30,7 +30,7 @@ from src.extraction.orm.statement_summary import StatementSummary
 BROKERAGE_IMPORT_FAILURE_KEY = "brokerage_import_failure"
 #: The reason of a failed import that has no specific reason (a server fault).
 BROKERAGE_IMPORT_FAILED_MESSAGE = "The positions could not be imported. Retry, or delete the file and upload it again."
-#: The statuses that allow a brokerage import (``POST /statements/{id}/brokerage-imports``).
+#: The statuses that allow a brokerage import (``POST /portfolio/brokerage-imports``).
 BROKERAGE_IMPORTABLE_STATUSES = (BankStatementStatus.PARSED, BankStatementStatus.APPROVED)
 
 

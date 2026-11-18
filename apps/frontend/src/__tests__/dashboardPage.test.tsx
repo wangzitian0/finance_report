@@ -8,7 +8,7 @@ case "reconciliation_stats_reconciliation_stats_get": return Promise.resolve({ t
 case "list_processing_pending_reconciliation_transfers_pending_get": return Promise.resolve({ items: [], total: 0 })
 case "suggestions_chat_suggestions_get": return Promise.resolve({ suggestions: [], structured_suggestions: [] })
 case "get_available_currencies_reports_currencies_get": return Promise.resolve(["SGD", "USD"])
-case "get_base_currency_app_config_base_currency_get": return Promise.resolve({ base_currency: "USD" })
+case "get_base_currency_users_me_settings_base_currency_get": return Promise.resolve({ base_currency: "USD" })
 default: return Promise.reject(new Error(`unhandled operation ${operationId}`)) } }) as never) }; const workflow = (state: string, nextAction: Record<string, unknown>) => () => Promise.resolve({ ...readyWorkflow, primary_state: state, next_action: { count: 1, summary: "", ...nextAction } }); describe("HomePage", () => { const mockedApiOperation = vi.mocked(apiOperation); beforeEach(() => { mockedApiOperation.mockReset()
 mockHomeApi()
 setTestUrl("/") }); it("AC16.12.1 shows loading state before dashboard data resolves", () => { mockHomeApi({ balance_sheet_reports_balance_sheet_get: () => new Promise(() => undefined), income_statement_reports_income_statement_get: () => new Promise(() => undefined), cash_flow_reports_cash_flow_get: () => new Promise(() => undefined), }); render(<HomePage />); for (const card of ["balance-sheet", "income-statement", "cash-flow"]) { expect(within(screen.getByTestId(`cockpit-card-${card}`)).getByRole("status")).toHaveTextContent("Loading…") } }); it("AC16.12.2 renders error fallback and retry action on failure", async () => { let failures = 0

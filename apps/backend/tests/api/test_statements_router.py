@@ -298,10 +298,10 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(client: Asy
     async def fake_import_positions(*_args, **_kwargs):
         return result
 
-    monkeypatch.setattr("src.routers.statements.logger.info", mock_info)
-    monkeypatch.setattr("src.routers.statements._BROKERAGE_IMPORT_SERVICE.import_positions", fake_import_positions)
+    monkeypatch.setattr("src.routers.portfolio.logger.info", mock_info)
+    monkeypatch.setattr("src.routers.portfolio._brokerage_import_service.import_positions", fake_import_positions)
 
-    resp = await client.post(f"/statements/{statement_id}/brokerage-imports")
+    resp = await client.post("/portfolio/brokerage-imports", json={"statement_id": str(statement_id)})
     assert resp.status_code == status.HTTP_200_OK, resp.text
     calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
     started = next(kwargs for event, kwargs in calls if event == "statement.brokerage_import.started")

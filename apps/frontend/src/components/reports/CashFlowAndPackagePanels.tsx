@@ -424,7 +424,7 @@ export function PackagePanel({ filters }: { filters: ReportFilters }) {
     }
 
     try {
-      const response = await apiOperation("get_evidence_lineage_evidence_lineage_get", { query: lineageQuery(anchor) });
+      const response = await apiOperation("get_evidence_lineage_statements_evidence_lineage_get", { query: lineageQuery(anchor) });
       setLineagePanel({ line, response, isLoading: false, error: null });
     } catch (err) {
       setLineagePanel({

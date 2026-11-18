@@ -108,7 +108,7 @@ export function LineagePanel({ title, anchor, onClose }: LineagePanelProps) {
     }
     let active = true;
     setState({ isLoading: true, error: null, response: null });
-    apiOperation("get_evidence_lineage_evidence_lineage_get", { query: lineageQuery(anchor) })
+    apiOperation("get_evidence_lineage_statements_evidence_lineage_get", { query: lineageQuery(anchor) })
       .then((response) => {
         if (active) setState({ isLoading: false, error: null, response });
       })

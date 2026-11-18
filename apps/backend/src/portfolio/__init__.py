@@ -16,6 +16,16 @@ from src.portfolio.base import (
     TradeOrder,
     XIRRCalculationError,
 )
+from src.portfolio.orm.portfolio import (
+    CostBasisMethod,
+    DividendIncome,
+    DividendType,
+    InvestmentLot,
+    InvestmentTransaction,
+    InvestmentTransactionType,
+    ManagedPosition,
+    PositionStatus,
+)
 from src.portfolio.extension import (
     InvestmentAccountingResult,
     InvestmentAccountingService,
@@ -34,20 +44,9 @@ from src.portfolio.extension import (
 )
 from src.portfolio.extension.positions import PositionService, PositionServiceError, ReconcileResult
 
-# ORM models owned by this package (moved from src/models, #1675); imported
-# eagerly so importing the package registers the mappers on Base.metadata.
-# (MarketDataOverride/PriceSource moved to pricing — the observation store's
-# domain owner — not here.)
-from src.portfolio.orm.portfolio import (
-    DividendIncome,
-    DividendType,
-    InvestmentLot,
-    InvestmentTransaction,
-    InvestmentTransactionType,
-)
-
 __all__ = [
     "AssetNotFoundError",
+    "CostBasisMethod",
     "DividendIncome",
     "DividendEvent",
     "DividendType",
@@ -60,12 +59,14 @@ __all__ = [
     "InvestmentLot",
     "InvestmentTransaction",
     "InvestmentTransactionType",
+    "ManagedPosition",
     "PerformanceError",
     "PortfolioError",
     "PortfolioNotFoundError",
     "PortfolioService",
     "PositionService",
     "PositionServiceError",
+    "PositionStatus",
     "ReconcileResult",
     "TradeAccounts",
     "TradeOrder",

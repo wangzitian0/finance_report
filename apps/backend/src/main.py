@@ -66,9 +66,7 @@ from src.platform import (
 from src.pricing import run_market_data_scheduler, subscribe_price_ingest
 from src.routers import (
     accounts,
-    app_config,
     chat,
-    evidence,
     journal,
     llm,
     portfolio,
@@ -444,9 +442,7 @@ app.add_middleware(
 for _router in (
     auth_router,
     accounts.router,
-    app_config.router,
     chat.router,
-    evidence.router,
     journal.router,
     reports.router,
     statements.router,

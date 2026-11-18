@@ -83,7 +83,8 @@ from src.routers.reports import (
     get_personal_report_package_snapshot,
     list_personal_report_package_snapshots,
 )
-from src.routers.statements import import_brokerage_statement_positions
+from src.routers.portfolio import import_brokerage_positions
+from src.schemas.portfolio import BrokerageImportRequest
 from src.schemas import (
     PersonalReportingFrameworkId,
     PersonalReportPackageGenerateRequest,
@@ -262,7 +263,7 @@ async def _import_brokerage_position(db, *, user_id) -> None:
         db, statement=statement, result=result, source_trace_record_id=traces[0].record_id
     )
     await db.commit()
-    imported = await import_brokerage_statement_positions(statement.id, RequestContext(db, user_id))
+    imported = await import_brokerage_positions(BrokerageImportRequest(statement_id=statement.id), RequestContext(db, user_id))
     assert (imported.parsed_positions, imported.created_atomic_positions) == (1, 1)
 
 

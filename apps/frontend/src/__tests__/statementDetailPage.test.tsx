@@ -130,7 +130,7 @@ describe("StatementDetailPage - import and lifecycle coverage", () => {
     parsing_progress: 100,
     transactions: [],
   };
-  const IMPORT_OP = "import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post";
+  const IMPORT_OP = "import_brokerage_positions_portfolio_brokerage_imports_post";
   const RETRY_OP = "create_statement_run_statements__statement_id__runs_post";
   function renderWithClient(
     client: QueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),

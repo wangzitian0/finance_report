@@ -14,12 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Currency
 from src.audit.quantity import Unit
 from src.audit.unit_price import UnitPrice
-from src.extraction.orm.layer3 import (
-    ManagedPosition,
-)
 from src.ledger import Account, AccountType
 from src.observability import get_logger
-from src.portfolio import AssetNotFoundError, PortfolioService
+from src.portfolio import AssetNotFoundError, ManagedPosition, PortfolioService
 from src.pricing import FxWarning, ManualValuationLiquidityClass, PricingError, convert_money
 from src.reporting.extension._core import REPORTING_QUANTITY_UNIT, _single_source_currency
 from src.reporting.extension.reporting_calc import (

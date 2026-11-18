@@ -2,9 +2,7 @@
 
 from src.routers import (
     accounts,
-    app_config,
     chat,
-    evidence,
     journal,
     llm,
     portfolio,
@@ -22,9 +20,7 @@ from src.routers import (
 
 __all__ = [
     "accounts",
-    "app_config",
     "chat",
-    "evidence",
     "journal",
     "llm",
     "portfolio",
