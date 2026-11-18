@@ -2,7 +2,7 @@
 
 > **Status**: In Progress — core UI/API slices complete
 > **Vision Anchor**: `decision-2-event-middle-layer`, `decision-3-record-layer`, `decision-filter-accuracy-auditability`
-> **Usable milestone**: G2 gating — lightweight workflow derivation feeds report readiness across uploads. Durable Prefect orchestration (`AC19.13`) stays deferred, while `DEPENDENCY_MANIFEST` still requires `workflow_engine` in staging/production (`common/runtime/sla-manifest.generated.json`).
+> **Usable milestone**: G2 gating — lightweight workflow derivation feeds report readiness across uploads. Durable Prefect orchestration (`AC19.13`) stays deferred, while `DEPENDENCY_MANIFEST` still requires `workflow_engine` in staging/production.
 
 Turns parsing, validation, reconciliation, review, and report readiness into in-app workflow events (`common/workflow/workflow-events.md`) powering upload-first landing (`/dashboard`), event inbox, and readiness cards without replacing audit logs or deterministic ledger posting.
 

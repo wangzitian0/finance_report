@@ -116,6 +116,7 @@ def test_app_remainder_subdirs_are_the_app_domain_logic() -> None:
     from common.meta.extension.check_app_boundary import main
 
     assert APP_REMAINDER_SUBDIRS == frozenset({"services", "routers", "prompts"})
+    assert not (REPO_ROOT / "common/meta/data/delivery-layer-baseline.json").exists()
     assert discover_and_compute_edges(REPO_ROOT) == []
     assert main(["--repo-root", str(REPO_ROOT)]) == 0
 
