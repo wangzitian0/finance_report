@@ -1578,7 +1578,7 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
         start_user_extract_run,
     )
     from src.extraction.extension import statement_parsing_supervisor as supervisor
-    from src.extraction.extension.statement_flow import parse_statement_flow
+    from src.statement_flow import parse_statement_flow
     from src.runtime import StorageError
 
     assert parse_statement_flow.retries == 0 and db_engine.sync_engine.hide_parameters is True
