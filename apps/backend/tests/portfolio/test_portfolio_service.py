@@ -1,58 +1,258 @@
-from datetime import date, timedelta; from decimal import Decimal; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.extraction.orm.layer2 import AtomicPosition; from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus; from src.ledger import Account, AccountType; from src.portfolio import AssetNotFoundError, InvalidDateRangeError, PortfolioNotFoundError, PortfolioService; from src.pricing import MarketDataOverride, PriceSource; from src.pricing.orm.market_data import FxRate; from tests.factories import UserFactory  # EPIC-022
+from datetime import date, timedelta
+from decimal import Decimal
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction.orm.layer2 import AtomicPosition
+from src.ledger import Account, AccountType
+from src.portfolio import AssetNotFoundError, InvalidDateRangeError, PortfolioNotFoundError, PortfolioService
+from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
+from src.pricing import MarketDataOverride, PriceSource
+from src.pricing.orm.market_data import FxRate
+from tests.factories import UserFactory
+
+
+def _pos(user_id, account_id, asset="AAPL", qty=Decimal("100"), cost=Decimal("10000.00"), currency="SGD", acq_days=60, acq_date=None, disposal_date=None, status=PositionStatus.ACTIVE, method=CostBasisMethod.FIFO) -> ManagedPosition:
+    return ManagedPosition(
+        user_id=user_id,
+        account_id=account_id,
+        asset_identifier=asset,
+        quantity=qty,
+        cost_basis=cost,
+        currency=currency,
+        acquisition_date=acq_date or date.today() - timedelta(days=acq_days),
+        disposal_date=disposal_date,
+        status=status,
+        cost_basis_method=method,
+    )
+
+
+def _atom(user_id, asset="AAPL", broker="Test Broker", qty=Decimal("100"), mv=Decimal("12000.00"), currency="SGD", snap_date=None, sector=None, geography=None, asset_type=None, dedup_hash=None, source_documents=None) -> AtomicPosition:
+    sd = snap_date or date.today()
+    return AtomicPosition(
+        user_id=user_id,
+        snapshot_date=sd,
+        asset_identifier=asset,
+        broker=broker,
+        quantity=qty,
+        market_value=mv,
+        currency=currency,
+        sector=sector,
+        geography=geography,
+        asset_type=asset_type,
+        dedup_hash=dedup_hash or f"{asset}_{sd}_{broker}",
+        source_documents={} if source_documents is None else source_documents,
+    )
+
+
+async def _flush(db: AsyncSession, *objs) -> None:
+    db.add_all(objs)
+    await db.flush()
+
+
 @pytest.fixture
-async def svc(): return PortfolioService()
+def svc():
+    return PortfolioService()
+
+
 @pytest.fixture
-async def account(db: AsyncSession, test_user): acct = Account(user_id=test_user.id, name='Test Investment', type=AccountType.ASSET, currency='SGD'); db.add(acct); await db.flush(); return acct
+async def account(db: AsyncSession, test_user):
+    acct = Account(user_id=test_user.id, name="Test Investment", type=AccountType.ASSET, currency="SGD")
+    await _flush(db, acct)
+    return acct
+
+
 @pytest.fixture
-async def active_position(db: AsyncSession, test_user, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='AAPL', quantity=Decimal('100'), cost_basis=Decimal('10000.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=60), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(pos); await db.flush(); return pos
+async def active_position(db: AsyncSession, test_user, account):
+    pos = _pos(test_user.id, account.id)
+    await _flush(db, pos)
+    return pos
+
+
 @pytest.fixture
-async def atomic_snapshot(db: AsyncSession, test_user): atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='AAPL', broker='Test Broker', quantity=Decimal('100'), market_value=Decimal('12000.00'), currency='SGD', sector='Technology', geography='US', asset_type='stock', dedup_hash='aapl_svc_test', source_documents={}); db.add(atom); await db.flush(); return atom
-async def test_get_holdings_happy_path(db, test_user, svc, active_position, atomic_snapshot): holdings = await svc.get_holdings(db, test_user.id, base_currency='SGD'); assert len(holdings) == 1; h = holdings[0]; assert h.asset_identifier == 'AAPL'; assert h.market_value == Decimal('12000.00'); assert h.cost_basis == Decimal('10000.00'); assert h.unrealized_pnl == Decimal('2000.00'); assert h.sector == 'Technology'; assert h.geography == 'US'; assert h.asset_type == 'stock'; assert h.account_name == 'Test Investment'; assert h.provenance is None
-async def test_get_holdings_provenance_imported_with_source_document(db, test_user, svc, active_position): atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='AAPL', broker='Test Broker', quantity=Decimal('100'), market_value=Decimal('12000.00'), currency='SGD', asset_type='stock', dedup_hash='aapl_provenance_test', source_documents={'documents': [{'doc_id': '11111111-1111-4111-8111-111111111111', 'doc_type': 'brokerage_statement'}]}); db.add(atom); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].provenance == 'imported'
-async def test_AC22_13_1_explicit_as_of_holdings_preserve_snapshot_provenance(db, test_user, svc, account): as_of_date = date(2025, 1, 31); position = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='VWRA', quantity=Decimal('10'), cost_basis=Decimal('1200.00'), currency='SGD', acquisition_date=as_of_date, status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=as_of_date, asset_identifier='VWRA', broker='Test Investment', quantity=Decimal('10'), market_value=Decimal('1200.00'), currency='SGD', asset_type='etf', dedup_hash='vwra_historical_imported_provenance', source_documents={'documents': [{'doc_id': '22222222-2222-4222-8222-222222222222', 'doc_type': 'brokerage_statement'}]}); db.add_all([position, snapshot]); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].provenance == 'imported'
-async def test_get_holdings_defaults_to_latest_future_brokerage_snapshot(db, test_user, svc, account): future_snapshot_date = date.today() + timedelta(days=12); position = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='FULLERTON_SGD_MMF', quantity=Decimal('100'), cost_basis=Decimal('1000.00'), currency='SGD', acquisition_date=future_snapshot_date, status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); atom = AtomicPosition(user_id=test_user.id, snapshot_date=future_snapshot_date, asset_identifier='FULLERTON_SGD_MMF', broker='Moomoo', quantity=Decimal('100'), market_value=Decimal('1234.00'), currency='SGD', dedup_hash='future_brokerage_snapshot', source_documents={}); db.add_all([position, atom]); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].asset_identifier == 'FULLERTON_SGD_MMF'; assert holdings[0].market_value == Decimal('1234.00')
-async def test_get_holdings_explicit_as_of_date_does_not_use_future_snapshot(db, test_user, svc, account):
-    position = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='FUTU_STOCK_AND_OPTIONS', quantity=Decimal('1'), cost_basis=Decimal('250.00'), currency='SGD', acquisition_date=date.today() + timedelta(days=12), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today() + timedelta(days=12), asset_identifier='FUTU_STOCK_AND_OPTIONS', broker='Futu', quantity=Decimal('1'), market_value=Decimal('250.00'), currency='SGD', dedup_hash='explicit_date_future_brokerage_snapshot', source_documents={}); db.add_all([position, atom]); await db.flush()
-    with pytest.raises(PortfolioNotFoundError): await svc.get_holdings(db, test_user.id, as_of_date=date.today(), base_currency='SGD')
-async def test_get_holdings_explicit_as_of_uses_historical_atomic_snapshot(db, test_user, svc, account): historical_date = date(2025, 1, 31); current_date = date(2025, 2, 28); position = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='VWRA', quantity=Decimal('20'), cost_basis=Decimal('3000.00'), currency='SGD', acquisition_date=historical_date, status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); historical_snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=historical_date, asset_identifier='VWRA', broker='Test Investment', quantity=Decimal('10'), market_value=Decimal('1200.00'), currency='SGD', sector='Global', geography='World', asset_type='etf', dedup_hash='vwra_historical_snapshot', source_documents={}); current_snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=current_date, asset_identifier='VWRA', broker='Test Investment', quantity=Decimal('20'), market_value=Decimal('3000.00'), currency='SGD', sector='Global', geography='World', asset_type='etf', dedup_hash='vwra_current_snapshot', source_documents={}); db.add_all([position, historical_snapshot, current_snapshot]); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, as_of_date=historical_date, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].asset_identifier == 'VWRA'; assert holdings[0].quantity == Decimal('10'); assert holdings[0].market_value == Decimal('1200.00'); assert holdings[0].cost_basis == Decimal('1200.00'); assert holdings[0].sector == 'Global'; assert holdings[0].asset_type == 'etf'
-async def test_get_holdings_explicit_as_of_converts_snapshot_currency(db, test_user, svc, account): as_of_date = date(2025, 1, 31); position = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='MSFT', quantity=Decimal('5'), cost_basis=Decimal('500.00'), currency='USD', acquisition_date=as_of_date, status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=as_of_date, asset_identifier='MSFT', broker='Test Investment', quantity=Decimal('5'), market_value=Decimal('100.00'), currency='USD', dedup_hash='msft_historical_usd_snapshot', source_documents={}); rate = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=as_of_date, source='test'); db.add_all([position, snapshot, rate]); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].asset_identifier == 'MSFT'; assert holdings[0].market_value == Decimal('135.00000000'); assert holdings[0].cost_basis == Decimal('135.00000000'); assert holdings[0].currency == 'SGD'
-async def test_get_holdings_explicit_as_of_filters_zero_quantity_snapshot(db, test_user, svc, account):
-    as_of_date = date(2025, 1, 31); position = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='CLOSED', quantity=Decimal('0'), cost_basis=Decimal('0.00'), currency='SGD', acquisition_date=as_of_date, status=PositionStatus.DISPOSED, cost_basis_method=CostBasisMethod.FIFO); snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=as_of_date, asset_identifier='CLOSED', broker='Test Investment', quantity=Decimal('0'), market_value=Decimal('0.00'), currency='SGD', dedup_hash='closed_historical_zero_snapshot', source_documents={}); db.add_all([position, snapshot]); await db.flush()
-    with pytest.raises(PortfolioNotFoundError): await svc.get_holdings(db, test_user.id, as_of_date=as_of_date, base_currency='SGD')
-    holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date, include_disposed=True, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].asset_identifier == 'CLOSED'; assert holdings[0].status == PositionStatus.DISPOSED; assert holdings[0].disposal_date == as_of_date; assert holdings[0].unrealized_pnl_percent == Decimal('0.00')
-async def test_get_holdings_explicit_as_of_skips_unreconciled_snapshot(db, test_user, svc):
-    as_of_date = date(2025, 1, 31); snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=as_of_date, asset_identifier='UNRECONCILED', broker='External Broker', quantity=Decimal('1'), market_value=Decimal('10.00'), currency='SGD', dedup_hash='unreconciled_historical_snapshot', source_documents={}); db.add(snapshot); await db.flush()
-    with pytest.raises(PortfolioNotFoundError): await svc.get_holdings(db, test_user.id, as_of_date=as_of_date, base_currency='SGD')
-async def test_get_holdings_explicit_as_of_falls_back_when_snapshot_broker_unmatched(db, test_user, svc, account): as_of_date = date(2025, 1, 31); position = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='FALLBACK', quantity=Decimal('2'), cost_basis=Decimal('20.00'), currency='SGD', acquisition_date=as_of_date, status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=as_of_date, asset_identifier='FALLBACK', broker='External Broker', quantity=Decimal('2'), market_value=Decimal('30.00'), currency='SGD', dedup_hash='fallback_historical_snapshot', source_documents={}); db.add_all([position, snapshot]); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].asset_identifier == 'FALLBACK'; assert holdings[0].market_value == Decimal('30.00')
-async def test_get_holdings_no_positions_raises(db, test_user, svc):
-    with pytest.raises(PortfolioNotFoundError): await svc.get_holdings(db, test_user.id, base_currency='SGD')
-async def test_get_holdings_include_disposed(db, test_user, svc, account, atomic_snapshot):
-    disposed = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='AAPL', quantity=Decimal('50'), cost_basis=Decimal('5000.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=90), disposal_date=date.today() - timedelta(days=10), status=PositionStatus.DISPOSED, cost_basis_method=CostBasisMethod.FIFO); db.add(disposed); await db.flush()
-    with pytest.raises(PortfolioNotFoundError): await svc.get_holdings(db, test_user.id, include_disposed=False, base_currency='SGD')
-    holdings = await svc.get_holdings(db, test_user.id, include_disposed=True, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].status == PositionStatus.DISPOSED
-async def test_get_holdings_fx_conversion(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='MSFT', quantity=Decimal('50'), cost_basis=Decimal('5000.00'), currency='USD', acquisition_date=date.today() - timedelta(days=30), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='MSFT', broker='Broker', quantity=Decimal('50'), market_value=Decimal('6000.00'), currency='USD', dedup_hash='msft_fx_test', source_documents={}); db.add(atom); fx = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=date.today(), source='test'); db.add(fx); fx_acq = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.30'), rate_date=date.today() - timedelta(days=30), source='test'); db.add(fx_acq); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, base_currency='SGD'); assert len(holdings) == 1; h = holdings[0]; assert h.market_value == Decimal('8100.00'); assert h.cost_basis == Decimal('6500.00'); assert h.currency == 'SGD'
-async def test_get_holdings_zero_cost_basis(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='FREE', quantity=Decimal('10'), cost_basis=Decimal('0.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=10), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.AVGCOST); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='FREE', broker='Broker', quantity=Decimal('10'), market_value=Decimal('500.00'), currency='SGD', dedup_hash='free_zero_cost', source_documents={}); db.add(atom); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].unrealized_pnl_percent == Decimal('0.00')
-async def test_get_holdings_no_atomic_for_classification(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='NOCLASS', quantity=Decimal('10'), cost_basis=Decimal('1000.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=10), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(pos); other_user_id = (await UserFactory.create_async(db)).id; other_user_atom = AtomicPosition(user_id=other_user_id, snapshot_date=date.today(), asset_identifier='NOCLASS', broker='B', quantity=Decimal('10'), market_value=Decimal('1200.00'), currency='SGD', dedup_hash='noclass_other_user', source_documents={}, sector='Other'); db.add(other_user_atom); override = MarketDataOverride(user_id=test_user.id, asset_identifier='NOCLASS', price_date=date.today(), price=Decimal('120.00'), currency='SGD', source=PriceSource.MANUAL); db.add(override); await db.flush(); holdings = await svc.get_holdings(db, test_user.id, base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].asset_type is None; assert holdings[0].sector is None; assert holdings[0].geography is None
-@pytest.fixture
-async def disposed_position(db, test_user, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='GOOG', quantity=Decimal('20'), cost_basis=Decimal('3000.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=120), disposal_date=date.today() - timedelta(days=5), status=PositionStatus.DISPOSED, cost_basis_method=CostBasisMethod.FIFO); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today() - timedelta(days=5), asset_identifier='GOOG', broker='Broker', quantity=Decimal('20'), market_value=Decimal('4000.00'), currency='SGD', dedup_hash='goog_disposed', source_documents={}); db.add(atom); await db.flush(); return pos
-async def test_realized_pnl_happy_path(db, test_user, svc, disposed_position): start = date.today() - timedelta(days=30); end = date.today(); result = await svc.calculate_realized_pnl(db, test_user.id, start, end, base_currency='SGD'); assert result.positions_count == 1; assert result.total_realized_pnl == Decimal('1000.00'); assert len(result.details) == 1; assert result.details[0]['asset_identifier'] == 'GOOG'
-async def test_realized_pnl_invalid_date_range(db, test_user, svc):
-    with pytest.raises(InvalidDateRangeError): await svc.calculate_realized_pnl(db, test_user.id, date.today(), date.today() - timedelta(days=1), base_currency='SGD')
-async def test_realized_pnl_no_disposed(db, test_user, svc): result = await svc.calculate_realized_pnl(db, test_user.id, date.today() - timedelta(days=30), date.today(), base_currency='SGD'); assert result.total_realized_pnl == Decimal('0'); assert result.positions_count == 0; assert result.details == []
-async def test_realized_pnl_zero_cost(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='ZERO', quantity=Decimal('10'), cost_basis=Decimal('0.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=60), disposal_date=date.today() - timedelta(days=3), status=PositionStatus.DISPOSED, cost_basis_method=CostBasisMethod.FIFO); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today() - timedelta(days=3), asset_identifier='ZERO', broker='B', quantity=Decimal('10'), market_value=Decimal('500.00'), currency='SGD', dedup_hash='zero_cost_disposed', source_documents={}); db.add(atom); await db.flush(); result = await svc.calculate_realized_pnl(db, test_user.id, date.today() - timedelta(days=30), date.today(), base_currency='SGD'); assert result.total_realized_pnl == Decimal('500.00'); assert result.total_realized_pnl_percent == Decimal('0.00')
-async def test_realized_pnl_fx_conversion(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='TSLA', quantity=Decimal('5'), cost_basis=Decimal('1000.00'), currency='USD', acquisition_date=date.today() - timedelta(days=90), disposal_date=date.today() - timedelta(days=2), status=PositionStatus.DISPOSED, cost_basis_method=CostBasisMethod.LIFO); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today() - timedelta(days=2), asset_identifier='TSLA', broker='B', quantity=Decimal('5'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='tsla_disposed_fx', source_documents={}); db.add(atom); fx_disposal = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=date.today() - timedelta(days=2), source='test'); db.add(fx_disposal); fx_acq = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.30'), rate_date=date.today() - timedelta(days=90), source='test'); db.add(fx_acq); await db.flush(); result = await svc.calculate_realized_pnl(db, test_user.id, date.today() - timedelta(days=30), date.today(), base_currency='SGD'); assert result.positions_count == 1; assert result.total_realized_pnl == Decimal('725.00')
-async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, atomic_snapshot): result = await svc.calculate_unrealized_pnl(db, test_user.id, base_currency='SGD'); assert result.holdings_count == 1; assert result.total_market_value == Decimal('12000.00'); assert result.total_cost_basis == Decimal('10000.00'); assert result.total_unrealized_pnl == Decimal('2000.00'); assert len(result.details) == 1
-async def test_unrealized_pnl_no_positions(db, test_user, svc):
-    with pytest.raises(PortfolioNotFoundError): await svc.calculate_unrealized_pnl(db, test_user.id, base_currency='SGD')
-async def test_unrealized_pnl_zero_cost(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='GIFT', quantity=Decimal('5'), cost_basis=Decimal('0.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=30), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.AVGCOST); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='GIFT', broker='B', quantity=Decimal('5'), market_value=Decimal('250.00'), currency='SGD', dedup_hash='gift_unrealized', source_documents={}); db.add(atom); await db.flush(); result = await svc.calculate_unrealized_pnl(db, test_user.id, base_currency='SGD'); assert result.total_unrealized_pnl_percent == Decimal('0.00'); assert result.details[0]['unrealized_pnl_percent'] == Decimal('0.00')
-async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='NVDA', quantity=Decimal('10'), cost_basis=Decimal('2000.00'), currency='USD', acquisition_date=date.today() - timedelta(days=45), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='NVDA', broker='B', quantity=Decimal('10'), market_value=Decimal('2500.00'), currency='USD', dedup_hash='nvda_unrealized_fx', source_documents={}); db.add(atom); fx_now = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=date.today(), source='test'); db.add(fx_now); fx_acq = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.30'), rate_date=date.today() - timedelta(days=45), source='test'); db.add(fx_acq); await db.flush(); result = await svc.calculate_unrealized_pnl(db, test_user.id, base_currency='SGD'); assert result.total_market_value == Decimal('3375.00'); assert result.total_cost_basis == Decimal('2600.00'); assert result.total_unrealized_pnl == Decimal('775.00')
-async def test_portfolio_summary_happy(db, test_user, svc, active_position, atomic_snapshot): summary = await svc.get_portfolio_summary(db, test_user.id, base_currency='SGD'); assert summary.holdings_count == 1; assert summary.active_positions_count == 1; assert summary.disposed_positions_count == 0; assert summary.total_market_value == Decimal('12000.00'); assert summary.total_cost_basis == Decimal('10000.00'); assert summary.net_pnl == Decimal('2000.00'); assert summary.currency == 'SGD'
-async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atomic_snapshot): active = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='AAPL', quantity=Decimal('100'), cost_basis=Decimal('10000.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=60), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(active); disposed = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='MSFT', quantity=Decimal('50'), cost_basis=Decimal('5000.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=120), disposal_date=date.today() - timedelta(days=10), status=PositionStatus.DISPOSED, cost_basis_method=CostBasisMethod.FIFO); msft_snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='MSFT', broker='Test Broker', quantity=Decimal('50'), market_value=Decimal('5500.00'), currency='SGD', sector='Technology', geography='US', asset_type='stock', dedup_hash='msft_disposed_summary_test', source_documents={}); db.add_all([disposed, msft_snapshot]); await db.flush(); summary = await svc.get_portfolio_summary(db, test_user.id, base_currency='SGD'); assert summary.active_positions_count == 1; assert summary.disposed_positions_count == 1; assert summary.holdings_count == 2
-async def test_portfolio_summary_zero_cost(db, test_user, svc, account): pos = ManagedPosition(user_id=test_user.id, account_id=account.id, asset_identifier='FREEBIE', quantity=Decimal('1'), cost_basis=Decimal('0.00'), currency='SGD', acquisition_date=date.today() - timedelta(days=5), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(pos); atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='FREEBIE', broker='B', quantity=Decimal('1'), market_value=Decimal('100.00'), currency='SGD', dedup_hash='freebie_summary', source_documents={}); db.add(atom); await db.flush(); summary = await svc.get_portfolio_summary(db, test_user.id, base_currency='SGD'); assert summary.net_pnl_percent == Decimal('0.00')
-async def test_get_latest_price_override(db, test_user, svc, active_position): override = MarketDataOverride(user_id=test_user.id, asset_identifier='AAPL', price_date=date.today(), price=Decimal('200.00'), currency='SGD', source=PriceSource.MANUAL); db.add(override); await db.flush(); price = await svc._get_latest_price(db, active_position, date.today(), test_user.id); assert price == Decimal('200.00')
-async def test_get_latest_price_from_atomic(db, test_user, svc, active_position, atomic_snapshot): price = await svc._get_latest_price(db, active_position, date.today(), test_user.id); assert price == Decimal('120')
-async def test_get_latest_price_zero_quantity(db, test_user, svc, active_position): atom = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='AAPL', broker='B', quantity=Decimal('0'), market_value=Decimal('999.00'), currency='SGD', dedup_hash='aapl_zero_qty', source_documents={}); db.add(atom); await db.flush(); price = await svc._get_latest_price(db, active_position, date.today(), test_user.id); assert price == Decimal('999.00')
-async def test_get_latest_price_no_data(db, test_user, svc, active_position):
-    with pytest.raises(AssetNotFoundError): await svc._get_latest_price(db, active_position, date.today(), test_user.id)
-async def test_get_latest_atomic_returns_latest(db, test_user, svc): old = AtomicPosition(user_id=test_user.id, snapshot_date=date.today() - timedelta(days=30), asset_identifier='TEST', broker='B', quantity=Decimal('10'), market_value=Decimal('100.00'), currency='SGD', sector='Old', dedup_hash='test_old', source_documents={}); new = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='TEST', broker='B', quantity=Decimal('10'), market_value=Decimal('200.00'), currency='SGD', sector='New', dedup_hash='test_new', source_documents={}); db.add_all([old, new]); await db.flush(); result = await svc._get_latest_atomic(db, 'TEST', test_user.id); assert result is not None; assert result.sector == 'New'
-async def test_get_latest_atomic_none(db, test_user, svc): result = await svc._get_latest_atomic(db, 'NOPE', test_user.id); assert result is None
+async def atomic_snapshot(db: AsyncSession, test_user):
+    atom = _atom(test_user.id, sector="Technology", geography="US", asset_type="stock", dedup_hash="aapl_svc_test")
+    await _flush(db, atom)
+    return atom
+
+
+async def test_get_holdings_happy_and_provenance(db, test_user, svc, active_position, atomic_snapshot):
+    h = (await svc.get_holdings(db, test_user.id, base_currency="SGD"))[0]
+    assert (h.asset_identifier, h.market_value, h.cost_basis, h.unrealized_pnl, h.sector, h.geography, h.asset_type, h.account_name, h.provenance) == ("AAPL", Decimal("12000.00"), Decimal("10000.00"), Decimal("2000.00"), "Technology", "US", "stock", "Test Investment", None)
+
+
+async def test_get_holdings_provenance_imported_with_source_document(db, test_user, svc, active_position):
+    await _flush(db, _atom(test_user.id, asset_type="stock", dedup_hash="aapl_provenance_test", source_documents={"documents": [{"doc_id": "11111111-1111-4111-8111-111111111111", "doc_type": "brokerage_statement"}]}))
+    holdings = await svc.get_holdings(db, test_user.id, base_currency="SGD")
+    assert (len(holdings), holdings[0].provenance) == (1, "imported")
+
+
+async def test_AC22_13_1_explicit_as_of_holdings_preserve_snapshot_provenance(db, test_user, svc, account):
+    as_of = date(2025, 1, 31)
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "VWRA", qty=Decimal("10"), cost=Decimal("1200.00"), acq_date=as_of),
+        _atom(test_user.id, "VWRA", "Test Investment", qty=Decimal("10"), mv=Decimal("1200.00"), snap_date=as_of, asset_type="etf", dedup_hash="vwra_hist_prov", source_documents={"documents": [{"doc_id": "22222222-2222-4222-8222-222222222222", "doc_type": "brokerage_statement"}]}),
+    )
+    holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of, base_currency="SGD")
+    assert (len(holdings), holdings[0].provenance) == (1, "imported")
+
+
+async def test_get_holdings_future_snapshot_default_and_explicit_as_of(db, test_user, svc, account):
+    fut = date.today() + timedelta(days=12)
+    await _flush(db, _pos(test_user.id, account.id, "FULLERTON_SGD_MMF", cost=Decimal("1000.00"), acq_date=fut), _atom(test_user.id, "FULLERTON_SGD_MMF", "Moomoo", mv=Decimal("1234.00"), snap_date=fut, dedup_hash="future_snap"))
+    holdings = await svc.get_holdings(db, test_user.id, base_currency="SGD")
+    assert (len(holdings), holdings[0].asset_identifier, holdings[0].market_value) == (1, "FULLERTON_SGD_MMF", Decimal("1234.00"))
+    with pytest.raises(PortfolioNotFoundError):
+        await svc.get_holdings(db, test_user.id, as_of_date=date.today(), base_currency="SGD")
+
+
+async def test_get_holdings_explicit_as_of_historical_fx_fallback_and_filters(db, test_user, svc, account):
+    hist, curr = date(2025, 1, 31), date(2025, 2, 28)
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "VWRA", qty=Decimal("20"), cost=Decimal("3000.00"), acq_date=hist),
+        _atom(test_user.id, "VWRA", "Test Investment", qty=Decimal("10"), mv=Decimal("1200.00"), snap_date=hist, sector="Global", geography="World", asset_type="etf", dedup_hash="vwra_hist"),
+        _atom(test_user.id, "VWRA", "Test Investment", qty=Decimal("20"), mv=Decimal("3000.00"), snap_date=curr, sector="Global", geography="World", asset_type="etf", dedup_hash="vwra_curr"),
+        _pos(test_user.id, account.id, "MSFT", qty=Decimal("5"), cost=Decimal("500.00"), currency="USD", acq_date=hist),
+        _atom(test_user.id, "MSFT", "Test Investment", qty=Decimal("5"), mv=Decimal("100.00"), currency="USD", snap_date=hist, dedup_hash="msft_hist_usd"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=hist, source="test"),
+        _pos(test_user.id, account.id, "FALLBACK", qty=Decimal("2"), cost=Decimal("20.00"), acq_date=hist),
+        _atom(test_user.id, "FALLBACK", "External Broker", qty=Decimal("2"), mv=Decimal("30.00"), snap_date=hist, dedup_hash="fallback_hist"),
+        _pos(test_user.id, account.id, "CLOSED", qty=Decimal("0"), cost=Decimal("0.00"), acq_date=hist, status=PositionStatus.DISPOSED),
+        _atom(test_user.id, "CLOSED", "Test Investment", qty=Decimal("0"), mv=Decimal("0.00"), snap_date=hist, dedup_hash="closed_hist"),
+        _atom(test_user.id, "UNRECONCILED", "External Broker", qty=Decimal("1"), mv=Decimal("10.00"), snap_date=hist, dedup_hash="unreconciled_hist"),
+    )
+    active = {h.asset_identifier: h for h in await svc.get_holdings(db, test_user.id, as_of_date=hist, base_currency="SGD")}
+    with_disposed = {h.asset_identifier: h for h in await svc.get_holdings(db, test_user.id, as_of_date=hist, include_disposed=True, base_currency="SGD")}
+    vwra, msft, fb, closed = active["VWRA"], active["MSFT"], active["FALLBACK"], with_disposed["CLOSED"]
+    assert (
+        set(active),
+        (vwra.quantity, vwra.market_value, vwra.cost_basis, vwra.sector, vwra.asset_type),
+        (msft.market_value, msft.cost_basis, msft.currency),
+        fb.market_value,
+        (closed.status, closed.disposal_date, closed.unrealized_pnl_percent),
+    ) == (
+        {"VWRA", "MSFT", "FALLBACK"},
+        (Decimal("10"), Decimal("1200.00"), Decimal("1200.00"), "Global", "etf"),
+        (Decimal("135.00000000"), Decimal("135.00000000"), "SGD"),
+        Decimal("30.00"),
+        (PositionStatus.DISPOSED, hist, Decimal("0.00")),
+    )
+
+
+async def test_get_holdings_empty_unreconciled_and_disposed(db, test_user, svc, account, atomic_snapshot):
+    with pytest.raises(PortfolioNotFoundError):
+        await svc.get_holdings(db, test_user.id, base_currency="SGD")
+    await _flush(db, _atom(test_user.id, "UNREC", "External", qty=Decimal("1"), mv=Decimal("10.00"), snap_date=date(2025, 1, 31), dedup_hash="unrec_only"))
+    with pytest.raises(PortfolioNotFoundError):
+        await svc.get_holdings(db, test_user.id, as_of_date=date(2025, 1, 31), base_currency="SGD")
+    await _flush(db, _pos(test_user.id, account.id, "AAPL", qty=Decimal("50"), cost=Decimal("5000.00"), acq_days=90, disposal_date=date.today() - timedelta(days=10), status=PositionStatus.DISPOSED))
+    with pytest.raises(PortfolioNotFoundError):
+        await svc.get_holdings(db, test_user.id, include_disposed=False, base_currency="SGD")
+    disposed = await svc.get_holdings(db, test_user.id, include_disposed=True, base_currency="SGD")
+    assert (len(disposed), disposed[0].status) == (1, PositionStatus.DISPOSED)
+
+
+async def test_get_holdings_fx_zero_cost_and_user_isolation(db, test_user, svc, account):
+    other_id = (await UserFactory.create_async(db)).id
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "MSFT", qty=Decimal("50"), cost=Decimal("5000.00"), currency="USD", acq_days=30),
+        _atom(test_user.id, "MSFT", "Broker", qty=Decimal("50"), mv=Decimal("6000.00"), currency="USD", dedup_hash="msft_fx_test"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=date.today(), source="test"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=date.today() - timedelta(days=30), source="test"),
+        _pos(test_user.id, account.id, "FREE", qty=Decimal("10"), cost=Decimal("0.00"), acq_days=10, method=CostBasisMethod.AVGCOST),
+        _atom(test_user.id, "FREE", "Broker", qty=Decimal("10"), mv=Decimal("500.00"), dedup_hash="free_zero_cost"),
+        _pos(test_user.id, account.id, "NOCLASS", qty=Decimal("10"), cost=Decimal("1000.00"), acq_days=10),
+        _atom(other_id, "NOCLASS", "B", qty=Decimal("10"), mv=Decimal("1200.00"), dedup_hash="noclass_other_user", sector="Other"),
+        MarketDataOverride(user_id=test_user.id, asset_identifier="NOCLASS", price_date=date.today(), price=Decimal("120.00"), currency="SGD", source=PriceSource.MANUAL),
+    )
+    by_asset = {h.asset_identifier: h for h in await svc.get_holdings(db, test_user.id, base_currency="SGD")}
+    msft, free, noclass = by_asset["MSFT"], by_asset["FREE"], by_asset["NOCLASS"]
+    assert ((msft.market_value, msft.cost_basis, msft.currency), free.unrealized_pnl_percent, (noclass.asset_type, noclass.sector, noclass.geography)) == ((Decimal("8100.00"), Decimal("6500.00"), "SGD"), Decimal("0.00"), (None, None, None))
+
+
+async def test_realized_pnl_edge_and_happy_cases(db, test_user, svc, account):
+    start, end = date.today() - timedelta(days=30), date.today()
+    with pytest.raises(InvalidDateRangeError):
+        await svc.calculate_realized_pnl(db, test_user.id, end, end - timedelta(days=1), base_currency="SGD")
+    empty = await svc.calculate_realized_pnl(db, test_user.id, start, end, base_currency="SGD")
+    assert (empty.total_realized_pnl, empty.positions_count, empty.details) == (Decimal("0"), 0, [])
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "GOOG", qty=Decimal("20"), cost=Decimal("3000.00"), acq_days=120, disposal_date=end - timedelta(days=5), status=PositionStatus.DISPOSED),
+        _atom(test_user.id, "GOOG", "Broker", qty=Decimal("20"), mv=Decimal("4000.00"), snap_date=end - timedelta(days=5), dedup_hash="goog_disposed"),
+    )
+    happy = await svc.calculate_realized_pnl(db, test_user.id, start, end, base_currency="SGD")
+    assert (happy.positions_count, happy.total_realized_pnl, len(happy.details), happy.details[0]["asset_identifier"]) == (1, Decimal("1000.00"), 1, "GOOG")
+
+
+async def test_realized_pnl_zero_cost_and_fx(db, test_user, svc, account):
+    today = date.today()
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "ZERO", qty=Decimal("10"), cost=Decimal("0.00"), acq_days=60, disposal_date=today - timedelta(days=3), status=PositionStatus.DISPOSED),
+        _atom(test_user.id, "ZERO", "B", qty=Decimal("10"), mv=Decimal("500.00"), snap_date=today - timedelta(days=3), dedup_hash="zero_cost_disposed"),
+    )
+    zero_res = await svc.calculate_realized_pnl(db, test_user.id, today - timedelta(days=30), today, base_currency="SGD")
+    assert (zero_res.total_realized_pnl, zero_res.total_realized_pnl_percent) == (Decimal("500.00"), Decimal("0.00"))
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "TSLA", qty=Decimal("5"), cost=Decimal("1000.00"), currency="USD", acq_days=90, disposal_date=today - timedelta(days=2), status=PositionStatus.DISPOSED, method=CostBasisMethod.LIFO),
+        _atom(test_user.id, "TSLA", "B", qty=Decimal("5"), mv=Decimal("1500.00"), currency="USD", snap_date=today - timedelta(days=2), dedup_hash="tsla_disposed_fx"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=today - timedelta(days=2), source="test"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=today - timedelta(days=90), source="test"),
+    )
+    fx_res = await svc.calculate_realized_pnl(db, test_user.id, today - timedelta(days=30), today, base_currency="SGD")
+    assert (fx_res.positions_count, fx_res.total_realized_pnl) == (2, Decimal("1225.00"))
+
+
+async def test_unrealized_pnl_and_summary_cases(db, test_user, svc, account):
+    with pytest.raises(PortfolioNotFoundError):
+        await svc.calculate_unrealized_pnl(db, test_user.id, base_currency="SGD")
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "GIFT", qty=Decimal("5"), cost=Decimal("0.00"), acq_days=30, method=CostBasisMethod.AVGCOST),
+        _atom(test_user.id, "GIFT", "B", qty=Decimal("5"), mv=Decimal("250.00"), dedup_hash="gift_unrealized"),
+    )
+    zero_upnl = await svc.calculate_unrealized_pnl(db, test_user.id, base_currency="SGD")
+    zero_summary = await svc.get_portfolio_summary(db, test_user.id, base_currency="SGD")
+    assert (zero_upnl.total_unrealized_pnl_percent, zero_upnl.details[0]["unrealized_pnl_percent"], zero_summary.net_pnl_percent) == (Decimal("0.00"), Decimal("0.00"), Decimal("0.00"))
+    await _flush(
+        db,
+        _pos(test_user.id, account.id, "NVDA", qty=Decimal("10"), cost=Decimal("2000.00"), currency="USD", acq_days=45),
+        _atom(test_user.id, "NVDA", "B", qty=Decimal("10"), mv=Decimal("2500.00"), currency="USD", dedup_hash="nvda_unrealized_fx"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=date.today(), source="test"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=date.today() - timedelta(days=45), source="test"),
+        _pos(test_user.id, account.id, "MSFT", qty=Decimal("50"), cost=Decimal("5000.00"), acq_days=120, disposal_date=date.today() - timedelta(days=10), status=PositionStatus.DISPOSED),
+        _atom(test_user.id, "MSFT", "Test Broker", qty=Decimal("50"), mv=Decimal("5500.00"), sector="Technology", geography="US", asset_type="stock", dedup_hash="msft_disposed_summary"),
+    )
+    upnl = await svc.calculate_unrealized_pnl(db, test_user.id, base_currency="SGD")
+    summary = await svc.get_portfolio_summary(db, test_user.id, base_currency="SGD")
+    assert ((upnl.holdings_count, upnl.total_market_value, upnl.total_cost_basis, upnl.total_unrealized_pnl), (summary.active_positions_count, summary.disposed_positions_count, summary.holdings_count, summary.currency)) == ((2, Decimal("3625.00"), Decimal("2600.00"), Decimal("1025.00")), (2, 1, 3, "SGD"))
+
+
+async def test_get_latest_price_and_atomic_helpers(db, test_user, svc, active_position, account):
+    with pytest.raises(AssetNotFoundError):
+        await svc._get_latest_price(db, active_position, date.today(), test_user.id)
+    zero_pos = _pos(test_user.id, account.id, "ZERO_Q")
+    await _flush(
+        db,
+        zero_pos,
+        _atom(test_user.id, "ZERO_Q", "B", qty=Decimal("0"), mv=Decimal("999.00"), dedup_hash="zero_q_snap"),
+        _atom(test_user.id, "AAPL", "B", qty=Decimal("100"), mv=Decimal("12000.00"), dedup_hash="aapl_normal"),
+    )
+    zero_price = await svc._get_latest_price(db, zero_pos, date.today(), test_user.id)
+    atomic_price = await svc._get_latest_price(db, active_position, date.today(), test_user.id)
+    await _flush(db, MarketDataOverride(user_id=test_user.id, asset_identifier="AAPL", price_date=date.today(), price=Decimal("200.00"), currency="SGD", source=PriceSource.MANUAL))
+    override_price = await svc._get_latest_price(db, active_position, date.today(), test_user.id)
+    await _flush(
+        db,
+        _atom(test_user.id, "TEST", "B", qty=Decimal("10"), mv=Decimal("100.00"), snap_date=date.today() - timedelta(days=30), sector="Old", dedup_hash="test_old"),
+        _atom(test_user.id, "TEST", "B", qty=Decimal("10"), mv=Decimal("200.00"), sector="New", dedup_hash="test_new"),
+    )
+    latest = await svc._get_latest_atomic(db, "TEST", test_user.id)
+    missing = await svc._get_latest_atomic(db, "NOPE", test_user.id)
+    assert (zero_price, atomic_price, override_price, latest.sector, missing) == (Decimal("999.00"), Decimal("120"), Decimal("200.00"), "New", None)

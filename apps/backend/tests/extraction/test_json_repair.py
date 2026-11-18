@@ -1,20 +1,45 @@
-import json; from unittest.mock import AsyncMock, MagicMock, patch; import pytest; from src.extraction.extension.service import ExtractionError, ExtractionService
-class TestRepairJsonObject:
-    def test_strips_json_code_fence(self): content = '```json\n{"institution": "DBS", "transactions": []}\n```'; repaired = ExtractionService._repair_json_object(content); assert repaired is not None; assert json.loads(repaired) == {'institution': 'DBS', 'transactions': []}
-    def test_strips_bare_code_fence_and_prose(self): content = 'Here is the result:\n```\n{"a": 1, "nested": {"b": 2}}\n```\nDone.'; repaired = ExtractionService._repair_json_object(content); assert repaired is not None; assert json.loads(repaired) == {'a': 1, 'nested': {'b': 2}}; _m1_content = '```json {"institution": "DBS", "transactions": []}```'; _m1_repaired = ExtractionService._repair_json_object(_m1_content); assert _m1_repaired is not None; assert json.loads(_m1_repaired) == {'institution': 'DBS', 'transactions': []}
-    def test_clean_object_is_preserved(self): content = '{"x": "y"}'; repaired = ExtractionService._repair_json_object(content); assert repaired is not None; assert json.loads(repaired) == {'x': 'y'}
-    def test_unrecoverable_returns_none(self): assert ExtractionService._repair_json_object('totally not json') is None; assert ExtractionService._repair_json_object('') is None; _m2_content = '```json\n{"note": "balance {pending}", "ok": true}\n```'; _m2_repaired = ExtractionService._repair_json_object(_m2_content); assert _m2_repaired is not None; assert json.loads(_m2_repaired) == {'note': 'balance {pending}', 'ok': True}; assert ExtractionService._repair_json_object('{"a": 1, "b": 2') is None; assert ExtractionService._repair_json_object('{"note": "a } b"') is None; _m4_content = '{"path": "C:\\\\Users\\\\x", "quote": "she said \\"hi\\"", "ok": true}'; _m4_repaired = ExtractionService._repair_json_object(_m4_content); assert _m4_repaired is not None; assert json.loads(_m4_repaired) == {'path': 'C:\\Users\\x', 'quote': 'she said "hi"', 'ok': True}
-    def test_prefers_largest_object_when_example_precedes_real(self): content = 'Here is the format I will use: {"institution": "Example", "transactions": []}\nNow the actual data:\n{"institution": "DBS", "opening_balance": "1000.00", "closing_balance": "1100.00", "transactions": [{"amount": "100.00", "direction": "IN"}]}'; repaired = ExtractionService._repair_json_object(content); assert repaired is not None; obj = json.loads(repaired); assert obj['institution'] == 'DBS'; assert obj['transactions'] == [{'amount': '100.00', 'direction': 'IN'}]
-    def test_complete_object_then_trailing_unbalanced_brace(self): content = '{"institution": "DBS", "transactions": []}\nnote: {oops'; repaired = ExtractionService._repair_json_object(content); assert repaired is not None; assert json.loads(repaired) == {'institution': 'DBS', 'transactions': []}
-    def test_leading_unbalanced_brace_then_real_object(self): content = 'note: {oops\n{"institution": "DBS", "transactions": []}'; repaired = ExtractionService._repair_json_object(content); assert repaired is not None; assert json.loads(repaired) == {'institution': 'DBS', 'transactions': []}
-class TestExtractionSalvagesFencedResponse:
-    async def test_fenced_response_is_salvaged(self):
-        service = ExtractionService(); fenced = '```json\n{"institution": "DBS", "transactions": []}\n```'
-        with patch.object(service, 'api_key', 'test-key'), patch('src.extraction.extension.service.stream_ai_json', return_value=MagicMock()), patch('src.extraction.extension.service.accumulate_stream', AsyncMock(return_value=fenced)): result = await service._extract_json_with_model(messages=[{'role': 'user', 'content': 'x'}], model='test-model')
-        assert result == {'institution': 'DBS', 'transactions': []}
-    async def test_unrecoverable_response_still_fails(self):
-        service = ExtractionService()
-        with patch.object(service, 'api_key', 'test-key'), patch('src.extraction.extension.service.stream_ai_json', return_value=MagicMock()), patch('src.extraction.extension.service.accumulate_stream', AsyncMock(return_value='not json at all')), pytest.raises(ExtractionError): await service._extract_json_with_model(messages=[{'role': 'user', 'content': 'x'}], model='test-model')
-async def test_AC_extraction_2813_2_truncated_outer_statement_does_not_salvage_inner_transaction():
-    from src.config import Settings; assert Settings().ai_json_max_tokens == 32768; truncated_stream = '{"institution": "DBS POSB", "account_last4": "8123", "currency": "SGD", "opening_balance": "124781.91", "closing_balance": null, "transactions": [{"date": "2024-11-01", "description": "PayNow Transfer", "amount": "15.00", "direction": "OUT", "currency": "SGD", "balance_after": "124766.91"}, {"date": "2024-11-02", "description": "Truncated mid-row'; assert ExtractionService._repair_json_object(truncated_stream) is None; service = ExtractionService()
-    with patch.object(service, 'api_key', 'test-key'), patch('src.extraction.extension.service.stream_ai_json', return_value=MagicMock()), patch('src.extraction.extension.service.accumulate_stream', AsyncMock(return_value=truncated_stream)), pytest.raises(ExtractionError, match='json_parse'): await service._extract_json_with_model(messages=[{'role': 'user', 'content': 'x'}], model='test-model')
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.config import Settings
+from src.extraction.extension.service import ExtractionError, ExtractionService
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ('```json\n{"institution": "DBS", "transactions": []}\n```', {"institution": "DBS", "transactions": []}),
+        ('Here is the result:\n```\n{"a": 1, "nested": {"b": 2}}\n```\nDone.', {"a": 1, "nested": {"b": 2}}),
+        ('```json {"institution": "DBS", "transactions": []}```', {"institution": "DBS", "transactions": []}),
+        ('{"x": "y"}', {"x": "y"}),
+        ('```json\n{"note": "balance {pending}", "ok": true}\n```', {"note": "balance {pending}", "ok": True}),
+        ('{"path": "C:\\\\Users\\\\x", "quote": "she said \\"hi\\"", "ok": true}', {"path": "C:\\Users\\x", "quote": 'she said "hi"', "ok": True}),
+        ('Here is the format I will use: {"institution": "Example", "transactions": []}\nNow the actual data:\n{"institution": "DBS", "opening_balance": "1000.00", "closing_balance": "1100.00", "transactions": [{"amount": "100.00", "direction": "IN"}]}', {"institution": "DBS", "opening_balance": "1000.00", "closing_balance": "1100.00", "transactions": [{"amount": "100.00", "direction": "IN"}]}),
+        ('{"institution": "DBS", "transactions": []}\nnote: {oops', {"institution": "DBS", "transactions": []}),
+        ('note: {oops\n{"institution": "DBS", "transactions": []}', {"institution": "DBS", "transactions": []}),
+    ],
+)
+def test_repair_json_object_recovers_valid_objects(raw, expected):
+    repaired = ExtractionService._repair_json_object(raw)
+    assert repaired is not None and json.loads(repaired) == expected
+
+
+@pytest.mark.parametrize("raw", ["totally not json", "", '{"a": 1, "b": 2', '{"note": "a } b"'])
+def test_repair_json_object_returns_none_when_unrecoverable(raw):
+    assert ExtractionService._repair_json_object(raw) is None
+
+
+async def test_extraction_salvages_and_rejects_fenced_and_truncated_responses():
+    service = ExtractionService()
+    with patch.object(service, "api_key", "test-key"), patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()), patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='```json\n{"institution": "DBS", "transactions": []}\n```')):
+        assert await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model") == {"institution": "DBS", "transactions": []}
+
+    truncated = '{"institution": "DBS POSB", "account_last4": "8123", "currency": "SGD", "opening_balance": "124781.91", "closing_balance": null, "transactions": [{"date": "2024-11-01", "description": "PayNow Transfer", "amount": "15.00", "direction": "OUT", "currency": "SGD", "balance_after": "124766.91"}, {"date": "2024-11-02", "description": "Truncated mid-row'
+    assert Settings().ai_json_max_tokens == 32768 and ExtractionService._repair_json_object(truncated) is None
+    for bad, match in [("not json at all", None), (truncated, "json_parse")]:
+        with patch.object(service, "api_key", "test-key"), patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()), patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value=bad)), pytest.raises(ExtractionError, match=match):
+            await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model")

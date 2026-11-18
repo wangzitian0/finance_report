@@ -1,2 +1,61 @@
-from datetime import date; from decimal import Decimal; from uuid import uuid4; from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus; from src.pricing.orm.market_data import FxRate
-def test_chat_session_repr(): session = ChatSession(id=uuid4(), user_id=uuid4(), title='Test Session', status=ChatSessionStatus.ACTIVE); repr_str = repr(session); assert 'ChatSession' in repr_str; assert 'status=active' in repr_str; _m1_session_id = uuid4(); _m1_message = ChatMessage(id=uuid4(), session_id=_m1_session_id, role=ChatMessageRole.USER, content='Hello'); _m1_repr_str = repr(_m1_message); assert 'ChatMessage' in _m1_repr_str; assert 'user' in _m1_repr_str; assert str(_m1_session_id) in _m1_repr_str; assert ChatSession.__table__.c.status.type.enums == ['active', 'deleted']; assert ChatMessage.__table__.c.role.type.enums == ['user', 'assistant', 'system']; _m3_fx_rate = FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.35'), rate_date=date(2024, 1, 1), source='test'); _m3_repr_str = repr(_m3_fx_rate); assert 'FxRate' in _m3_repr_str; assert 'USD/SGD' in _m3_repr_str; assert '1.35' in _m3_repr_str; from src.extraction import BankStatementStatus; from src.extraction.base.validation import route_by_threshold; assert route_by_threshold(85, True) == BankStatementStatus.APPROVED; assert route_by_threshold(60, True) == BankStatementStatus.PARSED; assert route_by_threshold(50, False) == BankStatementStatus.PARSED; assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED; from src.extraction.base.validation import compute_confidence_score; _m5_extracted_data = {'description': 'Test', 'amount': 'not_a_number', 'transaction_date': '2024-01-01'}; _m5_balance_result = {'balance_valid': False, 'difference': 'invalid_decimal'}; _m5_score = compute_confidence_score(_m5_extracted_data, _m5_balance_result); assert isinstance(_m5_score, int); assert 0 <= _m5_score <= 100; from src.ledger import Account, AccountType; _m6_account = Account(id=uuid4(), name='Cash', type=AccountType.ASSET, code='1000', currency='USD', user_id=uuid4()); _m6_result = repr(_m6_account); assert _m6_result == '<Account Cash (ASSET)>'; from src.ledger import JournalEntry, JournalEntryStatus; _m7_entry = JournalEntry(id=uuid4(), user_id=uuid4(), entry_date=date(2024, 1, 15), memo='This is a very long memo that should be truncated in the repr', status=JournalEntryStatus.DRAFT); _m7_result = repr(_m7_entry); assert _m7_result == '<JournalEntry 2024-01-15 - This is a very long memo that >'; from src.ledger import Direction, JournalLine; _m8_line = JournalLine(id=uuid4(), journal_entry_id=uuid4(), account_id=uuid4(), direction=Direction.DEBIT, amount='1000.00', currency='USD'); _m8_result = repr(_m8_line); assert _m8_result == '<JournalLine DEBIT 1000.00 USD>'; from src.extraction import DocumentType, UploadedDocument; _m9_document = UploadedDocument(id=uuid4(), user_id=uuid4(), original_filename='statement.pdf', document_type=DocumentType.BANK_STATEMENT, file_path='uploads/statement.pdf', file_hash='abc123'); _m9_result = repr(_m9_document); assert _m9_result == '<UploadedDocument statement.pdf (bank_statement)>'; from src.extraction import TransactionDirection; from src.extraction.orm.layer2 import AtomicTransaction; _m10_transaction = AtomicTransaction(id=uuid4(), user_id=uuid4(), txn_date=date(2024, 1, 15), direction=TransactionDirection.IN, amount='500.00', currency='SGD', description='Test transaction'); _m10_result = repr(_m10_transaction); assert _m10_result == '<AtomicTransaction 2024-01-15 IN 500.00 SGD>'; from src.extraction.orm.layer2 import AtomicPosition; _m11_position = AtomicPosition(id=uuid4(), user_id=uuid4(), snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', quantity='100', market_value='15000.00', currency='USD'); _m11_result = repr(_m11_position); assert _m11_result == '<AtomicPosition 2024-01-15 AAPL 100 @ 15000.00 USD>'; from src.portfolio import DividendIncome; _m12_dividend = DividendIncome(payment_date=date(2024, 3, 15), amount='125.50', currency='USD'); _m12_result = repr(_m12_dividend); assert _m12_result == '<DividendIncome 2024-03-15 125.50 USD>'; from src.pricing import MarketDataOverride; _m13_override = MarketDataOverride(asset_identifier='AAPL', price='185.50', price_date=date(2024, 3, 15)); _m13_result = repr(_m13_override); assert _m13_result == '<MarketDataOverride AAPL 185.50 on 2024-03-15>'
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+
+from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.extraction import BankStatementStatus, DocumentType, TransactionDirection, UploadedDocument
+from src.extraction.base.validation import compute_confidence_score, route_by_threshold
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.portfolio import DividendIncome
+from src.pricing import MarketDataOverride
+from src.pricing.orm.market_data import FxRate
+
+
+@pytest.mark.parametrize(
+    ("factory", "expected_substrings"),
+    [
+        (lambda _sid: ChatSession(id=uuid4(), user_id=uuid4(), title="Test Session", status=ChatSessionStatus.ACTIVE), ("ChatSession", "status=active")),
+        (lambda sid: ChatMessage(id=uuid4(), session_id=sid, role=ChatMessageRole.USER, content="Hello"), ("ChatMessage", "user")),
+        (lambda _sid: FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=date(2024, 1, 1), source="test"), ("FxRate", "USD/SGD", "1.35")),
+        (lambda _sid: Account(id=uuid4(), name="Cash", type=AccountType.ASSET, code="1000", currency="USD", user_id=uuid4()), ("<Account Cash (ASSET)>",)),
+        (lambda _sid: JournalEntry(id=uuid4(), user_id=uuid4(), entry_date=date(2024, 1, 15), memo="This is a very long memo that should be truncated in the repr", status=JournalEntryStatus.DRAFT), ("<JournalEntry 2024-01-15 - This is a very long memo that >",)),
+        (lambda _sid: JournalLine(id=uuid4(), journal_entry_id=uuid4(), account_id=uuid4(), direction=Direction.DEBIT, amount="1000.00", currency="USD"), ("<JournalLine DEBIT 1000.00 USD>",)),
+        (lambda _sid: UploadedDocument(id=uuid4(), user_id=uuid4(), original_filename="statement.pdf", document_type=DocumentType.BANK_STATEMENT, file_path="uploads/statement.pdf", file_hash="abc123"), ("<UploadedDocument statement.pdf (bank_statement)>",)),
+        (lambda _sid: AtomicTransaction(id=uuid4(), user_id=uuid4(), txn_date=date(2024, 1, 15), direction=TransactionDirection.IN, amount="500.00", currency="SGD", description="Test transaction"), ("<AtomicTransaction 2024-01-15 IN 500.00 SGD>",)),
+        (lambda _sid: AtomicPosition(id=uuid4(), user_id=uuid4(), snapshot_date=date(2024, 1, 15), asset_identifier="AAPL", quantity="100", market_value="15000.00", currency="USD"), ("<AtomicPosition 2024-01-15 AAPL 100 @ 15000.00 USD>",)),
+        (lambda _sid: DividendIncome(payment_date=date(2024, 3, 15), amount="125.50", currency="USD"), ("<DividendIncome 2024-03-15 125.50 USD>",)),
+        (lambda _sid: MarketDataOverride(asset_identifier="AAPL", price="185.50", price_date=date(2024, 3, 15)), ("<MarketDataOverride AAPL 185.50 on 2024-03-15>",)),
+    ],
+)
+def test_model_reprs(factory, expected_substrings: tuple[str, ...]) -> None:
+    sid = uuid4()
+    rendered = repr(factory(sid))
+    assert all(part in rendered for part in expected_substrings)
+    if expected_substrings == ("ChatMessage", "user"):
+        assert str(sid) in rendered
+
+
+def test_chat_enums_and_extraction_threshold_helpers() -> None:
+    assert (ChatSession.__table__.c.status.type.enums, ChatMessage.__table__.c.role.type.enums) == (
+        ["active", "deleted"],
+        ["user", "assistant", "system"],
+    )
+    assert (
+        route_by_threshold(85, True),
+        route_by_threshold(60, True),
+        route_by_threshold(50, False),
+        route_by_threshold(50, True),
+    ) == (
+        BankStatementStatus.APPROVED,
+        BankStatementStatus.PARSED,
+        BankStatementStatus.PARSED,
+        BankStatementStatus.UPLOADED,
+    )
+    score = compute_confidence_score(
+        {"description": "Test", "amount": "not_a_number", "transaction_date": "2024-01-01"},
+        {"balance_valid": False, "difference": "invalid_decimal"},
+    )
+    assert isinstance(score, int) and 0 <= score <= 100

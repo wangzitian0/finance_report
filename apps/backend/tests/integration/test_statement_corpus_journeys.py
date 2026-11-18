@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 import os
 from dataclasses import dataclass
@@ -6,6 +7,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
+
 import pytest
 from src.extraction import ClassificationStatus, RuleType, TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -14,18 +16,7 @@ from src.ledger import AccountType
 from tests.factories import AccountFactory, seed_parsed_statement
 
 pytestmark = [pytest.mark.integration, pytest.mark.e2e]
-REPO_ROOT = Path(__file__).resolve().parents[4]
-CASSETTE_DIR = REPO_ROOT / "tests" / "fixtures" / "llm_cassettes"
-GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
-
-
-def _declare_served(fingerprint: str) -> None:
-    out = Path(__file__).resolve().parents[2] / "test-results"
-    out.mkdir(exist_ok=True)
-    path = out / f"served-cassettes-{os.getpid()}.txt"
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(f"{fingerprint}\n")
-
+CASSETTE_DIR = Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "llm_cassettes"
 
 CORPUS_FINGERPRINTS: tuple[str, ...] = (
     "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30",
@@ -40,6 +31,7 @@ CORPUS_FINGERPRINTS: tuple[str, ...] = (
     "4ec965fd2615a4b285964aab735b385feae08fc754282629b39101ae12083efe",
 )
 ZERO_TXN_FINGERPRINT = "05d7858b5baa76e92d75f39b2c7d101d16aac776c608488affc21a14c1f754c1"
+MULTI_STATEMENT_FINGERPRINTS = CORPUS_FINGERPRINTS[3:6]
 
 
 @dataclass(frozen=True)
@@ -59,43 +51,37 @@ class CorpusCase:
 
     @property
     def net_movement(self) -> Decimal:
-        total = Decimal("0")
-        for row in self.rows:
-            if row["direction"] == TransactionDirection.IN:
-                total += row["amount"]
-            else:
-                total -= row["amount"]
-        return total
+        return sum(
+            (r["amount"] if r["direction"] == TransactionDirection.IN else -r["amount"] for r in self.rows),
+            Decimal("0"),
+        )
 
 
 def load_corpus_case(fingerprint: str) -> CorpusCase:
     cassette = json.loads((CASSETTE_DIR / f"{fingerprint}.json").read_text())
-    _declare_served(fingerprint)
-    truth = json.loads((GROUND_TRUTH_DIR / f"{fingerprint}.truth.json").read_text())
+    out = Path(__file__).resolve().parents[2] / "test-results"
+    out.mkdir(exist_ok=True)
+    with (out / f"served-cassettes-{os.getpid()}.txt").open("a", encoding="utf-8") as fh:
+        fh.write(f"{fingerprint}\n")
+    truth = json.loads((CASSETTE_DIR / "ground_truth" / f"{fingerprint}.truth.json").read_text())
     payload = json.loads(cassette["response"]["stream_text"])
-    rows = []
-    unpostable = 0
+    rows, unpostable = [], 0
     for index, txn in enumerate(payload["transactions"]):
         if txn["amount"] is None or Decimal(str(txn["amount"])) == 0:
             unpostable += 1
             continue
         amount = Decimal(str(txn["amount"]))
-        if "direction" in txn:
-            raw_direction = str(txn["direction"]).upper()
-            if raw_direction not in ("IN", "OUT"):
-                raise ValueError(f"{fingerprint[:8]}: unknown direction {txn['direction']!r} in cassette row {index}")
-            direction = TransactionDirection.IN if raw_direction == "IN" else TransactionDirection.OUT
-        else:
-            direction = TransactionDirection.IN if amount >= 0 else TransactionDirection.OUT
+        raw_dir = str(txn.get("direction", "IN" if amount >= 0 else "OUT")).upper()
+        if raw_dir not in ("IN", "OUT"):
+            raise ValueError(f"{fingerprint[:8]}: unknown direction {txn['direction']!r} in cassette row {index}")
         rows.append(
             {
                 "description": txn["description"] or f"corpus txn {index}",
                 "amount": abs(amount),
-                "direction": direction,
+                "direction": TransactionDirection(raw_dir),
                 "date": date.fromisoformat(txn["date"]),
             }
         )
-    rows = tuple(rows)
     return CorpusCase(
         fingerprint=fingerprint,
         modality=truth["modality"],
@@ -103,7 +89,7 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
         edge_condition=truth["edge_condition"],
         institution=payload.get("institution") or truth["institution_class"].title(),
         opening_balance=Decimal(str(payload["opening_balance"])),
-        rows=rows,
+        rows=tuple(rows),
         unpostable_rows=unpostable,
     )
 
@@ -111,301 +97,171 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
 async def attach_reviewed_corpus_semantics(db, user_id, transactions: list[AtomicTransaction]) -> None:
     if not transactions:
         return
-    currency = transactions[0].currency
-    accounts = {
-        TransactionDirection.IN: await AccountFactory.create_async(
-            db, user_id=user_id, name="Income - Corpus Reviewed", type=AccountType.INCOME, currency=currency
-        ),
-        TransactionDirection.OUT: await AccountFactory.create_async(
-            db, user_id=user_id, name="Expense - Corpus Reviewed", type=AccountType.EXPENSE, currency=currency
-        ),
-    }
-    if not transactions:
-        return
-    base_date = min((t.txn_date for t in transactions))
-    suffix = uuid4()
-    rules = {
-        TransactionDirection.IN: ClassificationRule(
+    currency, base_date, suffix = transactions[0].currency, min(t.txn_date for t in transactions), uuid4()
+    rules = {}
+    for direction, acc_type, cat in (
+        (TransactionDirection.IN, AccountType.INCOME, "CORPUS_REVIEWED_INCOME"),
+        (TransactionDirection.OUT, AccountType.EXPENSE, "CORPUS_REVIEWED_EXPENSE"),
+    ):
+        acc = await AccountFactory.create_async(
+            db, user_id=user_id, name=f"{acc_type.value.title()} - Corpus Reviewed", type=acc_type, currency=currency
+        )
+        rules[direction] = ClassificationRule(
             user_id=user_id,
             created_by=user_id,
             version_number=1,
             effective_date=base_date,
             is_active=False,
-            rule_name=f"corpus-reviewed-in-{suffix}",
+            rule_name=f"corpus-{direction.value}-{suffix}",
             rule_type=RuleType.KEYWORD_MATCH,
             rule_config={"keywords": []},
-            tag_mappings={"category": "CORPUS_REVIEWED_INCOME", "rationale": "corpus reviewer confirmation"},
-            default_account_id=accounts[TransactionDirection.IN].id,
-        ),
-        TransactionDirection.OUT: ClassificationRule(
-            user_id=user_id,
-            created_by=user_id,
-            version_number=1,
-            effective_date=base_date,
-            is_active=False,
-            rule_name=f"corpus-reviewed-out-{suffix}",
-            rule_type=RuleType.KEYWORD_MATCH,
-            rule_config={"keywords": []},
-            tag_mappings={"category": "CORPUS_REVIEWED_EXPENSE", "rationale": "corpus reviewer confirmation"},
-            default_account_id=accounts[TransactionDirection.OUT].id,
-        ),
-    }
+            tag_mappings={"category": cat, "rationale": "corpus reviewer confirmation"},
+            default_account_id=acc.id,
+        )
     db.add_all(rules.values())
     await db.flush()
-    classifications = [
-        TransactionClassification(
-            atomic_txn_id=transaction.id,
-            rule_version_id=rules[transaction.direction].id,
-            account_id=rules[transaction.direction].default_account_id,
-            tags={
-                "category": "CORPUS_REVIEWED_INCOME"
-                if transaction.direction is TransactionDirection.IN
-                else "CORPUS_REVIEWED_EXPENSE",
-                "rationale": "corpus reviewer confirmation",
-            },
-            confidence_score=100,
-            status=ClassificationStatus.APPLIED,
-        )
-        for transaction in transactions
-    ]
-    db.add_all(classifications)
-    await db.flush()
+    db.add_all(
+        [
+            TransactionClassification(
+                atomic_txn_id=t.id,
+                rule_version_id=rules[t.direction].id,
+                account_id=rules[t.direction].default_account_id,
+                tags={
+                    "category": "CORPUS_REVIEWED_INCOME"
+                    if t.direction is TransactionDirection.IN
+                    else "CORPUS_REVIEWED_EXPENSE",
+                    "rationale": "corpus reviewer confirmation",
+                },
+                confidence_score=100,
+                status=ClassificationStatus.APPLIED,
+            )
+            for t in transactions
+        ]
+    )
     await db.commit()
+
+
+async def _seed_and_accept_case(client, db, user_id, case: CorpusCase, prefix: str) -> str:
+    seeded = await seed_parsed_statement(
+        db,
+        user_id,
+        institution=case.institution,
+        original_filename=f"{prefix}_{case.short_id}.pdf",
+        opening_balance=case.opening_balance,
+        transactions=[dict(r) for r in case.rows],
+    )
+    if case.rows:
+        seeded.statement.period_start, seeded.statement.period_end = (
+            min(r["date"] for r in case.rows),
+            max(r["date"] for r in case.rows),
+        )
+    await attach_reviewed_corpus_semantics(db, user_id, seeded.transactions)
+    stmt_id = str(seeded.id)
+    review_resp = await client.get(f"/statements/{stmt_id}/review")
+    assert (
+        review_resp.status_code == 200
+        and len(review_resp.json()["transactions"]) == len(case.rows)
+        and review_resp.json()["balance_validation_result"]["closing_match"] is True
+    )
+    conflicts = (await client.get(f"/statements/{stmt_id}/conflicts")).json()
+    if conflicts["duplicates"] or conflicts["transfer_pairs"]:
+        assert (
+            await client.post(
+                f"/statements/{stmt_id}/conflict-resolutions",
+                json={"action": "confirm_distinct", "note": f"corpus {case.short_id}: source rows verified"},
+            )
+        ).status_code == 200
+    approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
+    assert (
+        approve_resp.status_code == 200
+        and approve_resp.json()["journal_entries_created"] == len(case.rows)
+        and approve_resp.json()["account_id"]
+    )
+    run_resp = await client.post("/reconciliation/runs", json={"statement_id": stmt_id})
+    assert run_resp.status_code == 200 and run_resp.json()["unmatched"] == 0
+    return approve_resp.json()["account_id"]
 
 
 @pytest.mark.e2e
 def test_corpus_manifest_is_diverse():
-    assert len(CORPUS_FINGERPRINTS) == 10
-    assert len(set(CORPUS_FINGERPRINTS)) == 10, "corpus fingerprints must be unique"
+    assert len(CORPUS_FINGERPRINTS) == len(set(CORPUS_FINGERPRINTS)) == 10
     cases = [load_corpus_case(fp) for fp in CORPUS_FINGERPRINTS]
-    modalities = {case.modality for case in cases}
-    assert modalities == {"text", "vision"}, f"corpus must span both modalities, got {modalities}"
-    classes = {case.institution_class for case in cases}
-    assert "bank" in classes and "brokerage" in classes, f"corpus must span bank+brokerage, got {classes}"
-    edge_conditions = {case.edge_condition for case in cases}
-    assert "duplicate_rows" in edge_conditions, "the #1254 duplicate-rows edge must stay in the corpus"
-    txn_counts = sorted((len(case.rows) for case in cases))
-    assert txn_counts[0] == 0, "the zero-transaction statement must stay in the corpus"
-    assert sum((1 for n in txn_counts if n >= 150)) >= 3, f"need >=3 large statements (150+ txns), got {txn_counts}"
-    assert all(
-        (
-            all(
-                (
-                    isinstance(row["amount"], Decimal)
-                    and row["direction"] in (TransactionDirection.IN, TransactionDirection.OUT)
-                    for row in case.rows
-                )
-            )
-            for case in cases
-        )
+    assert (
+        {c.modality for c in cases} == {"text", "vision"}
+        and {"bank", "brokerage"} <= {c.institution_class for c in cases}
+        and "duplicate_rows" in {c.edge_condition for c in cases}
     )
-    actual_unpostable = {case.fingerprint: case.unpostable_rows for case in cases if case.unpostable_rows}
-    assert actual_unpostable == {}, f"unpostable rows found in corpus manifest (zero allowed): {actual_unpostable}"
+    txn_counts = sorted(len(c.rows) for c in cases)
+    assert txn_counts[0] == 0 and sum(1 for n in txn_counts if n >= 150) >= 3
+    assert (
+        all(
+            isinstance(r["amount"], Decimal) and r["direction"] in (TransactionDirection.IN, TransactionDirection.OUT)
+            for c in cases
+            for r in c.rows
+        )
+        and {c.fingerprint: c.unpostable_rows for c in cases if c.unpostable_rows} == {}
+    )
 
 
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):
     case = load_corpus_case(fingerprint)
-    seeded = await seed_parsed_statement(
-        db,
-        test_user.id,
-        institution=case.institution,
-        original_filename=f"corpus_{case.short_id}.pdf",
-        opening_balance=case.opening_balance,
-        transactions=[dict(row) for row in case.rows],
+    account_id = await _seed_and_accept_case(client, db, test_user.id, case, "corpus")
+    assert (report := (await client.get("/reports/balance-sheet")).json())["is_balanced"] is True
+    if not case.rows:
+        return
+    assert {line["account_id"]: Decimal(str(line["amount"])) for line in report["assets"]}[
+        account_id
+    ] == case.opening_balance + case.net_movement
+    p_start, p_end = min(r["date"] for r in case.rows).isoformat(), max(r["date"] for r in case.rows).isoformat()
+    income = (await client.get("/reports/income-statement", params={"start_date": p_start, "end_date": p_end})).json()
+    assert (
+        Decimal(str(income["total_income"])) - Decimal(str(income["total_expenses"])),
+        Decimal(str(income["net_income"])),
+    ) == (case.net_movement, case.net_movement)
+    cf = (await client.get("/reports/cash-flow", params={"start_date": p_start, "end_date": p_end})).json()
+    activity = next(
+        (i for sec in ("operating", "investing", "financing") for i in cf[sec] if i.get("account_id") == account_id),
+        None,
     )
-    if case.rows:
-        seeded.statement.period_start = min((row["date"] for row in case.rows))
-        seeded.statement.period_end = max((row["date"] for row in case.rows))
-    await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
-    stmt_id = str(seeded.id)
-    n = len(case.rows)
-    list_resp = await client.get("/statements")
-    assert list_resp.status_code == 200, list_resp.text
-    assert stmt_id in [item["id"] for item in list_resp.json()["items"]]
-    parsed_detail = await client.get(f"/statements/{stmt_id}")
-    assert parsed_detail.status_code == 200, parsed_detail.text
-    api_txns = parsed_detail.json()["transactions"]
-    assert len(api_txns) == n, f"[{case.short_id}] expected {n} transactions, got {len(api_txns)}"
-    assert all((Decimal(str(item["amount"])) > 0 and item["direction"] in {"IN", "OUT"} for item in api_txns))
-    review_resp = await client.get(f"/statements/{stmt_id}/review")
-    assert review_resp.status_code == 200, review_resp.text
-    review = review_resp.json()
-    assert len(review["transactions"]) == n
-    validation = review["balance_validation_result"]
-    assert validation["closing_match"] is True, f"[{case.short_id}] balance chain must tie: {validation}"
-    conflicts_resp = await client.get(f"/statements/{stmt_id}/conflicts")
-    assert conflicts_resp.status_code == 200, conflicts_resp.text
-    conflicts = conflicts_resp.json()
-    if conflicts["duplicates"] or conflicts["transfer_pairs"]:
-        resolve_resp = await client.post(
-            f"/statements/{stmt_id}/conflict-resolutions",
-            json={"action": "confirm_distinct", "note": f"corpus {case.short_id}: source rows verified"},
-        )
-        assert resolve_resp.status_code == 200, resolve_resp.text
-    approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
-    assert approve_resp.status_code == 200, approve_resp.text
-    approved = approve_resp.json()
-    assert approved["journal_entries_created"] == n
-    account_id = approved["account_id"]
-    assert account_id, f"[{case.short_id}] approve must resolve a posting account"
-    run_resp = await client.post("/reconciliation/runs", json={"statement_id": stmt_id})
-    assert run_resp.status_code == 200, run_resp.text
-    run = run_resp.json()
-    assert run["unmatched"] == 0, f"[{case.short_id}] reconciliation left unmatched rows: {run}"
-    report_resp = await client.get("/reports/balance-sheet")
-    assert report_resp.status_code == 200, report_resp.text
-    report = report_resp.json()
-    assert report["is_balanced"] is True, f"[{case.short_id}] accounting equation must balance"
-    if n:
-        lines = {line["account_id"]: Decimal(str(line["amount"])) for line in report["assets"]}
-        assert account_id in lines, f"[{case.short_id}] posting account missing from balance sheet assets"
-        assert lines[account_id] == case.opening_balance + case.net_movement, (
-            f"[{case.short_id}] balance sheet must include source opening stock and net movement"
-        )
-    if n:
-        period_start = min((row["date"] for row in case.rows))
-        period_end = max((row["date"] for row in case.rows))
-        income_resp = await client.get(
-            "/reports/income-statement",
-            params={"start_date": period_start.isoformat(), "end_date": period_end.isoformat()},
-        )
-        assert income_resp.status_code == 200, income_resp.text
-        income = income_resp.json()
-        net_income = Decimal(str(income["total_income"])) - Decimal(str(income["total_expenses"]))
-        assert net_income == case.net_movement, (
-            f"[{case.short_id}] income statement net {net_income} != corpus net movement {case.net_movement}"
-        )
-        assert Decimal(str(income["net_income"])) == case.net_movement, (
-            f"[{case.short_id}] reported net_income {income['net_income']} != corpus net movement {case.net_movement}"
-        )
-    if n:
-        cash_flow_resp = await client.get(
-            "/reports/cash-flow", params={"start_date": period_start.isoformat(), "end_date": period_end.isoformat()}
-        )
-        assert cash_flow_resp.status_code == 200, cash_flow_resp.text
-        cash_flow = cash_flow_resp.json()
-        activity_line = next(
-            (
-                item
-                for section in ("operating", "investing", "financing")
-                for item in cash_flow[section]
-                if item.get("account_id") == account_id
-            ),
-            None,
-        )
-        assert activity_line is None, (
-            f"[{case.short_id}] cash custody account must not appear as a non-cash activity line: {activity_line}"
-        )
-        summary = cash_flow["summary"]
-        assert Decimal(str(summary["beginning_cash"])) == case.opening_balance, (
-            f"[{case.short_id}] beginning cash must equal the source opening stock"
-        )
-        assert Decimal(str(summary["ending_cash"])) == case.opening_balance + case.net_movement, (
-            f"[{case.short_id}] ending cash must equal source opening plus net movement"
-        )
-
-
-@pytest.mark.e2e
-async def test_corpus_zero_transaction_statement_approves_empty(client, db, test_user):
-    case = load_corpus_case(ZERO_TXN_FINGERPRINT)
-    assert not case.rows, "manifest drift: the zero-transaction fingerprint gained rows"
-    seeded = await seed_parsed_statement(
-        db,
-        test_user.id,
-        institution=case.institution,
-        original_filename=f"corpus_{case.short_id}.pdf",
-        opening_balance=case.opening_balance,
-        transactions=[],
+    assert activity is None, (
+        f"[{case.short_id}] cash custody account must not appear as a non-cash activity line: {activity}"
     )
-    stmt_id = str(seeded.id)
-    review_resp = await client.get(f"/statements/{stmt_id}/review")
-    assert review_resp.status_code == 200, review_resp.text
-    review = review_resp.json()
-    assert review["transactions"] == []
-    assert review["balance_validation_result"]["closing_match"] is True
-    approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
-    assert approve_resp.status_code == 200, approve_resp.text
-    assert approve_resp.json()["journal_entries_created"] == 0
-    run_resp = await client.post("/reconciliation/runs", json={"statement_id": stmt_id})
-    assert run_resp.status_code == 200, run_resp.text
-    assert run_resp.json()["unmatched"] == 0
-
-
-MULTI_STATEMENT_FINGERPRINTS: tuple[str, ...] = (
-    "61dcbca67c96bb5371188772a290d30d868be8c2ed4533352b4c4bb8a44fc046",
-    "25e00d6718d89f0fe44dc9acf4333649bbfa467780422ef2c6b9db322d96ea21",
-    "a531a974fd0bd144fd4a31f63d94384210f043c94bfc81631b20d3f178c779ed",
-)
+    assert (Decimal(str(cf["summary"]["beginning_cash"])), Decimal(str(cf["summary"]["ending_cash"]))) == (
+        case.opening_balance,
+        case.opening_balance + case.net_movement,
+    )
 
 
 @pytest.mark.e2e
 async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user):
     cases = [load_corpus_case(fp) for fp in MULTI_STATEMENT_FINGERPRINTS]
-    account_ids: list[str] = []
-    for case in cases:
-        seeded = await seed_parsed_statement(
-            db,
-            test_user.id,
-            institution=case.institution,
-            original_filename=f"corpus_multi_{case.short_id}.pdf",
-            opening_balance=case.opening_balance,
-            transactions=[dict(row) for row in case.rows],
-        )
-        seeded.statement.period_start = min((row["date"] for row in case.rows))
-        seeded.statement.period_end = max((row["date"] for row in case.rows))
-        await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
-        stmt_id = str(seeded.id)
-        review_resp = await client.get(f"/statements/{stmt_id}/review")
-        assert review_resp.status_code == 200, review_resp.text
-        review = review_resp.json()
-        assert review["balance_validation_result"]["closing_match"] is True, (
-            f"[{case.short_id}] balance chain must tie: {review['balance_validation_result']}"
-        )
-        conflicts_resp = await client.get(f"/statements/{stmt_id}/conflicts")
-        assert conflicts_resp.status_code == 200, conflicts_resp.text
-        conflicts = conflicts_resp.json()
-        if conflicts["duplicates"] or conflicts["transfer_pairs"]:
-            resolve_resp = await client.post(
-                f"/statements/{stmt_id}/conflict-resolutions",
-                json={
-                    "action": "confirm_distinct",
-                    "note": f"multi-statement corpus {case.short_id}: source rows verified",
-                },
-            )
-            assert resolve_resp.status_code == 200, resolve_resp.text
-        approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
-        assert approve_resp.status_code == 200, approve_resp.text
-        approved = approve_resp.json()
-        assert approved["journal_entries_created"] == len(case.rows)
-        account_ids.append(approved["account_id"])
-        run_resp = await client.post("/reconciliation/runs", json={"statement_id": stmt_id})
-        assert run_resp.status_code == 200, run_resp.text
-        assert run_resp.json()["unmatched"] == 0, (
-            f"[{case.short_id}] reconciliation left unmatched rows: {run_resp.json()}"
-        )
-    assert len(set(account_ids)) == 3, "each corpus statement must post to its own distinct account"
-    all_dates = [row["date"] for case in cases for row in case.rows]
-    period_start, period_end = (min(all_dates), max(all_dates))
-    expected_total = sum((case.net_movement for case in cases), Decimal("0"))
-    balance_resp = await client.get("/reports/balance-sheet")
-    assert balance_resp.status_code == 200, balance_resp.text
-    balance = balance_resp.json()
-    assert balance["is_balanced"] is True
-    asset_lines = {line["account_id"]: Decimal(str(line["amount"])) for line in balance["assets"]}
-    combined_assets = sum((asset_lines[acc_id] for acc_id in account_ids), Decimal("0"))
-    expected_assets = sum((case.opening_balance for case in cases), expected_total)
-    assert combined_assets == expected_assets, (
-        f"combined balance sheet assets {combined_assets} != source opening stocks plus net movements {expected_assets}"
+    account_ids = [await _seed_and_accept_case(client, db, test_user.id, case, "corpus_multi") for case in cases]
+    all_dates, expected_total = (
+        [r["date"] for c in cases for r in c.rows],
+        sum((c.net_movement for c in cases), Decimal("0")),
     )
-    income_resp = await client.get(
-        "/reports/income-statement", params={"start_date": period_start.isoformat(), "end_date": period_end.isoformat()}
+    balance = (await client.get("/reports/balance-sheet")).json()
+    assert (
+        len(set(account_ids)) == 3
+        and balance["is_balanced"] is True
+        and sum(
+            (
+                {line["account_id"]: Decimal(str(line["amount"])) for line in balance["assets"]}[aid]
+                for aid in account_ids
+            ),
+            Decimal("0"),
+        )
+        == sum((c.opening_balance for c in cases), expected_total)
     )
-    assert income_resp.status_code == 200, income_resp.text
-    income = income_resp.json()
-    net_income = Decimal(str(income["total_income"])) - Decimal(str(income["total_expenses"]))
-    assert net_income == expected_total, (
-        f"combined income statement net {net_income} != sum of corpus net movements {expected_total}"
-    )
-    assert Decimal(str(income["net_income"])) == expected_total
+    income = (
+        await client.get(
+            "/reports/income-statement",
+            params={"start_date": min(all_dates).isoformat(), "end_date": max(all_dates).isoformat()},
+        )
+    ).json()
+    assert (
+        Decimal(str(income["total_income"])) - Decimal(str(income["total_expenses"])),
+        Decimal(str(income["net_income"])),
+    ) == (expected_total, expected_total)

@@ -1,41 +1,80 @@
-from __future__ import annotations; import pytest; from src.llm.base.types import DecodeParams, ProtocolFamily, ProviderRef; from src.llm.extension.cassette import CassetteMiss, CassetteStore, CassetteTag, fingerprint; from src.llm.extension.client import CassetteOptions, litellm_stream; MESSAGES = [{'role': 'user', 'content': 'transparent-cassette probe'}]; _DECODE = DecodeParams(max_tokens=64).as_request(); KEY = fingerprint(role='text', messages=MESSAGES, decode_params=_DECODE); _provider = lambda: ProviderRef(id='p', label='p', protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key='real-key', api_base=None)
-@pytest.fixture
-def store(tmp_path): return CassetteStore(directory=tmp_path)
-@pytest.fixture
-def frozen(store): from src.llm.extension.cassette import Cassette, CassetteTag; from src.llm.extension.client import _canonical_request; request = _canonical_request(role='text', messages=MESSAGES, decode_params=_DECODE); store.put(Cassette(key=KEY, role='text', tag=CassetteTag.FLOW_ONLY, request=request, response={'stream_text': 'FROZEN'})); return store
+from __future__ import annotations
+
+import pytest
+
+from src.llm.base.types import DecodeParams, ProtocolFamily, ProviderRef
+from src.llm.extension.cassette import Cassette, CassetteMiss, CassetteStore, CassetteTag, CassetteValidationError, fingerprint
+from src.llm.extension.client import CassetteOptions, _canonical_request, litellm_stream
+
+MESSAGES = [{"role": "system", "content": "x"}][:0] + [{"role": "user", "content": "transparent-cassette probe"}]
+_DECODE = DecodeParams(max_tokens=64).as_request()
+KEY = fingerprint(role="text", messages=MESSAGES, decode_params=_DECODE)
+_provider = lambda: ProviderRef(id="p", label="p", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="real-key", api_base=None)
+
+
 @pytest.fixture
 def no_network(monkeypatch):
     calls: list[dict] = []
-    async def fake_live(kwargs): calls.append(kwargs); yield 'LIVE-RESPONSE'
-    monkeypatch.setattr('src.llm.extension.client._litellm_stream_live', fake_live); return calls
-async def _run(*, store, provider=None, provider_resolver=None, **cassette_kwargs):
-    chunks = []; options = CassetteOptions(store=store, mode=cassette_kwargs.get('cassette_mode'), tag=cassette_kwargs.get('cassette_tag', CassetteTag.FLOW_ONLY), validator=cassette_kwargs.get('cassette_validator'))
-    async for c in litellm_stream(MESSAGES, provider=provider, provider_resolver=provider_resolver, model_id='glm-test', decode=DecodeParams(max_tokens=64), cassette=options): chunks.append(c)
-    return ''.join(chunks)
-def _engage(monkeypatch, *, ci=False, refresh=False, live=False): monkeypatch.setenv('LLM_CASSETTE_ENGAGE', '1'); monkeypatch.delenv('LLM_CASSETTE_MODE', raising=False); [monkeypatch.setenv(name, '1') if on else monkeypatch.delenv(name, raising=False) for name, on in (('CI', ci), ('LLM_CASSETTE_REFRESH', refresh), ('LLM_LIVE', live))]
-async def test_hit_serves_frozen_without_credentials(frozen, no_network, monkeypatch): _engage(monkeypatch); out = await _run(store=frozen, provider=None, provider_resolver=None); assert out == 'FROZEN'; assert no_network == []
-async def test_miss_without_key_is_hard_red(store, no_network, monkeypatch):
+
+    async def fake_live(kwargs):
+        calls.append(kwargs)
+        yield "LIVE-RESPONSE"
+
+    monkeypatch.setattr("src.llm.extension.client._litellm_stream_live", fake_live)
+    return calls
+
+
+async def _run(*, store, provider=None, provider_resolver=None, tag=CassetteTag.FLOW_ONLY, validator=None):
+    return "".join([c async for c in litellm_stream(MESSAGES, provider=provider, provider_resolver=provider_resolver, model_id="glm-test", decode=DecodeParams(max_tokens=64), cassette=CassetteOptions(store=store, tag=tag, validator=validator))])
+
+
+def _engage(monkeypatch, *, engaged: bool = True, ci: bool = False, refresh: bool = False, live: bool = False) -> None:
+    monkeypatch.delenv("LLM_CASSETTE_MODE", raising=False)
+    for name, on in (("LLM_CASSETTE_ENGAGE", engaged), ("CI", ci), ("LLM_CASSETTE_REFRESH", refresh), ("LLM_LIVE", live)):
+        monkeypatch.setenv(name, "1") if on else monkeypatch.delenv(name, raising=False)
+
+
+def _frozen_store(tmp_path) -> CassetteStore:
+    store = CassetteStore(directory=tmp_path / "frozen")
+    store.put(Cassette(key=KEY, role="text", tag=CassetteTag.FLOW_ONLY, request=_canonical_request(role="text", messages=MESSAGES, decode_params=_DECODE), response={"stream_text": "FROZEN"}))
+    return store
+
+
+@pytest.mark.parametrize(
+    ("use_frozen", "flags", "with_provider", "expected_out", "expected_calls", "expect_stored"),
+    [(True, {}, False, "FROZEN", 0, "FROZEN"), (False, {}, True, "LIVE-RESPONSE", 1, "LIVE-RESPONSE"), (True, {}, True, "FROZEN", 0, "FROZEN"), (True, {"refresh": True}, True, "LIVE-RESPONSE", 1, "LIVE-RESPONSE"), (True, {"ci": True, "refresh": True}, True, "FROZEN", 0, "FROZEN"), (True, {"live": True}, True, "LIVE-RESPONSE", 1, "FROZEN"), (True, {"engaged": False}, True, "LIVE-RESPONSE", 1, "FROZEN")],
+)
+async def test_transparent_cassette_mode_matrix(tmp_path, no_network, monkeypatch, use_frozen: bool, flags: dict, with_provider: bool, expected_out: str, expected_calls: int, expect_stored: str) -> None:
+    target_store = _frozen_store(tmp_path) if use_frozen else CassetteStore(directory=tmp_path / "empty")
+    _engage(monkeypatch, **flags)
+    out = await _run(store=target_store, provider=_provider() if with_provider else None)
+    assert (out, len(no_network), target_store.get(KEY).response.get("stream_text")) == (expected_out, expected_calls, expect_stored)
+    if flags == {} and use_frozen:
+        assert KEY in target_store.served_keys()
+
+
+@pytest.mark.parametrize(("ci", "with_provider"), [(False, False), (True, True)])
+async def test_miss_without_recording_is_hard_red(tmp_path, no_network, monkeypatch, ci: bool, with_provider: bool) -> None:
+    _engage(monkeypatch, ci=ci)
+    with pytest.raises(CassetteMiss):
+        await _run(store=CassetteStore(directory=tmp_path), provider=_provider() if with_provider else None)
+    assert no_network == []
+
+
+async def test_lazy_provider_resolution_and_correctness_red_line(tmp_path, no_network, monkeypatch) -> None:
     _engage(monkeypatch)
-    with pytest.raises(CassetteMiss): await _run(store=store, provider=None, provider_resolver=None)
-    assert no_network == []
-async def test_miss_in_ci_is_hard_red_even_with_key(store, no_network, monkeypatch):
-    _engage(monkeypatch, ci=True)
-    with pytest.raises(CassetteMiss): await _run(store=store, provider=_provider())
-    assert no_network == []
-async def test_miss_with_key_records_locally(store, no_network, monkeypatch): _engage(monkeypatch); out = await _run(store=store, provider=_provider()); assert out == 'LIVE-RESPONSE'; assert len(no_network) == 1; assert store.get(KEY) is not None
-async def test_hit_never_rerecords_without_refresh(frozen, no_network, monkeypatch): _engage(monkeypatch); out = await _run(store=frozen, provider=_provider()); assert out == 'FROZEN' and no_network == []
-async def test_refresh_rerecords_a_hit_locally(frozen, no_network, monkeypatch): _engage(monkeypatch, refresh=True); out = await _run(store=frozen, provider=_provider()); assert out == 'LIVE-RESPONSE'; assert len(no_network) == 1; assert str(frozen.get(KEY).response.get('stream_text')) == 'LIVE-RESPONSE'
-async def test_refresh_is_refused_in_ci(frozen, no_network, monkeypatch): _engage(monkeypatch, ci=True, refresh=True); out = await _run(store=frozen, provider=_provider()); assert out == 'FROZEN' and no_network == []
-async def test_live_bypasses_the_store_entirely(frozen, no_network, monkeypatch): _engage(monkeypatch, live=True); out = await _run(store=frozen, provider=_provider()); assert out == 'LIVE-RESPONSE'; assert str(frozen.get(KEY).response.get('stream_text')) == 'FROZEN'
-async def test_not_engaged_is_live_passthrough(frozen, no_network, monkeypatch): [monkeypatch.delenv(name, raising=False) for name in ('LLM_CASSETTE_ENGAGE', 'LLM_CASSETTE_MODE', 'CI', 'LLM_LIVE', 'LLM_CASSETTE_REFRESH')]; out = await _run(store=frozen, provider=_provider()); assert out == 'LIVE-RESPONSE'
-async def test_lazy_provider_resolution_only_on_network(frozen, tmp_path, no_network, monkeypatch):
-    _engage(monkeypatch); resolved: list[str] = []
-    async def resolver() -> ProviderRef: resolved.append('x'); return _provider()
-    assert await _run(store=frozen, provider_resolver=resolver) == 'FROZEN'; assert resolved == []; empty = CassetteStore(directory=tmp_path / 'empty'); out = await _run(store=empty, provider_resolver=resolver); assert out == 'LIVE-RESPONSE' and resolved == ['x']
-async def test_served_keys_are_tracked_for_orphan_detection(frozen, no_network, monkeypatch): _engage(monkeypatch); await _run(store=frozen); assert KEY in frozen.served_keys()
-async def test_auto_record_enforces_the_correctness_red_line(store, no_network, monkeypatch):
-    from src.llm.extension.cassette import CassetteTag, CassetteValidationError; _engage(monkeypatch)
-    with pytest.raises(CassetteValidationError): await _run(store=store, provider=_provider(), cassette_tag=CassetteTag.CORRECTNESS)
-    assert store.get(KEY) is None
-    with pytest.raises(CassetteValidationError): await _run(store=store, provider=_provider(), cassette_tag=CassetteTag.CORRECTNESS, cassette_validator=lambda response: False)
-    assert store.get(KEY) is None; out = await _run(store=store, provider=_provider(), cassette_tag=CassetteTag.CORRECTNESS, cassette_validator=lambda response: response['stream_text'] == 'LIVE-RESPONSE'); assert out == 'LIVE-RESPONSE'; assert store.get(KEY) is not None
+    frozen, empty, resolved = _frozen_store(tmp_path), CassetteStore(directory=tmp_path / "empty"), []
+
+    async def resolver() -> ProviderRef:
+        resolved.append("x")
+        return _provider()
+
+    assert (await _run(store=frozen, provider_resolver=resolver), resolved) == ("FROZEN", [])
+    assert (await _run(store=empty, provider_resolver=resolver), resolved) == ("LIVE-RESPONSE", ["x"])
+
+    c_store = CassetteStore(directory=tmp_path / "corr")
+    for validator in (None, lambda _r: False):
+        with pytest.raises(CassetteValidationError):
+            await _run(store=c_store, provider=_provider(), tag=CassetteTag.CORRECTNESS, validator=validator)
+        assert c_store.get(KEY) is None
+    assert await _run(store=c_store, provider=_provider(), tag=CassetteTag.CORRECTNESS, validator=lambda r: r["stream_text"] == "LIVE-RESPONSE") == "LIVE-RESPONSE" and c_store.get(KEY) is not None

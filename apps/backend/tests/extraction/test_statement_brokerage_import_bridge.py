@@ -1,28 +1,539 @@
-from datetime import date; from decimal import Decimal; from pathlib import Path; from unittest.mock import AsyncMock; from uuid import uuid4; import pytest; from sqlalchemy import select; from src.database import create_session_maker_from_db; from src.extraction import BankStatementStatus, DocumentSource, DocumentType, ExtractionMethod, ParseJob, Stage1Status, StatementEvidenceType, UploadedDocument; from src.extraction.extension import statement_parsing; from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions; from src.extraction.extension.result_contract import build_statement_extraction_result; from src.extraction.extension.service import ExtractionError, ExtractionService; from src.extraction.extension.statement_parsing import _count_brokerage_positions, route_brokerage_for_review_if_present; from src.extraction.orm.layer2 import AtomicPosition; from src.portfolio.orm.portfolio import ManagedPosition; from src.extraction.orm.statement_summary import StatementSummary; from tests.factories import StatementSummaryFactory; from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background; _BRIDGE_ASSET_IDENTIFIER = 'BRIDGE_TEST_STOCK'; _parsed_statement = lambda user_id, file_hash: StatementSummaryFactory.build(user_id=user_id, file_hash=file_hash, institution='Moomoo', account_last4='1234', currency='SGD', period_start=date(2026, 5, 1), period_end=date(2026, 5, 18), opening_balance=Decimal('0.00'), closing_balance=Decimal('0.00'), status=BankStatementStatus.PARSED, confidence_score=90, balance_validated=True)
-from tests.statement_ingestion import run_for
-def _apply_parsed_envelope(summary: StatementSummary, *, validation_error: str | None=None) -> None: summary.institution = 'Moomoo'; summary.account_last4 = '1234'; summary.currency = 'SGD'; summary.period_start = date(2026, 5, 1); summary.period_end = date(2026, 5, 18); summary.opening_balance = Decimal('0.00'); summary.closing_balance = Decimal('0.00'); summary.status = BankStatementStatus.PARSED; summary.confidence_score = 90; summary.balance_validated = True; summary.validation_error = validation_error
-_brokerage_payload = lambda: {'institution': 'Moomoo', 'period_start': '2026-05-01', 'period_end': '2026-05-18', 'statement': {'period_end': '2026-05-18', 'currency': 'SGD'}, 'positions': [{'symbol': _BRIDGE_ASSET_IDENTIFIER, 'snapshot_date': date(2026, 5, 18), 'quantity': '10', 'market_value': '1900.25', 'currency': 'SGD', 'asset_type': 'stock', 'sector': 'Technology', 'geography': 'US'}]}
-def _brokerage_payload_json_safe() -> dict: payload = _brokerage_payload(); payload['positions'][0]['snapshot_date'] = '2026-05-18'; return payload
-def _brokerage_result(*, source: DocumentSource, summary: StatementSummary, payload: dict): positions = parse_brokerage_positions(payload, filename=source.filename, institution=summary.institution); return build_statement_extraction_result(source=source, file_type='pdf', statement=summary, transactions=[], provider_payload=payload, model='fixture-model', provider='fixture-provider', method=ExtractionMethod.GOLDEN_FIXTURE, is_brokerage=True, evidence_type=StatementEvidenceType.POSITION_SNAPSHOT, positions=positions)
-def test_looks_like_brokerage_payload_detection_paths(): assert not looks_like_brokerage_payload({'positions': []}, filename='unknown.pdf'); assert looks_like_brokerage_payload({'statement': {'holdings': []}}, filename='statement.pdf', institution='Interactive Brokers'); assert not looks_like_brokerage_payload({'institution': 'DBS', 'transactions': []}, filename='dbs-statement.pdf', institution='DBS'); assert _count_brokerage_positions({'positions': [{}, {}]}) == 2; assert _count_brokerage_positions({'statement': {'holdings': [{}]}}) == 1; assert _count_brokerage_positions({'statement': {'positions': [{}, {}, {}]}}) == 3; assert _count_brokerage_positions({}) is None; assert _count_brokerage_positions({'statement': {'holdings': 'unstructured'}}) is None; _m2_snapshots = parse_brokerage_positions({'institution': 'Moomoo', 'transactions': [{'raw_text': 'Subscription X FULLERTON SGD CASH FUND SGD 2026/05/18 X . . .'}]}, filename='moomoo-statement.pdf'); assert _m2_snapshots == []; from src.extraction.base.result import ExtractedTransactionFact, SourceProvenance, StatementExtractionResult, StatementSourceType; from src.extraction.extension.brokerage_statement_payload import _enrich_brokerage_payload_from_statement, _extract_brokerage_payload_from_metadata; from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection; _m5_extraction_result = StatementExtractionResult.create(producer_version='extractor@brokerage-test', source_content_digest='c' * 64, source_type=StatementSourceType.BROKERAGE, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER, statement_currency='SGD', institution='Moomoo', account_last4='1582', period_start=date(2026, 5, 1), period_end=date(2026, 5, 31), balances=(), transactions=(ExtractedTransactionFact(fact_id='moomoo-txn-1', transaction_date=date(2026, 5, 18), description='Fullerton SGD Money Market Fund', amount=Decimal('1250.50'), direction='IN', currency='SGD', balance_after=None, confidence=Decimal('0.95')),), positions=(), confidence=Decimal('0.95'), balance_validated=None, warnings=(), review_reasons=(), provenance=SourceProvenance(intake_mode='pdf', method=ExtractionMethod.GOLDEN_FIXTURE, provider='fixture-provider', model='fixture-model-v1')); _m5_metadata = {'statement_extraction_result': _m5_extraction_result.to_payload()}; _m5_payload = _extract_brokerage_payload_from_metadata(_m5_metadata); assert _m5_payload is not None; assert _m5_payload['positions'] == []; assert _m5_payload['statement']['currency'] == 'SGD'; assert len(_m5_payload['transactions']) == 1; assert _m5_payload['transactions'] == _m5_payload['events']; assert _m5_payload['transactions'][0]['description'] == 'Fullerton SGD Money Market Fund'; assert _m5_payload['transactions'][0]['amount'] == '1250.50'; _m5_snapshots = parse_brokerage_positions(_m5_payload, filename='moomoo-2605.pdf'); assert len(_m5_snapshots) == 1; assert _m5_snapshots[0].asset_identifier == 'Fullerton SGD Money Market Fund'; assert _m5_snapshots[0].market_value == Decimal('1250.50'); _m5_stmt = StatementSummaryFactory.build(institution='Moomoo', currency='SGD', period_start=date(2026, 5, 1), period_end=date(2026, 5, 31), status=BankStatementStatus.PARSED); _m5_txn = AtomicTransaction(user_id=_m5_stmt.user_id, txn_date=date(2026, 5, 18), description='Fullerton SGD Money Market Fund', amount=Decimal('1250.50'), direction=TransactionDirection.IN, currency='SGD', dedup_hash='d' * 64, source_documents=[]); _m5_enriched = _enrich_brokerage_payload_from_statement({'positions': []}, _m5_stmt, [_m5_txn]); assert len(_m5_enriched['transactions']) == 1; assert _m5_enriched['transactions'] == _m5_enriched['events']; _m5_fallback_snapshots = parse_brokerage_positions(_m5_enriched, filename='moomoo-fallback.pdf'); assert len(_m5_fallback_snapshots) == 1; assert _m5_fallback_snapshots[0].asset_identifier == 'Fullerton SGD Money Market Fund'
-async def test_parse_document_preserves_brokerage_payload_for_background_import(test_user): service = ExtractionService(); payload = _brokerage_payload(); service.extract_financial_data = AsyncMock(return_value=payload); result = await service.parse_document(DocumentSource.resolve(path=Path('moomoo-positions.pdf'), content=b'%PDF-1.7'), institution='Moomoo', user_id=test_user.id); assert result.transactions == (); assert result.period_start == date(2026, 5, 1); assert result.period_end == date(2026, 5, 18); assert result.positions
-async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user):
-    service = ExtractionService(); payload = {'institution': 'Moomoo', 'transactions': [{'raw_text': 'FULLERTON SGD CASH FUND 100 units market value 100.00'}, {'date': 'not-a-date', 'amount': '10.00', 'description': 'not bank txn'}, {'date': '2026-05-18', 'amount': 'not-a-number', 'description': 'not bank amount'}]}; service.extract_financial_data = AsyncMock(return_value=payload)
-    with pytest.raises(ExtractionError, match='Transaction missing'): await service.parse_document(DocumentSource.resolve(path=Path('moomoo-statement.pdf'), content=b'%PDF-1.7'), institution='Moomoo', user_id=test_user.id)
-async def test_parse_document_normalizes_signed_outflows_before_brokerage_routing(): service = ExtractionService(); service.extract_financial_data = AsyncMock(return_value={'institution': 'Moomoo', 'account_last4': '1582', 'currency': 'SGD', 'period_start': '2026-05-01', 'period_end': '2026-05-31', 'opening_balance': '10000.00', 'closing_balance': '10500.00', 'transactions': [{'date': '2026-05-18', 'description': 'Fullerton SGD Money Market Fund', 'amount': '1000.00', 'direction': 'IN', 'currency': 'SGD', 'balance_after': '11000.00'}, {'date': '2026-05-19', 'description': 'Withdrawal', 'amount': '-500.00', 'direction': 'OUT', 'currency': 'SGD', 'balance_after': '10500.00'}]}); result = await service.parse_document(DocumentSource.resolve(path=Path('moomoo-statement.pdf'), content=b'%PDF-1.7'), institution='Moomoo', user_id=uuid4()); assert result.balance_validated is True; assert result.transactions[1].direction == 'OUT'; assert result.transactions[1].amount == Decimal('500.00'); _m3_service = ExtractionService(); _m3_service.extract_financial_data = AsyncMock(return_value={'institution': 'Moomoo', 'currency': 'SGD', 'period_start': '2026-05-01', 'period_end': '2026-05-31', 'opening_balance': '10000.00', 'closing_balance': '9500.00', 'transactions': [{'date': '2026-05-19', 'description': 'Withdrawal', 'amount': '500.00', 'direction': 'DEBIT', 'currency': 'SGD'}]}); _m3_result = await _m3_service.parse_document(DocumentSource.resolve(path=Path('moomoo-statement.pdf'), content=b'%PDF-1.7'), institution='Moomoo', user_id=uuid4()); assert _m3_result.balance_validated is True; assert _m3_result.transactions[0].direction == 'OUT'; assert _m3_result.transactions[0].amount == Decimal('500.00'); _m4_service = ExtractionService(); _m4_service.extract_financial_data = AsyncMock(return_value={'institution': 'Moomoo', 'currency': 'SGD', 'period_start': '2026-05-01', 'period_end': '2026-05-31', 'opening_balance': '0.00', 'closing_balance': '0.00', 'transactions': [{'date': '2026-05-18', 'description': 'Fullerton SGD Money Market Fund', 'amount': '1250.50', 'direction': 'IN', 'currency': 'SGD'}], 'positions': [{'symbol': 'Fullerton SGD Money Market Fund', 'quantity': '1250.50', 'market_value': '1250.50', 'currency': 'SGD', 'asset_type': 'money_market'}]}); _m4_result = await _m4_service.parse_document(DocumentSource.resolve(path=Path('moomoo-statement.pdf'), content=b'%PDF-1.7'), institution='Moomoo', user_id=uuid4()); assert _m4_result.balance_validated is False; assert _m4_result.review_reasons == ('Balance mismatch: expected 1250.50, got 0.00',); assert _m4_result.transactions[0].amount == Decimal('1250.50'); assert _m4_result.positions[0].market_value == Decimal('1250.50')
-async def test_route_brokerage_for_review_ignores_bank_payload(db, test_user): statement = _parsed_statement(test_user.id, 'bank-hash'); statement.stage1_status = None; await route_brokerage_for_review_if_present(summary=statement, db=db, user_id=test_user.id, filename='dbs.pdf', institution='DBS', payload={'institution': 'DBS', 'transactions': []}); assert statement.validation_error is None; assert statement.stage1_status is None
-async def test_route_brokerage_for_review_records_zero_position_payload(db, test_user): statement_id = uuid4(); statement = StatementSummaryFactory.build(id=statement_id, user_id=test_user.id, status=BankStatementStatus.PARSED, stage1_status=None, file_hash='futu-empty-hash', institution='Futu'); db.add(statement); await db.commit(); await route_brokerage_for_review_if_present(summary=statement, db=db, user_id=test_user.id, filename='futu-empty.pdf', institution='Futu', payload={'institution': 'Futu', 'positions': []}); db.expire_all(); refreshed = await db.get(StatementSummary, statement_id); assert refreshed is not None; assert refreshed.validation_error is not None; assert 'no positions detected' in refreshed.validation_error; assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
-async def test_route_brokerage_for_review_uses_nested_statement_institution(db, test_user, monkeypatch):
-    statement = _parsed_statement(test_user.id, 'nested-broker-hash'); db.add(statement); await db.commit(); info_events = []
-    def capture_info(event_name, **kwargs): info_events.append((event_name, kwargs))
-    monkeypatch.setattr(statement_parsing.logger, 'info', capture_info); await route_brokerage_for_review_if_present(summary=statement, db=db, user_id=test_user.id, filename='ibkr-statement.pdf', institution=None, payload={'statement': {'institution': 'Interactive Brokers', 'positions': [{'symbol': 'AAPL'}]}}); started_events = [kwargs for event_name, kwargs in info_events if event_name == 'statement.brokerage_review_routing.started']; assert started_events[0]['broker'] == 'Interactive Brokers'; assert statement.stage1_status == Stage1Status.PENDING_REVIEW
-async def test_parse_statement_background_imports_brokerage_positions(client, db, test_user, monkeypatch):
-    statement_id = uuid4(); user_id = test_user.id; file_hash = 'brokerage-success-hash'; statement = StatementSummaryFactory.build(id=statement_id, user_id=user_id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution='Moomoo'); db.add(statement); await db.commit()
-    async def fake_parse_document(*args, **kwargs): source = args[1]; session = kwargs['db']; summary = await session.get(StatementSummary, statement_id); _apply_parsed_envelope(summary); result = _brokerage_result(source=source, summary=summary, payload=_brokerage_payload_json_safe()); summary.extraction_metadata = {'statement_extraction_result': result.to_payload()}; doc = UploadedDocument(user_id=user_id, file_path='statements/moomoo.pdf', file_hash=file_hash, original_filename='moomoo-positions.pdf', document_type=DocumentType.BANK_STATEMENT); session.add(doc); await session.flush(); summary.uploaded_document_id = doc.id; await session.flush(); return result
-    monkeypatch.setattr('src.extraction.extension.statement_parsing.ExtractionService.parse_document', fake_parse_document); monkeypatch.setattr('src.extraction.extension.statement_parsing.StorageService.generate_presigned_url', lambda *args, **kwargs: 'https://example.com/moomoo-positions.pdf'); await parse_statement_background(job=ParseJob(statement_id=statement_id, run_id=await run_for(db, statement_id), filename='moomoo-positions.pdf', institution='Moomoo', user_id=user_id, account_id=None, file_hash=file_hash, storage_key='statements/moomoo.pdf', model=None), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); db.expire_all(); atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all(); managed_rows = (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == user_id))).scalars().all(); refreshed = await db.get(StatementSummary, statement_id); assert refreshed is not None; assert refreshed.status == BankStatementStatus.PARSED; assert refreshed.confidence_score == 90; assert refreshed.balance_validated is True; assert refreshed.validation_error is None; assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW; assert len(atomic_rows) == 0; assert len(managed_rows) == 0; pre_import_holdings = await client.get('/portfolio/holdings', params={'as_of_date': '2026-05-18'}); assert pre_import_holdings.status_code == 200; assert pre_import_holdings.json()['items'] == []; import_response = await client.post('/portfolio/brokerage-imports', json={'statement_id': str(statement_id)}); assert import_response.status_code == 200, import_response.text; db.expire_all(); atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all(); managed_rows = (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == user_id))).scalars().all(); assert len(atomic_rows) == 1; assert atomic_rows[0].asset_identifier == _BRIDGE_ASSET_IDENTIFIER; assert len(managed_rows) == 1; assert managed_rows[0].asset_identifier == _BRIDGE_ASSET_IDENTIFIER; assert managed_rows[0].quantity == Decimal('10'); holdings_response = await client.get('/portfolio/holdings', params={'as_of_date': '2026-05-18'}); assert holdings_response.status_code == 200; holdings = holdings_response.json()['items']; assert len(holdings) == 1; assert holdings[0]['asset_identifier'] == _BRIDGE_ASSET_IDENTIFIER; assert holdings[0]['account_name'] == 'Moomoo'; assert Decimal(str(holdings[0]['quantity'])) == Decimal('10.00000000'); assert Decimal(str(holdings[0]['market_value'])) == Decimal('1900.25'); assert holdings[0]['currency'] == 'SGD'
-    balance_response = await client.get('/reports/balance-sheet', params={'as_of_date': '2026-05-18', 'currency': 'SGD'}); assert balance_response.status_code == 200; balance_sheet = balance_response.json(); assert Decimal(str(balance_sheet['net_worth_adjustment_gain_loss'])) == Decimal('1900.25'); assert Decimal(str(balance_sheet['equation_delta'])) == Decimal('0.00'); assert balance_sheet['is_balanced'] is True; assert any((line['name'] == 'Moomoo market valuation adjustment' and Decimal(str(line['amount'])) == Decimal('1900.25') for line in balance_sheet['assets']))
-async def test_parse_statement_background_routes_brokerage_to_review_without_importing(db, test_user, monkeypatch):
-    statement_id = uuid4(); user_id = test_user.id; file_hash = 'brokerage-review-routing-hash'; statement = StatementSummaryFactory.build(id=statement_id, user_id=user_id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution='Moomoo'); db.add(statement); await db.commit()
-    async def fake_parse_document(*args, **kwargs): source = args[1]; session = kwargs['db']; summary = await session.get(StatementSummary, statement_id); _apply_parsed_envelope(summary, validation_error='existing parser note'); result = _brokerage_result(source=source, summary=summary, payload=_brokerage_payload_json_safe()); summary.extraction_metadata = {'statement_extraction_result': result.to_payload()}; await session.flush(); return result
-    monkeypatch.setattr('src.extraction.extension.statement_parsing.ExtractionService.parse_document', fake_parse_document); monkeypatch.setattr('src.extraction.extension.statement_parsing.StorageService.generate_presigned_url', lambda *args, **kwargs: 'https://example.com/moomoo-review.pdf'); await parse_statement_background(job=ParseJob(statement_id=statement_id, run_id=await run_for(db, statement_id), filename='moomoo-review.pdf', institution='Moomoo', user_id=user_id, account_id=None, file_hash=file_hash, storage_key='statements/moomoo-review.pdf', model=None), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); db.expire_all(); refreshed = await db.get(StatementSummary, statement_id); atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all(); assert refreshed is not None; assert refreshed.status == BankStatementStatus.PARSED; assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW; assert refreshed.validation_error == 'existing parser note'; assert len(atomic_rows) == 0; provenance = (refreshed.extraction_metadata or {}).get('artifact_provenance'); assert isinstance(provenance, dict); assert provenance['resolved_model_id'] == 'fixture-model'; assert len(provenance['artifact_dependency_digest']) == 64
-async def test_AC3_12_1_brokerage_without_balances_reports_balance_validated_none_not_vacuous_true(): service = ExtractionService(); service.extract_financial_data = AsyncMock(return_value={'institution': 'Futu', 'currency': 'HKD', 'positions': [{'symbol': '01810', 'quantity': '100', 'market_value': '5500.00', 'currency': 'HKD'}]}); result = await service.parse_document(DocumentSource.resolve(path=Path('futu-positions.pdf'), content=b'%PDF-1.7'), institution='Futu', user_id=uuid4()); assert result.evidence_type is StatementEvidenceType.POSITION_SNAPSHOT; assert result.balances == (); assert result.period_start is None; assert result.missing_required_facts == ('period',); assert result.balance_validated is None
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select
+
+from src.database import create_session_maker_from_db
+from src.extraction import (
+    BankStatementStatus,
+    DocumentSource,
+    DocumentType,
+    ExtractionMethod,
+    ParseJob,
+    Stage1Status,
+    StatementEvidenceType,
+    UploadedDocument,
+)
+from src.extraction.base.result import (
+    ExtractedTransactionFact,
+    SourceProvenance,
+    StatementExtractionResult,
+    StatementSourceType,
+)
+from src.extraction.extension import statement_parsing
+from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
+from src.extraction.extension.brokerage_statement_payload import (
+    _enrich_brokerage_payload_from_statement,
+    _extract_brokerage_payload_from_metadata,
+)
+from src.extraction.extension.prompts.statement import get_parsing_prompt
+from src.extraction.extension.result_contract import build_statement_extraction_result
+from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_parsing import _count_brokerage_positions, route_brokerage_for_review_if_present
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction.orm.statement_summary import StatementSummary
+from src.portfolio.orm.portfolio import ManagedPosition
+from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background, run_for
+
+_BRIDGE_ASSET = "BRIDGE_TEST_STOCK"
+
+
+def _parsed_stmt(user_id, file_hash: str) -> StatementSummary:
+    return StatementSummaryFactory.build(
+        user_id=user_id,
+        file_hash=file_hash,
+        institution="Moomoo",
+        account_last4="1234",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 18),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.PARSED,
+        confidence_score=90,
+        balance_validated=True,
+    )
+
+
+def _brokerage_payload(*, date_str: bool = False) -> dict:
+    return {
+        "institution": "Moomoo",
+        "period_start": "2026-05-01",
+        "period_end": "2026-05-18",
+        "statement": {"period_end": "2026-05-18", "currency": "SGD"},
+        "positions": [
+            {
+                "symbol": _BRIDGE_ASSET,
+                "snapshot_date": "2026-05-18" if date_str else date(2026, 5, 18),
+                "quantity": "10",
+                "market_value": "1900.25",
+                "currency": "SGD",
+                "asset_type": "stock",
+                "sector": "Technology",
+                "geography": "US",
+            }
+        ],
+    }
+
+
+def _brokerage_result(source: DocumentSource, summary: StatementSummary, payload: dict):
+    return build_statement_extraction_result(
+        source=source,
+        file_type="pdf",
+        statement=summary,
+        transactions=[],
+        provider_payload=payload,
+        model="fixture-model",
+        provider="fixture-provider",
+        method=ExtractionMethod.GOLDEN_FIXTURE,
+        is_brokerage=True,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        positions=parse_brokerage_positions(payload, filename=source.filename, institution=summary.institution),
+    )
+
+
+def test_looks_like_brokerage_payload_detection_enrichment_and_prompt():
+    assert (
+        not looks_like_brokerage_payload({"positions": []}, filename="unknown.pdf")
+        and looks_like_brokerage_payload(
+            {"statement": {"holdings": []}}, filename="statement.pdf", institution="Interactive Brokers"
+        )
+        and not looks_like_brokerage_payload(
+            {"institution": "DBS", "transactions": []}, filename="dbs-statement.pdf", institution="DBS"
+        )
+    )
+    assert (
+        _count_brokerage_positions({"positions": [{}, {}]}),
+        _count_brokerage_positions({"statement": {"holdings": [{}]}}),
+        _count_brokerage_positions({"statement": {"positions": [{}, {}, {}]}}),
+        _count_brokerage_positions({}),
+        _count_brokerage_positions({"statement": {"holdings": "unstructured"}}),
+    ) == (2, 1, 3, None, None)
+    assert (
+        parse_brokerage_positions(
+            {
+                "institution": "Moomoo",
+                "transactions": [{"raw_text": "Subscription X FULLERTON SGD CASH FUND SGD 2026/05/18 X . . ."}],
+            },
+            filename="moomoo-statement.pdf",
+        )
+        == []
+    )
+
+    res = StatementExtractionResult.create(
+        producer_version="extractor@brokerage-test",
+        source_content_digest="c" * 64,
+        source_type=StatementSourceType.BROKERAGE,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        statement_currency="SGD",
+        institution="Moomoo",
+        account_last4="1582",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        balances=(),
+        transactions=(
+            ExtractedTransactionFact(
+                fact_id="moomoo-txn-1",
+                transaction_date=date(2026, 5, 18),
+                description="Fullerton SGD Money Market Fund",
+                amount=Decimal("1250.50"),
+                direction="IN",
+                currency="SGD",
+                balance_after=None,
+                confidence=Decimal("0.95"),
+            ),
+        ),
+        positions=(),
+        confidence=Decimal("0.95"),
+        balance_validated=None,
+        warnings=(),
+        review_reasons=(),
+        provenance=SourceProvenance(
+            intake_mode="pdf",
+            method=ExtractionMethod.GOLDEN_FIXTURE,
+            provider="fixture-provider",
+            model="fixture-model-v1",
+        ),
+    )
+    payload = _extract_brokerage_payload_from_metadata({"statement_extraction_result": res.to_payload()})
+    snaps = parse_brokerage_positions(payload, filename="moomoo-2605.pdf")
+    assert payload is not None and (
+        payload["positions"],
+        payload["statement"]["currency"],
+        len(payload["transactions"]),
+        payload["transactions"] == payload["events"],
+        len(snaps),
+        snaps[0].asset_identifier,
+        snaps[0].market_value,
+    ) == ([], "SGD", 1, True, 1, "Fullerton SGD Money Market Fund", Decimal("1250.50"))
+
+    stmt = StatementSummaryFactory.build(
+        institution="Moomoo",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        status=BankStatementStatus.PARSED,
+    )
+    txn = AtomicTransaction(
+        user_id=stmt.user_id,
+        txn_date=date(2026, 5, 18),
+        description="Fullerton SGD Money Market Fund",
+        amount=Decimal("1250.50"),
+        direction=TransactionDirection.IN,
+        currency="SGD",
+        dedup_hash="d" * 64,
+        source_documents=[],
+    )
+    enriched = _enrich_brokerage_payload_from_statement({"positions": []}, stmt, [txn])
+    prompt = get_parsing_prompt(document_kind="brokerage").lower()
+    assert (
+        enriched["transactions"] == enriched["events"]
+        and parse_brokerage_positions(enriched, filename="moomoo-fallback.pdf")[0].asset_identifier
+        == "Fullerton SGD Money Market Fund"
+    )
+    assert "extract both" in prompt and "no cash transactions occurred" in prompt
+
+
+@pytest.mark.parametrize(
+    (
+        "payload",
+        "institution",
+        "filename",
+        "expected_txns",
+        "expected_pos_len",
+        "expected_reason",
+        "expected_valid",
+        "raises_match",
+    ),
+    [
+        (_brokerage_payload(), "Moomoo", "moomoo-positions.pdf", 0, 1, None, None, None),
+        (
+            {
+                "institution": "Moomoo",
+                "transactions": [
+                    {"raw_text": "FULLERTON 100"},
+                    {"date": "bad", "amount": "10.00", "description": "x"},
+                    {"date": "2026-05-18", "amount": "bad", "description": "y"},
+                ],
+            },
+            "Moomoo",
+            "moomoo-statement.pdf",
+            0,
+            0,
+            None,
+            None,
+            "Transaction missing",
+        ),
+        (
+            {
+                "institution": "Moomoo",
+                "account_last4": "1582",
+                "currency": "SGD",
+                "period_start": "2026-05-01",
+                "period_end": "2026-05-31",
+                "opening_balance": "10000.00",
+                "closing_balance": "10500.00",
+                "transactions": [
+                    {
+                        "date": "2026-05-18",
+                        "description": "Fullerton",
+                        "amount": "1000.00",
+                        "direction": "IN",
+                        "currency": "SGD",
+                        "balance_after": "11000.00",
+                    },
+                    {
+                        "date": "2026-05-19",
+                        "description": "Withdrawal",
+                        "amount": "-500.00",
+                        "direction": "OUT",
+                        "currency": "SGD",
+                        "balance_after": "10500.00",
+                    },
+                ],
+            },
+            "Moomoo",
+            "moomoo-statement.pdf",
+            2,
+            0,
+            None,
+            True,
+            None,
+        ),
+        (
+            {
+                "institution": "Moomoo",
+                "currency": "SGD",
+                "period_start": "2026-05-01",
+                "period_end": "2026-05-31",
+                "opening_balance": "10000.00",
+                "closing_balance": "9500.00",
+                "transactions": [
+                    {
+                        "date": "2026-05-19",
+                        "description": "Withdrawal",
+                        "amount": "500.00",
+                        "direction": "DEBIT",
+                        "currency": "SGD",
+                    }
+                ],
+            },
+            "Moomoo",
+            "moomoo-statement.pdf",
+            1,
+            0,
+            None,
+            True,
+            None,
+        ),
+        (
+            {
+                "institution": "Moomoo",
+                "currency": "SGD",
+                "period_start": "2026-05-01",
+                "period_end": "2026-05-31",
+                "opening_balance": "0.00",
+                "closing_balance": "0.00",
+                "transactions": [
+                    {
+                        "date": "2026-05-18",
+                        "description": "Fullerton",
+                        "amount": "1250.50",
+                        "direction": "IN",
+                        "currency": "SGD",
+                    }
+                ],
+                "positions": [
+                    {
+                        "symbol": "Fullerton",
+                        "quantity": "1250.50",
+                        "market_value": "1250.50",
+                        "currency": "SGD",
+                        "asset_type": "money_market",
+                    }
+                ],
+            },
+            "Moomoo",
+            "moomoo-statement.pdf",
+            1,
+            1,
+            "Balance mismatch: expected 1250.50, got 0.00",
+            False,
+            None,
+        ),
+        (
+            {
+                "institution": "Futu",
+                "currency": "HKD",
+                "positions": [{"symbol": "01810", "quantity": "100", "market_value": "5500.00", "currency": "HKD"}],
+            },
+            "Futu",
+            "futu-positions.pdf",
+            0,
+            1,
+            None,
+            None,
+            None,
+        ),
+        (
+            {
+                "institution": "Futu",
+                "currency": "USD",
+                "period_start": "2025-01-01",
+                "period_end": "2025-01-31",
+                "positions": [],
+                "transactions": [],
+            },
+            "Futu",
+            "futu_empty.pdf",
+            0,
+            0,
+            "no transactions or holdings in recognizable format",
+            None,
+            None,
+        ),
+    ],
+)
+async def test_parse_document_brokerage_payload_variants(
+    payload, institution, filename, expected_txns, expected_pos_len, expected_reason, expected_valid, raises_match
+):
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=payload)
+    source = DocumentSource.resolve(path=Path(filename), content=b"%PDF-1.7")
+    if raises_match:
+        with pytest.raises(ExtractionError, match=raises_match):
+            await service.parse_document(source, institution=institution, user_id=uuid4())
+        return
+    result = await service.parse_document(source, institution=institution, user_id=uuid4())
+    assert (len(result.transactions), len(result.positions), result.balance_validated) == (
+        expected_txns,
+        expected_pos_len,
+        expected_valid,
+    ) and (
+        not expected_reason or any(expected_reason in r.lower() or expected_reason in r for r in result.review_reasons)
+    )
+
+
+async def test_route_brokerage_for_review_paths(db, test_user, monkeypatch):
+    uid, bank_stmt = test_user.id, _parsed_stmt(test_user.id, "bank-hash")
+    bank_stmt.stage1_status = None
+    await route_brokerage_for_review_if_present(
+        summary=bank_stmt,
+        db=db,
+        user_id=uid,
+        filename="dbs.pdf",
+        institution="DBS",
+        payload={"institution": "DBS", "transactions": []},
+    )
+    assert (bank_stmt.validation_error, bank_stmt.stage1_status) == (None, None)
+
+    empty_id = uuid4()
+    db.add(
+        StatementSummaryFactory.build(
+            id=empty_id,
+            user_id=uid,
+            status=BankStatementStatus.PARSED,
+            stage1_status=None,
+            file_hash="futu-empty-hash",
+            institution="Futu",
+        )
+    )
+    await db.commit()
+    empty_stmt = await db.get(StatementSummary, empty_id)
+    await route_brokerage_for_review_if_present(
+        summary=empty_stmt,
+        db=db,
+        user_id=uid,
+        filename="futu-empty.pdf",
+        institution="Futu",
+        payload={"institution": "Futu", "positions": []},
+    )
+    db.expire_all()
+    refreshed = await db.get(StatementSummary, empty_id)
+    assert (
+        refreshed is not None
+        and refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+        and "no positions detected" in (refreshed.validation_error or "")
+    )
+
+    nested_stmt, events = _parsed_stmt(uid, "nested-broker-hash"), []
+    db.add(nested_stmt)
+    await db.commit()
+    monkeypatch.setattr(statement_parsing.logger, "info", lambda ev, **kw: events.append((ev, kw)))
+    await route_brokerage_for_review_if_present(
+        summary=nested_stmt,
+        db=db,
+        user_id=uid,
+        filename="ibkr-statement.pdf",
+        institution=None,
+        payload={"statement": {"institution": "Interactive Brokers", "positions": [{"symbol": "AAPL"}]}},
+    )
+    assert [kw for ev, kw in events if ev == "statement.brokerage_review_routing.started"][0][
+        "broker"
+    ] == "Interactive Brokers" and nested_stmt.stage1_status == Stage1Status.PENDING_REVIEW
+
+
+@pytest.mark.parametrize("with_import", [True, False])
+async def test_parse_statement_background_brokerage_review_and_import(client, db, test_user, monkeypatch, with_import):
+    sid, uid, fhash = uuid4(), test_user.id, f"brokerage-{with_import}"
+    db.add(
+        StatementSummaryFactory.build(
+            id=sid, user_id=uid, status=BankStatementStatus.PARSING, file_hash=fhash, institution="Moomoo"
+        )
+    )
+    await db.commit()
+
+    async def fake_parse_document(*args, **kwargs):
+        session = kwargs["db"]
+        summary, parsed = await session.get(StatementSummary, sid), _parsed_stmt(uid, fhash)
+        for f in (
+            "institution",
+            "account_last4",
+            "currency",
+            "period_start",
+            "period_end",
+            "opening_balance",
+            "closing_balance",
+            "status",
+            "confidence_score",
+            "balance_validated",
+        ):
+            setattr(summary, f, getattr(parsed, f))
+        summary.validation_error = None if with_import else "existing parser note"
+        res = _brokerage_result(args[1], summary, _brokerage_payload(date_str=True))
+        summary.extraction_metadata = {"statement_extraction_result": res.to_payload()}
+        if with_import:
+            doc = UploadedDocument(
+                user_id=uid,
+                file_path="statements/moomoo.pdf",
+                file_hash=fhash,
+                original_filename="moomoo-positions.pdf",
+                document_type=DocumentType.BANK_STATEMENT,
+            )
+            session.add(doc)
+            await session.flush()
+            summary.uploaded_document_id = doc.id
+        await session.flush()
+        return res
+
+    monkeypatch.setattr(
+        "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
+    )
+    monkeypatch.setattr(
+        "src.extraction.extension.statement_parsing.StorageService.generate_presigned_url",
+        lambda *_a, **_kw: "https://example.com/moomoo.pdf",
+    )
+    await parse_statement_background(
+        job=ParseJob(
+            statement_id=sid,
+            run_id=await run_for(db, sid),
+            filename="moomoo-positions.pdf",
+            institution="Moomoo",
+            user_id=uid,
+            account_id=None,
+            file_hash=fhash,
+            storage_key="statements/moomoo.pdf",
+            model=None,
+        ),
+        content=b"%PDF-1.7",
+        session_maker=create_session_maker_from_db(db),
+    )
+    db.expire_all()
+    refreshed = await db.get(StatementSummary, sid)
+    assert (
+        refreshed.status,
+        refreshed.stage1_status,
+        len((await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == uid))).scalars().all()),
+    ) == (BankStatementStatus.PARSED, Stage1Status.PENDING_REVIEW, 0)
+    if not with_import:
+        assert refreshed.validation_error == "existing parser note"
+        provenance = (refreshed.extraction_metadata or {}).get("artifact_provenance")
+        assert isinstance(provenance, dict)
+        assert provenance["resolved_model_id"] == "fixture-model"
+        assert len(provenance["artifact_dependency_digest"]) == 64
+        return
+    assert (await client.get("/portfolio/holdings", params={"as_of_date": "2026-05-18"})).json()["items"] == [] and (
+        await client.post("/portfolio/brokerage-imports", json={"statement_id": str(sid)})
+    ).status_code == 200
+    db.expire_all()
+    managed, holdings, bs = (
+        (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == uid))).scalars().all(),
+        (await client.get("/portfolio/holdings", params={"as_of_date": "2026-05-18"})).json()["items"],
+        (await client.get("/reports/balance-sheet", params={"as_of_date": "2026-05-18", "currency": "SGD"})).json(),
+    )
+    assert (
+        len(managed),
+        managed[0].asset_identifier,
+        managed[0].quantity,
+        holdings[0]["account_name"],
+        Decimal(str(holdings[0]["market_value"])),
+        Decimal(str(bs["net_worth_adjustment_gain_loss"])),
+        bs["is_balanced"],
+    ) == (1, _BRIDGE_ASSET, Decimal("10"), "Moomoo", Decimal("1900.25"), Decimal("1900.25"), True)

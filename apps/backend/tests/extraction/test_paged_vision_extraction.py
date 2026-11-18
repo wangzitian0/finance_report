@@ -1,77 +1,283 @@
-from __future__ import annotations; import gc; import os; import tracemalloc; from io import BytesIO; from unittest.mock import AsyncMock, patch; import pytest; from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions; from src.extraction.extension._base import ExtractionError; from src.extraction.extension.service import ExtractionService
+from __future__ import annotations
+
+import gc
+import os
+import tracemalloc
+from io import BytesIO
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from src.config import settings
+from src.extraction.base.paged_extraction import build_paged_meta_prompt, build_paged_prompt, merge_paged_extractions
+from src.extraction.extension._base import ExtractionError
+from src.extraction.extension.service import ExtractionService
+
+
 def _pdf_with_pages(page_count: int) -> bytes:
-    from reportlab.pdfgen import canvas; buffer = BytesIO(); pdf = canvas.Canvas(buffer)
-    for index in range(page_count): pdf.drawString(72, 720, f'statement fixture page {index + 1}'); pdf.showPage()
-    pdf.save(); return buffer.getvalue()
-def _scanned_pdf_with_pages(page_count: int, *, width: int=520, height: int=700) -> bytes:
-    import fitz; doc = fitz.open()
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    pdf = canvas.Canvas(buf)
+    for index in range(page_count):
+        pdf.drawString(72, 720, f"statement fixture page {index + 1}")
+        pdf.showPage()
+    pdf.save()
+    return buf.getvalue()
+
+
+def _scanned_pdf(page_count: int, *, width: int = 520, height: int = 700) -> bytes:
+    import fitz
+
+    doc = fitz.open()
     try:
-        pix = fitz.Pixmap(fitz.csRGB, width, height, os.urandom(width * height * 3), False); img_bytes = pix.tobytes('ppm'); del pix
-        for index in range(page_count): page = doc.new_page(width=595, height=842); page.insert_image(page.rect, stream=img_bytes); page.insert_text((36, 36), f'Scanned statement page {index + 1}')
+        pix = fitz.Pixmap(fitz.csRGB, width, height, os.urandom(width * height * 3), False)
+        img = pix.tobytes("ppm")
+        del pix
+        for index in range(page_count):
+            page = doc.new_page(width=595, height=842)
+            page.insert_image(page.rect, stream=img)
+            page.insert_text((36, 36), f"Scanned statement page {index + 1}")
         return doc.tobytes(deflate=False)
-    finally: doc.close(); fitz.TOOLS.store_shrink(100)
-class TestRenderAllPagesInBatches:
-    def test_AC_extraction_1832_1_renders_every_page_batched_by_call_cap(self): service = ExtractionService(); page_count = service.PDF_VISION_MAX_PAGES * 2 + 2; batches = service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(page_count)); assert [len(batch) for batch in batches] == [5, 5, 2]; rendered = [payload for batch in batches for payload in batch]; assert len(rendered) == page_count; assert all((p['image_url']['url'].startswith('data:image/png;base64,') for p in rendered))
-    def test_AC_extraction_1832_3_total_page_ceiling_is_an_explicit_error(self):
-        service = ExtractionService(); oversize = service.PDF_VISION_MAX_TOTAL_PAGES + 1
-        with pytest.raises(ExtractionError, match=f'{oversize} pages.*{service.PDF_VISION_MAX_TOTAL_PAGES}-page'): service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(oversize))
-    def test_lazy_batch_sequence_supports_indexing_slicing_and_compact_downscale(self, monkeypatch):
-        service = ExtractionService(); batches = service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(7)); assert len(batches) == 2; assert len(batches[0]) == 5; assert batches[0] is batches[0]; assert len(batches.pop_batch(0)) == 5; assert len(batches[-1]) == 2; assert [len(b) for b in batches[:2]] == [5, 2]
-        with pytest.raises(IndexError): _ = batches[2]
-        with pytest.raises(IndexError): batches.pop_batch(-3)
-        monkeypatch.setattr(service, 'PDF_VISION_MAX_PAGE_IMAGE_BYTES', 80000); compact_batches = service._render_pdf_pages_as_image_payload_batches(_scanned_pdf_with_pages(1, width=320, height=420)); assert len(compact_batches[0]) == 1
-class TestMergePagedExtractions:
-    def test_AC_extraction_1832_2_merge_semantics(self):
-        parts = [{'institution': 'DBS', 'account_last4': '0355', 'currency': 'SGD', 'period_start': '2025-06-01', 'period_end': '2025-06-30', 'opening_balance': '100.00', 'closing_balance': None, 'transactions': [{'description': 't1'}, {'description': 't2'}]}, {'institution': None, 'currency': '', 'opening_balance': None, 'closing_balance': None, 'transactions': [{'description': 't3'}]}, {'institution': 'DBS Bank', 'opening_balance': '999.99', 'closing_balance': '175.00', 'transactions': [{'description': 't4'}]}]; merged = merge_paged_extractions(parts); assert merged['institution'] == 'DBS'; assert merged['account_last4'] == '0355'; assert merged['currency'] == 'SGD'; assert merged['opening_balance'] == '100.00'; assert merged['closing_balance'] == '175.00'; assert [t['description'] for t in merged['transactions']] == ['t1', 't2', 't3', 't4']; _m1_parts = [{'positions': [{'symbol': 'A'}], 'transactions': []}, {'positions': [{'symbol': 'B'}, {'symbol': 'C'}], 'transactions': []}]; _m1_merged = merge_paged_extractions(_m1_parts); assert [_m1_p['symbol'] for _m1_p in _m1_merged['positions']] == ['A', 'B', 'C']; _m2_part = {'institution': 'GXS', 'transactions': [{'description': 't1'}]}; assert merge_paged_extractions([_m2_part]) is _m2_part
-        with pytest.raises(ValueError): merge_paged_extractions([])
-class TestPagedPrompt:
-    def test_single_part_prompt_is_unchanged(self): assert build_paged_prompt('BASE', part_index=1, part_count=1, page_start=1, page_end=5, total_pages=5) == 'BASE'; _m1_prompt = build_paged_prompt('BASE', part_index=2, part_count=3, page_start=6, page_end=10, total_pages=12); assert _m1_prompt.startswith('BASE'); assert 'pages 6-10' in _m1_prompt; assert '12-page' in _m1_prompt; assert '(2/3)' in _m1_prompt; assert 'balance-carried-forward' in _m1_prompt; _m2_with_context = build_paged_prompt('BASE', part_index=2, part_count=3, page_start=6, page_end=10, total_pages=12, has_context_page=True); assert 'ONLY as context' in _m2_with_context; assert 'Do NOT extract transactions from this context page' in _m2_with_context; assert 'only pages 6-10' not in _m2_with_context; assert 'the FIRST page below is' in _m2_with_context; _m2_without_context = build_paged_prompt('BASE', part_index=1, part_count=3, page_start=1, page_end=5, total_pages=12); assert 'context page' not in _m2_without_context
-class TestBatchedExtractFlow:
-    async def test_AC_extraction_1832_1_multi_batch_pdf_extracts_once_per_batch_and_merges(self, monkeypatch):
-        from src.config import settings; monkeypatch.setattr(settings, 'ai_provider', 'zai'); service = ExtractionService(); service.api_key = 'test-key'; page_count = service.PDF_VISION_MAX_PAGES * 2 + 2; pdf_bytes = _pdf_with_pages(page_count); part_payloads = [{'institution': 'DBS', 'currency': 'SGD', 'opening_balance': '100.00', 'closing_balance': '175.00'}, {'institution': 'DBS', 'currency': 'SGD', 'opening_balance': '100.00', 'closing_balance': None, 'transactions': [{'description': 't1'}]}, {'transactions': [{'description': 't2'}]}, {'closing_balance': '175.00', 'transactions': [{'description': 't3'}]}]; mock_extract = AsyncMock(side_effect=part_payloads)
-        with patch.object(service, '_extract_json_with_model', mock_extract): merged = await service.extract_financial_data(pdf_bytes, 'DBS', 'pdf')
-        assert mock_extract.await_count == 4; meta_content = mock_extract.await_args_list[0].kwargs['messages'][0]['content']; assert 'STAGE 1 — DOCUMENT METADATA' in meta_content[0]['text']; assert len(meta_content[1:]) == 10; first_page_payload = None
-        for (index, call) in enumerate(mock_extract.await_args_list[1:], start=1):
-            content = call.kwargs['messages'][0]['content']; text = content[0]['text']; assert f'({index}/3)' in text; image_payloads = content[1:]
-            if index == 1: assert len(image_payloads) == 5; assert 'context page' not in text; first_page_payload = image_payloads[0]
-            else: own_pages = 5 if index < 3 else 2; assert len(image_payloads) == own_pages + 1; assert image_payloads[0] == first_page_payload; assert 'Do NOT extract transactions from this context page' in text
-        assert merged['institution'] == 'DBS'; assert merged['opening_balance'] == '100.00'; assert merged['closing_balance'] == '175.00'; assert [t['description'] for t in merged['transactions']] == ['t1', 't2', 't3']
-    async def test_single_batch_pdf_keeps_single_call_shape(self, monkeypatch):
-        from src.config import settings; monkeypatch.setattr(settings, 'ai_provider', 'zai'); service = ExtractionService(); service.api_key = 'test-key'; mock_extract = AsyncMock(return_value={'transactions': []})
-        with patch.object(service, '_extract_json_with_model', mock_extract): await service.extract_financial_data(_pdf_with_pages(2), 'DBS', 'pdf')
-        assert mock_extract.await_count == 1; text = mock_extract.await_args.kwargs['messages'][0]['content'][0]['text']; assert 'PARTIAL DOCUMENT' not in text
-    async def test_AC_extraction_2595_1_thirty_page_scanned_pdf_parse_bounds_peak_memory(self, monkeypatch):
-        from src.config import settings; monkeypatch.setattr(settings, 'ai_provider', 'zai'); service = ExtractionService(); service.api_key = 'test-key'; pdf_bytes = _scanned_pdf_with_pages(30); gc.collect(); live_payload_counts: list[int] = []; active_calls = 0; max_concurrent_calls = 0
-        async def _fake_extract_json_with_model(*, messages, **kwargs):
-            nonlocal active_calls, max_concurrent_calls; active_calls += 1; max_concurrent_calls = max(max_concurrent_calls, active_calls)
-            try: content = messages[0]['content']; live_payloads = [obj for obj in content if isinstance(obj, dict) and obj.get('type') == 'image_url' and isinstance(obj.get('image_url'), dict) and str(obj['image_url'].get('url', '')).startswith('data:image/png;base64,')]; live_payload_counts.append(len(live_payloads)); return {'institution': 'DBS', 'transactions': [{'description': 'row'}]}
-            finally: active_calls -= 1
-        tracemalloc.start()
+    finally:
+        doc.close()
+        fitz.TOOLS.store_shrink(100)
+
+
+def test_render_all_pages_in_batches_and_lazy_sequence(monkeypatch):
+    service = ExtractionService()
+    batches = service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(service.PDF_VISION_MAX_PAGES * 2 + 2))
+    rendered = [p for b in batches for p in b]
+    assert (
+        [len(b) for b in batches] == [5, 5, 2]
+        and len(rendered) == 12
+        and all(p["image_url"]["url"].startswith("data:image/png;base64,") for p in rendered)
+    )
+
+    oversize = service.PDF_VISION_MAX_TOTAL_PAGES + 1
+    with pytest.raises(ExtractionError, match=f"{oversize} pages.*{service.PDF_VISION_MAX_TOTAL_PAGES}-page"):
+        service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(oversize))
+
+    lazy = service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(7))
+    assert (
+        len(lazy),
+        len(lazy[0]),
+        lazy[0] is lazy[0],
+        len(lazy.pop_batch(0)),
+        len(lazy[-1]),
+        [len(b) for b in lazy[:2]],
+    ) == (2, 5, True, 5, 2, [5, 2])
+    for op in (lambda: lazy[2], lambda: lazy.pop_batch(-3)):
+        with pytest.raises(IndexError):
+            op()
+    monkeypatch.setattr(service, "PDF_VISION_MAX_PAGE_IMAGE_BYTES", 80000)
+    assert len(service._render_pdf_pages_as_image_payload_batches(_scanned_pdf(1, width=320, height=420))[0]) == 1
+
+
+def test_merge_and_prompt_paged_extractions():
+    merged = merge_paged_extractions(
+        [
+            {
+                "institution": "DBS",
+                "account_last4": "0355",
+                "currency": "SGD",
+                "period_start": "2025-06-01",
+                "period_end": "2025-06-30",
+                "opening_balance": "100.00",
+                "closing_balance": None,
+                "transactions": [{"description": "t1"}, {"description": "t2"}],
+            },
+            {
+                "institution": None,
+                "currency": "",
+                "opening_balance": None,
+                "closing_balance": None,
+                "transactions": [{"description": "t3"}],
+            },
+            {
+                "institution": "DBS Bank",
+                "opening_balance": "999.99",
+                "closing_balance": "175.00",
+                "transactions": [{"description": "t4"}],
+            },
+        ]
+    )
+    assert (
+        merged["institution"],
+        merged["account_last4"],
+        merged["currency"],
+        merged["opening_balance"],
+        merged["closing_balance"],
+        [t["description"] for t in merged["transactions"]],
+    ) == ("DBS", "0355", "SGD", "100.00", "175.00", ["t1", "t2", "t3", "t4"])
+    assert [
+        p["symbol"]
+        for p in merge_paged_extractions(
+            [
+                {"positions": [{"symbol": "A"}], "transactions": []},
+                {"positions": [{"symbol": "B"}, {"symbol": "C"}], "transactions": []},
+            ]
+        )["positions"]
+    ] == ["A", "B", "C"]
+    single = {"institution": "GXS", "transactions": [{"description": "t1"}]}
+    assert merge_paged_extractions([single]) is single
+    with pytest.raises(ValueError):
+        merge_paged_extractions([])
+
+    assert build_paged_prompt("BASE", part_index=1, part_count=1, page_start=1, page_end=5, total_pages=5) == "BASE"
+    p_plain, p_ctx, p_first = (
+        build_paged_prompt("BASE", part_index=2, part_count=3, page_start=6, page_end=10, total_pages=12),
+        build_paged_prompt(
+            "BASE", part_index=2, part_count=3, page_start=6, page_end=10, total_pages=12, has_context_page=True
+        ),
+        build_paged_prompt("BASE", part_index=1, part_count=3, page_start=1, page_end=5, total_pages=12),
+    )
+    assert p_plain.startswith("BASE") and all(
+        s in p_plain for s in ("pages 6-10", "12-page", "(2/3)", "balance-carried-forward")
+    )
+    assert (
+        "ONLY as context" in p_ctx
+        and "Do NOT extract transactions from this context page" in p_ctx
+        and "only pages 6-10" not in p_ctx
+        and "the FIRST page below is" in p_ctx
+        and "context page" not in p_first
+    )
+    assert "pages 1, 2, 3, 4, 5, 8, 9, 10, 11, 12 of a 12-page statement" in build_paged_meta_prompt(
+        "BASE", page_numbers=[1, 2, 3, 4, 5, 8, 9, 10, 11, 12], total_pages=12
+    )
+
+
+async def test_batched_extract_flows_and_staged_meta(monkeypatch):
+    monkeypatch.setattr(settings, "ai_provider", "zai")
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    pdf_bytes = _pdf_with_pages(service.PDF_VISION_MAX_PAGES * 2 + 2)
+    mock_extract = AsyncMock(
+        side_effect=[
+            {"institution": "DBS", "currency": "SGD", "opening_balance": "100.00", "closing_balance": "175.00"},
+            {
+                "institution": "DBS",
+                "currency": "SGD",
+                "opening_balance": "100.00",
+                "closing_balance": None,
+                "transactions": [{"description": "t1"}],
+            },
+            {"transactions": [{"description": "t2"}]},
+            {"closing_balance": "175.00", "transactions": [{"description": "t3"}]},
+        ]
+    )
+    with patch.object(service, "_extract_json_with_model", mock_extract):
+        merged = await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
+    calls = mock_extract.await_args_list
+    meta_content, first_page = calls[0].kwargs["messages"][0]["content"], calls[1].kwargs["messages"][0]["content"][1]
+    assert (
+        mock_extract.await_count == 4
+        and "STAGE 1 — DOCUMENT METADATA" in meta_content[0]["text"]
+        and "Balance Carried Forward" in meta_content[0]["text"]
+        and len(meta_content[1:]) == 10
+    )
+    all_pages = [p for b in list(service._render_pdf_pages_as_image_payload_batches(pdf_bytes)) for p in b]
+    assert meta_content[1:] == [*all_pages[:5], *all_pages[7:12]]
+    assert all(
+        f"({i}/3)" in c.kwargs["messages"][0]["content"][0]["text"]
+        and (
+            len(c.kwargs["messages"][0]["content"][1:]) == 5
+            and "context page" not in c.kwargs["messages"][0]["content"][0]["text"]
+            if i == 1
+            else len(c.kwargs["messages"][0]["content"][1:]) == (6 if i < 3 else 3)
+            and c.kwargs["messages"][0]["content"][1] == first_page
+            and "Do NOT extract transactions from this context page" in c.kwargs["messages"][0]["content"][0]["text"]
+        )
+        for i, c in enumerate(calls[1:], start=1)
+    )
+    assert (
+        merged["institution"],
+        merged["opening_balance"],
+        merged["closing_balance"],
+        [t["description"] for t in merged["transactions"]],
+    ) == ("DBS", "100.00", "175.00", ["t1", "t2", "t3"])
+
+    for pages in (2, 3):
+        single = AsyncMock(return_value={"institution": "DBS", "transactions": [{"description": "small"}]})
+        with patch.object(service, "_extract_json_with_model", single):
+            res = await service.extract_financial_data(_pdf_with_pages(pages), "DBS", "pdf")
+        assert (
+            single.await_count == 1
+            and "PARTIAL DOCUMENT" not in single.await_args.kwargs["messages"][0]["content"][0]["text"]
+            and res["transactions"] == [{"description": "small"}]
+        )
+
+
+async def test_AC_extraction_2595_memory_and_byte_ceiling(monkeypatch):
+    monkeypatch.setattr(settings, "ai_provider", "zai")
+    service = ExtractionService()
+    service.api_key = "test-key"
+    pdf_bytes = _scanned_pdf(30)
+    gc.collect()
+    live_counts, active, max_active = [], 0, 0
+
+    async def fake_extract(*, messages, **_kwargs):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
         try:
-            with patch.object(service, '_extract_json_with_model', new=_fake_extract_json_with_model): merged = await service.extract_financial_data(pdf_bytes, 'DBS', 'pdf')
-            _, peak_bytes = tracemalloc.get_traced_memory()
-        finally: tracemalloc.stop()
-        gc.collect(); assert max_concurrent_calls == 1; assert len(merged['transactions']) == 6; assert live_payload_counts == [10, 5, 6, 6, 6, 6, 6], f'Unexpected live payload counts: {live_payload_counts}'; assert peak_bytes < 32 * 1024 * 1024, f'Peak traced memory {peak_bytes} B exceeded 32 MiB bound'
-    async def test_AC_extraction_2595_2_total_rendered_byte_ceiling_raises_explicit_error(self, monkeypatch):
-        from src.config import settings; monkeypatch.setattr(settings, 'ai_provider', 'zai'); service = ExtractionService(); service.api_key = 'test-key'; monkeypatch.setattr(service, 'PDF_VISION_MAX_TOTAL_IMAGE_BYTES', 4000); pdf_bytes = _scanned_pdf_with_pages(3, width=400, height=400); mock_extract = AsyncMock(return_value={'transactions': []})
-        with patch.object(service, '_extract_json_with_model', mock_extract), pytest.raises(ExtractionError, match='4,000 bytes|4000 bytes'): await service.extract_financial_data(pdf_bytes, 'DBS', 'pdf')
-        assert mock_extract.await_count == 0
-async def test_AC_extraction_2813_1_staged_head_tail_meta_and_body_batches(monkeypatch):
-    from src.config import settings; from src.extraction.base.paged_extraction import build_paged_meta_prompt; monkeypatch.setattr(settings, 'ai_provider', 'zai'); service = ExtractionService(); service.api_key = 'test-key'; small_mock = AsyncMock(return_value={'institution': 'DBS', 'transactions': [{'description': 'small'}]})
-    with patch.object(service, '_extract_json_with_model', small_mock): small_res = await service.extract_financial_data(_pdf_with_pages(3), 'DBS', 'pdf')
-    assert small_mock.await_count == 1; assert small_res['transactions'] == [{'description': 'small'}]; pdf_bytes = _pdf_with_pages(12); batches_ref = list(service._render_pdf_pages_as_image_payload_batches(pdf_bytes)); all_pages = [p for b in batches_ref for p in b]; expected_head_tail = [*all_pages[:5], *all_pages[7:12]]; call_payloads = [{'institution': 'DBS POSB', 'account_last4': '8123', 'currency': 'SGD', 'period_start': '2024-11-01', 'period_end': '2024-11-30', 'opening_balance': '124781.91', 'closing_balance': '133583.07', 'transactions': []}, {'transactions': [{'description': 'batch-1-txn'}]}, {'transactions': [{'description': 'batch-2-txn'}]}, {'transactions': [{'description': 'batch-3-txn'}]}]; large_mock = AsyncMock(side_effect=call_payloads)
-    with patch.object(service, '_extract_json_with_model', large_mock): merged = await service.extract_financial_data(pdf_bytes, 'DBS', 'pdf')
-    assert large_mock.await_count == 4; meta_call_content = large_mock.await_args_list[0].kwargs['messages'][0]['content']; meta_prompt_text = meta_call_content[0]['text']; meta_images = meta_call_content[1:]; assert 'STAGE 1 — DOCUMENT METADATA' in meta_prompt_text; assert 'Balance Carried Forward' in meta_prompt_text; assert len(meta_images) == 10; assert meta_images == expected_head_tail; direct_meta_prompt = build_paged_meta_prompt('BASE', page_numbers=[1, 2, 3, 4, 5, 8, 9, 10, 11, 12], total_pages=12); assert 'pages 1, 2, 3, 4, 5, 8, 9, 10, 11, 12 of a 12-page statement' in direct_meta_prompt; assert merged['institution'] == 'DBS POSB'; assert merged['account_last4'] == '8123'; assert merged['currency'] == 'SGD'; assert merged['period_start'] == '2024-11-01'; assert merged['period_end'] == '2024-11-30'; assert merged['opening_balance'] == '124781.91'; assert merged['closing_balance'] == '133583.07'; assert [t['description'] for t in merged['transactions']] == ['batch-1-txn', 'batch-2-txn', 'batch-3-txn']
+            live_counts.append(
+                sum(
+                    1
+                    for o in messages[0]["content"]
+                    if isinstance(o, dict)
+                    and o.get("type") == "image_url"
+                    and str((o.get("image_url") or {}).get("url", "")).startswith("data:image/png;base64,")
+                )
+            )
+            return {"institution": "DBS", "transactions": [{"description": "row"}]}
+        finally:
+            active -= 1
+
+    tracemalloc.start()
+    try:
+        with patch.object(service, "_extract_json_with_model", new=fake_extract):
+            merged = await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
+        _, peak_bytes = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    gc.collect()
+    assert (max_active, len(merged["transactions"]), live_counts) == (
+        1,
+        6,
+        [10, 5, 6, 6, 6, 6, 6],
+    ) and peak_bytes < 32 * 1024 * 1024
+
+    monkeypatch.setattr(service, "PDF_VISION_MAX_TOTAL_IMAGE_BYTES", 4000)
+    blocked = AsyncMock(return_value={"transactions": []})
+    with (
+        patch.object(service, "_extract_json_with_model", blocked),
+        pytest.raises(ExtractionError, match="4,000 bytes|4000 bytes"),
+    ):
+        await service.extract_financial_data(_scanned_pdf(3, width=400, height=400), "DBS", "pdf")
+    assert blocked.await_count == 0
 
 
 def test_consolidated_brokerage_allows_multiple_subaccounts_while_bank_still_rejects():
     from src.extraction.base.paged_extraction import MultipleAccountsError
+
     parts = [
-        {'institution': 'Fidelity', 'account_last4': 'Z401', 'currency': 'USD', 'positions': [{'symbol': 'SPY', 'quantity': '5', 'market_value': '2500.00', 'currency': 'USD'}]},
-        {'institution': 'Fidelity', 'account_last4': '2252', 'currency': 'USD', 'positions': [{'symbol': 'QQQ', 'quantity': '2', 'market_value': '1000.00', 'currency': 'USD'}]},
+        {
+            "institution": "Fidelity",
+            "account_last4": "Z401",
+            "currency": "USD",
+            "positions": [{"symbol": "SPY", "quantity": "5", "market_value": "2500.00", "currency": "USD"}],
+        },
+        {
+            "institution": "Fidelity",
+            "account_last4": "2252",
+            "currency": "USD",
+            "positions": [{"symbol": "QQQ", "quantity": "2", "market_value": "1000.00", "currency": "USD"}],
+        },
     ]
     with pytest.raises(MultipleAccountsError):
         merge_paged_extractions(parts)
     merged = merge_paged_extractions(parts, allow_multiple_accounts=True)
-    assert merged['account_last4'] == 'Z401'
-    assert [p['symbol'] for p in merged['positions']] == ['SPY', 'QQQ']
+    assert merged["account_last4"] == "Z401"
+    assert [p["symbol"] for p in merged["positions"]] == ["SPY", "QQQ"]

@@ -1,25 +1,42 @@
-from datetime import date; from decimal import Decimal; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus; from src.ledger import Account, AccountType; from src.portfolio import get_asset_class_allocation, get_geography_allocation, get_sector_allocation
-@pytest.fixture
-async def investment_account(db: AsyncSession, test_user): account = Account(user_id=test_user.id, name='Test Broker', type=AccountType.ASSET, currency='SGD'); db.add(account); await db.flush(); return account
-@pytest.fixture
-async def tech_stock_position(db: AsyncSession, test_user, investment_account): from src.extraction.orm.layer2 import AtomicPosition; position = ManagedPosition(user_id=test_user.id, account_id=investment_account.id, asset_identifier='AAPL', quantity=Decimal('100'), cost_basis=Decimal('15000.00'), currency='SGD', acquisition_date=date(2023, 1, 1), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(position); atomic = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='AAPL', broker='Test Broker', quantity=Decimal('100'), market_value=Decimal('17000.00'), currency='SGD', sector='Technology', geography='US', asset_type='stock', dedup_hash='aapl_test_hash', source_documents={}); db.add(atomic); await db.flush(); return position
-@pytest.fixture
-async def finance_stock_position(db: AsyncSession, test_user, investment_account): from src.extraction.orm.layer2 import AtomicPosition; position = ManagedPosition(user_id=test_user.id, account_id=investment_account.id, asset_identifier='JPM', quantity=Decimal('50'), cost_basis=Decimal('7500.00'), currency='SGD', acquisition_date=date(2023, 6, 1), status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO); db.add(position); atomic = AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier='JPM', broker='Test Broker', quantity=Decimal('50'), market_value=Decimal('8500.00'), currency='SGD', sector='Financials', geography='US', asset_type='stock', dedup_hash='jpm_test_hash', source_documents={}); db.add(atomic); await db.flush(); return position
-async def test_sector_allocation_empty_portfolio(db: AsyncSession, test_user): result = await get_sector_allocation(db, test_user.id, base_currency='SGD'); assert result == []
-async def test_geography_allocation_empty_portfolio(db: AsyncSession, test_user): result = await get_geography_allocation(db, test_user.id, base_currency='SGD'); assert result == []
-async def test_asset_class_allocation_empty_portfolio(db: AsyncSession, test_user): result = await get_asset_class_allocation(db, test_user.id, base_currency='SGD'); assert result == []
-async def test_sector_allocation_with_positions(db: AsyncSession, test_user, tech_stock_position, finance_stock_position): result = await get_sector_allocation(db, test_user.id, base_currency='SGD'); assert len(result) > 0; assert all((hasattr(item, 'category') for item in result)); assert all((hasattr(item, 'value') for item in result)); assert all((hasattr(item, 'percentage') for item in result)); assert all((hasattr(item, 'count') for item in result))
-async def test_geography_allocation_with_positions(db: AsyncSession, test_user, tech_stock_position, finance_stock_position): result = await get_geography_allocation(db, test_user.id, base_currency='SGD'); assert len(result) > 0; assert all((hasattr(item, 'category') for item in result))
-async def test_asset_class_allocation_with_positions(db: AsyncSession, test_user, tech_stock_position, finance_stock_position): result = await get_asset_class_allocation(db, test_user.id, base_currency='SGD'); assert len(result) > 0; assert all((hasattr(item, 'category') for item in result))
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction.orm.layer2 import AtomicPosition
+from src.ledger import Account, AccountType
+from src.portfolio import get_asset_class_allocation, get_geography_allocation, get_sector_allocation
+from src.portfolio.extension.allocation import _build_allocation
+from src.portfolio.extension.holdings import _account_names_by_id
+from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
+
+
+@pytest.mark.parametrize("getter", [get_sector_allocation, get_geography_allocation, get_asset_class_allocation])
+async def test_allocation_empty_and_with_positions(db: AsyncSession, test_user, getter):
+    assert await getter(db, test_user.id, base_currency="SGD") == []
+    acct = Account(user_id=test_user.id, name="Test Broker", type=AccountType.ASSET, currency="SGD")
+    db.add(acct)
+    await db.flush()
+    for asset, qty, cost, mv, sector, acq in (("AAPL", "100", "15000.00", "17000.00", "Technology", date(2023, 1, 1)), ("JPM", "50", "7500.00", "8500.00", "Financials", date(2023, 6, 1))):
+        db.add_all([
+            ManagedPosition(user_id=test_user.id, account_id=acct.id, asset_identifier=asset, quantity=Decimal(qty), cost_basis=Decimal(cost), currency="SGD", acquisition_date=acq, status=PositionStatus.ACTIVE, cost_basis_method=CostBasisMethod.FIFO),
+            AtomicPosition(user_id=test_user.id, snapshot_date=date.today(), asset_identifier=asset, broker="Test Broker", quantity=Decimal(qty), market_value=Decimal(mv), currency="SGD", sector=sector, geography="US", asset_type="stock", dedup_hash=f"{asset}_alloc_hash", source_documents={}),
+        ])
+    await db.flush()
+    result = await getter(db, test_user.id, base_currency="SGD")
+    assert len(result) > 0 and all(hasattr(item, attr) for item in result for attr in ("category", "value", "percentage", "count"))
 
 
 @pytest.mark.no_db
-async def test_account_names_lookup_short_circuits_on_no_ids() -> None:
-    from uuid import uuid4
-    from src.portfolio.extension.holdings import _account_names_by_id
-
+async def test_account_names_lookup_short_circuit_and_build_allocation():
     class _ExplodingSession:
         def __getattr__(self, name: str) -> None:
             raise AssertionError(f"empty-input guard must not touch the session (accessed .{name})")
 
     assert await _account_names_by_id(_ExplodingSession(), uuid4(), set()) == {}
+    zero = _build_allocation([(object(), Decimal("0")), (object(), Decimal("0"))], key_fn=lambda _a: "cash")
+    cats = iter(["a", "b", "b"])
+    shares = {b.category: b.percentage for b in _build_allocation([(object(), Decimal("25")), (object(), Decimal("50")), (object(), Decimal("25"))], key_fn=lambda _a: next(cats))}
+    assert (len(zero), zero[0].percentage, zero[0].count, shares) == (1, Decimal("0"), 2, {"a": Decimal("25"), "b": Decimal("75")})

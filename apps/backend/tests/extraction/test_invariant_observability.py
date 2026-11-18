@@ -1,14 +1,55 @@
-from __future__ import annotations; from pathlib import Path; from uuid import uuid4; import pytest; from src.extraction import DocumentSource; from src.extraction.base.validation import count_within_document_dedup_collapse; from src.extraction.extension.service import ExtractionService; from src.observability import telemetry_metrics; pytestmark = pytest.mark.no_db  # AC-extraction.2009.7
-def test_AC26_8_1_within_document_collapse_counts_only_duplicate_hashes() -> None: assert count_within_document_dedup_collapse([]) == 0; assert count_within_document_dedup_collapse(['a', 'b', 'c']) == 0; assert count_within_document_dedup_collapse(['a', 'a', 'b']) == 1; assert count_within_document_dedup_collapse(['a', 'a', 'a']) == 2; assert count_within_document_dedup_collapse(['a', 'a', 'b', 'b', 'c']) == 2; _m1_distinct_for_one_parse = [f'hash-{_m1_i}' for _m1_i in range(25)]; assert count_within_document_dedup_collapse(_m1_distinct_for_one_parse) == 0
+from __future__ import annotations
+
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+
+from src.extraction import DocumentSource
+from src.extraction.base.validation import count_within_document_dedup_collapse
+from src.extraction.extension.service import ExtractionService
+from src.observability import telemetry_metrics
+
+pytestmark = pytest.mark.no_db
+
+
 class _FakeCounter:
-    def __init__(self) -> None: self.add_calls: list[tuple[int, dict[str, str]]] = []
-    def add(self, value: int, attributes: dict[str, str]) -> None: self.add_calls.append((value, attributes))
-def test_AC26_8_1_invariant_violation_recorder_emits_labelled_counter(monkeypatch) -> None: counter = _FakeCounter(); monkeypatch.setitem(telemetry_metrics._instruments, 'financial_invariant_violation', counter); telemetry_metrics.record_financial_invariant_violation(kind='balance_mismatch', institution_class='bank'); telemetry_metrics.record_financial_invariant_violation(kind='dedup_within_doc_collapse', institution_class='brokerage'); assert counter.add_calls == [(1, {'kind': 'balance_mismatch', 'institution_class': 'bank'}), (1, {'kind': 'dedup_within_doc_collapse', 'institution_class': 'brokerage'})]; assert all((kind in telemetry_metrics.INVARIANT_VIOLATION_KINDS for kind in ('balance_mismatch', 'per_currency_nav', 'chain_break', 'dedup_within_doc_collapse')))
-def test_AC26_8_1_recorder_guards_label_cardinality_and_pii(monkeypatch) -> None: counter = _FakeCounter(); monkeypatch.setitem(telemetry_metrics._instruments, 'financial_invariant_violation', counter); telemetry_metrics.record_financial_invariant_violation(kind='totally_bogus_kind'); assert counter.add_calls == []; telemetry_metrics.record_financial_invariant_violation(kind='balance_mismatch', institution_class='DBS Bank Account 1234'); assert counter.add_calls == [(1, {'kind': 'balance_mismatch', 'institution_class': 'unknown'})]
-def test_AC26_8_1_recorder_is_safe_noop_without_instrument(monkeypatch) -> None: monkeypatch.delitem(telemetry_metrics._instruments, 'financial_invariant_violation', raising=False); telemetry_metrics.record_financial_invariant_violation(kind='chain_break')
+    def __init__(self) -> None:
+        self.add_calls: list[tuple[int, dict[str, str]]] = []
+
+    def add(self, value: int, attributes: dict[str, str]) -> None:
+        self.add_calls.append((value, attributes))
+
+
+def test_AC26_8_1_dedup_collapse_and_invariant_recorder(monkeypatch) -> None:
+    assert [count_within_document_dedup_collapse(c) for c in ([], ["a", "b", "c"], ["a", "a", "b"], ["a", "a", "a"], ["a", "a", "b", "b", "c"], [f"hash-{i}" for i in range(25)])] == [0, 0, 1, 2, 2, 0]
+
+    counter = _FakeCounter()
+    monkeypatch.setitem(telemetry_metrics._instruments, "financial_invariant_violation", counter)
+    telemetry_metrics.record_financial_invariant_violation(kind="balance_mismatch", institution_class="bank")
+    telemetry_metrics.record_financial_invariant_violation(kind="dedup_within_doc_collapse", institution_class="brokerage")
+    assert counter.add_calls == [(1, {"kind": "balance_mismatch", "institution_class": "bank"}), (1, {"kind": "dedup_within_doc_collapse", "institution_class": "brokerage"})]
+    assert all(k in telemetry_metrics.INVARIANT_VIOLATION_KINDS for k in ("balance_mismatch", "per_currency_nav", "chain_break", "dedup_within_doc_collapse"))
+
+    counter.add_calls.clear()
+    telemetry_metrics.record_financial_invariant_violation(kind="totally_bogus_kind")
+    assert counter.add_calls == []
+    telemetry_metrics.record_financial_invariant_violation(kind="balance_mismatch", institution_class="DBS Bank Account 1234")
+    assert counter.add_calls == [(1, {"kind": "balance_mismatch", "institution_class": "unknown"})]
+
+    monkeypatch.delitem(telemetry_metrics._instruments, "financial_invariant_violation", raising=False)
+    telemetry_metrics.record_financial_invariant_violation(kind="chain_break")
+
+
 async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monkeypatch) -> None:
-    service = ExtractionService(); balance_invalid = {'institution': 'DBS', 'currency': 'SGD', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '100.00', 'closing_balance': '999.99', 'transactions': [{'date': '2025-01-05', 'amount': '50.00', 'direction': 'IN', 'description': 'Deposit'}]}
-    async def fake_retry(**_kwargs): return balance_invalid
-    monkeypatch.setattr(service, '_extract_with_balance_retry', fake_retry); recorded: list[tuple[str, str]] = []
-    def capture(*, kind: str, institution_class: str='unknown') -> None: recorded.append((kind, institution_class))
-    monkeypatch.setattr('src.extraction.extension.service.record_financial_invariant_violation', capture); result = await service.parse_document(DocumentSource.resolve(path=Path('dbs.pdf'), content=b'fake pdf'), institution='DBS', user_id=uuid4(), file_type='pdf', account_id=uuid4(), db=None); assert result.balance_validated is False; assert result.review_reasons; assert len(result.transactions) == 0; assert ('balance_mismatch', 'bank') in recorded; assert ('llm_led_gate_quarantine_balance', 'bank') in recorded
+    service = ExtractionService()
+    payload = {"institution": "DBS", "currency": "SGD", "period_start": "2025-01-01", "period_end": "2025-01-31", "opening_balance": "100.00", "closing_balance": "999.99", "transactions": [{"date": "2025-01-05", "amount": "50.00", "direction": "IN", "description": "Deposit"}]}
+
+    async def fake_retry(**_kwargs):
+        return payload
+
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(service, "_extract_with_balance_retry", fake_retry)
+    monkeypatch.setattr("src.extraction.extension.service.record_financial_invariant_violation", lambda *, kind, institution_class="unknown": recorded.append((kind, institution_class)))
+    result = await service.parse_document(DocumentSource.resolve(path=Path("dbs.pdf"), content=b"fake pdf"), institution="DBS", user_id=uuid4(), file_type="pdf", account_id=uuid4(), db=None)
+    assert result.balance_validated is False and bool(result.review_reasons) and len(result.transactions) == 0 and {("balance_mismatch", "bank"), ("llm_led_gate_quarantine_balance", "bank")} <= set(recorded)

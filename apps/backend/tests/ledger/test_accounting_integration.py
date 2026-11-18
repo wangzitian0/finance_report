@@ -1,60 +1,207 @@
-from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from sqlalchemy import text; from sqlalchemy.exc import IntegrityError; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import JournalEntrySourceType; from src.config import settings; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError, calculate_account_balance, calculate_account_balances, post_journal_entry, validate_journal_posting_invariants, validate_line_account_ownership, verify_accounting_equation, void_journal_entry; from tests.factories import UserFactory; from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
-@pytest.fixture
-async def bank_account(db: AsyncSession, test_user_id): account = Account(user_id=test_user_id, name='Test Bank Account', type=AccountType.ASSET, currency='SGD'); db.add(account); await db.commit(); await db.refresh(account); return account
-@pytest.fixture
-async def salary_account(db: AsyncSession, test_user_id): account = Account(user_id=test_user_id, name='Test Salary Income', type=AccountType.INCOME, currency='SGD'); db.add(account); await db.commit(); await db.refresh(account); return account
-@pytest.fixture
-async def expense_account(db: AsyncSession, test_user_id): account = Account(user_id=test_user_id, name='Test Expense', type=AccountType.EXPENSE, currency='SGD'); db.add(account); await db.commit(); await db.refresh(account); return account
-async def test_calculate_balance_for_asset_account(db: AsyncSession, bank_account, salary_account, test_user_id): entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Test salary deposit', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); line1 = JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('5000.00'), currency='SGD'); line2 = JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('5000.00'), currency='SGD'); db.add(line1); db.add(line2); await db.commit(); balance = await calculate_account_balance(db, bank_account.id, test_user_id); assert balance == Decimal('5000.00')
-async def test_calculate_balance_for_income_account(db: AsyncSession, bank_account, salary_account, test_user_id): entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Test salary income', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); line1 = JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('3000.00'), currency='SGD'); line2 = JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('3000.00'), currency='SGD'); db.add(line1); db.add(line2); await db.commit(); balance = await calculate_account_balance(db, salary_account.id, test_user_id); assert balance == Decimal('3000.00')
-async def test_post_journal_entry_success(db: AsyncSession, bank_account, salary_account, test_user_id): entry = await create_journal_entry(db, test_user_id, date.today(), 'Test draft entry', [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('1000.00'), 'currency': 'SGD'}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('1000.00'), 'currency': 'SGD'}]); posted_entry = await post_journal_entry(db, entry.id, test_user_id); assert posted_entry.status == JournalEntryStatus.POSTED; assert posted_entry.id == entry.id
-async def test_AC2_13_1_create_journal_entry_rejects_cross_user_account(db: AsyncSession, bank_account, salary_account, test_user_id):
-    other_user_id = (await UserFactory.create_async(db)).id; other_account = Account(user_id=other_user_id, name='Other User Cash', type=AccountType.ASSET, currency='SGD'); db.add(other_account); await db.commit(); await db.refresh(other_account)
-    with pytest.raises(ValidationError, match='Account does not belong to user'): await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Cross-user attempt', lines_data=[{'account_id': other_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('10.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('10.00')}])
-async def test_AC2_13_1_line_account_ownership_accepts_empty_line_set(db: AsyncSession, test_user_id): accounts = await validate_line_account_ownership(db, test_user_id, set()); assert accounts == {}
-async def test_AC2_13_1_line_account_ownership_rejects_missing_account(db: AsyncSession, test_user_id):
-    missing_account_id = uuid4()
-    with pytest.raises(ValidationError, match=f'Account {missing_account_id} not found'): await validate_line_account_ownership(db, test_user_id, {missing_account_id})
-async def test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary(db: AsyncSession, bank_account, salary_account, test_user_id):
-    other_user_id = (await UserFactory.create_async(db)).id; other_account = Account(user_id=other_user_id, name='Other User Asset', type=AccountType.ASSET, currency='SGD'); db.add(other_account); await db.flush(); entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Cross-user draft', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.DRAFT); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=other_account.id, direction=Direction.DEBIT, amount=Decimal('25.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('25.00'), currency='SGD')])
-    with pytest.raises(IntegrityError, match='cannot reference cross-user account'): await db.flush()
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import JournalEntrySourceType
+from src.config import settings
+from src.ledger import (
+    Account,
+    AccountType,
+    DecisionAnchorError,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    ValidationError,
+    calculate_account_balance,
+    calculate_account_balances,
+    post_journal_entry,
+    validate_fx_rates,
+    validate_journal_balance,
+    validate_journal_posting_invariants,
+    validate_line_account_ownership,
+    verify_accounting_equation,
+    void_journal_entry,
+)
+from tests.factories import UserFactory
+from tests.ledger._ledger_helpers import (
+    create_anchored_test_journal_entry as create_journal_entry,
+    create_valid_posted_entry,
+    lines_pair,
+    make_account,
+    make_entry,
+    make_line,
+)
+
+
+async def test_balances_and_accounting_equation_across_account_types(db: AsyncSession, test_user_id) -> None:
+    asset, liability, equity, income, expense, empty = [
+        await make_account(db, test_user_id, name, atype)
+        for name, atype in (
+            ("Bank", AccountType.ASSET),
+            ("Card", AccountType.LIABILITY),
+            ("Equity", AccountType.EQUITY),
+            ("Salary", AccountType.INCOME),
+            ("Food", AccountType.EXPENSE),
+            ("Empty", AccountType.LIABILITY),
+        )
+    ]
+    await make_entry(
+        db,
+        test_user_id,
+        [
+            (asset.id, Direction.DEBIT, "1000"),
+            (expense.id, Direction.DEBIT, "100"),
+            (liability.id, Direction.CREDIT, "200"),
+            (equity.id, Direction.CREDIT, "300"),
+            (income.id, Direction.CREDIT, "600"),
+        ],
+    )
+    await make_entry(
+        db, test_user_id, [(asset.id, Direction.DEBIT, "9999"), (income.id, Direction.CREDIT, "9999")], status=JournalEntryStatus.DRAFT
+    )
+    await db.commit()
+
+    assert await calculate_account_balance(db, asset.id, test_user_id) == Decimal("1000.00")
+    assert await calculate_account_balance(db, income.id, test_user_id) == Decimal("600.00")
+    assert await calculate_account_balance(db, empty.id, test_user_id) == Decimal("0")
+    balances = await calculate_account_balances(db, [asset, liability, equity, income, expense], test_user_id)
+    assert (balances[asset.id], balances[liability.id], balances[equity.id], balances[income.id], balances[expense.id]) == (
+        Decimal("1000.00"),
+        Decimal("200.00"),
+        Decimal("300.00"),
+        Decimal("600.00"),
+        Decimal("100.00"),
+    )
+    assert await calculate_account_balances(db, [], test_user_id) == {}
+    assert await verify_accounting_equation(db, test_user_id, base_currency="SGD") is True
+
+
+async def test_cross_user_isolation_and_db_boundary(db: AsyncSession, test_user_id) -> None:
+    salary = await make_account(db, test_user_id, "Salary", AccountType.INCOME)
+    other_id = (await UserFactory.create_async(db)).id
+    other_acc = await make_account(db, other_id, "Other Cash", AccountType.ASSET, commit=True)
+
+    assert await validate_line_account_ownership(db, test_user_id, set()) == {}
+    missing_id = uuid4()
+    with pytest.raises(ValidationError, match=f"Account {missing_id} not found"):
+        await validate_line_account_ownership(db, test_user_id, {missing_id})
+    with pytest.raises(ValidationError, match="Account does not belong to user"):
+        await create_journal_entry(db, test_user_id, date.today(), "Cross", lines_pair(other_acc.id, salary.id, "10.00"))
+    with pytest.raises(IntegrityError, match="cannot reference cross-user account"):
+        await make_entry(db, test_user_id, [(other_acc.id, Direction.DEBIT, "25"), (salary.id, Direction.CREDIT, "25")], status=JournalEntryStatus.DRAFT)
     await db.rollback()
-async def test_AC2_13_2_posting_invariants_reject_line_with_missing_account_relationship(test_user_id):
-    missing_account_id = uuid4(); entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Missing account', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.DRAFT); entry.lines = [JournalLine(journal_entry_id=uuid4(), account_id=missing_account_id, direction=Direction.DEBIT, amount=Decimal('25.00'), currency='SGD'), JournalLine(journal_entry_id=uuid4(), account_id=uuid4(), direction=Direction.CREDIT, amount=Decimal('25.00'), currency='SGD')]
-    with pytest.raises(ValidationError, match=f'Account {missing_account_id} not found'): validate_journal_posting_invariants(entry)
-async def test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers(db: AsyncSession, bank_account, salary_account, test_user_id):
-    other_user_id = (await UserFactory.create_async(db)).id; other_account = Account(user_id=other_user_id, name='Other User Cash', type=AccountType.ASSET, currency='SGD'); db.add(other_account); await db.flush(); polluted_entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Pollution attempt', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(polluted_entry); await db.flush()
-    try: await db.execute(text('SET LOCAL session_replication_role = replica')); db.add_all([JournalLine(journal_entry_id=polluted_entry.id, account_id=other_account.id, direction=Direction.DEBIT, amount=Decimal('99.00'), currency='SGD'), JournalLine(journal_entry_id=polluted_entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('99.00'), currency='SGD')]); await db.flush()
-    finally: await db.execute(text('SET LOCAL session_replication_role = DEFAULT'))
-    await db.commit(); balances = await calculate_account_balances(db, [other_account], other_user_id); assert balances[other_account.id] == Decimal('0')
-async def test_post_journal_entry_already_posted_fails(db: AsyncSession, bank_account, salary_account, test_user_id):
-    entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Already posted', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); line1 = JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='SGD'); line2 = JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('100.00'), currency='SGD'); db.add(line1); db.add(line2); await db.commit()
-    with pytest.raises(ValidationError, match='Can only post draft entries'): await post_journal_entry(db, entry.id, test_user_id)
-async def test_post_unbalanced_journal_entry_fails(db: AsyncSession, bank_account, salary_account, test_user_id):
-    entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Unbalanced entry', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.DRAFT); db.add(entry); await db.flush(); line1 = JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('1000.00'), currency='SGD'); line2 = JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('500.00'), currency='SGD'); db.add(line1); db.add(line2); await db.commit()
-    with pytest.raises(ValidationError, match='Journal entry not balanced'): await post_journal_entry(db, entry.id, test_user_id)
-async def test_void_journal_entry_creates_reversal(db: AsyncSession, bank_account, salary_account, test_user_id): entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Entry to void', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); line1 = JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('2000.00'), currency='SGD'); line2 = JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('2000.00'), currency='SGD'); db.add(line1); db.add(line2); await db.commit(); reversal = await void_journal_entry(db, entry.id, 'Test void', test_user_id); assert reversal.status == JournalEntryStatus.POSTED; assert len(reversal.lines) == 2; assert 'VOID' in reversal.memo; await db.refresh(entry); assert entry.status == JournalEntryStatus.VOID; assert entry.void_reason == 'Test void'; assert entry.void_reversal_entry_id == reversal.id; reversal_lines = {line.account_id: line for line in reversal.lines}; assert reversal_lines[bank_account.id].direction == Direction.CREDIT; assert reversal_lines[salary_account.id].direction == Direction.DEBIT
-async def test_accounting_equation_holds(db: AsyncSession, bank_account, salary_account, expense_account, test_user_id): entry1 = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Salary', status=JournalEntryStatus.POSTED); db.add(entry1); await db.flush(); db.add(JournalLine(journal_entry_id=entry1.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('5000.00'), currency='SGD')); db.add(JournalLine(journal_entry_id=entry1.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('5000.00'), currency='SGD')); entry2 = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Expense', status=JournalEntryStatus.POSTED); db.add(entry2); await db.flush(); db.add(JournalLine(journal_entry_id=entry2.id, account_id=expense_account.id, direction=Direction.DEBIT, amount=Decimal('1000.00'), currency='SGD')); db.add(JournalLine(journal_entry_id=entry2.id, account_id=bank_account.id, direction=Direction.CREDIT, amount=Decimal('1000.00'), currency='SGD')); await db.commit(); result = await verify_accounting_equation(db, test_user_id, base_currency='SGD'); assert result is True
-async def test_draft_entries_not_included_in_balance(db: AsyncSession, bank_account, salary_account, test_user_id): entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Draft entry', status=JournalEntryStatus.DRAFT); db.add(entry); await db.flush(); db.add(JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('9999.00'), currency='SGD')); db.add(JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('9999.00'), currency='SGD')); await db.commit(); balance = await calculate_account_balance(db, bank_account.id, test_user_id); assert balance == Decimal('0')
-async def test_create_journal_entry_basic(db: AsyncSession, bank_account, salary_account, test_user_id): lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('1500.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('1500.00')}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Test salary deposit', lines_data=lines_data); assert entry.id is not None; assert entry.user_id == test_user_id; assert entry.memo == 'Test salary deposit'; assert entry.entry_date == date.today(); assert entry.status == JournalEntryStatus.DRAFT; assert len(entry.lines) == 2; await db.commit()
-async def test_create_journal_entry_default_source_type(db: AsyncSession, bank_account, salary_account, test_user_id): lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('100.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('100.00')}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Test default source type', lines_data=lines_data); assert entry.source_type == JournalEntrySourceType.MANUAL; await db.commit()
-async def test_create_journal_entry_custom_source_type(db: AsyncSession, bank_account, salary_account, test_user_id): source_id = uuid4(); lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('200.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('200.00')}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Bank statement entry', lines_data=lines_data, source_type='bank_statement', source_id=source_id); assert entry.source_type == JournalEntrySourceType.AUTO_PARSED; assert entry.source_id == source_id; await db.commit()
-async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_account, salary_account, test_user_id): lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('500.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('500.00')}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Test default currency', lines_data=lines_data); assert all((line.currency == 'SGD' for line in entry.lines)); await db.commit()
-async def test_create_journal_entry_default_currency_uses_configured_base_currency(db: AsyncSession, bank_account, salary_account, test_user_id, monkeypatch: pytest.MonkeyPatch): monkeypatch.setattr(settings, 'base_currency', 'usd'); lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('500.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('500.00')}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Test configured default currency', lines_data=lines_data); assert {line.currency for line in entry.lines} == {'USD'}; await db.commit()
-async def test_create_journal_entry_rejects_unbalanced_draft(db: AsyncSession, bank_account, salary_account, test_user_id):
-    lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('100.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('90.00')}]
-    with pytest.raises(ValidationError, match='Journal entry not balanced'): await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Unbalanced draft', lines_data=lines_data)
-async def test_create_journal_entry_fx_rate_required_for_foreign_currency(db: AsyncSession, bank_account, salary_account, test_user_id):
-    lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('100.00'), 'currency': 'USD'}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('135.00')}]
-    with pytest.raises(ValidationError, match='fx_rate required for currency USD'): await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Test FX validation', lines_data=lines_data)
-async def test_create_journal_entry_with_fx_rate(db: AsyncSession, bank_account, salary_account, test_user_id): lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('100.00'), 'currency': 'USD', 'fx_rate': Decimal('1.35')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('135.00')}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='USD transaction', lines_data=lines_data); usd_line = next((line for line in entry.lines if line.currency == 'USD')); assert usd_line.fx_rate == Decimal('1.35'); await db.commit()
-async def test_create_journal_entry_with_optional_fields(db: AsyncSession, bank_account, salary_account, test_user_id): lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('300.00'), 'event_type': 'DEPOSIT', 'tags': {'labels': ['salary', 'monthly']}}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('300.00'), 'event_type': 'INCOME', 'tags': {'labels': ['employment']}}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Tagged entry', lines_data=lines_data); bank_line = next((line for line in entry.lines if line.account_id == bank_account.id)); salary_line = next((line for line in entry.lines if line.account_id == salary_account.id)); assert bank_line.event_type == 'DEPOSIT'; assert bank_line.tags == {'labels': ['salary', 'monthly']}; assert salary_line.event_type == 'INCOME'; assert salary_line.tags == {'labels': ['employment']}; await db.commit()
-async def test_create_journal_entry_uses_flush_not_commit(db: AsyncSession, bank_account, salary_account, test_user_id): lines_data = [{'account_id': bank_account.id, 'direction': Direction.DEBIT, 'amount': Decimal('100.00')}, {'account_id': salary_account.id, 'direction': Direction.CREDIT, 'amount': Decimal('100.00')}]; entry = await create_journal_entry(db=db, user_id=test_user_id, entry_date=date.today(), memo='Flush test', lines_data=lines_data); assert entry.id is not None; await db.rollback(); from sqlalchemy import select; result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id)); assert result.scalar_one_or_none() is None
-async def test_post_unbalanced_entry_rejected(db: AsyncSession, bank_account, salary_account, test_user_id):
-    entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Unbalanced entry should be rejected', status=JournalEntryStatus.DRAFT); db.add(entry); await db.flush(); db.add(JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='SGD')); db.add(JournalLine(journal_entry_id=entry.id, account_id=salary_account.id, direction=Direction.CREDIT, amount=Decimal('90.00'), currency='SGD')); await db.commit()
-    with pytest.raises(ValidationError, match='not balanced'): await post_journal_entry(db, entry.id, test_user_id)
-    await db.refresh(entry); assert entry.status == JournalEntryStatus.DRAFT
-async def test_post_single_line_entry_rejected(db: AsyncSession, bank_account, test_user_id):
-    entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Single line entry should be rejected', status=JournalEntryStatus.DRAFT); db.add(entry); await db.flush(); db.add(JournalLine(journal_entry_id=entry.id, account_id=bank_account.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='SGD')); await db.commit()
-    with pytest.raises(ValidationError, match='at least 2 lines'): await post_journal_entry(db, entry.id, test_user_id)
-    await db.refresh(entry); assert entry.status == JournalEntryStatus.DRAFT
+
+    other_acc = await make_account(db, other_id, "Other Cash 2", AccountType.ASSET)
+    salary = await make_account(db, test_user_id, "Salary 2", AccountType.INCOME)
+    polluted = JournalEntry(
+        user_id=test_user_id, entry_date=date.today(), memo="Pollution", source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED
+    )
+    db.add(polluted)
+    await db.flush()
+    try:
+        await db.execute(text("SET LOCAL session_replication_role = replica"))
+        db.add_all(
+            [
+                JournalLine(journal_entry_id=polluted.id, account_id=other_acc.id, direction=Direction.DEBIT, amount=Decimal("99.00"), currency="SGD"),
+                JournalLine(journal_entry_id=polluted.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal("99.00"), currency="SGD"),
+            ]
+        )
+        await db.flush()
+    finally:
+        await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
+    await db.commit()
+    assert (await calculate_account_balances(db, [other_acc], other_id))[other_acc.id] == Decimal("0")
+
+    unloaded = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo="Missing", source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.DRAFT)
+    unloaded.lines = [make_line(Direction.DEBIT, "25.00"), make_line(Direction.CREDIT, "25.00")]
+    with pytest.raises(ValidationError, match="not found"):
+        validate_journal_posting_invariants(unloaded)
+
+
+async def test_create_journal_entry_options_and_flush(db: AsyncSession, test_user_id, monkeypatch: pytest.MonkeyPatch) -> None:
+    bank = await make_account(db, test_user_id, "Bank", AccountType.ASSET)
+    salary = await make_account(db, test_user_id, "Salary", AccountType.INCOME)
+
+    source_id = uuid4()
+    custom = await create_journal_entry(
+        db, test_user_id, date.today(), "Bank stmt", lines_pair(bank.id, salary.id, "200.00"), source_type="bank_statement", source_id=source_id
+    )
+    assert custom.source_type == JournalEntrySourceType.AUTO_PARSED and custom.source_id == source_id
+
+    tagged = await create_journal_entry(
+        db,
+        test_user_id,
+        date.today(),
+        "USD/Tagged",
+        [
+            {"account_id": bank.id, "direction": Direction.DEBIT, "amount": Decimal("100.00"), "currency": "USD", "fx_rate": Decimal("1.35"), "event_type": "DEPOSIT", "tags": {"labels": ["salary"]}},
+            {"account_id": salary.id, "direction": Direction.CREDIT, "amount": Decimal("135.00")},
+        ],
+    )
+    usd_line = next(ln for ln in tagged.lines if ln.currency == "USD")
+    assert (usd_line.fx_rate, usd_line.event_type, usd_line.tags) == (Decimal("1.35"), "DEPOSIT", {"labels": ["salary"]})
+    await db.commit()
+
+    monkeypatch.setattr(settings, "base_currency", "usd")
+    usd_default = await create_journal_entry(
+        db, test_user_id, date.today(), "Configured USD", [{"account_id": bank.id, "direction": Direction.DEBIT, "amount": Decimal("50")}, {"account_id": salary.id, "direction": Direction.CREDIT, "amount": Decimal("50")}]
+    )
+    assert {ln.currency for ln in usd_default.lines} == {"USD"}
+    await db.rollback()
+    assert (await db.execute(select(JournalEntry).where(JournalEntry.id == usd_default.id))).scalar_one_or_none() is None
+
+
+async def test_post_and_void_lifecycle_and_errors(db: AsyncSession, test_user_id) -> None:
+    bank = await make_account(db, test_user_id, "Bank", AccountType.ASSET)
+    salary = await make_account(db, test_user_id, "Salary", AccountType.INCOME)
+    inactive = await make_account(db, test_user_id, "Inactive", AccountType.ASSET, is_active=False)
+
+    draft = await create_journal_entry(db, test_user_id, date.today(), "Draft", lines_pair(bank.id, salary.id, "1000.00"))
+    posted = await post_journal_entry(db, draft.id, test_user_id)
+    assert posted.status == JournalEntryStatus.POSTED
+    with pytest.raises(ValidationError, match="Can only post draft entries"):
+        await post_journal_entry(db, posted.id, test_user_id)
+
+    reversal = await void_journal_entry(db, posted.id, "Test void", test_user_id)
+    await db.refresh(posted)
+    rev_map = {ln.account_id: ln for ln in reversal.lines}
+    assert (posted.status, posted.void_reason, posted.void_reversal_entry_id) == (JournalEntryStatus.VOID, "Test void", reversal.id)
+    assert "VOID" in reversal.memo and rev_map[bank.id].direction == Direction.CREDIT and rev_map[salary.id].direction == Direction.DEBIT
+
+    other_id = (await UserFactory.create_async(db)).id
+    other_acc = await make_account(db, other_id, "O", AccountType.ASSET, commit=True)
+    other_posted = await create_valid_posted_entry(db, other_id, memo="Other posted")
+    other_draft = await make_entry(db, other_id, [], status=JournalEntryStatus.DRAFT, commit=True)
+    inactive_draft = await make_entry(db, test_user_id, [(inactive.id, Direction.DEBIT, "100"), (salary.id, Direction.CREDIT, "100")], status=JournalEntryStatus.DRAFT, commit=True)
+    unbalanced_draft = await make_entry(db, test_user_id, [(bank.id, Direction.DEBIT, "100"), (salary.id, Direction.CREDIT, "90")], status=JournalEntryStatus.DRAFT, commit=True)
+    single_draft = await make_entry(db, test_user_id, [(bank.id, Direction.DEBIT, "100")], status=JournalEntryStatus.DRAFT, commit=True)
+    unanchored_draft = await make_entry(db, test_user_id, [(bank.id, Direction.DEBIT, "100"), (salary.id, Direction.CREDIT, "100")], status=JournalEntryStatus.DRAFT, commit=True)
+
+    for err_cls, match, fn in (
+        (ValidationError, "not found", lambda: calculate_account_balance(db, uuid4(), test_user_id)),
+        (ValidationError, "does not belong to user", lambda: calculate_account_balance(db, other_acc.id, test_user_id)),
+        (ValidationError, "not found", lambda: post_journal_entry(db, uuid4(), test_user_id)),
+        (ValidationError, "does not belong to user", lambda: post_journal_entry(db, other_draft.id, test_user_id)),
+        (ValidationError, "is not active", lambda: post_journal_entry(db, inactive_draft.id, test_user_id)),
+        (ValidationError, "not balanced", lambda: post_journal_entry(db, unbalanced_draft.id, test_user_id)),
+        (ValidationError, "at least 2 lines", lambda: post_journal_entry(db, single_draft.id, test_user_id)),
+        (DecisionAnchorError, "legacy-unproven journal entries cannot be posted", lambda: post_journal_entry(db, unanchored_draft.id, test_user_id)),
+        (ValidationError, "not found", lambda: void_journal_entry(db, uuid4(), "r", test_user_id)),
+        (ValidationError, "does not belong to user", lambda: void_journal_entry(db, other_posted.id, "r", test_user_id)),
+        (ValidationError, "Can only void posted entries", lambda: void_journal_entry(db, unanchored_draft.id, "r", test_user_id)),
+        (ValidationError, "Journal entry not balanced", lambda: create_journal_entry(db, test_user_id, date.today(), "Unbal", lines_pair(bank.id, salary.id)[:-1] + [{"account_id": salary.id, "direction": Direction.CREDIT, "amount": Decimal("90")}])),
+        (ValidationError, "fx_rate required for currency USD", lambda: create_journal_entry(db, test_user_id, date.today(), "FX", [{"account_id": bank.id, "direction": Direction.DEBIT, "amount": Decimal("100"), "currency": "USD"}, {"account_id": salary.id, "direction": Direction.CREDIT, "amount": Decimal("135")}])),
+    ):
+        with pytest.raises(err_cls, match=match):
+            await fn()
+
+    with pytest.raises(ValidationError, match="amount must be positive"):
+        validate_journal_balance([make_line(Direction.DEBIT, "100"), make_line(Direction.CREDIT, "100"), make_line(Direction.DEBIT, "0")])
+    with pytest.raises(ValidationError, match="fx_rate required"):
+        validate_fx_rates([JournalLine(currency="USD", fx_rate=None)])

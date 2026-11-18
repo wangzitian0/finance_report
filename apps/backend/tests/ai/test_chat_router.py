@@ -1,105 +1,290 @@
-from src.request_context import RequestContext; import asyncio; from unittest.mock import AsyncMock, MagicMock, patch; from uuid import uuid4; import pytest; from src.advisor import AIAdvisorError
-def _ctx(db, user_id) -> RequestContext: ctx = RequestContext(db, user_id); ctx._base_currency = 'SGD'; return ctx
-async def test_chat_suggestions_en() -> None: from src.routers.chat import suggestions; response = await suggestions(language='en', ctx=RequestContext(MagicMock(), uuid4())); assert response.suggestions; assert 'What are my expenses' in response.suggestions[0]
-async def test_chat_suggestions_zh() -> None: from src.routers.chat import suggestions; response = await suggestions(language='zh', ctx=RequestContext(MagicMock(), uuid4())); assert response.suggestions; assert '支出' in response.suggestions[0]
-async def test_chat_suggestions_auto_detect_zh() -> None: from src.routers.chat import suggestions; response = await suggestions(language=None, message='这个月花了多少钱', ctx=RequestContext(MagicMock(), uuid4())); assert response.suggestions; assert response.suggestions[0].startswith('这个月')
-async def test_chat_suggestions_auto_detect_en() -> None: from src.routers.chat import suggestions; response = await suggestions(message='What are my expenses?', ctx=RequestContext(MagicMock(), uuid4())); assert response.suggestions; assert 'What are my expenses' in response.suggestions[0]
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+
+import pytest
+
+from src.advisor import AIAdvisorError
+from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.llm import AIStreamError
+from src.platform import BaseAppException, ResourceNotFoundError, ServiceUnavailableError, ValidationFailedError
+from src.request_context import RequestContext
+from src.routers.chat import SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS, chat_history, chat_message, delete_session, suggestions
+
+
+def _ctx(db=None, user_id=None) -> RequestContext:
+    ctx = RequestContext(db or MagicMock(flush=AsyncMock()), user_id or uuid4())
+    ctx._base_currency = "SGD"
+    return ctx
+
+
+def _payload(message: str = "What are my expenses?", *, session_id=None, model: str | None = None) -> MagicMock:
+    return MagicMock(message=message, session_id=session_id, model=model)
+
+
+def _mock_chat_service(
+    *,
+    stream=None,
+    model_name: str | None = None,
+    metadata=None,
+    side_effect=None,
+    small_model: str = "allowed_model",
+    large_model: str = "large_model",
+) -> MagicMock:
+    service = MagicMock(small_model=small_model, large_model=large_model)
+    if side_effect is not None:
+        service.chat_stream = AsyncMock(side_effect=side_effect)
+    else:
+        stream_obj = MagicMock(
+            session_id=uuid4(), stream=stream, model_name=model_name, cached=False, metadata=metadata
+        )
+        service.chat_stream = AsyncMock(return_value=stream_obj)
+    return service
+
+
+def _make_mock_session(*, title: str = "Test Session") -> SimpleNamespace:
+    now = datetime.now(UTC)
+    return SimpleNamespace(
+        id=uuid4(),
+        user_id=uuid4(),
+        title=title,
+        status=ChatSessionStatus.ACTIVE,
+        created_at=now,
+        updated_at=now,
+        last_active_at=now,
+    )
+
+
+def _make_mock_message(role: ChatMessageRole, content: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid4(),
+        session_id=uuid4(),
+        role=role,
+        content=content,
+        model_name=None,
+        tokens_used=None,
+        created_at=datetime.now(UTC),
+    )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected_fragment"),
+    [
+        ({"language": "en"}, "What are my expenses"),
+        ({"language": "zh"}, "支出"),
+        ({"language": None, "message": "这个月花了多少钱"}, "这个月"),
+        ({"message": "What are my expenses?"}, "What are my expenses"),
+    ],
+)
+async def test_chat_suggestions_language_and_auto_detect(kwargs: dict, expected_fragment: str) -> None:
+    response = await suggestions(**kwargs, ctx=RequestContext(MagicMock(), uuid4()))
+    assert response.suggestions and expected_fragment in response.suggestions[0]
+
+
 @pytest.mark.no_db
-async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> None:
-    from src.routers.chat import suggestions; advisor_fact = {'basis': 'Report package is blocked by one review-required item.', 'confidence_tier': 'blocked', 'source_refs': ['workflow.status', 'report_package.readiness'], 'limitation': 'The report should not be treated as final until review is complete.', 'next_action_href': '/reports?tab=package'}; mock_db = MagicMock(); mock_user_id = uuid4()
-    with patch('src.routers.chat.AIAdvisorService') as MockService: mock_service = MagicMock(); mock_service.get_advisor_suggestions = AsyncMock(return_value=[advisor_fact]); MockService.return_value = mock_service; response = await suggestions(language='en', include_structured=True, ctx=_ctx(mock_db, mock_user_id))
-    assert response.suggestions; assert len(response.structured_suggestions) == 1; structured = response.structured_suggestions[0]; assert structured.basis == advisor_fact['basis']; assert structured.confidence_tier == 'blocked'; assert structured.source_refs == ['workflow.status', 'report_package.readiness']; assert structured.limitation == advisor_fact['limitation']; assert structured.next_action_href == '/reports?tab=package'; mock_service.get_advisor_suggestions.assert_awaited_once_with(mock_db, mock_user_id, base_currency='SGD')
+async def test_AC21_3_1_and_AC6_5_1_chat_suggestions_structured_and_timeout() -> None:
+    mock_db, mock_user_id = MagicMock(), uuid4()
+    fact = {
+        "basis": "Report package is blocked by one review-required item.",
+        "confidence_tier": "blocked",
+        "source_refs": ["workflow.status", "report_package.readiness"],
+        "limitation": "The report should not be treated as final until review is complete.",
+        "next_action_href": "/reports?tab=package",
+    }
+    with patch("src.routers.chat.AIAdvisorService") as mock_cls:
+        default_resp = await suggestions(language="en", ctx=RequestContext(mock_db, mock_user_id))
+        assert default_resp.suggestions and default_resp.structured_suggestions == []
+        mock_cls.assert_not_called()
+
+        mock_cls.return_value = MagicMock(get_advisor_suggestions=AsyncMock(return_value=[fact]))
+        structured_resp = await suggestions(language="en", include_structured=True, ctx=_ctx(mock_db, mock_user_id))
+        item = structured_resp.structured_suggestions[0]
+        assert (len(structured_resp.structured_suggestions), item.basis, item.confidence_tier, item.source_refs, item.next_action_href) == (
+            1,
+            fact["basis"],
+            "blocked",
+            ["workflow.status", "report_package.readiness"],
+            "/reports?tab=package",
+        )
+
+    async def slow_context(*_args, **_kwargs):
+        await asyncio.sleep(0.05)
+        return [{"basis": "too slow"}]
+
+    assert SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS > 0
+    with (
+        patch("src.routers.chat.SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS", 0.001),
+        patch("src.routers.chat.AIAdvisorService") as mock_cls,
+    ):
+        mock_cls.return_value = MagicMock(get_advisor_suggestions=AsyncMock(side_effect=slow_context))
+        timed_out = await suggestions(language="en", include_structured=True, ctx=_ctx(mock_db, mock_user_id))
+        assert timed_out.suggestions and timed_out.structured_suggestions == []
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_substr"),
+    [
+        (AIAdvisorError("AI service temporarily unavailable.", status_code=503), 503, "temporarily unavailable"),
+        (AIAdvisorError("Session not found", status_code=404), 404, ""),
+        (AIAdvisorError("Invalid request format"), 400, ""),
+    ],
+)
+async def test_chat_error_status_mapping(error: AIAdvisorError, expected_status: int, expected_substr: str) -> None:
+    with patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(side_effect=error)):
+        with pytest.raises(BaseAppException) as exc_info:
+            await chat_message(_payload(), ctx=_ctx())
+    assert exc_info.value.status_code == expected_status
+    assert expected_substr in exc_info.value.detail.lower()
+
+
 @pytest.mark.no_db
-async def test_AC21_3_1_chat_suggestions_default_stays_lightweight() -> None:
-    from src.routers.chat import suggestions; mock_db = MagicMock(); mock_user_id = uuid4()
-    with patch('src.routers.chat.AIAdvisorService') as MockService: response = await suggestions(language='en', ctx=RequestContext(mock_db, mock_user_id))
-    assert response.suggestions; assert response.structured_suggestions == []; MockService.assert_not_called()
+@pytest.mark.parametrize(
+    ("model_name", "metadata", "expected_header", "expected_exposed"),
+    [
+        ("gpt-4", None, ("X-Model-Name", "gpt-4"), "X-Model-Name"),
+        (None, None, ("X-Model-Name", None), None),
+        (
+            None,
+            {
+                "grounded": True,
+                "citations": [{"label": "Balance Sheet", "source_ref": "balance_sheet.total_equity", "confidence_tier": "TRUSTED", "href": "/reports?tab=balance-sheet"}],
+                "actions": [{"kind": "reconciliation_review", "label": "Review 2", "href": "/reconciliation?tab=review-queue", "count": 2}],
+            },
+            ("X-Advisor-Metadata", True),
+            "X-Advisor-Metadata",
+        ),
+    ],
+)
+async def test_chat_response_headers(model_name, metadata, expected_header, expected_exposed) -> None:
+    async def mock_stream():
+        yield "Hello"
+
+    service = _mock_chat_service(stream=mock_stream(), model_name=model_name, metadata=metadata)
+    with patch("src.routers.chat.AIAdvisorService", return_value=service):
+        response = await chat_message(_payload(), ctx=_ctx())
+    header_name, expected_val = expected_header
+    actual_val = response.headers.get(header_name)
+    assert (actual_val is not None) if expected_val is True else (actual_val == expected_val)
+    if expected_exposed:
+        assert expected_exposed in response.headers.get("Access-Control-Expose-Headers", "")
+
+
+@pytest.mark.parametrize(
+    ("model", "catalog_side_effect", "catalog_return", "expected_err", "expected_detail"),
+    [
+        ("allowed_model", None, None, None, None),
+        ("external_model", None, object(), None, None),
+        ("unknown_model", None, None, ValidationFailedError, "Invalid model selection"),
+        ("unknown_model", Exception("Some error"), None, ServiceUnavailableError, "Unable to validate requested model"),
+    ],
+)
+async def test_chat_model_validation(model, catalog_side_effect, catalog_return, expected_err, expected_detail) -> None:
+    async def mock_stream():
+        yield "Hello"
+
+    mock_get = AsyncMock(side_effect=catalog_side_effect) if catalog_side_effect else AsyncMock(return_value=catalog_return)
+    service = _mock_chat_service(stream=mock_stream(), model_name=model)
+    with (
+        patch("src.routers.chat.AIAdvisorService", return_value=service),
+        patch("src.routers.chat.LitellmCatalog") as mock_catalog,
+    ):
+        mock_catalog.return_value.get = mock_get
+        if expected_err is not None:
+            with pytest.raises(expected_err) as exc_info:
+                await chat_message(_payload(model=model), ctx=_ctx())
+            assert expected_detail in exc_info.value.detail
+        else:
+            response = await chat_message(_payload(model=model), ctx=_ctx())
+            assert response.headers.get("X-Model-Name") == model
+            service.chat_stream.assert_called_once()
+        if model == "allowed_model":
+            mock_get.assert_not_called()
+        else:
+            mock_get.assert_called_once_with(model)
+
+
 @pytest.mark.no_db
-async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_context_times_out() -> None:
-    from src.routers.chat import suggestions
-    async def slow_context(*_args: object, **_kwargs: object) -> list[dict]: await asyncio.sleep(0.05); return [{'basis': 'too slow'}]
-    mock_db = MagicMock(); mock_user_id = uuid4()
-    with patch('src.routers.chat.SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS', 0.001), patch('src.routers.chat.AIAdvisorService') as MockService: mock_service = MagicMock(); mock_service.get_advisor_suggestions = AsyncMock(side_effect=slow_context); MockService.return_value = mock_service; response = await suggestions(language='en', include_structured=True, ctx=_ctx(mock_db, mock_user_id))
-    assert response.suggestions; assert response.structured_suggestions == []; mock_service.get_advisor_suggestions.assert_awaited_once_with(mock_db, mock_user_id, base_currency='SGD')
-async def test_detect_language_chinese() -> None: from src.advisor import detect_language; result = detect_language('这个月花了多少钱'); assert result == 'zh'
-async def test_detect_language_english() -> None: from src.advisor import detect_language; result = detect_language('What are my expenses?'); assert result == 'en'
-async def test_chat_error_api_key_unavailable() -> None:
-    from src.platform import BaseAppException; from src.routers.chat import chat_message; mock_db = MagicMock(); mock_user_id = uuid4()
-    with patch('src.routers.chat.AIAdvisorService') as MockService:
-        mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(side_effect=AIAdvisorError('AI service temporarily unavailable.', status_code=503)); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What are my expenses?'; payload.session_id = None; payload.model = None
-        with pytest.raises(BaseAppException) as exc_info: await chat_message(payload, ctx=_ctx(mock_db, mock_user_id))
-        assert exc_info.value.status_code == 503; assert 'temporarily unavailable' in exc_info.value.detail.lower()
-async def test_chat_error_session_not_found() -> None:
-    from src.platform import BaseAppException; from src.routers.chat import chat_message; mock_db = MagicMock(); mock_user_id = uuid4()
-    with patch('src.routers.chat.AIAdvisorService') as MockService:
-        mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(side_effect=AIAdvisorError('Session not found', status_code=404)); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What are my expenses?'; payload.session_id = None; payload.model = None
-        with pytest.raises(BaseAppException) as exc_info: await chat_message(payload, ctx=_ctx(mock_db, mock_user_id))
-        assert exc_info.value.status_code == 404
-async def test_chat_error_bad_request() -> None:
-    from src.platform import BaseAppException; from src.routers.chat import chat_message; mock_db = MagicMock(); mock_user_id = uuid4()
-    with patch('src.routers.chat.AIAdvisorService') as MockService:
-        mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(side_effect=AIAdvisorError('Invalid request format')); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What are my expenses?'; payload.session_id = None
-        with pytest.raises(BaseAppException) as exc_info: await chat_message(payload, ctx=_ctx(mock_db, mock_user_id))
-        assert exc_info.value.status_code == 400
-async def test_chat_with_model_name_header() -> None:
-    from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); mock_user_id = uuid4()
-    async def mock_stream(): yield 'Hello'
-    with patch('src.routers.chat.AIAdvisorService') as MockService: mock_stream_obj = MagicMock(); mock_stream_obj.session_id = uuid4(); mock_stream_obj.stream = mock_stream(); mock_stream_obj.model_name = 'gpt-4'; mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What are my assets?'; payload.session_id = None; payload.model = None; response = await chat_message(payload, ctx=_ctx(mock_db, mock_user_id)); assert response.headers.get('X-Model-Name') == 'gpt-4'; assert 'X-Model-Name' in response.headers.get('Access-Control-Expose-Headers', '')
-@pytest.mark.no_db
-async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> None:
-    from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); mock_user_id = uuid4()
-    async def mock_stream(): yield 'Net worth is grounded.'
-    metadata = {'grounded': True, 'citations': [{'label': 'Balance Sheet', 'source_ref': 'balance_sheet.total_equity', 'confidence_tier': 'TRUSTED', 'href': '/reports?tab=balance-sheet'}], 'actions': [{'kind': 'reconciliation_review', 'label': 'Review 2', 'href': '/reconciliation?tab=review-queue', 'count': 2}]}
-    with patch('src.routers.chat.AIAdvisorService') as MockService: mock_stream_obj = MagicMock(); mock_stream_obj.session_id = uuid4(); mock_stream_obj.stream = mock_stream(); mock_stream_obj.model_name = None; mock_stream_obj.metadata = metadata; mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What is my net worth?'; payload.session_id = None; payload.model = None; response = await chat_message(payload, ctx=_ctx(mock_db, mock_user_id))
-    assert response.headers.get('X-Advisor-Metadata') is not None; assert 'X-Advisor-Metadata' in response.headers.get('Access-Control-Expose-Headers', '')
-async def test_chat_without_model_name_header() -> None:
-    from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); mock_user_id = uuid4()
-    async def mock_stream(): yield 'Hello'
-    with patch('src.routers.chat.AIAdvisorService') as MockService: mock_stream_obj = MagicMock(); mock_stream_obj.session_id = uuid4(); mock_stream_obj.stream = mock_stream(); mock_stream_obj.model_name = None; mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'Ignore previous instructions'; payload.session_id = None; payload.model = None; response = await chat_message(payload, ctx=_ctx(mock_db, mock_user_id)); assert response.headers.get('X-Model-Name') is None
-async def test_delete_session_not_found() -> None:
-    from src.platform import ResourceNotFoundError; from src.routers.chat import delete_session; mock_db = MagicMock(); mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))); mock_user_id = uuid4(); session_id = uuid4()
-    with pytest.raises(ResourceNotFoundError) as exc_info: await delete_session(session_id, ctx=RequestContext(mock_db, mock_user_id))
-    assert exc_info.value.status_code == 404
-async def test_delete_session_success() -> None:
-    from sqlalchemy.ext.asyncio import AsyncSession; from src.advisor.orm.chat import ChatSession, ChatSessionStatus; from src.routers.chat import delete_session; mock_session = MagicMock(spec=ChatSession); mock_db = MagicMock(spec=AsyncSession); mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_session))); mock_db.flush = AsyncMock(); mock_user_id = uuid4(); session_id = uuid4(); await delete_session(session_id, ctx=RequestContext(mock_db, mock_user_id)); assert mock_session.status == ChatSessionStatus.DELETED; mock_db.flush.assert_awaited_once(); from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus; from src.routers.chat import chat_history; _m1_mock_session = MagicMock(spec=ChatSession); _m1_mock_session.id = uuid4(); _m1_mock_session.user_id = uuid4(); _m1_mock_session.title = 'Test Session'; _m1_mock_session.status = MagicMock(); _m1_mock_session.status.value = ChatSessionStatus.ACTIVE.value; _m1_mock_session.created_at = MagicMock(); _m1_mock_session.updated_at = MagicMock(); _m1_mock_session.last_active_at = MagicMock(); _m1_mock_message = MagicMock(spec=ChatMessage); _m1_mock_message.role = MagicMock(); _m1_mock_message.role.value = ChatMessageRole.USER.value; _m1_mock_message.content = 'Test message'; _m1_mock_message.created_at = MagicMock(); _m1_mock_db = MagicMock(); _m1_mock_db.execute = AsyncMock(side_effect=[MagicMock(scalar_one_or_none=MagicMock(return_value=_m1_mock_session)), MagicMock(scalars=MagicMock(all=MagicMock(return_value=[_m1_mock_message])))]); _m1_mock_user_id = uuid4(); _m1_session_id = uuid4(); _m1_response = await chat_history(session_id=_m1_session_id, limit=20, ctx=RequestContext(_m1_mock_db, _m1_mock_user_id)); assert _m1_response.sessions; assert len(_m1_response.sessions) == 1; from src.routers.chat import chat_history; _m2_mock_db = MagicMock(); _m2_mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))); _m2_mock_user_id = uuid4(); _m2_response = await chat_history(session_id=None, limit=20, ctx=RequestContext(_m2_mock_db, _m2_mock_user_id)); assert _m2_response.sessions == []; from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus; from src.routers.chat import chat_history; _m3_mock_session = MagicMock(spec=ChatSession); _m3_mock_session.id = uuid4(); _m3_mock_session.user_id = uuid4(); _m3_mock_session.title = 'Active Session'; _m3_mock_session.status = MagicMock(); _m3_mock_session.status.value = ChatSessionStatus.ACTIVE.value; _m3_mock_session.created_at = MagicMock(); _m3_mock_session.updated_at = MagicMock(); _m3_mock_session.last_active_at = MagicMock(); _m3_mock_message = MagicMock(spec=ChatMessage); _m3_mock_message.id = uuid4(); _m3_mock_message.role = MagicMock(); _m3_mock_message.role.value = ChatMessageRole.ASSISTANT.value; _m3_mock_message.content = 'Latest answer'; _m3_mock_message.created_at = MagicMock(); _m3_main_result = MagicMock(); _m3_main_result.all.return_value = [(_m3_mock_session, 2, _m3_mock_message.id)]; _m3_msg_result = MagicMock(); _m3_msg_scalars = MagicMock(); _m3_msg_scalars.all.return_value = [_m3_mock_message]; _m3_msg_result.scalars.return_value = _m3_msg_scalars; _m3_mock_db = MagicMock(); _m3_mock_db.execute = AsyncMock(side_effect=[_m3_main_result, _m3_msg_result]); _m3_mock_user_id = uuid4(); _m3_response = await chat_history(session_id=None, limit=20, ctx=RequestContext(_m3_mock_db, _m3_mock_user_id)); assert len(_m3_response.sessions) == 1; assert _m3_response.sessions[0].message_count == 2; assert _m3_response.sessions[0].last_message is not None; from src.platform import ResourceNotFoundError; from src.routers.chat import chat_history; _m4_mock_db = MagicMock(); _m4_mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))); _m4_mock_user_id = uuid4(); _m4_session_id = uuid4()
-    with pytest.raises(ResourceNotFoundError) as _m4_exc_info: await chat_history(session_id=_m4_session_id, limit=20, ctx=RequestContext(_m4_mock_db, _m4_mock_user_id))
-    assert _m4_exc_info.value.status_code == 404; from src.platform import ValidationFailedError; from src.routers.chat import chat_message; _m5_mock_db = MagicMock(); _m5_mock_user_id = uuid4()
-    with patch('src.routers.chat.AIAdvisorService') as _m5_MockService, patch('src.routers.chat.LitellmCatalog') as _m5_MockCatalog:
-        _m5_mock_get = AsyncMock(return_value=None); _m5_MockCatalog.return_value.get = _m5_mock_get; _m5_mock_service = MagicMock(); _m5_mock_service.large_model = 'large_model'; _m5_mock_service.small_model = 'allowed_model'; _m5_MockService.return_value = _m5_mock_service; _m5_payload = MagicMock(); _m5_payload.message = 'What are my assets?'; _m5_payload.session_id = None; _m5_payload.model = 'unknown_model'
-        with pytest.raises(ValidationFailedError) as _m5_exc_info: await chat_message(_m5_payload, ctx=RequestContext(_m5_mock_db, _m5_mock_user_id))
-        assert _m5_exc_info.value.status_code == 400; assert 'Invalid model selection' in _m5_exc_info.value.detail; _m5_mock_get.assert_called_once_with('unknown_model')
-    from src.platform import ServiceUnavailableError; from src.routers.chat import chat_message; _m6_mock_db = MagicMock(); _m6_mock_user_id = uuid4()
-    with patch('src.routers.chat.AIAdvisorService') as _m6_MockService, patch('src.routers.chat.LitellmCatalog') as _m6_MockCatalog:
-        _m6_mock_get = AsyncMock(side_effect=Exception('Some error')); _m6_MockCatalog.return_value.get = _m6_mock_get; _m6_mock_service = MagicMock(); _m6_mock_service.large_model = 'large_model'; _m6_mock_service.small_model = 'allowed_model'; _m6_MockService.return_value = _m6_mock_service; _m6_payload = MagicMock(); _m6_payload.message = 'What are my assets?'; _m6_payload.session_id = None; _m6_payload.model = 'unknown_model'
-        with pytest.raises(ServiceUnavailableError) as _m6_exc_info: await chat_message(_m6_payload, ctx=RequestContext(_m6_mock_db, _m6_mock_user_id))
-        assert _m6_exc_info.value.status_code == 503; assert 'Unable to validate requested model' in _m6_exc_info.value.detail; _m6_mock_get.assert_called_once_with('unknown_model')
-    from src.routers.chat import chat_history; _m7_main_result = MagicMock(); _m7_main_result.all.return_value = []; _m7_mock_db = MagicMock(); _m7_mock_db.execute = AsyncMock(return_value=_m7_main_result); _m7_response = await chat_history(session_id=None, limit=20, ctx=RequestContext(_m7_mock_db, uuid4())); assert _m7_response.sessions == []
-async def test_chat_with_allowed_model():
-    from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); mock_user_id = uuid4()
-    async def mock_stream(): yield 'Hello'
-    with patch('src.routers.chat.AIAdvisorService') as MockService, patch('src.routers.chat.LitellmCatalog') as MockCatalog: mock_get = AsyncMock(); MockCatalog.return_value.get = mock_get; mock_stream_obj = MagicMock(); mock_stream_obj.session_id = uuid4(); mock_stream_obj.stream = mock_stream(); mock_stream_obj.model_name = 'allowed_model'; mock_service = MagicMock(); mock_service.large_model = 'large_model'; mock_service.small_model = 'allowed_model'; mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What are my assets?'; payload.session_id = None; payload.model = 'allowed_model'; response = await chat_message(payload, ctx=_ctx(mock_db, mock_user_id)); assert response.headers.get('X-Model-Name') == 'allowed_model'; mock_get.assert_not_called(); mock_service.chat_stream.assert_called_once()
-async def test_chat_with_known_external_model():
-    from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); mock_user_id = uuid4()
-    async def mock_stream(): yield 'Hello'
-    with patch('src.routers.chat.AIAdvisorService') as MockService, patch('src.routers.chat.LitellmCatalog') as MockCatalog: mock_get = AsyncMock(return_value=object()); MockCatalog.return_value.get = mock_get; mock_stream_obj = MagicMock(); mock_stream_obj.session_id = uuid4(); mock_stream_obj.stream = mock_stream(); mock_stream_obj.model_name = 'external_model'; mock_service = MagicMock(); mock_service.large_model = 'large_model'; mock_service.small_model = 'allowed_model'; mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What are my assets?'; payload.session_id = None; payload.model = 'external_model'; response = await chat_message(payload, ctx=_ctx(mock_db, mock_user_id)); assert response.headers.get('X-Model-Name') == 'external_model'; mock_get.assert_called_once_with('external_model'); mock_service.chat_stream.assert_called_once()
-@pytest.mark.no_db
-async def test_AC_advisor_2555_1_pre_first_chunk_stream_error_returns_503_not_empty_200() -> None:
-    from src.llm import AIStreamError; from src.platform import BaseAppException; from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); mock_user_id = uuid4()
-    async def failing_stream(): raise AIAdvisorError('AI service temporarily unavailable.', status_code=503) from AIStreamError(message='AIStreamError: status=429 code=1302', retryable=True); yield
-    with patch('src.routers.chat.AIAdvisorService') as MockService:
-        mock_stream_obj = MagicMock(); mock_stream_obj.session_id = uuid4(); mock_stream_obj.stream = failing_stream(); mock_stream_obj.model_name = 'glm-5.2'; mock_stream_obj.cached = False; mock_stream_obj.metadata = None; mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What are my expenses?'; payload.session_id = None; payload.model = None
-        with pytest.raises(BaseAppException) as exc_info: await chat_message(payload, ctx=_ctx(mock_db, mock_user_id))
-        assert exc_info.value.status_code == 503; assert 'temporarily unavailable' in exc_info.value.detail.lower(); mock_db.flush.assert_not_awaited()
-    async def midstream_failing(): yield 'Initial token'; yield ' second token'; raise AIAdvisorError('AIStreamError: midstream reset') from AIStreamError(message='AIStreamError: midstream reset', retryable=True)
-    with patch('src.routers.chat.AIAdvisorService') as MockServiceMid: mock_mid_obj = MagicMock(); mock_mid_obj.session_id = uuid4(); mock_mid_obj.stream = midstream_failing(); mock_mid_obj.model_name = 'glm-5.2'; mock_mid_obj.cached = False; mock_mid_obj.metadata = None; mock_mid_service = MagicMock(); mock_mid_service.chat_stream = AsyncMock(return_value=mock_mid_obj); MockServiceMid.return_value = mock_mid_service; payload = MagicMock(); payload.message = 'What are my expenses?'; payload.session_id = None; payload.model = None; response = await chat_message(payload, ctx=_ctx(mock_db, mock_user_id)); chunks = [chunk async for chunk in response.body_iterator]; assert chunks == ['Initial token', ' second token', '\n\n[Stream interrupted — please retry]']
-    closed_flag = False
+async def test_AC_advisor_2555_1_stream_error_and_interruption_handling() -> None:
+    mock_db, closed = MagicMock(flush=AsyncMock()), False
+
+    async def pre_chunk_fail():
+        raise AIAdvisorError("AI service temporarily unavailable.", status_code=503) from AIStreamError(message="AIStreamError: status=429 code=1302", retryable=True)
+        yield
+
+    async def midstream_fail():
+        yield "Initial token"
+        yield " second token"
+        raise AIAdvisorError("AIStreamError: midstream reset") from AIStreamError(message="AIStreamError: midstream reset", retryable=True)
+
     async def empty_stream():
-        nonlocal closed_flag
+        nonlocal closed
         try:
-            if False: yield ''
-        finally: closed_flag = True
-    mock_db.flush.reset_mock()
-    with patch('src.routers.chat.AIAdvisorService') as MockServiceEmpty:
-        mock_empty_obj = MagicMock(); mock_empty_obj.session_id = uuid4(); mock_empty_obj.stream = empty_stream(); mock_empty_obj.model_name = 'glm-5.3-flash'; mock_empty_obj.cached = False; mock_empty_obj.metadata = None; mock_empty_service = MagicMock(); mock_empty_service.chat_stream = AsyncMock(return_value=mock_empty_obj); MockServiceEmpty.return_value = mock_empty_service; payload = MagicMock(); payload.message = 'What are my expenses?'; payload.session_id = None; payload.model = None
-        with pytest.raises(BaseAppException) as empty_exc: await chat_message(payload, ctx=_ctx(mock_db, mock_user_id))
-        assert empty_exc.value.status_code == 503; assert closed_flag is True; mock_db.flush.assert_not_awaited()
+            if False:
+                yield ""
+        finally:
+            closed = True
+
+    for stream_gen in (pre_chunk_fail(), empty_stream()):
+        mock_db.flush.reset_mock()
+        with patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(stream=stream_gen, model_name="glm-5.2")):
+            with pytest.raises(BaseAppException) as exc_info:
+                await chat_message(_payload(), ctx=_ctx(mock_db))
+        assert exc_info.value.status_code == 503
+        mock_db.flush.assert_not_awaited()
+    assert closed is True
+
+    with patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(stream=midstream_fail(), model_name="glm-5.2")):
+        response = await chat_message(_payload(), ctx=_ctx(mock_db))
+        assert [c async for c in response.body_iterator] == ["Initial token", " second token", "\n\n[Stream interrupted — please retry]"]
+
+
+def _exec_db(*side_effects, flush: bool = False) -> MagicMock:
+    kw: dict = {"execute": AsyncMock(side_effect=list(side_effects))}
+    if flush:
+        kw["flush"] = AsyncMock()
+    return MagicMock(**kw)
+
+
+async def test_delete_session_found_and_missing() -> None:
+    with pytest.raises(ResourceNotFoundError) as exc_info:
+        await delete_session(uuid4(), ctx=RequestContext(_exec_db(SimpleNamespace(scalar_one_or_none=lambda: None)), uuid4()))
+    assert exc_info.value.status_code == 404
+
+    mock_session = MagicMock(spec=ChatSession)
+    ok_db = _exec_db(SimpleNamespace(scalar_one_or_none=lambda: mock_session), flush=True)
+    await delete_session(uuid4(), ctx=RequestContext(ok_db, uuid4()))
+    assert mock_session.status == ChatSessionStatus.DELETED
+    ok_db.flush.assert_awaited_once()
+
+
+async def test_chat_history_single_list_and_missing() -> None:
+    session, msg = _make_mock_session(title="Test Session"), _make_mock_message(ChatMessageRole.USER, "Test message")
+    single_db = _exec_db(SimpleNamespace(scalar_one_or_none=lambda: session), SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [msg])))
+    assert len((await chat_history(session_id=uuid4(), limit=20, ctx=RequestContext(single_db, uuid4()))).sessions) == 1
+
+    active_session, last_msg = _make_mock_session(title="Active Session"), _make_mock_message(ChatMessageRole.ASSISTANT, "Latest answer")
+    list_db = _exec_db(SimpleNamespace(all=lambda: [(active_session, 2, last_msg.id)]), SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [last_msg])))
+    list_resp = await chat_history(session_id=None, limit=20, ctx=RequestContext(list_db, uuid4()))
+    assert (len(list_resp.sessions), list_resp.sessions[0].message_count, list_resp.sessions[0].last_message is not None) == (1, 2, True)
+    assert (await chat_history(session_id=None, limit=20, ctx=RequestContext(_exec_db(SimpleNamespace(all=lambda: [])), uuid4()))).sessions == []
+    with pytest.raises(ResourceNotFoundError) as exc_info:
+        await chat_history(session_id=uuid4(), limit=20, ctx=RequestContext(_exec_db(SimpleNamespace(scalar_one_or_none=lambda: None)), uuid4()))
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("method", "path_tpl", "kwargs"),
+    [
+        ("get", "/chat/history", {"params": {"session_id": "{sid}"}}),
+        ("post", "/chat/sessions/{sid}/messages", {"json": {"content": "Hello"}}),
+    ],
+)
+async def test_nonexistent_session_routes_return_404(client, method: str, path_tpl: str, kwargs: dict) -> None:
+    sid = str(uuid4())
+    path = path_tpl.format(sid=sid)
+    call_kwargs = {k: ({pk: pv.format(sid=sid) if isinstance(pv, str) else pv for pk, pv in v.items()} if k == "params" else v) for k, v in kwargs.items()}
+    assert (await getattr(client, method)(path, **call_kwargs)).status_code == 404

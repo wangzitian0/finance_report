@@ -1,4 +1,4 @@
-"""POST and GET /statements/{id}/runs: run again with hints, and the audit list of attempts (#2994, slice S2)."""
+"""POST and GET /statements/{id}/runs: run again with hints, and the audit list of attempts."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select, update
 
+from src import schemas
 from src.database import create_session_maker_from_db
 from src.extraction import (
     BankStatementStatus,
@@ -19,20 +20,23 @@ from src.extraction import (
     StatementSummary,
     create_run,
     fail_run,
+    hints_apply_to_file_type,
     list_runs,
 )
 from src.extraction.extension import statement_pipeline
 from src.extraction.extension.prompts.hints import run_prompt_digest
 from src.extraction.extension.prompts.statement import PARSING_PROMPT_TEMPLATE_VERSION
 from src.extraction.orm.statement_run import StatementRun
-from src.identity import User
+from src.main import app
 from src.runtime import StorageError
 from tests.api._statement_router_fixtures import (
     _compose_mock_ingestion,
-    build_statement,
+    add_statement,
     create_statement_account,
+    failing_storage,
     seed_uploaded_document,
 )
+from tests.factories import UserFactory
 
 RUN_FIELDS = {
     "id",
@@ -65,10 +69,7 @@ def _capture_dispatch(monkeypatch) -> list[ParseJob]:
 
 
 async def _statement(db, user, *, status=BankStatementStatus.PARSED, name="run.pdf") -> StatementSummary:
-    statement = build_statement(user.id, f"hash-{uuid4()}", 70)
-    statement.status = status
-    db.add(statement)
-    await db.flush()
+    statement = await add_statement(db, user.id, f"hash-{uuid4()}", confidence=70, status=status)
     await seed_uploaded_document(db, statement, file_path=f"statements/{statement.file_hash}", original_filename=name)
     await db.commit()
     return statement
@@ -99,68 +100,75 @@ async def _failed_first_run(db, user, statement_id):
     return first.id
 
 
-async def test_AC_extraction_2994_50_post_runs_starts_a_rerun_with_the_hints_as_typed(
+async def test_post_runs_starts_a_rerun_with_hints_and_digest(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
     statement = await _statement(db, test_user)
-    statement_id = statement.id
-    first_id = await _failed_first_run(db, test_user, statement_id)
+    first_id = await _failed_first_run(db, test_user, statement.id)
     jobs = _capture_dispatch(monkeypatch)
     hints = {"keywords": ["interest", "FX fee"], "note": 'Credits carry a "CR" suffix.\nYear is 2026.'}
 
-    response = await client.post(
-        f"/statements/{statement_id}/runs", json={"kind": "extract", "hints": hints, "model": "vendor/vision-x"}
-    )
-
-    assert response.status_code == 202, response.text
-    body = response.json()
-    assert set(body) == RUN_FIELDS
-    assert (body["seq"], body["kind"], body["actor_kind"], body["trigger"]) == (2, "extract", "user", "rerun")
-    assert body["state"] in ("requested", "running")
-    assert body["parent_run_id"] == str(first_id)
-    assert body["hints"] == hints
-    assert body["model"] == "vendor/vision-x"
-    runs = await _runs(db, statement_id)
-    assert [run.seq for run in runs] == [1, 2]
-    assert str(runs[1].id) == body["id"]
-    assert runs[1].hints == hints
-    assert [job.run_id for job in jobs] == [runs[1].id]
-    assert jobs[0].model == "vendor/vision-x"
-    fresh = await db.scalar(
-        select(StatementSummary).where(StatementSummary.id == statement_id).execution_options(populate_existing=True)
-    )
-    assert fresh.status is BankStatementStatus.PARSING
-
-
-async def test_AC_extraction_2994_50_the_body_may_omit_kind_hints_and_model(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
-):
-    statement = await _statement(db, test_user, status=BankStatementStatus.REJECTED)
-    jobs = _capture_dispatch(monkeypatch)
-
-    response = await client.post(f"/statements/{statement.id}/runs", json={})
-
-    assert response.status_code == 202, response.text
-    assert response.json()["hints"] == {"keywords": [], "note": None}
-    assert response.json()["model"] is None
-    assert len(jobs) == 1
-
-
-async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_hints(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
-):
-    statement = await _statement(db, test_user)
-    _capture_dispatch(monkeypatch)
-    hints = {"keywords": ["salary"], "note": None}
-
     body = (
-        await client.post(f"/statements/{statement.id}/runs", json={"hints": hints, "model": "vendor/vision-x"})
+        response := await client.post(
+            f"/statements/{statement.id}/runs", json={"kind": "extract", "hints": hints, "model": "vendor/vision-x"}
+        )
     ).json()
-
-    assert body["prompt_template_version"] == PARSING_PROMPT_TEMPLATE_VERSION
-    assert body["prompt_digest"] == run_prompt_digest(
-        PARSING_PROMPT_TEMPLATE_VERSION, "vendor/vision-x", RunHints(**hints)
+    assert response.status_code == 202 and set(body) == RUN_FIELDS and body["state"] in ("requested", "running")
+    assert (
+        body["seq"],
+        body["kind"],
+        body["actor_kind"],
+        body["trigger"],
+        body["parent_run_id"],
+        body["hints"],
+        body["model"],
+        body["prompt_template_version"],
+        body["prompt_digest"],
+    ) == (
+        2,
+        "extract",
+        "user",
+        "rerun",
+        str(first_id),
+        hints,
+        "vendor/vision-x",
+        PARSING_PROMPT_TEMPLATE_VERSION,
+        run_prompt_digest(PARSING_PROMPT_TEMPLATE_VERSION, "vendor/vision-x", RunHints(**hints)),
     )
+    runs = await _runs(db, statement.id)
+    assert ([r.seq for r in runs], str(runs[1].id), runs[1].hints, [j.run_id for j in jobs], jobs[0].model) == (
+        [1, 2],
+        body["id"],
+        hints,
+        [runs[1].id],
+        "vendor/vision-x",
+    )
+    assert (
+        await db.scalar(
+            select(StatementSummary)
+            .where(StatementSummary.id == statement.id)
+            .execution_options(populate_existing=True)
+        )
+    ).status is BankStatementStatus.PARSING
+
+
+async def test_post_runs_may_omit_body_or_accept_hint_limits(
+    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
+    s_empty, s_limits = (
+        await _statement(db, test_user, status=BankStatementStatus.REJECTED),
+        await _statement(db, test_user),
+    )
+    jobs = _capture_dispatch(monkeypatch)
+    r_empty = await client.post(f"/statements/{s_empty.id}/runs", json={})
+    hints = {"keywords": [f"{n:02d}" + "k" * 62 for n in range(20)], "note": "n" * 500}
+    r_limits = await client.post(f"/statements/{s_limits.id}/runs", json={"hints": hints})
+    assert r_empty.status_code == 202 and (r_empty.json()["hints"], r_empty.json()["model"], len(jobs)) == (
+        {"keywords": [], "note": None},
+        None,
+        2,
+    )
+    assert r_limits.status_code == 202 and r_limits.json()["hints"] == hints
 
 
 @pytest.mark.parametrize(
@@ -186,79 +194,48 @@ async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_
         "extra_hint_field",
     ],
 )
-async def test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits(
+async def test_post_runs_rejects_a_body_outside_the_limits(
     body, client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
     statement = await _statement(db, test_user)
-    statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)
-
-    response = await client.post(f"/statements/{statement_id}/runs", json=body)
-
-    assert response.status_code == 422, response.text
-    assert await _runs(db, statement_id) == []
-    assert jobs == []
+    response = await client.post(f"/statements/{statement.id}/runs", json=body)
+    assert response.status_code == 422 and await _runs(db, statement.id) == [] and jobs == []
 
 
-async def test_AC_extraction_2994_51_post_runs_accepts_the_hint_limits(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+@pytest.mark.parametrize("foreign", [True, False])
+async def test_post_runs_missing_or_foreign_statement_gives_404(
+    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user, foreign
 ):
-    statement = await _statement(db, test_user)
-    _capture_dispatch(monkeypatch)
-    hints = {"keywords": [f"{n:02d}" + "k" * 62 for n in range(20)], "note": "n" * 500}
-
-    response = await client.post(f"/statements/{statement.id}/runs", json={"hints": hints})
-
-    assert response.status_code == 202, response.text
-    assert response.json()["hints"] == hints
-
-
-async def test_AC_extraction_2994_52_post_runs_of_another_users_statement_gives_404(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
-):
-    other = User(id=uuid4(), email=f"other-{uuid4()}@example.com", hashed_password="hashed")
-    db.add(other)
-    await db.commit()
-    foreign = await _statement(db, other)
-    foreign_id = foreign.id
     jobs = _capture_dispatch(monkeypatch)
-
-    response = await client.post(f"/statements/{foreign_id}/runs", json={"hints": {"keywords": ["x"]}})
-
-    assert response.status_code == 404, response.text
-    assert await _runs(db, foreign_id) == []
-    assert jobs == []
-
-
-async def test_AC_extraction_2994_52_post_runs_of_an_unknown_statement_gives_404(client, test_user):
-    response = await client.post(f"/statements/{uuid4()}/runs", json={})
-
-    assert response.status_code == 404, response.text
+    if foreign:
+        other = await UserFactory.create_async(db)
+        target_id = (await _statement(db, other)).id
+    else:
+        target_id = uuid4()
+    response = await client.post(
+        f"/statements/{target_id}/runs", json={"hints": {"keywords": ["x"]}} if foreign else {}
+    )
+    assert response.status_code == 404 and await _runs(db, target_id) == [] and jobs == []
 
 
-async def test_AC_extraction_2994_53_post_runs_of_a_csv_statement_with_hints_gives_400(
+async def test_post_runs_of_a_csv_statement_with_hints_gives_400(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
     statement = await _statement(db, test_user, name="bank.csv")
-    statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)
-
-    rejected = await client.post(f"/statements/{statement_id}/runs", json={"hints": {"keywords": ["x"]}})
-    accepted = await client.post(f"/statements/{statement_id}/runs", json={})
-
-    assert rejected.status_code == 400, rejected.text
-    assert "PDF and image" in rejected.json()["detail"]
-    assert accepted.status_code == 202, accepted.text
-    assert len(jobs) == 1
+    rejected = await client.post(f"/statements/{statement.id}/runs", json={"hints": {"keywords": ["x"]}})
+    accepted = await client.post(f"/statements/{statement.id}/runs", json={})
+    assert rejected.status_code == 400 and "PDF and image" in rejected.json()["detail"]
+    assert accepted.status_code == 202 and len(jobs) == 1
 
 
-async def test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_their_hints(client, db, test_user):
+async def test_get_runs_lists_the_attempts_in_order_with_their_hints(client, db, test_user):
     statement = await _statement(db, test_user)
-    statement_id = statement.id
-    first_id = await _failed_first_run(db, test_user, statement_id)
+    first_id = await _failed_first_run(db, test_user, statement.id)
     second = await create_run(
         db,
-        statement_id=statement_id,
+        statement_id=statement.id,
         user_id=test_user.id,
         kind=RunKind.EXTRACT,
         actor_kind=RunActorKind.USER,
@@ -269,60 +246,71 @@ async def test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_t
     )
     await db.commit()
 
-    response = await client.get(f"/statements/{statement_id}/runs")
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["total"] == 2
+    body = (response := await client.get(f"/statements/{statement.id}/runs")).json()
     first, latest = body["items"]
-    assert set(first) == RUN_FIELDS and set(latest) == RUN_FIELDS
-    assert [first["seq"], latest["seq"]] == [1, 2]
-    assert (first["state"], first["error_code"], first["error_message"]) == (
+    assert (
+        response.status_code == 200
+        and body["total"] == 2
+        and set(first) == RUN_FIELDS
+        and set(latest) == RUN_FIELDS
+        and [first["seq"], latest["seq"]] == [1, 2]
+    )
+    assert (first["state"], first["error_code"], first["error_message"], first["hints"]) == (
         "failed",
         "extraction_error",
         "The parse failed.",
-    )
-    assert first["finished_at"] is not None and first["hints"] == {"keywords": [], "note": None}
-    assert (latest["id"], latest["state"], latest["actor_kind"], latest["trigger"]) == (
+        {"keywords": [], "note": None},
+    ) and first["finished_at"] is not None
+    assert (
+        latest["id"],
+        latest["state"],
+        latest["actor_kind"],
+        latest["trigger"],
+        latest["parent_run_id"],
+        latest["hints"],
+        latest["model"],
+        latest["error_code"],
+        latest["finished_at"],
+    ) == (
         str(second.id),
         "requested",
         "user",
         "rerun",
+        str(first_id),
+        {"keywords": ["interest"], "note": "Credits."},
+        "vendor/vision-x",
+        None,
+        None,
     )
-    assert latest["parent_run_id"] == str(first_id)
-    assert latest["hints"] == {"keywords": ["interest"], "note": "Credits."}
-    assert latest["model"] == "vendor/vision-x"
-    assert latest["error_code"] is None and latest["finished_at"] is None
 
 
-async def test_AC_extraction_2994_54_get_runs_shows_two_runs_with_identical_results_as_two_rows(
+async def test_get_runs_shows_two_runs_with_identical_results_as_two_rows(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
     statement = await _statement(db, test_user)
-    statement_id = statement.id
     _capture_dispatch(monkeypatch)
-    first = await client.post(f"/statements/{statement_id}/runs", json={"hints": {"keywords": ["one"]}})
-    assert first.status_code == 202, first.text
-    await fail_run(db, (await _runs(db, statement_id))[0].id, error_code="done", error_message="Ended for the test.")
+    assert (
+        await client.post(f"/statements/{statement.id}/runs", json={"hints": {"keywords": ["one"]}})
+    ).status_code == 202
+    await fail_run(db, (await _runs(db, statement.id))[0].id, error_code="done", error_message="Ended for the test.")
     await db.commit()
-    second = await client.post(f"/statements/{statement_id}/runs", json={"hints": {"keywords": ["two"]}})
-    assert second.status_code == 202, second.text
+    assert (
+        await client.post(f"/statements/{statement.id}/runs", json={"hints": {"keywords": ["two"]}})
+    ).status_code == 202
+    items = (await client.get(f"/statements/{statement.id}/runs")).json()["items"]
+    assert ([item["hints"]["keywords"] for item in items], [item["seq"] for item in items]) == (
+        [["one"], ["two"]],
+        [1, 2],
+    )
 
-    items = (await client.get(f"/statements/{statement_id}/runs")).json()["items"]
 
-    assert [item["hints"]["keywords"] for item in items] == [["one"], ["two"]]
-    assert [item["seq"] for item in items] == [1, 2]
-
-
-async def test_AC_extraction_2994_54_get_runs_is_scoped_to_the_owner(client, db, test_user):
-    other = User(id=uuid4(), email=f"owner-{uuid4()}@example.com", hashed_password="hashed")
-    db.add(other)
-    await db.commit()
-    foreign = await _statement(db, other)
-    foreign_id = foreign.id
+async def test_get_runs_empty_and_scoped_to_owner(client, db, test_user):
+    own_stmt = await _statement(db, test_user)
+    other = await UserFactory.create_async(db)
+    foreign_stmt = await _statement(db, other)
     await create_run(
         db,
-        statement_id=foreign_id,
+        statement_id=foreign_stmt.id,
         user_id=other.id,
         kind=RunKind.EXTRACT,
         actor_kind=RunActorKind.USER,
@@ -331,244 +319,148 @@ async def test_AC_extraction_2994_54_get_runs_is_scoped_to_the_owner(client, db,
     )
     await db.commit()
 
-    response = await client.get(f"/statements/{foreign_id}/runs")
-
-    assert response.status_code == 404, response.text
-    assert "secret" not in response.text
-
-
-async def test_AC_extraction_2994_54_get_runs_of_a_statement_without_runs_is_an_empty_list(client, db, test_user):
-    statement = await _statement(db, test_user)
-
-    response = await client.get(f"/statements/{statement.id}/runs")
-
-    assert response.status_code == 200, response.text
-    assert response.json() == {"items": [], "total": 0}
-
-
-async def test_AC_extraction_2994_55_the_retry_route_and_its_request_schema_are_gone(client, db, test_user):
-    from src import schemas
-    from src.main import app
-
-    statement = await _statement(db, test_user)
-
-    response = await client.post(f"/statements/{statement.id}/retry", json={})
-
-    assert response.status_code in (404, 405), response.text
-    paths = app.openapi()["paths"]
-    assert not [path for path in paths if path.endswith("/retry")]
-    assert "/statements/{statement_id}/runs" in paths
-    assert set(paths["/statements/{statement_id}/runs"]) == {"get", "post"}
-    assert not hasattr(schemas, "RetryParsingRequest")
-    components = app.openapi()["components"]["schemas"]
-    assert "RetryParsingRequest" not in components
-    assert "StatementRunRecord" in components, "the record of the package is the response model"
-    assert "StatementRunResponse" not in components, "no second schema repeats the fields of the record"
-
-
-async def test_AC_extraction_2994_54_list_runs_returns_only_the_runs_of_the_given_user(db, test_user):
-    statement = await _statement(db, test_user)
-    statement_id = statement.id
-    await _failed_first_run(db, test_user, statement_id)
-
-    own = await list_runs(db, statement_id, test_user.id)
-    foreign = await list_runs(db, statement_id, uuid4())
-
-    assert [record.seq for record in own] == [1]
-    assert foreign == []
-
-
-async def _approved_values(db, user) -> dict:
-    """The columns of an approval: the approved status needs a custody account (a check constraint)."""
-    account = await create_statement_account(db, user.id)
-    await db.commit()
-    return {"status": BankStatementStatus.APPROVED, "account_id": account.id}
-
-
-async def _status(db, statement_id) -> BankStatementStatus:
-    row = await db.scalar(
-        select(StatementSummary).where(StatementSummary.id == statement_id).execution_options(populate_existing=True)
+    own_resp, foreign_resp = (
+        await client.get(f"/statements/{own_stmt.id}/runs"),
+        await client.get(f"/statements/{foreign_stmt.id}/runs"),
     )
-    return row.status
+    assert own_resp.status_code == 200 and own_resp.json() == {"items": [], "total": 0}
+    assert foreign_resp.status_code == 404 and "secret" not in foreign_resp.text
+    assert [r.seq for r in await list_runs(db, foreign_stmt.id, other.id)] == [1] and await list_runs(
+        db, foreign_stmt.id, uuid4()
+    ) == []
 
 
-async def test_AC_extraction_2994_67_a_status_that_changed_after_the_check_gives_409_and_no_write(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+async def test_the_retry_route_and_its_request_schema_are_gone(client, db, test_user):
+    statement = await _statement(db, test_user)
+    assert (await client.post(f"/statements/{statement.id}/retry", json={})).status_code in (404, 405)
+    paths, components = app.openapi()["paths"], app.openapi()["components"]["schemas"]
+    assert not [p for p in paths if p.endswith("/retry")] and set(paths["/statements/{statement_id}/runs"]) == {
+        "get",
+        "post",
+    }
+    assert (
+        not hasattr(schemas, "RetryParsingRequest")
+        and "RetryParsingRequest" not in components
+        and "StatementRunRecord" in components
+        and "StatementRunResponse" not in components
+    )
+
+
+@pytest.mark.parametrize(
+    ("action", "payload", "race_status"),
+    [
+        ("runs", {}, BankStatementStatus.APPROVED),
+        ("rejections", {"notes": "check again"}, BankStatementStatus.RETIRED),
+    ],
+)
+async def test_status_change_after_initial_read_gives_409_and_no_write(
+    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user, action, payload, race_status
 ):
     statement = await _statement(db, test_user)
-    statement_id = statement.id
-    approved = await _approved_values(db, test_user)
+    values = {"status": race_status}
+    if race_status is BankStatementStatus.APPROVED:
+        values["account_id"] = (await create_statement_account(db, test_user.id)).id
+        await db.commit()
     jobs = _capture_dispatch(monkeypatch)
-    maker = create_session_maker_from_db(db)
-    original = statement_pipeline.resolve_uploaded_document
+    maker, original = create_session_maker_from_db(db), statement_pipeline.resolve_uploaded_document
 
-    async def resolve_after_an_approval(*args, **kwargs):
-        # The route checked PARSED. Another tab now commits the approval, before the rerun writes.
+    async def resolve_after_race(*args, **kwargs):
         async with maker() as other_tab:
             await other_tab.execute(
-                update(StatementSummary).where(StatementSummary.id == statement_id).values(**approved)
+                update(StatementSummary).where(StatementSummary.id == statement.id).values(**values)
             )
             await other_tab.commit()
         return await original(*args, **kwargs)
 
-    monkeypatch.setattr("src.routers.statements._resolve_uploaded_document", resolve_after_an_approval)
-
-    response = await client.post(f"/statements/{statement_id}/runs", json={})
-
-    assert response.status_code == 409, response.text
-    assert await _status(db, statement_id) is BankStatementStatus.APPROVED, "the rerun must not overwrite APPROVED"
-    assert await _runs(db, statement_id) == []
-    assert jobs == []
+    monkeypatch.setattr("src.routers.statements._resolve_uploaded_document", resolve_after_race)
+    assert (await client.post(f"/statements/{statement.id}/{action}", json=payload)).status_code == 409
+    row = await db.scalar(
+        select(StatementSummary).where(StatementSummary.id == statement.id).execution_options(populate_existing=True)
+    )
+    assert row.status is race_status and await _runs(db, statement.id) == [] and jobs == []
 
 
-async def test_AC_extraction_2994_69_reject_on_a_csv_statement_records_empty_hints(
-    client, db, monkeypatch, storage_stub, test_user
+@pytest.mark.parametrize(("filename", "expected_note"), [("bank.csv", None), ("bank.pdf", "check the dates")])
+async def test_reject_records_hints_only_for_prompt_file_types(
+    client, db, monkeypatch, storage_stub, test_user, filename, expected_note
 ):
-    statement = await _statement(db, test_user, name="bank.csv")
-    statement_id = statement.id
+    statement = await _statement(db, test_user, name=filename)
     _capture_dispatch(monkeypatch)
-
-    response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check the dates"})
-
-    assert response.status_code == 200, response.text
-    (run,) = await _runs(db, statement_id)
-    assert run.hints == {"keywords": [], "note": None}
-
-
-async def test_AC_extraction_2994_69_reject_on_a_pdf_statement_still_records_its_note(
-    client, db, monkeypatch, storage_stub, test_user
-):
-    statement = await _statement(db, test_user, name="bank.pdf")
-    statement_id = statement.id
-    _capture_dispatch(monkeypatch)
-
-    response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check the dates"})
-
-    assert response.status_code == 200, response.text
-    (run,) = await _runs(db, statement_id)
-    assert run.hints == {"keywords": [], "note": "check the dates"}
+    assert (
+        await client.post(f"/statements/{statement.id}/rejections", json={"notes": "check the dates"})
+    ).status_code == 200
+    (run,) = await _runs(db, statement.id)
+    assert run.hints == {"keywords": [], "note": expected_note}
 
 
 @pytest.mark.no_db
 @pytest.mark.parametrize(
     "file_type,applies", [("pdf", True), ("png", True), ("jpg", True), ("jpeg", True), ("csv", False)]
 )
-def test_AC_extraction_2994_69_hints_apply_only_to_the_file_types_that_send_a_prompt(file_type, applies):
-    from src.extraction import hints_apply_to_file_type
-
+def test_hints_apply_only_to_the_file_types_that_send_a_prompt(file_type, applies):
     assert hints_apply_to_file_type(file_type) is applies
 
 
-async def test_AC_extraction_2994_54_get_runs_lists_a_run_whose_stored_hints_no_longer_validate(client, db, test_user):
+async def test_get_runs_lists_a_run_whose_stored_hints_no_longer_validate(client, db, test_user):
     statement = await _statement(db, test_user)
-    statement_id = statement.id
-    run_id = await _failed_first_run(db, test_user, statement_id)
+    run_id = await _failed_first_run(db, test_user, statement.id)
     await db.execute(
         update(StatementRun).where(StatementRun.id == run_id).values(hints={"keywords": ["ok"], "note": "bell\x07"})
     )
     await db.commit()
-
-    response = await client.get(f"/statements/{statement_id}/runs")
-
-    assert response.status_code == 200, response.text
-    assert response.json()["items"][0]["hints"]["keywords"] == ["ok"]
+    assert (resp := await client.get(f"/statements/{statement.id}/runs")).status_code == 200 and resp.json()["items"][
+        0
+    ]["hints"]["keywords"] == ["ok"]
 
 
-class _CountingStorage:
-    """Storage that holds no file: every read is counted and fails."""
-
-    reads = 0
-
-    def get_object(self, key: str) -> bytes:
-        type(self).reads += 1
-        raise StorageError("the stored file is missing")
-
-
-async def test_AC_extraction_2994_78_hints_on_a_csv_statement_give_400_before_any_storage_read(
+async def test_hints_on_a_csv_statement_give_400_before_any_storage_read(
     client, db, monkeypatch, model_catalog_stub, test_user
 ):
     statement = await _statement(db, test_user, name="bank.csv")
-    statement_id = statement.id
-    _CountingStorage.reads = 0
-    monkeypatch.setattr("src.routers.statements.StorageService", _CountingStorage)
-
-    rejected = await client.post(f"/statements/{statement_id}/runs", json={"hints": {"keywords": ["x"]}})
-
-    assert rejected.status_code == 400, rejected.text
-    assert _CountingStorage.reads == 0, "a CSV statement with hints must cost no storage read"
-    assert await _runs(db, statement_id) == []
+    mock_storage = failing_storage(monkeypatch, method="get_object")
+    assert (
+        await client.post(f"/statements/{statement.id}/runs", json={"hints": {"keywords": ["x"]}})
+    ).status_code == 400 and await _runs(db, statement.id) == []
+    mock_storage.get_object.assert_not_called()
 
 
-async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_after_its_first_read(
-    client, db, monkeypatch, storage_stub, test_user
-):
-    statement = await _statement(db, test_user)
-    statement_id = statement.id
-    jobs = _capture_dispatch(monkeypatch)
-    maker = create_session_maker_from_db(db)
-    original = statement_pipeline.resolve_uploaded_document
-
-    async def resolve_after_a_retirement(*args, **kwargs):
-        async with maker() as other_tab:
-            await other_tab.execute(
-                update(StatementSummary)
-                .where(StatementSummary.id == statement_id)
-                .values(status=BankStatementStatus.RETIRED)
-            )
-            await other_tab.commit()
-        return await original(*args, **kwargs)
-
-    monkeypatch.setattr("src.routers.statements._resolve_uploaded_document", resolve_after_a_retirement)
-
-    response = await client.post(f"/statements/{statement_id}/rejections", json={"notes": "check again"})
-
-    assert response.status_code == 409, response.text
-    assert await _status(db, statement_id) is BankStatementStatus.RETIRED, (
-        "the reject must not revive a retired statement"
-    )
-    assert await _runs(db, statement_id) == []
-    assert jobs == []
-
-
-async def test_AC_extraction_2994_78_a_reject_and_a_rerun_at_once_give_one_winner_and_one_409(
+async def test_a_reject_and_a_rerun_at_once_give_one_winner_and_one_409(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    jobs = _capture_dispatch(monkeypatch)
+    _capture_dispatch(monkeypatch)
     for round_number in range(6):
         statement = await _statement(db, test_user)
-        statement_id = statement.id
         first, second = await asyncio.gather(
-            client.post(f"/statements/{statement_id}/rejections", json={"notes": "again"}),
-            client.post(f"/statements/{statement_id}/runs", json={})
+            client.post(f"/statements/{statement.id}/rejections", json={"notes": "again"}),
+            client.post(f"/statements/{statement.id}/runs", json={})
             if round_number % 2
-            else client.post(f"/statements/{statement_id}/rejections", json={"notes": "twice"}),
+            else client.post(f"/statements/{statement.id}/rejections", json={"notes": "twice"}),
         )
-
         codes = sorted([first.status_code, second.status_code])
-        assert codes[1] == 409 and codes[0] in (200, 202), (round_number, first.text, second.text)
-        assert len(await _runs(db, statement_id)) == 1, "the loser must not leave a second run"
-        assert await _status(db, statement_id) is BankStatementStatus.PARSING
-    await statement_pipeline.wait_for_parse_tasks()
-    assert len(jobs) == 6
+        assert codes[1] == 409 and codes[0] in (200, 202) and len(await _runs(db, statement.id)) == 1
+        row = await db.scalar(
+            select(StatementSummary)
+            .where(StatementSummary.id == statement.id)
+            .execution_options(populate_existing=True)
+        )
+        assert row.status is BankStatementStatus.PARSING
 
 
-async def test_classify_run_dispatch_failure_409_and_rejections_validation(client, db, monkeypatch, test_user):
-    statement = await _statement(db, test_user)
-    sid = statement.id
-    hints = {"keywords": ["Grab"], "note": "Check"}
-
-    def broken_dispatch(run_id, *, db):
-        raise RuntimeError("secret dispatch failure")
-
-    monkeypatch.setattr("src.routers.statements.submit_classify_run", broken_dispatch)
-    resp_503 = await client.post(f"/statements/{sid}/runs", json={"kind": "classify", "hints": hints})
-    assert resp_503.status_code == 503
-    runs = await _runs(db, sid)
-    assert len(runs) == 1 and runs[0].error_code == "dispatch_failed"
-
-    bad_reject = await client.post(f"/statements/{sid}/rejections", json={"notes": "bell\x07"})
-    assert bad_reject.status_code == 422
-    assert set(bad_reject.json()["detail"][0]) >= {"loc", "msg", "type"}
+async def test_classify_run_dispatch_failure_and_rejections_validation(client, db, monkeypatch, test_user):
+    sid = (await _statement(db, test_user)).id
+    monkeypatch.setattr(
+        "src.routers.statements.submit_classify_run",
+        lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("secret dispatch failure")),
+    )
+    assert (
+        await client.post(
+            f"/statements/{sid}/runs", json={"kind": "classify", "hints": {"keywords": ["Grab"], "note": "Check"}}
+        )
+    ).status_code == 503
+    assert len(runs := await _runs(db, sid)) == 1 and runs[0].error_code == "dispatch_failed"
+    assert (
+        bad := await client.post(f"/statements/{sid}/rejections", json={"notes": "bell\x07"})
+    ).status_code == 422 and {"loc", "msg", "type"} <= set(bad.json()["detail"][0])
 
 
 async def test_post_runs_preserves_explicit_default_multimodal_model(

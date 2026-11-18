@@ -1,10 +1,11 @@
+from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-import pytest
+
 import sqlalchemy as sa
 from src.platform import DomainEvent, OutboxEventBus, OutboxRelay, SubscriberRegistry
-from src.platform.extension import STATUS_PUBLISHED
+from src.platform.extension import STATUS_PUBLISHED, SqlOutboxRepository
 from src.platform.extension.sql import OutboxRecord
 
 
@@ -20,75 +21,39 @@ async def _seed(db, *, n=1, name="counter.Incremented"):
     await db.commit()
 
 
-async def test_run_once_dispatches_and_marks_published(db):
-    registry = SubscriberRegistry()
-    seen: list[dict] = []
-    registry.subscribe("counter.Incremented", lambda e: seen.append(e.payload()))
+async def test_run_once_dispatches_sync_async_and_skips_published(db):
+    registry, sync_seen, async_seen = SubscriberRegistry(), [], []
+
+    async def async_handler(e: DomainEvent) -> None:
+        async_seen.append(e.payload()["count"])
+
+    registry.subscribe("counter.Incremented", lambda e: sync_seen.append(e.payload()["count"]))
+    registry.subscribe("counter.Incremented", async_handler)
     await _seed(db, n=2)
     relay = OutboxRelay(registry)
-    published = await relay.run_once(db)
-    assert published == 2
-    assert [p["count"] for p in seen] == [1, 2]
+    assert await relay.run_once(db) == 2 and await relay.run_once(db) == 0
+    assert (sync_seen, async_seen) == ([1, 2], [1, 2])
     rows = (await db.execute(sa.select(OutboxRecord).order_by(OutboxRecord.id))).scalars().all()
-    assert all((r.status == STATUS_PUBLISHED and r.published_at is not None for r in rows))
-
-
-async def test_run_once_awaits_async_handlers(db):
-    registry = SubscriberRegistry()
-    seen: list[int] = []
-
-    async def handler(e: DomainEvent) -> None:
-        seen.append(e.payload()["count"])
-
-    registry.subscribe("counter.Incremented", handler)
-    await _seed(db, n=1)
-    assert await OutboxRelay(registry).run_once(db) == 1
-    assert seen == [1]
-
-
-async def test_second_run_does_not_redispatch_published(db):
-    registry = SubscriberRegistry()
-    deliveries: list[str] = []
-    registry.subscribe("counter.Incremented", lambda e: deliveries.append(e.event_type))
-    await _seed(db, n=1)
-    relay = OutboxRelay(registry)
-    assert await relay.run_once(db) == 1
-    assert await relay.run_once(db) == 0
-    assert deliveries == ["counter.Incremented"]
+    assert all(r.status == STATUS_PUBLISHED and r.published_at is not None for r in rows)
 
 
 async def test_redelivery_of_pending_is_idempotent_safe(db):
-    registry = SubscriberRegistry()
-    applied: set[str] = set()
-    events: list[str] = []
-
-    def idempotent_handler(e: DomainEvent) -> None:
-        events.append(e.event_type)
-        applied.add(e.payload()["aggregate_id"])
-
-    registry.subscribe("counter.Incremented", idempotent_handler)
+    registry, applied, events = SubscriberRegistry(), set(), []
+    registry.subscribe("counter.Incremented", lambda e: (events.append(e.event_type), applied.add(e.payload()["aggregate_id"])))
     await _seed(db, n=1)
-    from src.platform.extension import SqlOutboxRepository
-
     repo = SqlOutboxRepository(db)
     for _ in range(2):
         for row in await repo.fetch_pending(limit=10):
-            [handler(_event_from_row(row)) for handler in registry.handlers_for(row.event_type)]
-    assert len(events) == 2
-    assert applied == {"u1"}
-
-
-def _event_from_row(row: OutboxRecord) -> DomainEvent:
-    ev = DomainEvent(event_type=row.event_type, occurred_at=row.occurred_at)
-    object.__setattr__(ev, "payload", lambda: dict(row.payload))
-    return ev
+            ev = DomainEvent(event_type=row.event_type, occurred_at=row.occurred_at)
+            object.__setattr__(ev, "payload", lambda r=row: dict(r.payload))
+            [handler(ev) for handler in registry.handlers_for(row.event_type)]
+    assert len(events) == 2 and applied == {"u1"}
 
 
 async def test_composition_root_dispatcher_polls_run_once_and_survives_a_failing_pass(monkeypatch):
     import src.main as main_module
 
-    stop_event = asyncio.Event()
-    passes: list[int] = []
+    stop_event, passes = asyncio.Event(), []
 
     class _FlakyRelay:
         async def run_once(self, session) -> int:

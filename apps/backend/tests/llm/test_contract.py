@@ -1,11 +1,67 @@
-from __future__ import annotations; from collections.abc import AsyncIterator; from src.llm.base import ConfigSource, FernetCipher, LLMClient, Modality, ModelSpec, ProviderRef, Scene, SceneBinding, SecretCipher
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from datetime import date
+from decimal import Decimal
+
+from cryptography.fernet import Fernet
+
+from src.llm.base import (
+    ConfigSource,
+    FernetCipher,
+    LLMBudgetExceeded,
+    LLMClient,
+    LLMConfigError,
+    LLMError,
+    Modality,
+    ModelCatalogError,
+    ModelSpec,
+    ProtocolFamily,
+    ProviderRef,
+    ReasoningEffort,
+    Scene,
+    SceneBinding,
+    SecretCipher,
+)
+from src.llm.base.usage import LlmUsageMeter, estimate_tokens
+
+
 class _FakeConfigSource:
-    async def list_providers(self) -> list[ProviderRef]: return []
-    async def get_provider(self, provider_id: str) -> ProviderRef | None: return None
-    async def get_binding(self, scene: Scene) -> SceneBinding | None: return None
-    async def is_configured(self) -> bool: return False
+    list_providers = staticmethod(lambda: None)
+    get_provider = staticmethod(lambda _pid: None)
+    get_binding = staticmethod(lambda _s: None)
+    is_configured = staticmethod(lambda: None)
+
+
 class _FakeClient:
-    def stream(self, scene, messages, *, reasoning=None) -> AsyncIterator[str]: raise NotImplementedError
-class _NotAConfigSource:
-    async def list_providers(self) -> list[ProviderRef]: return []
-def test_AC23_1_5_conforming_implementations_satisfy_the_protocols(): assert isinstance(_FakeConfigSource(), ConfigSource); assert isinstance(_FakeClient(), LLMClient); from cryptography.fernet import Fernet; _m1_cipher = FernetCipher([Fernet.generate_key().decode('ascii')]); assert isinstance(_m1_cipher, SecretCipher); assert not isinstance(_NotAConfigSource(), ConfigSource); _m3_spec = ModelSpec(id='p/m', provider_id='p', modalities=frozenset({Modality.TEXT})); assert _m3_spec.accepts(Modality.TEXT); from src.llm.base import LLMBudgetExceeded, LLMConfigError, LLMError, ModelCatalogError; _m4_budget = LLMBudgetExceeded('over daily budget'); assert isinstance(_m4_budget, LLMError); assert _m4_budget.retryable is False; _m4_catalog = ModelCatalogError('catalogue unavailable', retryable=True); assert isinstance(_m4_catalog, LLMError); assert _m4_catalog.retryable is True; assert issubclass(LLMConfigError, LLMError)
+    def stream(self, scene, messages, *, reasoning=None) -> AsyncIterator[str]:
+        raise NotImplementedError
+
+
+async def test_AC23_1_and_2_base_protocols_types_errors_and_usage() -> None:
+    cipher = FernetCipher([Fernet.generate_key().decode("ascii")])
+    assert (
+        isinstance(_FakeConfigSource(), ConfigSource),
+        isinstance(_FakeClient(), LLMClient),
+        isinstance(cipher, SecretCipher),
+        isinstance(type("_NotCfg", (), {"list_providers": lambda _s: None})(), ConfigSource),
+    ) == (True, True, True, False)
+    assert {f.value for f in ProtocolFamily} == {"openai-compatible", "anthropic-compatible", "openrouter-compatible", "google-gemini"}
+    assert {s.value for s in Scene} == {"extraction.ocr", "extraction.vision", "extraction.json", "advisor.chat", "statement.summary"}
+
+    spec = ModelSpec(id="zai/test-vision-model", provider_id="zai", modalities=frozenset({Modality.IMAGE, Modality.PDF}), is_free=False, input_price_per_mtok=Decimal("0.60"), output_price_per_mtok=Decimal("2.20"), supports_reasoning=False)
+    binding = SceneBinding(scene=Scene.EXTRACTION_VISION, model_id="zai/test-vision-model")
+    ref = ProviderRef(id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="sk-secret-123")
+    assert (spec.accepts(Modality.IMAGE), spec.accepts(Modality.PDF), spec.accepts(Modality.TEXT), isinstance(spec.input_price_per_mtok, Decimal)) == (True, True, False, True)
+    assert (binding.reasoning, binding.max_tokens, hasattr(binding, "prefer_free"), hasattr(binding, "fallback_model_ids")) == (ReasoningEffort.NONE, None, False, False)
+    assert "sk-secret-123" not in repr(ref) and "sk-secret-123" not in str(ref) and ref.api_key == "sk-secret-123"
+
+    budget, catalog = LLMBudgetExceeded("over daily budget"), ModelCatalogError("catalogue unavailable", retryable=True)
+    assert (isinstance(budget, LLMError), budget.retryable, isinstance(catalog, LLMError), catalog.retryable, issubclass(LLMConfigError, LLMError)) == (True, False, True, True, True)
+
+    day, next_day, meter = date(2026, 1, 2), date(2026, 1, 3), LlmUsageMeter()
+    await meter.record("test-vision-model", "extraction.json", 100, 40, today=day)
+    await meter.record("test-vision-model", "advisor.chat", 10, 5, today=day)
+    assert (meter.requests_today, meter.tokens_today) == (2, 155)
+    await meter.record("m", "advisor.chat", 7, 3, today=next_day)
+    assert (meter.requests_today, meter.tokens_today, estimate_tokens(""), estimate_tokens("abcd"), estimate_tokens("a" * 400)) == (1, 10, 0, 1, 100)

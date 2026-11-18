@@ -1,90 +1,237 @@
-from datetime import UTC, date, datetime, timedelta; from decimal import Decimal; import pytest; from sqlalchemy import func, select; from sqlalchemy.exc import IntegrityError; from sqlalchemy.ext.asyncio import AsyncSession; from src.composition import observed_fx_pairs; from src.extraction.orm.layer2 import AtomicPosition; from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine; from src.portfolio import PortfolioService, active_stock_symbols; from src.pricing.extension import market_data; from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
-def _make_stock_series(symbol: str, dates: list[date] | tuple[date, date] | None=None, price: Decimal=Decimal('150.1234564'), currency: str='USD', source: str='test_primary') -> market_data.ValidatedMarketObservationSeries: dates_list = dates if isinstance(dates, list) else list(market_data._iter_dates(dates[0], dates[1])) if isinstance(dates, tuple) else []; return market_data.ValidatedMarketObservationSeries(observations=[market_data.StockPriceObservation(symbol=symbol, price=price, currency=currency, price_date=d, source=source) for d in dates_list])
-def _make_fx_series(base: str, quote: str, dates: list[date] | tuple[date, date] | None=None, rate: Decimal=Decimal('1.350000'), source: str='test_primary') -> market_data.ValidatedMarketObservationSeries: dates_list = dates if isinstance(dates, list) else list(market_data._iter_dates(dates[0], dates[1])) if isinstance(dates, tuple) else []; return market_data.ValidatedMarketObservationSeries(observations=[market_data.FxRateObservation(base_currency=base, quote_currency=quote, rate=rate, rate_date=d, source=source) for d in dates_list])
-_make_position = lambda user_id, account_id, asset_identifier, quantity=Decimal('2'), cost_basis=Decimal('100.00'), currency='USD', status=PositionStatus.ACTIVE: ManagedPosition(user_id=user_id, account_id=account_id, asset_identifier=asset_identifier, quantity=quantity, cost_basis=cost_basis, currency=currency, acquisition_date=date(2026, 1, 1), status=status, cost_basis_method=CostBasisMethod.FIFO)
-async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_fetch(symbol: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries: return _make_stock_series(symbol, (start_date, end_date))
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_fetch); first = await market_data.sync_stock_prices(db, symbols=['aapl'], start_date=date(2026, 1, 5), end_date=date(2026, 1, 6)); second = await market_data.sync_stock_prices(db, symbols=['AAPL'], start_date=date(2026, 1, 5), end_date=date(2026, 1, 6)); assert first.inserted == 2; assert first.skipped == 0; assert first.missing == 0; assert second.inserted == 0; assert second.skipped == 2; assert second.missing == 0; count = await db.scalar(select(func.count()).select_from(StockPrice).where(StockPrice.symbol == 'AAPL')); assert count == 2; latest = await db.scalar(select(StockPrice).where(StockPrice.symbol == 'AAPL').where(StockPrice.price_date == date(2026, 1, 6))); assert latest is not None; assert latest.price == Decimal('150.123456'); assert latest.currency == 'USD'; assert repr(latest) == '<StockPrice AAPL 150.123456 USD 2026-01-06>'
-async def test_sync_stock_prices_fetches_decade_range_once(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    start = date(2016, 1, 1); end = date(2026, 1, 1); calls: list[tuple[str, date, date]] = []
-    async def fake_fetch(symbol: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries: calls.append((symbol, start_date, end_date)); return market_data.ValidatedMarketObservationSeries(observations=[market_data.StockPriceObservation(symbol=symbol, price=Decimal('100.000000'), currency='USD', price_date=start_date, source='test_primary'), market_data.StockPriceObservation(symbol=symbol, price=Decimal('200.000000'), currency='USD', price_date=end_date, source='test_primary')])
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_fetch); result = await market_data.sync_stock_prices(db, symbols=['AAPL'], start_date=start, end_date=end); assert calls == [('AAPL', start, end)]; assert result.inserted == 2; assert result.requested == len(market_data._iter_dates(start, end)); count = await db.scalar(select(func.count()).select_from(StockPrice).where(StockPrice.symbol == 'AAPL')); assert count == 2
-async def test_sync_fx_rates_starts_after_last_stored_date(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    db.add(FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.340000'), rate_date=date(2026, 1, 5), source='seed')); await db.commit(); requested: list[tuple[str, str, date, date]] = []
-    async def fake_fetch(base: str, quote: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries: requested.append((base, quote, start_date, end_date)); return _make_fx_series(base, quote, (start_date, end_date))
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_fx_rate_series', fake_fetch); result = await market_data.sync_fx_rates(db, pairs=['USD/SGD'], start_date=date(2026, 1, 1), end_date=date(2026, 1, 6)); assert requested == [('USD', 'SGD', date(2026, 1, 6), date(2026, 1, 6))]; assert result.inserted == 1; assert result.skipped == 0; count = await db.scalar(select(func.count()).select_from(FxRate).where(FxRate.base_currency == 'USD')); assert count == 2
-async def test_sync_fx_rates_reports_skip_missing_disagreement_and_empty_work(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    db.add_all([FxRate(base_currency='USD', quote_currency='SGD', rate=Decimal('1.340000'), rate_date=date(2026, 1, 5), source='seed'), FxRate(base_currency='CAD', quote_currency='SGD', rate=Decimal('1.010000'), rate_date=date(2026, 1, 6), source='seed')]); await db.commit()
-    async def fake_fetch(base: str, quote: str, start_date: date, _end_date: date) -> market_data.ValidatedMarketObservationSeries:
-        if base == 'EUR': return market_data.ValidatedMarketObservationSeries(disagreements=[market_data.ProviderDisagreement(asset=f'{base}/{quote}', observed_date=start_date, primary_source='yahoo_finance', secondary_source='stooq', primary_value=Decimal('1.00'), secondary_value=Decimal('1.10'), relative_difference=Decimal('0.10'), threshold=Decimal('0.02'))])
-        return market_data.ValidatedMarketObservationSeries(observations=[])
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_fx_rate_series', fake_fetch); result = await market_data.sync_fx_rates(db, pairs=['SGD/SGD', 'USD/SGD', 'HKD/SGD', 'EUR/SGD'], start_date=date(2026, 1, 5), end_date=date(2026, 1, 5)); empty = await market_data.sync_fx_rates(db, pairs=['CAD/SGD'], end_date=date(2026, 1, 5)); assert result.skipped == 1; assert result.missing == 1; assert result.inserted == 0; assert len(result.disagreements) == 1; assert empty.requested == 0
-async def test_sync_ignores_mismatched_observation_types(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_stock_observation_for_fx(_base: str, _quote: str, start_date: date, _end_date: date) -> market_data.ValidatedMarketObservationSeries: return _make_stock_series('AAPL', [start_date], price=Decimal('100.000000'), source='bad_provider')
-    async def fake_fx_observation_for_stock(_symbol: str, start_date: date, _end_date: date) -> market_data.ValidatedMarketObservationSeries: return _make_fx_series('USD', 'SGD', [start_date], rate=Decimal('1.350000'), source='bad_provider')
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_fx_rate_series', fake_stock_observation_for_fx); monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_fx_observation_for_stock); fx_result = await market_data.sync_fx_rates(db, pairs=['USD/SGD'], start_date=date(2026, 1, 5), end_date=date(2026, 1, 5)); stock_result = await market_data.sync_stock_prices(db, symbols=['AAPL'], start_date=date(2026, 1, 5), end_date=date(2026, 1, 5)); assert fx_result.inserted == 0; assert fx_result.missing == 1; assert stock_result.inserted == 0; assert stock_result.missing == 1
-async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+
+import pytest
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.composition import observed_fx_pairs
+from src.extraction.orm.layer2 import AtomicPosition
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
+from src.portfolio import PortfolioService, active_stock_symbols
+from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
+from src.pricing.extension import market_data
+from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
+
+
+def _dates(dates):
+    return dates if isinstance(dates, list) else list(market_data._iter_dates(dates[0], dates[1])) if isinstance(dates, tuple) else []
+
+
+def _make_stock_series(symbol: str, dates=None, price: Decimal = Decimal("150.1234564"), currency: str = "USD", source: str = "test_primary"):
+    return market_data.ValidatedMarketObservationSeries(observations=[market_data.StockPriceObservation(symbol=symbol, price=price, currency=currency, price_date=d, source=source) for d in _dates(dates)])
+
+
+def _make_fx_series(base: str, quote: str, dates=None, rate: Decimal = Decimal("1.350000"), source: str = "test_primary"):
+    return market_data.ValidatedMarketObservationSeries(observations=[market_data.FxRateObservation(base_currency=base, quote_currency=quote, rate=rate, rate_date=d, source=source) for d in _dates(dates)])
+
+
+def _pos(user_id, account_id, asset_identifier, quantity=Decimal("2"), cost_basis=Decimal("100.00"), currency="USD", status=PositionStatus.ACTIVE):
+    return ManagedPosition(user_id=user_id, account_id=account_id, asset_identifier=asset_identifier, quantity=quantity, cost_basis=cost_basis, currency=currency, acquisition_date=date(2026, 1, 1), status=status, cost_basis_method=CostBasisMethod.FIFO)
+
+
+async def test_sync_stock_prices_idempotent_decade_missing_skip_and_disagreement(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
+    d5, d6, d10 = date(2026, 1, 5), date(2026, 1, 6), date(2026, 1, 10)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda sym, s, e: _coro(_make_stock_series(sym, (s, e))))
+    first = await market_data.sync_stock_prices(db, symbols=["aapl"], start_date=d5, end_date=d6)
+    second = await market_data.sync_stock_prices(db, symbols=["AAPL"], start_date=d5, end_date=d6)
+    latest = await db.scalar(select(StockPrice).where(StockPrice.symbol == "AAPL", StockPrice.price_date == d6))
+    calls: list[tuple[str, date, date]] = []
+
+    async def decade_fetch(sym: str, s: date, e: date):
+        calls.append((sym, s, e))
+        return market_data.ValidatedMarketObservationSeries(observations=[market_data.StockPriceObservation(sym, Decimal("100.000000"), "USD", s, "test_primary"), market_data.StockPriceObservation(sym, Decimal("200.000000"), "USD", e, "test_primary")])
+
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", decade_fetch)
+    dec_start, dec_end = date(2016, 1, 1), date(2026, 1, 1)
+    dec = await market_data.sync_stock_prices(db, symbols=["IBM"], start_date=dec_start, end_date=dec_end)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda *_a: _coro(market_data.ValidatedMarketObservationSeries(observations=[])))
+    miss = await market_data.sync_stock_prices(db, symbols=["MSFT"], start_date=d10, end_date=d10)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda *_a: _coro((_ for _ in ()).throw(AssertionError("completed ranges should not call the provider"))))
+    done = await market_data.sync_stock_prices(db, symbols=["", "AAPL"], end_date=d5)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda sym, s, _e: _coro(market_data.ValidatedMarketObservationSeries(disagreements=[market_data.ProviderDisagreement(sym, s, "yahoo_finance", "stooq", Decimal("100.00"), Decimal("112.00"), Decimal("0.12"), Decimal("0.02"))])))
+    dis = await market_data.sync_stock_prices(db, symbols=["MSFT"], start_date=d5, end_date=d5)
+    assert (
+        (first.inserted, first.skipped, first.missing, second.inserted, second.skipped, second.missing),
+        (await db.scalar(select(func.count()).select_from(StockPrice).where(StockPrice.symbol == "AAPL")), latest.price, latest.currency, repr(latest)),
+        (calls, dec.inserted, dec.requested, await db.scalar(select(func.count()).select_from(StockPrice).where(StockPrice.symbol == "IBM"))),
+        (miss.inserted, miss.missing, miss.disagreements, done.requested, done.inserted),
+        (dis.inserted, dis.missing, len(dis.disagreements), dis.disagreements[0].asset, await db.scalar(select(func.count()).select_from(StockPrice).where(StockPrice.symbol == "MSFT"))),
+    ) == (
+        (2, 0, 0, 0, 2, 0),
+        (2, Decimal("150.123456"), "USD", "<StockPrice AAPL 150.123456 USD 2026-01-06>"),
+        ([("IBM", dec_start, dec_end)], 2, len(market_data._iter_dates(dec_start, dec_end)), 2),
+        (0, 1, [], 0, 0),
+        (0, 0, 1, "MSFT", 0),
+    )
+
+
+async def _coro(value):
+    return value
+
+
+async def test_sync_fx_rates_incremental_skip_missing_disagreement_and_default_pairs(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
+    d5, d6 = date(2026, 1, 5), date(2026, 1, 6)
     requested: list[tuple[str, str, date, date]] = []
-    async def fake_fetch(base: str, quote: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries: requested.append((base, quote, start_date, end_date)); return _make_fx_series(base, quote, (start_date, end_date))
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_fx_rate_series', fake_fetch); result = await market_data.sync_fx_rates(db, pairs=await observed_fx_pairs(db, None), start_date=date(2026, 1, 5), end_date=date(2026, 1, 5)); assert requested == [('USD', 'SGD', date(2026, 1, 5), date(2026, 1, 5))]; assert result.inserted == 1
-async def test_observed_fx_pairs_include_default_and_non_base_business_currency(db: AsyncSession, test_user) -> None: db.add(Account(user_id=test_user.id, name='HKD Cash', type=AccountType.ASSET, currency='HKD')); await db.commit(); pairs = await observed_fx_pairs(db, test_user.id); assert pairs == ['HKD/SGD', 'USD/SGD']
-async def test_observed_fx_pairs_compose_ledger_portfolio_and_extraction_reads(db: AsyncSession, test_user) -> None: account = Account(user_id=test_user.id, name='HKD Cash', type=AccountType.ASSET, currency='HKD'); db.add(account); await db.flush(); entry = JournalEntry(user_id=test_user.id, entry_date=date(2026, 1, 5), memo='JPY spend'); db.add(entry); await db.flush(); db.add(JournalLine(journal_entry_id=entry.id, account_id=account.id, direction=Direction.DEBIT, amount=Decimal('100.00'), currency='JPY')); db.add(_make_position(test_user.id, account.id, 'VWRA', quantity=Decimal('2'), currency='EUR')); db.add(AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier='VWRA', broker='Test Broker', quantity=Decimal('2'), market_value=Decimal('100.00'), currency='GBP', dedup_hash='vwra-gbp-snapshot', source_documents={})); await db.commit(); pairs = await observed_fx_pairs(db, test_user.id); assert pairs == ['EUR/SGD', 'GBP/SGD', 'HKD/SGD', 'JPY/SGD', 'USD/SGD']
-async def test_active_stock_symbols_use_active_nonzero_holdings(db: AsyncSession, test_user) -> None: account = Account(user_id=test_user.id, name='Brokerage', type=AccountType.ASSET, currency='USD'); db.add(account); await db.flush(); db.add_all([_make_position(test_user.id, account.id, 'aapl', quantity=Decimal('2')), _make_position(test_user.id, account.id, 'MSFT', quantity=Decimal('0'), cost_basis=Decimal('0.00')), _make_position(test_user.id, account.id, 'TSLA', quantity=Decimal('1'), status=PositionStatus.DISPOSED)]); await db.commit(); assert await active_stock_symbols(db, test_user.id) == ['AAPL']
-async def test_sync_stock_prices_records_missing_trading_days(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_fetch(_symbol: str, _start_date: date, _end_date: date) -> market_data.ValidatedMarketObservationSeries: return market_data.ValidatedMarketObservationSeries(observations=[])
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_fetch); result = await market_data.sync_stock_prices(db, symbols=['MSFT'], start_date=date(2026, 1, 10), end_date=date(2026, 1, 10)); assert result.inserted == 0; assert result.missing == 1; assert result.disagreements == []
-async def test_sync_stock_prices_skips_empty_symbols_and_completed_ranges(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    db.add(StockPrice(symbol='AAPL', price=Decimal('150.000000'), currency='USD', price_date=date(2026, 1, 6), source='seed')); await db.commit()
-    async def fake_fetch(_symbol: str, _start_date: date, _end_date: date) -> market_data.ValidatedMarketObservationSeries: raise AssertionError('completed ranges should not call the provider')
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_fetch); result = await market_data.sync_stock_prices(db, symbols=['', 'AAPL'], end_date=date(2026, 1, 5)); assert result.requested == 0; assert result.inserted == 0
-async def test_stock_provider_disagreement_is_reported_without_persisting(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_fetch(symbol: str, start_date: date, _end_date: date) -> market_data.ValidatedMarketObservationSeries: return market_data.ValidatedMarketObservationSeries(disagreements=[market_data.ProviderDisagreement(asset=symbol, observed_date=start_date, primary_source='yahoo_finance', secondary_source='stooq', primary_value=Decimal('100.00'), secondary_value=Decimal('112.00'), relative_difference=Decimal('0.12'), threshold=Decimal('0.02'))])
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_fetch); result = await market_data.sync_stock_prices(db, symbols=['MSFT'], start_date=date(2026, 1, 5), end_date=date(2026, 1, 5)); assert result.inserted == 0; assert result.missing == 0; assert len(result.disagreements) == 1; assert result.disagreements[0].asset == 'MSFT'; count = await db.scalar(select(func.count()).select_from(StockPrice).where(StockPrice.symbol == 'MSFT')); assert count == 0
-async def test_portfolio_uses_synced_stock_price_before_atomic_snapshot(db: AsyncSession, test_user) -> None: account = Account(user_id=test_user.id, name='Brokerage', type=AccountType.ASSET, currency='SGD'); db.add(account); await db.flush(); position = _make_position(test_user.id, account.id, 'AAPL', quantity=Decimal('2'), currency='SGD'); stale_snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier='AAPL', broker='Test Broker', quantity=Decimal('2'), market_value=Decimal('100.00'), currency='SGD', dedup_hash='aapl-stale-snapshot', source_documents={}); synced_price = StockPrice(symbol='AAPL', price=Decimal('155.000000'), currency='SGD', price_date=date(2026, 1, 6), source='test_sync'); db.add_all([position, stale_snapshot, synced_price]); await db.commit(); holdings = await PortfolioService().get_holdings(db, user_id=test_user.id, as_of_date=date(2026, 1, 6), base_currency='SGD'); assert len(holdings) == 1; assert holdings[0].market_value == Decimal('310.00'); assert holdings[0].unrealized_pnl == Decimal('210.00')
-async def test_portfolio_quantizes_synced_stock_market_values(db: AsyncSession, test_user) -> None: account = Account(user_id=test_user.id, name='Brokerage', type=AccountType.ASSET, currency='SGD'); db.add(account); await db.flush(); position = _make_position(test_user.id, account.id, 'AAPL', quantity=Decimal('3'), cost_basis=Decimal('26.90'), currency='SGD'); snapshot = AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier='AAPL', broker='Test Broker', quantity=Decimal('3'), market_value=Decimal('300.00'), currency='SGD', dedup_hash='aapl-decimal-snapshot', source_documents={}); synced_price = StockPrice(symbol='AAPL', price=Decimal('173.980232'), currency='SGD', price_date=date(2026, 1, 6), source='test_sync'); db.add_all([position, snapshot, synced_price]); await db.commit(); holdings = await PortfolioService().get_holdings(db, user_id=test_user.id, as_of_date=date(2026, 1, 6), base_currency='SGD'); assert holdings[0].market_value == Decimal('521.94'); assert holdings[0].unrealized_pnl == Decimal('495.04')
-async def test_persist_stock_price_returns_existing_row(db: AsyncSession) -> None: db.add(StockPrice(symbol='AAPL', price=Decimal('150.000000'), currency='USD', price_date=date(2026, 1, 5), source='seed')); await db.commit(); price = await market_data._persist_stock_price(db, market_data.StockPriceObservation(symbol='aapl', price=Decimal('160.000000'), currency='USD', price_date=date(2026, 1, 5), source='new')); assert price == Decimal('150.000000')
-async def test_persist_stock_price_reraises_integrity_error_without_concurrent_row(monkeypatch: pytest.MonkeyPatch) -> None:
+
+    async def fake_fx(base: str, quote: str, s: date, e: date):
+        requested.append((base, quote, s, e))
+        return _make_fx_series(base, quote, (s, e))
+
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fx)
+    default_res = await market_data.sync_fx_rates(db, pairs=await observed_fx_pairs(db, None), start_date=d5, end_date=d5)
+    assert (requested, default_res.inserted) == ([("USD", "SGD", d5, d5)], 1)
+    requested.clear()
+    inc_res = await market_data.sync_fx_rates(db, pairs=["USD/SGD"], start_date=date(2026, 1, 1), end_date=d6)
+    db.add(FxRate(base_currency="CAD", quote_currency="SGD", rate=Decimal("1.010000"), rate_date=d6, source="seed"))
+    await db.commit()
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", lambda b, q, s, _e: _coro(market_data.ValidatedMarketObservationSeries(disagreements=[market_data.ProviderDisagreement(f"{b}/{q}", s, "yahoo_finance", "stooq", Decimal("1.00"), Decimal("1.10"), Decimal("0.10"), Decimal("0.02"))]) if b == "EUR" else market_data.ValidatedMarketObservationSeries(observations=[])))
+    mixed = await market_data.sync_fx_rates(db, pairs=["SGD/SGD", "USD/SGD", "HKD/SGD", "EUR/SGD"], start_date=d5, end_date=d5)
+    empty = await market_data.sync_fx_rates(db, pairs=["CAD/SGD"], end_date=d5)
+    assert (requested, inc_res.inserted, inc_res.skipped, await db.scalar(select(func.count()).select_from(FxRate).where(FxRate.base_currency == "USD")), (mixed.skipped, mixed.missing, mixed.inserted, len(mixed.disagreements)), empty.requested) == (
+        [("USD", "SGD", d6, d6)],
+        1,
+        0,
+        2,
+        (1, 1, 0, 1),
+        0,
+    )
+
+
+async def test_sync_ignores_mismatched_observation_types(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
+    d5 = date(2026, 1, 5)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", lambda _b, _q, s, _e: _coro(_make_stock_series("AAPL", [s], price=Decimal("100.000000"), source="bad_provider")))
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda _sym, s, _e: _coro(_make_fx_series("USD", "SGD", [s], rate=Decimal("1.350000"), source="bad_provider")))
+    fx_res = await market_data.sync_fx_rates(db, pairs=["USD/SGD"], start_date=d5, end_date=d5)
+    stock_res = await market_data.sync_stock_prices(db, symbols=["AAPL"], start_date=d5, end_date=d5)
+    assert (fx_res.inserted, fx_res.missing, stock_res.inserted, stock_res.missing) == (0, 1, 0, 1)
+
+
+async def test_observed_fx_pairs_and_active_stock_symbols(db: AsyncSession, test_user) -> None:
+    acct = Account(user_id=test_user.id, name="HKD Cash", type=AccountType.ASSET, currency="HKD")
+    db.add(acct)
+    await db.flush()
+    assert await observed_fx_pairs(db, test_user.id) == ["HKD/SGD", "USD/SGD"]
+    entry = JournalEntry(user_id=test_user.id, entry_date=date(2026, 1, 5), memo="JPY spend")
+    db.add(entry)
+    await db.flush()
+    db.add_all([
+        JournalLine(journal_entry_id=entry.id, account_id=acct.id, direction=Direction.DEBIT, amount=Decimal("100.00"), currency="JPY"),
+        _pos(test_user.id, acct.id, "VWRA", quantity=Decimal("2"), currency="EUR"),
+        _pos(test_user.id, acct.id, "aapl", quantity=Decimal("2")),
+        _pos(test_user.id, acct.id, "MSFT", quantity=Decimal("0"), cost_basis=Decimal("0.00")),
+        _pos(test_user.id, acct.id, "TSLA", quantity=Decimal("1"), status=PositionStatus.DISPOSED),
+        AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier="VWRA", broker="Test Broker", quantity=Decimal("2"), market_value=Decimal("100.00"), currency="GBP", dedup_hash="vwra-gbp-snapshot", source_documents={}),
+    ])
+    await db.commit()
+    assert (await observed_fx_pairs(db, test_user.id), await active_stock_symbols(db, test_user.id)) == (["EUR/SGD", "GBP/SGD", "HKD/SGD", "JPY/SGD", "USD/SGD"], ["AAPL", "VWRA"])
+
+
+async def test_portfolio_uses_and_quantizes_synced_stock_prices(db: AsyncSession, test_user) -> None:
+    acct = Account(user_id=test_user.id, name="Brokerage", type=AccountType.ASSET, currency="SGD")
+    db.add(acct)
+    await db.flush()
+    db.add_all([
+        _pos(test_user.id, acct.id, "AAPL", quantity=Decimal("2"), currency="SGD"),
+        AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier="AAPL", broker="Test Broker", quantity=Decimal("2"), market_value=Decimal("100.00"), currency="SGD", dedup_hash="aapl-stale-snapshot", source_documents={}),
+        StockPrice(symbol="AAPL", price=Decimal("155.000000"), currency="SGD", price_date=date(2026, 1, 6), source="test_sync"),
+        _pos(test_user.id, acct.id, "IBM", quantity=Decimal("3"), cost_basis=Decimal("26.90"), currency="SGD"),
+        AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier="IBM", broker="Test Broker", quantity=Decimal("3"), market_value=Decimal("300.00"), currency="SGD", dedup_hash="ibm-decimal-snapshot", source_documents={}),
+        StockPrice(symbol="IBM", price=Decimal("173.980232"), currency="SGD", price_date=date(2026, 1, 6), source="test_sync"),
+    ])
+    await db.commit()
+    by_sym = {h.asset_identifier: h for h in await PortfolioService().get_holdings(db, user_id=test_user.id, as_of_date=date(2026, 1, 6), base_currency="SGD")}
+    assert ((by_sym["AAPL"].market_value, by_sym["AAPL"].unrealized_pnl), (by_sym["IBM"].market_value, by_sym["IBM"].unrealized_pnl)) == ((Decimal("310.00"), Decimal("210.00")), (Decimal("521.94"), Decimal("495.04")))
+
+
+async def test_persist_stock_price_and_upsert_sync_state_concurrency(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
+    db.add(StockPrice(symbol="AAPL", price=Decimal("150.000000"), currency="USD", price_date=date(2026, 1, 5), source="seed"))
+    await db.commit()
+    assert await market_data._persist_stock_price(db, market_data.StockPriceObservation("aapl", Decimal("160.000000"), "USD", date(2026, 1, 5), "new")) == Decimal("150.000000")
+
     class NestedTransaction:
-        async def __aenter__(self) -> 'NestedTransaction': return self
-        async def __aexit__(self, *_exc_info: object) -> bool: return False
-    class FakeDb:
-        def add(self, _row: object) -> None: return None
-        async def flush(self) -> None: raise IntegrityError('insert', {}, Exception('duplicate'))
-        async def rollback(self) -> None: return None
-        def begin_nested(self) -> NestedTransaction: return NestedTransaction()
-    async def fake_load(*_args: object) -> None: return None
-    monkeypatch.setattr(market_data._store, '_load_stored_stock_price_on_date', fake_load)
-    with pytest.raises(IntegrityError): await market_data._persist_stock_price(FakeDb(), market_data.StockPriceObservation(symbol='AAPL', price=Decimal('160.000000'), currency='USD', price_date=date(2026, 1, 5), source='new'))
-async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.MonkeyPatch) -> None:
-    class NestedTransaction:
-        async def __aenter__(self) -> 'NestedTransaction': return self
-        async def __aexit__(self, *_exc_info: object) -> bool: return False
-    class FakeState: last_success_at = datetime(2026, 1, 4, tzinfo=UTC); last_success_date = date(2026, 1, 4); last_observation_date = date(2026, 1, 4); updated_at = datetime(2026, 1, 4, tzinfo=UTC)
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
     class FakeDb:
         flushes = 0
-        def add(self, _row: object) -> None: return None
-        async def flush(self) -> None:
+        fail_always = False
+
+        def add(self, _row):
+            return None
+
+        async def flush(self):
             self.flushes += 1
-            if self.flushes == 1: raise IntegrityError('insert', {}, Exception('duplicate'))
-        async def rollback(self) -> None: return None
-        def begin_nested(self) -> NestedTransaction: return NestedTransaction()
-    calls = 0; state = FakeState()
-    async def fake_load(_db: object, _kind: str, _scope: str) -> FakeState | None: nonlocal calls; calls += 1; return None if calls == 1 else state
-    monkeypatch.setattr(market_data._store, '_load_sync_state', fake_load); observed_now = datetime(2026, 1, 6, tzinfo=UTC); db = FakeDb(); await market_data._upsert_sync_state(db, kind='stock', scope='AAPL', last_success_date=date(2026, 1, 6), last_observation_date=date(2026, 1, 5), now=observed_now); assert db.flushes == 2; assert state.last_success_at == observed_now; assert state.last_success_date == date(2026, 1, 6)
-async def test_market_data_freshness_sync_runs_once_after_24h(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    account = Account(user_id=test_user.id, name='USD Brokerage', type=AccountType.ASSET, currency='USD'); db.add(account); await db.flush(); db.add(_make_position(test_user.id, account.id, 'AAPL', quantity=Decimal('1'), currency='USD')); stale_success = datetime(2026, 1, 4, 0, 0, tzinfo=UTC); db.add_all([MarketDataSyncState(kind='fx', scope='USD/SGD', last_success_at=stale_success, last_success_date=date(2026, 1, 4), last_observation_date=date(2026, 1, 4), created_at=stale_success, updated_at=stale_success), MarketDataSyncState(kind='stock', scope='AAPL', last_success_at=stale_success, last_success_date=date(2026, 1, 4), last_observation_date=date(2026, 1, 4), created_at=stale_success, updated_at=stale_success)]); await db.commit()
-    async def fake_fx_fetch(base: str, quote: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries: return _make_fx_series(base, quote, (start_date, end_date))
-    async def fake_stock_fetch(symbol: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries: return _make_stock_series(symbol, (start_date, end_date), price=Decimal('200.000000'))
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_fx_rate_series', fake_fx_fetch); monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_stock_fetch); checked_at = datetime(2026, 1, 6, 8, 0, tzinfo=UTC); fx_pairs = await observed_fx_pairs(db, test_user.id); stock_symbols = await active_stock_symbols(db, test_user.id); first = await market_data.ensure_market_data_fresh(db, fx_pairs=fx_pairs, stock_symbols=stock_symbols, end_date=date(2026, 1, 6), now=checked_at); second = await market_data.ensure_market_data_fresh(db, fx_pairs=fx_pairs, stock_symbols=stock_symbols, end_date=date(2026, 1, 6), now=checked_at + timedelta(hours=1)); assert first.triggered is True; assert first.fx.requested > 0; assert first.stock.requested > 0; assert second.triggered is False
-async def test_market_data_freshness_backfills_report_date_when_latest_price_is_newer(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    account = Account(user_id=test_user.id, name='Historical Brokerage', type=AccountType.ASSET, currency='SGD'); db.add(account); await db.flush(); db.add_all([_make_position(test_user.id, account.id, 'IBM', quantity=Decimal('1'), currency='SGD'), StockPrice(symbol='IBM', price=Decimal('200.000000'), currency='USD', price_date=date(2026, 1, 6), source='future_seed'), MarketDataSyncState(kind='stock', scope='IBM', last_success_at=datetime(2026, 1, 6, 8, 0, tzinfo=UTC), last_success_date=date(2026, 1, 6), last_observation_date=date(2026, 1, 6), created_at=datetime(2026, 1, 6, 8, 0, tzinfo=UTC), updated_at=datetime(2026, 1, 6, 8, 0, tzinfo=UTC))]); await db.commit(); requested_ranges: list[tuple[str, date, date]] = []
-    async def fake_stock_fetch(symbol: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries: requested_ranges.append((symbol, start_date, end_date)); return _make_stock_series(symbol, [end_date], price=Decimal('150.000000'))
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_stock_fetch); result = await market_data.ensure_market_data_fresh(db, fx_pairs=await observed_fx_pairs(db, test_user.id), stock_symbols=await active_stock_symbols(db, test_user.id), end_date=date(2024, 6, 3), now=datetime(2026, 1, 6, 9, 0, tzinfo=UTC)); assert result.triggered is True; assert requested_ranges == [('IBM', date(2024, 5, 28), date(2024, 6, 3))]; assert result.stock.inserted == 1
-async def test_market_data_freshness_skips_same_currency_pair(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_sync(*_args: object, **_kwargs: object) -> market_data.MarketDataSyncResult: raise AssertionError('same-currency scope should not sync')
-    monkeypatch.setattr(market_data.service, 'sync_fx_rates', fake_sync); result = await market_data.ensure_market_data_fresh(db, fx_pairs=['SGD/SGD'], stock_symbols=[], end_date=date(2026, 1, 5)); assert result.triggered is False
-async def test_market_data_sync_state_updates_when_provider_has_no_rows(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_fetch(_symbol: str, _start_date: date, _end_date: date) -> market_data.ValidatedMarketObservationSeries: return market_data.ValidatedMarketObservationSeries(observations=[], provider_success=True)
-    monkeypatch.setattr(market_data._providers, '_fetch_validated_stock_price_series', fake_fetch); result = await market_data.sync_stock_prices(db, symbols=['AAPL'], start_date=date(2026, 1, 10), end_date=date(2026, 1, 11)); assert result.inserted == 0; assert result.missing == 2; state = await db.scalar(select(MarketDataSyncState).where(MarketDataSyncState.kind == 'stock').where(MarketDataSyncState.scope == 'AAPL')); assert state is not None; assert state.last_success_date == date(2026, 1, 11)
-async def test_market_data_status_requires_observation_date_for_freshness(db: AsyncSession) -> None: observed_at = datetime(2026, 1, 11, tzinfo=UTC); db.add(MarketDataSyncState(kind='stock', scope='AAPL', last_success_at=observed_at, last_success_date=date(2026, 1, 11), last_observation_date=None, created_at=observed_at, updated_at=observed_at)); await db.commit(); status = await market_data.get_market_data_status(db, pairs=[], symbols=['AAPL'], now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC)); assert len(status) == 1; assert status[0].fresh is False; assert status[0].last_observation_date is None
-async def test_market_data_status_falls_back_to_persisted_observation_date(db: AsyncSession) -> None: observed_at = datetime(2026, 1, 11, tzinfo=UTC); db.add_all([StockPrice(symbol='AAPL', price=Decimal('190.000000'), currency='USD', price_date=date(2026, 1, 10), source='test'), MarketDataSyncState(kind='stock', scope='AAPL', last_success_at=observed_at, last_success_date=date(2026, 1, 11), last_observation_date=None, created_at=observed_at, updated_at=observed_at)]); await db.commit(); status = await market_data.get_market_data_status(db, pairs=[], symbols=['AAPL'], now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC)); assert len(status) == 1; assert status[0].fresh is True; assert status[0].last_observation_date == date(2026, 1, 10)
+            if self.fail_always or self.flushes == 1:
+                raise IntegrityError("insert", {}, Exception("duplicate"))
+
+        async def rollback(self):
+            return None
+
+        def begin_nested(self):
+            return NestedTransaction()
+
+    err_db = FakeDb()
+    err_db.fail_always = True
+    monkeypatch.setattr(market_data._store, "_load_stored_stock_price_on_date", lambda *_a: _coro(None))
+    with pytest.raises(IntegrityError):
+        await market_data._persist_stock_price(err_db, market_data.StockPriceObservation("AAPL", Decimal("160.000000"), "USD", date(2026, 1, 5), "new"))
+
+    state = type("_State", (), {"last_success_at": datetime(2026, 1, 4, tzinfo=UTC), "last_success_date": date(2026, 1, 4), "last_observation_date": date(2026, 1, 4), "updated_at": datetime(2026, 1, 4, tzinfo=UTC)})()
+    calls = 0
+
+    async def fake_load_state(_db, _kind, _scope):
+        nonlocal calls
+        calls += 1
+        return None if calls == 1 else state
+
+    monkeypatch.setattr(market_data._store, "_load_sync_state", fake_load_state)
+    obs_now = datetime(2026, 1, 6, tzinfo=UTC)
+    ok_db = FakeDb()
+    await market_data._upsert_sync_state(ok_db, kind="stock", scope="AAPL", last_success_date=date(2026, 1, 6), last_observation_date=date(2026, 1, 5), now=obs_now)
+    assert (ok_db.flushes, state.last_success_at, state.last_success_date) == (2, obs_now, date(2026, 1, 6))
+
+
+async def test_market_data_freshness_sync_backfill_and_same_currency_skip(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+    acct = Account(user_id=test_user.id, name="USD Brokerage", type=AccountType.ASSET, currency="USD")
+    db.add(acct)
+    await db.flush()
+    stale_at = datetime(2026, 1, 4, 0, 0, tzinfo=UTC)
+    fresh_at = datetime(2026, 1, 6, 8, 0, tzinfo=UTC)
+    db.add_all([
+        _pos(test_user.id, acct.id, "AAPL", quantity=Decimal("1"), currency="USD"),
+        _pos(test_user.id, acct.id, "IBM", quantity=Decimal("1"), currency="SGD"),
+        StockPrice(symbol="IBM", price=Decimal("200.000000"), currency="USD", price_date=date(2026, 1, 6), source="future_seed"),
+        MarketDataSyncState(kind="fx", scope="USD/SGD", last_success_at=stale_at, last_success_date=date(2026, 1, 4), last_observation_date=date(2026, 1, 4), created_at=stale_at, updated_at=stale_at),
+        MarketDataSyncState(kind="stock", scope="AAPL", last_success_at=stale_at, last_success_date=date(2026, 1, 4), last_observation_date=date(2026, 1, 4), created_at=stale_at, updated_at=stale_at),
+        MarketDataSyncState(kind="stock", scope="IBM", last_success_at=fresh_at, last_success_date=date(2026, 1, 6), last_observation_date=date(2026, 1, 6), created_at=fresh_at, updated_at=fresh_at),
+    ])
+    await db.commit()
+    ranges: list[tuple[str, date, date]] = []
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", lambda b, q, s, e: _coro(_make_fx_series(b, q, (s, e))))
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda sym, s, e: (ranges.append((sym, s, e)), _coro(_make_stock_series(sym, (s, e), price=Decimal("200.000000"))))[1])
+    fx_pairs, syms = await observed_fx_pairs(db, test_user.id), await active_stock_symbols(db, test_user.id)
+    first = await market_data.ensure_market_data_fresh(db, fx_pairs=fx_pairs, stock_symbols=syms, end_date=date(2026, 1, 6), now=fresh_at)
+    second = await market_data.ensure_market_data_fresh(db, fx_pairs=fx_pairs, stock_symbols=syms, end_date=date(2026, 1, 6), now=fresh_at + timedelta(hours=1))
+    ranges.clear()
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda sym, s, e: (ranges.append((sym, s, e)), _coro(_make_stock_series(sym, [e], price=Decimal("150.000000"))))[1])
+    backfill = await market_data.ensure_market_data_fresh(db, fx_pairs=fx_pairs, stock_symbols=["IBM"], end_date=date(2024, 6, 3), now=datetime(2026, 1, 6, 9, 0, tzinfo=UTC))
+    monkeypatch.setattr(market_data.service, "sync_fx_rates", lambda *_a, **_kw: (_ for _ in ()).throw(AssertionError("same-currency scope should not sync")))
+    same_ccy = await market_data.ensure_market_data_fresh(db, fx_pairs=["SGD/SGD"], stock_symbols=[], end_date=date(2026, 1, 5))
+    assert (first.triggered, first.fx.requested > 0, first.stock.requested > 0, second.triggered, backfill.triggered, ranges, backfill.stock.inserted, same_ccy.triggered) == (True, True, True, False, True, [("IBM", date(2024, 5, 28), date(2024, 6, 3))], 1, False)
+
+
+async def test_market_data_sync_state_and_status_observation_fallback(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", lambda *_a: _coro(market_data.ValidatedMarketObservationSeries(observations=[], provider_success=True)))
+    res = await market_data.sync_stock_prices(db, symbols=["AAPL"], start_date=date(2026, 1, 10), end_date=date(2026, 1, 11))
+    state = await db.scalar(select(MarketDataSyncState).where(MarketDataSyncState.kind == "stock", MarketDataSyncState.scope == "AAPL"))
+    assert (res.inserted, res.missing, state.last_success_date) == (0, 2, date(2026, 1, 11))
+    empty_status = await market_data.get_market_data_status(db, pairs=[], symbols=["AAPL"], now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC))
+    db.add(StockPrice(symbol="AAPL", price=Decimal("190.000000"), currency="USD", price_date=date(2026, 1, 10), source="test"))
+    await db.commit()
+    fb_status = await market_data.get_market_data_status(db, pairs=[], symbols=["AAPL"], now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC))
+    assert ((len(empty_status), empty_status[0].fresh, empty_status[0].last_observation_date), (len(fb_status), fb_status[0].fresh, fb_status[0].last_observation_date)) == ((1, False, None), (1, True, date(2026, 1, 10)))

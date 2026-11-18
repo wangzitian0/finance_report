@@ -1,30 +1,38 @@
 from __future__ import annotations
 
+import ast
 import asyncio
+import gc
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from fastapi import UploadFile
 from reportlab.pdfgen import canvas
-from sqlalchemy import func, select, update
+from sqlalchemy import create_engine, func, select, text, update
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.audit import JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter
+from src.audit import JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter, canonical_json_digest
 from src.audit.orm import TraceRecordRow
 from src.composition import compose_statement_ingestion_use_case, compose_statement_posting_dependencies
 from src.config import settings
-from src.database import create_session_maker_from_db
+from src.database import create_app_engine, create_session_maker_from_db
 from src.extraction import (
     ActiveRunExists,
     BankStatementStatus,
@@ -32,8 +40,11 @@ from src.extraction import (
     DocumentSource,
     DocumentStatus,
     DocumentType,
+    EconomicIntent,
     ExtractedTransactionRow,
+    HintsNotApplicable,
     ParseJob,
+    RetryableStatementIngestionError,
     RuleType,
     RunActorKind,
     RunHints,
@@ -43,13 +54,20 @@ from src.extraction import (
     Stage1Status,
     StaleRun,
     StatementIngestionStatus,
+    StatementStatusChanged,
     StatementSummary,
     TransactionDirection,
     UploadedDocument,
     claim_run,
     create_run,
     effective_statement_transaction_filter,
+    fail_run,
     finish_run,
+    get_known_storage_paths,
+    heartbeat_run,
+    lock_statement_for_run,
+    reap_stale_runs,
+    start_user_extract_run,
 )
 from src.extraction.base.result import (
     ExtractedTransactionFact,
@@ -59,34 +77,98 @@ from src.extraction.base.result import (
     StatementExtractionResult,
     StatementSourceType,
 )
-from src.extraction.extension import statement_classification_run, transaction_classification
-from src.extraction.extension.deduplication import DeduplicationService
+from src.extraction.base.types import RetireStatementCommand
+from src.extraction.extension import (
+    deduplication,
+    statement_classification_run,
+    statement_parsing_supervisor as supervisor,
+    statement_runs as runs_module,
+    transaction_classification,
+)
+from src.extraction.extension.custody_binding import resolve_bank_custody
+from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.extraction_trace import build_extraction_trace_records, extraction_trace_policy_registry
+from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
 from src.extraction.extension.service import ExtractionError, ExtractionService
-from src.extraction.extension.source_lifecycle import SourceIdentityCommand
+from src.extraction.extension.source_lifecycle import SourceIdentityCommand, resolve_source_identity, retire_statement
 from src.extraction.extension.statement_classification_run import execute_classify_run
+from src.statement_flow import parse_statement_flow
+from src.extraction.extension.statement_parsing import handle_parse_failure
+from src.extraction.extension.statement_posting import (
+    reconcile_account_statement_chain,
+    release_statement_ledger_effects,
+    try_auto_post_statement_opening_balance,
+)
+from src.extraction.extension.statement_validation import (
+    _raise_if_balance_chain_invalid,
+    resolve_statement_transactions,
+    validate_balance_chain,
+)
+from src.extraction.extension.statement_workflow import reject_statement_workflow
 from src.extraction.extension.transaction_classification import (
     CategoryProposal,
     ClassificationPolicy,
+    ClassificationService,
     TransactionCategory,
 )
-from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.extension.transaction_identity import (
+    TransactionIdentityReviewRequired,
+    resolve_transaction_identity,
+    source_custody_scope,
+    versioned_transaction_hash,
+)
+from src.extraction.orm.bank_custody_binding import BankCustodyBinding
+from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
 )
 from src.extraction.orm.statement_run import StatementRun
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, submit_system_journal_entry
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    calculate_account_balance,
+    list_opening_positions,
+    submit_system_journal_entry,
+)
+from src.ledger.extension.account_service import (
+    get_or_create_opening_balance_equity_account,
+    get_or_create_unexplained_gap_equity_account,
+)
+from src.llm import AIStreamError
+from src.platform import DomainError
+from src.pricing import FxRate, PricingError
 from src.reporting.extension.balance_sheet import generate_balance_sheet
+from src.request_context import RequestContext
+from src.routers import statements as statements_router
+from src.routers.reconciliation import run_reconciliation, run_stage2_checks
+from src.routers.statements import get_review_conflicts
+from src.runtime import StorageError
+from src.runtime.extension import storage_sweep
+from src.schemas.reconciliation import ConsistencyCheckRunRequest, ReconciliationRunRequest
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
     StatementSummaryFactory,
+    UserFactory,
     seed_parsed_statement,
 )
-from tests.statement_ingestion import classify_run_for, classify_statement, parse_and_load_statement_projection, run_for
+from tests.statement_ingestion import (
+    anchored_reviewed_posting_inputs,
+    classify_run_for,
+    classify_statement,
+    classify_transactions,
+    earlier_policy,
+    execute_statement_ingestion as parse_statement_background,
+    parse_and_load_statement_projection,
+    run_for,
+)
 
 WAIT_SECONDS = 20
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -126,9 +208,7 @@ class ScriptedService:
     """Raise the scripted error of each call, then parse with the real service."""
 
     def __init__(self, errors: list[BaseException | None]) -> None:
-        self.errors = list(errors)
-        self.calls = 0
-        self.real = ExtractionService()
+        self.errors, self.calls, self.real = list(errors), 0, ExtractionService()
 
     async def parse_document(self, *args, **kwargs):
         self.calls += 1
@@ -142,8 +222,7 @@ class ScriptedLoader:
     """Raise the scripted storage error of each call, then return the source bytes."""
 
     def __init__(self, errors: list[BaseException | None]) -> None:
-        self.errors = list(errors)
-        self.calls = 0
+        self.errors, self.calls = list(errors), 0
 
     async def __call__(self, _storage_key: str) -> bytes:
         self.calls += 1
@@ -162,17 +241,14 @@ class ScriptedModel:
     """Model mock that answers with ANSWERS and supports Events, coroutines, or exceptions."""
 
     def __init__(self, *steps) -> None:
-        self.steps = steps
-        self.calls: list[list[str]] = []
-        self.cancelled: set[int] = set()
-        self._reached: dict[int, asyncio.Event] = {}
+        self.steps, self.calls, self.cancelled, self._reached = steps, [], set(), {}
 
     def reached(self, number: int) -> asyncio.Event:
         return self._reached.setdefault(number, asyncio.Event())
 
     async def __call__(self, transactions, _policy):
         number = len(self.calls)
-        self.calls.append([transaction.description for transaction in transactions])
+        self.calls.append([t.description for t in transactions])
         self.reached(number).set()
         step = self.steps[number] if number < len(self.steps) else None
         if isinstance(step, asyncio.Event):
@@ -187,11 +263,11 @@ class ScriptedModel:
             await step()
         return [
             CategoryProposal(
-                category=ANSWERS[transaction.description.split()[0]][0].value,
-                confidence=ANSWERS[transaction.description.split()[0]][1],
+                category=ANSWERS[t.description.split()[0]][0].value,
+                confidence=ANSWERS[t.description.split()[0]][1],
                 reason="fixture",
             )
-            for transaction in transactions
+            for t in transactions
         ]
 
 
@@ -208,11 +284,7 @@ class Proposer:
         timeout_gate: bool = False,
     ):
         self.calls: list[list[str]] = []
-        self.gate = gate
-        self.error = error
-        self.refuse = refuse
-        self.answers = answers
-        self.timeout_gate = timeout_gate
+        self.gate, self.error, self.refuse, self.answers, self.timeout_gate = gate, error, refuse, answers, timeout_gate
         self.started = asyncio.Event()
 
     @property
@@ -220,7 +292,7 @@ class Proposer:
         return sum(len(call) for call in self.calls)
 
     async def __call__(self, transactions, _policy):
-        self.calls.append([transaction.description for transaction in transactions])
+        self.calls.append([t.description for t in transactions])
         self.started.set()
         if self.gate is not None:
             if self.timeout_gate:
@@ -232,16 +304,12 @@ class Proposer:
                 await self.gate.wait()
         if self.error is not None:
             raise self.error
-        proposals: list[CategoryProposal | None] = []
-        for transaction in transactions:
-            kind = transaction.description.split()[0]
-            category, confidence = self.answers[kind]
-            proposals.append(
-                None
-                if kind in self.refuse
-                else CategoryProposal(category=category.value, confidence=confidence, reason="fixture")
-            )
-        return proposals
+        return [
+            None
+            if (k := t.description.split()[0]) in self.refuse
+            else CategoryProposal(category=self.answers[k][0].value, confidence=self.answers[k][1], reason="fixture")
+            for t in transactions
+        ]
 
 
 class RecordingLogger:
@@ -256,12 +324,25 @@ class RecordingLogger:
     warning = error = debug = info
 
 
+async def make_account(
+    db: AsyncSession,
+    user_id: UUID,
+    name: str = "Bank",
+    type: AccountType = AccountType.ASSET,
+    currency: str = "SGD",
+    code: str | None = None,
+) -> Account:
+    account = Account(user_id=user_id, name=name, type=type, currency=currency, code=code)
+    db.add(account)
+    await db.flush()
+    return account
+
+
 def _use_case(db, service=None, sleeps: Sleeps | None = None, **overrides):
-    use_case = compose_statement_ingestion_use_case(session_maker=create_session_maker_from_db(db))
     changes = {"sleep": sleeps or Sleeps(), **overrides}
     if service is not None:
         changes["extraction_service_factory"] = lambda: service
-    return replace(use_case, **changes)
+    return replace(compose_statement_ingestion_use_case(session_maker=create_session_maker_from_db(db)), **changes)
 
 
 async def _statement_with_run(
@@ -298,7 +379,7 @@ async def _statement_with_run(
         model=model,
     )
     await db.commit()
-    job = ParseJob(
+    return statement.id, ParseJob(
         statement_id=statement.id,
         run_id=run.id,
         filename=name,
@@ -310,17 +391,19 @@ async def _statement_with_run(
         model=job_model or model,
         request_id=f"req-{name}",
     )
-    return statement.id, job
 
 
 async def _runs(db, statement_id: UUID) -> list[StatementRun]:
-    rows = await db.execute(
-        select(StatementRun)
-        .where(StatementRun.statement_id == statement_id)
-        .order_by(StatementRun.seq)
-        .execution_options(populate_existing=True)
+    return list(
+        (
+            await db.execute(
+                select(StatementRun)
+                .where(StatementRun.statement_id == statement_id)
+                .order_by(StatementRun.seq)
+                .execution_options(populate_existing=True)
+            )
+        ).scalars()
     )
-    return list(rows.scalars())
 
 
 async def _statement(db, statement_id: UUID) -> StatementSummary:
@@ -334,7 +417,7 @@ async def _count(db, model, *where) -> int:
 
 
 def _prefect_params(**changes) -> dict[str, str | None]:
-    params = {
+    return {
         "statement_id": str(uuid4()),
         "run_id": str(uuid4()),
         "filename": "x.pdf",
@@ -345,8 +428,8 @@ def _prefect_params(**changes) -> dict[str, str | None]:
         "storage_key": "statements/x.pdf",
         "model": None,
         "request_id": None,
+        **changes,
     }
-    return {**params, **changes}
 
 
 def _worker(maker, run_id: UUID, **options):
@@ -375,23 +458,19 @@ def make_rows(
     *,
     kinds: list[str] | tuple[str, ...] = ("Salary", "Coffee", "Grab", "Rent", "Refund"),
 ) -> list[dict]:
-    rows = []
-    for index in range(count):
-        kind = kinds[index % len(kinds)]
-        incoming = kind in ("Salary", "Refund")
-        rows.append(
-            {
-                "description": f"{kind} {index:03d}",
-                "amount": (Decimal("2500.00") if incoming else Decimal("12.50")) + Decimal(index),
-                "direction": TransactionDirection.IN if incoming else TransactionDirection.OUT,
-                "date": first_day + timedelta(days=index),
-            }
-        )
-    return rows
+    return [
+        {
+            "description": f"{(k := kinds[i % len(kinds)])} {i:03d}",
+            "amount": (Decimal("2500.00") if (inc := k in ("Salary", "Refund")) else Decimal("12.50")) + Decimal(i),
+            "direction": TransactionDirection.IN if inc else TransactionDirection.OUT,
+            "date": first_day + timedelta(days=i),
+        }
+        for i in range(count)
+    ]
 
 
 async def seed_classify_statement(db, user_or_id, rows=None, *, name: str = "classify.pdf"):
-    uid = user_or_id.id if hasattr(user_or_id, "id") else user_or_id
+    uid = getattr(user_or_id, "id", user_or_id)
     rows = make_rows() if rows is None else rows
     seeded = await seed_parsed_statement(
         db, uid, institution="DBS", original_filename=name, opening_balance=Decimal("1000.00"), transactions=rows
@@ -409,7 +488,7 @@ async def get_run(db, run_id) -> StatementRun:
 
 
 async def count_user_answers(db, user_or_id) -> int:
-    uid = user_or_id.id if hasattr(user_or_id, "id") else user_or_id
+    uid = getattr(user_or_id, "id", user_or_id)
     return await _count(
         db,
         TransactionClassification,
@@ -430,10 +509,8 @@ def spy_classify_outcomes(monkeypatch) -> list[str]:
 
 
 async def add_coffee_rule(db, user_or_id) -> UUID:
-    uid = user_or_id.id if hasattr(user_or_id, "id") else user_or_id
-    account = Account(user_id=uid, name="Expense - Reviewed Coffee", type=AccountType.EXPENSE, currency="SGD")
-    db.add(account)
-    await db.flush()
+    uid = getattr(user_or_id, "id", user_or_id)
+    account = await make_account(db, uid, "Expense - Reviewed Coffee", AccountType.EXPENSE)
     db.add(
         ClassificationRule(
             user_id=uid,
@@ -496,28 +573,18 @@ async def create_parsing_job(db, user, content: bytes, name: str = "high.pdf"):
     )
     db.add(statement)
     await db.commit()
-    job = ParseJob(
-        statement_id=statement.id,
-        run_id=await run_for(db, statement.id),
-        filename=name,
-        institution="DBS",
-        user_id=user.id,
-        account_id=None,
-        file_hash=file_hash,
-        storage_key=f"statements/{name}",
-        model=None,
-        request_id=f"req-{name}",
-    )
-    return statement.id, job
+    return statement.id, make_parse_job(statement.id, user.id, name, file_hash, await run_for(db, statement.id))
 
 
 async def parsed_candidate_after_extract(db, user, *, marked: bool):
     from tests.api._statement_router_fixtures import create_statement_account
 
     seeded = await seed_classify_statement(db, user)
-    seeded.statement.balance_validated = True
-    seeded.statement.confidence_score = 95
-    seeded.statement.account_last4 = "1234"
+    seeded.statement.balance_validated, seeded.statement.confidence_score, seeded.statement.account_last4 = (
+        True,
+        95,
+        "1234",
+    )
     seeded.statement.account_id = (await create_statement_account(db, user.id)).id
     extract = await create_run(
         db,
@@ -537,9 +604,9 @@ async def parsed_candidate_after_extract(db, user, *, marked: bool):
 def make_csv_bytes(rows: list[dict]) -> bytes:
     lines = ["Statement Currency,Date,Description,Debit Amount,Credit Amount"]
     for row in rows:
-        incoming = row["direction"] is TransactionDirection.IN
+        inc = row["direction"] is TransactionDirection.IN
         lines.append(
-            f"SGD,{row['date'].isoformat()},{row['description']},{'' if incoming else row['amount']},{row['amount'] if incoming else ''}"
+            f"SGD,{row['date'].isoformat()},{row['description']},{'' if inc else row['amount']},{row['amount'] if inc else ''}"
         )
     return ("\n".join(lines) + "\n").encode()
 
@@ -579,8 +646,7 @@ async def ingest_csv_statement(db: AsyncSession, user_id: UUID, name: str, rows:
 async def confirm_csv_envelope(client, db: AsyncSession, user_id: UUID, statement_id: UUID, rows: list[dict]) -> None:
     review = await client.get(f"/statements/{statement_id}/review")
     assert review.status_code == 200, review.text
-    bank = Account(user_id=user_id, name=f"Bank from {rows[0]['date']}", type=AccountType.ASSET, currency="SGD")
-    db.add(bank)
+    bank = await make_account(db, user_id, f"Bank from {rows[0]['date']}")
     await db.commit()
     closing = Decimal("1000.00") + sum(
         (r["amount"] if r["direction"] is TransactionDirection.IN else -r["amount"] for r in rows), start=Decimal("0")
@@ -602,25 +668,26 @@ async def confirm_csv_envelope(client, db: AsyncSession, user_id: UUID, statemen
 
 
 async def approve_statement(client, statement_id: UUID):
-    review = await client.get(f"/statements/{statement_id}/review")
-    assert review.status_code == 200, review.text
+    assert (await client.get(f"/statements/{statement_id}/review")).status_code == 200
     return await client.post(f"/statements/{statement_id}/approvals", json={"create_account_if_missing": True})
 
 
 async def user_classification_rows(db_or_maker, user_id: UUID) -> list[TransactionClassification]:
     maker = db_or_maker if callable(db_or_maker) else create_session_maker_from_db(db_or_maker)
     async with maker() as session:
-        rows = await session.execute(
-            select(TransactionClassification)
-            .join(AtomicTransaction, AtomicTransaction.id == TransactionClassification.atomic_txn_id)
-            .where(AtomicTransaction.user_id == user_id)
+        return list(
+            (
+                await session.execute(
+                    select(TransactionClassification)
+                    .join(AtomicTransaction, AtomicTransaction.id == TransactionClassification.atomic_txn_id)
+                    .where(AtomicTransaction.user_id == user_id)
+                )
+            ).scalars()
         )
-        return list(rows.scalars())
 
 
 async def classify_outcome(db, statement_id: UUID) -> str:
-    run_id = await classify_statement(db, statement_id)
-    run = await get_run(db, run_id)
+    run = await get_run(db, await classify_statement(db, statement_id))
     return run.result_summary["outcome"] if run.state is RunState.SUCCEEDED else run.error_code
 
 
@@ -646,11 +713,10 @@ async def posted_accounts_for_coffee(db, user_id: UUID) -> set:
 
 async def read_classify_state(client, db: AsyncSession, user_id: UUID) -> dict:
     balance = await client.get("/reports/balance-sheet", params={"as_of_date": "2026-03-31", "currency": "SGD"})
-    assert balance.status_code == 200, balance.text
     income = await client.get(
         "/reports/income-statement", params={"start_date": "2026-01-01", "end_date": "2026-03-31", "currency": "SGD"}
     )
-    assert income.status_code == 200, income.text
+    assert (balance.status_code, income.status_code) == (200, 200)
     cls_rows = (
         (
             await db.execute(
@@ -690,33 +756,38 @@ async def make_run_statement(db, user, *, status=BankStatementStatus.PARSING, cr
 
 
 async def create_test_run(db, statement, **overrides) -> StatementRun:
-    arguments = {
-        "statement_id": statement.id,
-        "user_id": statement.user_id,
-        "kind": RunKind.EXTRACT,
-        "actor_kind": RunActorKind.SYSTEM,
-        "trigger": RunTrigger.UPLOAD,
-        "hints": RunHints(),
-    }
-    run = await create_run(db, **{**arguments, **overrides})
+    run = await create_run(
+        db,
+        **{
+            "statement_id": statement.id,
+            "user_id": statement.user_id,
+            "kind": RunKind.EXTRACT,
+            "actor_kind": RunActorKind.SYSTEM,
+            "trigger": RunTrigger.UPLOAD,
+            "hints": RunHints(),
+            **overrides,
+        },
+    )
     await db.commit()
     return run
 
 
 async def claim_test_run(db, statement, **overrides) -> StatementRun:
-    run = await create_test_run(db, statement, **overrides)
-    run = await claim_run(db, run.id)
+    run = await claim_run(db, (await create_test_run(db, statement, **overrides)).id)
     await db.commit()
     return run
 
 
 async def run_traces(db, statement_id: UUID, run_id: UUID) -> list[TraceRecordRow]:
-    rows = await db.execute(
-        select(TraceRecordRow)
-        .where(TraceRecordRow.execution_id == f"statement:{statement_id}:run:{run_id}")
-        .order_by(TraceRecordRow.occurred_at)
+    return list(
+        (
+            await db.execute(
+                select(TraceRecordRow)
+                .where(TraceRecordRow.execution_id == f"statement:{statement_id}:run:{run_id}")
+                .order_by(TraceRecordRow.occurred_at)
+            )
+        ).scalars()
     )
-    return list(rows.scalars())
 
 
 async def make_result_record(db, statement) -> StatementExtractionResultRecord:
@@ -737,8 +808,13 @@ async def make_result_record(db, statement) -> StatementExtractionResultRecord:
 
 
 def migration_db_url(name: str) -> str:
-    base = os.environ.get("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test")
-    return make_url(base).set(database=name).render_as_string(hide_password=False)
+    return (
+        make_url(
+            os.environ.get("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test")
+        )
+        .set(database=name)
+        .render_as_string(hide_password=False)
+    )
 
 
 def run_alembic(database_url: str, *arguments: str) -> None:
@@ -796,9 +872,10 @@ async def make_txn(db, user, *, direction: TransactionDirection = TransactionDir
 
 def constant_proposer(category: str | None, confidence: int = 70):
     async def proposer(transactions, _policy):
-        if category is None:
-            return [None for _ in transactions]
-        return [CategoryProposal(category=category, confidence=confidence, reason="test") for _ in transactions]
+        return [
+            None if category is None else CategoryProposal(category=category, confidence=confidence, reason="test")
+            for _ in transactions
+        ]
 
     return proposer
 
@@ -814,8 +891,6 @@ async def row_account(db, row) -> Account:
 
 
 async def draft_via_review_path(db, user, txn, category: str, confidence: int) -> TransactionClassification:
-    from tests.statement_ingestion import classify_transactions
-
     user.ai_settings = {"auto_accept_ai_suggestions": False}
     await db.flush()
     await classify_transactions(
@@ -833,10 +908,7 @@ async def draft_via_review_path(db, user, txn, category: str, confidence: int) -
 
 
 def mock_model_answers(monkeypatch, items: list[dict]) -> None:
-    async def stream():
-        yield json.dumps(items)
-
-    monkeypatch.setattr("src.llm.stream_ai_json", lambda **_kwargs: stream())
+    monkeypatch.setattr("src.llm.stream_ai_json", lambda **_kwargs: fake_stream(json.dumps(items)))
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
 
 
@@ -873,8 +945,10 @@ def fake_stream(content: str):
 def mock_statement_payload(*transactions: dict, direction: str = "IN", closing: str | None = None) -> dict:
     opening = Decimal("500.00") if direction == "OUT" else Decimal("100.00")
     if closing is None:
-        delta = sum(Decimal(t["amount"]) if t["direction"] == "IN" else -Decimal(t["amount"]) for t in transactions)
-        closing = str(opening + delta)
+        closing = str(
+            opening
+            + sum(Decimal(t["amount"]) if t["direction"] == "IN" else -Decimal(t["amount"]) for t in transactions)
+        )
     return {
         "currency": "CNY",
         "period_start": "2025-02-01",
@@ -889,9 +963,7 @@ def mock_txn_dict(
     description: object, amount: str = "50.00", direction: str = "IN", *, absent_marker: object = None
 ) -> dict:
     row = {"date": "2025-02-03", "amount": amount, "direction": direction}
-    if absent_marker is not None and description is absent_marker:
-        return row
-    return {**row, "description": description}
+    return row if absent_marker is not None and description is absent_marker else {**row, "description": description}
 
 
 async def parse_mock_payload(payload: dict, *, institution: str = "CMB"):
@@ -928,12 +1000,11 @@ async def assert_stream_extract_case(
                     await service.extract_financial_data(file_content, "DBS", file_type, file_url=file_url) == expected
                 )
         return
-    accum_patch = (
-        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock, side_effect=accum_val)
-        if isinstance(accum_val, Exception)
-        else patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock, return_value=accum_val)
-    )
-    with patch("src.extraction.extension.service.stream_ai_json") as mock_stream, accum_patch:
+    accum_kw = {"side_effect": accum_val} if isinstance(accum_val, Exception) else {"return_value": accum_val}
+    with (
+        patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock, **accum_kw),
+    ):
         kwargs = {"file_content": file_content, "institution": "DBS", "file_type": file_type, "file_url": file_url}
         if force_model:
             kwargs["force_model"] = force_model
@@ -1018,9 +1089,13 @@ async def integrity_store_result(db, summary, result):
 
 
 async def integrity_upsert(db, user_id, document, *, currency="SGD"):
-    service = DeduplicationService()
-    txn_date, amount, direction = date(2025, 1, 2), Decimal("10"), TransactionDirection.IN
-    description, balance_after = "Synthetic deposit", Decimal("110")
+    txn_date, amount, direction, description, balance_after = (
+        date(2025, 1, 2),
+        Decimal("10"),
+        TransactionDirection.IN,
+        "Synthetic deposit",
+        Decimal("110"),
+    )
     row = ExtractedTransactionRow(
         user_id=user_id,
         txn_date=txn_date,
@@ -1032,24 +1107,16 @@ async def integrity_upsert(db, user_id, document, *, currency="SGD"):
         currency_unresolved=False,
         balance_after=balance_after,
         occurrence_index=0,
-        dedup_hash=service.calculate_transaction_hash(
+        dedup_hash=DeduplicationService.calculate_transaction_hash(
             user_id, txn_date, amount, direction, description, balance_after=balance_after
         ),
     )
-    return await service.upsert_scoped_atomic_transaction(
+    return await DeduplicationService().upsert_scoped_atomic_transaction(
         db=db, row=row, source_doc_id=document.id, source_doc_type=DocumentType.BANK_STATEMENT
     )
 
 
 async def integrity_legacy_txn(db, user_id, document, currency="SGD", description="Synthetic deposit"):
-    old_hash = DeduplicationService.calculate_transaction_hash(
-        user_id,
-        date(2025, 1, 2),
-        Decimal("10"),
-        TransactionDirection.IN,
-        description,
-        balance_after=Decimal("110"),
-    )
     old = AtomicTransaction(
         user_id=user_id,
         txn_date=date(2025, 1, 2),
@@ -1058,7 +1125,9 @@ async def integrity_legacy_txn(db, user_id, document, currency="SGD", descriptio
         description=description,
         currency=currency,
         balance_after=Decimal("110"),
-        dedup_hash=old_hash,
+        dedup_hash=DeduplicationService.calculate_transaction_hash(
+            user_id, date(2025, 1, 2), Decimal("10"), TransactionDirection.IN, description, balance_after=Decimal("110")
+        ),
         source_documents=[{"doc_id": str(document.id), "doc_type": "bank_statement"}],
     )
     db.add(old)
@@ -1100,9 +1169,13 @@ def custody_payload(**changes) -> dict:
 async def custody_parse(db, uid, *, account_id=None, **changes):
     service = ExtractionService()
     service._extract_vision_source = AsyncMock(return_value=custody_payload(**changes))
-    source = DocumentSource.resolve(path=Path("synthetic-custody.pdf"), content=uuid4().bytes)
     _, statement, _ = await parse_and_load_statement_projection(
-        service, db=db, user_id=uid, institution=None, source=source, account_id=account_id
+        service,
+        db=db,
+        user_id=uid,
+        institution=None,
+        source=DocumentSource.resolve(path=Path("synthetic-custody.pdf"), content=uuid4().bytes),
+        account_id=account_id,
     )
     await db.commit()
     return statement
@@ -1277,9 +1350,7 @@ async def lifecycle_history_fixture(db: AsyncSession, user_id: UUID) -> tuple[St
 
 
 async def run_two_session_barrier(maker, work):
-    start = asyncio.Event()
-    ready = 0
-    lock = asyncio.Lock()
+    start, ready, lock = asyncio.Event(), 0, asyncio.Lock()
 
     async def barrier() -> None:
         nonlocal ready
@@ -1345,7 +1416,7 @@ async def post_system_entry(
     source_type: JournalEntrySourceType | None = None,
     source_id: UUID | None = None,
 ) -> None:
-    line_extra = {"fx_rate": fx_rate} if fx_rate is not None else {}
+    extra = {"fx_rate": fx_rate} if fx_rate is not None else {}
     kwargs = {"source_type": source_type, "source_id": source_id} if source_type is not None else {}
     await submit_system_journal_entry(
         db,
@@ -1358,14 +1429,14 @@ async def post_system_entry(
                 "direction": Direction.DEBIT,
                 "amount": Decimal(amount),
                 "currency": currency,
-                **line_extra,
+                **extra,
             },
             {
                 "account_id": credit_id,
                 "direction": Direction.CREDIT,
                 "amount": Decimal(amount),
                 "currency": currency,
-                **line_extra,
+                **extra,
             },
         ],
         base_currency="SGD",
@@ -1378,15 +1449,14 @@ async def assert_bs_asset(
     db: AsyncSession, user_id: UUID, *, as_of_date: date, currency: str, account_id: UUID, expected: Decimal
 ) -> None:
     bs = await generate_balance_sheet(db, user_id, as_of_date=as_of_date, currency=currency)
-    assert bs["is_balanced"] is True
-    assert next(a["amount"] for a in bs["assets"] if a["account_id"] == account_id) == expected
+    assert (
+        bs["is_balanced"] is True
+        and next(a["amount"] for a in bs["assets"] if a["account_id"] == account_id) == expected
+    )
 
 
 async def verify_runs_migration_backfill() -> None:
-    from sqlalchemy import create_engine, text
-    from sqlalchemy.exc import IntegrityError
-
-    name = f"fr_ac_2994_9_{uuid4().hex[:12]}"
+    name = f"fr_2994_9_{uuid4().hex[:12]}"
     admin = create_engine(migration_db_url("postgres").replace("+asyncpg", ""), isolation_level="AUTOCOMMIT")
     with admin.connect() as conn:
         conn.execute(text(f'CREATE DATABASE "{name}"'))
@@ -1442,15 +1512,30 @@ async def verify_runs_migration_backfill() -> None:
                     r.heartbeat_at,
                     r.started_at,
                     r.requested_at,
-                ) == (user_id, 1, "extract", "running", "system", "backfill", {}, updated_at, updated_at, created_at)
-                assert (
                     r.finished_at,
                     r.parent_run_id,
                     r.extraction_result_id,
                     r.result_summary,
                     r.error_code,
                     r.error_message,
-                ) == (None, None, None, None, None, None)
+                ) == (
+                    user_id,
+                    1,
+                    "extract",
+                    "running",
+                    "system",
+                    "backfill",
+                    {},
+                    updated_at,
+                    updated_at,
+                    created_at,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
             assert {
                 r[0]
                 for r in conn.execute(
@@ -1488,14 +1573,13 @@ async def verify_runs_migration_backfill() -> None:
             )
         run_alembic(database_url, "downgrade", "0073_stmt_gin_trace_trig_perf")
         with engine.connect() as conn:
-            assert conn.execute(text("SELECT to_regclass('statement_runs')")).scalar_one() is None
             assert (
+                conn.execute(text("SELECT to_regclass('statement_runs')")).scalar_one(),
                 conn.execute(
                     text("SELECT count(*) FROM pg_type WHERE typtype = 'e' AND typname LIKE 'statement\\_run\\_%'")
-                ).scalar_one()
-                == 0
-            )
-            assert conn.execute(text("SELECT count(*) FROM statement_summaries")).scalar_one() == 5
+                ).scalar_one(),
+                conn.execute(text("SELECT count(*) FROM statement_summaries")).scalar_one(),
+            ) == (None, 0, 5)
         run_alembic(database_url, "upgrade", "0074_statement_runs")
         with engine.connect() as conn:
             assert conn.execute(text("SELECT count(*) FROM statement_runs")).scalar_one() == 2
@@ -1507,15 +1591,15 @@ async def verify_runs_migration_backfill() -> None:
 
 
 async def verify_reaper_threshold_case(db, test_user, mode: str) -> None:
-    from src.extraction import reap_stale_runs
-
     now, stale_after = datetime(2026, 11, 12, 8, 0, tzinfo=UTC), timedelta(minutes=5)
     if mode == "heartbeat":
-        old = await claim_test_run(db, await make_run_statement(db, test_user))
-        fresh = await claim_test_run(db, await make_run_statement(db, test_user))
-        at_threshold = await claim_test_run(db, await make_run_statement(db, test_user))
-        never_claimed = await create_test_run(db, await make_run_statement(db, test_user))
-        finished = await claim_test_run(db, await make_run_statement(db, test_user))
+        old, fresh, at_threshold, never_claimed, finished = (
+            await claim_test_run(db, await make_run_statement(db, test_user)),
+            await claim_test_run(db, await make_run_statement(db, test_user)),
+            await claim_test_run(db, await make_run_statement(db, test_user)),
+            await create_test_run(db, await make_run_statement(db, test_user)),
+            await claim_test_run(db, await make_run_statement(db, test_user)),
+        )
         await finish_run(db, finished.id)
         for run, values in (
             (old, {"heartbeat_at": now - timedelta(minutes=6)}),
@@ -1528,61 +1612,58 @@ async def verify_reaper_threshold_case(db, test_user, mode: str) -> None:
         assert await reap_stale_runs(db, stale_after=stale_after, now=now) == [old.id]
         await db.commit()
         old_row = await get_run(db, old.id)
-        assert (old_row.state, old_row.error_code, old_row.finished_at) == (RunState.FAILED, "heartbeat_lost", now)
         assert (
+            old_row.state,
+            old_row.error_code,
+            old_row.finished_at,
             (await get_run(db, fresh.id)).state,
             (await get_run(db, at_threshold.id)).state,
             (await get_run(db, never_claimed.id)).state,
             (await get_run(db, finished.id)).state,
-        ) == (RunState.RUNNING, RunState.RUNNING, RunState.REQUESTED, RunState.SUCCEEDED)
-        assert await reap_stale_runs(db, stale_after=stale_after, now=now) == []
-    else:
-        unclaimed = await create_test_run(db, await make_run_statement(db, test_user))
-        fresh = await create_test_run(db, await make_run_statement(db, test_user))
-        at_threshold = await create_test_run(db, await make_run_statement(db, test_user))
-        long_running = await claim_test_run(db, await make_run_statement(db, test_user))
-        for run, values in (
-            (unclaimed, {"requested_at": now - timedelta(minutes=6)}),
-            (fresh, {"requested_at": now - timedelta(minutes=2)}),
-            (at_threshold, {"requested_at": now - stale_after}),
-            (long_running, {"requested_at": now - timedelta(hours=1), "heartbeat_at": now - timedelta(minutes=1)}),
-        ):
-            await set_run_timestamps(db, run.id, **values)
-        assert await reap_stale_runs(db, stale_after=stale_after, now=now) == [unclaimed.id]
-        await db.commit()
-        reaped = await get_run(db, unclaimed.id)
-        assert (reaped.state, reaped.error_code, reaped.started_at, reaped.finished_at) == (
+        ) == (
             RunState.FAILED,
-            "claim_timeout",
-            None,
+            "heartbeat_lost",
             now,
+            RunState.RUNNING,
+            RunState.RUNNING,
+            RunState.REQUESTED,
+            RunState.SUCCEEDED,
         )
-        assert (
-            (await get_run(db, fresh.id)).state,
-            (await get_run(db, at_threshold.id)).state,
-            (await get_run(db, long_running.id)).state,
-        ) == (RunState.REQUESTED, RunState.REQUESTED, RunState.RUNNING)
-        records = {r.assertion_id: r for r in await run_traces(db, unclaimed.statement_id, unclaimed.id)}
-        assert set(records) == {"extract.requested", "extract.failed"}
-        assert (records["extract.failed"].reason_code, records["extract.failed"].occurred_at) == (
-            "run_failed.claim_timeout",
-            now,
-        )
+        assert await reap_stale_runs(db, stale_after=stale_after, now=now) == []
+        return
+    unclaimed, fresh, at_threshold, long_running = (
+        await create_test_run(db, await make_run_statement(db, test_user)),
+        await create_test_run(db, await make_run_statement(db, test_user)),
+        await create_test_run(db, await make_run_statement(db, test_user)),
+        await claim_test_run(db, await make_run_statement(db, test_user)),
+    )
+    for run, values in (
+        (unclaimed, {"requested_at": now - timedelta(minutes=6)}),
+        (fresh, {"requested_at": now - timedelta(minutes=2)}),
+        (at_threshold, {"requested_at": now - stale_after}),
+        (long_running, {"requested_at": now - timedelta(hours=1), "heartbeat_at": now - timedelta(minutes=1)}),
+    ):
+        await set_run_timestamps(db, run.id, **values)
+    assert await reap_stale_runs(db, stale_after=stale_after, now=now) == [unclaimed.id]
+    await db.commit()
+    reaped = await get_run(db, unclaimed.id)
+    assert (
+        reaped.state,
+        reaped.error_code,
+        reaped.started_at,
+        reaped.finished_at,
+        (await get_run(db, fresh.id)).state,
+        (await get_run(db, at_threshold.id)).state,
+        (await get_run(db, long_running.id)).state,
+    ) == (RunState.FAILED, "claim_timeout", None, now, RunState.REQUESTED, RunState.REQUESTED, RunState.RUNNING)
+    records = {r.assertion_id: r for r in await run_traces(db, unclaimed.statement_id, unclaimed.id)}
+    assert set(records) == {"extract.requested", "extract.failed"} and (
+        records["extract.failed"].reason_code,
+        records["extract.failed"].occurred_at,
+    ) == ("run_failed.claim_timeout", now)
 
 
 async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) -> None:
-    from src.extraction import (
-        HintsNotApplicable,
-        RetryableStatementIngestionError,
-        StatementStatusChanged,
-        fail_run,
-        lock_statement_for_run,
-        start_user_extract_run,
-    )
-    from src.extraction.extension import statement_parsing_supervisor as supervisor
-    from src.statement_flow import parse_statement_flow
-    from src.runtime import StorageError
-
     assert parse_statement_flow.retries == 0 and db_engine.sync_engine.hide_parameters is True
     c1, c2, c3, c4 = (CSV.replace(b"Salary", b"Salary" + n) for n in (b"1", b"2", b"3", b"4"))
     _, job_unclaimed = await _statement_with_run(db, test_user, content=c1, name="unclaimed.csv")
@@ -1591,7 +1672,6 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
     assert (
         await _use_case(db, ForbiddenService()).execute(job_unclaimed, content=c1)
     ).status is StatementIngestionStatus.RUN_STALE
-
     sid_retry, job_retry = await _statement_with_run(db, test_user, content=c2, name="retry.csv")
     assert (
         await _use_case(
@@ -1605,7 +1685,6 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
         RunState.FAILED,
         RunState.SUCCEEDED,
     ]
-
     sid_stale, _ = await _statement_with_run(db, test_user, content=c3, name="stale.csv")
     assert (
         await supervisor.reap_stale_parsing_runs(
@@ -1614,20 +1693,17 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
         >= 1
     )
     assert (await _statement(db, sid_stale)).status is BankStatementStatus.REJECTED
-
     sid_err, job_err = await _statement_with_run(db, test_user, content=c4, name="err.csv")
     assert (
         await _use_case(db, ScriptedService([ExtractionError("bad pdf")])).execute(job_err, content=c4)
     ).status is StatementIngestionStatus.SOURCE_REJECTED
     assert (await _runs(db, sid_err))[0].state is RunState.FAILED
 
-    uid = test_user.id
-    parsed_id = (await make_run_statement(db, test_user, status=BankStatementStatus.PARSED)).id
-    loader = ScriptedLoader([])
-
-    async def failing_load():
-        raise StorageError("missing")
-
+    uid, parsed_id, loader = (
+        test_user.id,
+        (await make_run_statement(db, test_user, status=BankStatementStatus.PARSED)).id,
+        ScriptedLoader([]),
+    )
     for exc_cls, ft, hints, statuses, load_fn, expected_calls in (
         (
             HintsNotApplicable,
@@ -1638,7 +1714,14 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
             0,
         ),
         (StatementStatusChanged, "pdf", RunHints(), frozenset({BankStatementStatus.REJECTED}), lambda: loader("k"), 1),
-        (StorageError, "pdf", RunHints(), frozenset({BankStatementStatus.PARSED}), failing_load, 1),
+        (
+            StorageError,
+            "pdf",
+            RunHints(),
+            frozenset({BankStatementStatus.PARSED}),
+            AsyncMock(side_effect=StorageError("missing")),
+            1,
+        ),
     ):
         with pytest.raises(exc_cls):
             await start_user_extract_run(
@@ -1654,17 +1737,12 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
             )
         await db.rollback()
         assert loader.calls == expected_calls
-    assert (
-        await lock_statement_for_run(db, parsed_id, uid, allowed=frozenset({BankStatementStatus.PARSED}))
-        is not None
-    )
+    assert await lock_statement_for_run(db, parsed_id, uid, allowed=frozenset({BankStatementStatus.PARSED})) is not None
     await db.rollback()
     assert isinstance(ParseJob(**{**_prefect_params(), "user_id": uid}), ParseJob)
 
 
 async def verify_run_transitions_guard(db, test_user) -> None:
-    from src.extraction import fail_run, heartbeat_run
-
     statement = await make_run_statement(db, test_user)
     run = await create_test_run(db, statement)
     with pytest.raises(StaleRun):
@@ -1704,11 +1782,6 @@ async def verify_run_transitions_guard(db, test_user) -> None:
 
 
 async def verify_run_logging_digest(db, test_user, monkeypatch) -> None:
-    from sqlalchemy.exc import IntegrityError
-    from src.audit import canonical_json_digest
-    from src.extraction import fail_run
-    from src.extraction.extension import statement_runs as runs_module
-
     logs = RecordingLogger()
     monkeypatch.setattr(runs_module, "logger", logs)
     hints = RunHints(keywords=["zebra-keyword", "quartz-keyword"], note="needle-note-text for the model")
@@ -1722,19 +1795,20 @@ async def verify_run_logging_digest(db, test_user, monkeypatch) -> None:
     await fail_run(db, other.id, error_code="provider_timeout", error_message="The model call timed out.")
     await db.commit()
     transitions = [e for e in logs.events if e["event"] == "statement.run.transition"]
+    digest = canonical_json_digest(hints.model_dump(mode="json"))
     assert [(e["run_id"], e["state"]) for e in transitions[:3]] == [
         (str(run.id), "requested"),
         (str(run.id), "running"),
         (str(run.id), "succeeded"),
     ]
-    digest = canonical_json_digest(hints.model_dump(mode="json"))
     assert all(
         set(e) == {"event", "run_id", "kind", "state", "hints_digest", "hint_keyword_count"}
         and (e["kind"], e["hints_digest"], e["hint_keyword_count"]) == ("extract", digest, 2)
         for e in transitions[:3]
     )
-    assert (transitions[-1]["state"], transitions[-1]["error_code"]) == ("failed", "provider_timeout")
-    assert all(t not in str(logs.events) for t in ("zebra-keyword", "quartz-keyword", "needle-note-text"))
+    assert (transitions[-1]["state"], transitions[-1]["error_code"]) == ("failed", "provider_timeout") and all(
+        t not in str(logs.events) for t in ("zebra-keyword", "quartz-keyword", "needle-note-text")
+    )
     with pytest.raises(IntegrityError) as missing:
         await create_run(
             db,
@@ -1749,53 +1823,57 @@ async def verify_run_logging_digest(db, test_user, monkeypatch) -> None:
 
 
 async def verify_gated_auto_approve(client, db, test_user, monkeypatch) -> None:
-    import time
-
     gate = asyncio.Event()
-    proposer = install_proposer(monkeypatch, Proposer(gate=gate))
-    rows = make_rows()
+    proposer, rows = install_proposer(monkeypatch, Proposer(gate=gate)), make_rows()
     service, content = high_confidence_pdf_service(rows)
     statement_id, job = await create_parsing_job(db, test_user, content)
     task = asyncio.create_task(_use_case(db, service).execute(job, content=content))
     try:
         await asyncio.wait_for(proposer.started.wait(), timeout=WAIT_SECONDS)
-        stmt = await _statement(db, statement_id)
-        extract, classify = await _runs(db, statement_id)
-        assert (stmt.status, stmt.stage1_status.value) == (BankStatementStatus.PARSED, "pending_review")
-        assert (extract.state, classify.kind, classify.state, extract.result_summary) == (
+        stmt, (extract, classify) = await _statement(db, statement_id), await _runs(db, statement_id)
+        assert (
+            stmt.status,
+            stmt.stage1_status.value,
+            extract.state,
+            classify.kind,
+            classify.state,
+            extract.result_summary,
+            await _count(db, JournalEntry),
+        ) == (
+            BankStatementStatus.PARSED,
+            "pending_review",
             RunState.SUCCEEDED,
             RunKind.CLASSIFY,
             RunState.RUNNING,
             {"auto_approve_candidate": True},
+            0,
         )
-        assert await _count(db, JournalEntry) == 0
         review = await client.get(f"/statements/{statement_id}/review")
-        assert review.status_code == 200 and len(review.json()["transactions"]) == len(rows)
         started = time.perf_counter()
         refused = await client.post(f"/statements/{statement_id}/approvals", json={})
         assert (
-            refused.status_code == 409
-            and refused.json()["active_run_id"] == str(classify.id)
-            and (time.perf_counter() - started) < 1.0
-        )
+            review.status_code,
+            len(review.json()["transactions"]),
+            refused.status_code,
+            refused.json()["active_run_id"],
+            (time.perf_counter() - started) < 1.0,
+        ) == (200, len(rows), 409, str(classify.id), True)
     finally:
         gate.set()
     outcome = await asyncio.wait_for(task, timeout=WAIT_SECONDS)
-    assert (outcome.status, outcome.auto_posted_count, (await _statement(db, statement_id)).status) == (
-        StatementIngestionStatus.COMPLETED,
-        len(rows),
-        BankStatementStatus.APPROVED,
-    )
-    assert await _count(db, JournalEntry) >= len(rows) and proposer.rows_asked == len(rows)
+    assert (
+        outcome.status,
+        outcome.auto_posted_count,
+        (await _statement(db, statement_id)).status,
+        await _count(db, JournalEntry) >= len(rows),
+        proposer.rows_asked,
+    ) == (StatementIngestionStatus.COMPLETED, len(rows), BankStatementStatus.APPROVED, True, len(rows))
 
 
 async def verify_classify_reaper_paths(db, test_user, monkeypatch) -> None:
-    from src.extraction import reap_stale_runs
-
     proposer = install_proposer(monkeypatch, Proposer())
     seeded = await seed_classify_statement(db, test_user)
-    unclaimed_id = await classify_run_for(db, seeded.id)
-    maker = create_session_maker_from_db(db)
+    unclaimed_id, maker = await classify_run_for(db, seeded.id), create_session_maker_from_db(db)
     async with maker() as session:
         assert await reap_stale_runs(session, now=datetime.now(UTC) + timedelta(minutes=10)) == [unclaimed_id]
         await session.commit()
@@ -1803,8 +1881,7 @@ async def verify_classify_reaper_paths(db, test_user, monkeypatch) -> None:
     unclaimed = await get_run(db, unclaimed_id)
     assert (unclaimed.state, unclaimed.error_code) == (RunState.FAILED, "claim_timeout")
 
-    active_id = await classify_run_for(db, seeded.id)
-    real = Proposer()
+    active_id, real = await classify_run_for(db, seeded.id), Proposer()
 
     async def reaped_during_call(transactions, policy):
         async with maker() as other:
@@ -1823,20 +1900,17 @@ async def verify_classify_reaper_paths(db, test_user, monkeypatch) -> None:
 
 
 async def verify_approve_active_or_failed_classify_run(client, db, test_user, monkeypatch) -> None:
-    import time
-
-    proposer = install_proposer(monkeypatch, Proposer())
-    seeded = await seed_classify_statement(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-    started = time.perf_counter()
+    proposer, seeded = install_proposer(monkeypatch, Proposer()), await seed_classify_statement(db, test_user)
+    run_id, started = await classify_run_for(db, seeded.id), time.perf_counter()
     refused = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
     assert (
-        refused.status_code == 409
-        and refused.json()["active_run_id"] == str(run_id)
-        and (time.perf_counter() - started) < 1.0
-    )
-    assert (await _count(db, JournalEntry), await _count(db, Account, Account.user_id == test_user.id)) == (0, 0)
-    assert (await _statement(db, seeded.id)).status is BankStatementStatus.PARSED
+        refused.status_code,
+        refused.json()["active_run_id"],
+        (time.perf_counter() - started) < 1.0,
+        await _count(db, JournalEntry),
+        await _count(db, Account, Account.user_id == test_user.id),
+        (await _statement(db, seeded.id)).status,
+    ) == (409, str(run_id), True, 0, 0, BankStatementStatus.PARSED)
     assert await _worker(create_session_maker_from_db(db), run_id) == 0
     response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
     assert (response.status_code, response.json()["journal_entries_created"], proposer.rows_asked) == (200, 5, 5)
@@ -1846,25 +1920,24 @@ async def verify_approve_active_or_failed_classify_run(client, db, test_user, mo
     seeded_fail = await seed_classify_statement(db, test_user)
     assert (await get_run(db, await classify_statement(db, seeded_fail.id))).state is RunState.FAILED
     fail_resp = await client.post(f"/statements/{seeded_fail.id}/approvals", json={"create_account_if_missing": True})
-    assert fail_resp.status_code == 409 and fail_resp.json()["detail"].startswith("Economic review required:")
-    assert (len(failing.calls), await _count(db, JournalEntry), await count_user_answers(db, test_user)) == (
-        1,
-        before_entries,
-        before_answers,
-    )
+    assert (
+        fail_resp.status_code,
+        fail_resp.json()["detail"].startswith("Economic review required:"),
+        len(failing.calls),
+        await _count(db, JournalEntry),
+        await count_user_answers(db, test_user),
+    ) == (409, True, 1, before_entries, before_answers)
 
 
 async def verify_phase_batches_release_connections(db, test_user, test_database_url, monkeypatch) -> None:
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-    from src.database import create_app_engine
-
     monkeypatch.setattr(transaction_classification, "CLASSIFICATION_BATCH_SIZE", 2)
     monkeypatch.setattr(transaction_classification, "CLASSIFICATION_PARALLEL_BATCHES", 1)
-    seeded = await seed_classify_statement(db, test_user, make_rows(6))
-    gate = asyncio.Event()
+    seeded, gate = await seed_classify_statement(db, test_user, make_rows(6)), asyncio.Event()
     model = install_proposer(monkeypatch, ScriptedModel(None, gate))
-    run_id = await classify_run_for(db, seeded.id)
-    engine = create_app_engine(test_database_url, pool_size=4, max_overflow=0)
+    run_id, engine = (
+        await classify_run_for(db, seeded.id),
+        create_app_engine(test_database_url, pool_size=4, max_overflow=0),
+    )
     worker = asyncio.create_task(_worker(async_sessionmaker(engine, expire_on_commit=False), run_id))
     try:
         await asyncio.wait_for(model.reached(1).wait(), timeout=WAIT_SECONDS)
@@ -1877,12 +1950,12 @@ async def verify_phase_batches_release_connections(db, test_user, test_database_
 
 
 async def verify_two_writers_keyword_rule_serialize(db, test_user) -> None:
-    from src.extraction.extension.transaction_classification import ClassificationService
-
     seeded = await seed_classify_statement(db, test_user)
     await add_coffee_rule(db, test_user)
-    coffee = next(txn for txn in seeded.transactions if txn.description.startswith("Coffee"))
-    maker = create_session_maker_from_db(db)
+    coffee, maker = (
+        next(t for t in seeded.transactions if t.description.startswith("Coffee")),
+        create_session_maker_from_db(db),
+    )
     async with maker() as first, maker() as second:
         rows_a = await ClassificationService().apply_rules(
             first, test_user.id, [await first.get(type(coffee), coffee.id)]
@@ -1890,8 +1963,7 @@ async def verify_two_writers_keyword_rule_serialize(db, test_user) -> None:
         task_b = asyncio.create_task(
             ClassificationService().apply_rules(second, test_user.id, [await second.get(type(coffee), coffee.id)])
         )
-        done, _ = await asyncio.wait({task_b}, timeout=0.4)
-        assert not done
+        assert not (await asyncio.wait({task_b}, timeout=0.4))[0]
         await first.commit()
         rows_b = await asyncio.wait_for(task_b, timeout=WAIT_SECONDS)
         await second.commit()
@@ -1906,20 +1978,19 @@ async def verify_provider_no_call_at_approve(client, db, test_user, monkeypatch)
             json.loads(line) for line in kwargs["messages"][0]["content"].splitlines() if line.startswith('{"index"')
         ]
         provider_calls.append(len(lines))
-        items = [
-            {
-                "index": line["index"],
-                "category": EXTENDED_ANSWERS[line["description"].split()[0]][0].value,
-                "confidence": EXTENDED_ANSWERS[line["description"].split()[0]][1],
-                "reason": "fixture",
-            }
-            for line in lines
-        ]
-
-        async def stream():
-            yield json.dumps(items)
-
-        return stream()
+        return fake_stream(
+            json.dumps(
+                [
+                    {
+                        "index": line["index"],
+                        "category": EXTENDED_ANSWERS[line["description"].split()[0]][0].value,
+                        "confidence": EXTENDED_ANSWERS[line["description"].split()[0]][1],
+                        "reason": "fixture",
+                    }
+                    for line in lines
+                ]
+            )
+        )
 
     monkeypatch.setattr("src.llm.stream_ai_json", stream_ai_json)
     rows = make_rows(8)
@@ -1931,25 +2002,20 @@ async def verify_provider_no_call_at_approve(client, db, test_user, monkeypatch)
 
 
 async def verify_shared_rows_answered_once(db, test_user, monkeypatch) -> None:
-    outcomes = spy_classify_outcomes(monkeypatch)
-    gate = asyncio.Event()
+    outcomes, gate = spy_classify_outcomes(monkeypatch), asyncio.Event()
     proposer = install_proposer(monkeypatch, Proposer(answers=EXTENDED_ANSWERS, timeout_gate=True, gate=gate))
     first = await seed_parsed_statement(db, test_user.id, original_filename="first.pdf", transactions=make_rows(4))
     second = await seed_parsed_statement(
         db, test_user.id, original_filename="second.pdf", transactions=make_rows(4, first_day=date(2026, 2, 1))
     )
-    marker = {"doc_id": str(second.document.id), "doc_type": "bank_statement"}
     for shared in first.transactions[:2]:
-        shared.source_documents = [*shared.source_documents, marker]
+        shared.source_documents = [
+            *shared.source_documents,
+            {"doc_id": str(second.document.id), "doc_type": "bank_statement"},
+        ]
     await db.commit()
     sessions = create_session_maker_from_db(db)
-    run_ids = [await classify_run_for(db, item.id) for item in (first, second)]
-    passes = [
-        asyncio.create_task(
-            execute_classify_run(sessions, run_id=rid, posting_dependencies=compose_statement_posting_dependencies())
-        )
-        for rid in run_ids
-    ]
+    passes = [asyncio.create_task(_worker(sessions, await classify_run_for(db, item.id))) for item in (first, second)]
     deadline = asyncio.get_running_loop().time() + WAIT_SECONDS
     while len(proposer.calls) < 2:
         assert asyncio.get_running_loop().time() < deadline
@@ -1968,19 +2034,14 @@ async def verify_unresolved_currency_and_covered_rows(client, db, test_user, mon
     await db.commit()
     await classify_statement(db, seeded_u.id)
     assert proposer.rows_asked == 3 and unresolved.description not in {d for c in proposer.calls for d in c}
-    assert (
-        await db.scalar(
-            select(func.count()).select_from(Account).where(Account.user_id == test_user.id, Account.currency == "XXX")
-        )
-        == 0
-    )
+    assert await _count(db, Account, Account.user_id == test_user.id, Account.currency == "XXX") == 0
 
     proposer_c = install_proposer(monkeypatch, Proposer(answers=EXTENDED_ANSWERS, timeout_gate=True))
     seeded_c = await seed_classify_statement(db, test_user.id, make_rows(4, first_day=date(2026, 2, 1)), name="c.pdf")
-    bank = Account(user_id=test_user.id, name="Bank of a covered row", type=AccountType.ASSET, currency="SGD")
-    expense = Account(user_id=test_user.id, name="Expense - Reviewed", type=AccountType.EXPENSE, currency="SGD")
-    db.add_all([bank, expense])
-    await db.flush()
+    bank, expense = (
+        await make_account(db, test_user.id, "Bank of a covered row"),
+        await make_account(db, test_user.id, "Expense - Reviewed", AccountType.EXPENSE),
+    )
     seeded_c.statement.account_id = bank.id
     await db.commit()
     covered = seeded_c.transactions[1]
@@ -2001,10 +2062,7 @@ async def verify_unresolved_currency_and_covered_rows(client, db, test_user, mon
 
 
 async def verify_source_bytes_released_before_model(db, test_user, monkeypatch) -> None:
-    import gc
-
-    freed: list[bool] = []
-    file_is_freed: list[bool] = []
+    freed, file_is_freed = [], []
 
     class Payload(bytes):
         def __del__(self):
@@ -2036,13 +2094,7 @@ async def verify_source_bytes_released_before_model(db, test_user, monkeypatch) 
 
 
 async def verify_reparse_preserves_history(db, test_user, monkeypatch) -> None:
-    from unittest.mock import MagicMock
-    from src.extraction.extension import deduplication
-    from src.extraction.extension.statement_validation import resolve_statement_transactions
-
-    account = AccountFactory.build(user_id=test_user.id, currency="SGD")
-    db.add(account)
-    await db.flush()
+    account = await make_account(db, test_user.id, "Reparse Account")
     document, summary = await integrity_source(db, test_user.id, account=account)
     source = DocumentSource.resolve(
         path=Path(document.file_path),
@@ -2074,26 +2126,24 @@ async def verify_reparse_preserves_history(db, test_user, monkeypatch) -> None:
     second_record = await integrity_store_result(db, summary, second)
     current = await resolve_statement_transactions(db, summary)
     assert (
-        await db.get(AtomicTransaction, old_id) is not None and len(current) == 1 and current[0].amount == Decimal("20")
-    )
-    assert current[0].id != old_id and first.result_id != second.result_id
-    assert (await db.get(StatementExtractionResultRecord, first_record.id)).payload == first.to_payload()
-    assert await db.get(TraceRecordRow, first_record.source_trace_record_id) is not None
-    assert summary.current_extraction_result_id == second_record.id and document.file_path == str(source.path)
+        await db.get(AtomicTransaction, old_id) is not None,
+        len(current),
+        current[0].amount,
+        current[0].id != old_id,
+        first.result_id != second.result_id,
+    ) == (True, 1, Decimal("20"), True, True)
+    assert (
+        (await db.get(StatementExtractionResultRecord, first_record.id)).payload,
+        await db.get(TraceRecordRow, first_record.source_trace_record_id) is not None,
+        summary.current_extraction_result_id,
+        document.file_path,
+    ) == (first.to_payload(), True, second_record.id, str(source.path))
     completion = [c.kwargs for c in checkpoint.call_args_list if c.args == ("Dual write to Layer 2 completed",)]
     assert completion and completion[-1]["statement_summary_id"] == str(summary.id)
 
 
 async def verify_posted_cannot_be_superseded(db, test_user) -> None:
-    from src.extraction import EconomicIntent
-    from src.extraction.extension.review_queue import create_entry_from_txn
-    from src.extraction.extension.statement_validation import resolve_statement_transactions
-    from src.ledger import JournalEntryStatus
-    from tests.statement_ingestion import anchored_reviewed_posting_inputs
-
-    account = AccountFactory.build(user_id=test_user.id, currency="SGD")
-    db.add(account)
-    await db.flush()
+    account = await make_account(db, test_user.id, "Posted Account")
     document, summary = await integrity_source(db, test_user.id, account=account)
     source = DocumentSource.resolve(
         path=Path(document.file_path), content=b"synthetic", content_hash=document.file_hash
@@ -2136,25 +2186,16 @@ async def verify_posted_cannot_be_superseded(db, test_user) -> None:
         await integrity_parse(replacement, db=db, user_id=test_user.id, account_id=account.id, source=source)
     await db.refresh(summary)
     assert (
-        summary.current_extraction_result_id == record.id
-        and (await resolve_statement_transactions(db, summary))[0].id == row.id
-    )
-    assert (
-        await db.scalar(select(func.count()).select_from(JournalEntry).where(JournalEntry.user_id == test_user.id)) == 1
-    )
+        summary.current_extraction_result_id,
+        (await resolve_statement_transactions(db, summary))[0].id,
+        await _count(db, JournalEntry, JournalEntry.user_id == test_user.id),
+    ) == (record.id, row.id, 1)
 
 
 async def verify_multicurrency_pdf_batches(db, test_user) -> None:
-    from src.extraction.extension.statement_validation import resolve_statement_transactions
-
-    account = AccountFactory.build(user_id=test_user.id, currency="SGD")
-    db.add(account)
-    await db.flush()
-    output = BytesIO()
-    pdf = canvas.Canvas(output)
-    for page in range(6):
-        pdf.drawString(72, 720, f"Synthetic statement page {page + 1}")
-        pdf.showPage()
+    account = await make_account(db, test_user.id, "MCY Account")
+    pdf = canvas.Canvas(output := BytesIO())
+    [(pdf.drawString(72, 720, f"Synthetic statement page {page + 1}"), pdf.showPage()) for page in range(6)]
     pdf.save()
     meta = {
         "institution": "Synthetic Bank",
@@ -2200,24 +2241,20 @@ async def verify_multicurrency_pdf_batches(db, test_user) -> None:
             StatementSummary.file_hash == source.content_hash, StatementSummary.user_id == test_user.id
         )
     )
-    assert result.balance_validated is True and {b.currency for b in result.balances} == {"SGD", "USD", "EUR"}
     assert (
-        len(await resolve_statement_transactions(db, summary)) == 2
-        and service._extract_json_with_model.await_count == 3
-    )
+        result.balance_validated,
+        {b.currency for b in result.balances},
+        len(await resolve_statement_transactions(db, summary)),
+        service._extract_json_with_model.await_count,
+    ) == (True, {"SGD", "USD", "EUR"}, 2, 3)
 
 
 async def verify_membership_excludes_ambiguous_and_superseded(db, test_user) -> None:
-    from src.extraction.extension.statement_validation import resolve_statement_transactions
-
-    a1, a2 = (
-        AccountFactory.build(user_id=test_user.id, currency="SGD"),
-        AccountFactory.build(user_id=test_user.id, currency="SGD"),
+    a1, a2 = await make_account(db, test_user.id, "A1"), await make_account(db, test_user.id, "A2")
+    (d1, s1), (d2, s2) = (
+        await integrity_source(db, test_user.id, account=a1),
+        await integrity_source(db, test_user.id, account=a2),
     )
-    db.add_all([a1, a2])
-    await db.flush()
-    d1, s1 = await integrity_source(db, test_user.id, account=a1)
-    d2, s2 = await integrity_source(db, test_user.id, account=a2)
     legacy = await integrity_legacy_txn(db, test_user.id, d1)
     legacy.source_documents = [*legacy.source_documents, {"doc_id": str(d2.id), "doc_type": "bank_statement"}]
     payload = (await integrity_parse(integrity_payload())).to_payload()
@@ -2262,15 +2299,6 @@ async def verify_membership_excludes_ambiguous_and_superseded(db, test_user) -> 
 
 
 async def verify_identity_rejection_case(db, test_user, failure: str) -> None:
-    from src.extraction.extension.transaction_identity import (
-        TransactionIdentityReviewRequired,
-        resolve_transaction_identity,
-        source_custody_scope,
-        versioned_transaction_hash,
-    )
-    from src.extraction.orm.layer2 import AtomicTransactionIdentity
-    from tests.factories import UserFactory
-
     account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
     document, summary = await integrity_source(db, test_user.id, account=account)
     old = await integrity_legacy_txn(db, test_user.id, document)
@@ -2289,7 +2317,7 @@ async def verify_identity_rejection_case(db, test_user, failure: str) -> None:
             summary.currency = "USD"
         elif failure == "missing_custody":
             summary.account_id = None
-        if failure == "inconsistent_alias":
+        elif failure == "inconsistent_alias":
             db.add(
                 AtomicTransactionIdentity(
                     user_id=test_user.id,
@@ -2325,12 +2353,6 @@ async def verify_identity_rejection_case(db, test_user, failure: str) -> None:
 
 
 async def verify_concurrent_first_custody_imports(db_engine) -> None:
-    from sqlalchemy import text
-    from sqlalchemy.exc import IntegrityError
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-    from src.extraction.orm.bank_custody_binding import BankCustodyBinding
-    from tests.factories import UserFactory
-
     sessions = async_sessionmaker(db_engine, expire_on_commit=False)
     async with sessions() as db:
         uid = (await UserFactory.create_async(db, email=f"custody-race-{uuid4()}@example.invalid")).id
@@ -2354,7 +2376,7 @@ async def verify_concurrent_first_custody_imports(db_engine) -> None:
         ids = await asyncio.gather(first(), first())
         assert ids[0] == ids[1]
         async with sessions() as db:
-            assert await db.scalar(select(func.count()).select_from(Account).where(Account.user_id == uid)) == 1
+            assert await _count(db, Account, Account.user_id == uid) == 1
             with pytest.raises(IntegrityError):
                 async with db.begin_nested():
                     db.add(
@@ -2371,14 +2393,6 @@ async def verify_concurrent_first_custody_imports(db_engine) -> None:
 
 
 async def verify_real_custody_migration(db, test_user) -> None:
-    import importlib.util
-    from alembic.migration import MigrationContext
-    from alembic.operations import Operations
-    from sqlalchemy import text
-    from sqlalchemy.exc import IntegrityError
-    from src.extraction.extension.custody_binding import resolve_bank_custody
-    from src.extraction.orm.bank_custody_binding import BankCustodyBinding
-
     await db.execute(text("DROP TABLE bank_custody_bindings"))
     spec = importlib.util.spec_from_file_location(
         "custody_migration", BACKEND_DIR / "migrations/versions/0062_bank_custody.py"
@@ -2420,17 +2434,12 @@ async def verify_real_custody_migration(db, test_user) -> None:
 
 
 async def verify_historical_custody_adoption_case(db, test_user, condition: str) -> None:
-    from sqlalchemy.exc import IntegrityError
-    from tests.factories import UserFactory
-
     owner = (
         await UserFactory.create_async(db, email=f"custody-foreign-{uuid4()}@example.invalid")
         if condition == "foreign"
         else test_user
     )
-    account = AccountFactory.build(user_id=owner.id, name="Renamed historical account", currency="SGD")
-    db.add(account)
-    await db.flush()
+    account = await make_account(db, owner.id, "Renamed historical account")
     if condition == "foreign":
         with pytest.raises(IntegrityError, match="cross-user account"):
             async with db.begin_nested():
@@ -2438,10 +2447,7 @@ async def verify_historical_custody_adoption_case(db, test_user, condition: str)
         return
     await custody_history(db, test_user.id, account, corrupt=condition in {"source_mismatch", "source_original"})
     if condition == "ambiguous":
-        second = AccountFactory.build(user_id=test_user.id, currency="SGD")
-        db.add(second)
-        await db.flush()
-        await custody_history(db, test_user.id, second)
+        await custody_history(db, test_user.id, await make_account(db, test_user.id, "Second historical"))
     if condition == "unique":
         assert (await custody_parse(db, test_user.id)).account_id == account.id
     else:
@@ -2450,8 +2456,6 @@ async def verify_historical_custody_adoption_case(db, test_user, condition: str)
 
 
 async def verify_invalid_custody_evidence_case(db, test_user, failure: str) -> None:
-    from src.extraction.extension.custody_binding import resolve_bank_custody
-
     account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
     summary = await custody_history(db, test_user.id, account)
     if failure == "missing_document":
@@ -2494,21 +2498,10 @@ async def verify_invalid_custody_evidence_case(db, test_user, failure: str) -> N
 
 
 async def verify_reconcile_chain_out_of_order(db, test_user) -> None:
-    from src.extraction.base.types import RetireStatementCommand
-    from src.extraction.extension.source_lifecycle import retire_statement
-    from src.extraction.extension.statement_posting import (
-        reconcile_account_statement_chain,
-        try_auto_post_statement_opening_balance,
-    )
-    from src.ledger import calculate_account_balance
-    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
-
     account, income = (
-        Account(user_id=test_user.id, name="DBS Multiplier", type=AccountType.ASSET, currency="SGD"),
-        Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD"),
+        await make_account(db, test_user.id, "DBS Multiplier"),
+        await make_account(db, test_user.id, "Salary Income", AccountType.INCOME),
     )
-    db.add_all([account, income])
-    await db.flush()
     stmt_jun = await make_approved_statement(
         db,
         test_user.id,
@@ -2620,44 +2613,21 @@ async def verify_reconcile_chain_out_of_order(db, test_user) -> None:
 
 
 async def verify_reconcile_chain_retirement_and_fx(db, test_user) -> None:
-    from src.extraction.extension.statement_posting import (
-        reconcile_account_statement_chain,
-        release_statement_ledger_effects,
-    )
-    from src.pricing import PricingError
-
     assert (
         await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=uuid4(), base_currency="SGD")
         is False
     )
     usd_acc, sgd_acc = (
-        Account(user_id=test_user.id, name="USD Custody", type=AccountType.ASSET, currency="USD"),
-        Account(user_id=test_user.id, name="SGD Custody", type=AccountType.ASSET, currency="SGD"),
+        await make_account(db, test_user.id, "USD Custody", currency="USD"),
+        await make_account(db, test_user.id, "SGD Custody"),
     )
-    db.add_all([usd_acc, sgd_acc])
-    await db.flush()
-    await make_approved_statement(
-        db,
-        test_user.id,
-        usd_acc.id,
-        last4="1234",
-        currency="USD",
-        opening="1000.00",
-        closing="1000.00",
-        start=date(2025, 1, 1),
-        end=date(2025, 1, 31),
-    )
-    await make_approved_statement(
-        db,
-        test_user.id,
-        usd_acc.id,
-        last4="1234",
-        currency="USD",
-        opening="1500.00",
-        closing="1500.00",
-        start=date(2025, 3, 1),
-        end=date(2025, 3, 31),
-    )
+    for start, end, bal in (
+        (date(2025, 1, 1), date(2025, 1, 31), "1000.00"),
+        (date(2025, 3, 1), date(2025, 3, 31), "1500.00"),
+    ):
+        await make_approved_statement(
+            db, test_user.id, usd_acc.id, last4="1234", currency="USD", opening=bal, closing=bal, start=start, end=end
+        )
     deps_fail = replace(
         compose_statement_posting_dependencies(),
         fx_rate_provider=AsyncMock(side_effect=[Decimal("1.35"), ValueError("No plug FX")]),
@@ -2677,13 +2647,9 @@ async def verify_reconcile_chain_retirement_and_fx(db, test_user) -> None:
         fx_rate_error=ValueError,
     )
     assert (
-        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=deps_ok)
-        is True
-    )
-    assert (
-        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=deps_ok)
-        is False
-    )
+        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=deps_ok),
+        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=usd_acc.id, dependencies=deps_ok),
+    ) == (True, False)
     s_jan = await make_approved_statement(
         db,
         test_user.id,
@@ -2726,26 +2692,15 @@ async def verify_reconcile_chain_retirement_and_fx(db, test_user) -> None:
     s_mar.status = s_may.status = BankStatementStatus.RETIRED
     await db.flush()
     assert (
-        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=sgd_acc.id, base_currency="SGD")
-        is True
-    )
-    assert (
+        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=sgd_acc.id, base_currency="SGD"),
         await release_statement_ledger_effects(
             db, s_mar, test_user.id, was_approved=True, reason="Statement retired", dependencies=None
-        )
-        == 0
-    )
+        ),
+    ) == (True, 0)
 
 
 async def verify_manual_override_and_lifecycle_guards(db, test_user) -> None:
-    from src.extraction.extension.statement_posting import reconcile_account_statement_chain
-    from src.extraction.extension.statement_workflow import reject_statement_workflow
-    from src.ledger import calculate_account_balance, list_opening_positions
-    from src.ledger.extension.account_service import get_or_create_unexplained_gap_equity_account
-
-    acc = Account(user_id=test_user.id, name="OCBC 360", type=AccountType.ASSET, currency="SGD")
-    db.add(acc)
-    await db.flush()
+    acc = await make_account(db, test_user.id, "OCBC 360")
     stmt_manual = await make_approved_statement(
         db,
         test_user.id,
@@ -2767,9 +2722,9 @@ async def verify_manual_override_and_lifecycle_guards(db, test_user) -> None:
         db, stmt_manual.id, test_user.id, reason="Dormant statement rejected", base_currency="SGD"
     )
     assert (
-        await calculate_account_balance(db, acc.id, test_user.id) == Decimal("0.00")
-        and len(await list_opening_positions(db, user_id=test_user.id, as_of=date.max)) == 0
-    )
+        await calculate_account_balance(db, acc.id, test_user.id),
+        len(await list_opening_positions(db, user_id=test_user.id, as_of=date.max)),
+    ) == (Decimal("0.00"), 0)
     stmt_mar = await make_approved_statement(
         db,
         test_user.id,
@@ -2801,26 +2756,13 @@ async def verify_manual_override_and_lifecycle_guards(db, test_user) -> None:
     stmt_mar.status = BankStatementStatus.RETIRED
     await db.flush()
     assert (
-        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=acc.id, base_currency="SGD")
-        is True
-    )
-    assert (
+        await reconcile_account_statement_chain(db, user_id=test_user.id, account_id=acc.id, base_currency="SGD"),
         await calculate_account_balance(db, gap_eq.id, test_user.id),
         await calculate_account_balance(db, acc.id, test_user.id),
-    ) == (Decimal("0.00"), Decimal("5000.00"))
+    ) == (True, Decimal("0.00"), Decimal("5000.00"))
 
 
 async def verify_foreign_currency_opening_and_retire(db, test_user) -> None:
-    from src.extraction.base.types import RetireStatementCommand
-    from src.extraction.extension.source_lifecycle import retire_statement
-    from src.extraction.extension.statement_posting import reconcile_account_statement_chain
-    from src.ledger import calculate_account_balance
-    from src.ledger.extension.account_service import (
-        get_or_create_opening_balance_equity_account,
-        get_or_create_unexplained_gap_equity_account,
-    )
-    from src.pricing import FxRate
-
     db.add_all(
         [
             FxRate(base_currency=b, quote_currency=q, rate=Decimal(r), rate_date=d, source="test")
@@ -2835,8 +2777,8 @@ async def verify_foreign_currency_opening_and_retire(db, test_user) -> None:
         ]
     )
     cny_bank, cny_exp = (
-        Account(user_id=test_user.id, name="CMB Savings", type=AccountType.ASSET, currency="CNY"),
-        Account(user_id=test_user.id, name="CNY Dining", type=AccountType.EXPENSE, currency="CNY"),
+        await make_account(db, test_user.id, "CMB Savings", currency="CNY"),
+        await make_account(db, test_user.id, "CNY Dining", AccountType.EXPENSE, currency="CNY"),
     )
     doc_jan, doc_mar = (
         UploadedDocument(
@@ -2849,7 +2791,7 @@ async def verify_foreign_currency_opening_and_retire(db, test_user) -> None:
         )
         for n in ("cmb_jan", "cmb_mar")
     )
-    db.add_all([cny_bank, cny_exp, doc_jan, doc_mar])
+    db.add_all([doc_jan, doc_mar])
     await db.flush()
     stmt_jan = await make_approved_statement(
         db,
@@ -2905,11 +2847,12 @@ async def verify_foreign_currency_opening_and_retire(db, test_user) -> None:
         is True
     )
     obe = await get_or_create_opening_balance_equity_account(db, test_user.id, "CNY", match_currency=True)
-    assert (obe.currency, await calculate_account_balance(db, obe.id, test_user.id)) == ("CNY", Decimal("38500.00"))
     bs_cny = await generate_balance_sheet(
         db, test_user.id, as_of_date=date(2024, 2, 28), currency="CNY", base_currency="SGD"
     )
     assert (
+        obe.currency,
+        await calculate_account_balance(db, obe.id, test_user.id),
         bs_cny["is_balanced"],
         bs_cny["total_assets"],
         bs_cny["total_equity"],
@@ -2918,6 +2861,8 @@ async def verify_foreign_currency_opening_and_retire(db, test_user) -> None:
         bs_cny["cta_adjustment"],
         [line["name"] for line in bs_cny["equity"]],
     ) == (
+        "CNY",
+        Decimal("38500.00"),
         True,
         Decimal("38000.00"),
         Decimal("38500.00"),
@@ -2932,27 +2877,31 @@ async def verify_foreign_currency_opening_and_retire(db, test_user) -> None:
         )
     ).status == BankStatementStatus.RETIRED
     gap_eq = await get_or_create_unexplained_gap_equity_account(db, test_user.id, "CNY")
-    assert (
-        await calculate_account_balance(db, gap_eq.id, test_user.id),
-        await calculate_account_balance(db, cny_bank.id, test_user.id),
-    ) == (Decimal("0.00"), Decimal("40000.00"))
     bs_mar = await generate_balance_sheet(
         db, test_user.id, as_of_date=date(2024, 3, 31), currency="CNY", base_currency="SGD"
     )
     assert (
+        await calculate_account_balance(db, gap_eq.id, test_user.id),
+        await calculate_account_balance(db, cny_bank.id, test_user.id),
         bs_mar["is_balanced"],
         bs_mar["total_assets"],
         bs_mar["total_equity"],
         [line["name"] for line in bs_mar["equity"]],
-    ) == (True, Decimal("40000.00"), Decimal("40000.00"), ["Opening Balance Equity"])
+    ) == (
+        Decimal("0.00"),
+        Decimal("40000.00"),
+        True,
+        Decimal("40000.00"),
+        Decimal("40000.00"),
+        ["Opening Balance Equity"],
+    )
 
 
 async def verify_two_sessions_share_identity_and_result(db, db_engine, test_user) -> None:
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-    from src.extraction.extension.source_lifecycle import resolve_source_identity
-
-    maker = async_sessionmaker(db_engine, expire_on_commit=False)
-    command = lifecycle_identity(test_user.id, file_hash="concurrent-source-identity")
+    maker, command = (
+        async_sessionmaker(db_engine, expire_on_commit=False),
+        lifecycle_identity(test_user.id, file_hash="concurrent-source-identity"),
+    )
 
     async def id_work(session, barrier):
         await barrier()
@@ -2964,17 +2913,20 @@ async def verify_two_sessions_share_identity_and_result(db, db_engine, test_user
     assert first[0] == second[0] and sorted((first[1], second[1])) == [False, True]
     async with maker() as v:
         assert (
-            await v.scalar(
-                select(func.count())
-                .select_from(UploadedDocument)
-                .where(UploadedDocument.user_id == test_user.id, UploadedDocument.file_hash == command.file_hash)
+            await _count(
+                v,
+                UploadedDocument,
+                UploadedDocument.user_id == test_user.id,
+                UploadedDocument.file_hash == command.file_hash,
             )
             == 1
         )
-    statement = lifecycle_summary(test_user.id, file_hash="concurrent-result-identity")
+    statement, result = (
+        lifecycle_summary(test_user.id, file_hash="concurrent-result-identity"),
+        lifecycle_source_result("4" * 64),
+    )
     db.add(statement)
     await db.commit()
-    result = lifecycle_source_result("4" * 64)
 
     async def res_work(session, barrier):
         owned = await session.get(StatementSummary, statement.id)
@@ -2990,33 +2942,23 @@ async def verify_two_sessions_share_identity_and_result(db, db_engine, test_user
     assert rids[0] == rids[1]
     async with maker() as v:
         assert (
-            await v.scalar(
-                select(func.count())
-                .select_from(StatementExtractionResultRecord)
-                .where(
-                    StatementExtractionResultRecord.statement_id == statement.id,
-                    StatementExtractionResultRecord.content_digest == result.content_digest,
-                )
+            await _count(
+                v,
+                StatementExtractionResultRecord,
+                StatementExtractionResultRecord.statement_id == statement.id,
+                StatementExtractionResultRecord.content_digest == result.content_digest,
             )
             == 1
         )
 
 
 async def verify_failure_and_retry_convergence(db, db_engine, test_user, monkeypatch) -> None:
-    from fastapi import UploadFile
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-    from src.extraction import get_known_storage_paths
-    from src.extraction.extension.source_lifecycle import RetireStatementCommand, retire_statement
-    from src.platform import DomainError
-    from src.request_context import RequestContext
-    from src.routers import statements as statements_router
-    from src.runtime import StorageError
-    from src.runtime.extension import storage_sweep
-
     statement, _ = await lifecycle_history_fixture(db, test_user.id)
     await db.commit()
-    maker = async_sessionmaker(db_engine, expire_on_commit=False)
-    cmd = RetireStatementCommand(statement_id=statement.id, user_id=test_user.id)
+    maker, cmd = (
+        async_sessionmaker(db_engine, expire_on_commit=False),
+        RetireStatementCommand(statement_id=statement.id, user_id=test_user.id),
+    )
     async with maker() as failed:
         await retire_statement(failed, cmd, base_currency="SGD")
         await failed.flush()
@@ -3028,19 +2970,13 @@ async def verify_failure_and_retry_convergence(db, db_engine, test_user, monkeyp
             await retire_statement(s, cmd, base_currency="SGD")
             await s.commit()
     async with maker() as v:
-        assert (
-            await v.scalar(
-                select(func.count()).select_from(StatementSummary).where(StatementSummary.id == statement.id)
-            )
-            == 1
-        )
+        assert await _count(v, StatementSummary, StatementSummary.id == statement.id) == 1
 
     class FailingThenRecoveringStorage:
         def __init__(self) -> None:
             self.keys, self.delete_attempts = set(), 0
 
-        def upload_bytes(self, *, key: str, **_kwargs) -> None:
-            self.keys.add(key)
+        upload_bytes = lambda self, *, key, **_kwargs: self.keys.add(key)
 
         def delete_object(self, key: str) -> None:
             self.delete_attempts += 1
@@ -3048,9 +2984,8 @@ async def verify_failure_and_retry_convergence(db, db_engine, test_user, monkeyp
                 raise StorageError("immediate cleanup unavailable")
             self.keys.remove(key)
 
-    storage = FailingThenRecoveringStorage()
+    storage, orig_commit = FailingThenRecoveringStorage(), db.commit
     monkeypatch.setattr(statements_router, "StorageService", lambda: storage)
-    orig_commit = db.commit
     monkeypatch.setattr(db, "commit", lambda: (_ for _ in ()).throw(RuntimeError("database commit unavailable")))
     upload = UploadFile(filename="failure-convergence.pdf", file=BytesIO(b"source bytes"))
     with pytest.raises(DomainError) as exc:
@@ -3058,48 +2993,40 @@ async def verify_failure_and_retry_convergence(db, db_engine, test_user, monkeyp
             file=upload, institution="Example Bank", model=None, ctx=RequestContext(db, test_user.id)
         )
     await upload.close()
-    assert (exc.value.status_code, storage.delete_attempts, len(storage.keys)) == (500, 1, 1)
     orphan_key = next(iter(storage.keys))
     monkeypatch.setattr(db, "commit", orig_commit)
     assert (
-        await db.scalar(
-            select(func.count()).select_from(UploadedDocument).where(UploadedDocument.file_path == orphan_key)
-        )
-        == 0
+        exc.value.status_code,
+        storage.delete_attempts,
+        len(storage.keys),
+        await _count(db, UploadedDocument, UploadedDocument.file_path == orphan_key),
+    ) == (500, 1, 1, 0)
+
+    session_ctx = type(
+        "SessionCtx",
+        (),
+        {
+            "__aenter__": lambda _s: asyncio.sleep(0, result=db),
+            "__aexit__": lambda _s, *_a: asyncio.sleep(0, result=False),
+        },
     )
-
-    class SessionCtx:
-        async def __aenter__(self):
-            return db
-
-        async def __aexit__(self, *_args):
-            return False
-
-    monkeypatch.setattr(storage_sweep, "StorageService", lambda: storage)
-    monkeypatch.setattr(
-        storage_sweep, "_list_storage_keys", lambda _s: [(orphan_key, datetime.now(UTC) - timedelta(hours=2))]
-    )
+    for attr, val in (
+        ("StorageService", lambda: storage),
+        ("_list_storage_keys", lambda _s: [(orphan_key, datetime.now(UTC) - timedelta(hours=2))]),
+    ):
+        monkeypatch.setattr(storage_sweep, attr, val)
     monkeypatch.setattr(storage_sweep.settings, "s3_bucket", "acceptance")
     monkeypatch.setattr(storage_sweep.settings, "storage_sweep_grace_period_hours", 1)
     assert (
         await storage_sweep.sweep_orphaned_storage_objects(
-            sessionmaker=lambda: SessionCtx(), known_paths_provider=get_known_storage_paths
+            sessionmaker=session_ctx, known_paths_provider=get_known_storage_paths
         )
         == 1
+        and storage.keys == set()
     )
-    assert storage.keys == set()
 
 
 async def verify_counterfactual_404_matrix(db, test_user) -> None:
-    from src.extraction.extension.source_lifecycle import RetireStatementCommand, retire_statement
-    from src.extraction.extension.statement_validation import _raise_if_balance_chain_invalid, validate_balance_chain
-    from src.platform import DomainError
-    from src.request_context import RequestContext
-    from src.routers import statements as statements_router
-    from src.routers.reconciliation import run_reconciliation, run_stage2_checks
-    from src.routers.statements import get_review_conflicts
-    from src.schemas.reconciliation import ConsistencyCheckRunRequest, ReconciliationRunRequest
-
     document = lifecycle_document(test_user.id, file_hash="orphan-currency-counterfactual")
     db.add(document)
     await db.flush()
@@ -3131,75 +3058,78 @@ async def verify_counterfactual_404_matrix(db, test_user) -> None:
 
 
 def verify_no_classify_writer_uninvoked(backend_src: Path, module_path: Path) -> None:
-    import ast
-
-    seam_mod = "src.extraction.extension.transaction_classification"
-    seams = (
-        "plan_classification",
-        "write_rule_answers",
-        "ask_model",
-        "write_answers",
-        "settle_drafts",
-        "apply_user_transaction_correction",
+    seam_mod, seams, external_calls, model_callers = (
+        "src.extraction.extension.transaction_classification",
+        (
+            "plan_classification",
+            "write_rule_answers",
+            "ask_model",
+            "write_answers",
+            "settle_drafts",
+            "apply_user_transaction_correction",
+        ),
+        set(),
+        {},
     )
-    external_calls: set[str] = set()
-    model_callers: dict[str, set[str]] = {}
     for path in backend_src.rglob("*.py"):
         text_src = path.read_text(encoding="utf-8")
         if path != module_path and any(s in text_src for s in seams):
-            tree = ast.parse(text_src)
+            nodes = list(ast.walk(ast.parse(text_src)))
             aliases = {
                 a.asname or a.name: a.name
-                for n in ast.walk(tree)
+                for n in nodes
                 if isinstance(n, ast.ImportFrom) and n.module in (seam_mod, "src.extraction")
                 for a in n.names
                 if a.name in seams
             }
             mods = {
                 (a.asname or a.name).split(".")[0]
-                for n in ast.walk(tree)
+                for n in nodes
                 if isinstance(n, ast.Import)
                 for a in n.names
                 if a.name == seam_mod
             }
-            for n in ast.walk(tree):
-                if isinstance(n, ast.Call):
-                    if isinstance(n.func, ast.Name) and n.func.id in aliases:
-                        external_calls.add(aliases[n.func.id])
-                    elif (
-                        isinstance(n.func, ast.Attribute)
-                        and n.func.attr in seams
-                        and isinstance(n.func.value, ast.Name)
-                        and n.func.value.id in mods
-                    ):
-                        external_calls.add(n.func.attr)
+            external_calls |= {
+                aliases[n.func.id]
+                for n in nodes
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in aliases
+            }
+            external_calls |= {
+                n.func.attr
+                for n in nodes
+                if isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr in seams
+                and isinstance(n.func.value, ast.Name)
+                and n.func.value.id in mods
+            }
         if any(name in text_src for name in ("ask_model", "propose_categories", "_propose_batch")):
-            for n in ast.walk(ast.parse(text_src)):
-                if isinstance(n, ast.Call):
-                    called = (
-                        n.func.id
-                        if isinstance(n.func, ast.Name)
-                        else n.func.attr
-                        if isinstance(n.func, ast.Attribute)
-                        else None
-                    )
-                    if called in ("ask_model", "propose_categories", "_propose_batch"):
-                        model_callers.setdefault(path.name, set()).add(called)
-    assert not [w for w in seams if w not in external_calls]
-    assert model_callers == {
+            model_callers.setdefault(path.name, set()).update(
+                c
+                for n in ast.walk(ast.parse(text_src))
+                if isinstance(n, ast.Call)
+                and (
+                    c := n.func.id
+                    if isinstance(n.func, ast.Name)
+                    else n.func.attr
+                    if isinstance(n.func, ast.Attribute)
+                    else None
+                )
+                in ("ask_model", "propose_categories", "_propose_batch")
+            )
+    assert not [w for w in seams if w not in external_calls] and model_callers == {
         "statement_classification_run.py": {"ask_model"},
         "transaction_classification.py": {"propose_categories", "_propose_batch"},
     }
 
 
 async def verify_existing_and_rejected_drafts(db, test_user) -> None:
-    from tests.statement_ingestion import classify_transactions
-
     v2 = transaction_classification.POLICY_VERSIONS[-1]
-    txn = await make_txn(db, test_user)
-    row = await draft_via_review_path(db, test_user, txn, "DINING", 70)
-    elsewhere = await make_txn(db, test_user)
-    elsewhere_draft = await draft_via_review_path(db, test_user, elsewhere, "DINING", 70)
+    txn, elsewhere = await make_txn(db, test_user), await make_txn(db, test_user)
+    row, elsewhere_draft = (
+        await draft_via_review_path(db, test_user, txn, "DINING", 70),
+        await draft_via_review_path(db, test_user, elsewhere, "DINING", 70),
+    )
     assert "auto_accepted" not in row.tags
     await classify_transactions(db, test_user.id, [txn], policy=v2, proposer=constant_proposer("DINING", 70))
     await db.refresh(row)
@@ -3221,8 +3151,6 @@ async def verify_existing_and_rejected_drafts(db, test_user) -> None:
 
 
 async def verify_classified_rows_not_asked_again(db, test_user) -> None:
-    from tests.statement_ingestion import classify_transactions
-
     v2 = transaction_classification.POLICY_VERSIONS[-1]
     answered, unanswered = (
         await make_txn(db, test_user, description="ANSWERED"),
@@ -3243,27 +3171,26 @@ async def verify_classified_rows_not_asked_again(db, test_user) -> None:
 
     await classify_transactions(db, test_user.id, [answered, unanswered], policy=v2, proposer=first_pass)
     outcomes = await classify_transactions(db, test_user.id, [answered, unanswered], policy=v2, proposer=retry)
-    assert asked == [["ANSWERED", "UNANSWERED"], ["UNANSWERED"]] and [o.disposition for o in outcomes] == [
-        "already_classified",
-        "applied",
-    ]
     assert (
+        asked,
+        [o.disposition for o in outcomes],
         (await row_account(db, await txn_classification(db, answered))).name,
         (await row_account(db, await txn_classification(db, unanswered))).name,
-    ) == ("Expense - Dining", "Expense - Groceries")
-
-    async def must_not_run(_transactions, _policy):
-        raise AssertionError("the model must not be asked for a row that has its row")
-
+    ) == (
+        [["ANSWERED", "UNANSWERED"], ["UNANSWERED"]],
+        ["already_classified", "applied"],
+        "Expense - Dining",
+        "Expense - Groceries",
+    )
     assert [
         o.disposition
-        for o in await classify_transactions(db, test_user.id, [answered], policy=v2, proposer=must_not_run)
+        for o in await classify_transactions(
+            db, test_user.id, [answered], policy=v2, proposer=AsyncMock(side_effect=AssertionError("must not ask"))
+        )
     ] == ["already_classified"]
 
 
 async def verify_batch_scale_0_to_1(db, test_user, monkeypatch) -> None:
-    from tests.statement_ingestion import classify_transactions
-
     txns = [await make_txn(db, test_user, description=f"ROW {c}") for c in "ABCD"]
     mock_model_answers(
         monkeypatch,
@@ -3276,17 +3203,17 @@ async def verify_batch_scale_0_to_1(db, test_user, monkeypatch) -> None:
     )
     await classify_transactions(db, test_user.id, txns, policy=transaction_classification.POLICY_VERSIONS[-1])
     rows = [await txn_classification(db, t) for t in txns]
-    assert (rows[0].confidence_score, rows[1].confidence_score, rows[3].confidence_score) == (90, 100, 89)
     assert (
+        rows[0].confidence_score,
+        rows[1].confidence_score,
+        rows[3].confidence_score,
         (await row_account(db, rows[1])).name,
         (await row_account(db, rows[2])).name,
         rows[2].tags["original_confidence"],
-    ) == ("Expense - Groceries", "General Expense (SGD)", 58)
+    ) == (90, 100, 89, "Expense - Groceries", "General Expense (SGD)", 58)
 
 
 async def verify_handle_parse_failure_lineage(db, test_user) -> None:
-    from src.extraction.extension.statement_parsing import handle_parse_failure
-
     statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSING)
     await db.commit()
     await handle_parse_failure(
@@ -3313,18 +3240,16 @@ async def verify_handle_parse_failure_lineage(db, test_user) -> None:
         )
     ).scalar_one()
     refreshed = await db.get(StatementSummary, statement.id)
-    assert (doc.status, doc.original_filename, doc.file_path) == (
+    assert (doc.status, doc.original_filename, doc.file_path, refreshed.status, refreshed.uploaded_document_id) == (
         DocumentStatus.FAILED,
         "futu-2506.pdf",
         f"statements/{statement.id}/abc123.pdf",
+        BankStatementStatus.REJECTED,
+        doc.id,
     )
-    assert (refreshed.status, refreshed.uploaded_document_id) == (BankStatementStatus.REJECTED, doc.id)
 
 
 async def verify_parse_background_storage_error(db, test_user, monkeypatch) -> None:
-    from src.runtime import StorageError
-    from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
-
     sid = uuid4()
     statement = StatementSummaryFactory.build(
         id=sid, user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash="h_storage_err", institution="DBS"
@@ -3366,8 +3291,6 @@ async def verify_parse_background_storage_error(db, test_user, monkeypatch) -> N
 
 
 async def verify_dual_write_non_fatal(db, test_user) -> None:
-    from src.extraction.extension.deduplication import dual_write_layer2
-
     txn_date, amount, direction, description = date(2025, 1, 1), Decimal("1.00"), TransactionDirection.IN, "txn"
     txn = ExtractedTransactionRow(
         user_id=test_user.id,
@@ -3397,24 +3320,16 @@ async def verify_dual_write_non_fatal(db, test_user) -> None:
             original_filename="statement.pdf",
         )
         await db.commit()
-    rows = (
-        (
-            await db.execute(
-                select(UploadedDocument).where(
-                    UploadedDocument.user_id == test_user.id, UploadedDocument.file_hash == "abc123"
-                )
-            )
+    assert (
+        await _count(
+            db, UploadedDocument, UploadedDocument.user_id == test_user.id, UploadedDocument.file_hash == "abc123"
         )
-        .scalars()
-        .all()
+        == 1
     )
-    assert len(rows) == 1
 
 
 async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeypatch, failure: str, label: str) -> None:
-    from src.llm import AIStreamError
-
-    outcomes = spy_classify_outcomes(monkeypatch)
+    outcomes, provider_calls = spy_classify_outcomes(monkeypatch), []
     failing = Proposer(
         answers=EXTENDED_ANSWERS,
         timeout_gate=True,
@@ -3422,7 +3337,6 @@ async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeyp
             failure
         ),
     )
-    provider_calls: list[int] = []
     if failure == "provider-error":
         monkeypatch.setattr(
             "src.llm.stream_ai_json",
@@ -3440,15 +3354,13 @@ async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeyp
     await confirm_csv_envelope(client, db, test_user.id, statement_id, rows)
     response = await approve_statement(client, statement_id)
     assert (
-        response.status_code == 409
-        and response.json()["detail"].startswith("Economic review required:")
-        and healthy.rows_asked == 0
-    )
+        response.status_code,
+        response.json()["detail"].startswith("Economic review required:"),
+        healthy.rows_asked,
+    ) == (409, True, 0)
 
 
 async def verify_each_row_gets_own_date_policy(db, test_user, monkeypatch) -> None:
-    from tests.statement_ingestion import earlier_policy
-
     second, first, cutover = transaction_classification.POLICY_VERSIONS[-1], earlier_policy(), date(2026, 1, 6)
     monkeypatch.setattr(
         transaction_classification,
@@ -3458,8 +3370,10 @@ async def verify_each_row_gets_own_date_policy(db, test_user, monkeypatch) -> No
             ClassificationPolicy(**{**second.model_dump(), "effective_from": cutover}),
         ),
     )
-    proposer = install_proposer(monkeypatch, Proposer(answers=EXTENDED_ANSWERS, timeout_gate=True))
-    seeded = await seed_classify_statement(db, test_user.id, make_rows(10), name="seeded.pdf")
+    proposer, seeded = (
+        install_proposer(monkeypatch, Proposer(answers=EXTENDED_ANSWERS, timeout_gate=True)),
+        await seed_classify_statement(db, test_user.id, make_rows(10), name="seeded.pdf"),
+    )
     await classify_statement(db, seeded.id)
     stored = (
         await db.execute(

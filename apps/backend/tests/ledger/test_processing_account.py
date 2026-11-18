@@ -1,67 +1,231 @@
-from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from sqlalchemy import select; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import JournalEntrySourceType; from src.extraction import TransactionDirection; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, create_transfer_in_entry, create_transfer_out_entry, detect_transfer_pattern, find_transfer_pairs, get_or_create_processing_account, get_processing_balance, get_unpaired_transfers, post_journal_entry; from src.ledger.base.processing import _calculate_pair_confidence, _score_amount_match, _score_date_proximity; from src.reconciliation import score_description; from tests.factories import UserFactory
-def _make_pair(user_id, memo: str, debit_acc_id, credit_acc_id, amount: Decimal=Decimal('100.00'), status: JournalEntryStatus=JournalEntryStatus.POSTED, source_type: JournalEntrySourceType=JournalEntrySourceType.MANUAL) -> JournalEntry: entry = JournalEntry(user_id=user_id, entry_date=date.today(), memo=memo, status=status, source_type=source_type); entry.lines = [JournalLine(account_id=debit_acc_id, direction=Direction.DEBIT, amount=amount), JournalLine(account_id=credit_acc_id, direction=Direction.CREDIT, amount=amount)]; return entry
-async def _make_account(db: AsyncSession, user_id, name: str='Cash', code: str='1001') -> Account: acct = Account(user_id=user_id, name=name, code=code, type=AccountType.ASSET, currency='SGD'); db.add(acct); await db.flush(); return acct
-class TestProcessingAccountCreation:
-    async def test_processing_account_created_on_first_call(self, db: AsyncSession, test_user): user_id = test_user.id; processing = await get_or_create_processing_account(db, user_id, currency='SGD'); assert processing.name == 'Processing'; assert processing.code == '1199'; assert processing.type == AccountType.ASSET; assert processing.is_system is True; assert processing.currency == 'SGD'; assert processing.user_id == user_id
-    async def test_processing_account_idempotent(self, db: AsyncSession, test_user): user_id = test_user.id; processing1 = await get_or_create_processing_account(db, user_id, currency='SGD'); processing2 = await get_or_create_processing_account(db, user_id, currency='SGD'); assert processing1.id == processing2.id
-    async def test_processing_account_hidden_from_list(self, db: AsyncSession, test_user): user_id = test_user.id; from src.ledger.extension.account_service import list_accounts; await get_or_create_processing_account(db, user_id, currency='SGD'); regular = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD', is_system=False); db.add(regular); await db.flush(); accounts, total = await list_accounts(db, user_id); assert total == 1; assert accounts[0].name == 'Cash'; assert all((not acc.is_system for acc in accounts))
-    async def test_processing_account_per_user(self, db: AsyncSession): user1 = (await UserFactory.create_async(db)).id; user2 = (await UserFactory.create_async(db)).id; processing1 = await get_or_create_processing_account(db, user1, currency='SGD'); processing2 = await get_or_create_processing_account(db, user2, currency='SGD'); assert processing1.user_id == user1; assert processing2.user_id == user2; assert processing1.id != processing2.id
-class TestProcessingAccountTransfers:
-    async def test_transfer_out_to_processing(self, db: AsyncSession, test_user): user_id = test_user.id; cash = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD'); db.add(cash); await db.flush(); processing = await get_or_create_processing_account(db, user_id, currency='SGD'); entry = _make_pair(user_id, 'Transfer OUT to another account', processing.id, cash.id); db.add(entry); await db.flush(); lines = entry.lines; assert sum((ln.amount for ln in lines if ln.direction == Direction.DEBIT)) == Decimal('100.00'); assert sum((ln.amount for ln in lines if ln.direction == Direction.CREDIT)) == Decimal('100.00'); result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id)); processing_lines = list(result.scalars().all()); balance = sum((ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in processing_lines)); assert balance == Decimal('100.00')
-    async def test_transfer_in_from_processing(self, db: AsyncSession, test_user): user_id = test_user.id; checking = Account(user_id=user_id, name='Checking', code='1002', type=AccountType.ASSET, currency='SGD'); db.add(checking); await db.flush(); processing = await get_or_create_processing_account(db, user_id, currency='SGD'); entry = _make_pair(user_id, 'Transfer IN from another account', checking.id, processing.id); db.add(entry); await db.flush(); lines = entry.lines; assert sum((ln.amount for ln in lines if ln.direction == Direction.DEBIT)) == Decimal('100.00'); assert sum((ln.amount for ln in lines if ln.direction == Direction.CREDIT)) == Decimal('100.00'); result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id)); processing_lines = list(result.scalars().all()); balance = sum((ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in processing_lines)); assert balance == Decimal('-100.00')
-    async def test_paired_transfers_zero_balance(self, db: AsyncSession, test_user): user_id = test_user.id; cash = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD'); checking = Account(user_id=user_id, name='Checking', code='1002', type=AccountType.ASSET, currency='SGD'); db.add_all([cash, checking]); await db.flush(); processing = await get_or_create_processing_account(db, user_id, currency='SGD'); out_entry = _make_pair(user_id, 'Transfer OUT: Cash -> Processing', processing.id, cash.id); in_entry = _make_pair(user_id, 'Transfer IN: Processing -> Checking', checking.id, processing.id); db.add_all([out_entry, in_entry]); await db.flush(); result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id)); processing_lines = list(result.scalars().all()); balance = sum((ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in processing_lines)); assert balance == Decimal('0.00'); cash_result = await db.execute(select(JournalLine).where(JournalLine.account_id == cash.id)); cash_balance = sum((ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in cash_result.scalars().all())); assert cash_balance == Decimal('-100.00'); checking_result = await db.execute(select(JournalLine).where(JournalLine.account_id == checking.id)); checking_balance = sum((ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in checking_result.scalars().all())); assert checking_balance == Decimal('100.00')
-class TestProcessingAccountIntegrity:
-    async def test_unpaired_transfer_visible_in_processing_balance(self, db: AsyncSession, test_user): user_id = test_user.id; cash = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD'); db.add(cash); await db.flush(); processing = await get_or_create_processing_account(db, user_id, currency='SGD'); entry = _make_pair(user_id, 'Transfer OUT: Cash -> External (unpaired)', processing.id, cash.id, amount=Decimal('200.00')); db.add(entry); await db.flush(); result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id)); processing_lines = list(result.scalars().all()); balance = sum((ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in processing_lines)); assert balance == Decimal('200.00'); assert balance != Decimal('0.00')
-    async def test_accounting_equation_holds_with_processing(self, db: AsyncSession, test_user): user_id = test_user.id; cash = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD'); checking = Account(user_id=user_id, name='Checking', code='1002', type=AccountType.ASSET, currency='SGD'); equity = Account(user_id=user_id, name='Owner Equity', code='3001', type=AccountType.EQUITY, currency='SGD'); db.add_all([cash, checking, equity]); await db.flush(); processing = await get_or_create_processing_account(db, user_id, currency='SGD'); init_entry = _make_pair(user_id, 'Initial capital', cash.id, equity.id, amount=Decimal('500.00')); out_entry = _make_pair(user_id, 'Transfer OUT', processing.id, cash.id); in_entry = _make_pair(user_id, 'Transfer IN', checking.id, processing.id); db.add_all([init_entry, out_entry, in_entry]); await db.flush(); from src.ledger import calculate_account_balance; cash_balance = await calculate_account_balance(db, cash.id, user_id); processing_balance = await calculate_account_balance(db, processing.id, user_id); checking_balance = await calculate_account_balance(db, checking.id, user_id); equity_balance = await calculate_account_balance(db, equity.id, user_id); total_assets = cash_balance + processing_balance + checking_balance; total_equity = equity_balance; assert total_assets == Decimal('500.00'); assert total_equity == Decimal('500.00'); assert total_assets == total_equity; assert processing_balance == Decimal('0.00')
-class TestProcessingAccountValidation:
-    async def test_reject_manual_processing_entry(self, db: AsyncSession, test_user):
-        user_id = test_user.id; processing = await get_or_create_processing_account(db, user_id, currency='SGD'); cash = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD'); db.add(cash); await db.flush(); from src.ledger import ValidationError, post_journal_entry; entry = _make_pair(user_id, 'Manual entry (should fail)', processing.id, cash.id, status=JournalEntryStatus.DRAFT, source_type=JournalEntrySourceType.MANUAL); db.add(entry); await db.flush()
-        with pytest.raises(ValidationError, match='System accounts.*system-generated'): await post_journal_entry(db, entry.id, user_id)
-    async def test_system_entry_can_use_processing(self, db: AsyncSession, test_user): user_id = test_user.id; processing = await get_or_create_processing_account(db, user_id, currency='SGD'); cash = Account(user_id=user_id, name='Cash', code='1001', type=AccountType.ASSET, currency='SGD'); db.add(cash); await db.flush(); entry = _make_pair(user_id, 'System transfer (should succeed)', processing.id, cash.id, status=JournalEntryStatus.DRAFT, source_type=JournalEntrySourceType.SYSTEM); db.add(entry); await db.flush(); posted = await post_journal_entry(db, entry.id, user_id); assert posted.status == JournalEntryStatus.POSTED
-class TestTransferDetection:
-    async def test_detect_transfer_keywords(self, db: AsyncSession, test_user): from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory; user_id = test_user.id; document = await UploadedDocumentFactory.create_async(db, user_id=user_id); transfer_txns = [await AtomicTransactionFactory.create_async(db, user_id=user_id, source_doc_id=document.id, txn_date=date.today(), description=desc, amount=amt, direction=direction) for desc, amt, direction in [('TRANSFER TO JOHN DOE', Decimal('100.00'), TransactionDirection.OUT), ('Fast Payment to Bank B', Decimal('50.00'), TransactionDirection.OUT), ('PAYNOW TRANSFER', Decimal('25.00'), TransactionDirection.IN)]]; assert all((detect_transfer_pattern(txn.description) is True for txn in transfer_txns)); non_transfer = await AtomicTransactionFactory.create_async(db, user_id=user_id, source_doc_id=document.id, txn_date=date.today(), description='STARBUCKS COFFEE #1234', amount=Decimal('5.50'), direction=TransactionDirection.OUT); assert detect_transfer_pattern(non_transfer.description) is False
-    async def test_detect_transfer_no_description(self, db: AsyncSession, test_user): from src.ledger import detect_transfer_pattern; from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory; user_id = test_user.id; document = await UploadedDocumentFactory.create_async(db, user_id=user_id); txn_empty = await AtomicTransactionFactory.create_async(db, user_id=user_id, source_doc_id=document.id, txn_date=date.today(), description='', amount=Decimal('100.00'), direction=TransactionDirection.OUT); assert detect_transfer_pattern(txn_empty.description) is False
-    async def test_auto_pair_transfers_above_threshold(self, db: AsyncSession, test_user): user_id = test_user.id; cash = await _make_account(db, user_id, 'Cash', '1001'); checking = await _make_account(db, user_id, 'Checking', '1002'); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('100.00'), txn_date=date.today(), description='Transfer to Bank B', currency='SGD'); await create_transfer_in_entry(db, user_id=user_id, dest_account_id=checking.id, amount=Decimal('100.00'), txn_date=date.today(), description='Transfer to Bank B', currency='SGD'); pairs = await find_transfer_pairs(db, user_id, currency='SGD', description_scorer=score_description, threshold=85); assert len(pairs) == 1; pair = pairs[0]; assert pair.confidence >= 85; assert pair.score_breakdown['amount'] == 100.0; assert pair.score_breakdown['description'] > 80.0
-class TestTransferScoringFunctions:
-    def test_amount_exact_match(self): assert _score_amount_match(Decimal('100.00'), Decimal('100.01')) == 100.0; assert _score_amount_match(Decimal('100.00'), Decimal('100.00')) == 100.0; assert _score_amount_match(Decimal('100.00'), Decimal('100.05')) == 95.0; assert _score_amount_match(Decimal('100.00'), Decimal('100.10')) == 95.0
-    def test_amount_close_match(self): assert _score_amount_match(Decimal('100.00'), Decimal('100.50')) == 85.0; assert _score_amount_match(Decimal('100.00'), Decimal('101.00')) == 85.0; assert _score_amount_match(Decimal('100.00'), Decimal('103.00')) == 70.0; assert _score_amount_match(Decimal('100.00'), Decimal('105.00')) == 70.0; assert _score_amount_match(Decimal('0'), Decimal('100.00')) == 0.0; assert _score_amount_match(Decimal('100.00'), Decimal('110.00')) == 90.0; assert score_description('Transfer to Bank B', 'Transfer to Bank B') == 100.0; assert score_description('TRANSFER TO BANK B', 'transfer to bank b') == 100.0
-    def test_description_partial_match(self): assert 50 < score_description('Transfer to Bank B', 'Transfer to Bank A') < 100; assert score_description(None, 'Transfer') == 0.0; assert score_description('Transfer', None) == 0.0; assert score_description(None, None) == 0.0; _m8_same_date = date(2025, 1, 15); assert _score_date_proximity(_m8_same_date, _m8_same_date) == 100.0; assert _score_date_proximity(date(2025, 1, 15), date(2025, 1, 16)) == 95.0
-    def test_date_three_day_diff(self): assert _score_date_proximity(date(2025, 1, 15), date(2025, 1, 18)) == 85.0; assert _score_date_proximity(date(2025, 1, 15), date(2025, 1, 22)) == 70.0; assert _score_date_proximity(date(2025, 1, 15), date(2025, 1, 30)) == 0.0
-class TestUnpairedTransferDetection:
-    async def test_get_unpaired_transfers_empty(self, db: AsyncSession, test_user): user_id = test_user.id; unpaired = await get_unpaired_transfers(db, user_id, currency='SGD'); assert unpaired == []
-    async def test_get_unpaired_transfers_with_balance(self, db: AsyncSession, test_user): user_id = test_user.id; cash = await _make_account(db, user_id, 'Cash', '1001'); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('50.00'), txn_date=date.today(), description='Unpaired transfer', currency='SGD'); unpaired = await get_unpaired_transfers(db, user_id, currency='SGD'); assert len(unpaired) == 1; assert unpaired[0]['direction'] == 'OUT'; assert unpaired[0]['amount'] == Decimal('50.00')
-class TestProcessingBalanceQuery:
-    async def test_get_processing_balance_zero(self, db: AsyncSession, test_user): from src.ledger import get_processing_balance; user_id = test_user.id; balance = await get_processing_balance(db, user_id, currency='SGD'); assert balance == Decimal('0')
-    async def test_get_processing_balance_with_transfers(self, db: AsyncSession, test_user): user_id = test_user.id; cash = await _make_account(db, user_id, 'Cash', '1001'); await create_transfer_out_entry(db, user_id, cash.id, Decimal('75.00'), date.today(), 'Transfer OUT', currency='SGD'); balance = await get_processing_balance(db, user_id, currency='SGD'); assert balance == Decimal('75.00')
-class TestTransferEntryValidation:
-    async def test_transfer_out_rejects_zero_amount(self, db: AsyncSession, test_user):
-        cash = await _make_account(db, test_user.id, 'Cash', '1001')
-        with pytest.raises(ValueError, match='Transfer amount must be positive'): await create_transfer_out_entry(db, test_user.id, cash.id, Decimal('0'), date.today(), 'Test', currency='SGD')
-    async def test_transfer_out_rejects_negative_amount(self, db: AsyncSession, test_user):
-        cash = await _make_account(db, test_user.id, 'Cash', '1001')
-        with pytest.raises(ValueError, match='Transfer amount must be positive'): await create_transfer_out_entry(db, test_user.id, cash.id, Decimal('-50'), date.today(), 'Test', currency='SGD')
-    async def test_transfer_out_rejects_empty_description(self, db: AsyncSession, test_user):
-        cash = await _make_account(db, test_user.id, 'Cash', '1001')
-        with pytest.raises(ValueError, match='Transfer description must not be empty'): await create_transfer_out_entry(db, test_user.id, cash.id, Decimal('100'), date.today(), '', currency='SGD')
-    async def test_transfer_out_rejects_whitespace_description(self, db: AsyncSession, test_user):
-        cash = await _make_account(db, test_user.id, 'Cash', '1001')
-        with pytest.raises(ValueError, match='Transfer description must not be empty'): await create_transfer_out_entry(db, test_user.id, cash.id, Decimal('100'), date.today(), '   ', currency='SGD')
-    async def test_transfer_in_rejects_zero_amount(self, db: AsyncSession, test_user):
-        checking = await _make_account(db, test_user.id, 'Checking', '1002')
-        with pytest.raises(ValueError, match='Transfer amount must be positive'): await create_transfer_in_entry(db, test_user.id, checking.id, Decimal('0'), date.today(), 'Test', currency='SGD')
-    async def test_transfer_in_rejects_empty_description(self, db: AsyncSession, test_user):
-        checking = await _make_account(db, test_user.id, 'Checking', '1002')
-        with pytest.raises(ValueError, match='Transfer description must not be empty'): await create_transfer_in_entry(db, test_user.id, checking.id, Decimal('100'), date.today(), '', currency='SGD')
-class TestDescriptionScoringEdgeCases:
-    def test_description_whitespace_only(self): score = score_description('   ', 'Transfer'); assert score == 0.0; score = score_description('Transfer', '   '); assert score == 0.0
-class TestPairConfidenceEdgeCases:
-    def _make_entry(self, lines_data, memo='test'): from types import SimpleNamespace; mock_lines = [SimpleNamespace(account_id=aid, direction=d, amount=amt) for aid, d, amt in lines_data]; return SimpleNamespace(memo=memo, entry_date=date.today(), lines=mock_lines)
-    def test_pair_confidence_none_processing_account_id(self): acct_a, acct_b = (uuid4(), uuid4()); out_entry = self._make_entry([(acct_a, Direction.DEBIT, Decimal('100.00')), (acct_b, Direction.CREDIT, Decimal('100.00'))]); in_entry = self._make_entry([(acct_b, Direction.DEBIT, Decimal('100.00')), (acct_a, Direction.CREDIT, Decimal('100.00'))]); score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None, description_scorer=score_description); assert score > 0; assert breakdown['amount'] == 100.0; _m1_acct_a, _m1_acct_b = (uuid4(), uuid4()); _m1_out_entry = self._make_entry([(_m1_acct_a, Direction.CREDIT, Decimal('100.00'))]); _m1_in_entry = self._make_entry([(_m1_acct_b, Direction.CREDIT, Decimal('100.00'))]); _m1_score, _m1_breakdown = _calculate_pair_confidence(_m1_out_entry, _m1_in_entry, processing_account_id=None, description_scorer=score_description); assert _m1_breakdown['amount'] == 100.0; _m2_acct_a, _m2_acct_b = (uuid4(), uuid4()); _m2_out_entry = self._make_entry([(_m2_acct_a, Direction.DEBIT, Decimal('100.00')), (_m2_acct_b, Direction.CREDIT, Decimal('100.00'))]); _m2_in_entry = self._make_entry([(_m2_acct_b, Direction.DEBIT, Decimal('50.00'))]); _m2_score, _m2_breakdown = _calculate_pair_confidence(_m2_out_entry, _m2_in_entry, processing_account_id=None, description_scorer=score_description); assert _m2_breakdown['amount'] == 0.0
-def test_AC_reconciliation_named_transfer_legs_5_the_memo_limit_equals_the_column_size(): from src.ledger import fit_journal_memo; from src.ledger.base.memo import JOURNAL_MEMO_MAX_LENGTH; from src.ledger.orm.journal import JournalEntry; assert JOURNAL_MEMO_MAX_LENGTH == JournalEntry.__table__.c.memo.type.length == 500; assert fit_journal_memo('x' * 600) == 'x' * 500; assert fit_journal_memo('x' * 499) == 'x' * 499
-async def test_AC_ledger_74_4_find_transfer_pairs_orders_and_excludes_paired_before_limit(db: AsyncSession, test_user) -> None:
-    from unittest.mock import AsyncMock; user_id = test_user.id; bank_a = await _make_account(db, user_id, 'Bank A', '1001'); bank_b = await _make_account(db, user_id, 'Bank B', '1002'); unpaired_out = await create_transfer_out_entry(db, user_id=user_id, source_account_id=bank_a.id, amount=Decimal('400.00'), txn_date=date(2025, 3, 1), description='Older transfer to Bank B', currency='SGD'); unpaired_in = await create_transfer_in_entry(db, user_id=user_id, dest_account_id=bank_b.id, amount=Decimal('400.00'), txn_date=date(2025, 3, 1), description='Older transfer to Bank B', currency='SGD'); paired_out = await create_transfer_out_entry(db, user_id=user_id, source_account_id=bank_a.id, amount=Decimal('250.00'), txn_date=date(2025, 3, 5), description='Already paired transfer A', currency='SGD'); paired_in = await create_transfer_in_entry(db, user_id=user_id, dest_account_id=bank_b.id, amount=Decimal('999.00'), txn_date=date(2025, 3, 5), description='Already paired transfer B', currency='SGD'); control_pairs = await find_transfer_pairs(db, user_id, currency='SGD', description_scorer=score_description, threshold=85, max_entries=1); assert control_pairs == []; captured_statements = []; real_execute = db.execute
-    async def spy_execute(statement, *args, **kwargs): captured_statements.append(statement); return await real_execute(statement, *args, **kwargs)
+from datetime import date
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import JournalEntrySourceType
+from src.extraction import TransactionDirection
+from src.ledger import (
+    AccountType,
+    Direction,
+    JournalEntryStatus,
+    ValidationError,
+    calculate_account_balance,
+    create_transfer_in_entry,
+    create_transfer_out_entry,
+    detect_transfer_pattern,
+    find_transfer_pairs,
+    fit_journal_memo,
+    get_or_create_processing_account,
+    get_processing_balance,
+    get_unpaired_transfers,
+    post_journal_entry,
+)
+from src.ledger.base.memo import JOURNAL_MEMO_MAX_LENGTH
+from src.ledger.base.processing import _calculate_pair_confidence, _score_amount_match, _score_date_proximity
+from src.ledger.extension.account_service import list_accounts
+from src.ledger.orm.journal import JournalEntry
+from src.reconciliation import score_description
+from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory, UserFactory
+from tests.ledger._ledger_helpers import make_account, make_entry
+
+
+async def test_processing_account_creation_and_isolation(db: AsyncSession, test_user) -> None:
+    uid = test_user.id
+    p1 = await get_or_create_processing_account(db, uid, currency="SGD")
+    p2 = await get_or_create_processing_account(db, uid, currency="SGD")
+    assert (p1.id, p1.name, p1.code, p1.type, p1.is_system, p1.currency) == (
+        p2.id,
+        "Processing",
+        "1199",
+        AccountType.ASSET,
+        True,
+        "SGD",
+    )
+    await make_account(db, uid, "Cash", AccountType.ASSET, code="1001", is_system=False)
+    accounts, total = await list_accounts(db, uid)
+    assert total == 1 and accounts[0].name == "Cash" and all(not a.is_system for a in accounts)
+
+    other_id = (await UserFactory.create_async(db)).id
+    p_other = await get_or_create_processing_account(db, other_id, currency="SGD")
+    assert p_other.user_id == other_id and p_other.id != p1.id
+
+
+async def test_processing_account_transfers_and_equation(db: AsyncSession, test_user) -> None:
+    uid = test_user.id
+    cash = await make_account(db, uid, "Cash", AccountType.ASSET, code="1001")
+    checking = await make_account(db, uid, "Checking", AccountType.ASSET, code="1002")
+    equity = await make_account(db, uid, "Equity", AccountType.EQUITY, code="3001")
+    processing = await get_or_create_processing_account(db, uid, currency="SGD")
+
+    await make_entry(db, uid, [(cash.id, Direction.DEBIT, "500.00"), (equity.id, Direction.CREDIT, "500.00")])
+    await make_entry(db, uid, [(processing.id, Direction.DEBIT, "200.00"), (cash.id, Direction.CREDIT, "200.00")])
+    assert await calculate_account_balance(db, processing.id, uid) == Decimal("200.00")
+
+    await make_entry(db, uid, [(checking.id, Direction.DEBIT, "200.00"), (processing.id, Direction.CREDIT, "200.00")])
+    cash_b, proc_b, chk_b, eq_b = [
+        await calculate_account_balance(db, acc.id, uid) for acc in (cash, processing, checking, equity)
+    ]
+    assert (proc_b, cash_b, chk_b, cash_b + proc_b + chk_b, eq_b) == (
+        Decimal("0.00"),
+        Decimal("300.00"),
+        Decimal("200.00"),
+        Decimal("500.00"),
+        Decimal("500.00"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("source_type", "should_fail"),
+    [(JournalEntrySourceType.MANUAL, True), (JournalEntrySourceType.SYSTEM, False)],
+)
+async def test_processing_account_posting_authority(db: AsyncSession, test_user, source_type, should_fail: bool) -> None:
+    uid = test_user.id
+    processing = await get_or_create_processing_account(db, uid, currency="SGD")
+    cash = await make_account(db, uid, "Cash", AccountType.ASSET, code="1001")
+    entry = await make_entry(
+        db,
+        uid,
+        [(processing.id, Direction.DEBIT, "100.00"), (cash.id, Direction.CREDIT, "100.00")],
+        status=JournalEntryStatus.DRAFT,
+        source_type=source_type,
+    )
+    if should_fail:
+        with pytest.raises(ValidationError, match="System accounts.*system-generated"):
+            await post_journal_entry(db, entry.id, uid)
+    else:
+        assert (await post_journal_entry(db, entry.id, uid)).status == JournalEntryStatus.POSTED
+
+
+async def test_transfer_detection_pairing_and_unpaired_queries(db: AsyncSession, test_user) -> None:
+    uid = test_user.id
+    doc = await UploadedDocumentFactory.create_async(db, user_id=uid)
+    for desc, expected in (
+        ("TRANSFER TO JOHN DOE", True),
+        ("Fast Payment to Bank B", True),
+        ("PAYNOW TRANSFER", True),
+        ("STARBUCKS COFFEE #1234", False),
+        ("", False),
+    ):
+        txn = await AtomicTransactionFactory.create_async(
+            db, user_id=uid, source_doc_id=doc.id, txn_date=date.today(), description=desc, amount=Decimal("10.00"), direction=TransactionDirection.OUT
+        )
+        assert detect_transfer_pattern(txn.description) is expected
+
+    assert await get_unpaired_transfers(db, uid, currency="SGD") == []
+    assert await get_processing_balance(db, uid, currency="SGD") == Decimal("0")
+
+    cash = await make_account(db, uid, "Cash", AccountType.ASSET, code="1001")
+    checking = await make_account(db, uid, "Checking", AccountType.ASSET, code="1002")
+    await create_transfer_out_entry(db, user_id=uid, source_account_id=cash.id, amount=Decimal("100.00"), txn_date=date.today(), description="Transfer to Bank B", currency="SGD")
+    assert len(await get_unpaired_transfers(db, uid, currency="SGD")) == 1
+    assert await get_processing_balance(db, uid, currency="SGD") == Decimal("100.00")
+
+    await create_transfer_in_entry(db, user_id=uid, dest_account_id=checking.id, amount=Decimal("100.00"), txn_date=date.today(), description="Transfer to Bank B", currency="SGD")
+    pairs = await find_transfer_pairs(db, uid, currency="SGD", description_scorer=score_description, threshold=85)
+    assert len(pairs) == 1 and pairs[0].confidence >= 85 and pairs[0].score_breakdown["amount"] == 100.0
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [("100.00", "100.01", 100.0), ("100.00", "100.10", 95.0), ("100.00", "101.00", 85.0), ("100.00", "105.00", 70.0), ("0", "100.00", 0.0), ("100.00", "110.00", 90.0)],
+)
+def test_score_amount_match(a, b, expected) -> None:
+    assert _score_amount_match(Decimal(a), Decimal(b)) == expected
+
+
+def test_scoring_and_pair_confidence_edge_cases() -> None:
+    assert score_description("TRANSFER TO BANK B", "transfer to bank b") == 100.0
+    assert 50 < score_description("Transfer to Bank B", "Transfer to Bank A") < 100
+    for left, right in ((None, "Transfer"), ("Transfer", None), (None, None), ("   ", "Transfer"), ("Transfer", "   ")):
+        assert score_description(left, right) == 0.0
+
+    for d1, d2, expected in (
+        (date(2025, 1, 15), date(2025, 1, 15), 100.0),
+        (date(2025, 1, 15), date(2025, 1, 16), 95.0),
+        (date(2025, 1, 15), date(2025, 1, 18), 85.0),
+        (date(2025, 1, 15), date(2025, 1, 22), 70.0),
+        (date(2025, 1, 15), date(2025, 1, 30), 0.0),
+    ):
+        assert _score_date_proximity(d1, d2) == expected
+
+    def _mock_entry(lines_data):
+        return SimpleNamespace(
+            memo="test",
+            entry_date=date.today(),
+            lines=[SimpleNamespace(account_id=aid, direction=d, amount=Decimal(amt)) for aid, d, amt in lines_data],
+        )
+
+    a, b = uuid4(), uuid4()
+    s1, bd1 = _calculate_pair_confidence(
+        _mock_entry([(a, Direction.DEBIT, "100"), (b, Direction.CREDIT, "100")]),
+        _mock_entry([(b, Direction.DEBIT, "100"), (a, Direction.CREDIT, "100")]),
+        processing_account_id=None,
+        description_scorer=score_description,
+    )
+    _, bd2 = _calculate_pair_confidence(
+        _mock_entry([(a, Direction.CREDIT, "100")]),
+        _mock_entry([(b, Direction.CREDIT, "100")]),
+        processing_account_id=None,
+        description_scorer=score_description,
+    )
+    _, bd3 = _calculate_pair_confidence(
+        _mock_entry([(a, Direction.DEBIT, "100"), (b, Direction.CREDIT, "100")]),
+        _mock_entry([(b, Direction.DEBIT, "50")]),
+        processing_account_id=None,
+        description_scorer=score_description,
+    )
+    assert s1 > 0 and bd1["amount"] == 100.0 and bd2["amount"] == 100.0 and bd3["amount"] == 0.0
+
+    assert JOURNAL_MEMO_MAX_LENGTH == JournalEntry.__table__.c.memo.type.length == 500
+    assert fit_journal_memo("x" * 600) == "x" * 500 and fit_journal_memo("x" * 499) == "x" * 499
+
+
+@pytest.mark.parametrize(
+    ("fn", "amount", "desc", "match"),
+    [
+        (create_transfer_out_entry, "0", "Test", "Transfer amount must be positive"),
+        (create_transfer_out_entry, "-50", "Test", "Transfer amount must be positive"),
+        (create_transfer_out_entry, "100", "", "Transfer description must not be empty"),
+        (create_transfer_out_entry, "100", "   ", "Transfer description must not be empty"),
+        (create_transfer_in_entry, "0", "Test", "Transfer amount must be positive"),
+        (create_transfer_in_entry, "100", "", "Transfer description must not be empty"),
+    ],
+)
+async def test_transfer_entry_validation(db: AsyncSession, test_user, fn, amount, desc, match) -> None:
+    acct = await make_account(db, test_user.id, "Cash", AccountType.ASSET, code="1001")
+    with pytest.raises(ValueError, match=match):
+        await fn(db, test_user.id, acct.id, Decimal(amount), date.today(), desc, currency="SGD")
+
+
+async def test_find_transfer_pairs_orders_and_excludes_paired_before_limit(db: AsyncSession, test_user) -> None:
+    uid = test_user.id
+    bank_a = await make_account(db, uid, "Bank A", AccountType.ASSET, code="1001")
+    bank_b = await make_account(db, uid, "Bank B", AccountType.ASSET, code="1002")
+    unpaired_out = await create_transfer_out_entry(db, user_id=uid, source_account_id=bank_a.id, amount=Decimal("400.00"), txn_date=date(2025, 3, 1), description="Older transfer to Bank B", currency="SGD")
+    unpaired_in = await create_transfer_in_entry(db, user_id=uid, dest_account_id=bank_b.id, amount=Decimal("400.00"), txn_date=date(2025, 3, 1), description="Older transfer to Bank B", currency="SGD")
+    paired_out = await create_transfer_out_entry(db, user_id=uid, source_account_id=bank_a.id, amount=Decimal("250.00"), txn_date=date(2025, 3, 5), description="Already paired A", currency="SGD")
+    paired_in = await create_transfer_in_entry(db, user_id=uid, dest_account_id=bank_b.id, amount=Decimal("999.00"), txn_date=date(2025, 3, 5), description="Already paired B", currency="SGD")
+
+    assert await find_transfer_pairs(db, uid, currency="SGD", description_scorer=score_description, threshold=85, max_entries=1) == []
+    captured: list = []
+    real_execute = db.execute
+
+    async def spy_execute(statement, *args, **kwargs):
+        captured.append(statement)
+        return await real_execute(statement, *args, **kwargs)
+
     db.execute = AsyncMock(side_effect=spy_execute)
-    try: pairs = await find_transfer_pairs(db, user_id, currency='SGD', description_scorer=score_description, threshold=85, max_entries=1, exclude_entry_ids={paired_out.id, paired_in.id})
-    finally: db.execute = real_execute
-    assert len(pairs) == 1; assert pairs[0].out_entry.id == unpaired_out.id; assert pairs[0].in_entry.id == unpaired_in.id; entry_stmt = captured_statements[-1]; compiled_sql = str(entry_stmt.compile(compile_kwargs={'literal_binds': False})); assert 'ORDER BY journal_entries.entry_date DESC, journal_entries.created_at DESC, journal_entries.id DESC' in compiled_sql; assert 'journal_entries.id NOT IN' in compiled_sql; assert 'LIMIT' in compiled_sql
+    try:
+        pairs = await find_transfer_pairs(db, uid, currency="SGD", description_scorer=score_description, threshold=85, max_entries=1, exclude_entry_ids={paired_out.id, paired_in.id})
+    finally:
+        db.execute = real_execute
+
+    assert len(pairs) == 1 and (pairs[0].out_entry.id, pairs[0].in_entry.id) == (unpaired_out.id, unpaired_in.id)
+    compiled_sql = str(captured[-1].compile(compile_kwargs={"literal_binds": False}))
+    assert "ORDER BY journal_entries.entry_date DESC, journal_entries.created_at DESC, journal_entries.id DESC" in compiled_sql
+    assert "journal_entries.id NOT IN" in compiled_sql and "LIMIT" in compiled_sql

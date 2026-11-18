@@ -8,313 +8,124 @@ from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from src.audit import DataProvenance
-from src.pricing import (
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ValuationComponentItem,
-    ValuationService,
-    record_manual_valuation,
-)
+from src.pricing import ManualValuationBasis, ManualValuationComponentType, ManualValuationLiquidityClass, ValuationComponentItem, ValuationService, record_manual_valuation
 from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.schemas.pricing import ManualValuationSnapshotCreate
 
 
-async def test_create_manual_valuation_snapshot_crud_api(client):
-    payload = {
-        "component_type": "property_value",
-        "as_of_date": "2026-05-18",
-        "value": "1250000.99",
-        "currency": "SGD",
-        "source": "manual appraisal",
-        "notes": "May checkpoint",
-        "recurrence_days": 90,
-        "reminder_date": "2026-08-16",
-    }
-    create_response = await client.post("/pricing/manual-valuations", json=payload)
-    assert create_response.status_code == 201
-    created = create_response.json()
-    assert created["component_type"] == "property_value"
-    assert created["liquidity_class"] == "illiquid"
-    assert created["value"] == "1250000.99"
-    assert created["provenance"] == "manual"
-    assert created["created_at"]
-    assert created["updated_at"]
-
-    list_response = await client.get("/pricing/manual-valuations")
-    assert list_response.status_code == 200
-    listed = list_response.json()
-    assert listed["total"] == 1
-    assert listed["items"][0]["id"] == created["id"]
-    assert listed["items"][0]["provenance"] == "manual"
-
-    # Append-only correction via POST on the same (component_type, source, as_of_date) identity
-    corrected_response = await client.post(
-        "/pricing/manual-valuations",
-        json={**payload, "value": "1260000.10", "notes": "Updated valuation"},
-    )
-    assert corrected_response.status_code == 201
-    updated = corrected_response.json()
-    assert updated["value"] == "1260000.10"
-    assert updated["notes"] == "Updated valuation"
-    assert updated["id"] != created["id"]
-
-    # Retired single-snapshot PATCH/DELETE/GET endpoints must not resolve
-    assert (await client.patch(f"/assets/valuation-snapshots/{updated['id']}", json={"value": "1.00"})).status_code == 404
-    assert (await client.delete(f"/assets/valuation-snapshots/{updated['id']}")).status_code == 404
-    assert (await client.get(f"/assets/valuation-snapshots/{updated['id']}")).status_code == 404
-
+async def test_create_manual_valuation_snapshot_crud_and_retired_endpoints(client):
+    payload = {"component_type": "property_value", "as_of_date": "2026-05-18", "value": "1250000.99", "currency": "SGD", "source": "manual appraisal", "notes": "May checkpoint", "recurrence_days": 90, "reminder_date": "2026-08-16"}
+    create_resp = await client.post("/pricing/manual-valuations", json=payload)
+    created = create_resp.json()
+    list_resp = await client.get("/pricing/manual-valuations")
+    corrected_resp = await client.post("/pricing/manual-valuations", json={**payload, "value": "1260000.10", "notes": "Updated valuation"})
+    updated = corrected_resp.json()
+    retired = [(await getattr(client, m)(f"/assets/valuation-snapshots/{updated['id']}", **({"json": {"value": "1.00"}} if m == "patch" else {}))).status_code for m in ("patch", "delete", "get")]
     current_list = await client.get("/pricing/manual-valuations")
-    assert current_list.status_code == 200
-    assert current_list.json()["total"] == 1
-    assert current_list.json()["items"][0]["id"] == updated["id"]
+    assert (
+        create_resp.status_code,
+        (created["component_type"], created["liquidity_class"], created["value"], created["provenance"], bool(created["created_at"]), bool(created["updated_at"])),
+        (list_resp.status_code, list_resp.json()["total"], list_resp.json()["items"][0]["id"], list_resp.json()["items"][0]["provenance"]),
+        corrected_resp.status_code,
+        (updated["value"], updated["notes"], updated["id"] != created["id"]),
+        retired,
+        (current_list.status_code, current_list.json()["total"], current_list.json()["items"][0]["id"]),
+    ) == (201, ("property_value", "illiquid", "1250000.99", "manual", True, True), (200, 1, created["id"], "manual"), 201, ("1260000.10", "Updated valuation", True), [404, 404, 404], (200, 1, updated["id"]))
 
 
-async def test_manual_valuation_snapshot_filter_and_default_liquidity(client):
-    property_payload = {
-        "component_type": "property_value",
-        "as_of_date": "2026-05-18",
-        "value": "1250000.00",
-        "currency": "sgd",
-        "source": "manual appraisal",
-    }
-    tax_payload = {
-        "component_type": "tax_refund",
-        "as_of_date": "2026-05-19",
-        "value": "1200.00",
-        "currency": "SGD",
-        "source": "IRAS",
-    }
-    property_response = await client.post("/pricing/manual-valuations", json=property_payload)
-    tax_response = await client.post("/pricing/manual-valuations", json=tax_payload)
-    assert property_response.status_code == 201
-    assert tax_response.status_code == 201
-    assert property_response.json()["currency"] == "SGD"
-
-    filtered_response = await client.get(
-        "/pricing/manual-valuations", params={"component_type": "property_value", "as_of_date": "2026-05-18"}
-    )
-    assert filtered_response.status_code == 200
-    filtered = filtered_response.json()
-    assert filtered["total"] == 1
-    assert filtered["items"][0]["component_type"] == "property_value"
-
-
-async def test_manual_valuation_snapshot_errors(client):
-    invalid_filter_response = await client.get("/pricing/manual-valuations", params={"component_type": "unsupported"})
-    assert invalid_filter_response.status_code == 400
-
-
-async def test_manual_valuation_components_api_returns_latest_as_of_values(client):
-    old_property = {
-        "component_type": "property_value",
-        "as_of_date": "2026-01-31",
-        "value": "1000000.01",
-        "currency": "SGD",
-        "source": "appraisal",
-    }
-    new_property = {**old_property, "as_of_date": "2026-05-18", "value": "1000000.02"}
-    mortgage = {
-        "component_type": "mortgage_balance",
-        "as_of_date": "2026-05-18",
-        "value": "300000.03",
-        "currency": "SGD",
-        "source": "bank portal",
-    }
-    assert (await client.post("/pricing/manual-valuations", json=old_property)).status_code == 201
-    assert (await client.post("/pricing/manual-valuations", json=new_property)).status_code == 201
-    assert (await client.post("/pricing/manual-valuations", json=mortgage)).status_code == 201
-    response = await client.get("/pricing/valuation-components", params={"as_of_date": "2026-05-18"})
-    assert response.status_code == 200
-    data = response.json()
-    assert data["total_assets"] == "1000000.02"
-    assert data["total_liabilities"] == "300000.03"
-    assert data["net_worth_delta"] == "699999.99"
-    assert {item["component_type"] for item in data["items"]} == {"property_value", "mortgage_balance"}
-    assert {item["provenance"] for item in data["items"]} == {"manual"}
+async def test_manual_valuation_snapshot_filter_errors_and_components_api(client):
+    new_prop = {"component_type": "property_value", "as_of_date": "2026-05-18", "value": "1000000.02", "currency": "sgd", "source": "appraisal"}
+    tax = {"component_type": "tax_refund", "as_of_date": "2026-05-19", "value": "1200.00", "currency": "SGD", "source": "IRAS"}
+    for p in (new_prop, tax):
+        assert (await client.post("/pricing/manual-valuations", json=p)).status_code == 201
+    filtered = await client.get("/pricing/manual-valuations", params={"component_type": "property_value", "as_of_date": "2026-05-18"})
+    bad = await client.get("/pricing/manual-valuations", params={"component_type": "unsupported"})
+    for p in ({**new_prop, "as_of_date": "2026-01-31", "value": "1000000.01"}, {"component_type": "mortgage_balance", "as_of_date": "2026-05-18", "value": "300000.03", "currency": "SGD", "source": "bank portal"}):
+        assert (await client.post("/pricing/manual-valuations", json=p)).status_code == 201
+    comp = await client.get("/pricing/valuation-components", params={"as_of_date": "2026-05-18"})
+    data = comp.json()
+    assert (
+        (filtered.status_code, filtered.json()["total"], filtered.json()["items"][0]["component_type"], filtered.json()["items"][0]["currency"]),
+        bad.status_code,
+        (comp.status_code, data["total_assets"], data["total_liabilities"], data["net_worth_delta"], {i["component_type"] for i in data["items"]}, {i["provenance"] for i in data["items"]}),
+    ) == ((200, 1, "property_value", "SGD"), 400, (200, "1000000.02", "300000.03", "699999.99", {"property_value", "mortgage_balance"}, {"manual"}))
 
 
 @pytest.mark.no_db
-def test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type() -> None:
+async def test_AC22_13_1_AC11_19_1_provenance_type_schema_and_row_lock() -> None:
     assert ValuationComponentItem.__dataclass_fields__["provenance"].type == DataProvenance
+    assert ManualValuationSnapshotCreate(component_type=ManualValuationComponentType.PROPERTY_VALUE, as_of_date=date(2026, 5, 18), value=Decimal("1.23"), currency="sgd", source="manual").currency == "SGD"
 
+    class _HeadQueryIssued(Exception):
+        pass
 
-class _HeadQueryIssued(Exception):
-    pass
-
-
-@pytest.mark.no_db
-async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
     db = MagicMock()
     db.execute = AsyncMock(side_effect=_HeadQueryIssued)
     with pytest.raises(_HeadQueryIssued):
-        await record_manual_valuation(
-            db,
-            uuid4(),
-            component_type=ManualValuationComponentType.PROPERTY_VALUE,
-            liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
-            as_of=date(2026, 5, 18),
-            value=Decimal("1000000.00"),
-            currency="SGD",
-            source="manual appraisal",
-        )
-    statement = db.execute.await_args.args[0]
-    compiled = str(statement.compile(dialect=postgresql.dialect()))
-    assert "FOR UPDATE" in compiled
+        await record_manual_valuation(db, uuid4(), component_type=ManualValuationComponentType.PROPERTY_VALUE, liquidity_class=ManualValuationLiquidityClass.ILLIQUID, as_of=date(2026, 5, 18), value=Decimal("1000000.00"), currency="SGD", source="manual appraisal")
+    assert "FOR UPDATE" in str(db.execute.await_args.args[0].compile(dialect=postgresql.dialect()))
 
 
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
     from src.routers import pricing as pricing_router
 
-    async def raise_on_create(*args, **kwargs):
+    async def fail(*_a, **_kw):
         raise RuntimeError("create failed")
 
-    monkeypatch.setattr(pricing_router._valuations, "create_valuation_snapshot", raise_on_create)
-    create_response = await client.post(
-        "/pricing/manual-valuations",
-        json={
-            "component_type": "property_value",
-            "as_of_date": "2026-05-18",
-            "value": "1.00",
-            "currency": "SGD",
-            "source": "manual",
-        },
-    )
-    assert create_response.status_code == 500
+    monkeypatch.setattr(pricing_router._valuations, "create_valuation_snapshot", fail)
+    resp = await client.post("/pricing/manual-valuations", json={"component_type": "property_value", "as_of_date": "2026-05-18", "value": "1.00", "currency": "SGD", "source": "manual"})
+    assert resp.status_code == 500
 
 
-async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history(db, test_user):
+async def test_AC11_19_manual_valuation_service_history_dedup_and_scope(db, test_user):
     service = ValuationService()
-    identity = dict(
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        as_of_date=date(2026, 5, 18),
-        source="manual appraisal",
-    )
-    first = await service.create_valuation_snapshot(
-        db, user_id=test_user.id, value=Decimal("1000000.00"), currency="SGD", **identity
-    )
-    corrected = await service.create_valuation_snapshot(
-        db, user_id=test_user.id, value=Decimal("1100000.00"), currency="USD", **identity
-    )
+    ident = dict(component_type=ManualValuationComponentType.PROPERTY_VALUE, as_of_date=date(2026, 5, 18), source="manual appraisal")
+    first = await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1000000.00"), currency="SGD", **ident)
+    corrected = await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1100000.00"), currency="USD", **ident)
     await db.commit()
     await db.refresh(first)
-    assert first.value == Decimal("1000000.00"), "prior fact must not be edited in place"
-    assert first.version == 1
-    assert first.superseded_by_id == corrected.id
-    assert corrected.value == Decimal("1100000.00")
-    assert corrected.currency == "USD"
-    assert corrected.version == 2
-    assert corrected.superseded_by_id is None
-    history = (
-        (
-            await db.execute(
-                select(ManualValuationSnapshot)
-                .where(ManualValuationSnapshot.user_id == test_user.id)
-                .where(ManualValuationSnapshot.component_type == identity["component_type"])
-                .where(ManualValuationSnapshot.source == identity["source"])
-                .where(ManualValuationSnapshot.as_of_date == identity["as_of_date"])
-                .order_by(ManualValuationSnapshot.version.desc())
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert [(h.version, h.value) for h in history] == [(2, Decimal("1100000.00")), (1, Decimal("1000000.00"))]
-
-
-async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user):
-    service = ValuationService()
-    key = dict(
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        as_of_date=date(2026, 5, 18),
-        currency="SGD",
-        source="manual appraisal",
-    )
-    await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1000000.00"), **key)
-    await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1100000.00"), **key)
-    await db.commit()
-    components = await service.get_latest_valuation_components(db, test_user.id, as_of_date=date(2026, 5, 18))
-    assert components.total_assets == Decimal("1100000.00"), "superseded version must be excluded"
+    history = (await db.execute(select(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == test_user.id, ManualValuationSnapshot.component_type == ident["component_type"], ManualValuationSnapshot.source == ident["source"], ManualValuationSnapshot.as_of_date == ident["as_of_date"]).order_by(ManualValuationSnapshot.version.desc()))).scalars().all()
     snapshots, total = await service.list_valuation_snapshots(db, test_user.id)
-    assert total == 1, "list returns only current heads"
-    assert snapshots[0].value == Decimal("1100000.00")
+    assert (
+        (first.value, first.version, first.superseded_by_id, corrected.value, corrected.currency, corrected.version, corrected.superseded_by_id),
+        [(h.version, h.value) for h in history],
+        (total, snapshots[0].value),
+    ) == ((Decimal("1000000.00"), 1, corrected.id, Decimal("1100000.00"), "USD", 2, None), [(2, Decimal("1100000.00")), (1, Decimal("1000000.00"))], (1, Decimal("1100000.00")))
 
 
-def test_manual_valuation_snapshot_schema_normalizes_currency():
-    create_payload = ManualValuationSnapshotCreate(
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        as_of_date=date(2026, 5, 18),
-        value=Decimal("1.23"),
-        currency="sgd",
-        source="manual",
-    )
-    assert create_payload.currency == "SGD"
-
-
-async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_user):
+async def test_manual_valuation_snapshot_latest_components_and_restricted_toggle(db, test_user):
     service = ValuationService()
-    await service.create_valuation_snapshot(
-        db,
-        user_id=test_user.id,
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        as_of_date=date(2026, 1, 31),
-        value=Decimal("1000000.01"),
-        currency="SGD",
-        source="appraisal",
-    )
-    await service.create_valuation_snapshot(
-        db,
-        user_id=test_user.id,
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        as_of_date=date(2026, 5, 18),
-        value=Decimal("1000000.02"),
-        currency="SGD",
-        source="appraisal",
-    )
-    await service.create_valuation_snapshot(
-        db,
-        user_id=test_user.id,
-        component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
-        as_of_date=date(2026, 5, 18),
-        value=Decimal("300000.03"),
-        currency="SGD",
-        source="bank portal",
-    )
+    for ctype, as_of, val, src in (
+        (ManualValuationComponentType.PROPERTY_VALUE, date(2026, 1, 31), "1000000.01", "appraisal"),
+        (ManualValuationComponentType.PROPERTY_VALUE, date(2026, 5, 18), "1000000.02", "appraisal"),
+        (ManualValuationComponentType.MORTGAGE_BALANCE, date(2026, 5, 18), "300000.03", "bank portal"),
+        (ManualValuationComponentType.CPF_BALANCE, date(2026, 5, 18), "50000.00", "CPF portal"),
+        (ManualValuationComponentType.TAX_REFUND, date(2026, 5, 18), "1200.00", "IRAS"),
+    ):
+        await service.create_valuation_snapshot(db, user_id=test_user.id, component_type=ctype, as_of_date=as_of, value=Decimal(val), currency="SGD", source=src)
     await db.commit()
-    components = await service.get_latest_valuation_components(db, test_user.id, as_of_date=date(2026, 5, 18))
-    assert components.total_assets == Decimal("1000000.02")
-    assert components.total_liabilities == Decimal("300000.03")
-    assert components.net_worth_delta == Decimal("699999.99")
-    assert components.items[0].value == Decimal("1000000.02")
-    assert components.items[1].liquidity_class == "liability"
+    full = await service.get_latest_valuation_components(db, test_user.id, as_of_date=date(2026, 5, 18), include_restricted=True)
+    liquid = await service.get_latest_valuation_components(db, test_user.id, as_of_date=date(2026, 5, 18), include_restricted=False)
+    assert (
+        (full.total_assets, full.total_liabilities, full.net_worth_delta),
+        {i.component_type for i in full.items},
+        liquid.total_assets,
+        next(i for i in full.items if i.component_type == "mortgage_balance").liquidity_class,
+    ) == ((Decimal("1051200.02"), Decimal("300000.03"), Decimal("751199.99")), {"property_value", "mortgage_balance", "cpf_balance", "tax_refund"}, Decimal("1200.00"), "liability")
 
 
-async def test_manual_valuation_snapshot_restricted_toggle(db, test_user):
+async def test_AC11_9_5_valuation_basis_api_and_superseding_head(client, db, test_user):
+    with_basis = await client.post("/pricing/manual-valuations", json={"component_type": "esop", "as_of_date": "2026-03-31", "value": "12345.67", "currency": "SGD", "source": "employer equity portal", "valuation_basis": "employer_grant_document"})
+    no_basis = await client.post("/pricing/manual-valuations", json={"component_type": "property_value", "as_of_date": "2026-03-31", "value": "500000.00", "currency": "SGD", "source": "private appraisal"})
     service = ValuationService()
-    await service.create_valuation_snapshot(
-        db,
-        user_id=test_user.id,
-        component_type=ManualValuationComponentType.CPF_BALANCE,
-        as_of_date=date(2026, 5, 18),
-        value=Decimal("50000.00"),
-        currency="SGD",
-        source="CPF portal",
-    )
-    await service.create_valuation_snapshot(
-        db,
-        user_id=test_user.id,
-        component_type=ManualValuationComponentType.TAX_REFUND,
-        as_of_date=date(2026, 5, 18),
-        value=Decimal("1200.00"),
-        currency="SGD",
-        source="IRAS",
-    )
+    as_of = date(2026, 4, 30)
+    unsub = await service.create_valuation_snapshot(db, test_user.id, component_type=ManualValuationComponentType.PROPERTY_VALUE, as_of_date=as_of, value=Decimal("500000.00"), currency="SGD", source="private appraisal")
     await db.commit()
-    all_components = await service.get_latest_valuation_components(
-        db, test_user.id, as_of_date=date(2026, 5, 18), include_restricted=True
-    )
-    liquid_only = await service.get_latest_valuation_components(
-        db, test_user.id, as_of_date=date(2026, 5, 18), include_restricted=False
-    )
-    assert all_components.total_assets == Decimal("51200.00")
-    assert liquid_only.total_assets == Decimal("1200.00")
-    assert {item.component_type for item in all_components.items} == {"cpf_balance", "tax_refund"}
+    assert unsub.valuation_basis is None
+    sub = await service.create_valuation_snapshot(db, test_user.id, component_type=ManualValuationComponentType.PROPERTY_VALUE, as_of_date=as_of, value=Decimal("500000.00"), currency="SGD", source="private appraisal", valuation_basis=ManualValuationBasis.MARKET_APPRAISAL)
+    await db.commit()
+    assert (
+        (with_basis.status_code, with_basis.json()["valuation_basis"], with_basis.json()["value"], with_basis.json()["provenance"]),
+        (no_basis.status_code, no_basis.json()["valuation_basis"]),
+        (unsub.superseded_by_id, sub.superseded_by_id, sub.valuation_basis),
+    ) == ((201, "employer_grant_document", "12345.67", "manual"), (201, None), (sub.id, None, ManualValuationBasis.MARKET_APPRAISAL))

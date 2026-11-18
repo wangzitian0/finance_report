@@ -10,7 +10,8 @@ from infra2_sdk.runtime import health as sdk_health
 from infra2_sdk.runtime.health import DependencyStatus
 
 import src.runtime as runtime_package
-from src.runtime import AnalyticsCheck, DatabaseCheck, MarketDataCheck, ObjectStorageCheck, RedisCheck, TelemetryCheck, WorkflowEngineCheck
+from src.boot import Bootloader
+from src.runtime import AnalyticsCheck, DatabaseCheck, EnvTier, MarketDataCheck, ObjectStorageCheck, RedisCheck, TelemetryCheck, WorkflowEngineCheck
 
 pytestmark = pytest.mark.no_db
 
@@ -46,36 +47,27 @@ async def test_http_checks(make_check, name: str, outcomes: list[tuple[object, D
 
 
 async def test_database_and_object_storage_checks() -> None:
-    conn = AsyncMock(execute=AsyncMock())
     eng = MagicMock(dispose=AsyncMock())
-    eng.connect.return_value.__aenter__.return_value = conn
+    eng.connect.return_value.__aenter__.return_value = AsyncMock(execute=AsyncMock())
     with patch("src.runtime.extension.adapters.create_async_engine", return_value=eng):
-        ok = await DatabaseCheck("postgresql+asyncpg://postgres:secret123@127.0.0.1:5432/finance").probe()
-    assert (ok.name, ok.status, ok.detail) == ("database", DependencyStatus.PRESENT, "Connection successful")
+        assert ((ok := await DatabaseCheck("postgresql+asyncpg://postgres:secret123@127.0.0.1:5432/finance").probe()).name, ok.status, ok.detail) == ("database", DependencyStatus.PRESENT, "Connection successful")
 
     dsn = "postgresql+asyncpg://postgres:super_secret_password@127.0.0.1:5432/finance"
     with patch("src.runtime.extension.adapters.create_async_engine", side_effect=Exception(f"failed {dsn}")):
-        err = await DatabaseCheck(dsn).probe()
-    assert (err.name, err.status) == ("database", DependencyStatus.ABSENT) and "super_secret_password" not in err.detail and "<redacted-postgres-dsn>" in err.detail
+        assert ((err := await DatabaseCheck(dsn).probe()).name, err.status) == ("database", DependencyStatus.ABSENT) and "super_secret_password" not in err.detail and "<redacted-postgres-dsn>" in err.detail
 
     kw = {"endpoint": "http://localhost:9000", "access_key": "minio", "region": "us-east-1", "bucket": "statements"}
     sdk_res = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.2)
     with patch("src.runtime.extension.adapters.probe_s3", return_value=sdk_res) as probe_fn:
         assert await ObjectStorageCheck(secret_key="minio123", **kw).probe() is sdk_res
     assert (probe_fn.call_args.args[0].bucket, probe_fn.call_args.args[0].endpoint_url) == ("statements", "http://localhost:9000")
-    bad = await ObjectStorageCheck(secret_key=None, **kw).probe()
-    assert (bad.name, bad.status) == ("object_storage", DependencyStatus.ABSENT) and "secret key" in bad.detail
+    assert ((bad := await ObjectStorageCheck(secret_key=None, **kw).probe()).name, bad.status) == ("object_storage", DependencyStatus.ABSENT) and "secret key" in bad.detail
 
 
-def test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter() -> None:
-    from src.boot import Bootloader
-    from src.runtime import EnvTier
-
-    for tier in EnvTier:
-        assert Bootloader._required_checks(tier)[1] == []
+def test_every_declared_dependency_has_a_probe_adapter() -> None:
+    assert all(Bootloader._required_checks(tier)[1] == [] for tier in EnvTier)
     sdk_owned = {"ProbeResult", "DependencyStatus", "DependencyCheck"}
-    pkg_dir = Path(runtime_package.__file__).resolve().parent
-    sources = sorted(pkg_dir.rglob("*.py"))
+    sources = sorted(Path(runtime_package.__file__).resolve().parent.rglob("*.py"))
     assert sdk_owned.isdisjoint(runtime_package.__all__) and any(p.name == "adapters.py" for p in sources)
     assert not [f"{p.name}:{n.lineno}:{n.name}" for p in sources for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))) if isinstance(n, ast.ClassDef) and n.name in sdk_owned]
 

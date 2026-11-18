@@ -1,14 +1,28 @@
-from unittest.mock import AsyncMock, MagicMock, patch; from src.llm.extension.semantic_scoring import ai_semantic_score
-async def test_ai_semantic_score_returns_score():
-    mock_response = '{"similarity_score": 92, "reasoning": "Both refer to salary"}'; mock_accumulate = AsyncMock(return_value=mock_response); mock_stream = MagicMock()
-    with patch('src.llm.extension.semantic_scoring.settings') as mock_settings, patch('src.llm.extension.semantic_scoring.stream_ai_json', return_value=mock_stream), patch('src.llm.extension.semantic_scoring.accumulate_stream', mock_accumulate): mock_settings.ai_api_key = 'test-key'; mock_settings.small_model = 'test-model'; mock_settings.ai_base_url = 'https://test.api'; score = await ai_semantic_score('Bank Transaction: "SALARY ACME CORP"\nJournal Entry: "Monthly salary payment"'); assert score == 92
-    _m1_mock_response = '{"similarity_score": 15, "reasoning": "Completely different"}'; _m1_mock_accumulate = AsyncMock(return_value=_m1_mock_response); _m1_mock_stream = MagicMock()
-    with patch('src.llm.extension.semantic_scoring.settings') as _m1_mock_settings, patch('src.llm.extension.semantic_scoring.stream_ai_json', return_value=_m1_mock_stream), patch('src.llm.extension.semantic_scoring.accumulate_stream', _m1_mock_accumulate): _m1_mock_settings.ai_api_key = 'test-key'; _m1_mock_settings.small_model = 'test-model'; _m1_mock_settings.ai_base_url = 'https://test.api'; _m1_score = await ai_semantic_score('Bank Transaction: "COFFEE SHOP PURCHASE"\nJournal Entry: "Car insurance premium"'); assert _m1_score == 15
-    from src.llm import AIStreamError; _m2_mock_stream = MagicMock(side_effect=AIStreamError('API error'))
-    with patch('src.llm.extension.semantic_scoring.settings') as _m2_mock_settings, patch('src.llm.extension.semantic_scoring.stream_ai_json', _m2_mock_stream): _m2_mock_settings.ai_api_key = 'test-key'; _m2_mock_settings.small_model = 'test-model'; _m2_mock_settings.ai_base_url = 'https://test.api'; _m2_score = await ai_semantic_score('test prompt'); assert _m2_score == 50
-    from src.llm import AIStreamError; _m3_mock_stream = MagicMock(side_effect=AIStreamError('no provider configured'))
-    with patch('src.llm.extension.semantic_scoring.settings') as _m3_mock_settings, patch('src.llm.extension.semantic_scoring.stream_ai_json', _m3_mock_stream): _m3_mock_settings.ai_api_key = ''; _m3_score = await ai_semantic_score('test prompt'); assert _m3_score == 50
-    _m4_mock_accumulate = AsyncMock(return_value='  '); _m4_mock_stream = MagicMock()
-    with patch('src.llm.extension.semantic_scoring.settings') as _m4_mock_settings, patch('src.llm.extension.semantic_scoring.stream_ai_json', return_value=_m4_mock_stream), patch('src.llm.extension.semantic_scoring.accumulate_stream', _m4_mock_accumulate): _m4_mock_settings.ai_api_key = 'test-key'; _m4_mock_settings.small_model = 'test-model'; _m4_mock_settings.ai_base_url = 'https://test.api'; _m4_score = await ai_semantic_score('test prompt'); assert _m4_score == 50
-    _m5_mock_response = '{"similarity_score": 150, "reasoning": "Over 100"}'; _m5_mock_accumulate = AsyncMock(return_value=_m5_mock_response); _m5_mock_stream = MagicMock()
-    with patch('src.llm.extension.semantic_scoring.settings') as _m5_mock_settings, patch('src.llm.extension.semantic_scoring.stream_ai_json', return_value=_m5_mock_stream), patch('src.llm.extension.semantic_scoring.accumulate_stream', _m5_mock_accumulate): _m5_mock_settings.ai_api_key = 'test-key'; _m5_mock_settings.small_model = 'test-model'; _m5_mock_settings.ai_base_url = 'https://test.api'; _m5_score = await ai_semantic_score('test prompt'); assert _m5_score == 100
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.llm import AIStreamError
+from src.llm.extension.semantic_scoring import ai_semantic_score
+
+
+@pytest.mark.parametrize(
+    ("api_key", "raw_response", "stream_exc", "expected"),
+    [
+        ("test-key", '{"similarity_score": 92, "reasoning": "Both refer to salary"}', None, 92),
+        ("test-key", '{"similarity_score": 15, "reasoning": "Completely different"}', None, 15),
+        ("test-key", None, AIStreamError("API error"), 50),
+        ("", None, AIStreamError("no provider configured"), 50),
+        ("test-key", "  ", None, 50),
+        ("test-key", '{"similarity_score": 150, "reasoning": "Over 100"}', None, 100),
+    ],
+)
+async def test_ai_semantic_score_returns_score(api_key: str, raw_response: str | None, stream_exc: Exception | None, expected: int) -> None:
+    stream_mock = MagicMock(side_effect=stream_exc) if stream_exc else MagicMock(return_value=MagicMock())
+    with (
+        patch("src.llm.extension.semantic_scoring.settings") as mock_settings,
+        patch("src.llm.extension.semantic_scoring.stream_ai_json", stream_mock),
+        patch("src.llm.extension.semantic_scoring.accumulate_stream", AsyncMock(return_value=raw_response)),
+    ):
+        mock_settings.ai_api_key, mock_settings.small_model, mock_settings.ai_base_url = api_key, "test-model", "https://test.api"
+        assert await ai_semantic_score("test prompt") == expected

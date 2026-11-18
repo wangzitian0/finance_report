@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -29,11 +30,16 @@ from tests.statement_ingestion import posting_dependencies
 
 @pytest.mark.parametrize(("balances", "expected"), [((Decimal("5000.00"), Decimal("3966.50")), False), ((Decimal("5000.00"), Decimal("5000.00")), True), ((None, None), True)])
 def test_duplicate_guard_balance_after(balances, expected: bool) -> None:
-    txns = [AtomicTransaction(id=uuid4(), user_id=uuid4(), txn_date=date(2025, 6, 25), amount=Decimal("1033.50"), direction=TransactionDirection.OUT, description="Buy NIO", currency="USD", dedup_hash=uuid4().hex + uuid4().hex, source_documents=[], balance_after=b) for b in balances]
+    txns = [
+        AtomicTransactionFactory.build(
+            user_id=uuid4(), txn_date=date(2025, 6, 25), amount=Decimal("1033.50"), direction=TransactionDirection.OUT, description="Buy NIO", currency="USD", source_documents=[], balance_after=b
+        )
+        for b in balances
+    ]
     assert _has_unresolved_statement_conflicts(txns) is expected
 
 
-def test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate() -> None:
+def test_balance_chain_decision_routes_through_promotion_gate() -> None:
     _raise_if_balance_chain_invalid({"opening_match": True, "closing_match": True, "opening_delta": "0", "closing_delta": "0"})
     for open_m, close_m, od, cd, msg in ((False, True, "0.5", "0", "Opening balance mismatch"), (True, False, "0", "0.5", "Balance mismatch")):
         with pytest.raises(ValueError, match=msg):
@@ -42,7 +48,9 @@ def test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate() -> Non
 
 async def _stmt(db, uid, *, file_hash: str, account_id=None, **kw) -> StatementSummary:
     if account_id is None:
-        existing = (await db.execute(select(AccountFactory._meta.model.id).where(AccountFactory._meta.model.user_id == uid, AccountFactory._meta.model.name == "Val Default").limit(1))).scalar_one_or_none()
+        existing = (
+            await db.execute(select(AccountFactory._meta.model.id).where(AccountFactory._meta.model.user_id == uid, AccountFactory._meta.model.name == "Val Default").limit(1))
+        ).scalar_one_or_none()
         account_id = existing or (await AccountFactory.create_async(db, user_id=uid, name="Val Default", currency="USD")).id
     doc = await UploadedDocumentFactory.create_async(db, user_id=uid, file_hash=file_hash)
     kw.setdefault("period_start", date(2024, 1, 1))
@@ -52,7 +60,9 @@ async def _stmt(db, uid, *, file_hash: str, account_id=None, **kw) -> StatementS
 
 
 async def _txn(db, stmt: StatementSummary, amt: str | Decimal, *, txn_date: date = date(2024, 1, 15)) -> AtomicTransaction:
-    return await AtomicTransactionFactory.create_async(db, user_id=stmt.user_id, source_doc_id=stmt.uploaded_document_id, txn_date=txn_date, description="Deposit", amount=Decimal(str(amt)), direction=TransactionDirection.IN, currency="USD")
+    return await AtomicTransactionFactory.create_async(
+        db, user_id=stmt.user_id, source_doc_id=stmt.uploaded_document_id, txn_date=txn_date, description="Deposit", amount=Decimal(str(amt)), direction=TransactionDirection.IN, currency="USD"
+    )
 
 
 @pytest.mark.parametrize(
@@ -83,67 +93,55 @@ async def test_validate_balance_chain_reuse_isolation_and_approve_reject(db, tes
     stmt = await _stmt(db, uid, file_hash="hash123", opening_balance=Decimal("1000.00"), closing_balance=Decimal("1100.00"))
     await _txn(db, stmt, "100.00")
     txns = await resolve_statement_transactions(db, stmt)
-    calls = {"resolve": 0, "get": 0, "post": 0}
-    orig_resolve, orig_get = stmt_val_mod.resolve_statement_transactions, db.get
-
-    async def spy_resolve(*a, **kw):
-        calls["resolve"] += 1
-        return await orig_resolve(*a, **kw)
-
-    async def spy_get(*a, **kw):
-        calls["get"] += 1
-        return await orig_get(*a, **kw)
-
-    async def spy_post(*_a, **_kw):
-        calls["post"] += 1
-        return txns
-
+    spy_resolve, spy_get, spy_post = AsyncMock(wraps=stmt_val_mod.resolve_statement_transactions), AsyncMock(wraps=db.get), AsyncMock(return_value=txns)
     monkeypatch.setattr(stmt_val_mod, "resolve_statement_transactions", spy_resolve)
     monkeypatch.setattr(db, "get", spy_get)
-    assert (await validate_balance_chain(db, stmt.id, statement=stmt, transactions=txns))["closing_match"] is True and (calls["resolve"], calls["get"]) == (0, 0)
+    assert (await validate_balance_chain(db, stmt.id, statement=stmt, transactions=txns))["closing_match"] is True and (spy_resolve.await_count, spy_get.await_count) == (0, 0)
 
-    monkeypatch.setattr(db, "get", orig_get)
+    monkeypatch.undo()
+    monkeypatch.setattr(stmt_val_mod, "resolve_statement_transactions", spy_resolve)
     approved, ret_txns = await approve_statement_with_transactions(db, stmt.id, uid)
-    assert (approved.stage1_status, approved.status, len(ret_txns), calls["resolve"]) == (Stage1Status.APPROVED, BankStatementStatus.APPROVED, 1, 1) and approved.balance_validation_result["closing_match"] is True
+    assert (approved.stage1_status, approved.status, len(ret_txns), spy_resolve.await_count) == (Stage1Status.APPROVED, BankStatementStatus.APPROVED, 1, 1) and approved.balance_validation_result["closing_match"] is True
 
     monkeypatch.setattr(stmt_posting_mod, "resolve_statement_transactions", spy_post)
     await auto_create_posted_entries_for_statement(db, approved, uid, dependencies=posting_dependencies(), transactions=ret_txns)
-    assert calls["post"] == 0
+    assert spy_post.await_count == 0
 
     with pytest.raises(ValueError, match="Statement not found or access denied"):
         await approve_statement_with_transactions(db, stmt.id, uuid4())
     stmt_rej = await _stmt(db, uid, file_hash="hash_rej", opening_balance=Decimal("1000.00"), closing_balance=Decimal("1100.00"))
-    rejected = await reject_statement(db, stmt_rej.id, uid)
-    assert (rejected.stage1_status, rejected.status, rejected.validation_error) == (Stage1Status.REJECTED, BankStatementStatus.REJECTED, None)
+    assert ((rejected := await reject_statement(db, stmt_rej.id, uid)).stage1_status, rejected.status, rejected.validation_error) == (Stage1Status.REJECTED, BankStatementStatus.REJECTED, None)
     assert (await reject_statement(db, stmt_rej.id, uid, reason="Bad")).validation_error == "Bad"
 
-    bad = await _stmt(db, uid, file_hash="hash222", opening_balance=Decimal("1000.00"), closing_balance=Decimal("2000.00"))
-    await _txn(db, bad, "10.00")
-    with pytest.raises(ValueError, match="Balance mismatch"):
-        await approve_statement_with_transactions(db, bad.id, uid)
-
-    main_acc = (await AccountFactory.create_async(db, user_id=uid, name="Main", currency="USD")).id
-    other_acc = (await AccountFactory.create_async(db, user_id=uid, name="Other", currency="USD")).id
+    main_acc, other_acc = (await AccountFactory.create_async(db, user_id=uid, name="Main", currency="USD")).id, (await AccountFactory.create_async(db, user_id=uid, name="Other", currency="USD")).id
     await _stmt(db, uid, file_hash="prev_other", account_id=other_acc, opening_balance=Decimal("10.00"), closing_balance=Decimal("2000.00"), status=BankStatementStatus.APPROVED)
     await _stmt(db, uid, file_hash="prev_main", account_id=main_acc, opening_balance=Decimal("1000.00"), closing_balance=Decimal("1200.00"), status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED)
     curr = await _stmt(db, uid, file_hash="curr_main", account_id=main_acc, opening_balance=Decimal("999.00"), closing_balance=Decimal("1149.00"), period_start=date(2024, 2, 1), period_end=date(2024, 2, 29))
     await _txn(db, curr, "150.00", txn_date=date(2024, 2, 15))
-    iso = await validate_balance_chain(db, curr.id)
-    assert (iso["opening_balance"], iso["previous_closing_balance"], iso["cross_period_delta"], iso["cross_period_match"], iso["balance_valid"]) == ("999.00", "1200.00", "-201.00", False, True)
+    assert ((iso := await validate_balance_chain(db, curr.id))["opening_balance"], iso["previous_closing_balance"], iso["cross_period_delta"], iso["cross_period_match"], iso["balance_valid"]) == ("999.00", "1200.00", "-201.00", False, True)
 
-    open_bad = await _stmt(db, uid, file_hash="open_curr", account_id=main_acc, opening_balance=Decimal("120.00"), closing_balance=Decimal("150.00"), period_start=date(2024, 3, 1), period_end=date(2024, 3, 31))
-    await _txn(db, open_bad, "50.00", txn_date=date(2024, 3, 15))
-    with pytest.raises(ValueError, match="Balance mismatch"):
-        await approve_statement_with_transactions(db, open_bad.id, uid)
+    for fh, acc_id, ob, cb, amt, extra in (
+        ("hash222", None, Decimal("1000.00"), Decimal("2000.00"), "10.00", {}),
+        ("open_curr", main_acc, Decimal("120.00"), Decimal("150.00"), "50.00", {"period_start": date(2024, 3, 1), "period_end": date(2024, 3, 31)}),
+    ):
+        bad_s = await _stmt(db, uid, file_hash=fh, account_id=acc_id, opening_balance=ob, closing_balance=cb, **extra)
+        await _txn(db, bad_s, amt, txn_date=extra.get("period_start", date(2024, 1, 15)))
+        with pytest.raises(ValueError, match="Balance mismatch"):
+            await approve_statement_with_transactions(db, bad_s.id, uid)
 
 
 async def test_pending_stage1_review_filter_and_non_consecutive_period(db, test_user):
     uid = test_user.id
-    s_med = await _stmt(db, uid, file_hash="h_pend", period_start=None, period_end=None, confidence_score=70)
-    s_rev = await _stmt(db, uid, file_hash="h_rev", period_start=None, period_end=None, stage1_status=Stage1Status.PENDING_REVIEW, confidence_score=90)
-    s_leg = await _stmt(db, uid, file_hash="h_high", period_start=None, period_end=None, confidence_score=90)
-    s_app = await _stmt(db, uid, file_hash="h_app", opening_balance=Decimal("0.00"), closing_balance=Decimal("0.00"), status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED)
-    s_papp = await _stmt(db, uid, file_hash="h_papp", period_start=None, period_end=None, stage1_status=Stage1Status.APPROVED)
+    s_med, s_rev, s_leg, s_app, s_papp = [
+        await _stmt(db, uid, file_hash=fh, **kw)
+        for fh, kw in (
+            ("h_pend", {"period_start": None, "period_end": None, "confidence_score": 70}),
+            ("h_rev", {"period_start": None, "period_end": None, "stage1_status": Stage1Status.PENDING_REVIEW, "confidence_score": 90}),
+            ("h_high", {"period_start": None, "period_end": None, "confidence_score": 90}),
+            ("h_app", {"opening_balance": Decimal("0.00"), "closing_balance": Decimal("0.00"), "status": BankStatementStatus.APPROVED, "stage1_status": Stage1Status.APPROVED}),
+            ("h_papp", {"period_start": None, "period_end": None, "stage1_status": Stage1Status.APPROVED}),
+        )
+    ]
     ids = set((await db.execute(select(StatementSummary.id).where(StatementSummary.user_id == uid, StatementSummary.status == BankStatementStatus.PARSED, pending_stage1_review_filter()))).scalars().all())
     assert ids == {s_med.id, s_rev.id, s_leg.id} and s_app.id not in ids and s_papp.id not in ids
 
