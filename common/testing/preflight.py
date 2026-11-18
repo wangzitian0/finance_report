@@ -144,22 +144,6 @@ CHECKS: tuple[Check, ...] = (
         cwd="apps/backend",
     ),
     _py_check(
-        "money-mutation",
-        (
-            "apps/backend/src/ledger/*.py",
-            "apps/backend/src/extraction/extension/classification.py",
-            "apps/backend/src/extraction/extension/transaction_classification.py",
-            "apps/backend/src/extraction/extension/statement_posting.py",
-            "apps/backend/src/reporting/extension/cash_flow.py",
-            "common/testing/mutation_check.py",
-            "common/testing/data/money-mutations.json",
-            "tools/check_mutations.py",
-        ),
-        "tools/check_mutations.py",
-        "--advisory",
-        why="money/classification code changed: run advisory mutation reproof (#2448)",
-    ),
-    _py_check(
         "env-reference",
         ("apps/backend/src/config.py",),
         "tools/generate_env_reference.py",
@@ -417,7 +401,7 @@ def _child_env() -> dict[str, str]:
     return env
 
 
-_INPROCESS_EXCLUDED_TOOLS: frozenset[str] = frozenset({"check_mutations.py"})
+_INPROCESS_EXCLUDED_TOOLS: frozenset[str] = frozenset()
 _TOOL_MODULE_CACHE: dict[Path, ModuleType] = {}
 
 

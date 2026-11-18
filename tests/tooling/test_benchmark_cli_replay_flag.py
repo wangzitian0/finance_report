@@ -1,2 +1,0 @@
-'AC-testing.benchmarks.5'; from __future__ import annotations
-def test_benchmark_cli_cassette_option_parsing() -> None: from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner, _parse_args; parsed = _parse_args(['--cassette', 'replay', '--app-url', 'http://localhost:8000']); assert parsed.cassette == 'replay'; runner = ScenarioBenchmarkRunner(base_url='http://localhost:8000', replay_mode=parsed.cassette); assert runner.replay_mode == 'replay'; assert not hasattr(runner, 'cassette_mode')

@@ -41,7 +41,7 @@ from tests.benchmarks.cases import (  # noqa: E402
     execute_case_6,
 )
 from tests.benchmarks.oracles import verify_browser_ui_hygiene  # noqa: E402
-from common.testing.provider_review import wait_for_statement_runs_sync  # noqa: E402
+from tests.fixtures.provider_review import wait_for_statement_runs_sync  # noqa: E402
 
 
 def _check_resp(resp: Any, label: str, expected: tuple[int, ...] = (200,)) -> Any:

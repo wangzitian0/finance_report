@@ -10,8 +10,8 @@ import pytest
 from common.audit.base import TraceRecord as CommonTraceRecord
 from common.audit.extension import TraceRecordCodec as CommonTraceRecordCodec
 from common.testing.ac_proof import PROOF_ATTR, ac_proof
-from common.testing.executed_proof import executed_proof_assertion_version, register_executed_proof_consumer
-from common.testing.trusted_year import TRUSTED_YEAR_SCENARIO
+from tests._support.executed_proof import executed_proof_assertion_version, register_executed_proof_consumer
+from tests._support.trusted_year import TRUSTED_YEAR_SCENARIO
 from sqlalchemy import select
 from src.audit import (
     SqlTraceRecordRepository,

@@ -1,34 +1,5 @@
 #!/usr/bin/env python3
-"""Merge-time gate that blocks unresolved P0/P1 PR review threads.
-
-This contract supports issue #755 (scope 2a): a PR must not merge while a
-high-severity review thread is still open. It fetches the PR's review threads
-via the GitHub GraphQL API (`gh api graphql`), classifies each thread's
-severity from documented markers, and exits non-zero when any *unresolved*
-thread is classified blocking (P0/P1).
-
-Severity classification rule (documented in ``common/testing/ci-cd.md`` — keep both
-in sync). A thread is **BLOCKING** (P0/P1) when the first comment body matches
-the marker regex ``\\b(P0|P1)\\b`` (case-insensitive) OR the first comment is
-Copilot-authored AND it is not explicitly marked a lower severity (its body
-contains ``P2``/``P3``/``nit``). Everything else is **LOWER** severity.
-
-Decision: exit 1 if any thread is *unresolved* AND classified BLOCKING.
-Resolved or outdated threads never block. Lower-severity unresolved threads are
-printed (reported) but do NOT block. The gate is bootstrap-safe: a fresh PR
-with no unresolved P0/P1 passes, and a non-PR invocation (no PR number) skips
-cleanly with exit 0.
-
-Fail-closed semantics: :func:`fetch_threads` paginates until
-``pageInfo.hasNextPage`` is false (so a PR with >100 review threads cannot hide
-a blocking thread beyond the first page), and raises rather than silently
-truncating if a page is missing its cursor. When a PR number is supplied but
-the repo cannot be resolved (a likely CI misconfiguration), :func:`main`
-exits 1 instead of skipping, so the merge gate is never silently disabled.
-
-The GraphQL call is isolated behind the :func:`fetch_threads` seam so tests can
-inject canned JSON without any network access.
-"""
+"""Merge-time gate blocking unresolved P0/P1 or unmarked Copilot PR review threads."""
 
 from __future__ import annotations
 
@@ -44,15 +15,6 @@ from typing import Any
 
 from common.meta.base.gate_cli import run_cli_command
 
-# Authors whose review threads are treated as blocking by default. GitHub has
-# spelled the Copilot reviewer login differently over time; cover the known
-# variants (compared case-insensitively). "copilot-pull-request-reviewer"
-# (no "[bot]" suffix) is the actual login the GraphQL reviewThreads API
-# returns today (confirmed 2026-07-12 against real threads on #1776/#1782/
-# #1786) -- the "[bot]"-suffixed form was never observed in the wild and this
-# gate silently misclassified every real Copilot thread as non-blocking
-# until this was added. Kept both forms since REST/GraphQL or a future
-# GitHub-side change could plausibly use either.
 COPILOT_AUTHORS: frozenset[str] = frozenset(
     {
         "copilot",
@@ -61,16 +23,8 @@ COPILOT_AUTHORS: frozenset[str] = frozenset(
         "copilot-pull-request-reviewer[bot]",
     }
 )
-
-# Explicit high-severity markers. Word-boundary, case-insensitive.
 BLOCKING_MARKER = re.compile(r"\b(P0|P1)\b", re.IGNORECASE)
-
-# Explicit lower-severity markers. A Copilot thread carrying one of these is
-# treated as lower severity instead of the Copilot default.
 LOWER_MARKER = re.compile(r"\b(P2|P3|nit)\b", re.IGNORECASE)
-
-# A fetcher takes (pr_number, repo) and returns the parsed `gh api graphql`
-# JSON envelope.
 FetchThreads = Callable[[int, str], dict[str, Any]]
 
 _GRAPHQL_QUERY = """

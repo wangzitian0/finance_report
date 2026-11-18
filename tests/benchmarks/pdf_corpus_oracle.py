@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 import yaml
 
-from common.testing.provider_review import wait_for_statement_runs_sync
+from tests.fixtures.provider_review import wait_for_statement_runs_sync
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST_PATH = (

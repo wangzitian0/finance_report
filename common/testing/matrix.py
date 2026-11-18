@@ -22,7 +22,6 @@ PATH_RULES: tuple[PathRule, ...] = (
     PathRule("apps/frontend/playwright/", "frontend_playwright_ci", True),
     PathRule("apps/frontend/src/", "frontend_vitest", True),
     PathRule("tests/tooling/", "tooling_ci", True),
-    PathRule("tools/tier2_http_e2e.py", "deployment_tier2_http_e2e", False),
     PathRule("tests/e2e/", "deployment_e2e", True),
 )
 

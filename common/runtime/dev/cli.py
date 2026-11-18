@@ -64,15 +64,9 @@ def cmd_dev(args):
         return
 
     if args.backend:
-        run(
-            [sys.executable, str(REPO_ROOT / "tools" / "dev_backend.py")],
-            cwd=BACKEND_DIR,
-        )
+        run(uv_run("uvicorn", "src.main:app", "--reload", "--port", "8000"), cwd=BACKEND_DIR)
     elif args.frontend:
-        run(
-            [sys.executable, str(REPO_ROOT / "tools" / "dev_frontend.py")],
-            cwd=FRONTEND_DIR,
-        )
+        run(["npm", "run", "dev"], cwd=FRONTEND_DIR)
     elif not args.infra:
         print("\n🚀 Infrastructure started. Now run in separate terminals:")
         print("   moon run :dev -- --backend")
@@ -123,31 +117,12 @@ def cmd_test(args, extra_args: list[str]):
         )
         return
 
-    lifecycle_requested = args.fast or args.smart or args.ephemeral
-    if extra_args and extra_args[0].startswith("tests/") and not lifecycle_requested:
-        cov_override = (
-            []
-            if any(a.startswith("--cov") or a == "--no-cov" for a in extra_args)
-            else ["--no-cov"]
-        )
-        run(
-            uv_run("python", "-m", "pytest") + cov_override + extra_args,
-            cwd=BACKEND_DIR,
-        )
-        return
-    lifecycle_args = []
-    if args.fast:
-        lifecycle_args.append("--fast")
-    elif args.smart:
-        lifecycle_args.append("--smart")
-    if args.ephemeral:
-        lifecycle_args.append("--ephemeral")
-    lifecycle_args.extend(extra_args)
-    run(
-        [sys.executable, str(REPO_ROOT / "tools" / "test_lifecycle.py")]
-        + lifecycle_args,
-        cwd=BACKEND_DIR,
+    cov_override = (
+        ["--no-cov"]
+        if (args.fast or not any(a.startswith("--cov") or a == "--no-cov" for a in extra_args))
+        else []
     )
+    run(uv_run("python", "-m", "pytest") + cov_override + extra_args, cwd=BACKEND_DIR)
 
 
 def cmd_lint(args):
@@ -192,9 +167,7 @@ def cmd_clean(args):
     """Clean up resources."""
     compose_cmd = get_compose_cmd()
 
-    if args.db:
-        run([sys.executable, str(REPO_ROOT / "tools" / "cleanup_orphaned_dbs.py")])
-    elif args.containers:
+    if args.containers or args.db:
         run([*compose_cmd, "--profile", "infra", "down"])
     else:
         cmd = ["bash", str(REPO_ROOT / "tools" / "cleanup_dev_resources.sh")]
