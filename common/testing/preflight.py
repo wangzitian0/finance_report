@@ -8,6 +8,7 @@ import fnmatch
 import hashlib
 import importlib.util
 import io
+import json
 import os
 import subprocess
 import sys
@@ -90,7 +91,12 @@ CHECKS: tuple[Check, ...] = (
         "tests/tooling/test_audit_router_contracts.py::test_findings_doc_is_in_sync",
         "-q",
         "--no-cov",
+        "-n",
+        "0",
+        "-o",
+        "addopts=",
         why="router changed: docs/reference/router-contract-maturity.md must be in sync",
+        tier="heavy",
     ),
     _py_check(
         "migration-risk",
@@ -124,8 +130,11 @@ CHECKS: tuple[Check, ...] = (
         "--no-cov",
         "-n",
         "0",
+        "-o",
+        "addopts=",
         why="service changed: re-run the commit/transaction-boundary meta-test",
         cwd="apps/backend",
+        tier="heavy",
     ),
     _py_check(
         "bench-articulation",
@@ -140,8 +149,13 @@ CHECKS: tuple[Check, ...] = (
         "tests/reporting/test_bench_articulation_matrix.py",
         "-q",
         "--no-cov",
+        "-n",
+        "0",
+        "-o",
+        "addopts=",
         why="financial calculation logic changed: BenchV2 articulation matrix must balance",
         cwd="apps/backend",
+        tier="heavy",
     ),
     _py_check(
         "env-reference",
@@ -197,6 +211,10 @@ CHECKS: tuple[Check, ...] = (
         "tests/tooling/",
         "-q",
         "--no-cov",
+        "-n",
+        "0",
+        "-o",
+        "addopts=",
         why="tooling/governed source or config changed: run tests/tooling",
         tier="heavy",
     ),
@@ -703,11 +721,63 @@ def resolve_changed_pytest_targets(
     return sorted(root_selected), sorted(backend_selected)
 
 
+def _static_cache_path(repo_root: Path, git: Git) -> Path | None:
+    git_dir = git(["rev-parse", "--git-dir"]).strip()
+    if not git_dir:
+        return None
+    path = Path(git_dir)
+    if not path.is_absolute():
+        path = repo_root / path
+    return path / "preflight-static.stamp"
+
+
+def _static_fingerprint(
+    repo_root: Path, base: str | None, files: Sequence[str], git: Git
+) -> str:
+    head_sha = git(["rev-parse", "HEAD"]).strip()
+    base_ref = (
+        git(["merge-base", "HEAD", "origin/main"]).strip()
+        if base is None
+        else git(["rev-parse", base]).strip()
+    )
+    snapshot = _working_tree_snapshot(repo_root)
+    payload = {
+        "head": head_sha,
+        "base": base_ref,
+        "files": list(files),
+        "snapshot": snapshot,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _read_static_stamp(cache_file: Path | None) -> str:
+    if cache_file is None or not cache_file.is_file():
+        return ""
+    try:
+        return cache_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _write_static_stamp(cache_file: Path | None, fingerprint: str) -> None:
+    if cache_file is None:
+        return
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(f"{fingerprint}\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
 def run(
     argv: Sequence[str] | None = None,
     *,
     runner: Runner = _default_runner,
     git: Git = _default_git,
+    repo_root: Path | None = None,
+    cache_file: Path | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(
         description="Run the gate checks relevant to the current diff."
@@ -723,6 +793,7 @@ def run(
     parser.add_argument("-q", "--quiet", action="store_true")
     args = parser.parse_args(argv)
 
+    root = repo_root or REPO_ROOT
     if args.only:
         if args.all or args.changed is not None:
             parser.error("--only cannot combine with --all or --changed")
@@ -765,10 +836,36 @@ def run(
         _default_quiet_runner if runner is _default_runner and args.quiet else runner
     )
     root_targets, backend_targets = (
-        resolve_changed_pytest_targets(files) if args.pytest_changed else ([], [])
+        resolve_changed_pytest_targets(files, repo_root=root)
+        if args.pytest_changed
+        else ([], [])
     )
     if not selected and not root_targets and not backend_targets:
         print("preflight: no relevant gates for the current diff.")
+        return 0
+
+    use_cache = (
+        args.tier == "static"
+        and not args.only
+        and not args.all
+        and args.changed is None
+        and not args.pytest_changed
+        and not args.ci
+        and os.environ.get("PREFLIGHT_NO_CACHE") != "1"
+        and (cache_file is not None or (runner is _default_runner and git is _default_git))
+    )
+    resolved_cache_file = (
+        cache_file
+        if cache_file is not None
+        else (_static_cache_path(root, git) if use_cache else None)
+    )
+    fingerprint = (
+        _static_fingerprint(root, args.base, files, git) if use_cache else ""
+    )
+    if use_cache and fingerprint and _read_static_stamp(resolved_cache_file) == fingerprint:
+        print(
+            f"preflight: static cache hit ({fingerprint[:12]}); skipping duplicate run."
+        )
         return 0
 
     def _report_result(name: str, ok: bool) -> None:
@@ -777,55 +874,73 @@ def run(
         elif not ok:
             print(f"  [FAIL] {name}")
 
-    failed: list[str] = []
-    if selected:
-        if not args.quiet:
-            msg = (
-                f"preflight: running {len(selected)} named gate(s)..."
-                if args.only
-                else f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
-            )
-            print(msg)
-        results = run_checks(
-            selected,
-            changed_files=files,
-            runner=effective_runner,
-            ci=args.ci,
-            quiet=args.quiet,
-        )
-        for result in results:
-            _report_result(result.name, result.ok)
-            if not result.ok:
-                failed.append(result.name)
+    had_external_ns = "TEST_NAMESPACE" in os.environ
+    generated_ns = f"preflight_{os.getpid()}"
+    if not had_external_ns:
+        os.environ["TEST_NAMESPACE"] = generated_ns
 
+    failed: list[str] = []
     pytest_suites_ran = 0
-    if args.pytest_changed and not failed:
-        for label, targets, target_cwd in (
-            ("pytest-changed:root", root_targets, REPO_ROOT),
-            ("pytest-changed:backend", backend_targets, REPO_ROOT / "apps" / "backend"),
-        ):
-            if not targets or failed:
-                continue
-            pytest_suites_ran += 1
-            cmd = [
-                sys.executable,
-                "-m",
-                "pytest",
-                *targets,
-                "-x",
-                "-q",
-                "--no-cov",
-                "-n",
-                "0",
-            ]
-            ok = effective_runner(cmd, str(target_cwd)) == 0
-            _report_result(label, ok)
-            if not ok:
-                failed.append(label)
+    try:
+        if selected:
+            if not args.quiet:
+                msg = (
+                    f"preflight: running {len(selected)} named gate(s)..."
+                    if args.only
+                    else f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
+                )
+                print(msg)
+            results = run_checks(
+                selected,
+                changed_files=files,
+                runner=effective_runner,
+                ci=args.ci,
+                quiet=args.quiet,
+                repo_root=root,
+            )
+            for result in results:
+                _report_result(result.name, result.ok)
+                if not result.ok:
+                    failed.append(result.name)
+
+        if args.pytest_changed and not failed:
+            for label, targets, target_cwd in (
+                ("pytest-changed:root", root_targets, root),
+                ("pytest-changed:backend", backend_targets, root / "apps" / "backend"),
+            ):
+                if not targets or failed:
+                    continue
+                pytest_suites_ran += 1
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    *targets,
+                    "-x",
+                    "-q",
+                    "--no-cov",
+                    "-n",
+                    "0",
+                    "-o",
+                    "addopts=",
+                ]
+                ok = effective_runner(cmd, str(target_cwd)) == 0
+                _report_result(label, ok)
+                if not ok:
+                    failed.append(label)
+    finally:
+        if not had_external_ns:
+            os.environ.pop("TEST_NAMESPACE", None)
+            if runner is _default_runner:
+                from common.testing.reap_test_dbs import drop_namespace_databases
+
+                drop_namespace_databases(generated_ns)
 
     if failed:
         print(f"preflight: {len(failed)} gate(s) failed: {', '.join(failed)}")
         return 1
+    if use_cache and fingerprint:
+        _write_static_stamp(resolved_cache_file, fingerprint)
     if args.quiet:
         print(f"preflight: all {len(selected) + pytest_suites_ran} gates passed.")
     else:
