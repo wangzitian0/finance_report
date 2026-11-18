@@ -4,7 +4,6 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 import pytest
-from common.testing.ac_proof import ac_proof
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +28,6 @@ from src.reporting import generate_balance_sheet, generate_income_statement
 pytestmark = pytest.mark.asyncio
 
 
-@ac_proof(proof_id="test_app_config_base_currency_default", ac_ids=["AC-audit.39.2"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncSession, test_user: User) -> None:
     "AC-audit.39.2"
     import src.config_app as config_app
@@ -48,7 +46,6 @@ async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncS
     assert await get_effective_base_currency(db, user_id=test_user.id) == own_value
 
 
-@ac_proof(proof_id="test_app_config_get_default", ac_ids=["AC-audit.39.1"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient) -> None:
     "AC-audit.39.1 AC12.39.1"
     response = await client.get("/app-config/base-currency")
@@ -56,7 +53,6 @@ async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient)
     assert response.json() == {"base_currency": Currency(settings.base_currency).code}
 
 
-@ac_proof(proof_id="test_app_config_persist_and_effective", ac_ids=["AC-audit.39.4"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
@@ -70,7 +66,6 @@ async def test_AC12_39_4_update_persists_and_effective_accessor_returns_new_valu
     assert get_response.json() == {"base_currency": target}
 
 
-@ac_proof(proof_id="test_app_config_invalid_rejected", ac_ids=["AC-audit.39.5"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
@@ -80,7 +75,6 @@ async def test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted(
     assert await get_effective_base_currency(db, user_id=test_user.id) == Currency(settings.base_currency).code
 
 
-@ac_proof(proof_id="test_app_config_put_is_user_scoped", ac_ids=["AC-audit.39.6"], ci_tier="pr_ci", issue="#2539")
 async def test_AC_audit_39_6_put_changes_only_the_callers_base_currency(client: AsyncClient, db: AsyncSession) -> None:
     "AC-audit.39.6"
     default = Currency(settings.base_currency).code

@@ -117,7 +117,9 @@ async def _result_row(db, statement) -> StatementExtractionResultRecord:
 
 
 async def _run_count(db, statement_id: UUID) -> int:
-    return await db.scalar(select(func.count()).select_from(StatementRun).where(StatementRun.statement_id == statement_id))
+    return await db.scalar(
+        select(func.count()).select_from(StatementRun).where(StatementRun.statement_id == statement_id)
+    )
 
 
 async def test_AC_extraction_2994_1_a_second_active_run_for_one_statement_raises_active_run_exists(db, test_user):
@@ -213,7 +215,9 @@ async def test_AC_extraction_2994_2_two_concurrent_claims_give_one_winner_and_on
         )
         assert stored.state is RunState.RUNNING
         assert stored.started_at == winners[0].started_at
-        running_records = [row for row in await _traces(db, statement.id, run.id) if row.assertion_id == "extract.running"]
+        running_records = [
+            row for row in await _traces(db, statement.id, run.id) if row.assertion_id == "extract.running"
+        ]
         assert len(running_records) == 1
 
 
@@ -264,7 +268,9 @@ async def test_AC_extraction_2994_4_the_reaper_fails_only_runs_with_an_old_heart
     )
     finished = await _running(db, await _statement(db, test_user))
     await finish_run(db, finished.id)
-    await db.execute(update(StatementRun).where(StatementRun.id == finished.id).values(heartbeat_at=now - timedelta(hours=1)))
+    await db.execute(
+        update(StatementRun).where(StatementRun.id == finished.id).values(heartbeat_at=now - timedelta(hours=1))
+    )
     await db.commit()
 
     failed_ids = await reap_stale_runs(db, stale_after=stale_after, now=now)
@@ -617,7 +623,9 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
                 assert row.error_message is None
             types = {
                 row[0]
-                for row in connection.execute(text("SELECT typname FROM pg_type WHERE typtype = 'e' AND typname LIKE 'statement\\_run\\_%'"))
+                for row in connection.execute(
+                    text("SELECT typname FROM pg_type WHERE typtype = 'e' AND typname LIKE 'statement\\_run\\_%'")
+                )
             }
             assert types == {
                 "statement_run_kind_enum",
@@ -633,11 +641,13 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
         )
         with pytest.raises(IntegrityError), engine.begin() as connection:
             connection.execute(
-                insert_run, {"statement_id": statements["parsing"][0], "user_id": user_id, "seq": 2, "state": "requested"}
+                insert_run,
+                {"statement_id": statements["parsing"][0], "user_id": user_id, "seq": 2, "state": "requested"},
             )
         with engine.begin() as connection:
             connection.execute(
-                insert_run, {"statement_id": statements["parsed"][0], "user_id": user_id, "seq": 1, "state": "requested"}
+                insert_run,
+                {"statement_id": statements["parsed"][0], "user_id": user_id, "seq": 1, "state": "requested"},
             )
         with pytest.raises(IntegrityError), engine.begin() as connection:
             connection.execute(
@@ -658,7 +668,9 @@ def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsi
         with engine.connect() as connection:
             assert connection.execute(text("SELECT to_regclass('statement_runs')")).scalar_one() is None
             assert (
-                connection.execute(text("SELECT count(*) FROM pg_type WHERE typtype = 'e' AND typname LIKE 'statement\\_run\\_%'")).scalar_one()
+                connection.execute(
+                    text("SELECT count(*) FROM pg_type WHERE typtype = 'e' AND typname LIKE 'statement\\_run\\_%'")
+                ).scalar_one()
                 == 0
             )
             assert connection.execute(text("SELECT count(*) FROM statement_summaries")).scalar_one() == 5
@@ -709,7 +721,9 @@ async def test_AC_extraction_2994_11_each_transition_accepts_only_its_source_sta
     assert await heartbeat_run(db, run.id) is False
 
     never_claimed = await _create(db, statement)
-    skipped = await fail_run(db, never_claimed.id, error_code="dispatch_lost", error_message="No worker claimed the run.")
+    skipped = await fail_run(
+        db, never_claimed.id, error_code="dispatch_lost", error_message="No worker claimed the run."
+    )
     await db.commit()
     assert skipped.state is RunState.FAILED
     assert skipped.started_at is None
@@ -728,7 +742,9 @@ class _RecordingLogger:
     warning = error = debug = info
 
 
-async def test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_the_hint_text(db, test_user, monkeypatch):
+async def test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_the_hint_text(
+    db, test_user, monkeypatch
+):
     """AC-extraction.2994.12: A transition logs the run id, kind, state, hints digest and keyword count only."""
     from src.extraction.extension import statement_runs as runs_module
 
@@ -774,3 +790,141 @@ async def test_AC_extraction_2994_12_the_logs_of_a_run_hold_a_digest_and_never_t
         )
     assert "needle-note-text" not in str(missing_statement.value)
     assert "zebra-keyword" not in str(missing_statement.value)
+
+
+async def test_worker_retry_reaper_supervisor_and_user_start(db, db_engine, test_user, monkeypatch):
+    from src.extraction import (
+        ExtractionError,
+        HintsNotApplicable,
+        ParseJob,
+        RetryableStatementIngestionError,
+        StatementIngestionStatus,
+        StatementStatusChanged,
+        lock_statement_for_run,
+        start_user_extract_run,
+    )
+    from src.extraction.extension import statement_parsing_supervisor as supervisor
+    from src.extraction.extension.statement_flow import parse_statement_flow
+    from src.runtime import StorageError
+    from tests.extraction._statement_run_helpers import (
+        CSV,
+        ForbiddenService,
+        ScriptedLoader,
+        ScriptedService,
+        Sleeps,
+        _prefect_params,
+        _runs,
+        _statement as _stmt,
+        _statement_with_run,
+        _use_case,
+    )
+
+    assert parse_statement_flow.retries == 0
+    assert db_engine.sync_engine.hide_parameters is True
+
+    # Worker skips unclaimed run
+    c1 = CSV.replace(b"Salary", b"Salary1")
+    sid_unclaimed, job_unclaimed = await _statement_with_run(db, test_user, content=c1, name="unclaimed.csv")
+    await fail_run(db, job_unclaimed.run_id, error_code="failed_early", error_message="Done")
+    await db.commit()
+    outcome = await _use_case(db, ForbiddenService()).execute(job_unclaimed, content=c1)
+    assert outcome.status is StatementIngestionStatus.RUN_STALE
+
+    # Retryable failure chains up to 3 attempts
+    sleeps = Sleeps()
+    service = ScriptedService(
+        [RetryableStatementIngestionError("tmp1"), RetryableStatementIngestionError("tmp2"), None]
+    )
+    c2 = CSV.replace(b"Salary", b"Salary2")
+    sid_retry, job_retry = await _statement_with_run(db, test_user, content=c2, name="retry.csv")
+    outcome_retry = await _use_case(db, service, sleeps=sleeps).execute(job_retry, content=c2)
+    assert outcome_retry.status is StatementIngestionStatus.COMPLETED
+    runs_retry = await _runs(db, sid_retry)
+    assert [r.state for r in runs_retry if r.kind is RunKind.EXTRACT] == [
+        RunState.FAILED,
+        RunState.FAILED,
+        RunState.SUCCEEDED,
+    ]
+
+    # Supervisor reaps stale runs on parsing statements
+    c3 = CSV.replace(b"Salary", b"Salary3")
+    sid_stale, _job_stale = await _statement_with_run(db, test_user, content=c3, name="stale.csv")
+    reaped = await supervisor.reap_stale_parsing_runs(
+        create_session_maker_from_db(db), now=datetime.now(UTC) + timedelta(minutes=10)
+    )
+    assert reaped >= 1
+    assert (await _stmt(db, sid_stale)).status is BankStatementStatus.REJECTED
+
+    # ExtractionError inside parse_document fails without retry
+    c4 = CSV.replace(b"Salary", b"Salary4")
+    sid_err, job_err = await _statement_with_run(db, test_user, content=c4, name="err.csv")
+    err_outcome = await _use_case(db, ScriptedService([ExtractionError("bad pdf")])).execute(job_err, content=c4)
+    assert err_outcome.status is StatementIngestionStatus.SOURCE_REJECTED
+    assert (await _runs(db, sid_err))[0].state is RunState.FAILED
+
+    # start_user_extract_run validates CSV hints before storage, status change, storage errors, and parent links
+    parsed_stmt = await _statement(db, test_user, status=BankStatementStatus.PARSED)
+    parsed_id, user_id = parsed_stmt.id, test_user.id
+    loader = ScriptedLoader([])
+    with pytest.raises(HintsNotApplicable):
+        await start_user_extract_run(
+            db,
+            statement_id=parsed_id,
+            user_id=user_id,
+            file_type="csv",
+            hints=RunHints(keywords=["x"]),
+            model=None,
+            allowed_statuses=frozenset({BankStatementStatus.PARSED}),
+            strict_hints=True,
+            load_content=lambda: loader("k"),
+        )
+    assert loader.calls == 0
+
+    with pytest.raises(StatementStatusChanged):
+        await start_user_extract_run(
+            db,
+            statement_id=parsed_id,
+            user_id=user_id,
+            file_type="pdf",
+            hints=RunHints(),
+            model=None,
+            allowed_statuses=frozenset({BankStatementStatus.REJECTED}),
+            strict_hints=True,
+            load_content=lambda: loader("k"),
+        )
+    await db.rollback()
+
+    async def failing_load():
+        raise StorageError("missing")
+
+    with pytest.raises(StorageError):
+        await start_user_extract_run(
+            db,
+            statement_id=parsed_id,
+            user_id=user_id,
+            file_type="pdf",
+            hints=RunHints(),
+            model=None,
+            allowed_statuses=frozenset({BankStatementStatus.PARSED}),
+            strict_hints=True,
+            load_content=failing_load,
+        )
+    await db.rollback()
+
+    locked = await lock_statement_for_run(db, parsed_id, user_id, allowed=frozenset({BankStatementStatus.PARSED}))
+    assert locked is not None
+    await db.rollback()
+    assert isinstance(
+        ParseJob(
+            **{
+                **_prefect_params(),
+                "statement_id": uuid4(),
+                "run_id": uuid4(),
+                "user_id": user_id,
+                "file_hash": "h",
+                "filename": "x.pdf",
+                "storage_key": "s",
+            }
+        ),
+        ParseJob,
+    )

@@ -139,3 +139,66 @@ def test_AC_extraction_2987_18_rows_without_a_running_balance_keep_their_directi
     payload["transactions"][2]["direction"] = "OUT"
     before = _directions(payload)
     assert _directions(normalize_statement_balance_payload(payload)) == before
+
+
+def test_running_balance_endpoints_evidence_type_and_contribution_guards():
+    from types import SimpleNamespace
+    from src.extraction import StatementEvidenceType, StatementSourceType
+    from src.extraction.base.validation import _derive_running_balance_endpoints, _safe_parse_decimal
+    from src.extraction.extension.result_contract import statement_evidence_type
+    from src.reporting.extension.package_document import _is_bank_statement_contribution
+    from src.schemas.extraction import BalanceValidationResult
+
+    assert _safe_parse_decimal("") is None
+    assert _safe_parse_decimal("not-a-number") is None
+    assert _safe_parse_decimal(True) is None
+    assert normalize_statement_balance_payload("not-a-dict") == "not-a-dict"
+    broken = [
+        {"amount": "100.00", "direction": "IN", "balance_after": "1100.00", "currency": "USD"},
+        {"amount": "50.00", "direction": "OUT", "balance_after": "900.00", "currency": "USD"},
+    ]
+    assert _derive_running_balance_endpoints(broken, currency="USD") is None
+    valid = [
+        {"amount": "100.00", "direction": "IN", "balance_after": "1100.00", "currency": "USD"},
+        {"amount": "50.00", "direction": "OUT", "balance_after": "1050.00", "currency": "USD"},
+    ]
+    assert (
+        _derive_running_balance_endpoints(
+            valid, opening_balance=Decimal("1000.00"), closing_balance=Decimal("9999.00"), currency="USD"
+        )
+        is None
+    )
+    model = BalanceValidationResult(
+        opening_balance=None,
+        closing_balance=None,
+        calculated_closing="100.00",
+        opening_delta="0",
+        closing_delta="100.00",
+        opening_match=False,
+        closing_match=False,
+        validated_at="2025-06-30T00:00:00Z",
+    )
+    assert model.opening_balance is None
+    assert (
+        statement_evidence_type(is_brokerage=True, provider_payload={"transactions": valid}, positions=[])
+        is StatementEvidenceType.TRANSACTION_LEDGER
+    )
+    brokerage_ledger = SimpleNamespace(
+        contribution_type="statement_source",
+        payload=SimpleNamespace(
+            source_result=SimpleNamespace(
+                source_type=StatementSourceType.BROKERAGE, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER
+            )
+        ),
+    )
+    brokerage_pos = SimpleNamespace(
+        contribution_type="statement_source",
+        payload=SimpleNamespace(
+            source_result=SimpleNamespace(
+                source_type=StatementSourceType.BROKERAGE, evidence_type=StatementEvidenceType.POSITION_SNAPSHOT
+            )
+        ),
+    )
+    assert _is_bank_statement_contribution(brokerage_ledger) is True
+    assert _is_bank_statement_contribution(brokerage_pos) is False
+    assert _is_bank_statement_contribution(SimpleNamespace(contribution_type="valuation")) is False

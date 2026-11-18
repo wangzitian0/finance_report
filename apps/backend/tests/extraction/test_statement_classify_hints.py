@@ -55,8 +55,12 @@ from tests.extraction.test_statement_classify_run import (
     _run,
     _seed,
 )
-from tests.extraction.test_statement_classify_run_phases import ScriptedModel, _worker
-from tests.extraction.test_statement_run_wiring import _runs, _statement
+from tests.extraction._statement_run_helpers import (
+    ScriptedModel,
+    _runs,
+    _statement,
+    _worker,
+)
 from tests.statement_ingestion import classify_run_for
 
 GOLDEN = json.loads(
@@ -533,3 +537,17 @@ async def test_AC_extraction_2994_129_a_statement_without_a_row_to_ask_still_run
     run = await _run(db, run_id)
     assert (run.state, run.result_summary["outcome"]) == (RunState.SUCCEEDED, "nothing_to_classify")
     assert model.calls == []
+
+
+@pytest.mark.no_db
+def test_parsing_template_fingerprint_reacts_to_parts_and_hints(monkeypatch):
+    from src.extraction.extension.prompts import statement as stmt_prompts
+    from src.extraction.extension.prompts.statement import INSTITUTION_HINTS, parsing_template_fingerprint
+
+    before = parsing_template_fingerprint()
+    assert isinstance(before, str) and len(before) == 64
+    key = sorted(INSTITUTION_HINTS)[0]
+    monkeypatch.setitem(INSTITUTION_HINTS, key, INSTITUTION_HINTS[key] + "\nextra\n")
+    assert parsing_template_fingerprint() != before
+    monkeypatch.setattr(stmt_prompts, "SYSTEM_PROMPT", "changed")
+    assert parsing_template_fingerprint() != before

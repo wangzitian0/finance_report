@@ -584,3 +584,23 @@ async def test_cash_flow_endpoints_include_statement_custody_accounts_without_ke
     export_resp = await client.get("/reports/exports", params={**params, "report_type": "cash-flow", "format": "csv"})
     assert export_resp.status_code == 200
     assert "Operating,Bonus Income,1500.00,SGD,Inflow - Bonus Income" in export_resp.text
+
+
+async def test_balance_sheet_diagnostics_and_account_lineage(client, db: AsyncSession, test_user) -> None:
+    resp = await client.get("/reports/balance-sheet/diagnostics")
+    assert resp.status_code == 200
+    assert {"is_balanced", "equation_delta", "primary_category", "suggested_action"} <= set(resp.json())
+
+    with patch("src.routers.reports.run_balance_sheet_diagnostics", side_effect=ReportError("Diagnostics failure")):
+        err_resp = await client.get("/reports/balance-sheet/diagnostics")
+    assert err_resp.status_code == 400
+
+    assert (await client.get(f"/reports/account-lineage?account_id={uuid4()}")).status_code == 404
+    acc = Account(user_id=test_user.id, name="Lineage Cash", type=AccountType.ASSET, currency="SGD")
+    db.add(acc)
+    await db.commit()
+    await db.refresh(acc)
+    lin = await client.get(f"/reports/account-lineage?account_id={acc.id}&currency=SGD")
+    assert lin.status_code == 200
+    assert lin.json()["account_id"] == str(acc.id)
+    assert (await client.get("/reports/exports?report_type=cash-flow&format=csv")).status_code == 400

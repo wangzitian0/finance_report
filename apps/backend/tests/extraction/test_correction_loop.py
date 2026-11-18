@@ -1,9 +1,151 @@
-'EPIC-018'; from decimal import Decimal; from uuid import uuid4; import pytest; from src.extraction.extension.correction_loop import CorrectionLoopService, CorrectionRecord, build_corpus_from_corrections, replay_low_confidence_reduction; from src.extraction.orm.correction import CorrectionLog; _correction = lambda *, description=None, original=None, corrected='Office Supplies': CorrectionLog(user_id=uuid4(), transaction_id=uuid4(), original_category=original, corrected_category=corrected, transaction_description=description)
-def test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern(): 'AC-extraction.1814.1 AC18.14.1'; corrections = [_correction(description='  Starbucks  COFFEE ', original='Travel', corrected='Meals'), _correction(description=None, original='Misc', corrected='Software'), _correction(description='   ', original='Groceries', corrected='Food'), _correction(description='   ', original=None, corrected='Ignored')]; corpus = build_corpus_from_corrections(corrections); assert [record.key for record in corpus] == ['starbucks coffee', 'misc', 'groceries']; assert corpus[0].corrected_category == 'Meals'; assert corpus[0].proposed_category == 'Travel'
-def test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur(): 'AC-extraction.1814.2 AC18.14.2'; corpus = [CorrectionRecord(key='rent', corrected_category='Housing', proposed_category='Misc'), CorrectionRecord(key='salary', corrected_category='Income', proposed_category=None), CorrectionRecord(key='rent', corrected_category='Housing', proposed_category='Misc'), CorrectionRecord(key='coffee', corrected_category='Meals', proposed_category='Travel')]; result = replay_low_confidence_reduction(corpus, train_ratio=Decimal('0.5')); assert result.holdout_size == 2; assert result.grounded == 1; assert result.proportion_before == Decimal('1'); assert result.proportion_after == Decimal('0.5'); assert result.reduced is True; 'AC18.14.2'; 'AC18.14.2'; _m1_corpus = [CorrectionRecord(key='a', corrected_category='A', proposed_category=None), CorrectionRecord(key='b', corrected_category='B', proposed_category=None), CorrectionRecord(key='c', corrected_category='C', proposed_category=None), CorrectionRecord(key='d', corrected_category='D', proposed_category=None)]; _m1_result = replay_low_confidence_reduction(_m1_corpus, train_ratio=Decimal('0.5')); assert _m1_result.grounded == 0; assert _m1_result.proportion_after == _m1_result.proportion_before; assert _m1_result.reduced is False
-async def test_AC18_14_3_service_builds_corpus_from_persisted_corrections(db, test_user): 'AC-extraction.1814.3 AC18.14.3'; from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory; document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id); txn = await AtomicTransactionFactory.create_async(db, test_user.id, source_doc_id=document.id, description='Netflix'); db.add(CorrectionLog(user_id=test_user.id, transaction_id=txn.id, original_category='Utilities', corrected_category='Entertainment', transaction_description='Netflix')); await db.commit(); corpus = await CorrectionLoopService().build_corpus(db, test_user.id); assert len(corpus) == 1; assert corpus[0].key == 'netflix'; assert corpus[0].corrected_category == 'Entertainment'
+"EPIC-018"
+
+from decimal import Decimal
+from uuid import uuid4
+import pytest
+from src.extraction.extension.correction_loop import (
+    CorrectionLoopService,
+    CorrectionRecord,
+    build_corpus_from_corrections,
+    replay_low_confidence_reduction,
+)
+from src.extraction.orm.correction import CorrectionLog
+
+_correction = lambda *, description=None, original=None, corrected="Office Supplies": CorrectionLog(
+    user_id=uuid4(),
+    transaction_id=uuid4(),
+    original_category=original,
+    corrected_category=corrected,
+    transaction_description=description,
+)
+
+
+def test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern():
+    "AC-extraction.1814.1 AC18.14.1"
+    corrections = [
+        _correction(description="  Starbucks  COFFEE ", original="Travel", corrected="Meals"),
+        _correction(description=None, original="Misc", corrected="Software"),
+        _correction(description="   ", original="Groceries", corrected="Food"),
+        _correction(description="   ", original=None, corrected="Ignored"),
+    ]
+    corpus = build_corpus_from_corrections(corrections)
+    assert [record.key for record in corpus] == ["starbucks coffee", "misc", "groceries"]
+    assert corpus[0].corrected_category == "Meals"
+    assert corpus[0].proposed_category == "Travel"
+
+
+def test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur():
+    "AC-extraction.1814.2 AC18.14.2"
+    corpus = [
+        CorrectionRecord(key="rent", corrected_category="Housing", proposed_category="Misc"),
+        CorrectionRecord(key="salary", corrected_category="Income", proposed_category=None),
+        CorrectionRecord(key="rent", corrected_category="Housing", proposed_category="Misc"),
+        CorrectionRecord(key="coffee", corrected_category="Meals", proposed_category="Travel"),
+    ]
+    result = replay_low_confidence_reduction(corpus, train_ratio=Decimal("0.5"))
+    assert result.holdout_size == 2
+    assert result.grounded == 1
+    assert result.proportion_before == Decimal("1")
+    assert result.proportion_after == Decimal("0.5")
+    assert result.reduced is True
+    "AC18.14.2"
+    "AC18.14.2"
+    _m1_corpus = [
+        CorrectionRecord(key="a", corrected_category="A", proposed_category=None),
+        CorrectionRecord(key="b", corrected_category="B", proposed_category=None),
+        CorrectionRecord(key="c", corrected_category="C", proposed_category=None),
+        CorrectionRecord(key="d", corrected_category="D", proposed_category=None),
+    ]
+    _m1_result = replay_low_confidence_reduction(_m1_corpus, train_ratio=Decimal("0.5"))
+    assert _m1_result.grounded == 0
+    assert _m1_result.proportion_after == _m1_result.proportion_before
+    assert _m1_result.reduced is False
+
+
+async def test_AC18_14_3_service_builds_corpus_from_persisted_corrections(db, test_user):
+    "AC-extraction.1814.3 AC18.14.3"
+    from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
+
+    document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
+    txn = await AtomicTransactionFactory.create_async(
+        db, test_user.id, source_doc_id=document.id, description="Netflix"
+    )
+    db.add(
+        CorrectionLog(
+            user_id=test_user.id,
+            transaction_id=txn.id,
+            original_category="Utilities",
+            corrected_category="Entertainment",
+            transaction_description="Netflix",
+        )
+    )
+    await db.commit()
+    corpus = await CorrectionLoopService().build_corpus(db, test_user.id)
+    assert len(corpus) == 1
+    assert corpus[0].key == "netflix"
+    assert corpus[0].corrected_category == "Entertainment"
+
+
 async def test_AC18_14_4_service_replay_measures_held_out_reduction(db, test_user):
-    'AC-extraction.1814.4 AC18.14.4'; from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory; document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
-    for (description, original, corrected) in [('Netflix', 'Utilities', 'Entertainment'), ('Spotify', 'Utilities', 'Entertainment'), ('Netflix', 'Utilities', 'Entertainment'), ('Spotify', 'Utilities', 'Entertainment')]: txn = await AtomicTransactionFactory.create_async(db, test_user.id, source_doc_id=document.id, description=description); db.add(CorrectionLog(user_id=test_user.id, transaction_id=txn.id, original_category=original, corrected_category=corrected, transaction_description=description))
-    await db.commit(); result = await CorrectionLoopService().replay(db, test_user.id, train_ratio=Decimal('0.5')); assert result.holdout_size == 2; assert result.grounded == 2; assert result.reduced is True; assert result.proportion_after < result.proportion_before
-async def test_AC18_14_4_service_replay_counts_real_statement_confidence_tiers(db, test_user): 'AC-extraction.1814.4'; from src.extraction import BankStatementStatus; from tests.factories import StatementSummaryFactory; await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSED, confidence_score=90, balance_validated=True); await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSED, confidence_score=75, balance_validated=True); await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSED, confidence_score=45, balance_validated=False); await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.RETIRED, confidence_score=10, balance_validated=False); await db.commit(); result = await CorrectionLoopService().replay(db, test_user.id); assert result.high_confidence_count == 1; assert result.medium_confidence_count == 1; assert result.low_confidence_count == 1; assert result.low_confidence_proportion == Decimal('0.33333')
+    "AC-extraction.1814.4 AC18.14.4"
+    from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
+
+    document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
+    for description, original, corrected in [
+        ("Netflix", "Utilities", "Entertainment"),
+        ("Spotify", "Utilities", "Entertainment"),
+        ("Netflix", "Utilities", "Entertainment"),
+        ("Spotify", "Utilities", "Entertainment"),
+    ]:
+        txn = await AtomicTransactionFactory.create_async(
+            db, test_user.id, source_doc_id=document.id, description=description
+        )
+        db.add(
+            CorrectionLog(
+                user_id=test_user.id,
+                transaction_id=txn.id,
+                original_category=original,
+                corrected_category=corrected,
+                transaction_description=description,
+            )
+        )
+    await db.commit()
+    result = await CorrectionLoopService().replay(db, test_user.id, train_ratio=Decimal("0.5"))
+    assert result.holdout_size == 2
+    assert result.grounded == 2
+    assert result.reduced is True
+    assert result.proportion_after < result.proportion_before
+
+
+async def test_AC18_14_4_service_replay_counts_real_statement_confidence_tiers(db, test_user):
+    "AC-extraction.1814.4"
+    from src.extraction import BankStatementStatus
+    from tests.factories import StatementSummaryFactory
+
+    await StatementSummaryFactory.create_async(
+        db, user_id=test_user.id, status=BankStatementStatus.PARSED, confidence_score=90, balance_validated=True
+    )
+    await StatementSummaryFactory.create_async(
+        db, user_id=test_user.id, status=BankStatementStatus.PARSED, confidence_score=75, balance_validated=True
+    )
+    await StatementSummaryFactory.create_async(
+        db, user_id=test_user.id, status=BankStatementStatus.PARSED, confidence_score=45, balance_validated=False
+    )
+    await StatementSummaryFactory.create_async(
+        db, user_id=test_user.id, status=BankStatementStatus.RETIRED, confidence_score=10, balance_validated=False
+    )
+    await db.commit()
+    result = await CorrectionLoopService().replay(db, test_user.id)
+    assert result.high_confidence_count == 1
+    assert result.medium_confidence_count == 1
+    assert result.low_confidence_count == 1
+    assert result.low_confidence_proportion == Decimal("0.33333")
+
+
+async def test_AC18_14_4_replay_endpoint_surfaces_the_loop_effect(client):
+    response = await client.get("/statements/correction-loop/replay")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["holdout_size"] == 0
+    assert body["reduced"] is False
+    assert body["low_confidence_proportion"] == "0"

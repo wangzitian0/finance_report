@@ -52,7 +52,7 @@ from src.extraction.extension.transaction_classification import CategoryProposal
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_run import StatementRun
 from src.ledger import Account, AccountType, JournalEntry
-from tests.extraction.test_statement_run_wiring import (
+from tests.extraction._statement_run_helpers import (
     CSV,
     ScriptedService,
     Sleeps,
@@ -60,6 +60,7 @@ from tests.extraction.test_statement_run_wiring import (
     _statement,
     _statement_with_run,
     _use_case,
+    _worker,
 )
 from tests.factories import StatementSummaryFactory, seed_parsed_statement
 from tests.statement_ingestion import classify_run_for, classify_statement, run_for
@@ -907,3 +908,74 @@ def test_AC_extraction_2994_104_no_advisory_lock_guards_the_classification():
         assert not hasattr(transaction_classification, name), name
     for name in ("CLASSIFICATION_LOCK_WAIT_SECONDS", "_LOCK_POLL_SECONDS", "_statement_lock_key"):
         assert not hasattr(transaction_classification, name), name
+
+
+def test_summarize_outcomes_and_phase_deadline():
+    from src.extraction.extension.transaction_classification import (
+        CLASSIFICATION_PHASE_DEADLINE_SECONDS,
+        ClassificationOutcome,
+        summarize_outcomes,
+    )
+
+    assert 0 < CLASSIFICATION_PHASE_DEADLINE_SECONDS <= 180
+    outcomes = [
+        ClassificationOutcome(
+            atomic_txn_id=uuid4(), disposition="off_catalog", category="CUSTOM", confidence=90, policy_version=1
+        ),
+        ClassificationOutcome(
+            atomic_txn_id=uuid4(), disposition="applied", category="SALARY", confidence=95, policy_version=1
+        ),
+    ]
+    assert summarize_outcomes(outcomes)["by_category"] == {"other": 1, "SALARY": 1}
+
+
+async def test_phase_batches_commit_independently_and_release_connections(
+    db, test_user, test_database_url, monkeypatch
+):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from src.database import create_app_engine
+    from tests.extraction._statement_run_helpers import ScriptedModel, _wait_until
+
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_BATCH_SIZE", 2)
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_PARALLEL_BATCHES", 1)
+    seeded = await _seed(db, test_user, _rows(6))
+    gate = asyncio.Event()
+    model = _install(monkeypatch, ScriptedModel(None, gate))
+    run_id = await classify_run_for(db, seeded.id)
+    engine = create_app_engine(test_database_url, pool_size=4, max_overflow=0)
+    worker = asyncio.create_task(_worker(async_sessionmaker(engine, expire_on_commit=False), run_id))
+    try:
+        await asyncio.wait_for(model.reached(1).wait(), timeout=WAIT_SECONDS)
+
+        async def _idle() -> bool:
+            return engine.pool.checkedout() == 0
+
+        assert await _wait_until(_idle)
+    finally:
+        gate.set()
+        await asyncio.wait_for(worker, timeout=WAIT_SECONDS)
+        await engine.dispose()
+    run = await _run(db, run_id)
+    assert run.state is RunState.SUCCEEDED
+
+
+async def test_two_writers_of_keyword_rule_serialize_without_collision(db, test_user):
+    from src.extraction.extension.transaction_classification import ClassificationService
+
+    seeded = await _seed(db, test_user)
+    await _add_coffee_rule(db, test_user)
+    coffee = next(txn for txn in seeded.transactions if txn.description.startswith("Coffee"))
+    maker = create_session_maker_from_db(db)
+    async with maker() as first, maker() as second:
+        rows_a = await ClassificationService().apply_rules(
+            first, test_user.id, [await first.get(type(coffee), coffee.id)]
+        )
+        task_b = asyncio.create_task(
+            ClassificationService().apply_rules(second, test_user.id, [await second.get(type(coffee), coffee.id)])
+        )
+        done, _ = await asyncio.wait({task_b}, timeout=0.4)
+        assert not done
+        await first.commit()
+        rows_b = await asyncio.wait_for(task_b, timeout=WAIT_SECONDS)
+        await second.commit()
+    assert [r.id for r in rows_a] == [r.id for r in rows_b]

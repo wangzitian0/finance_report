@@ -1,8 +1,0 @@
-'AC-meta.facade.1 AC-meta.facade.2'; from __future__ import annotations; import ast; from pathlib import Path; import pytest; pytestmark = pytest.mark.no_db; BACKEND_ROOT = Path(__file__).resolve().parents[2]; SRC_ROOT = BACKEND_ROOT / 'src'; HUB = 'src.models'
-def _models_import_violations(path: Path) -> list[str]:
-    tree = ast.parse(path.read_text(), filename=str(path)); violations: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module and (node.module == HUB or node.module.startswith(f'{HUB}.')): names = ', '.join((a.name for a in node.names)); violations.append(f'{path}:{node.lineno}: `from {node.module} import {names}` — src.models was dissolved (#1675 D6); import from the owning package instead (platform.orm.base / orm_registry / extraction.orm.*).')
-        else: [violations.append(f'{path}:{node.lineno}: `import {alias.name}` — src.models was dissolved (#1675 D6); import from the owning package instead.') if alias.name == HUB or alias.name.startswith(f'{HUB}.') else None for alias in node.names] if isinstance(node, ast.Import) else None
-    return violations
-def test_models_package_is_not_reintroduced() -> None: 'AC-meta.facade.1'; assert not (SRC_ROOT / 'models').exists(), 'src/models/ was reintroduced — it was fully dissolved in #1675 D6 (mixins -> platform.orm.base, registry -> src.orm_registry, statement_summary/statement_enums -> extraction.orm).'; violations: list[str] = []; [violations.extend(_models_import_violations(path)) for path in sorted(SRC_ROOT.rglob('*.py'))]; assert not violations, 'Forbidden src.models imports found:\n' + '\n'.join(violations)

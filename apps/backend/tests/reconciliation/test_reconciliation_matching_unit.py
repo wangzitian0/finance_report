@@ -1,85 +1,1206 @@
-from datetime import date; from decimal import Decimal; from unittest.mock import AsyncMock, patch; from uuid import UUID, uuid4; import pytest; from sqlalchemy import select; from sqlalchemy.ext.asyncio import AsyncSession; from sqlalchemy.orm import selectinload; from src.audit import JournalEntrySourceType; from src.extraction import BankStatementStatus, DocumentType, UploadedDocument; from src.extraction.base.source_vocabulary import TransactionDirection; from src.extraction.orm.layer2 import AtomicTransaction; from src.extraction.orm.statement_summary import StatementSummary; from src.identity import User; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.reconciliation import DEFAULT_CONFIG, MatchCandidate, ReconciliationConfig, ReconciliationMatch, ReconciliationStatus, _candidate_is_better, _find_normal_candidates, execute_matching, extract_merchant_tokens, normalize_text, prune_candidates, score_amount, score_business_logic, score_date, score_description, score_group, score_pattern, score_single, weighted_total; from tests.ledger._ledger_helpers import create_valid_posted_entry
-def _make_statement(*, owner_id: UUID | None=None, base_date: date) -> StatementSummary: user_id = owner_id if owner_id else uuid4(); return StatementSummary(user_id=user_id, file_hash='test_hash_' + str(base_date) + uuid4().hex, institution='Test Bank', account_last4='1234', currency='SGD', period_start=base_date, period_end=base_date, opening_balance=Decimal('0.00'), closing_balance=Decimal('0.00'))
-def _atomic_txn(*, owner_id: UUID, **kwargs) -> AtomicTransaction: kwargs.setdefault('currency', 'SGD'); kwargs.setdefault('dedup_hash', uuid4().hex + uuid4().hex); kwargs.setdefault('source_documents', [{'doc_id': str(uuid4()), 'doc_type': 'bank_statement'}]); return AtomicTransaction(user_id=owner_id, **kwargs)
-async def _seed_document(db, *, owner_id: UUID) -> UploadedDocument: doc = UploadedDocument(user_id=owner_id, file_path='statements/test.pdf', file_hash='doc_hash_' + uuid4().hex, original_filename='test.pdf', document_type=DocumentType.BANK_STATEMENT); db.add(doc); await db.flush(); return doc
-def _make_account(db: AsyncSession, user_id: UUID, name: str='Test Account', acc_type: AccountType=AccountType.ASSET, currency: str='SGD') -> Account: account = Account(id=uuid4(), user_id=user_id, name=name, type=acc_type, currency=currency); db.add(account); return account
-def _make_pair(db: AsyncSession, user_id: UUID, account: Account, amount: Decimal | str, memo: str='Test Entry', *, credit_account: Account | None=None, entry_date: date=date(2024, 1, 1), status: JournalEntryStatus=JournalEntryStatus.POSTED) -> JournalEntry: entry = JournalEntry(user_id=user_id, entry_date=entry_date, memo=memo, status=status); amt = Decimal(str(amount)); cred_acc = credit_account or account; entry.lines = [JournalLine(account_id=account.id, amount=amt, direction=Direction.DEBIT), JournalLine(account_id=cred_acc.id, amount=amt, direction=Direction.CREDIT)]; db.add(entry); return entry
-async def _seed_scenario(db: AsyncSession, user_id: UUID, *, txn_desc: str='Test Txn', txn_amount: Decimal | str | list[Decimal | str]='100.00', direction: str='OUT', pair_specs: list[tuple[Decimal | str, str]] | None=None, account_name: str='Test Account', credit_account: Account | None=None, txn_date: date=date(2024, 1, 1)) -> tuple[Account, list[AtomicTransaction], list[JournalEntry]]:
-    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1))); txns = []
+from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock, patch
+from uuid import UUID, uuid4
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from src.audit import JournalEntrySourceType
+from src.extraction import BankStatementStatus, DocumentType, UploadedDocument
+from src.extraction.base.source_vocabulary import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.statement_summary import StatementSummary
+from src.identity import User
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.reconciliation import (
+    DEFAULT_CONFIG,
+    MatchCandidate,
+    ReconciliationConfig,
+    ReconciliationMatch,
+    ReconciliationStatus,
+    _candidate_is_better,
+    _find_normal_candidates,
+    execute_matching,
+    extract_merchant_tokens,
+    normalize_text,
+    prune_candidates,
+    score_amount,
+    score_business_logic,
+    score_date,
+    score_description,
+    score_group,
+    score_pattern,
+    score_single,
+    weighted_total,
+)
+from tests.ledger._ledger_helpers import create_valid_posted_entry
+
+
+def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> StatementSummary:
+    user_id = owner_id if owner_id else uuid4()
+    return StatementSummary(
+        user_id=user_id,
+        file_hash="test_hash_" + str(base_date) + uuid4().hex,
+        institution="Test Bank",
+        account_last4="1234",
+        currency="SGD",
+        period_start=base_date,
+        period_end=base_date,
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+    )
+
+
+def _atomic_txn(*, owner_id: UUID, **kwargs) -> AtomicTransaction:
+    kwargs.setdefault("currency", "SGD")
+    kwargs.setdefault("dedup_hash", uuid4().hex + uuid4().hex)
+    kwargs.setdefault("source_documents", [{"doc_id": str(uuid4()), "doc_type": "bank_statement"}])
+    return AtomicTransaction(user_id=owner_id, **kwargs)
+
+
+async def _seed_document(db, *, owner_id: UUID) -> UploadedDocument:
+    doc = UploadedDocument(
+        user_id=owner_id,
+        file_path="statements/test.pdf",
+        file_hash="doc_hash_" + uuid4().hex,
+        original_filename="test.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(doc)
+    await db.flush()
+    return doc
+
+
+def _make_account(
+    db: AsyncSession,
+    user_id: UUID,
+    name: str = "Test Account",
+    acc_type: AccountType = AccountType.ASSET,
+    currency: str = "SGD",
+) -> Account:
+    account = Account(id=uuid4(), user_id=user_id, name=name, type=acc_type, currency=currency)
+    db.add(account)
+    return account
+
+
+def _make_pair(
+    db: AsyncSession,
+    user_id: UUID,
+    account: Account,
+    amount: Decimal | str,
+    memo: str = "Test Entry",
+    *,
+    credit_account: Account | None = None,
+    entry_date: date = date(2024, 1, 1),
+    status: JournalEntryStatus = JournalEntryStatus.POSTED,
+) -> JournalEntry:
+    entry = JournalEntry(user_id=user_id, entry_date=entry_date, memo=memo, status=status)
+    amt = Decimal(str(amount))
+    cred_acc = credit_account or account
+    entry.lines = [
+        JournalLine(account_id=account.id, amount=amt, direction=Direction.DEBIT),
+        JournalLine(account_id=cred_acc.id, amount=amt, direction=Direction.CREDIT),
+    ]
+    db.add(entry)
+    return entry
+
+
+async def _seed_scenario(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    txn_desc: str = "Test Txn",
+    txn_amount: Decimal | str | list[Decimal | str] = "100.00",
+    direction: str = "OUT",
+    pair_specs: list[tuple[Decimal | str, str]] | None = None,
+    account_name: str = "Test Account",
+    credit_account: Account | None = None,
+    txn_date: date = date(2024, 1, 1),
+) -> tuple[Account, list[AtomicTransaction], list[JournalEntry]]:
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    txns = []
     if isinstance(txn_amount, list):
-        for (idx, amt) in enumerate(txn_amount): t = _atomic_txn(owner_id=user_id, txn_date=txn_date, description=txn_desc, amount=Decimal(str(amt)), direction=direction, dedup_hash=f'batch-{amt}-{idx}-' + uuid4().hex); txns.append(t); db.add(t)
-    else: t = _atomic_txn(owner_id=user_id, txn_date=txn_date, description=txn_desc, amount=Decimal(str(txn_amount)), direction=direction); txns.append(t); db.add(t)
-    account = _make_account(db, user_id, account_name); await db.flush(); entries = []; [entries.append(_make_pair(db, user_id, account, Decimal(str(amt)), memo, credit_account=credit_account)) for amt, memo in pair_specs] if pair_specs else None; await db.commit(); return (account, txns, entries)
-async def _seed_transfer_setup(db: AsyncSession, *, user_id: UUID | None=None, account_name: str='Checking Account', desc: str='TRANSFER TO SAVINGS', direction: str='OUT', amount: Decimal=Decimal('500.00'), with_doc: bool=True) -> tuple[UUID, Account, AtomicTransaction]:
-    uid = user_id or uuid4(); db.add(User(id=uid, email=f'xfer-{uuid4()}@example.com', hashed_password='hashed')) if not user_id else None; account = _make_account(db, uid, account_name); await db.flush(); statement = _make_statement(owner_id=uid, base_date=date(2024, 1, 1)); statement.account_id = account.id; statement.status = BankStatementStatus.APPROVED; doc_id = None
-    if with_doc: doc = await _seed_document(db, owner_id=uid); statement.uploaded_document_id = doc.id; statement.file_hash = doc.file_hash; doc_id = str(doc.id)
-    db.add(statement); src_docs = [{'doc_id': doc_id, 'doc_type': 'bank_statement'}] if doc_id else None; txn = _atomic_txn(owner_id=uid, txn_date=date(2024, 1, 1), description=desc, amount=amount, direction=direction, **{'source_documents': src_docs} if src_docs else {}); db.add(txn); await db.commit(); return (uid, account, txn)
-def test_normalize_text_edge_cases(): assert normalize_text('') == ''; assert normalize_text('!!! @@@ ###') == ''; assert normalize_text('ABC   123') == 'abc 123'; 'AC4.1.4'; 'AC4.1.4'; assert score_description(None, 'test') == 0.0; assert score_description('test', None) == 0.0; assert score_description('', 'test') == 0.0; assert score_description('!!!', '@@@') == 0.0; assert score_description('Exact Match', 'Exact Match') == 100.0
-def test_score_amount_tiers(): 'AC-reconciliation.matching-core.3 AC4.1.3'; config = DEFAULT_CONFIG; assert score_amount(Decimal('100.00'), Decimal('100.00'), config) == 100.0; assert score_amount(Decimal('100.00'), Decimal('100.01'), config) == 100.0; assert score_amount(Decimal('1000.00'), Decimal('1004.00'), config) == 90.0; assert score_amount(Decimal('100.00'), Decimal('104.00'), config) == 70.0; assert score_amount(Decimal('1000.00'), Decimal('1009.00'), config, is_multi=True) == 70.0; assert score_amount(Decimal('0.00'), Decimal('10.00'), config) == 0.0; assert score_amount(Decimal('100.00'), Decimal('150.00'), config) == 50.0; _m2_config = DEFAULT_CONFIG; _m2_d1 = date(2024, 1, 1); assert score_date(_m2_d1, _m2_d1, _m2_config) == 100.0; assert score_date(_m2_d1, date(2024, 1, 4), _m2_config) == 90.0; assert score_date(_m2_d1, date(2024, 1, 7), _m2_config) == 70.0; assert score_date(date(2024, 1, 30), date(2024, 2, 3), _m2_config) == 75.0; assert score_date(_m2_d1, date(2024, 1, 15), _m2_config) == 0.0
-@pytest.mark.parametrize(('direction', 'account_types', 'expected_score'), [('IN', [AccountType.ASSET, AccountType.INCOME], 100.0), ('IN', [AccountType.ASSET, AccountType.LIABILITY], 85.0), ('IN', [AccountType.ASSET, AccountType.EQUITY], 75.0), ('IN', [AccountType.ASSET, AccountType.ASSET], 70.0), ('IN', [AccountType.EXPENSE], 40.0), ('OUT', [AccountType.ASSET, AccountType.EXPENSE], 100.0), ('OUT', [AccountType.ASSET, AccountType.LIABILITY], 90.0), ('OUT', [AccountType.ASSET, AccountType.EQUITY], 40.0), ('OUT', [AccountType.ASSET], 70.0), ('???', [AccountType.ASSET, AccountType.INCOME], 50.0)])
-def test_score_business_logic_combinations(direction: str, account_types: list[AccountType], expected_score: float) -> None: txn = AtomicTransaction(direction=direction); entry = JournalEntry(lines=[JournalLine(account=Account(type=t)) for t in account_types]); assert score_business_logic(txn, entry) == expected_score
-def test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust(): 'AC-reconciliation.source-type-transfer.3 AC4.6.3'; manual_id = uuid4(); parsed_id = uuid4(); manual_entry = JournalEntry(id=manual_id, source_type=JournalEntrySourceType.MANUAL); parsed_entry = JournalEntry(id=parsed_id, source_type=JournalEntrySourceType.AUTO_PARSED); entries_by_id = {str(manual_id): manual_entry, str(parsed_id): parsed_entry}; manual_candidate = MatchCandidate(journal_entry_ids=[str(manual_id)], score=88, breakdown={}); parsed_candidate = MatchCandidate(journal_entry_ids=[str(parsed_id)], score=88, breakdown={}); assert _candidate_is_better(manual_candidate, parsed_candidate, entries_by_id); assert manual_candidate.breakdown['source_type_winner_rank'] > manual_candidate.breakdown['source_type_loser_rank']; assert not _candidate_is_better(parsed_candidate, manual_candidate, entries_by_id); assert manual_candidate.breakdown['source_type_winner_rank'] > manual_candidate.breakdown['source_type_loser_rank']; assert extract_merchant_tokens('VISA POS COFFEE SHOP 123') == ['coffee', 'shop']; assert extract_merchant_tokens('REF: 123456789') == []; assert extract_merchant_tokens('PAYMENT TO VENDOR ABC') == ['vendor', 'abc']; _m4_scores = {'amount': 100.0, 'date': 100.0, 'description': 100.0, 'business': 100.0, 'history': 100.0}; assert weighted_total(_m4_scores, DEFAULT_CONFIG) == 100; _m5_candidates = [JournalEntry(id=uuid4(), entry_date=_m5_d, lines=[JournalLine(amount=Decimal(_m5_a), direction=Direction.DEBIT)]) for _m5_d, _m5_a in [(date(2024, 1, 1), '100.00'), (date(2024, 1, 2), '101.00'), (date(2024, 1, 10), '100.00')]]; _m5_pruned = prune_candidates(_m5_candidates, txn_date=date(2024, 1, 1), target_amount=Decimal('100.00'), currency='SGD', limit=2); assert len(_m5_pruned) == 2; assert _m5_pruned[0].id == _m5_candidates[0].id; assert _m5_pruned[1].id == _m5_candidates[2].id; from types import SimpleNamespace; from src.reconciliation import build_many_to_one_groups; _m6_txn1 = SimpleNamespace(description='', txn_date=date(2024, 1, 1), amount=Decimal('50.00')); _m6_txn2 = SimpleNamespace(description='', txn_date=date(2024, 1, 1), amount=Decimal('50.00')); _m6_groups = build_many_to_one_groups([_m6_txn1, _m6_txn2]); assert _m6_groups == []; from types import SimpleNamespace; from src.reconciliation.extension.entry_reads import entry_bank_side_amount, entry_total_amount; _m7_entry_with_amount = SimpleNamespace(id=uuid4(), amount=Decimal('123.45')); _m7_entry_empty = SimpleNamespace(id=uuid4()); assert entry_total_amount(_m7_entry_with_amount, currency='SGD') == Decimal('123.45'); assert entry_total_amount(_m7_entry_empty, currency='SGD') == Decimal('0.00'); assert entry_bank_side_amount(_m7_entry_with_amount, 'IN', currency='SGD') == Decimal('123.45'); assert entry_bank_side_amount(_m7_entry_empty, 'IN', currency='SGD') == Decimal('0.00')
+        for idx, amt in enumerate(txn_amount):
+            t = _atomic_txn(
+                owner_id=user_id,
+                txn_date=txn_date,
+                description=txn_desc,
+                amount=Decimal(str(amt)),
+                direction=direction,
+                dedup_hash=f"batch-{amt}-{idx}-" + uuid4().hex,
+            )
+            txns.append(t)
+            db.add(t)
+    else:
+        t = _atomic_txn(
+            owner_id=user_id,
+            txn_date=txn_date,
+            description=txn_desc,
+            amount=Decimal(str(txn_amount)),
+            direction=direction,
+        )
+        txns.append(t)
+        db.add(t)
+    account = _make_account(db, user_id, account_name)
+    await db.flush()
+    entries = []
+    [
+        entries.append(_make_pair(db, user_id, account, Decimal(str(amt)), memo, credit_account=credit_account))
+        for amt, memo in pair_specs
+    ] if pair_specs else None
+    await db.commit()
+    return (account, txns, entries)
+
+
+async def _seed_transfer_setup(
+    db: AsyncSession,
+    *,
+    user_id: UUID | None = None,
+    account_name: str = "Checking Account",
+    desc: str = "TRANSFER TO SAVINGS",
+    direction: str = "OUT",
+    amount: Decimal = Decimal("500.00"),
+    with_doc: bool = True,
+) -> tuple[UUID, Account, AtomicTransaction]:
+    uid = user_id or uuid4()
+    db.add(User(id=uid, email=f"xfer-{uuid4()}@example.com", hashed_password="hashed")) if not user_id else None
+    account = _make_account(db, uid, account_name)
+    await db.flush()
+    statement = _make_statement(owner_id=uid, base_date=date(2024, 1, 1))
+    statement.account_id = account.id
+    statement.status = BankStatementStatus.APPROVED
+    doc_id = None
+    if with_doc:
+        doc = await _seed_document(db, owner_id=uid)
+        statement.uploaded_document_id = doc.id
+        statement.file_hash = doc.file_hash
+        doc_id = str(doc.id)
+    db.add(statement)
+    src_docs = [{"doc_id": doc_id, "doc_type": "bank_statement"}] if doc_id else None
+    txn = _atomic_txn(
+        owner_id=uid,
+        txn_date=date(2024, 1, 1),
+        description=desc,
+        amount=amount,
+        direction=direction,
+        **{"source_documents": src_docs} if src_docs else {},
+    )
+    db.add(txn)
+    await db.commit()
+    return (uid, account, txn)
+
+
+def test_normalize_text_edge_cases():
+    assert normalize_text("") == ""
+    assert normalize_text("!!! @@@ ###") == ""
+    assert normalize_text("ABC   123") == "abc 123"
+    "AC4.1.4"
+    "AC4.1.4"
+    assert score_description(None, "test") == 0.0
+    assert score_description("test", None) == 0.0
+    assert score_description("", "test") == 0.0
+    assert score_description("!!!", "@@@") == 0.0
+    assert score_description("Exact Match", "Exact Match") == 100.0
+
+
+def test_score_amount_tiers():
+    "AC-reconciliation.matching-core.3 AC4.1.3"
+    config = DEFAULT_CONFIG
+    assert score_amount(Decimal("100.00"), Decimal("100.00"), config) == 100.0
+    assert score_amount(Decimal("100.00"), Decimal("100.01"), config) == 100.0
+    assert score_amount(Decimal("1000.00"), Decimal("1004.00"), config) == 90.0
+    assert score_amount(Decimal("100.00"), Decimal("104.00"), config) == 70.0
+    assert score_amount(Decimal("1000.00"), Decimal("1009.00"), config, is_multi=True) == 70.0
+    assert score_amount(Decimal("0.00"), Decimal("10.00"), config) == 0.0
+    assert score_amount(Decimal("100.00"), Decimal("150.00"), config) == 50.0
+    _m2_config = DEFAULT_CONFIG
+    _m2_d1 = date(2024, 1, 1)
+    assert score_date(_m2_d1, _m2_d1, _m2_config) == 100.0
+    assert score_date(_m2_d1, date(2024, 1, 4), _m2_config) == 90.0
+    assert score_date(_m2_d1, date(2024, 1, 7), _m2_config) == 70.0
+    assert score_date(date(2024, 1, 30), date(2024, 2, 3), _m2_config) == 75.0
+    assert score_date(_m2_d1, date(2024, 1, 15), _m2_config) == 0.0
+
+
+@pytest.mark.parametrize(
+    ("direction", "account_types", "expected_score"),
+    [
+        ("IN", [AccountType.ASSET, AccountType.INCOME], 100.0),
+        ("IN", [AccountType.ASSET, AccountType.LIABILITY], 85.0),
+        ("IN", [AccountType.ASSET, AccountType.EQUITY], 75.0),
+        ("IN", [AccountType.ASSET, AccountType.ASSET], 70.0),
+        ("IN", [AccountType.EXPENSE], 40.0),
+        ("OUT", [AccountType.ASSET, AccountType.EXPENSE], 100.0),
+        ("OUT", [AccountType.ASSET, AccountType.LIABILITY], 90.0),
+        ("OUT", [AccountType.ASSET, AccountType.EQUITY], 40.0),
+        ("OUT", [AccountType.ASSET], 70.0),
+        ("???", [AccountType.ASSET, AccountType.INCOME], 50.0),
+    ],
+)
+def test_score_business_logic_combinations(
+    direction: str, account_types: list[AccountType], expected_score: float
+) -> None:
+    txn = AtomicTransaction(direction=direction)
+    entry = JournalEntry(lines=[JournalLine(account=Account(type=t)) for t in account_types])
+    assert score_business_logic(txn, entry) == expected_score
+
+
+def test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust():
+    "AC-reconciliation.source-type-transfer.3 AC4.6.3"
+    manual_id = uuid4()
+    parsed_id = uuid4()
+    manual_entry = JournalEntry(id=manual_id, source_type=JournalEntrySourceType.MANUAL)
+    parsed_entry = JournalEntry(id=parsed_id, source_type=JournalEntrySourceType.AUTO_PARSED)
+    entries_by_id = {str(manual_id): manual_entry, str(parsed_id): parsed_entry}
+    manual_candidate = MatchCandidate(journal_entry_ids=[str(manual_id)], score=88, breakdown={})
+    parsed_candidate = MatchCandidate(journal_entry_ids=[str(parsed_id)], score=88, breakdown={})
+    assert _candidate_is_better(manual_candidate, parsed_candidate, entries_by_id)
+    assert manual_candidate.breakdown["source_type_winner_rank"] > manual_candidate.breakdown["source_type_loser_rank"]
+    assert not _candidate_is_better(parsed_candidate, manual_candidate, entries_by_id)
+    assert manual_candidate.breakdown["source_type_winner_rank"] > manual_candidate.breakdown["source_type_loser_rank"]
+    assert extract_merchant_tokens("VISA POS COFFEE SHOP 123") == ["coffee", "shop"]
+    assert extract_merchant_tokens("REF: 123456789") == []
+    assert extract_merchant_tokens("PAYMENT TO VENDOR ABC") == ["vendor", "abc"]
+    _m4_scores = {"amount": 100.0, "date": 100.0, "description": 100.0, "business": 100.0, "history": 100.0}
+    assert weighted_total(_m4_scores, DEFAULT_CONFIG) == 100
+    _m5_candidates = [
+        JournalEntry(
+            id=uuid4(), entry_date=_m5_d, lines=[JournalLine(amount=Decimal(_m5_a), direction=Direction.DEBIT)]
+        )
+        for _m5_d, _m5_a in [(date(2024, 1, 1), "100.00"), (date(2024, 1, 2), "101.00"), (date(2024, 1, 10), "100.00")]
+    ]
+    _m5_pruned = prune_candidates(
+        _m5_candidates, txn_date=date(2024, 1, 1), target_amount=Decimal("100.00"), currency="SGD", limit=2
+    )
+    assert len(_m5_pruned) == 2
+    assert _m5_pruned[0].id == _m5_candidates[0].id
+    assert _m5_pruned[1].id == _m5_candidates[2].id
+    from types import SimpleNamespace
+    from src.reconciliation import build_many_to_one_groups
+
+    _m6_txn1 = SimpleNamespace(description="", txn_date=date(2024, 1, 1), amount=Decimal("50.00"))
+    _m6_txn2 = SimpleNamespace(description="", txn_date=date(2024, 1, 1), amount=Decimal("50.00"))
+    _m6_groups = build_many_to_one_groups([_m6_txn1, _m6_txn2])
+    assert _m6_groups == []
+    from types import SimpleNamespace
+    from src.reconciliation.extension.entry_reads import entry_bank_side_amount, entry_total_amount
+
+    _m7_entry_with_amount = SimpleNamespace(id=uuid4(), amount=Decimal("123.45"))
+    _m7_entry_empty = SimpleNamespace(id=uuid4())
+    assert entry_total_amount(_m7_entry_with_amount, currency="SGD") == Decimal("123.45")
+    assert entry_total_amount(_m7_entry_empty, currency="SGD") == Decimal("0.00")
+    assert entry_bank_side_amount(_m7_entry_with_amount, "IN", currency="SGD") == Decimal("123.45")
+    assert entry_bank_side_amount(_m7_entry_empty, "IN", currency="SGD") == Decimal("0.00")
+
+
 def test_AC4_2_3_normal_candidates_cover_multi_entry_boundaries():
-    'AC4.2.3'; base_date = date(2026, 1, 15); txn = AtomicTransaction(id=uuid4(), txn_date=base_date, description='Vendor ABC', amount=Decimal('100.00'), direction='OUT', currency='SGD')
-    def entry(amount: str, memo: str, *, balanced: bool=True) -> JournalEntry: entry_id = uuid4(); debit = Decimal(amount); credit = debit if balanced else debit - Decimal('1.00'); return JournalEntry(id=entry_id, entry_date=base_date, memo=memo, source_type=JournalEntrySourceType.MANUAL, lines=[JournalLine(direction=Direction.DEBIT, amount=debit, account=Account(type=AccountType.EXPENSE)), JournalLine(direction=Direction.CREDIT, amount=credit, account=Account(type=AccountType.ASSET))])
-    candidates = [entry('40.00', 'Vendor ABC part 1'), entry('60.00', 'Vendor ABC part 2'), entry('10.00', 'Unbalanced ignored', balanced=False), entry('300.00', 'Too large ignored')]; results = _find_normal_candidates([txn], candidates, pattern_scores={'vendor': 90.0}, config=DEFAULT_CONFIG, base_currency='SGD'); assert len(results) == 1; matched_txn, candidate = results[0]; assert matched_txn is txn; assert len(candidate.journal_entry_ids) == 2; assert candidate.breakdown['multi_entry'] == 1
-async def test_score_pattern_no_tokens(db: AsyncSession): txn = AtomicTransaction(description='!!!'); assert await score_pattern(db, txn, DEFAULT_CONFIG, uuid4()) == 0.0
+    "AC4.2.3"
+    base_date = date(2026, 1, 15)
+    txn = AtomicTransaction(
+        id=uuid4(),
+        txn_date=base_date,
+        description="Vendor ABC",
+        amount=Decimal("100.00"),
+        direction="OUT",
+        currency="SGD",
+    )
+
+    def entry(amount: str, memo: str, *, balanced: bool = True) -> JournalEntry:
+        entry_id = uuid4()
+        debit = Decimal(amount)
+        credit = debit if balanced else debit - Decimal("1.00")
+        return JournalEntry(
+            id=entry_id,
+            entry_date=base_date,
+            memo=memo,
+            source_type=JournalEntrySourceType.MANUAL,
+            lines=[
+                JournalLine(direction=Direction.DEBIT, amount=debit, account=Account(type=AccountType.EXPENSE)),
+                JournalLine(direction=Direction.CREDIT, amount=credit, account=Account(type=AccountType.ASSET)),
+            ],
+        )
+
+    candidates = [
+        entry("40.00", "Vendor ABC part 1"),
+        entry("60.00", "Vendor ABC part 2"),
+        entry("10.00", "Unbalanced ignored", balanced=False),
+        entry("300.00", "Too large ignored"),
+    ]
+    results = _find_normal_candidates(
+        [txn], candidates, pattern_scores={"vendor": 90.0}, config=DEFAULT_CONFIG, base_currency="SGD"
+    )
+    assert len(results) == 1
+    matched_txn, candidate = results[0]
+    assert matched_txn is txn
+    assert len(candidate.journal_entry_ids) == 2
+    assert candidate.breakdown["multi_entry"] == 1
+
+
+async def test_score_pattern_no_tokens(db: AsyncSession):
+    txn = AtomicTransaction(description="!!!")
+    assert await score_pattern(db, txn, DEFAULT_CONFIG, uuid4()) == 0.0
+
+
 async def test_score_pattern_with_history(db: AsyncSession, test_user):
-    user_id = test_user.id; db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1))); await db.flush(); txn_past = _atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 1), description='STARBUCKS COFFEE', amount=Decimal('10.00'), direction='OUT'); db.add(txn_past); await db.flush()
-    match = ReconciliationMatch(atomic_txn_id=txn_past.id, journal_entry_ids=['some-id'], match_score=95, status=ReconciliationStatus.AUTO_ACCEPTED); db.add(match); await db.commit(); score = await score_pattern(db, AtomicTransaction(description='STARBUCKS #123', amount=Decimal('10.00')), DEFAULT_CONFIG, user_id); assert score == 80.0; score_diff = await score_pattern(db, AtomicTransaction(description='STARBUCKS #123', amount=Decimal('50.00')), DEFAULT_CONFIG, user_id); assert score_diff == 40.0
-async def test_score_group_overrides(db: AsyncSession): txn = AtomicTransaction(description='Test', amount=Decimal('100.00'), txn_date=date(2024, 1, 1), currency='SGD'); entry = JournalEntry(memo='Test', entry_date=date(2024, 1, 1), lines=[JournalLine(amount=Decimal('100.00'), direction=Direction.DEBIT)]); candidate = await score_group(db, txn, [entry], DEFAULT_CONFIG, uuid4(), group_amount=txn.amount, history_score=90.0); assert candidate.breakdown['history'] == 90.0; assert 'many_to_one_bonus' in candidate.breakdown
-async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession, test_user): user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Ghost', txn_amount='100.00'); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 0
-async def test_execute_matching_complex_multi_entry(db: AsyncSession, test_user): user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Complex Multi', txn_amount='100.00', pair_specs=[('50.00', 'Part 1'), ('50.00', 'Part 2')]); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 1; assert matches[0].score_breakdown.get('multi_entry') == 1
-async def test_execute_matching_triple_entry(db: AsyncSession, test_user): user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Triple Multi', txn_amount='150.00', pair_specs=[('50.00', f'Part {i + 1}') for i in range(3)]); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 1; assert matches[0].score_breakdown.get('multi_entry') == 2
-async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user): 'AC-reconciliation.layer2-dedup.1 AC11.16.2'; user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Batch Payment #1', txn_amount=['50.00', '50.00'], pair_specs=[('100.00', 'Batch Payment #1')]); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 2; assert all((m.score_breakdown.get('many_to_one_bonus') == 10.0 for m in matches))
-async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
-    user_id = test_user.id; db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1))); db.add(_atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 1), description='Check Unbalanced', amount=Decimal('100.00'), direction='OUT')); await create_valid_posted_entry(db, user_id, entry_date=date(2024, 1, 1), memo='Unbalanced', amount=Decimal('100.00'))
-    with patch('src.reconciliation.extension.candidate_policy.is_entry_balanced', return_value=False): matches = await execute_matching(db, user_id=user_id, currency='SGD')
+    user_id = test_user.id
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    await db.flush()
+    txn_past = _atomic_txn(
+        owner_id=user_id,
+        txn_date=date(2024, 1, 1),
+        description="STARBUCKS COFFEE",
+        amount=Decimal("10.00"),
+        direction="OUT",
+    )
+    db.add(txn_past)
+    await db.flush()
+    match = ReconciliationMatch(
+        atomic_txn_id=txn_past.id,
+        journal_entry_ids=["some-id"],
+        match_score=95,
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+    )
+    db.add(match)
+    await db.commit()
+    score = await score_pattern(
+        db, AtomicTransaction(description="STARBUCKS #123", amount=Decimal("10.00")), DEFAULT_CONFIG, user_id
+    )
+    assert score == 80.0
+    score_diff = await score_pattern(
+        db, AtomicTransaction(description="STARBUCKS #123", amount=Decimal("50.00")), DEFAULT_CONFIG, user_id
+    )
+    assert score_diff == 40.0
+
+
+async def test_score_group_overrides(db: AsyncSession):
+    txn = AtomicTransaction(description="Test", amount=Decimal("100.00"), txn_date=date(2024, 1, 1), currency="SGD")
+    entry = JournalEntry(
+        memo="Test",
+        entry_date=date(2024, 1, 1),
+        lines=[JournalLine(amount=Decimal("100.00"), direction=Direction.DEBIT)],
+    )
+    candidate = await score_group(
+        db, txn, [entry], DEFAULT_CONFIG, uuid4(), group_amount=txn.amount, history_score=90.0
+    )
+    assert candidate.breakdown["history"] == 90.0
+    assert "many_to_one_bonus" in candidate.breakdown
+
+
+async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession, test_user):
+    user_id = test_user.id
+    await _seed_scenario(db, user_id, txn_desc="Ghost", txn_amount="100.00")
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 0
-async def test_execute_matching_low_score_unmatched(db: AsyncSession, test_user): user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Bad Match', txn_amount='100.00', pair_specs=[('1.00', 'Random')]); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 0
-async def test_execute_matching_with_statement_id_filter(db: AsyncSession, test_user): user_id = test_user.id; db.add_all([_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)), _make_statement(owner_id=user_id, base_date=date(2024, 1, 15))]); txn1 = _atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 1), description='TXN1', amount=Decimal('100.00'), direction='OUT'); txn2 = _atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 15), description='TXN2', amount=Decimal('200.00'), direction='OUT'); db.add_all([txn1, txn2]); account = _make_account(db, user_id); await db.flush(); _make_pair(db, user_id, account, Decimal('100.00'), 'Entry1', entry_date=date(2024, 1, 1)); _make_pair(db, user_id, account, Decimal('200.00'), 'Entry2', entry_date=date(2024, 1, 15)); await db.commit(); matches = await execute_matching(db, user_id=user_id, currency='SGD'); matched_atomic_ids = {m.atomic_txn_id for m in matches}; assert txn1.id in matched_atomic_ids; assert txn2.id in matched_atomic_ids
-async def test_execute_matching_with_limit(db: AsyncSession, test_user): user_id = test_user.id; db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1))); [db.add(_atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 1), description=f'Limit Test {i}', amount=Decimal('100.00'), direction='OUT')) for i in range(3)]; await db.commit(); matches = await execute_matching(db, user_id=user_id, limit=1, currency='SGD'); assert len(matches) == 0
-async def test_transfer_detection_no_account_id(db: AsyncSession, test_user): user_id = test_user.id; db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1))); db.add(_atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 1), description='TRANSFER TO SAVINGS', amount=Decimal('500.00'), direction='OUT')); await db.commit(); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 0
-async def test_transfer_out_creates_match(db: AsyncSession): 'AC-reconciliation.dwd-cutover.1 AC11.17.1'; user_id, _, _ = await _seed_transfer_setup(db, account_name='Checking Account', desc='TRANSFER TO SAVINGS', direction='OUT'); matches = await execute_matching(db, user_id=user_id, currency='SGD'); transfer_matches = [m for m in matches if m.score_breakdown.get('transfer_out')]; assert len(transfer_matches) == 1; assert transfer_matches[0].match_score == 100; assert transfer_matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
-async def test_transfer_in_creates_match(db: AsyncSession): user_id, _, _ = await _seed_transfer_setup(db, account_name='Savings Account', desc='TRANSFER FROM CHECKING', direction='IN'); matches = await execute_matching(db, user_id=user_id, currency='SGD'); transfer_matches = [m for m in matches if m.score_breakdown.get('transfer_in')]; assert len(transfer_matches) == 1; assert transfer_matches[0].match_score == 100; assert transfer_matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
+
+
+async def test_execute_matching_complex_multi_entry(db: AsyncSession, test_user):
+    user_id = test_user.id
+    await _seed_scenario(
+        db,
+        user_id,
+        txn_desc="Complex Multi",
+        txn_amount="100.00",
+        pair_specs=[("50.00", "Part 1"), ("50.00", "Part 2")],
+    )
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 1
+    assert matches[0].score_breakdown.get("multi_entry") == 1
+
+
+async def test_execute_matching_triple_entry(db: AsyncSession, test_user):
+    user_id = test_user.id
+    await _seed_scenario(
+        db,
+        user_id,
+        txn_desc="Triple Multi",
+        txn_amount="150.00",
+        pair_specs=[("50.00", f"Part {i + 1}") for i in range(3)],
+    )
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 1
+    assert matches[0].score_breakdown.get("multi_entry") == 2
+
+
+async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user):
+    "AC-reconciliation.layer2-dedup.1 AC11.16.2"
+    user_id = test_user.id
+    await _seed_scenario(
+        db,
+        user_id,
+        txn_desc="Batch Payment #1",
+        txn_amount=["50.00", "50.00"],
+        pair_specs=[("100.00", "Batch Payment #1")],
+    )
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 2
+    assert all((m.score_breakdown.get("many_to_one_bonus") == 10.0 for m in matches))
+
+
+async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
+    user_id = test_user.id
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Check Unbalanced",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
+    )
+    await create_valid_posted_entry(
+        db, user_id, entry_date=date(2024, 1, 1), memo="Unbalanced", amount=Decimal("100.00")
+    )
+    with patch("src.reconciliation.extension.candidate_policy.is_entry_balanced", return_value=False):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 0
+
+
+async def test_execute_matching_low_score_unmatched(db: AsyncSession, test_user):
+    user_id = test_user.id
+    await _seed_scenario(db, user_id, txn_desc="Bad Match", txn_amount="100.00", pair_specs=[("1.00", "Random")])
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 0
+
+
+async def test_execute_matching_with_statement_id_filter(db: AsyncSession, test_user):
+    user_id = test_user.id
+    db.add_all(
+        [
+            _make_statement(owner_id=user_id, base_date=date(2024, 1, 1)),
+            _make_statement(owner_id=user_id, base_date=date(2024, 1, 15)),
+        ]
+    )
+    txn1 = _atomic_txn(
+        owner_id=user_id, txn_date=date(2024, 1, 1), description="TXN1", amount=Decimal("100.00"), direction="OUT"
+    )
+    txn2 = _atomic_txn(
+        owner_id=user_id, txn_date=date(2024, 1, 15), description="TXN2", amount=Decimal("200.00"), direction="OUT"
+    )
+    db.add_all([txn1, txn2])
+    account = _make_account(db, user_id)
+    await db.flush()
+    _make_pair(db, user_id, account, Decimal("100.00"), "Entry1", entry_date=date(2024, 1, 1))
+    _make_pair(db, user_id, account, Decimal("200.00"), "Entry2", entry_date=date(2024, 1, 15))
+    await db.commit()
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    matched_atomic_ids = {m.atomic_txn_id for m in matches}
+    assert txn1.id in matched_atomic_ids
+    assert txn2.id in matched_atomic_ids
+
+
+async def test_execute_matching_with_limit(db: AsyncSession, test_user):
+    user_id = test_user.id
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    [
+        db.add(
+            _atomic_txn(
+                owner_id=user_id,
+                txn_date=date(2024, 1, 1),
+                description=f"Limit Test {i}",
+                amount=Decimal("100.00"),
+                direction="OUT",
+            )
+        )
+        for i in range(3)
+    ]
+    await db.commit()
+    matches = await execute_matching(db, user_id=user_id, limit=1, currency="SGD")
+    assert len(matches) == 0
+
+
+async def test_transfer_detection_no_account_id(db: AsyncSession, test_user):
+    user_id = test_user.id
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="TRANSFER TO SAVINGS",
+            amount=Decimal("500.00"),
+            direction="OUT",
+        )
+    )
+    await db.commit()
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 0
+
+
+async def test_transfer_out_creates_match(db: AsyncSession):
+    "AC-reconciliation.dwd-cutover.1 AC11.17.1"
+    user_id, _, _ = await _seed_transfer_setup(
+        db, account_name="Checking Account", desc="TRANSFER TO SAVINGS", direction="OUT"
+    )
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
+    assert len(transfer_matches) == 1
+    assert transfer_matches[0].match_score == 100
+    assert transfer_matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
+
+
+async def test_transfer_in_creates_match(db: AsyncSession):
+    user_id, _, _ = await _seed_transfer_setup(
+        db, account_name="Savings Account", desc="TRANSFER FROM CHECKING", direction="IN"
+    )
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_in")]
+    assert len(transfer_matches) == 1
+    assert transfer_matches[0].match_score == 100
+    assert transfer_matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
+
+
 async def test_transfer_entry_creation_failure(db: AsyncSession):
-    user_id, _, _ = await _seed_transfer_setup(db, account_name='Checking', with_doc=False)
-    with patch('src.reconciliation.extension.phases.transfer_detection.create_transfer_out_entry', side_effect=Exception('DB Error')): matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert not [m for m in matches if m.score_breakdown.get('transfer_out')]
-async def test_many_to_one_all_already_matched(db: AsyncSession): user_id, _, _ = await _seed_transfer_setup(db, account_name='Checking', desc='Batch Transfer TO savings', amount=Decimal('50.00'), direction='OUT'); doc_id = (await db.execute(select(UploadedDocument.id).where(UploadedDocument.user_id == user_id))).scalar_one(); t2 = _atomic_txn(owner_id=user_id, source_documents=[{'doc_id': str(doc_id), 'doc_type': 'bank_statement'}], txn_date=date(2024, 1, 1), description='Batch Transfer TO savings', amount=Decimal('50.00'), direction='OUT', dedup_hash='batch-900.00-' + uuid4().hex); db.add(t2); await db.commit(); matches = await execute_matching(db, user_id=user_id, currency='SGD'); transfer_matches = [m for m in matches if m.score_breakdown.get('transfer_out')]; assert len(transfer_matches) == 2
-async def test_many_to_one_no_candidates(db: AsyncSession, test_user): user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Batch Settlement #1', txn_amount=['50.00', '50.00']); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 0
-async def test_normal_matching_supersession_same_entries(db: AsyncSession, test_user): user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Same Entry', txn_amount='100.00', pair_specs=[('100.00', 'Same Entry')]); await db.commit(); matches1 = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches1) == 1; await db.commit(); matches2 = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches2) == 0
+    user_id, _, _ = await _seed_transfer_setup(db, account_name="Checking", with_doc=False)
+    with patch(
+        "src.reconciliation.extension.phases.transfer_detection.create_transfer_out_entry",
+        side_effect=Exception("DB Error"),
+    ):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
+        assert not [m for m in matches if m.score_breakdown.get("transfer_out")]
+
+
+async def test_many_to_one_all_already_matched(db: AsyncSession):
+    user_id, _, _ = await _seed_transfer_setup(
+        db, account_name="Checking", desc="Batch Transfer TO savings", amount=Decimal("50.00"), direction="OUT"
+    )
+    doc_id = (await db.execute(select(UploadedDocument.id).where(UploadedDocument.user_id == user_id))).scalar_one()
+    t2 = _atomic_txn(
+        owner_id=user_id,
+        source_documents=[{"doc_id": str(doc_id), "doc_type": "bank_statement"}],
+        txn_date=date(2024, 1, 1),
+        description="Batch Transfer TO savings",
+        amount=Decimal("50.00"),
+        direction="OUT",
+        dedup_hash="batch-900.00-" + uuid4().hex,
+    )
+    db.add(t2)
+    await db.commit()
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
+    assert len(transfer_matches) == 2
+
+
+async def test_many_to_one_no_candidates(db: AsyncSession, test_user):
+    user_id = test_user.id
+    await _seed_scenario(db, user_id, txn_desc="Batch Settlement #1", txn_amount=["50.00", "50.00"])
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 0
+
+
+async def test_normal_matching_supersession_same_entries(db: AsyncSession, test_user):
+    user_id = test_user.id
+    await _seed_scenario(db, user_id, txn_desc="Same Entry", txn_amount="100.00", pair_specs=[("100.00", "Same Entry")])
+    await db.commit()
+    matches1 = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches1) == 1
+    await db.commit()
+    matches2 = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches2) == 0
+
+
 async def test_transfer_pairs_auto_pairing(db: AsyncSession):
-    user_id = uuid4(); db.add(User(id=user_id, email=f'xfer-pair-{uuid4()}@example.com', hashed_password='hashed')); source_account, dest_account = (_make_account(db, user_id, 'Checking'), _make_account(db, user_id, 'Savings')); await db.flush()
-    async def _make_leg(acc, desc, direction): doc = await _seed_document(db, owner_id=user_id); stmt = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1)); stmt.account_id, stmt.uploaded_document_id, stmt.file_hash = (acc.id, doc.id, doc.file_hash); stmt.status = BankStatementStatus.APPROVED; db.add(stmt); return _atomic_txn(owner_id=user_id, source_documents=[{'doc_id': str(doc.id), 'doc_type': 'bank_statement'}], txn_date=date(2024, 1, 1), description=desc, amount=Decimal('500.00'), direction=direction)
-    txn_out = await _make_leg(source_account, 'TRANSFER TO SAVINGS', 'OUT'); txn_in = await _make_leg(dest_account, 'TRANSFER FROM CHECKING', 'IN'); db.add_all([txn_out, txn_in]); await db.commit(); matches = await execute_matching(db, user_id=user_id, currency='SGD'); transfer_out = [m for m in matches if m.score_breakdown.get('transfer_out')]; transfer_in = [m for m in matches if m.score_breakdown.get('transfer_in')]; assert len(transfer_out) == 1; assert len(transfer_in) == 1; from src.ledger import get_processing_balance; from src.ledger.base.processing import PROCESSING_ACCOUNT_CODE; out_entry_id = UUID(transfer_out[0].journal_entry_ids[0]); in_entry_id = UUID(transfer_in[0].journal_entry_ids[0]); out_entry = (await db.execute(select(JournalEntry).where(JournalEntry.id == out_entry_id).options(selectinload(JournalEntry.lines)))).scalar_one(); in_entry = (await db.execute(select(JournalEntry).where(JournalEntry.id == in_entry_id).options(selectinload(JournalEntry.lines)))).scalar_one(); out_debits = [line for line in out_entry.lines if line.direction == Direction.DEBIT]; out_credits = [line for line in out_entry.lines if line.direction == Direction.CREDIT]; assert len(out_debits) == 1 and out_debits[0].amount == Decimal('500.00'); assert len(out_credits) == 1 and out_credits[0].amount == Decimal('500.00'); assert out_credits[0].account_id == source_account.id; in_debits = [line for line in in_entry.lines if line.direction == Direction.DEBIT]; in_credits = [line for line in in_entry.lines if line.direction == Direction.CREDIT]; assert len(in_debits) == 1 and in_debits[0].amount == Decimal('500.00'); assert len(in_credits) == 1 and in_credits[0].amount == Decimal('500.00'); assert in_debits[0].account_id == dest_account.id; proc_stmt = select(Account).where(Account.user_id == user_id, Account.code == PROCESSING_ACCOUNT_CODE); proc_account = (await db.execute(proc_stmt)).scalar_one(); assert out_debits[0].account_id == proc_account.id; assert in_credits[0].account_id == proc_account.id; assert sum((line.amount for line in out_debits)) == sum((line.amount for line in out_credits)); assert sum((line.amount for line in in_debits)) == sum((line.amount for line in in_credits)); processing_balance = await get_processing_balance(db, user_id=user_id, currency='SGD'); assert processing_balance == Decimal('0.00')
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"xfer-pair-{uuid4()}@example.com", hashed_password="hashed"))
+    source_account, dest_account = (_make_account(db, user_id, "Checking"), _make_account(db, user_id, "Savings"))
+    await db.flush()
+
+    async def _make_leg(acc, desc, direction):
+        doc = await _seed_document(db, owner_id=user_id)
+        stmt = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
+        stmt.account_id, stmt.uploaded_document_id, stmt.file_hash = (acc.id, doc.id, doc.file_hash)
+        stmt.status = BankStatementStatus.APPROVED
+        db.add(stmt)
+        return _atomic_txn(
+            owner_id=user_id,
+            source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
+            txn_date=date(2024, 1, 1),
+            description=desc,
+            amount=Decimal("500.00"),
+            direction=direction,
+        )
+
+    txn_out = await _make_leg(source_account, "TRANSFER TO SAVINGS", "OUT")
+    txn_in = await _make_leg(dest_account, "TRANSFER FROM CHECKING", "IN")
+    db.add_all([txn_out, txn_in])
+    await db.commit()
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    transfer_out = [m for m in matches if m.score_breakdown.get("transfer_out")]
+    transfer_in = [m for m in matches if m.score_breakdown.get("transfer_in")]
+    assert len(transfer_out) == 1
+    assert len(transfer_in) == 1
+    from src.ledger import get_processing_balance
+    from src.ledger.base.processing import PROCESSING_ACCOUNT_CODE
+
+    out_entry_id = UUID(transfer_out[0].journal_entry_ids[0])
+    in_entry_id = UUID(transfer_in[0].journal_entry_ids[0])
+    out_entry = (
+        await db.execute(
+            select(JournalEntry).where(JournalEntry.id == out_entry_id).options(selectinload(JournalEntry.lines))
+        )
+    ).scalar_one()
+    in_entry = (
+        await db.execute(
+            select(JournalEntry).where(JournalEntry.id == in_entry_id).options(selectinload(JournalEntry.lines))
+        )
+    ).scalar_one()
+    out_debits = [line for line in out_entry.lines if line.direction == Direction.DEBIT]
+    out_credits = [line for line in out_entry.lines if line.direction == Direction.CREDIT]
+    assert len(out_debits) == 1 and out_debits[0].amount == Decimal("500.00")
+    assert len(out_credits) == 1 and out_credits[0].amount == Decimal("500.00")
+    assert out_credits[0].account_id == source_account.id
+    in_debits = [line for line in in_entry.lines if line.direction == Direction.DEBIT]
+    in_credits = [line for line in in_entry.lines if line.direction == Direction.CREDIT]
+    assert len(in_debits) == 1 and in_debits[0].amount == Decimal("500.00")
+    assert len(in_credits) == 1 and in_credits[0].amount == Decimal("500.00")
+    assert in_debits[0].account_id == dest_account.id
+    proc_stmt = select(Account).where(Account.user_id == user_id, Account.code == PROCESSING_ACCOUNT_CODE)
+    proc_account = (await db.execute(proc_stmt)).scalar_one()
+    assert out_debits[0].account_id == proc_account.id
+    assert in_credits[0].account_id == proc_account.id
+    assert sum((line.amount for line in out_debits)) == sum((line.amount for line in out_credits))
+    assert sum((line.amount for line in in_debits)) == sum((line.amount for line in in_credits))
+    processing_balance = await get_processing_balance(db, user_id=user_id, currency="SGD")
+    assert processing_balance == Decimal("0.00")
+
+
 async def test_final_flush_failure(db: AsyncSession, test_user):
-    user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Flush Fail', txn_amount='100.00'); await db.commit()
-    with patch.object(db, 'flush', side_effect=RuntimeError('Final flush failed')), patch('src.reconciliation.extension.matching.find_transfer_pairs', new_callable=AsyncMock, return_value=[]), pytest.raises(RuntimeError, match='Final flush failed'): await execute_matching(db, user_id=user_id, currency='SGD')
+    user_id = test_user.id
+    await _seed_scenario(db, user_id, txn_desc="Flush Fail", txn_amount="100.00")
+    await db.commit()
+    with (
+        patch.object(db, "flush", side_effect=RuntimeError("Final flush failed")),
+        patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        pytest.raises(RuntimeError, match="Final flush failed"),
+    ):
+        await execute_matching(db, user_id=user_id, currency="SGD")
+
+
 async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession, test_user):
-    user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Normal Transaction', txn_amount='100.00'); await db.commit()
-    with patch('src.reconciliation.extension.matching.find_transfer_pairs', side_effect=Exception('Pair search failed')): matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert isinstance(matches, list)
+    user_id = test_user.id
+    await _seed_scenario(db, user_id, txn_desc="Normal Transaction", txn_amount="100.00")
+    await db.commit()
+    with patch(
+        "src.reconciliation.extension.matching.find_transfer_pairs", side_effect=Exception("Pair search failed")
+    ):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
+        assert isinstance(matches, list)
+
+
 async def test_many_to_one_pending_review_status(db: AsyncSession, test_user):
-    user_id = test_user.id; await _seed_scenario(db, user_id, txn_desc='Batch Bulk payment', txn_amount=['50.00', '50.00'], pair_specs=[('103.00', 'Different description entirely XYZ')])
-    with patch('src.reconciliation.extension.matching.load_reconciliation_config', return_value=ReconciliationConfig(weight_amount=Decimal('0.40'), weight_date=Decimal('0.25'), weight_description=Decimal('0.20'), weight_business=Decimal('0.10'), weight_history=Decimal('0.05'), auto_accept=95, pending_review=50, amount_percent=Decimal('0.005'), amount_absolute=Decimal('0.10'), date_days=7, enable_ai_reconciliation=False)): matches = await execute_matching(db, user_id=user_id, currency='SGD'); m2o_matches = [m for m in matches if m.score_breakdown.get('many_to_one_bonus')]; assert len(m2o_matches) >= 1, 'Expected at least one many-to-one match'; assert all((m.status == ReconciliationStatus.PENDING_REVIEW for m in m2o_matches))
-async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, test_user): 'AC-reconciliation.match.2'; user_id = test_user.id; expense_account = _make_account(db, user_id, 'Expense Account', AccountType.EXPENSE); await db.flush(); _, _, entries = await _seed_scenario(db, user_id, account_name='Asset Account', txn_desc='Matching Transaction', txn_amount='100.00', pair_specs=[('100.00', 'Matching Transaction')], credit_account=expense_account); entry = entries[0]; matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 1; assert matches[0].status == ReconciliationStatus.AUTO_ACCEPTED; await db.commit(); result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id)); reconciled_entry = result.scalar_one(); assert reconciled_entry.status == JournalEntryStatus.RECONCILED
+    user_id = test_user.id
+    await _seed_scenario(
+        db,
+        user_id,
+        txn_desc="Batch Bulk payment",
+        txn_amount=["50.00", "50.00"],
+        pair_specs=[("103.00", "Different description entirely XYZ")],
+    )
+    with patch(
+        "src.reconciliation.extension.matching.load_reconciliation_config",
+        return_value=ReconciliationConfig(
+            weight_amount=Decimal("0.40"),
+            weight_date=Decimal("0.25"),
+            weight_description=Decimal("0.20"),
+            weight_business=Decimal("0.10"),
+            weight_history=Decimal("0.05"),
+            auto_accept=95,
+            pending_review=50,
+            amount_percent=Decimal("0.005"),
+            amount_absolute=Decimal("0.10"),
+            date_days=7,
+            enable_ai_reconciliation=False,
+        ),
+    ):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
+        m2o_matches = [m for m in matches if m.score_breakdown.get("many_to_one_bonus")]
+        assert len(m2o_matches) >= 1, "Expected at least one many-to-one match"
+        assert all((m.status == ReconciliationStatus.PENDING_REVIEW for m in m2o_matches))
+
+
+async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, test_user):
+    "AC-reconciliation.match.2"
+    user_id = test_user.id
+    expense_account = _make_account(db, user_id, "Expense Account", AccountType.EXPENSE)
+    await db.flush()
+    _, _, entries = await _seed_scenario(
+        db,
+        user_id,
+        account_name="Asset Account",
+        txn_desc="Matching Transaction",
+        txn_amount="100.00",
+        pair_specs=[("100.00", "Matching Transaction")],
+        credit_account=expense_account,
+    )
+    entry = entries[0]
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 1
+    assert matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
+    await db.commit()
+    result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id))
+    reconciled_entry = result.scalar_one()
+    assert reconciled_entry.status == JournalEntryStatus.RECONCILED
+
+
 async def test_normal_matching_pending_review(db: AsyncSession, test_user):
-    user_id = test_user.id; await _seed_scenario(db, user_id, account_name='Asset', txn_desc='Some random description here', txn_amount='100.00', txn_date=date(2024, 1, 5), pair_specs=[('100.00', 'Completely different memo text')])
-    with patch('src.reconciliation.load_reconciliation_config', return_value=ReconciliationConfig(weight_amount=Decimal('0.40'), weight_date=Decimal('0.25'), weight_description=Decimal('0.20'), weight_business=Decimal('0.10'), weight_history=Decimal('0.05'), auto_accept=99, pending_review=40, amount_percent=Decimal('0.005'), amount_absolute=Decimal('0.10'), date_days=7)): matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 1; assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
-async def test_execute_matching_layer2_atomic_txn(db: AsyncSession): 'EPIC-011'; user_id = uuid4(); db.add(User(id=user_id, email=f'layer4-{uuid4()}@example.com', hashed_password='hashed')); expense_account = _make_account(db, user_id, 'Expense Account', AccountType.EXPENSE); await db.flush(); _, txns, _ = await _seed_scenario(db, user_id, account_name='Asset Account', txn_desc='Layer 4 Test', txn_amount='100.00', pair_specs=[('100.00', 'Layer 4 Test')], credit_account=expense_account); l2_txn = txns[0]; matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 1; assert matches[0].atomic_txn_id == l2_txn.id
-async def test_execute_matching_layer2_no_candidates(db: AsyncSession): user_id = uuid4(); db.add(User(id=user_id, email=f'layer4-nocand-{uuid4()}@example.com', hashed_password='hashed')); await db.flush(); await _seed_scenario(db, user_id, txn_date=date(2024, 6, 1), txn_amount='999.00', txn_desc='No Match Possible'); await db.commit(); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 0
+    user_id = test_user.id
+    await _seed_scenario(
+        db,
+        user_id,
+        account_name="Asset",
+        txn_desc="Some random description here",
+        txn_amount="100.00",
+        txn_date=date(2024, 1, 5),
+        pair_specs=[("100.00", "Completely different memo text")],
+    )
+    with patch(
+        "src.reconciliation.load_reconciliation_config",
+        return_value=ReconciliationConfig(
+            weight_amount=Decimal("0.40"),
+            weight_date=Decimal("0.25"),
+            weight_description=Decimal("0.20"),
+            weight_business=Decimal("0.10"),
+            weight_history=Decimal("0.05"),
+            auto_accept=99,
+            pending_review=40,
+            amount_percent=Decimal("0.005"),
+            amount_absolute=Decimal("0.10"),
+            date_days=7,
+        ),
+    ):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
+        assert len(matches) == 1
+        assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
+
+
+async def test_execute_matching_layer2_atomic_txn(db: AsyncSession):
+    "EPIC-011"
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"layer4-{uuid4()}@example.com", hashed_password="hashed"))
+    expense_account = _make_account(db, user_id, "Expense Account", AccountType.EXPENSE)
+    await db.flush()
+    _, txns, _ = await _seed_scenario(
+        db,
+        user_id,
+        account_name="Asset Account",
+        txn_desc="Layer 4 Test",
+        txn_amount="100.00",
+        pair_specs=[("100.00", "Layer 4 Test")],
+        credit_account=expense_account,
+    )
+    l2_txn = txns[0]
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 1
+    assert matches[0].atomic_txn_id == l2_txn.id
+
+
+async def test_execute_matching_layer2_no_candidates(db: AsyncSession):
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"layer4-nocand-{uuid4()}@example.com", hashed_password="hashed"))
+    await db.flush()
+    await _seed_scenario(db, user_id, txn_date=date(2024, 6, 1), txn_amount="999.00", txn_desc="No Match Possible")
+    await db.commit()
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 0
+
+
 async def test_execute_matching_layer2_pending_review(db: AsyncSession):
-    user_id = uuid4(); db.add(User(id=user_id, email=f'layer4-pending-{uuid4()}@example.com', hashed_password='hashed')); await db.flush(); _, txns, _ = await _seed_scenario(db, user_id, account_name='Asset', txn_desc='Totally unrelated text here', txn_amount='100.00', txn_date=date(2024, 1, 5), pair_specs=[('100.00', 'Different memo entirely')]); l2_txn = txns[0]
-    with patch('src.reconciliation.load_reconciliation_config', return_value=ReconciliationConfig(weight_amount=Decimal('0.40'), weight_date=Decimal('0.25'), weight_description=Decimal('0.20'), weight_business=Decimal('0.10'), weight_history=Decimal('0.05'), auto_accept=99, pending_review=40, amount_percent=Decimal('0.005'), amount_absolute=Decimal('0.10'), date_days=7)): matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 1; assert matches[0].status == ReconciliationStatus.PENDING_REVIEW; assert matches[0].atomic_txn_id == l2_txn.id
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"layer4-pending-{uuid4()}@example.com", hashed_password="hashed"))
+    await db.flush()
+    _, txns, _ = await _seed_scenario(
+        db,
+        user_id,
+        account_name="Asset",
+        txn_desc="Totally unrelated text here",
+        txn_amount="100.00",
+        txn_date=date(2024, 1, 5),
+        pair_specs=[("100.00", "Different memo entirely")],
+    )
+    l2_txn = txns[0]
+    with patch(
+        "src.reconciliation.load_reconciliation_config",
+        return_value=ReconciliationConfig(
+            weight_amount=Decimal("0.40"),
+            weight_date=Decimal("0.25"),
+            weight_description=Decimal("0.20"),
+            weight_business=Decimal("0.10"),
+            weight_history=Decimal("0.05"),
+            auto_accept=99,
+            pending_review=40,
+            amount_percent=Decimal("0.005"),
+            amount_absolute=Decimal("0.10"),
+            date_days=7,
+        ),
+    ):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
+        assert len(matches) == 1
+        assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
+        assert matches[0].atomic_txn_id == l2_txn.id
+
+
 async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, test_user):
-    user_id = test_user.id; _, _, entries = await _seed_scenario(db, user_id, account_name='Asset', txn_desc='Entry A', txn_amount='100.00', pair_specs=[('50.00', 'Entry A'), ('60.00', 'Entry B Unbalanced')]); entry_b = entries[1]
-    with patch('src.reconciliation.extension.candidate_policy.is_entry_balanced', side_effect=lambda entry, *, base_currency: entry.id != entry_b.id): matches = await execute_matching(db, user_id=user_id, currency='SGD')
+    user_id = test_user.id
+    _, _, entries = await _seed_scenario(
+        db,
+        user_id,
+        account_name="Asset",
+        txn_desc="Entry A",
+        txn_amount="100.00",
+        pair_specs=[("50.00", "Entry A"), ("60.00", "Entry B Unbalanced")],
+    )
+    entry_b = entries[1]
+    with patch(
+        "src.reconciliation.extension.candidate_policy.is_entry_balanced",
+        side_effect=lambda entry, *, base_currency: entry.id != entry_b.id,
+    ):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert all((str(entry_b.id) not in match.journal_entry_ids for match in matches))
-async def test_score_single_no_history_override(db: AsyncSession): user_id = uuid4(); db.add(User(id=user_id, email=f'no-hist-{uuid4()}@example.com', hashed_password='hashed')); await db.flush(); _, txns, entries = await _seed_scenario(db, user_id, account_name='Asset', txn_desc='Score Pattern Test', txn_amount='100.00', pair_specs=[('100.00', 'Score Pattern Test')]); result = await db.execute(select(JournalEntry).where(JournalEntry.id == entries[0].id).options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))); loaded_entry = result.scalar_one(); candidate = await score_single(db, txns[0], [loaded_entry], DEFAULT_CONFIG, user_id=user_id); assert candidate.score > 0; assert 'history' in candidate.breakdown
-async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession): from src.reconciliation.extension.repository import SqlReconciliationRepository; user_id = uuid4(); db.add(User(id=user_id, email=f'l2-limit-{uuid4()}@example.com', hashed_password='hashed')); await db.flush(); [db.add(_atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 1 + i), amount=Decimal(f'{100 + i}.00'), direction='OUT', description=f'L2 Pending {i}')) for i in range(3)]; await db.commit(); repo = SqlReconciliationRepository(db); assert len(await repo.list_pending_transactions(user_id)) == 3; assert len(await repo.list_pending_transactions(user_id, limit=2)) == 2
-async def test_get_existing_active_match_layer2(db: AsyncSession): from src.reconciliation.extension.repository import SqlReconciliationRepository; user_id = uuid4(); db.add(User(id=user_id, email=f'match-l2-{uuid4()}@example.com', hashed_password='hashed')); await db.flush(); real_txn = _atomic_txn(owner_id=user_id, txn_date=date(2024, 1, 1), amount=Decimal('100.00'), direction='OUT', description='FK target'); db.add(real_txn); await db.flush(); txn_id = real_txn.id; repo = SqlReconciliationRepository(db); assert await repo.get_active_match(txn_id) is None; db.add(ReconciliationMatch(atomic_txn_id=txn_id, journal_entry_ids=[str(uuid4())], match_score=85, score_breakdown={'test': 85.0}, status=ReconciliationStatus.AUTO_ACCEPTED)); await db.commit(); result = await repo.get_active_match(txn_id); assert result is not None; assert result.atomic_txn_id == txn_id
-async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSession, monkeypatch): 'AC-observability.10.4'; outcomes: list[str] = []; monkeypatch.setattr('src.reconciliation.extension.matching.record_reconciliation_match_outcome', lambda *, outcome: outcomes.append(outcome)); user_id = uuid4(); db.add(User(id=user_id, email=f'recon-metric-{uuid4()}@example.com', hashed_password='hashed')); expense = _make_account(db, user_id, 'Expense', AccountType.EXPENSE); await db.flush(); await _seed_scenario(db, user_id, account_name='Asset', txn_desc='Metric', txn_amount='100.00', pair_specs=[('100.00', 'Metric')], credit_account=expense); matches = await execute_matching(db, user_id=user_id, currency='SGD'); assert len(matches) == 1; assert outcomes == ['auto_accepted']
-async def test_sync_reconciliation_matches_journal_entry_links_batch(db: AsyncSession): from src.reconciliation.extension.matching import sync_reconciliation_matches_journal_entry_links_batch; from src.reconciliation.orm.reconciliation import ReconciliationMatchJournalEntry; user_id = uuid4(); db.add(User(id=user_id, email=f'batch-recon-{uuid4()}@example.com', hashed_password='hashed')); await db.flush(); from src.extraction import TransactionDirection; atomic1 = _atomic_txn(owner_id=user_id, txn_date=date(2026, 1, 1), amount=Decimal('100.00'), direction=TransactionDirection.IN, description='Batch link 1'); atomic2 = _atomic_txn(owner_id=user_id, txn_date=date(2026, 1, 2), amount=Decimal('200.00'), direction=TransactionDirection.IN, description='Batch link 2'); db.add_all([atomic1, atomic2]); await db.flush(); entry1 = await create_valid_posted_entry(db, user_id=user_id); entry2 = await create_valid_posted_entry(db, user_id=user_id); match1 = ReconciliationMatch(atomic_txn_id=atomic1.id, journal_entry_ids=[str(entry1.id)], match_score=95, status=ReconciliationStatus.AUTO_ACCEPTED); match2 = ReconciliationMatch(atomic_txn_id=atomic2.id, journal_entry_ids=[str(entry2.id)], match_score=90, status=ReconciliationStatus.AUTO_ACCEPTED); db.add_all([match1, match2]); await db.flush(); await sync_reconciliation_matches_journal_entry_links_batch(db, [match1, match2], user_id=user_id); links = (await db.execute(select(ReconciliationMatchJournalEntry).where(ReconciliationMatchJournalEntry.match_id.in_([match1.id, match2.id])))).scalars().all(); assert len(links) == 2; assert {(link.match_id, link.journal_entry_id) for link in links} == {(match1.id, entry1.id), (match2.id, entry2.id)}; match1.journal_entry_ids = [str(entry1.id), str(entry2.id)]; match2.journal_entry_ids = []; await sync_reconciliation_matches_journal_entry_links_batch(db, [match1, match2], user_id=user_id); updated_links = (await db.execute(select(ReconciliationMatchJournalEntry).where(ReconciliationMatchJournalEntry.match_id.in_([match1.id, match2.id])))).scalars().all(); assert len(updated_links) == 2; assert {(link.match_id, link.journal_entry_id) for link in updated_links} == {(match1.id, entry1.id), (match1.id, entry2.id)}
+
+
+async def test_score_single_no_history_override(db: AsyncSession):
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"no-hist-{uuid4()}@example.com", hashed_password="hashed"))
+    await db.flush()
+    _, txns, entries = await _seed_scenario(
+        db,
+        user_id,
+        account_name="Asset",
+        txn_desc="Score Pattern Test",
+        txn_amount="100.00",
+        pair_specs=[("100.00", "Score Pattern Test")],
+    )
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.id == entries[0].id)
+        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+    )
+    loaded_entry = result.scalar_one()
+    candidate = await score_single(db, txns[0], [loaded_entry], DEFAULT_CONFIG, user_id=user_id)
+    assert candidate.score > 0
+    assert "history" in candidate.breakdown
+
+
+async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
+    from src.reconciliation.extension.repository import SqlReconciliationRepository
+
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"l2-limit-{uuid4()}@example.com", hashed_password="hashed"))
+    await db.flush()
+    [
+        db.add(
+            _atomic_txn(
+                owner_id=user_id,
+                txn_date=date(2024, 1, 1 + i),
+                amount=Decimal(f"{100 + i}.00"),
+                direction="OUT",
+                description=f"L2 Pending {i}",
+            )
+        )
+        for i in range(3)
+    ]
+    await db.commit()
+    repo = SqlReconciliationRepository(db)
+    assert len(await repo.list_pending_transactions(user_id)) == 3
+    assert len(await repo.list_pending_transactions(user_id, limit=2)) == 2
+
+
+async def test_get_existing_active_match_layer2(db: AsyncSession):
+    from src.reconciliation.extension.repository import SqlReconciliationRepository
+
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"match-l2-{uuid4()}@example.com", hashed_password="hashed"))
+    await db.flush()
+    real_txn = _atomic_txn(
+        owner_id=user_id, txn_date=date(2024, 1, 1), amount=Decimal("100.00"), direction="OUT", description="FK target"
+    )
+    db.add(real_txn)
+    await db.flush()
+    txn_id = real_txn.id
+    repo = SqlReconciliationRepository(db)
+    assert await repo.get_active_match(txn_id) is None
+    db.add(
+        ReconciliationMatch(
+            atomic_txn_id=txn_id,
+            journal_entry_ids=[str(uuid4())],
+            match_score=85,
+            score_breakdown={"test": 85.0},
+            status=ReconciliationStatus.AUTO_ACCEPTED,
+        )
+    )
+    await db.commit()
+    result = await repo.get_active_match(txn_id)
+    assert result is not None
+    assert result.atomic_txn_id == txn_id
+
+
+async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSession, monkeypatch):
+    "AC-observability.10.4"
+    outcomes: list[str] = []
+    monkeypatch.setattr(
+        "src.reconciliation.extension.matching.record_reconciliation_match_outcome",
+        lambda *, outcome: outcomes.append(outcome),
+    )
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"recon-metric-{uuid4()}@example.com", hashed_password="hashed"))
+    expense = _make_account(db, user_id, "Expense", AccountType.EXPENSE)
+    await db.flush()
+    await _seed_scenario(
+        db,
+        user_id,
+        account_name="Asset",
+        txn_desc="Metric",
+        txn_amount="100.00",
+        pair_specs=[("100.00", "Metric")],
+        credit_account=expense,
+    )
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 1
+    assert outcomes == ["auto_accepted"]
+
+
+async def test_sync_reconciliation_matches_journal_entry_links_batch(db: AsyncSession):
+    from src.reconciliation.extension.matching import sync_reconciliation_matches_journal_entry_links_batch
+    from src.reconciliation.orm.reconciliation import ReconciliationMatchJournalEntry
+
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"batch-recon-{uuid4()}@example.com", hashed_password="hashed"))
+    await db.flush()
+    from src.extraction import TransactionDirection
+
+    atomic1 = _atomic_txn(
+        owner_id=user_id,
+        txn_date=date(2026, 1, 1),
+        amount=Decimal("100.00"),
+        direction=TransactionDirection.IN,
+        description="Batch link 1",
+    )
+    atomic2 = _atomic_txn(
+        owner_id=user_id,
+        txn_date=date(2026, 1, 2),
+        amount=Decimal("200.00"),
+        direction=TransactionDirection.IN,
+        description="Batch link 2",
+    )
+    db.add_all([atomic1, atomic2])
+    await db.flush()
+    entry1 = await create_valid_posted_entry(db, user_id=user_id)
+    entry2 = await create_valid_posted_entry(db, user_id=user_id)
+    match1 = ReconciliationMatch(
+        atomic_txn_id=atomic1.id,
+        journal_entry_ids=[str(entry1.id)],
+        match_score=95,
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+    )
+    match2 = ReconciliationMatch(
+        atomic_txn_id=atomic2.id,
+        journal_entry_ids=[str(entry2.id)],
+        match_score=90,
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+    )
+    db.add_all([match1, match2])
+    await db.flush()
+    await sync_reconciliation_matches_journal_entry_links_batch(db, [match1, match2], user_id=user_id)
+    links = (
+        (
+            await db.execute(
+                select(ReconciliationMatchJournalEntry).where(
+                    ReconciliationMatchJournalEntry.match_id.in_([match1.id, match2.id])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(links) == 2
+    assert {(link.match_id, link.journal_entry_id) for link in links} == {
+        (match1.id, entry1.id),
+        (match2.id, entry2.id),
+    }
+    match1.journal_entry_ids = [str(entry1.id), str(entry2.id)]
+    match2.journal_entry_ids = []
+    await sync_reconciliation_matches_journal_entry_links_batch(db, [match1, match2], user_id=user_id)
+    updated_links = (
+        (
+            await db.execute(
+                select(ReconciliationMatchJournalEntry).where(
+                    ReconciliationMatchJournalEntry.match_id.in_([match1.id, match2.id])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(updated_links) == 2
+    assert {(link.match_id, link.journal_entry_id) for link in updated_links} == {
+        (match1.id, entry1.id),
+        (match1.id, entry2.id),
+    }
+
+
 def test_normal_entry_combinations_parity_and_precomputation():
-    from src.reconciliation.extension.candidate_policy import _normal_entry_combinations; user_id = uuid4(); txn = AtomicTransaction(id=uuid4(), user_id=user_id, txn_date=date(2026, 1, 1), direction=TransactionDirection.OUT, currency='SGD', amount=Decimal('100.00'), description='Test Txn')
-    def _create_balanced_entry(amount_val: Decimal) -> JournalEntry: from src.ledger.orm.journal import JournalEntryAuthorityState; eid = uuid4(); e = JournalEntry(id=eid, user_id=user_id, source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED, entry_date=date(2026, 1, 1), memo='Entry', decision_authority_state=JournalEntryAuthorityState.LEGACY_UNPROVEN); e.lines = [JournalLine(id=uuid4(), journal_entry_id=eid, account_id=uuid4(), direction=Direction.DEBIT, amount=amount_val, currency='SGD'), JournalLine(id=uuid4(), journal_entry_id=eid, account_id=uuid4(), direction=Direction.CREDIT, amount=amount_val, currency='SGD')]; return e
-    from src.ledger.orm.journal import JournalEntryAuthorityState; entry_50_a = _create_balanced_entry(Decimal('50.00')); entry_50_b = _create_balanced_entry(Decimal('50.00')); entry_30 = _create_balanced_entry(Decimal('30.00')); entry_20 = _create_balanced_entry(Decimal('20.00')); entry_unbalanced = JournalEntry(id=uuid4(), user_id=user_id, source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED, entry_date=date(2026, 1, 1), memo='Unbalanced', decision_authority_state=JournalEntryAuthorityState.LEGACY_UNPROVEN); entry_unbalanced.lines = [JournalLine(id=uuid4(), journal_entry_id=entry_unbalanced.id, account_id=uuid4(), direction=Direction.DEBIT, amount=Decimal('100.00'), currency='SGD')]; candidates = [entry_50_a, entry_50_b, entry_30, entry_20, entry_unbalanced]; config = DEFAULT_CONFIG; combos = list(_normal_entry_combinations(txn, candidates, config, base_currency='SGD')); singles = [c for c in combos if len(c) == 1]; assert len(singles) == 4; assert entry_unbalanced not in [c[0] for c in singles]; pairs = [c for c in combos if len(c) == 2]; assert [entry_50_a, entry_50_b] in pairs or [entry_50_b, entry_50_a] in pairs; triples = [c for c in combos if len(c) == 3]; triple_ids = [{e.id for e in t} for t in triples]; assert {entry_50_a.id, entry_30.id, entry_20.id} in triple_ids; assert {entry_50_b.id, entry_30.id, entry_20.id} in triple_ids
+    from src.reconciliation.extension.candidate_policy import _normal_entry_combinations
+
+    user_id = uuid4()
+    txn = AtomicTransaction(
+        id=uuid4(),
+        user_id=user_id,
+        txn_date=date(2026, 1, 1),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        amount=Decimal("100.00"),
+        description="Test Txn",
+    )
+
+    def _create_balanced_entry(amount_val: Decimal) -> JournalEntry:
+        from src.ledger.orm.journal import JournalEntryAuthorityState
+
+        eid = uuid4()
+        e = JournalEntry(
+            id=eid,
+            user_id=user_id,
+            source_type=JournalEntrySourceType.MANUAL,
+            status=JournalEntryStatus.POSTED,
+            entry_date=date(2026, 1, 1),
+            memo="Entry",
+            decision_authority_state=JournalEntryAuthorityState.LEGACY_UNPROVEN,
+        )
+        e.lines = [
+            JournalLine(
+                id=uuid4(),
+                journal_entry_id=eid,
+                account_id=uuid4(),
+                direction=Direction.DEBIT,
+                amount=amount_val,
+                currency="SGD",
+            ),
+            JournalLine(
+                id=uuid4(),
+                journal_entry_id=eid,
+                account_id=uuid4(),
+                direction=Direction.CREDIT,
+                amount=amount_val,
+                currency="SGD",
+            ),
+        ]
+        return e
+
+    from src.ledger.orm.journal import JournalEntryAuthorityState
+
+    entry_50_a = _create_balanced_entry(Decimal("50.00"))
+    entry_50_b = _create_balanced_entry(Decimal("50.00"))
+    entry_30 = _create_balanced_entry(Decimal("30.00"))
+    entry_20 = _create_balanced_entry(Decimal("20.00"))
+    entry_unbalanced = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+        entry_date=date(2026, 1, 1),
+        memo="Unbalanced",
+        decision_authority_state=JournalEntryAuthorityState.LEGACY_UNPROVEN,
+    )
+    entry_unbalanced.lines = [
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=entry_unbalanced.id,
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    ]
+    candidates = [entry_50_a, entry_50_b, entry_30, entry_20, entry_unbalanced]
+    config = DEFAULT_CONFIG
+    combos = list(_normal_entry_combinations(txn, candidates, config, base_currency="SGD"))
+    singles = [c for c in combos if len(c) == 1]
+    assert len(singles) == 4
+    assert entry_unbalanced not in [c[0] for c in singles]
+    pairs = [c for c in combos if len(c) == 2]
+    assert [entry_50_a, entry_50_b] in pairs or [entry_50_b, entry_50_a] in pairs
+    triples = [c for c in combos if len(c) == 3]
+    triple_ids = [{e.id for e in t} for t in triples]
+    assert {entry_50_a.id, entry_30.id, entry_20.id} in triple_ids
+    assert {entry_50_b.id, entry_30.id, entry_20.id} in triple_ids
+
+
+@pytest.mark.parametrize(
+    ("combined", "amount", "expected"),
+    [
+        (Decimal("101.00"), Decimal("100.00"), True),
+        (Decimal("101.01"), Decimal("100.00"), False),
+        (Decimal("98.99"), Decimal("100.00"), False),
+        (Decimal("0.30"), Decimal("0.10"), True),
+        (Decimal("0.31"), Decimal("0.10"), False),
+    ],
+)
+def test_within_combination_tolerance_boundaries(combined: Decimal, amount: Decimal, expected: bool) -> None:
+    from types import SimpleNamespace
+    from src.reconciliation import _within_combination_tolerance
+
+    assert (
+        _within_combination_tolerance(combined, SimpleNamespace(amount=amount, currency="USD"), DEFAULT_CONFIG)
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("error_factory", "expected_exc"),
+    [
+        (
+            lambda: __import__(
+                "src.ledger", fromlist=["ProcessingCurrencyConflictError"]
+            ).ProcessingCurrencyConflictError("conflict"),
+            "ProcessingCurrencyConflictError",
+        ),
+        (lambda: RuntimeError("ledger unavailable"), "RuntimeError"),
+        (
+            lambda: __import__(
+                "src.ledger", fromlist=["TransferAccountCurrencyMismatchError"]
+            ).TransferAccountCurrencyMismatchError("mismatch"),
+            None,
+        ),
+    ],
+)
+async def test_transfer_detection_error_handling(monkeypatch, error_factory, expected_exc) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from src.reconciliation.extension.phases import transfer_detection
+
+    txn = SimpleNamespace(
+        id=uuid4(),
+        description="Transfer to savings",
+        direction="OUT",
+        amount=Decimal("25.00"),
+        txn_date=date(2026, 1, 1),
+        currency="SGD",
+    )
+    repository = SimpleNamespace(claim_transaction=AsyncMock(return_value=None), add_match=AsyncMock())
+    monkeypatch.setattr(transfer_detection, "resolve_custody_account_id", AsyncMock(return_value=uuid4()))
+    monkeypatch.setattr(transfer_detection, "create_transfer_out_entry", AsyncMock(side_effect=error_factory()))
+    log_exception = Mock()
+    monkeypatch.setattr(transfer_detection.logger, "exception", log_exception)
+    matched_txn_ids: set = set()
+    if expected_exc is None:
+        matches = await transfer_detection.run_transfer_detection_phase(
+            SimpleNamespace(),
+            transactions=[txn],
+            matched_txn_ids=matched_txn_ids,
+            repository=repository,
+            user_id=uuid4(),
+            base_currency="SGD",
+        )
+        assert matches == []
+        assert matched_txn_ids == set()
+        repository.add_match.assert_not_awaited()
+    else:
+        with pytest.raises(Exception) as raised:
+            await transfer_detection.run_transfer_detection_phase(
+                SimpleNamespace(),
+                transactions=[txn],
+                matched_txn_ids=matched_txn_ids,
+                repository=repository,
+                user_id=uuid4(),
+                base_currency="SGD",
+            )
+        assert type(raised.value).__name__ == expected_exc
