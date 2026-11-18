@@ -184,7 +184,7 @@ export function RunAgainPanel({ activeRun, pending, errorMessage, isCsv, canClas
       {activeRun && <p role="status" className="mt-2 text-sm text-muted">A run is in progress. You can run again when it ends.</p>}
       {errorMessage && <p role="alert" className="mt-2 text-sm text-[var(--error)]">{errorMessage}</p>}
       <div className="mt-3">
-        <button type="submit" disabled={disabled} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="submit" disabled={disabled} data-testid="run-again-submit" className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
           {pending ? "Starting..." : "Run again"}
         </button>
       </div>

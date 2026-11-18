@@ -270,7 +270,7 @@ describe("StatementDetailPage - import and lifecycle coverage", () => {
     renderWithClient();
     expect(await screen.findByText(/Parsing in progress/)).toBeInTheDocument();
     await act(async () => {
-      vi.setSystemTime(new Date("2026-01-01T00:05:01Z"));
+      vi.setSystemTime(new Date("2026-01-01T00:07:01Z"));
       await vi.advanceTimersByTimeAsync(3000);
     });
     expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();

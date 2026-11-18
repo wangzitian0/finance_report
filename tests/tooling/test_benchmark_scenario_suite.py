@@ -76,3 +76,19 @@ def test_benchmark_generators_oracle_and_case_3_smoke() -> None:
         {"summary": {"total": 1, "passed": 1, "failed": 0, "success": True}, "results": [{"case_id": "case_3", "status": "PASS", "details": res.details}]}
     )
     assert summary["cases_passed"] == 1
+
+
+def test_brokerage_pdf_fixtures_contain_holdings_table() -> None:
+    import fitz
+
+    generated_dir = REPO_ROOT / "tests/fixtures/pdf/generated"
+    for stem in ("futu_statement_fixture", "moomoo_statement_fixture"):
+        pdf_path = generated_dir / f"{stem}.pdf"
+        expected_path = generated_dir / f"{stem}_expected.json"
+        with fitz.open(pdf_path) as doc:
+            full_text = "\n".join(page.get_text("text") for page in doc)
+        assert "Holdings / Positions" in full_text, f"{pdf_path.name} missing Holdings / Positions table"
+        import json
+
+        expected = json.loads(expected_path.read_text(encoding="utf-8"))
+        assert expected.get("positions"), f"{expected_path.name} missing non-empty positions"

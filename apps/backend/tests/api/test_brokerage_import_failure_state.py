@@ -44,3 +44,30 @@ async def test_AC_extraction_2648_1_an_import_that_succeeds_after_another_failed
         async with AsyncSession(db_engine, expire_on_commit=False) as other: await record_brokerage_import_failure(other, statement_id=statement_id, user_id=user_id, reason='Import A failed.', request_id='request-a'); await other.commit()
         return _import_result()
     monkeypatch.setattr('src.routers.portfolio._brokerage_import_service.import_positions', import_while_another_fails); assert (await client.post('/portfolio/brokerage-imports', json={'statement_id': str(statement_id)})).status_code == 200; stored = await _stored(db, statement_id); assert BROKERAGE_IMPORT_FAILURE_KEY not in (stored.extraction_metadata or {}); listed = await _listed(client, statement_id); assert (listed['brokerage_import_failed'], listed['brokerage_import_failure_reason']) == (False, None)
+
+
+async def test_brokerage_import_with_zero_positions_returns_422_and_records_failure(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    statement = build_statement(test_user.id, 'moomoo-cash-only-zero-pos', 96)
+    statement.institution = 'Moomoo'
+    db.add(statement)
+    await db.flush()
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 3, 4),
+        description='CASH DIVIDEND NVDA CORP',
+        amount=Decimal('185.50'),
+        direction='IN',
+    )
+    await db.commit()
+    statement_id = statement.id
+
+    response = await client.post('/portfolio/brokerage-imports', json={'statement_id': str(statement_id)})
+
+    assert response.status_code == 422, response.text
+    assert 'brokerage_positions_missing' in response.text
+    listed = await _listed(client, statement_id)
+    assert listed['brokerage_import_failed'] is True
+    assert listed['brokerage_import_failure_reason'] is not None

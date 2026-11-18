@@ -21,6 +21,7 @@ from src.config_app import get_effective_base_currency
 from src.database import async_session_maker
 from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
+    BROKERAGE_POSITIONS_MISSING,
     ActiveRunExists,
     AtomicTransaction,
     BankStatementStatus,
@@ -580,6 +581,12 @@ async def execute_statement_brokerage_import(
             filename=source_filename,
             source_document_id=source_document_id,
         )
+        if import_result.parsed_positions == 0:
+            raise BrokerageImportRejectedError(
+                BROKERAGE_POSITIONS_MISSING,
+                "No holdings or positions were extracted from this statement. "
+                "Verify the PDF contains a Holdings/Positions table, or re-run extraction with hints.",
+            )
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
         await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)

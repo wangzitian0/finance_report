@@ -446,8 +446,8 @@ fixtures:
     license: "MIT"
     local_path: "tests/fixtures/pdf/generated/moomoo_statement_fixture.pdf"
     expected_json_path: "tests/fixtures/pdf/generated/moomoo_statement_fixture_expected.json"
-    sha256: "a1fbb83e6ed69603a018c4406a0e609e4e05757c2c86f000f7327f435b67fab5"
-    file_size_bytes: 3234
+    sha256: "a3bd4e94fa7948c963d7ece6dc691e89df42b7ff0665e55c7185c0236abb3476"
+    file_size_bytes: 4262
     doc_type: "brokerage_statement"
     institution: "Moomoo"
     currency: "USD"
@@ -468,8 +468,8 @@ fixtures:
     license: "MIT"
     local_path: "tests/fixtures/pdf/generated/futu_statement_fixture.pdf"
     expected_json_path: "tests/fixtures/pdf/generated/futu_statement_fixture_expected.json"
-    sha256: "649941b9c568e925da55872dff0d72d5cba535923cd82e66dd781cee62dc108e"
-    file_size_bytes: 3257
+    sha256: "a6dcb1e91653501293710c909e198b827944d5d31f1b375c57469625f3b0c647"
+    file_size_bytes: 4312
     doc_type: "brokerage_statement"
     institution: "Futu"
     currency: "HKD"

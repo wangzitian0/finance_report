@@ -31,7 +31,7 @@ import {
   type Transaction,
 } from "@/components/statements/StatementReview";
 
-const PARSING_TIMEOUT_MS = 5 * 60 * 1000;
+const PARSING_TIMEOUT_MS = 7 * 60 * 1000;
 const MISSING_FACT_LABELS: Record<string, string> = { statement_currency: "statement currency", period: "statement period", balances: "opening and closing balances", transaction_currency: "transaction currency" };
 
 export default function StatementDetailPage() {
@@ -164,7 +164,7 @@ export default function StatementDetailPage() {
         requestSequenceRef.current += 1;
         updatePolling(false);
         setParsingStartTime(null);
-        setPollingStoppedReason("Parsing has been running for over 5 minutes. It may be stuck. You can run the parse again.");
+        setPollingStoppedReason("Parsing has been running for over 7 minutes. It may be stuck. You can run the parse again.");
         showToast("Parsing appears stuck — stopped auto-refresh", "error");
         return;
       }
@@ -212,12 +212,16 @@ export default function StatementDetailPage() {
     queryKey: ["statement-runs", statementId],
     queryFn: () => apiOperation("list_statement_runs_statements__statement_id__runs_get", { path: { statement_id: statementId } }),
     enabled: runsEnabled,
-    refetchInterval: (query) => ((query.state.data?.items ?? []).some(isRunActive) ? PARSING_POLL_MS : false),
+    refetchInterval: (query) =>
+      (query.state.data?.items ?? []).some(isRunActive) || statement?.status === "parsing"
+        ? PARSING_POLL_MS
+        : false,
   });
   const runs = runsData?.items;
   const hasActiveRun = Boolean(runs?.some(isRunActive));
   // The classify run writes the answers of the rows. The approve waits for its end (#2994).
   const classifyActive = Boolean(runs?.some((run) => run.kind === "classify" && isRunActive(run)));
+  const extractActive = Boolean(runs?.some((run) => run.kind === "extract" && isRunActive(run)));
 
   const pendingStatements = pendingStatementsData?.items || [];
   const duplicateCandidates = conflicts?.duplicates || [];
@@ -261,6 +265,15 @@ export default function StatementDetailPage() {
     wasClassifyingRef.current = classifyActive;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAfterReview is new in each render; the run state is the trigger
   }, [classifyActive]);
+
+  const wasExtractActiveRef = useRef(false);
+  useEffect(() => {
+    if (wasExtractActiveRef.current && !extractActive && statement?.status === "parsing") {
+      void refreshAfterReview();
+    }
+    wasExtractActiveRef.current = extractActive;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAfterReview is new in each render; extract run completion drives statement refresh
+  }, [extractActive, statement?.status]);
 
   // A 409 can mean that a run began elsewhere, in another tab or in the worker: the notice and the polling follow the runs.
   const refetchAfterConflict = (err: unknown) => {

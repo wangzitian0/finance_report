@@ -378,7 +378,7 @@ async def _queue_statement_reparse(
     filename = uploaded_document.original_filename
     file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     request_id = ensure_request_id()
-    model_to_use = None if model == settings.multimodal_model else model
+    model_to_use = model
     started = await start_user_extract_run(
         db,
         statement_id=statement.id,
@@ -477,7 +477,7 @@ async def upload_statement(
 
     statement_id = uuid4()
     request_id = ensure_request_id()
-    model_to_use = None if model == settings.multimodal_model else model
+    model_to_use = model
     file_hash_prefix = file_hash[:12]
     logger.info(
         "statement.upload.accepted",
