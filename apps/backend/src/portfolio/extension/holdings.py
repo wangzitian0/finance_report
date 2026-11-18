@@ -1,19 +1,22 @@
 """Portfolio management service - Holdings and P&L calculations."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import DataProvenance
 from src.audit.money import Currency, Money, to_money
 from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
 from src.extraction.orm.layer2 import AtomicPosition
-from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.observability import get_logger
 from src.platform import require_base_currency
@@ -22,20 +25,33 @@ from src.portfolio.base.errors import (
     InvalidDateRangeError,
     PortfolioNotFoundError,
 )
-from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
-from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_amount, convert_money
-from src.audit import DataProvenance
-from src.schemas.portfolio import (
-    HoldingResponse,
-    PortfolioSummaryDashboardResponse,
-    PortfolioSummaryResponse,
-    RealizedPnLResponse,
-    UnrealizedPnLResponse,
+from src.portfolio.orm.portfolio import (
+    DividendIncome,
+    InvestmentTransaction,
+    InvestmentTransactionType,
+    ManagedPosition,
+    PositionStatus,
 )
+from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_amount, convert_money
+
+if TYPE_CHECKING:
+    from src.schemas.portfolio import (
+        HoldingResponse,
+        PortfolioSummaryDashboardResponse,
+        PortfolioSummaryResponse,
+        RealizedPnLResponse,
+        UnrealizedPnLResponse,
+    )
 
 logger = get_logger(__name__)
 
 PORTFOLIO_QUANTITY_UNIT = Unit("units")
+
+
+def _portfolio_schemas():
+    from src.schemas import portfolio as _schemas
+
+    return _schemas
 
 
 async def _account_names_by_id(
@@ -149,7 +165,7 @@ class PortfolioService:
             )
             latest_atomic = await self._get_latest_atomic(db, position.asset_identifier, user_id)
             holdings.append(
-                HoldingResponse(
+                _portfolio_schemas().HoldingResponse(
                     id=position.id,
                     user_id=position.user_id,
                     account_id=position.account_id,
@@ -270,7 +286,7 @@ class PortfolioService:
                 quantize=True,
             )
             holdings.append(
-                HoldingResponse(
+                _portfolio_schemas().HoldingResponse(
                     id=position.id,
                     user_id=user_id,
                     account_id=position.account_id,
@@ -357,7 +373,7 @@ class PortfolioService:
             )
         ).all()
         if not disposed_positions:
-            return RealizedPnLResponse(
+            return _portfolio_schemas().RealizedPnLResponse(
                 period_start=period_start,
                 period_end=period_end,
                 total_realized_pnl=Decimal("0"),
@@ -396,7 +412,7 @@ class PortfolioService:
             )
 
         await db.flush()
-        return RealizedPnLResponse(
+        return _portfolio_schemas().RealizedPnLResponse(
             period_start=period_start,
             period_end=period_end,
             total_realized_pnl=to_money(total_realized_pnl),
@@ -453,7 +469,7 @@ class PortfolioService:
             )
 
         await db.flush()
-        return UnrealizedPnLResponse(
+        return _portfolio_schemas().UnrealizedPnLResponse(
             as_of_date=eval_date,
             total_unrealized_pnl=to_money(total_unrealized_pnl),
             total_unrealized_pnl_percent=Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis).to_percent(),
@@ -479,7 +495,7 @@ class PortfolioService:
         active_count = sum(1 for h in holdings if h.status == PositionStatus.ACTIVE)
         net_pnl_ratio = Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis)
         currency = holdings[0].currency if holdings else require_base_currency(base_currency)
-        return PortfolioSummaryResponse(
+        return _portfolio_schemas().PortfolioSummaryResponse(
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
             total_unrealized_pnl=to_money(total_unrealized_pnl),
@@ -664,7 +680,7 @@ class PortfolioService:
             )
         except (PortfolioNotFoundError, AssetNotFoundError):
             z = Decimal("0.00")
-            return PortfolioSummaryDashboardResponse(
+            return _portfolio_schemas().PortfolioSummaryDashboardResponse(
                 total_market_value=z,
                 total_cost_basis=z,
                 total_unrealized_pnl=z,
@@ -711,7 +727,7 @@ class PortfolioService:
                 dividend_total += await convert_amount(db, amt, ccy, summary_currency, entry_date, lazy_load=True)
             dividend_total = max(dividend_total, Decimal("0.00"))
 
-        return PortfolioSummaryDashboardResponse(
+        return _portfolio_schemas().PortfolioSummaryDashboardResponse(
             **summary.model_dump(),
             realized_pnl_ytd=to_money(sum(realized_by_asset.values(), Decimal("0.00"))),
             dividend_income_ytd=to_money(dividend_total),

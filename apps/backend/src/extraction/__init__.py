@@ -240,9 +240,6 @@ from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import (
     ClassificationRule,
-    CostBasisMethod,
-    ManagedPosition,
-    PositionStatus,
     TransactionClassification,
 )
 from src.extraction.orm.reviewed_statement_envelope import (  # noqa: F401  (mapper registration)
@@ -268,7 +265,6 @@ __all__ = [
     "ClassificationRule",
     "ClassificationStatus",
     "CorrectionLoopService",
-    "CostBasisMethod",
     "CurrencyUnresolvedError",
     "DEFAULT_MAX_DEPTH",
     "DEFAULT_STALE_AFTER_DAYS",
@@ -299,8 +295,6 @@ __all__ = [
     "ExtractedTransactionFact",
     "IntentProposal",
     "IntentProposalOrigin",
-    "ManagedPosition",
-    "PositionStatus",
     "ParseJob",
     "RetryableStatementIngestionError",
     "RetireStatementCommand",

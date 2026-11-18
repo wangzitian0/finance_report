@@ -5,7 +5,7 @@ async def _import(client: AsyncClient, monkeypatch: pytest.MonkeyPatch, *, state
     async def fake_import(*_args, **_kwargs):
         if isinstance(outcome, Exception): raise outcome
         return outcome
-    monkeypatch.setattr('src.routers.statements._BROKERAGE_IMPORT_SERVICE.import_positions', fake_import); resp = await client.post(f'/statements/{statement_id}/brokerage-imports'); return resp.status_code
+    monkeypatch.setattr('src.routers.portfolio._brokerage_import_service.import_positions', fake_import); resp = await client.post('/portfolio/brokerage-imports', json={'statement_id': str(statement_id)}); return resp.status_code
 async def test_AC_extraction_2648_1_failed_import_is_recorded_beside_the_note_and_a_success_clears_it(client: AsyncClient, db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     'AC-extraction.2648.1'; user_id = test_user.id; statement = build_statement(user_id, 'ibkr-positions-2648', 20); statement.institution = 'Interactive Brokers'; statement.validation_error = ECONOMIC_NOTE; statement.extraction_metadata = {'within_document_dedup_collapse': 1}; db.add(statement); await db.commit(); statement_id = statement.id
     with pytest.raises(RuntimeError, match='no ticker column'): await _import(client, monkeypatch, statement_id=statement_id, outcome=RuntimeError('positions payload has no ticker column'))
@@ -33,14 +33,14 @@ async def test_AC_extraction_2648_1_a_concurrent_extraction_write_survives_an_im
     'AC-extraction.2648.1'; user_id = test_user.id; statement = build_statement(user_id, 'ibkr-positions-2648-concurrent', 20); statement.extraction_metadata = {'within_document_dedup_collapse': 1}; db.add(statement); await db.commit(); statement_id = statement.id
     with pytest.raises(RuntimeError): await _import(client, monkeypatch, statement_id=statement_id, outcome=RuntimeError('fault'))
     async def import_while_reparsed(*_args, **_kwargs): await _write_in_another_session(db_engine, statement_id, {**NEW_EXTRACTION, BROKERAGE_IMPORT_FAILURE_KEY: {'reason': 'x'}}); return _import_result()
-    monkeypatch.setattr('src.routers.statements._BROKERAGE_IMPORT_SERVICE.import_positions', import_while_reparsed); assert (await client.post(f'/statements/{statement_id}/brokerage-imports')).status_code == 200; assert (await _stored(db, statement_id)).extraction_metadata == NEW_EXTRACTION
+    monkeypatch.setattr('src.routers.portfolio._brokerage_import_service.import_positions', import_while_reparsed); assert (await client.post('/portfolio/brokerage-imports', json={'statement_id': str(statement_id)})).status_code == 200; assert (await _stored(db, statement_id)).extraction_metadata == NEW_EXTRACTION
     async def fail_while_reparsed(*_args, **_kwargs): await _write_in_another_session(db_engine, statement_id, {'within_document_dedup_collapse': 3}); raise RuntimeError('fault')
-    monkeypatch.setattr('src.routers.statements._BROKERAGE_IMPORT_SERVICE.import_positions', fail_while_reparsed)
-    with pytest.raises(RuntimeError): await client.post(f'/statements/{statement_id}/brokerage-imports')
+    monkeypatch.setattr('src.routers.portfolio._brokerage_import_service.import_positions', fail_while_reparsed)
+    with pytest.raises(RuntimeError): await client.post('/portfolio/brokerage-imports', json={'statement_id': str(statement_id)})
     stored = (await _stored(db, statement_id)).extraction_metadata; assert stored['within_document_dedup_collapse'] == 3; assert stored[BROKERAGE_IMPORT_FAILURE_KEY]['reason'] == BROKERAGE_IMPORT_FAILED_MESSAGE
 async def test_AC_extraction_2648_1_an_import_that_succeeds_after_another_failed_clears_that_failure(client: AsyncClient, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     'AC-extraction.2648.1'; user_id = test_user.id; statement = build_statement(user_id, 'ibkr-positions-2648-overlap', 20); db.add(statement); await db.commit(); statement_id = statement.id
     async def import_while_another_fails(*_args, **_kwargs):
         async with AsyncSession(db_engine, expire_on_commit=False) as other: await record_brokerage_import_failure(other, statement_id=statement_id, user_id=user_id, reason='Import A failed.', request_id='request-a'); await other.commit()
         return _import_result()
-    monkeypatch.setattr('src.routers.statements._BROKERAGE_IMPORT_SERVICE.import_positions', import_while_another_fails); assert (await client.post(f'/statements/{statement_id}/brokerage-imports')).status_code == 200; stored = await _stored(db, statement_id); assert BROKERAGE_IMPORT_FAILURE_KEY not in (stored.extraction_metadata or {}); listed = await _listed(client, statement_id); assert (listed['brokerage_import_failed'], listed['brokerage_import_failure_reason']) == (False, None)
+    monkeypatch.setattr('src.routers.portfolio._brokerage_import_service.import_positions', import_while_another_fails); assert (await client.post('/portfolio/brokerage-imports', json={'statement_id': str(statement_id)})).status_code == 200; stored = await _stored(db, statement_id); assert BROKERAGE_IMPORT_FAILURE_KEY not in (stored.extraction_metadata or {}); listed = await _listed(client, statement_id); assert (listed['brokerage_import_failed'], listed['brokerage_import_failure_reason']) == (False, None)

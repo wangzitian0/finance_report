@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Currency, Money, to_money
 from src.audit.quantity import Quantity, Unit
 from src.audit.unit_price import UnitPrice
-from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, account_service, post_entry
 from src.platform import require_base_currency
 from src.portfolio.base.errors import InvestmentAccountingValidationError, PortfolioNotFoundError

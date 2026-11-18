@@ -408,7 +408,7 @@ class ScenarioBenchmarkRunner:
     def assert_brokerage_import_requires_snapshot_date(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        resp = client.post(f"/api/statements/{statement_id}/brokerage-imports", json={})
+        resp = client.post("/api/portfolio/brokerage-imports", json={"statement_id": statement_id})
         if resp.status_code != 422:
             raise RuntimeError(
                 f"Expected undated brokerage CSV import to fail with 422 for {statement_id}, got {resp.status_code}: {resp.text}"

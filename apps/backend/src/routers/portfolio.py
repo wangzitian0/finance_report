@@ -6,7 +6,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from src.audit import to_money
-from src.composition import compose_brokerage_import_service, refresh_market_data_for_brokerage_import
+from src.composition import (
+    compose_brokerage_import_service,
+    import_statement_brokerage_positions,
+    refresh_market_data_for_brokerage_import,
+)
 from src.deps import Ctx, ReadCtx, RequestContext
 from src.observability import get_logger
 from src.platform import PreconditionFailedError, ResourceNotFoundError
@@ -71,8 +75,19 @@ async def _paged_allocation(fn, *, ctx: RequestContext, as_of_date: date | None,
 async def import_brokerage_positions(
     request: BrokerageImportRequest, ctx: Ctx
 ) -> BrokerageImportResponse:
-    """Import parsed brokerage holdings into AtomicPosition and reconcile ManagedPosition."""
+    """Import parsed brokerage holdings from a statement or payload into AtomicPosition and ManagedPosition."""
     db, user_id = ctx.db, ctx.user_id
+    if request.statement_id is not None:
+        result_payload = await import_statement_brokerage_positions(
+            db,
+            statement_id=request.statement_id,
+            user_id=user_id,
+            import_service=_brokerage_import_service,
+            audit_logger=logger,
+        )
+        return BrokerageImportResponse(**result_payload)
+
+    assert request.payload is not None
     result = await _brokerage_import_service.import_positions(
         db,
         user_id=user_id,

@@ -16,7 +16,7 @@ from src.audit.money import Currency, InvalidCurrencyError, Money
 from src.audit.money.currency import normalize_currency_code
 from src.audit.quantity import Quantity, Unit
 from src.extraction.orm.layer2 import AtomicPosition
-from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, account_service
 from src.observability import get_logger
 from src.platform.base.errors import DomainError
@@ -274,7 +274,7 @@ class PositionService:
             .offset(offset)
             .limit(limit)
         )
-        return list(result.all())
+        return [(txn, pos) for txn, pos in result.all()]
 
     async def update_cost_basis_method(
         self,

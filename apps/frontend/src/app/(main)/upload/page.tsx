@@ -89,7 +89,7 @@ export default function UploadPage() {
   const retryBrokerageImport = async (statementId: string) => {
     setRetryingImportId(statementId);
     try {
-      await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post", { path: { statement_id: statementId } });
+      await apiOperation("import_brokerage_positions_portfolio_brokerage_imports_post", { body: { statement_id: statementId } });
       showToast("Brokerage positions imported", "success");
       // The import changed the holdings: the portfolio reads are stale (#2648).
       void invalidatePortfolioQueries(queryClient);

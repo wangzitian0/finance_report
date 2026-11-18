@@ -68,12 +68,12 @@
 | `POST` | `/api/statements/{id}/approvals` | Stage 1 approve + balance-chain check + posting |
 | `POST` | `/api/statements/{id}/rejections` | Stage 1 reject (optionally triggers extract rerun) |
 | `POST`/`GET` | `/api/statements/{id}/runs` | Start or list `StatementRun` attempts (`extract` / `classify`) |
-| `POST` | `/api/statements/{id}/brokerage-imports` | Manual statement-scoped brokerage position import |
+| `GET` | `/api/statements/evidence-lineage` | Trace evidence lineage across source documents, statements, ledger, and reports |
 | `GET` | `/api/llm/catalog` | Configured provider model catalog (supersedes retired `/api/ai/models`) |
 
 ## Brokerage Position Import
 
-- Broker documents route to `BROKERAGE_POSITIONS_PROMPT` before the model call and import into `AtomicPosition` + `ManagedPosition` via `BrokeragePositionImportService`.
+- Broker documents route to `BROKERAGE_POSITIONS_PROMPT` before the model call and import into `AtomicPosition` + `ManagedPosition` via `POST /api/portfolio/brokerage-imports` (`BrokeragePositionImportService`).
 - Import failures persist non-destructively in `extraction_metadata["brokerage_import_failure"]` (`record_brokerage_import_failure` / `clear_brokerage_import_failure`). Missing snapshot dates or out-of-range/non-ISO-4217 values return HTTP 422 (`brokerage_snapshot_date_missing`, `brokerage_position_out_of_range`).
 
 ## Statement run

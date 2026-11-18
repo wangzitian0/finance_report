@@ -15,6 +15,8 @@ from src.identity.base.types.auth import (
     normalize_email,
 )
 from src.identity.base.types.user import (
+    BaseCurrencyResponse,
+    BaseCurrencyUpdate,
     UserAiSettingsResponse,
     UserAiSettingsUpdate,
 )
@@ -22,6 +24,8 @@ from src.identity.base.types.user import (
 __all__ = [
     "AUTH_COOKIE_NAME",
     "AuthResponse",
+    "BaseCurrencyResponse",
+    "BaseCurrencyUpdate",
     "LoginRequest",
     "RegisterRequest",
     "UserAiSettingsResponse",

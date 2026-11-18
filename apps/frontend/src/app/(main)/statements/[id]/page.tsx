@@ -448,7 +448,7 @@ export default function StatementDetailPage() {
     setImportError(null);
     setImportResult(null);
     try {
-      const result = await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post", { path: { statement_id: statementId } });
+      const result = await apiOperation("import_brokerage_positions_portfolio_brokerage_imports_post", { body: { statement_id: statementId } });
       setImportResult(result);
       showToast("Brokerage positions imported successfully", "success");
       // The import changed the holdings and cleared a recorded failure: those reads are stale (#2648).

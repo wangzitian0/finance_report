@@ -6,7 +6,7 @@ import mimetypes
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import date
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, File, Form, Query, UploadFile, status
@@ -17,20 +17,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.composition import (
     auto_fill_default_statement_dispositions,
-    compose_brokerage_import_service,
     compose_correction_callbacks,
     compose_statement_posting_dependencies,
-    execute_statement_brokerage_import,
 )
 from src.config import settings
 from src.deps import Ctx, ReadCtx
 from src.extraction import (
-    BROKERAGE_IMPORTABLE_STATUSES,
+    DEFAULT_MAX_DEPTH,
     DEFAULT_STALE_AFTER_DAYS,
     AtomicTransaction,
     BankStatementStatus,
     ClassificationStatus,
     CorrectionLoopService,
+    EvidenceGraphMaterializationService,
+    EvidenceLineageService,
+    EvidenceNode,
+    EvidenceTraversalStep,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
@@ -44,9 +46,6 @@ from src.extraction import (
     StatementSummary,
     TransactionClassification,
     UploadedDocument,
-    _brokerage_import_not_ready_reason,
-    _brokerage_payload_from_persisted_extraction,
-    _brokerage_payload_from_statement,
     approve_statement_workflow,
     classification_suggestions,
     confirm_reviewed_statement_envelope,
@@ -99,6 +98,17 @@ from src.schemas import (
     StatementRunListResponse,
     StatementRunRequest,
 )
+from src.schemas.evidence import (
+    EvidenceLineageBlocker,
+    EvidenceLineageDirection,
+    EvidenceLineageEdge,
+    EvidenceLineageError,
+    EvidenceLineageNode,
+    EvidenceLineageResponse,
+    EvidenceNodeProperties,
+    build_edge_properties,
+    build_node_properties,
+)
 from src.schemas.extraction import (
     AiFeedbackRequest,
     AiFeedbackResponse,
@@ -120,7 +130,6 @@ from src.schemas.extraction import (
     compose_statement_list_item_response,
     compose_statement_response,
 )
-from src.schemas.portfolio import BrokerageImportResponse
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -132,8 +141,56 @@ _RERUN_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.REJ
 _REJECT_STATUSES = _RERUN_STATUSES | {BankStatementStatus.APPROVED}
 logger = get_logger(__name__)
 
-_BROKERAGE_IMPORT_SERVICE = compose_brokerage_import_service()
 _CORRECTION_LOOP = CorrectionLoopService()
+
+_LAZY_MATERIALIZATION_ENTITY_NODE_KINDS = {
+    "journal_line": {"ledger_line"},
+    "journal_entry": {"ledger_entry"},
+    "uploaded_document": {"source_document"},
+    "atomic_transaction": {"atomic_fact"},
+    "opening_position": {"atomic_fact"},
+}
+_GENUINE_FAILURE_BLOCKER_CODES = {
+    "materialization_write_cap_reached": 503,
+    "cross_user_lineage_blocked": 409,
+    "unsupported_provenance": 422,
+    "opening_authority_unproven": 409,
+}
+
+
+def _materialization_failure_status(blockers: list[EvidenceLineageBlocker]) -> int | None:
+    statuses = [_GENUINE_FAILURE_BLOCKER_CODES[b.code] for b in blockers if b.code in _GENUINE_FAILURE_BLOCKER_CODES]
+    return max(statuses) if statuses else None
+
+
+def _should_attempt_lazy_materialization(*, entity_type: str, node_kind: str | None, anchor: EvidenceNode | None) -> bool:
+    if anchor is not None and entity_type not in {"opening_position", "journal_entry", "journal_line"}:
+        return False
+    expected = _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS.get(entity_type)
+    return expected is not None and (node_kind is None or node_kind in expected)
+
+
+def _node_dto(node: EvidenceNode) -> EvidenceLineageNode:
+    return EvidenceLineageNode(
+        id=node.id,
+        node_kind=node.node_kind,
+        entity_type=node.entity_type,
+        entity_id=node.entity_id,
+        properties=cast(EvidenceNodeProperties, build_node_properties(node.node_kind, node.properties)),
+    )
+
+
+def _edge_dto(step: EvidenceTraversalStep, *, direction: str) -> EvidenceLineageEdge:
+    e = step.edge
+    return EvidenceLineageEdge(
+        id=e.id,
+        from_node_id=e.from_node_id,
+        to_node_id=e.to_node_id,
+        relation=e.relation,
+        direction=cast(Literal["upstream", "downstream"], direction),
+        depth=step.depth,
+        properties=build_edge_properties(e.properties),
+    )
 
 
 def _txn_direction(txn: AtomicTransaction) -> Literal["IN", "OUT"] | None:
@@ -621,6 +678,88 @@ async def list_statement_coverage(
     )
 
 
+@router.get("/evidence-lineage", response_model=EvidenceLineageResponse)
+async def get_evidence_lineage(
+    ctx: ReadCtx,
+    entity_type: str = Query(..., min_length=1, max_length=100),
+    entity_id: UUID = Query(...),
+    node_kind: str | None = Query(default=None, min_length=1, max_length=50),
+    direction: EvidenceLineageDirection = Query(default="both"),
+    max_depth: int = Query(default=DEFAULT_MAX_DEPTH, ge=0, le=DEFAULT_MAX_DEPTH),
+) -> EvidenceLineageResponse:
+    """Return bounded user-owned Evidence Graph lineage around one entity anchor."""
+    db, user_id = ctx.db, ctx.user_id
+    lineage = EvidenceLineageService()
+    anchor = await lineage.get_node_for_entity(
+        db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
+    )
+    mat_blockers: list[EvidenceLineageBlocker] = []
+    if _should_attempt_lazy_materialization(entity_type=entity_type, node_kind=node_kind, anchor=anchor):
+        mat = await EvidenceGraphMaterializationService().materialize_for_entity(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
+        )
+        mat_blockers = [
+            EvidenceLineageBlocker(code=b.code, message=b.message)
+            for b in mat.blockers
+            if anchor is None or b.code != "entity_missing"
+        ]
+        failure_status = _materialization_failure_status(mat_blockers)
+        if failure_status is not None:
+            err = EvidenceLineageError(
+                message="Evidence Graph materialization could not complete for this entity.",
+                blockers=mat_blockers,
+            )
+            raise DomainError(err.message, status_code=failure_status, detail_payload=err.model_dump())
+        anchor = await lineage.get_node_for_entity(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
+        )
+
+    if anchor is None:
+        missing = EvidenceLineageBlocker(
+            code="graph_node_missing",
+            message="No owned Evidence Graph node exists for this entity identity.",
+        )
+        return EvidenceLineageResponse(
+            anchor=None,
+            nodes=[],
+            edges=[],
+            blockers=[missing, *(b for b in mat_blockers if b.code != "entity_missing")],
+            max_depth=max_depth,
+        )
+
+    up_steps = (
+        await lineage.get_upstream(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth
+        )
+        if direction in {"upstream", "both"}
+        else []
+    )
+    down_steps = (
+        await lineage.get_downstream(
+            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth
+        )
+        if direction in {"downstream", "both"}
+        else []
+    )
+    nodes = list(
+        {n.id: n for n in (anchor, *(s.node for s in up_steps), *(s.node for s in down_steps))}.values()
+    )
+    opening_blockers = await EvidenceGraphMaterializationService().validate_opening_nodes(db, user_id=user_id, nodes=nodes)
+    if opening_blockers:
+        err = EvidenceLineageError(
+            message="Opening lineage no longer has current source authority.",
+            blockers=[EvidenceLineageBlocker(code=b.code, message=b.message) for b in opening_blockers],
+        )
+        raise ConflictError(err.message, detail_payload=err.model_dump())
+    return EvidenceLineageResponse(
+        anchor=_node_dto(anchor),
+        nodes=[_node_dto(n) for n in nodes],
+        edges=[*(_edge_dto(s, direction="upstream") for s in up_steps), *(_edge_dto(s, direction="downstream") for s in down_steps)],
+        blockers=mat_blockers,
+        max_depth=max_depth,
+    )
+
+
 @router.get("/classification-suggestions", response_model=AiSuggestionListResponse)
 async def list_classification_suggestions(
     ctx: ReadCtx,
@@ -773,70 +912,6 @@ async def get_statement_document(statement_id: UUID, ctx: ReadCtx) -> Response:
         content=content,
         media_type=media_type,
         headers={"Content-Disposition": "inline", "X-Content-Type-Options": "nosniff"},
-    )
-
-
-@router.post(
-    "/{statement_id}/brokerage-imports",
-    response_model=BrokerageImportResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def import_brokerage_statement_positions(
-    statement_id: UUID, ctx: Ctx
-) -> BrokerageImportResponse:
-    """Import portfolio positions from a parsed brokerage statement."""
-    db, user_id = ctx.db, ctx.user_id
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    transactions = await resolve_statement_transactions(db, statement)
-    if statement.status not in BROKERAGE_IMPORTABLE_STATUSES:
-        raise ValidationFailedError(_brokerage_import_not_ready_reason(statement, len(transactions)))
-
-    uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
-    source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
-    payload = _brokerage_payload_from_persisted_extraction(
-        statement=statement, uploaded_document=uploaded_document
-    ) or _brokerage_payload_from_statement(statement, transactions)
-    request_id = ensure_request_id()
-    source_document_id = str(statement.uploaded_document_id or statement.id)
-    logger.info(
-        "statement.brokerage_import.started",
-        audit_event="statement.brokerage_import.started",
-        request_id=request_id,
-        statement_id=str(statement.id),
-        phase="brokerage_import_started",
-        model_to_use=None,
-        broker=statement.institution,
-        parsed_positions=len(transactions),
-    )
-    import_result = await execute_statement_brokerage_import(
-        db,
-        statement=statement,
-        user_id=user_id,
-        payload=payload,
-        source_filename=source_filename,
-        source_document_id=source_document_id,
-        request_id=request_id,
-        import_service=_BROKERAGE_IMPORT_SERVICE,
-        audit_logger=logger,
-    )
-
-    logger.info(
-        "statement.brokerage_import.completed",
-        audit_event="statement.brokerage_import.completed",
-        request_id=request_id,
-        statement_id=str(statement.id),
-        phase="brokerage_import_completed",
-        model_to_use=None,
-        broker=import_result.broker,
-        parsed_positions=import_result.parsed_positions,
-        created_atomic_positions=import_result.created_atomic_positions,
-        existing_atomic_positions=import_result.existing_atomic_positions,
-        reconcile_created=import_result.reconcile_created,
-        reconcile_updated=import_result.reconcile_updated,
-        reconcile_disposed=import_result.reconcile_disposed,
-    )
-    return BrokerageImportResponse(
-        **{**import_result.__dict__, "account_id": statement.account_id or import_result.account_id}
     )
 
 

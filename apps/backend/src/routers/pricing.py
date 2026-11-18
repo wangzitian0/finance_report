@@ -3,14 +3,11 @@
 from datetime import date
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy import select
 
-from src.composition import observed_fx_pairs
+from src.composition import active_stock_symbols, known_user_asset_identifiers, observed_fx_pairs
 from src.deps import Ctx, ReadCtx
-from src.extraction import ManagedPosition
 from src.observability import get_logger
 from src.platform import InternalServiceError, ValidationFailedError
-from src.portfolio import active_stock_symbols
 from src.pricing import (
     ManualValuationComponentType,
     MarketDataScopeStatus,
@@ -21,7 +18,6 @@ from src.pricing import (
     sync_fx_rates,
     sync_stock_prices,
 )
-from src.reporting import DEFAULT_INCLUDE_RESTRICTED
 from src.schemas.pricing import (
     ManualValuationSnapshotCreate,
     ManualValuationSnapshotListResponse,
@@ -118,20 +114,7 @@ async def create_price_overrides(
     """Record manual security price overrides through pricing's observation SSOT."""
     db, user_id = ctx.db, ctx.user_id
     requested_assets = {u.asset_identifier for u in request.updates}
-    known_assets = (
-        set(
-            (
-                await db.scalars(
-                    select(ManagedPosition.asset_identifier).where(
-                        ManagedPosition.user_id == user_id,
-                        ManagedPosition.asset_identifier.in_(requested_assets),
-                    )
-                )
-            ).all()
-        )
-        if requested_assets
-        else set()
-    )
+    known_assets = await known_user_asset_identifiers(db, user_id, requested_assets)
 
     results: list[PriceUpdateResponse] = []
     for update in request.updates:
@@ -237,7 +220,7 @@ async def list_manual_valuations(
 async def list_valuation_components(
     ctx: ReadCtx,
     as_of_date: date | None = Query(default=None),
-    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
+    include_restricted: bool = Query(default=True),
 ) -> ValuationComponentsResponse:
     """List latest manual valuation components as of a date."""
     result = await _valuations.get_latest_valuation_components(

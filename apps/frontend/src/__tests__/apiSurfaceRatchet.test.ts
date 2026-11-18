@@ -67,12 +67,6 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
     reason: "Scenario benchmark runner fetching single journal entry lineage.",
     proofPaths: ["tests/benchmarks/run_financial_scenario_benchmark.py"],
   },
-  import_brokerage_positions_portfolio_brokerage_imports_post: {
-    category: "non_ui_caller",
-    methodPath: "POST /portfolio/brokerage-imports",
-    reason: "Scenario benchmark brokerage import step (FE upload UI not yet wired).",
-    proofPaths: ["tests/benchmarks/run_financial_scenario_benchmark.py"],
-  },
   balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get: {
     category: "non_ui_caller",
     methodPath: "GET /reports/balance-sheet/diagnostics",

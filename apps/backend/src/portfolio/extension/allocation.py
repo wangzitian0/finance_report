@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AtomicPosition
-from src.extraction.orm.layer3 import ManagedPosition
+from src.portfolio.orm.portfolio import ManagedPosition
 from src.ledger import Account
 from src.observability import get_logger
 from src.platform import require_base_currency

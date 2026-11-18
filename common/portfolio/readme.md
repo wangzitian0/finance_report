@@ -1,6 +1,6 @@
 # `portfolio` — Investment Position Accounting
 
-Owns position quantities, cost basis (`FIFO`/`LIFO`/`AVGCOST` via `InvestmentLot`), `ManagedPosition` (`layer3.py`), `InvestmentTransaction`, and `DividendIncome` (`apps/backend/src/portfolio/`). Composes `ledger.post_entry` for double-entry cash/P&L entries and `pricing.resolve` for market valuations (never stores market prices or FX rates directly).
+Owns position quantities, cost basis (`FIFO`/`LIFO`/`AVGCOST` via `InvestmentLot`), `ManagedPosition` (`orm/portfolio.py`), `InvestmentTransaction`, and `DividendIncome` (`apps/backend/src/portfolio/`). Composes `ledger.post_entry` for double-entry cash/P&L entries and `pricing.resolve` for market valuations (never stores market prices or FX rates directly).
 
 ## Services & Reconciliation
 

@@ -36,7 +36,7 @@
           ],
           "ui_surface": "/settings?tab=general",
           "component": "GeneralSettingsPanel",
-          "backend_endpoint": "PUT /app-config/base-currency",
+          "backend_endpoint": "PUT /users/me/settings/base-currency",
           "invariant": "Base currency is a valid ISO 4217 code and governs consolidated net worth and report conversion",
           "backend_test_ref": "apps/backend/tests/api/test_app_config_router.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/generalSettingsPage.test.tsx",

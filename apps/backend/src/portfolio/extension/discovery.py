@@ -8,9 +8,8 @@ publishes its own read, and the delivery layer composes them into the scopes
 it passes to ``pricing``'s crawl (call-convention inversion — pricing never
 discovers scopes itself).
 
-``ManagedPosition`` lives in ``extraction``'s ``orm/layer3.py`` (#1675
-D4+D5c — extraction owns the fact family's ORM); this module reads only
-portfolio-owned positions.
+``ManagedPosition`` lives in ``portfolio``'s ``orm/portfolio.py`` (#3123);
+this module reads only portfolio-owned positions.
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import normalize_currency_code
 from src.audit.quantity import Quantity
-from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import ManagedPosition, PositionStatus
 from src.pricing import MARKET_DATA_QUANTITY_UNIT
 
 

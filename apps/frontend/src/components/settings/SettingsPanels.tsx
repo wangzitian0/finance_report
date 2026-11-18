@@ -31,8 +31,8 @@ import { Account } from "@/lib/types";
 export function GeneralSettingsPanel() {
   const { showToast } = useToast();
   const { draft, setDraft, loading, submitting, error, isDirty, submit, reset } = useSettingsForm<string>({
-    load: async () => (await apiOperation("get_base_currency_app_config_base_currency_get")).base_currency,
-    save: async (next) => (await apiOperation("update_base_currency_app_config_base_currency_put", { body: { base_currency: next } })).base_currency,
+    load: async () => (await apiOperation("get_base_currency_users_me_settings_base_currency_get")).base_currency,
+    save: async (next) => (await apiOperation("update_base_currency_users_me_settings_base_currency_put", { body: { base_currency: next } })).base_currency,
     loadErrorMessage: "Failed to load base currency",
     saveErrorMessage: "Failed to save base currency",
   });

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal
@@ -20,6 +20,7 @@ from src.config import settings
 from src.config_app import get_effective_base_currency
 from src.database import async_session_maker
 from src.extraction import (
+    BROKERAGE_IMPORTABLE_STATUSES,
     ActiveRunExists,
     AtomicTransaction,
     BankStatementStatus,
@@ -33,6 +34,10 @@ from src.extraction import (
     StatementPostingDependencies,
     StatementSummary,
     TransactionDirection,
+    UploadedDocument,
+    _brokerage_import_not_ready_reason,
+    _brokerage_payload_from_persisted_extraction,
+    _brokerage_payload_from_statement,
     applied_rows_the_policy_accepts,
     auto_create_posted_entries_for_statement,
     balance_sheet_booking,
@@ -46,6 +51,7 @@ from src.extraction import (
     get_or_create_account,
     lock_statement_for_run,
     record_brokerage_import_failure,
+    resolve_statement_transactions,
     settle_drafts_after_posting,
     snapshot_currencies,
     statement_disposition_policy_for_user,
@@ -60,11 +66,12 @@ from src.ledger import (
     ledger_trace_policy_registry,
     used_currencies,
 )
-from src.observability import get_logger, safe_error_message
-from src.platform import PreconditionFailedError
+from src.observability import ensure_request_id, get_logger, safe_error_message
+from src.platform import PreconditionFailedError, ResourceNotFoundError, ValidationFailedError
 from src.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
+    ManagedPosition,
     PositionService,
     PositionServiceError,
     active_stock_symbols,
@@ -614,3 +621,105 @@ async def execute_statement_brokerage_import(
         if isinstance(exc, PositionServiceError):
             raise PreconditionFailedError(str(exc)) from exc
         raise
+
+
+async def known_user_asset_identifiers(
+    db: AsyncSession,
+    user_id: UUID,
+    requested_assets: Collection[str],
+) -> set[str]:
+    """Return the subset of *requested_assets* present in the user's managed positions."""
+    if not requested_assets:
+        return set()
+    rows = await db.scalars(
+        select(ManagedPosition.asset_identifier).where(
+            ManagedPosition.user_id == user_id,
+            ManagedPosition.asset_identifier.in_(requested_assets),
+        )
+    )
+    return set(rows.all())
+
+
+async def import_statement_brokerage_positions(
+    db: AsyncSession,
+    *,
+    statement_id: UUID,
+    user_id: UUID,
+    import_service: BrokeragePositionImportService,
+    audit_logger: Any,
+) -> dict[str, Any]:
+    """Import portfolio positions from a parsed brokerage statement."""
+    statement = (
+        await db.execute(
+            select(StatementSummary).where(
+                StatementSummary.id == statement_id,
+                StatementSummary.user_id == user_id,
+                StatementSummary.status != BankStatementStatus.RETIRED,
+            )
+        )
+    ).scalar_one_or_none()
+    if statement is None:
+        raise ResourceNotFoundError("Statement not found")
+
+    transactions = await resolve_statement_transactions(db, statement)
+    if statement.status not in BROKERAGE_IMPORTABLE_STATUSES:
+        raise ValidationFailedError(_brokerage_import_not_ready_reason(statement, len(transactions)))
+
+    uploaded_document: UploadedDocument | None = None
+    if statement.uploaded_document_id is not None:
+        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
+        if doc is not None and doc.user_id == user_id:
+            uploaded_document = doc
+    if uploaded_document is None:
+        uploaded_document = (
+            await db.execute(
+                select(UploadedDocument).where(
+                    UploadedDocument.user_id == user_id,
+                    UploadedDocument.file_hash == statement.file_hash,
+                )
+            )
+        ).scalar_one_or_none()
+
+    source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
+    payload = _brokerage_payload_from_persisted_extraction(
+        statement=statement, uploaded_document=uploaded_document
+    ) or _brokerage_payload_from_statement(statement, transactions)
+    request_id = ensure_request_id()
+    source_document_id = str(statement.uploaded_document_id or statement.id)
+    audit_logger.info(
+        "statement.brokerage_import.started",
+        audit_event="statement.brokerage_import.started",
+        request_id=request_id,
+        statement_id=str(statement.id),
+        phase="brokerage_import_started",
+        model_to_use=None,
+        broker=statement.institution,
+        parsed_positions=len(transactions),
+    )
+    import_result = await execute_statement_brokerage_import(
+        db,
+        statement=statement,
+        user_id=user_id,
+        payload=payload,
+        source_filename=source_filename,
+        source_document_id=source_document_id,
+        request_id=request_id,
+        import_service=import_service,
+        audit_logger=audit_logger,
+    )
+    audit_logger.info(
+        "statement.brokerage_import.completed",
+        audit_event="statement.brokerage_import.completed",
+        request_id=request_id,
+        statement_id=str(statement.id),
+        phase="brokerage_import_completed",
+        model_to_use=None,
+        broker=import_result.broker,
+        parsed_positions=import_result.parsed_positions,
+        created_atomic_positions=import_result.created_atomic_positions,
+        existing_atomic_positions=import_result.existing_atomic_positions,
+        reconcile_created=import_result.reconcile_created,
+        reconcile_updated=import_result.reconcile_updated,
+        reconcile_disposed=import_result.reconcile_disposed,
+    )
+    return {**import_result.__dict__, "account_id": statement.account_id or import_result.account_id}

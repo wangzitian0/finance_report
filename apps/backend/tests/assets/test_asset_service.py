@@ -1,4 +1,4 @@
-from datetime import date; from decimal import Decimal; from types import SimpleNamespace; from unittest.mock import AsyncMock, MagicMock; from uuid import uuid4; from sqlalchemy import select; from src.extraction.orm.layer2 import AtomicPosition; from src.extraction.orm.layer3 import ManagedPosition, PositionStatus; from src.ledger import Account; from src.portfolio import PositionService
+from datetime import date; from decimal import Decimal; from types import SimpleNamespace; from unittest.mock import AsyncMock, MagicMock; from uuid import uuid4; from sqlalchemy import select; from src.extraction.orm.layer2 import AtomicPosition; from src.portfolio.orm.portfolio import ManagedPosition, PositionStatus; from src.ledger import Account; from src.portfolio import PositionService
 async def _fetch_positions(db, user_id, *, status_filter=None):
     query = select(ManagedPosition).where(ManagedPosition.user_id == user_id).order_by(ManagedPosition.asset_identifier)
     if status_filter is not None:

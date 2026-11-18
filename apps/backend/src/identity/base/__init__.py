@@ -14,6 +14,8 @@ from src.identity.base.repository import UserRepository
 from src.identity.base.types import (
     AUTH_COOKIE_NAME,
     AuthResponse,
+    BaseCurrencyResponse,
+    BaseCurrencyUpdate,
     LoginRequest,
     RegisterRequest,
     UserAiSettingsResponse,
@@ -24,6 +26,8 @@ from src.identity.base.types import (
 __all__ = [
     "AUTH_COOKIE_NAME",
     "AuthResponse",
+    "BaseCurrencyResponse",
+    "BaseCurrencyUpdate",
     "LoginRequest",
     "RegisterRequest",
     "UserAiSettingsResponse",

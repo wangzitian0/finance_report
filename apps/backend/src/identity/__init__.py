@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 _BASE_EXPORTS = {
     "AUTH_COOKIE_NAME",
     "AuthResponse",
+    "BaseCurrencyResponse",
+    "BaseCurrencyUpdate",
     "LoginRequest",
     "RegisterRequest",
     "UserAiSettingsResponse",
@@ -40,6 +42,8 @@ _EXTENSION_EXPORTS = {
 __all__ = [
     "AUTH_COOKIE_NAME",
     "AuthResponse",
+    "BaseCurrencyResponse",
+    "BaseCurrencyUpdate",
     "DEFAULT_TEST_EMAIL_PATTERN",
     "LoginRequest",
     "PERSISTENT_TEST_EMAILS",
@@ -86,6 +90,8 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
     from src.identity.base import (
         AUTH_COOKIE_NAME,
         AuthResponse,
+        BaseCurrencyResponse,
+        BaseCurrencyUpdate,
         LoginRequest,
         RegisterRequest,
         UserAiSettingsResponse,

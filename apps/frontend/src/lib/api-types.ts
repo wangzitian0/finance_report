@@ -38,7 +38,6 @@ export interface paths {
   "/accounts/opening-balance-readiness": _P<{ get: _O["get_opening_balance_readiness_status_accounts_opening_balance_readiness_get"] }>;
   "/accounts/opening-balances": _P<{ post: _O["post_opening_balances_accounts_opening_balances_post"] }>;
   "/accounts/{account_id}": _P<{ put: _O["update_account_accounts__account_id__put"]; delete: _O["delete_account_accounts__account_id__delete"] }>;
-  "/app-config/base-currency": _P<{ get: _O["get_base_currency_app_config_base_currency_get"]; put: _O["update_base_currency_app_config_base_currency_put"] }>;
   "/auth/login": _P<{ post: _O["login_auth_login_post"] }>;
   "/auth/logout": _P<{ post: _O["logout_auth_logout_post"] }>;
   "/auth/me": _P<{ get: _O["get_me_auth_me_get"] }>;
@@ -47,7 +46,6 @@ export interface paths {
   "/chat/history": _P<{ get: _O["chat_history_chat_history_get"] }>;
   "/chat/sessions/{session_id}": _P<{ delete: _O["delete_session_chat_sessions__session_id__delete"] }>;
   "/chat/suggestions": _P<{ get: _O["suggestions_chat_suggestions_get"] }>;
-  "/evidence/lineage": _P<{ get: _O["get_evidence_lineage_evidence_lineage_get"] }>;
   "/health": _P<{ get: _O["health_health_get"] }>;
   "/journal-entries": _P<{ get: _O["list_journal_entries_journal_entries_get"]; post: _O["create_entry_journal_entries_post"] }>;
   "/journal-entries/{entry_id}": _P<{ get: _O["get_journal_entry_journal_entries__entry_id__get"]; delete: _O["delete_journal_entry_journal_entries__entry_id__delete"] }>;
@@ -117,10 +115,10 @@ export interface paths {
   "/statements/correction-loop/replay": _P<{ get: _O["get_correction_loop_replay_statements_correction_loop_replay_get"] }>;
   "/statements/corrections": _P<{ post: _O["create_correction_statements_corrections_post"] }>;
   "/statements/coverage": _P<{ get: _O["list_statement_coverage_statements_coverage_get"] }>;
+  "/statements/evidence-lineage": _P<{ get: _O["get_evidence_lineage_statements_evidence_lineage_get"] }>;
   "/statements/pending-review": _P<{ get: _O["list_pending_review_statements_pending_review_get"] }>;
   "/statements/{statement_id}": _P<{ get: _O["get_statement_statements__statement_id__get"]; delete: _O["delete_statement_statements__statement_id__delete"] }>;
   "/statements/{statement_id}/approvals": _P<{ post: _O["approve_statement_stage1_statements__statement_id__approvals_post"] }>;
-  "/statements/{statement_id}/brokerage-imports": _P<{ post: _O["import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post"] }>;
   "/statements/{statement_id}/conflict-resolutions": _P<{ post: _O["resolve_review_conflicts_statements__statement_id__conflict_resolutions_post"] }>;
   "/statements/{statement_id}/conflicts": _P<{ get: _O["get_review_conflicts_statements__statement_id__conflicts_get"] }>;
   "/statements/{statement_id}/document": _P<{ get: _O["get_statement_document_statements__statement_id__document_get"] }>;
@@ -129,6 +127,7 @@ export interface paths {
   "/statements/{statement_id}/review-envelopes": _P<{ post: _O["confirm_statement_review_envelope_statements__statement_id__review_envelopes_post"] }>;
   "/statements/{statement_id}/runs": _P<{ get: _O["list_statement_runs_statements__statement_id__runs_get"]; post: _O["create_statement_run_statements__statement_id__runs_post"] }>;
   "/users/me/settings": _P<{ get: _O["get_current_user_settings_users_me_settings_get"]; patch: _O["patch_current_user_settings_users_me_settings_patch"] }>;
+  "/users/me/settings/base-currency": _P<{ get: _O["get_base_currency_users_me_settings_base_currency_get"]; put: _O["update_base_currency_users_me_settings_base_currency_put"] }>;
   "/workflow/events": _P<{ get: _O["list_workflow_events_endpoint_workflow_events_get"] }>;
   "/workflow/events/{event_id}": _P<{ patch: _O["update_workflow_event_status_endpoint_workflow_events__event_id__patch"] }>;
   "/workflow/status": _P<{ get: _O["get_workflow_status_endpoint_workflow_status_get"] }>;
@@ -464,10 +463,11 @@ export interface components {
     };
     BrokerageImportRequest: {
       filename?: string | null;
-      payload: {
+      payload?: {
         [key: string]: unknown;
-      };
+      } | null;
       source_document_id?: string | null;
+      statement_id?: string | null;
     };
     BrokerageImportResponse: {
       account_id?: string | null;
@@ -1966,8 +1966,6 @@ export interface operations {
     requestBody?: never;
     responses: _R204;
   };
-  get_base_currency_app_config_base_currency_get: _OpN<_S["BaseCurrencyResponse"]>;
-  update_base_currency_app_config_base_currency_put: _Op<_S["BaseCurrencyResponse"], _NP, _S["BaseCurrencyUpdate"]>;
   login_auth_login_post: _Op<_S["AuthResponse"], _NP, _S["LoginRequest"]>;
   logout_auth_logout_post: {
     parameters: _NP;
@@ -2028,17 +2026,6 @@ export interface operations {
       }>;
     requestBody?: never;
     responses: _R<_S["ChatSuggestionsResponse"]>;
-  };
-  get_evidence_lineage_evidence_lineage_get: {
-    parameters: _QPR<{
-        entity_type: string;
-        entity_id: string;
-        node_kind?: string | null;
-        direction?: "upstream" | "downstream" | "both";
-        max_depth?: number;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["EvidenceLineageResponse"]>;
   };
   health_health_get: {
     parameters: _NP;
@@ -2580,6 +2567,17 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["AccountCoverageListResponse"]>;
   };
+  get_evidence_lineage_statements_evidence_lineage_get: {
+    parameters: _QPR<{
+        entity_type: string;
+        entity_id: string;
+        node_kind?: string | null;
+        direction?: "upstream" | "downstream" | "both";
+        max_depth?: number;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["EvidenceLineageResponse"]>;
+  };
   list_pending_review_statements_pending_review_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
   get_statement_statements__statement_id__get: {
     parameters: _PP<{
@@ -2601,13 +2599,6 @@ export interface operations {
       }>;
     requestBody?: _B<_S["Stage1ApprovalRequest"] | null>;
     responses: _R<_S["Stage1ApprovalResponse"]>;
-  };
-  import_brokerage_statement_positions_statements__statement_id__brokerage_imports_post: {
-    parameters: _PP<{
-        statement_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["BrokerageImportResponse"]>;
   };
   resolve_review_conflicts_statements__statement_id__conflict_resolutions_post: {
     parameters: _PP<{
@@ -2686,6 +2677,8 @@ export interface operations {
   };
   get_current_user_settings_users_me_settings_get: _OpN<_S["UserAiSettingsResponse"]>;
   patch_current_user_settings_users_me_settings_patch: _Op<_S["UserAiSettingsResponse"], _NP, _S["UserAiSettingsUpdate"]>;
+  get_base_currency_users_me_settings_base_currency_get: _OpN<_S["BaseCurrencyResponse"]>;
+  update_base_currency_users_me_settings_base_currency_put: _Op<_S["BaseCurrencyResponse"], _NP, _S["BaseCurrencyUpdate"]>;
   list_workflow_events_endpoint_workflow_events_get: {
     parameters: _QP<{
         status?: _S["WorkflowEventStatus"] | null;

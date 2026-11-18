@@ -249,7 +249,7 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
     assert refreshed.status == BankStatementStatus.PARSED
     assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
     assert refreshed.validation_error is None
-    import_response = await client.post(f"/statements/{statement_id}/brokerage-imports")
+    import_response = await client.post("/portfolio/brokerage-imports", json={"statement_id": str(statement_id)})
     assert import_response.status_code == 200, import_response.text
     db.expire_all()
     atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()

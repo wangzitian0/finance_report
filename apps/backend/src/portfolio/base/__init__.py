@@ -2,11 +2,11 @@
 
 Ships the error hierarchy (plain ``Exception`` subclasses, no ORM
 references). The package's aggregate/entities and their enums are
-taxonomy-only in the contract (no ``module=``): ``InvestmentLot``/
-``InvestmentTransaction``/``DividendIncome`` live in this package's own
-``orm/portfolio.py`` (#1675 D5), while ``ManagedPosition``/``AtomicPosition``
-live in ``extraction``'s ``orm/layer3.py`` (#1675 D4+D5c — extraction owns
-the fact family's ORM; portfolio imports the published entities).
+taxonomy-only in the contract (no ``module=``): ``ManagedPosition``/
+``InvestmentLot``/``InvestmentTransaction``/``DividendIncome`` live in this
+package's own ``orm/portfolio.py`` (#3123), while ``AtomicPosition`` lives in
+``extraction``'s ``orm/layer2.py`` (extraction owns parsed statement facts;
+portfolio owns managed positions).
 """
 
 from __future__ import annotations
