@@ -16,9 +16,7 @@ still lives in the app remainder (the observed-FX-pair composer, pending
 #1610) is injected through the ``extension/app_reads.py`` port, wired by the
 composition root (``src/main.py``).
 
-This ``__all__`` is the package's published language; the contract copy lives
-at ``common/advisor/contract.py`` (``interface``) and the gate keeps the two
-identical.
+This ``__all__`` is the package's published language (spec in ``common/advisor/readme.md``).
 """
 
 from src.advisor.base.guardrails import (

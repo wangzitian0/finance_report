@@ -6,11 +6,11 @@ Money is never a `float` (the #1 red line). This package makes correct money the
 - **`Money`** — an exact `Decimal` amount + a `Currency`. Float construction is unrepresentable (`FloatNotAllowedError`); a mismatched-currency operation raises `CurrencyMismatchError`. - **`Currency`** — a validated ISO-4217 code (`ISO_4217_CODES`); an invalid code is unrepresentable (`InvalidCurrencyError`). `MONEY_QUANTUM` is the rounding step. - **`ExchangeRate`** — a directed, validated rate; `convert()` applies it and
   rounds deterministically (`InvalidExchangeRateError` guards bad rates). - **`CurrencyBalances` / `CurrencyBalance`** — a multi-currency balance bag. - **`to_money`** — the canonical 2-dp money rounding (backend runtime).
 ## Public vs internal
-**Public** (`__all__`, 14 symbols): the types above + `MoneyError` and the typed errors + `convert` + `to_money`. Everything else (`guard.py`, `rounding.py` internals) is implementation detail.
+**Public** (`__all__`, 14 symbols): the types above + `MoneyError` and the typed errors + `convert` + `to_money`. Everything else (`rounding.py` internals) is implementation detail.
 ## Three ends, one spec
-`common/audit/money/` is the canonical value language; the runtime mirrors at `apps/backend/src/audit/money` (`implementations["be"]`) and `apps/frontend/src/lib/audit/money` (`implementations["fe"]`) must render the *same* behaviour. Drift is prevented by the shared `conformance/vectors.json` — both ends prove themselves against the same vectors.
+`common/audit/money/` bridges to `apps/backend/src/audit/money`; runtime copies in backend and frontend (`apps/frontend/src/lib/audit/money`) share the behavior defined in `conformance/vectors.json`.
 ## Governance
-Cross-end conformance is verified against `conformance/vectors.json` by `tests/tooling/test_money_value_type.py` and `tests/tooling/test_money_conformance.py`.
+Cross-end vector conformance is verified against `conformance/vectors.json` by `apps/frontend/src/lib/audit/money/*.conformance.test.ts` (backend unit tests live in `apps/backend/tests/audit/money/`).
 ## Money value types (narrow waist)
 > Internalized here from the retired `docs/ssot/accounting.md#money-type` per the > package-migration standard > ([`../../meta/migration-standard.md`](../../meta/migration-standard.md), step 3 "SSOT > internalized"). This is the registered owner of the `money_value_type` concept.
 <a id="money-type"></a>
@@ -21,4 +21,4 @@ Cross-end conformance is verified against `conformance/vectors.json` by `tests/t
         implicit `float`. -   **`convert(money, exchange_rate, rounding=ROUND_HALF_EVEN)`** — the **single** FX conversion primitive: `exchange_rate.base` must equal `money.currency`; the result currency is `exchange_rate.quote`; banker's rounding applies at the 2-dp boundary; used for base-currency restatement. -   **`CurrencyBalances`** — per-currency opening/closing container with **no
         scalar accessor**, so a multi-currency statement cannot collapse onto one currency (closes the #1139/#1123 representation gap); round-trips the `StatementSummary.currency_balances` JSONB shape. -   **Cross-language standard**: money behaviour is consistent across **every end** via a language-neutral conformance suite — `common/audit/money/conformance/vectors.json` (rounding/convert/currency cases)
         plus the interface in `common/audit/money/contract/money.contract.md`. The Python impl and the frontend TS impl (`apps/frontend/src/lib/audit/money/`) both load the **same** vectors and must reproduce every value, so the two ends cannot diverge (e.g. banker's rounding vs `decimal.js` HALF_UP). The suite is **dev/test-time only** — it is never shipped into a runtime image, which
-        is why no app needs `common/` packaged into its container. -   **Guardrail (AC2.19–AC2.21)**: `tests/tooling/test_money_value_type.py`, `tests/tooling/test_money_conformance.py`.
+        is why no app needs `common/` packaged into its container. -   **Guardrail**: `apps/frontend/src/lib/audit/money/*.conformance.test.ts` (vectors), `apps/backend/tests/audit/money/test_money.py` (backend rounding/quantum).

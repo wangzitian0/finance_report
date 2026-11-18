@@ -1,4 +1,4 @@
-"""Typed errors for the unit-price value type (mirrors common/audit/unit_price/errors.py)."""
+"""Typed errors for the unit-price value type (single-source in src.audit.unit_price)."""
 
 from __future__ import annotations
 

@@ -60,7 +60,7 @@ from src.llm.extension import (
 from src.llm.orm.config import LlmProvider, LlmSceneBinding
 
 # The litellm-heavy surface, resolved lazily so ``import src.llm`` stays
-# litellm-free (the no-litellm-at-root invariant; see common/llm/contract.py).
+# litellm-free (the no-litellm-at-root invariant).
 _LAZY_CLIENT = frozenset({"litellm_stream", "cassette_completion", "resolve_provider_and_model"})
 
 

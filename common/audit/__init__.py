@@ -18,7 +18,6 @@ if str(_BACKEND_DIR) not in sys.path:
 _COMMON_ONLY = frozenset(
     {
         "extension.cascade_ownership",
-        "money.guard",
         "money.conformance",
         "quantity.conformance",
         "ratio.conformance",

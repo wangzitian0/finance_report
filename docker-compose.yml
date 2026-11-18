@@ -126,8 +126,7 @@ services:
       # AI provider/endpoint paths and model ids (LARGE/SMALL/MULTIMODAL_MODEL)
       # are deliberately not pinned here: the infra2 SDK defaults apply (#2566).
       # A duplicate pin here drifted from the code for months (#2005, #2501); the
-      # retired AI_MODEL_CATALOG_SOURCE / AI_DAILY_LIMIT_USD knobs (dropped per
-      # common/llm/contract.py AC-llm.2.6 / AC-llm.4.6) are gone too.
+      # retired AI_MODEL_CATALOG_SOURCE / AI_DAILY_LIMIT_USD knobs are gone too.
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       DEBUG: ${DEBUG:-false}
       GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}

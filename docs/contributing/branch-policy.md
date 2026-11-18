@@ -9,7 +9,7 @@
    - The PR description's checklist is complete, and the PR references the issue it advances (or states `None`). **Protected-file checklist.** Each protected file has its own checklist instead of an owner quote: | File | Checklist |
    |------|-----------|
    | `AGENTS.md`, `GEMINI.md` | These files are generated from dev_env. Do not hand-edit them. Change the dev_env rule source, then re-render. The publish manifest `.ws-publish/manifest.json` records the SHA-256 of each generated file. dev_env `ws-check-drift` guards the generated files. This repository has no CI job that compares them with the manifest. |
-   | `README.md`, `vision.md` | The normal review checklist applies: required checks are green on the head SHA, and every actionable review thread is resolved. | `common/meta/extension/check_ssot_ownership.py` does not enforce this list. That script exempts these files from its rule-keyword cross-reference check (`CHECK4_EXEMPT_PATHS`) and checks nothing else about them.
+   | `README.md`, `vision.md` | The normal review checklist applies: required checks are green on the head SHA, and every actionable review thread is resolved. |
    A PR that fails a condition is not ready to merge. The agent fixes the cause until every condition holds. Only a production deployment waits for the owner. 5. **One task per branch**: Keep each branch scoped to its requested issue or change set.
 ## 🔧 Pre-commit Hooks (REQUIRED for contributors)
 Before your first commit, install pre-commit hooks to prevent CI failures:

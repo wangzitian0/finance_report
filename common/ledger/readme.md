@@ -36,7 +36,7 @@ Every `posted` / `reconciled` journal set must satisfy this equation. Normal bal
 
 ### First-Use Setup
 
-- Account create/edit share `AccountFormModal`. Guided opening balances start with a blank as-of date, accept the day before report start or a direct date before period start, and post Decimal strings through `POST /api/accounts/opening-balances` (`AC-ledger.first-use.1`).
+- Account create/edit share `AccountFormModal`. Guided opening balances start with a blank as-of date, accept the day before report start or a direct date before period start, and post Decimal strings through `POST /api/accounts/opening-balances`.
 
 ## 3. Design Constraints (Dos & Don'ts)
 

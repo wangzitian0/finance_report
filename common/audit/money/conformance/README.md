@@ -3,7 +3,7 @@
 ## The rule
 Every money implementation must load `vectors.json` and reproduce **every** expected value exactly: | Stack | Implementation | Conformance test |
 |-------|----------------|------------------|
-| Backend (Python) | `common/audit/money/` (reference) | `tests/tooling/test_money_conformance.py` | | Frontend (TypeScript) | `apps/frontend/src/lib/audit/money/` | `apps/frontend/src/lib/audit/money/*.conformance.test.ts` | If Python and TypeScript ever disagree on a rounding boundary, a conversion, or a currency validation, the conformance test fails on whichever end drifted. This is
+| Backend (Python) | `apps/backend/src/audit/money/` | _(unit tests in `apps/backend/tests/audit/money/test_money.py`; Python vector runner retired in #3115)_ | | Frontend (TypeScript) | `apps/frontend/src/lib/audit/money/` | `apps/frontend/src/lib/audit/money/*.conformance.test.ts` | If Python and TypeScript ever disagree on a rounding boundary, a conversion, or a currency validation, the conformance test fails on whichever end drifted. This is
 what makes "consistent across every end" *provable* rather than aspirational.
 ## Why data, not shared code
 The frontend is TypeScript and cannot import the Python `common/audit/money`. So the shared artifact is the **standard** (this data + the prose contract in [`../contract/money.contract.md`](../contract/money.contract.md) and [`common/audit/money/readme.md#money-type`](../readme.md#money-type)), not a runtime library. Each stack keeps its own idiomatic implementation in its own

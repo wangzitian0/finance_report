@@ -10,4 +10,4 @@
 
 ## Proof Semantics & Local Checks
 
-Tests prove real invariants or user-case journeys (`expect(true).toBe(true)`, stubs, and pure `pass` violate testing discipline). Exception infrastructure files are classified in [`docs/project/traceability-exceptions.md`](../../docs/project/traceability-exceptions.md). Coverage floors live in `common/meta/extension/coverage/policy.py`, `apps/backend/pyproject.toml`, and `apps/frontend/vitest.config.ts`.
+Tests prove real invariants or user-case journeys (`expect(true).toBe(true)`, stubs, and pure `pass` violate testing discipline). Exception infrastructure files are classified in [`docs/project/traceability-exceptions.md`](../../docs/project/traceability-exceptions.md). Coverage floors live in `apps/backend/pyproject.toml` and `apps/frontend/vitest.config.ts`.

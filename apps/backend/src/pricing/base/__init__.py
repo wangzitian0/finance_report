@@ -2,7 +2,7 @@
 
 No ORM, no network I/O, no crawler — importing this never touches a database.
 The concrete storage adapter and the crawler/manual/FX/extraction-ingest
-domain services (``extension/``, reserved — see ``common/pricing/contract.py``)
+domain services (``extension/``, see ``common/pricing/readme.md``)
 build against the ``ObservationRepository`` port declared here.
 """
 

@@ -2,7 +2,7 @@
 
 Moved from ``src/models/portfolio.py`` (#1675 D5): the ``market_data_override``
 table is one of the legacy observation stores ``SqlObservationRepository``
-resolves over (see ``common/pricing/contract.py``), so ``pricing`` — not
+resolves over (see ``common/pricing/readme.md``), so ``pricing`` — not
 ``portfolio`` — owns it. Schema-neutral move (table/enum identity unchanged).
 """
 

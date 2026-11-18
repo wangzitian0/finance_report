@@ -12,12 +12,12 @@ auto-review wrong context — this one previously claimed Next.js 14, a retired
 auth library, and non-existent frontend paths. Facts live with their owners:
 
 - Product goal & culture → [`vision.md`](../vision.md)
-- Shared contracts & vocabulary → each package's `common/<pkg>/readme.md`
-  (routed by [`common/meta/data/MANIFEST.yaml`](../common/meta/data/MANIFEST.yaml))
+- Shared domain specifications & vocabulary → each package's `common/<pkg>/readme.md`
+  (membership in [`common/meta/base/layering.py`](../common/meta/base/layering.py))
+- End-to-end user cases → [`common/meta/flows/user_cases_ssot.json`](../common/meta/flows/user_cases_ssot.json)
 - Security & integrity hard stops → [`docs/agents/red-lines.md`](../docs/agents/red-lines.md)
 - Tech stack & commands → [`README.md`](../README.md)
 
 Review guidance: hold PRs to the red lines (Decimal for money, balanced
 entries, explicit `sa.Enum` names, no raw `fetch()` in frontend, no real
-financial data in any artifact) and to the work order (AC-anchored tests
-before code). All output in English.
+financial data in any artifact) and to failing-test-first TDD. All output in English.

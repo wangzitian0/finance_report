@@ -11,4 +11,4 @@
 1. **No float** in quantity paths. 2. **Quantity quantization is 6 dp / `ROUND_HALF_UP`** unless an explicit mode is passed. 3. **No cross-unit arithmetic** without an explicit future conversion table. 4. **Quantity ratios are `Ratio`**, not naked Decimal division. 5. **Python has no boundary codec.** Python code moves quantities through `Decimal` columns and typed fields. The frontend twin keeps JSON codecs whose
    payloads use decimal strings, never JSON numbers.
 ## Shared API Surface
-`vectors.json["shared_api"]` is exported by both `apps/backend/src/audit/quantity` (`__all__`) and `apps/frontend/src/lib/audit/quantity` (`index.ts`), enforced by `tests/tooling/test_quantity_api_parity.py`: `Quantity`, `Unit`, `QUANTITY_QUANTUM`, `QUANTITY_DP`, `QUANTITY_ROUNDING`, `QuantityError`, `FloatNotAllowedError`, `InvalidUnitError`, `UnitMismatchError`.
+`vectors.json["shared_api"]` is exported by both `apps/backend/src/audit/quantity` (`__all__`) and `apps/frontend/src/lib/audit/quantity` (`index.ts`): `Quantity`, `Unit`, `QUANTITY_QUANTUM`, `QUANTITY_DP`, `QUANTITY_ROUNDING`, `QuantityError`, `FloatNotAllowedError`, `InvalidUnitError`, `UnitMismatchError`.

@@ -12,9 +12,9 @@ scene-agnostic helper.
 Deliberately generic: this function takes an already-built ``prompt`` string
 rather than reconciliation-specific parameters (transaction description /
 entry memo / date diff / amount match), so it has no reason to import
-anything reconciliation-owned. ``reconciliation`` already depends on ``llm``
-(``depends_on=["llm", ...]``); a reverse import here would cycle the package
-DAG (``check_package_contract.py``'s ``_check_no_dependency_cycle``).
+anything reconciliation-owned. ``reconciliation`` already depends on ``llm``; a
+reverse import here would cycle the package DAG
+(``common/meta/base/dependency_graph.py``).
 Reconciliation-specific prompt construction
 (``src.reconciliation.base.prompts.build_reconciliation_prompt``) stays in
 ``reconciliation`` and is built by the caller before invoking this function.

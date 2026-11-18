@@ -1,11 +1,9 @@
 """Shared Decimal-scalar coercion — the single construction-time primitive the backend's
 base-package value types route their raw-``Decimal`` conversions through.
 
-Backend mirror of ``common/audit/decimal_scalar.py`` (the reference impl). The backend
-ships self-contained — it does not import ``common`` at runtime — so it keeps its
-own copy, exactly like the ``money`` / ``quantity`` / ``ratio`` / ``unit_price``
-value types are mirrored under ``apps/backend/src`` (#1167). Kept byte-for-byte in
-step with the reference impl.
+Single-source Decimal-scalar coercion (#2752), bridged to
+``common.audit`` for tools/tests. The backend package ships self-contained
+without importing ``common`` at runtime.
 
 ``common/audit/readme.md#base-packages`` §3 ("Raw Decimal boundary policy")
 requires that hand-written semantic conversion at a value boundary go through the

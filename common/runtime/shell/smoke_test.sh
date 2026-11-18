@@ -189,11 +189,10 @@ echo "ℹ️  S3 Endpoint check: Backend is configured to use 127.0.0.1 (standar
 echo "✓ Networking Strategy"
 
 # --- Read-Only Checks (All Modes) ---
-# NOTE (#411, AC7.17.1): every page path below must correspond to a real public
+# NOTE (#411): every page path below must correspond to a real public
 # Next.js route under apps/frontend/src/app. The home page ("/") is the dashboard
 # (there is no separate /dashboard route), and statement uploads live at
-# /upload (there is no bare /statements page). tests/tooling/
-# test_smoke_routes_contract.py guards these paths against route drift.
+# /upload (there is no bare /statements page).
 echo "--- Read-Only Checks ---"
 check_endpoint "Home / Dashboard Page" "$BASE_URL/" || FAILED=1
 check_endpoint "Settings Page" "$BASE_URL/settings" || FAILED=1

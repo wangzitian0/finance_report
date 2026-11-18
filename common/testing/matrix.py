@@ -34,7 +34,6 @@ def classify_stage(path: str) -> str | None:
 GENERATED_MATRIX_HEADER = (
     "# GENERATED from common/testing/matrix.py — do not hand-edit.\n"
     "# Regenerate: python tools/test_selection.py --emit-matrix\n"
-    "# Drift gate: tests/tooling/test_execution_matrix_contract.py (AC8.22.1)\n"
 )
 
 

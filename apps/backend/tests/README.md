@@ -1,7 +1,6 @@
 # Backend Tests
 
-Backend tests are organized by SSOT domain and must reference owning AC IDs
-unless they are listed in `docs/project/traceability-exceptions.md`.
+Backend tests are organized by SSOT domain and verify package invariants and end-to-end user cases (`common/meta/flows/user_cases_ssot.json`).
 
 ## Test Tiers
 
@@ -22,8 +21,8 @@ uv run pytest -n 4 --cov=src --cov-report=term-missing --cov-branch --cov-fail-u
 
 | Need | Source |
 |---|---|
-| EPIC -> AC -> test workflow | [tdd.md](../../../common/testing/tdd.md) |
+| TDD & verification workflow | [tdd.md](../../../common/testing/tdd.md) |
 | Test execution stages | [test-execution-matrix.yaml](../../../common/testing/data/test-execution-matrix.yaml) |
 | Coverage semantics | [coverage.md](../../../common/testing/coverage.md) |
-| Concept ownership registry | [MANIFEST.yaml](../../../common/meta/data/MANIFEST.yaml) |
+| Business user cases SSOT | [user_cases_ssot.json](../../../common/meta/flows/user_cases_ssot.json) |
 | Traceability exceptions | [traceability-exceptions.md](../../../docs/project/traceability-exceptions.md) |

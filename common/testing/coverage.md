@@ -4,7 +4,7 @@
 - **Backend**: `apps/backend/pyproject.toml` keeps default `addopts` single-process and coverage-free for fast focused TDD; full local branch coverage (`--cov-fail-under=96`, `source=src`, no broad omit) runs via explicit flags (`make test-cov` or `uv run pytest -n 4 --cov=src --cov-report=term-missing --cov-branch --cov-fail-under=96`). CI backend shards run with `--cov-fail-under=0` because each shard sees only partial coverage; the former merged no-regression gate retired with the `unified-coverage` job (#2934 Wave A). A future merge-side coverage gate is #2934 Wave B/D scope.
 - **Frontend**: `apps/frontend/vitest.config.ts` enforces thresholds `lines/functions/statements 98`, `branches 84`.
 ## Source-Root Registration
-`common/meta/extension/coverage/policy.py` defines the governed components (backend, frontend, common, tools) and their deny-list exempt patterns. Coverage scope is deny-list based within each governed source root.
+`apps/backend/pyproject.toml` and `apps/frontend/vitest.config.ts` define the governed coverage configurations and exempt patterns.
 ## Local Verification
 ```bash cd apps/backend && uv run pytest -n 4 --cov=src --cov-report=term-missing --cov-branch --cov-fail-under=96  # enforces the 96% branch floor
 cd apps/frontend && npx vitest run --coverage  # enforces the Vitest thresholds ```

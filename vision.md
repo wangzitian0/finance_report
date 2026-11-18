@@ -262,14 +262,15 @@ This file holds no contracts, status, or enumerations. They live with their
 owners:
 
 - **Implementation contracts** → each owning package's `common/<pkg>/readme.md`
-  / `contract.py`, routed by `common/meta/data/MANIFEST.yaml` (one owner per
-  concept). The staged confidence pipeline (raw -> extracted -> validated ->
+  (membership in `common/meta/base/layering.py::PACKAGE_LAYER`), plus
+  `common/meta/flows/user_cases_ssot.json` for end-to-end user cases.
+  The staged confidence pipeline (raw -> extracted -> validated ->
   confirmed -> reconciled -> trusted -> reports) is owned by
   `common/extraction/confirmation-workflow.md`; supported source classes by
-  [`source_capability_registry`](apps/backend/src/extraction/base/source_capability.py).
+  [`SOURCE_CAPABILITIES`](apps/backend/src/extraction/base/source_capability.py).
 - **Delivery scope & status** → `docs/project/` (EPICs) and `README.md`.
 - **Agent process & governance** → `AGENTS.md` and `docs/agents/`.
 
 Vision changes should be rare and directional. Implementation belongs in
-contract -> AC -> test, in each concept's owning package `readme.md` /
-`contract.py` routed by `common/meta/data/MANIFEST.yaml`.
+domain specs (`common/<pkg>/readme.md`), user cases (`user_cases_ssot.json`),
+and executable tests.
