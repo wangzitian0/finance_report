@@ -55,7 +55,7 @@ jwt_algorithm|sec||JWT signing algorithm.
 access_token_expire_minutes|sec||Access token lifetime in minutes.
 trust_proxy|sec||Trust X-Forwarded-For headers from reverse proxies.
 ai_provider|ai|i,ac:LLM_PROVIDER+AI_PROVIDER|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
-ai_api_key|ai|i,ac:LLM_API_KEY+AI_API_KEY+ZAI_API_KEY|AI provider API key (empty key = AI features disabled). Settings reads LLM_API_KEY and legacy AI_API_KEY / ZAI_API_KEY.
+ai_api_key|ai|i,al:LLM_API_KEY|AI provider API key (empty key = AI features disabled).
 environment|app|i,ac:ENVIRONMENT+ENV|Logical environment name (used to differentiate environments).
 debug|app|na|Enable debug mode.
 base_currency|app|na|Base reporting currency (ISO 4217).
@@ -111,7 +111,7 @@ register_rate_limit_window|rl||Per-IP registration rate-limit window in seconds.
 
 _SDK_LLM_KEY_ALIASES: dict[str, tuple[str, ...]] = {
     "ai_provider": ("LLM_PROVIDER", "AI_PROVIDER"),
-    "ai_api_key": ("LLM_API_KEY", "AI_API_KEY", "ZAI_API_KEY"),
+    "ai_api_key": ("LLM_API_KEY",),
     "ai_base_url": ("LLM_BASE_URL", "AI_BASE_URL"),
 }
 
