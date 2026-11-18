@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from tests.benchmarks.case_types import (
-    FLOW_TO_CASES,
     FLOW_TO_DOMAIN,
     get_case_to_flows,
 )
@@ -53,14 +52,17 @@ TELEMETRY_DEPTH_LIMIT = 50
 
 _SURROGATE = re.compile(r"[\ud800-\udfff]")
 
+
 def _clean_surrogates(text: str) -> str:
     return _SURROGATE.sub("\ufffd", text)
+
 
 def _safe_int_str(value: int) -> str:
     try:
         return str(value)
     except ValueError:
         return hex(value)
+
 
 def sanitize_for_json(value: Any, _depth: int = 0) -> Any:
     if _depth > TELEMETRY_DEPTH_LIMIT:
@@ -98,6 +100,7 @@ def sanitize_for_json(value: Any, _depth: int = 0) -> Any:
     except ValueError:
         return repr(type(value).__name__)
 
+
 def write_utf8_atomic(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     clean_bytes = _clean_surrogates(content).encode("utf-8", errors="replace")
@@ -113,13 +116,16 @@ def write_utf8_atomic(path: Path, content: str) -> None:
         tmp_path.unlink(missing_ok=True)
         raise
 
+
 def _details_of(result: dict[str, Any]) -> dict[str, Any]:
     d = result.get("details")
     return d if isinstance(d, dict) else {}
 
+
 def _case_id(result: dict[str, Any]) -> str | None:
     cid = result.get("case_id")
     return cid if isinstance(cid, str) and cid else None
+
 
 def _number_text(value: Any) -> str | None:
     if isinstance(value, bool) or not isinstance(value, (int, float, str, Decimal)):
@@ -132,9 +138,11 @@ def _number_text(value: Any) -> str | None:
         return None
     return _clean_surrogates(cleaned) if num.is_finite() else None
 
+
 def _number(value: Any) -> Decimal | None:
     t = _number_text(value)
     return None if t is None else Decimal(t)
+
 
 def _text_value(value: Any) -> str | None:
     if isinstance(value, str):
@@ -142,15 +150,18 @@ def _text_value(value: Any) -> str | None:
         return c if c else None
     return _number_text(value)
 
+
 def _whole_number(value: Any) -> int | None:
     n = _number(value)
     if n is None or not 0 <= n <= COUNT_LIMIT or n != n.to_integral_value():
         return None
     return int(n)
 
+
 def _seconds_or_none(value: Any) -> float | None:
     n = _number(value)
     return abs(float(n)) if n is not None and 0 <= n <= DURATION_LIMIT else None
+
 
 def _total_seconds(results: list[dict[str, Any]]) -> float | None:
     if not results:
@@ -159,6 +170,7 @@ def _total_seconds(results: list[dict[str, Any]]) -> float | None:
     return (
         None if any(s is None for s in durs) else sum(s for s in durs if s is not None)
     )
+
 
 def _format_number(value: Decimal) -> str:
     sign = "-" if value < 0 else ""
@@ -170,6 +182,7 @@ def _format_number(value: Decimal) -> str:
         return sign + (str(rounded) if rounded == size else format(size, "f"))
     return f"{sign}{size:.3E}"
 
+
 def _recorded_deltas(results: list[dict[str, Any]]) -> list[tuple[Decimal, str]]:
     return [
         (val.copy_abs(), DELTA_CURRENCY[k])
@@ -178,12 +191,14 @@ def _recorded_deltas(results: list[dict[str, Any]]) -> list[tuple[Decimal, str]]
         if (val := _number(_details_of(r).get(k))) is not None
     ]
 
+
 def _largest_delta(results: list[dict[str, Any]]) -> tuple[str, str]:
     found = _recorded_deltas(results)
     if not found:
         return MISSING, ""
     val, ccy = max(found, key=lambda item: item[0])
     return _format_number(val), ccy
+
 
 def _effective_case_status(result: dict[str, Any] | None) -> str | None:
     if not result:
@@ -193,6 +208,7 @@ def _effective_case_status(result: dict[str, Any] | None) -> str | None:
         return FAIL
     return status
 
+
 def _verdict(cases: list[dict[str, Any] | None]) -> str:
     statuses = [_effective_case_status(c) for c in cases]
     if not statuses:
@@ -200,6 +216,7 @@ def _verdict(cases: list[dict[str, Any] | None]) -> str:
     if any(s not in (None, "SKIPPED", PASS) for s in statuses):
         return FAIL
     return NOT_RUN if any(s in (None, "SKIPPED") for s in statuses) else PASS
+
 
 def _cases_by_id(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     groups: dict[str, list[dict[str, Any]]] = {}
@@ -211,13 +228,16 @@ def _cases_by_id(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         for cid, grp in groups.items()
     }
 
+
 def _summary_of(report_data: Any) -> dict[str, Any]:
     s = report_data.get("summary") if isinstance(report_data, dict) else None
     return s if isinstance(s, dict) else {}
 
+
 def _results_of(report_data: Any) -> list[dict[str, Any]]:
     res = report_data.get("results") if isinstance(report_data, dict) else None
     return [r for r in res if isinstance(r, dict)] if isinstance(res, list) else []
+
 
 def _derived_counts(results: list[dict[str, Any]]) -> dict[str, int]:
     statuses = [_effective_case_status(r) for r in results]
@@ -228,6 +248,7 @@ def _derived_counts(results: list[dict[str, Any]]) -> dict[str, int]:
         "skipped": skipped,
         "failed": len(results) - passed - skipped,
     }
+
 
 def _summary_disagreement(
     report_data: Any, results: list[dict[str, Any]]
@@ -252,6 +273,7 @@ def _summary_disagreement(
         )
     return "; ".join(mismatches) if mismatches else None
 
+
 def _report_counts(report_data: Any) -> dict[str, int]:
     results = _results_of(report_data)
     derived = _derived_counts(results)
@@ -262,6 +284,7 @@ def _report_counts(report_data: Any) -> dict[str, int]:
         k: fb if (rec := _whole_number(summary.get(k))) is None else rec
         for k, fb in derived.items()
     }
+
 
 def _run_passed(
     report_data: Any, counts: dict[str, int], results: list[dict[str, Any]]
@@ -278,6 +301,7 @@ def _run_passed(
         and counts["passed"] + counts["skipped"] == counts["total"]
         and failed_res == 0
     )
+
 
 def extract_summary_data(report_data: Any) -> dict[str, Any]:
     rd = report_data if isinstance(report_data, dict) else {}

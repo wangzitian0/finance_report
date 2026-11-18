@@ -40,19 +40,19 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
   run_stage2_checks_reconciliation_consistency_checks_runs_post: {
     category: "non_ui_caller",
     methodPath: "POST /reconciliation/consistency-checks/runs",
-    reason: "Financial scenario benchmark runner and SSOT flow 8 trigger.",
+    reason: "Financial scenario benchmark runner and SSOT UC-15 (flow 8) trigger.",
     proofPaths: [
       "tests/benchmarks/run_financial_scenario_benchmark.py",
-      "common/meta/flows/thirty_flows_ssot.json",
+      "common/meta/flows/user_cases_ssot.json",
     ],
   },
   post_reconciliation_adjustment_reconciliation_adjustments_post: {
     category: "non_ui_caller",
     methodPath: "POST /reconciliation/adjustments",
-    reason: "Scenario benchmark and reporting E2E reconciliation adjustment flow 18.",
+    reason: "Scenario benchmark and reporting E2E reconciliation adjustment UC-30 (flow 18).",
     proofPaths: [
       "tests/benchmarks/run_financial_scenario_benchmark.py",
-      "common/meta/flows/thirty_flows_ssot.json",
+      "common/meta/flows/user_cases_ssot.json",
     ],
   },
   list_matches_reconciliation_matches_get: {
@@ -76,10 +76,10 @@ const NON_UI_ALLOWLIST: Record<string, AllowlistEntry> = {
   balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get: {
     category: "non_ui_caller",
     methodPath: "GET /reports/balance-sheet/diagnostics",
-    reason: "Scenario benchmark and SSOT flow 24 balance-sheet diagnostics.",
+    reason: "Scenario benchmark and SSOT UC-40 (flow 24) balance-sheet diagnostics.",
     proofPaths: [
       "tests/benchmarks/run_financial_scenario_benchmark.py",
-      "common/meta/flows/thirty_flows_ssot.json",
+      "common/meta/flows/user_cases_ssot.json",
     ],
   },
 

@@ -1,6 +1,6 @@
 # `testing` — Cross-Cutting CI Governance Layer
 
-`common/testing/` owns test selection, AC proof graph checks, shared fixtures, and PDF fixture generation (`common/testing/contract.py`).
+`common/testing/` owns test selection, shared fixtures, coverage policy, and pre-push checks.
 
 ## Governance charter
 
@@ -10,7 +10,7 @@
 
 ### Package declaration protocol
 
-Domain packages declare their own unit/integration roots in `contract.py`; `matrix` aggregates them without central file-list merge conflicts. Vision proof uses `ac_vision_index` over `vision_anchor`.
+Domain packages verify invariants through focused backend/frontend tests, while `common/meta/flows/user_cases_ssot.json` binds the 47 end-to-end business user cases (`UC-01..UC-47`).
 
 ### E2E extension layer
 
@@ -18,7 +18,7 @@ Root specs under `tests/e2e/` are declared per file in `matrix.E2E_ROWS` (`llm_p
 
 ### Fast interception
 
-Contracts run at lint/tooling speed (`check_package_contract`, `gate_cli.py`, `tool_shim_contract.py`) before runtime CI shards execute.
+Boundary and purity gates run at lint/tooling speed (`check_app_boundary`, `check_base_purity`, `check_tier_imports`, `gate_cli.py`) before runtime CI shards execute.
 
 ### Responsibility table
 

@@ -86,7 +86,7 @@ nav:
       # docs out of docs/ssot/ into their owning packages (common/<pkg>/).
       # docs/ssot/ itself was retired entirely in #1823 (Package-ization 4/4, terminal);
       # core flow reference specifications live under docs/reference/.
-      - 30 Core Wealth Flows: reference/thirty-wealth-flows.md
+      - 47 Core Business User Cases: reference/user-cases.md
       - Product Analytics Events: reference/analytics-events.md
   - Governance:
       - Agent Orchestration: agents/orchestration.md

@@ -4,7 +4,7 @@
 - **Backend**: `apps/backend/pyproject.toml` enforces `--cov-fail-under=96` (branch coverage, `source=src`, no broad omit) on local full runs. CI backend shards run with `--cov-fail-under=0` because each shard sees only partial coverage; the former merged no-regression gate retired with the `unified-coverage` job (#2934 Wave A). A future merge-side coverage gate is #2934 Wave B/D scope.
 - **Frontend**: `apps/frontend/vitest.config.ts` enforces thresholds `lines/functions/statements 98`, `branches 84`.
 ## Source-Root Registration
-`common/meta/extension/coverage/policy.py` defines the governed components (backend, frontend, common, tools) and their deny-list exempt patterns. `tools/check_ci_metrics_contract.py` discovers source roots and fails CI when a new `apps/*/src`, `packages/*/src`, or root shared source root is not represented in the policy. Coverage scope is deny-list based within each governed source root.
+`common/meta/extension/coverage/policy.py` defines the governed components (backend, frontend, common, tools) and their deny-list exempt patterns. Coverage scope is deny-list based within each governed source root.
 ## Local Verification
 ```bash cd apps/backend && uv run pytest            # enforces the 96% branch floor via addopts cd apps/frontend && npx vitest run --coverage  # enforces the Vitest thresholds ```
 ## Invariants

@@ -2,7 +2,7 @@
 <!-- epic-file: goal-stub -->
 > **Status**: ✅ Complete — shipped and cut over to the `extraction` and `llm` packages.
 > **Vision Anchor**: `decision-2-event-middle-layer`
-> **Goal**: maximize AI utilization across data pipeline stages with confidence scoring and human review gates. All ACs, contracts, and roadmaps are owned by the `extraction` and `llm` packages: [`common/extraction/contract.py`](../../common/extraction/contract.py) and [`common/llm/contract.py`](../../common/llm/contract.py). This file is a goal stub kept as a product anchor; it defines no AC rows.
+> **Goal**: maximize AI utilization across data pipeline stages with confidence scoring and human review gates. Package specifications live in [`common/extraction/readme.md`](../../common/extraction/readme.md) and [`common/llm/readme.md`](../../common/llm/readme.md). This file is a historical goal stub; it defines no AC rows.
 ## Macro Proof Ownership
 - `personal-financial-report-package` - `source-ledger-report-traceability`
 ## EPIC-020 (Framework-aware reporting)

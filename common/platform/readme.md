@@ -1,5 +1,8 @@
 # `platform` — domain EventBus via the transactional outbox (meta-layer capability #1)
-> Package model: [`../meta/readme.md`](../meta/readme.md). Machine > contract: [`contract.py`](./contract.py). > > This `common/platform/` directory is the **spec + review surface**; the > conforming implementation lives at > [`apps/backend/src/platform`](../../apps/backend/src/platform) > (`contract.implementations["be"]`).
+> Package model: [`../meta/readme.md`](../meta/readme.md).
+>
+> This `common/platform/` directory is the **spec + review surface**; the
+> conforming implementation lives at [`apps/backend/src/platform`](../../apps/backend/src/platform).
 ## Why
 This is the **first runtime capability of the meta layer**: a single, reusable way for any bounded context to *publish a domain event as a fact* and for others to *react* to it — without the producer knowing its consumers, and without losing the event if the process dies. It does this with **no new infrastructure**: one Postgres table, no message broker, no Prefect, no `LISTEN/NOTIFY`.
 ## The transactional outbox in one paragraph
@@ -16,19 +19,18 @@ separate **OutboxRelay** later reads committed `pending` rows in id order, dispa
 ## Running the relay (wired at the app composition root, #1642)
 `run_once(session)` drains one batch. The durable worker is wired at the **app composition root** (`apps/backend/src/main.py`), which is also where subscription happens — the pattern every consumer package copies: 1. the composition root builds one shared `SubscriberRegistry`; 2. each consumer package publishes a wiring helper the root calls with that
    registry + the app session factory (first precedent: pricing's `subscribe_price_ingest`, #1642) — registration lives at the root because platform (L1) must never import a domain package (L3); 3. an app-startup `asyncio` background task drains the outbox each poll interval via `run_once` on a fresh session; a failing pass is logged and retried next pass (at-least-once — handlers are idempotent, so retry is
-   always safe). A handler may be sync or a coroutine function; the relay awaits async handlers before marking the row published. A `LISTEN/NOTIFY` fast-path, Prefect adapter, and dead-letter state are deliberately deferred until operational evidence justifies their complexity. They are not scheduled work; adoption requires a GitHub issue and roadmap AC.
+   always safe). A handler may be sync or a coroutine function; the relay awaits async handlers before marking the row published. A `LISTEN/NOTIFY` fast-path, Prefect adapter, and dead-letter state are deliberately deferred until operational evidence justifies their complexity. They are not scheduled work; adoption requires a GitHub issue.
 ## Layers (files converge by layer — `base` / `extension`)
 The package follows the building-block layering (see [`../meta/migration-standard.md`](../meta/migration-standard.md)), mirroring `counter`: | layer | what lives here |
 |------|-----------------|
 | `base/` | the pure core: `DomainEvent` (`event.py`), workflow request/response vocabulary (`workflow.py`), the `EventBus` **port** + `SubscriberRegistry` (`bus.py`), and the `OutboxRepository` **port** (`outbox.py`) — no I/O and no delivery-schema dependency | | `extension/` | the impure edges: `OutboxEventBus`/`RecordingEventBus` bus adapters (`bus.py`), the `OutboxRelay` (`relay.py`), and the private `OutboxRecord` ORM table + `SqlOutboxRepository` adapter (`sql.py`, the only role that touches the ORM/session) |
 The **headline** is the port/adapter split (dependency inversion, mechanism B): the `EventBus` and `OutboxRepository` ports live in `base` so the pure core and consumer packages depend only on abstractions, while their concrete adapters live in `extension`. Consumers reach them through the published interface — the base ports via `from src.platform.base import EventBus, DomainEvent`, the adapters via
-`from src.platform import OutboxEventBus`. Dependency rule (DAG, down only): the package imports nothing registered — only the unregistered `src.database` (Base/`AsyncSession`). That is why the central layer map places it in **`infra`** (L1, a leaf): a consumer like `counter` (`middleware`, L2) may import it as a strictly downward edge. See [`contract.py`](./contract.py) for the full rationale.
+`from src.platform import OutboxEventBus`. Dependency rule (DAG, down only): the package imports nothing registered — only the unregistered `src.database` (Base/`AsyncSession`). That is why the central layer map places it in **`infra`** (L1, a leaf): a consumer like `counter` (`middleware`, L2) may import it as a strictly downward edge.
 ## Public vs internal
-**Public** (`__all__`, == `contract.interface`): `DomainEvent`, `EventBus`, `OutboxEventBus`, `RecordingEventBus`, `SubscriberRegistry`, `OutboxRelay`, the persistence-neutral `Outbox` event record, `OutboxRepository` (the port), and the `Workflow*` request/response value objects (imported directly from `src.workflow`).
+**Public** (`__all__`): `DomainEvent`, `EventBus`, `OutboxEventBus`, `RecordingEventBus`, `SubscriberRegistry`, `OutboxRelay`, the persistence-neutral `Outbox` event record, `OutboxRepository` (the port), and the `Workflow*` request/response value objects (imported directly from `src.workflow`).
 **Internal**: the `OutboxRecord` SQLAlchemy row and `SqlOutboxRepository` adapter (reached only through its port), the rehydration helper in `extension/relay.py`, and module internals.
 ## Storage
 `outbox(id bigserial pk, occurred_at timestamptz, event_type text, source_pkg text, aggregate_id text null, payload jsonb, status text default 'pending', published_at timestamptz null)` with an index on `(status, id)` backing the relay's "oldest pending, in order" drain. `status` is plain text (not a `sa.Enum`) so a future lifecycle state needs no enum migration. Migration:
 `apps/backend/migrations/versions/0049_add_outbox.py`.
 ## Governance
-The package's ACs (`AC-platform.1.1`–`AC-platform.1.5`) live in [`contract.py`](./contract.py)'s `roadmap` (carrying `tier: CODE-ONLY`, EPIC-026's authority-tier model) and are sourced directly from there into the AC registry; its invariants pin to the DB-backed tests that prove atomicity and post-commit dispatch. `tools/check_package_contract.py` validates the implementation against this
-contract.
+Atomicity and post-commit dispatch are proven by DB-backed platform tests; `tools/check_app_boundary.py` and `tools/check_base_purity.py` enforce layering and purity boundaries.

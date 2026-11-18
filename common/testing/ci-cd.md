@@ -40,10 +40,7 @@ Default local verification uses `moon run :test -- --smart` or focused Vitest/to
 
 ### Coverage & Metric Semantics
 
-`tools/check_ci_metrics_contract.py` is the single CI metrics contract:
-- Coverage scope is deny-list based within each governed source root (`common/meta/extension/coverage/policy.py`). New `apps/*/src`, `packages/*/src`, or root shared source roots fail CI until registered.
-- AC traceability is a reference metric, not behavioral coverage; trivial placeholder assertions never count.
-- E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs, README EPIC map drift, and unclassified E2E-like assets outside declared roots.
+- Coverage scope is deny-list based within each governed source root (`common/meta/extension/coverage/policy.py`). New `apps/*/src`, `packages/*/src`, or root shared source roots must register in `common/meta/extension/coverage/policy.py`.
 - PR CI dry-runs staging image builds before merge; Main and release-branch push CI, plus on-demand `workflow_dispatch` push immutable `:<sha>` images.
 - CI observability artifacts (JUnit XML, coverage, run context) upload on both success and failure (`if: always()`).
 - Local pytest/Vitest thresholds govern line/branch floors (`--cov-fail-under=96` BE; Vitest `98/98/84/98` FE).

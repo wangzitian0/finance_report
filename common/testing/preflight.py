@@ -151,16 +151,16 @@ CHECKS: tuple[Check, ...] = (
         why="config.py changed: regenerate .env.example + env reference and assert no drift",
     ),
     _py_check(
-        "thirty-flows-doc",
+        "user-cases-doc",
         (
-            "common/meta/flows/thirty_flows_ssot.json",
-            "docs/reference/thirty-wealth-flows.md",
-            "tools/generate_thirty_flows_doc.py",
-            "common/meta/extension/generate_thirty_flows_doc.py",
+            "common/meta/flows/user_cases_ssot.json",
+            "docs/reference/user-cases.md",
+            "tools/generate_user_cases_doc.py",
+            "common/meta/extension/generate_user_cases_doc.py",
         ),
-        "tools/generate_thirty_flows_doc.py",
+        "tools/generate_user_cases_doc.py",
         "--check",
-        why="thirty_flows_ssot.json or generated flow reference changed: docs/reference/thirty-wealth-flows.md must stay in sync",
+        why="user_cases_ssot.json or generated user-cases reference changed: docs/reference/user-cases.md must stay in sync",
     ),
     Check(
         name="openapi-spec",

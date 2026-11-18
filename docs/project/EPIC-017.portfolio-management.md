@@ -2,8 +2,8 @@
 <!-- epic-file: goal-stub -->
 > **Status**: ✅ Complete — shipped and cut over to the `portfolio` package.
 > **Vision Anchor**: `decision-1-portfolio-self-developed`
-> **Goal**: build self-developed investment portfolio management with holdings tracking, performance metrics, and brokerage statement auto-parsing. All ACs, contracts, and roadmaps are owned by the `portfolio` package: [`common/portfolio/contract.py`](../../common/portfolio/contract.py) and [`common/portfolio/readme.md`](../../common/portfolio/readme.md).
-This file is a goal stub kept as a product anchor; it defines no AC rows.
+> **Goal**: build self-developed investment portfolio management with holdings tracking, performance metrics, and brokerage statement auto-parsing. Package specifications live in [`common/portfolio/readme.md`](../../common/portfolio/readme.md).
+This file is a historical goal stub; it defines no AC rows.
 ## Macro Proof Ownership
 - `personal-financial-report-package` - `asset-distribution-net-worth` - `investment-performance` - `annualized-income-long-term`
 ## Framework boundary

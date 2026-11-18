@@ -8,14 +8,11 @@
 # and a dozen string-grep contract tests. Changing one trigger meant editing 7+ files,
 # and a comment reword broke unrelated tests. Now:
 #   - this manifest declares the trigger/blocking contract (one edit),
-#   - the workflow implements it (one edit),
-#   - tests/tooling/test_delivery_gates_contract.py verifies the workflow matches THIS file
-#     by parsing `on:`/job structure — not by grepping prose,
-#   - ci-cd.md / environments.md / EPIC-008 describe the *behavior* and cross-ref here
+#   - the workflows implement it (.github/workflows/ & runtime-hooks.manifest.json),
+#   - ci-cd.md / environments.md describe the *behavior* and cross-ref here
 #     instead of re-stating the mechanism.
 #
-# Validated by: tests/tooling/test_delivery_gates_contract.py
-# Owner concept in common/meta/data/MANIFEST.yaml: delivery_gate_triggers
+# Owner package: common/meta (delivery_gate_triggers)
 #
 # trigger values:
 #   pull_request      — synchronous PR check (cannot be outrun by a fast/auto merge)
