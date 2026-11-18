@@ -1,4 +1,4 @@
-from __future__ import annotations; import asyncio; import json; import os; import time; import uuid; from collections import Counter; from dataclasses import dataclass; from decimal import Decimal; from pathlib import Path; import httpx; import pytest; from common.testing.ac_proof import ac_proof; from deployment_pin import assert_pinned_deployment, resolve_expected_commit; from journey_checkpoint import checkpoint; from pdf_fixture_paths import committed_fixture_pdf; from playwright.async_api import Page; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); POLL_SECONDS = 3; EXPECTED_PATH = Path(__file__).resolve().parents[2] / 'tests/fixtures/pdf/generated/gxs_statement_fixture_expected.json'; LIVE_ENTRY_STATUSES = {'posted', 'reconciled'}; _api_url = lambda path: f"{APP_URL.rstrip('/')}/api{path}"
+from __future__ import annotations; import json; import os; import time; import uuid; from collections import Counter; from dataclasses import dataclass; from decimal import Decimal; from pathlib import Path; import httpx; import pytest; from common.testing.ac_proof import ac_proof; from deployment_pin import assert_pinned_deployment, resolve_expected_commit; from journey_checkpoint import checkpoint; from pdf_fixture_paths import committed_fixture_pdf; from playwright.async_api import Page; from tests.e2e.auto_accept_poll import wait_for_auto_approved_statement; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); POLL_SECONDS = 3; EXPECTED_PATH = Path(__file__).resolve().parents[2] / 'tests/fixtures/pdf/generated/gxs_statement_fixture_expected.json'; LIVE_ENTRY_STATUSES = {'posted', 'reconciled'}; _api_url = lambda path: f"{APP_URL.rstrip('/')}/api{path}"
 async def _auth_headers(page: Page) -> dict[str, str]: cookies = await page.context.cookies(APP_URL); auth_cookie = next((cookie for cookie in cookies if cookie['name'] == 'finance_access_token'), None); assert auth_cookie, 'authenticated Playwright context is missing auth cookie'; return {'Cookie': f"finance_access_token={auth_cookie['value']}"}
 @dataclass(frozen=True)
 class RecordedRequest: method: str; path: str
@@ -13,14 +13,23 @@ async def _upload_pdf(client: httpx.AsyncClient, *, pdf_path: Path, model: str) 
     assert response.status_code in (200, 201, 202), f'upload failed: {response.status_code} {response.text}'; statement_id = response.json().get('id'); assert statement_id, f'upload response missing id: {response.text}'; return str(statement_id)
 _live_entries_by_source = lambda entries, transaction_ids: Counter((entry['source_id'] for entry in entries if entry['source_id'] in transaction_ids and entry['status'] in LIVE_ENTRY_STATUSES))
 async def _wait_until_every_row_has_its_effect(client: httpx.AsyncClient, statement_id: str, *, rows: int) -> tuple[dict, list[dict]]:
-    deadline = time.monotonic() + PARSING_TIMEOUT_MS / 1000; statement: dict = {}; entries: list[dict] = []
-    while time.monotonic() < deadline:
-        statement = await _get(client, f'/statements/{statement_id}'); status = statement['status']; pytest.fail(f"the statement did not post by itself: status={status} confidence_score={statement.get('confidence_score')} balance_validated={statement.get('balance_validated')} validation_error={statement.get('validation_error')!r}") if status in ('parsed', 'rejected') else None
-        if status == 'approved':
-            payload = await _get(client, '/journal-entries', limit=100); assert payload['total'] == len(payload['items']), 'the user holds more entries than one page; the count check needs every entry'; entries = payload['items']; transaction_ids = {t['id'] for t in statement['transactions']}
-            if len(_live_entries_by_source(entries, transaction_ids)) == rows: return (statement, entries)
-        await asyncio.sleep(POLL_SECONDS)
-    pytest.fail(f"statement {statement_id} did not post every row within {PARSING_TIMEOUT_MS}ms: status={statement.get('status')} entries={len(entries)}")
+    async def _fetch_entries(statement: dict) -> tuple[bool, list[dict]]:
+        payload = await _get(client, '/journal-entries', limit=100)
+        assert payload['total'] == len(payload['items']), 'the user holds more entries than one page; the count check needs every entry'
+        entries = payload['items']
+        transaction_ids = {t['id'] for t in statement['transactions']}
+        return (len(_live_entries_by_source(entries, transaction_ids)) == rows, entries)
+
+    return await wait_for_auto_approved_statement(
+        client,
+        api_url=_api_url,
+        statement_id=statement_id,
+        timeout_ms=PARSING_TIMEOUT_MS,
+        poll_seconds=POLL_SECONDS,
+        fetch_entries=_fetch_entries,
+        terminal_fail_statuses=frozenset({'rejected'}),
+        failure_prefix='the statement did not post by itself',
+    )
 @ac_proof('zero-click-upload-to-three-statements', ac_ids=['AC-extraction.auto-accept.13'], scope='behavioral', ci_tier='post_merge_environment', trust_mode='llm_ocr_post_merge', source_classes=['bank_statement'], mirror_proof_id='extraction-corpus-journeys-pr', issue='#2405', required_markers=['e2e', 'tier3', 'critical', 'llm'])
 @pytest.mark.e2e
 @pytest.mark.tier3
