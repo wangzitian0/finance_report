@@ -65,9 +65,7 @@ def get_namespace(
 ) -> str:
     """Generate a unique test namespace based on env, branch, and path."""
     branch = branch_name if branch_name is not None else os.environ.get("BRANCH_NAME")
-    workspace = (
-        workspace_id if workspace_id is not None else os.environ.get("WORKSPACE_ID")
-    )
+    workspace = workspace_id if workspace_id is not None else os.environ.get("WORKSPACE_ID")
 
     if branch:
         namespace = sanitize_namespace(branch)
@@ -88,12 +86,8 @@ def get_namespace(
         git_branch = result.stdout.strip()
         if git_branch:
             namespace = sanitize_namespace(git_branch)
-            path_hash = hashlib.sha256(
-                str(cwd_getter().absolute()).encode()
-            ).hexdigest()[:8]
-            return shorten_identifier(
-                f"{namespace}_{path_hash}", MAX_NAMESPACE_LENGTH, separator="_"
-            )
+            path_hash = hashlib.sha256(str(cwd_getter().absolute()).encode()).hexdigest()[:8]
+            return shorten_identifier(f"{namespace}_{path_hash}", MAX_NAMESPACE_LENGTH, separator="_")
     except Exception:
         pass
 
@@ -128,51 +122,116 @@ def get_env_suffix(namespace: str) -> str:
     return f"-{namespace}"
 
 
+def _is_pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _load_namespace_leases(
+    active_namespaces_file: Path = ACTIVE_NAMESPACES_FILE,
+) -> dict[str, list[int]]:
+    if not active_namespaces_file.exists():
+        return {}
+    try:
+        raw = json.loads(active_namespaces_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if isinstance(raw, list):
+        return {str(ns): [] for ns in raw if isinstance(ns, str) and ns}
+    if not isinstance(raw, dict):
+        return {}
+    leases: dict[str, list[int]] = {}
+    for ns, pids in raw.items():
+        if not isinstance(ns, str) or not ns or not isinstance(pids, list):
+            continue
+        live = [int(p) for p in pids if isinstance(p, int) and _is_pid_alive(int(p))]
+        if live:
+            leases[ns] = sorted(set(live))
+    return leases
+
+
+def _save_namespace_leases(
+    leases: dict[str, list[int]],
+    active_namespaces_file: Path = ACTIVE_NAMESPACES_FILE,
+    cache_dir: Path = CACHE_DIR,
+) -> None:
+    import tempfile
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    active_namespaces_file.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=".active_namespaces_", suffix=".tmp", dir=str(active_namespaces_file.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(leases, fh, indent=2)
+        os.replace(tmp_name, active_namespaces_file)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 def load_active_namespaces(
     active_namespaces_file: Path = ACTIVE_NAMESPACES_FILE,
     cache_dir: Path = CACHE_DIR,
 ) -> list[str]:
-    """Load tracked active namespaces from persistent storage."""
+    """Load tracked active namespaces with live PIDs from persistent storage."""
     cache_dir.mkdir(parents=True, exist_ok=True)
-    if not active_namespaces_file.exists():
-        return []
-    try:
-        return json.loads(active_namespaces_file.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
+    return sorted(_load_namespace_leases(active_namespaces_file))
 
 
 def save_active_namespaces(
-    namespaces: list[str],
+    namespaces: list[str] | dict[str, list[int]],
     active_namespaces_file: Path = ACTIVE_NAMESPACES_FILE,
     cache_dir: Path = CACHE_DIR,
 ) -> None:
     """Save tracked active namespaces to persistent storage."""
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    active_namespaces_file.write_text(
-        json.dumps(namespaces, indent=2), encoding="utf-8"
-    )
+    leases = {ns: [] for ns in namespaces} if isinstance(namespaces, list) else namespaces
+    _save_namespace_leases(leases, active_namespaces_file, cache_dir)
 
 
 def register_namespace(
     namespace: str,
     active_namespaces_file: Path = ACTIVE_NAMESPACES_FILE,
     cache_dir: Path = CACHE_DIR,
+    *,
+    pid: int | None = None,
 ) -> None:
-    """Register a namespace as active."""
-    namespaces = load_active_namespaces(active_namespaces_file, cache_dir)
-    if namespace not in namespaces:
-        namespaces.append(namespace)
-        save_active_namespaces(namespaces, active_namespaces_file, cache_dir)
+    """Register a namespace lease for the current process."""
+    holder = os.getpid() if pid is None else pid
+    leases = _load_namespace_leases(active_namespaces_file)
+    holders = set(leases.get(namespace, []))
+    if holder not in holders:
+        holders.add(holder)
+        leases[namespace] = sorted(holders)
+        _save_namespace_leases(leases, active_namespaces_file, cache_dir)
 
 
 def unregister_namespace(
     namespace: str,
     active_namespaces_file: Path = ACTIVE_NAMESPACES_FILE,
     cache_dir: Path = CACHE_DIR,
+    *,
+    pid: int | None = None,
 ) -> None:
-    """Unregister a namespace after cleanup."""
-    namespaces = load_active_namespaces(active_namespaces_file, cache_dir)
-    if namespace in namespaces:
-        namespaces.remove(namespace)
-        save_active_namespaces(namespaces, active_namespaces_file, cache_dir)
+    """Unregister the current process lease for ``namespace``."""
+    holder = os.getpid() if pid is None else pid
+    leases = _load_namespace_leases(active_namespaces_file)
+    if namespace not in leases:
+        return
+    remaining = [p for p in leases[namespace] if p != holder]
+    if remaining:
+        leases[namespace] = remaining
+    else:
+        leases.pop(namespace, None)
+    _save_namespace_leases(leases, active_namespaces_file, cache_dir)
