@@ -382,6 +382,7 @@ describe("StatementDetailPage - import and lifecycle coverage", () => {
     });
     renderWithClient();
     const createBtn = await screen.findByRole("button", { name: "Create account" });
+    await waitFor(() => expect(createBtn).toBeEnabled());
     fireEvent.click(createBtn);
     await waitFor(() =>
       expect(mockedApi).toHaveBeenCalledWith(
