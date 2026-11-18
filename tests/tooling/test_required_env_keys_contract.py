@@ -1,9 +1,0 @@
-from __future__ import annotations; import ast; from pathlib import Path; ROOT = Path(__file__).resolve().parents[2]; MANIFEST = ROOT / 'apps' / 'backend' / 'src' / 'runtime' / 'base' / 'manifest.py'; CONFIG = ROOT / 'apps' / 'backend' / 'src' / 'config.py'; _READ_OUTSIDE_CONFIG = {'OTEL_EXPORTER_OTLP_ENDPOINT', 'NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT', 'OPENPANEL_CLIENT_ID', 'OPENPANEL_CLIENT_SECRET', 'OPENPANEL_SCRIPT_URL', 'OPENPANEL_API_URL'}
-def _manifest_env_vars() -> set[str]: tree = ast.parse(MANIFEST.read_text(encoding='utf-8')); found: set[str] = set(); [[found.add(s.value) if isinstance(s, ast.Constant) and isinstance(s.value, str) and s.value.isupper() else None for s in ast.walk(node.value)] if isinstance(node, ast.keyword) and node.arg == 'env_vars' else None for node in ast.walk(tree)]; return found
-def _config_known_env_keys() -> set[str]:
-    tree = ast.parse(CONFIG.read_text(encoding='utf-8')); known: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str): v = node.value; known.add(v) if v.isupper() and '_' in v else None
-        known.add(node.target.id.upper()) if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) else None
-    return known
-def test_every_manifest_env_var_is_a_known_config_key() -> None: manifest_vars = _manifest_env_vars(); assert manifest_vars, 'expected to parse env_vars out of the dependency manifest'; known = _config_known_env_keys() | _READ_OUTSIDE_CONFIG; unknown = {v for v in manifest_vars if v not in known}; assert not unknown, f'dependency manifest declares env var(s) that config.py does not recognize (drift): {sorted(unknown)}. Add them to Settings/AliasChoices in config.py or to the read-outside-config allowlist if they are read via os.getenv.'

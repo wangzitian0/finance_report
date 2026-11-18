@@ -11,7 +11,8 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
+from collections.abc import Callable
 
 from common.audit.base import (
     TraceAuthorityProfile,

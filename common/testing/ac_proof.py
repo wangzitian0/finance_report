@@ -1,72 +1,18 @@
-"""Co-located critical-proof declarations.
-
-``docs/ssot/critical-proof-matrix.yaml`` used to be a hand-maintained CENTRAL
-index: every behavioural-anchoring PR appended a ``proofs[]`` entry, so PRs that
-anchored *different* ACs collided textually on the same file (false sharing) and
-were forced through a linear merge train.
-
-This module moves the proof declaration to the source of truth — the test
-itself — exactly like ``docs/ac_registry.yaml`` is generated from EPIC docs. A
-PR anchoring a new AC now edits only its OWN test file (adds an ``@ac_proof``
-decorator); the matrix is a DERIVED on-demand view rendered by
-``common.testing.generate_critical_proof_matrix`` and validated by
-``tools/check_ac_index.py``.
-
-The decorator is a pure runtime **no-op**: it returns the test function
-unchanged and attaches the metadata as ``__ac_proof__`` for introspection. The
-generator never imports the test tree — it scans ``@ac_proof(...)`` calls
-statically with ``ast`` (consistent with ``check_critical_proof_matrix.py``), so
-the literal arguments are the single source of truth and must be plain literals.
-
-stdlib-only by design: importable from any test suite (backend, e2e, frontend
-helpers) without pulling app or framework dependencies.
-"""
+"""Transitional @ac_proof decorator and metadata dataclass (removed in #2937 Wave 1)."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Literal, TypeAlias, TypeVar
-
-from common.testing.ac_proof_execution import normalize_proof_execution
+from typing import TypeVar
 
 F = TypeVar("F", bound=Callable[..., object])
-
-# The marker attribute the decorator attaches to the wrapped function. The
-# generator does not read this (it scans statically); it exists for runtime
-# introspection and tests.
 PROOF_ATTR = "__ac_proof__"
-
-GovernanceStrength: TypeAlias = Literal[
-    "reference-only",
-    "report-only",
-    "exact",
-    "concurrency",
-    "schema",
-    "consumer-compile",
-    "value-oracle",
-]
-GOVERNANCE_STRENGTHS = frozenset(
-    {
-        "reference-only",
-        "report-only",
-        "exact",
-        "concurrency",
-        "schema",
-        "consumer-compile",
-        "value-oracle",
-    }
-)
 
 
 @dataclass(frozen=True)
 class AcProof:
-    """One co-located critical-proof declaration.
-
-    Mirrors a ``proofs[]`` entry in the derived critical-proof matrix view.
-    ``file`` and ``test`` are derived by the generator from the decorated
-    function's location and name, so they are intentionally absent here.
-    """
+    """Minimal critical-proof metadata container."""
 
     proof_id: str
     ac_ids: tuple[str, ...]
@@ -80,79 +26,25 @@ class AcProof:
     issue: str = ""
     scenario_id: str = ""
     oracle_kind: str = ""
-    governance_strength: GovernanceStrength = "exact"
+    governance_strength: str = "exact"
     required_observation_kind: str = ""
     required_markers: tuple[str, ...] = ()
     outcomes: tuple[str, ...] = field(default_factory=tuple)
 
-    def __post_init__(self) -> None:
-        if self.governance_strength not in GOVERNANCE_STRENGTHS:
-            raise ValueError(
-                f"unknown governance strength {self.governance_strength!r}"
-            )
 
-
-def ac_proof(
-    proof_id: str,
-    *,
-    ac_ids: list[str] | tuple[str, ...],
-    stage: str = "",
-    task_category: str = "",
-    scope: str = "behavioral",
-    ci_tier: str = "post_merge_environment",
-    trust_mode: str = "",
-    source_classes: list[str] | tuple[str, ...] = (),
-    mirror_proof_id: str = "",
-    issue: str = "",
-    scenario_id: str = "",
-    oracle_kind: str = "",
-    governance_strength: GovernanceStrength = "exact",
-    required_observation_kind: str = "",
-    required_markers: list[str] | tuple[str, ...] = (),
-    outcomes: list[str] | tuple[str, ...] = (),
-) -> Callable[[F], F]:
-    """Declare that the decorated test is a critical-proof path.
-
-    Runtime no-op: the decorated function is returned unchanged, with the
-    declaration attached as ``func.__ac_proof__`` for introspection. The proof
-    matrix YAML is regenerated from these declarations by
-    ``common.testing.generate_critical_proof_matrix``.
-
-    Arguments mirror a ``proofs[]`` entry; ``file`` and ``test`` are derived by
-    the generator. Keep every argument a plain literal — the generator reads
-    them statically and rejects non-literal values.
-    """
-
-    resolved_stage, resolved_task_category = normalize_proof_execution(
-        {
-            "stage": stage,
-            "task_category": task_category,
-            "scope": scope,
-            "ci_tier": ci_tier,
-        }
-    )
-
-    proof = AcProof(
+def ac_proof(proof_id: str, *, ac_ids=(), source_classes=(), required_markers=(), outcomes=(), **kwargs) -> Callable[[F], F]:
+    """Attach lightweight @ac_proof metadata to a test function."""
+    meta = AcProof(
         proof_id=proof_id,
         ac_ids=tuple(ac_ids),
-        stage=resolved_stage,
-        task_category=resolved_task_category,
-        scope=scope,
-        ci_tier=ci_tier,
-        trust_mode=trust_mode,
         source_classes=tuple(source_classes),
-        mirror_proof_id=mirror_proof_id,
-        issue=issue,
-        scenario_id=scenario_id,
-        oracle_kind=oracle_kind,
-        governance_strength=governance_strength,
-        required_observation_kind=required_observation_kind,
         required_markers=tuple(required_markers),
         outcomes=tuple(outcomes),
+        **kwargs,
     )
 
     def decorate(func: F) -> F:
-        setattr(func, PROOF_ATTR, proof)
+        setattr(func, PROOF_ATTR, meta)
         return func
 
     return decorate

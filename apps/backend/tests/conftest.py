@@ -29,7 +29,7 @@ def worker_id(request):
     if hasattr(request.config, 'workerinput'): return request.config.workerinput['workerid']
     return 'master'
 def get_test_db_url(worker_id: str) -> str:
-    from common.testing.test_isolation import get_namespace, get_test_db_name, sanitize_namespace; raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace(); base_db_name = get_test_db_name(namespace); base_url = normalize_url(os.environ.get('DATABASE_URL', f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}')) or f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}'
+    from tests._support.test_isolation import get_namespace, get_test_db_name, sanitize_namespace; raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace(); base_db_name = get_test_db_name(namespace); base_url = normalize_url(os.environ.get('DATABASE_URL', f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}')) or f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}'
     if raw_namespace: base_url = make_url(base_url).set(database=base_db_name).render_as_string(hide_password=False)
     if worker_id != 'master': url_obj = make_url(base_url); assert url_obj.database is not None; worker_suffix = f'_{worker_id}'; max_base_len = 63 - len(worker_suffix); worker_db_name = f'{url_obj.database[:max_base_len]}{worker_suffix}'; new_url = url_obj.set(database=worker_db_name); return new_url.render_as_string(hide_password=False)
     return base_url

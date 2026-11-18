@@ -1,38 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-tier STRUCTURAL gate: CODE-ONLY / financial-truth modules MUST NOT import the LLM layer.
-
-EPIC-026 phase 3. The authority-tier SSOT (``common/meta/readme.md``,
-"Cross-tier MUST rules", rule 2) states:
-
-    **CODE-ONLY stays pure.** A CODE-ONLY AC MUST NOT depend on an LLM client; its outcome is
-    produced and proven by deterministic code alone.
-
-Phases 1 and 2 made the *per-AC* tier and proof-kind contracts machine-checkable.
-This gate makes the *structural* half of rule 2 deterministic: a curated set of
-deterministic financial-truth (CODE-ONLY) modules is statically proven, via the ``ast``
-module, to contain no import of the LLM layer (``src.llm``) or of any raw LLM
-SDK/provider (``litellm`` / ``openrouter`` / ``anthropic`` / ``openai``).
-
-This is a *guard against regression*: on ``main`` today none of the protected
-modules imports the LLM layer, so the gate starts GREEN. Its job is to keep the
-deterministic core deterministic — to stop an LLM client from silently leaking
-into a money/accounting/reporting path where a wrong, unverifiable output could
-become financial truth.
-
-Scope (v1, deliberately simple + false-positive-free):
-
-- **Direct imports only.** We flag a module only for the imports written in its
-  own source (``import X`` / ``from X import ...``). We do not follow the import
-  graph transitively — a v2 follow-up. Direct detection already enforces the
-  structural MUST rule at the boundary that matters (a CODE-ONLY module reaching for an
-  LLM client) without guessing at deep, conditional, or runtime imports.
-- **Name-prefixed matching.** ``src.llm`` matches ``src.llm`` and any submodule
-  (``src.llm.extension.client``), but never an unrelated module that merely starts with the
-  same letters (``src.llmx`` would not match; ``src.llm_helpers`` would not match).
-
-The protected set and forbidden targets below are the machine-checkable mirror of
-the SSOT rule; ``common/meta/readme.md`` is the single source of truth.
-"""
+"""Cross-tier AST gate: CODE-ONLY/financial-truth modules must not import the LLM layer."""
 
 from __future__ import annotations
 
@@ -47,55 +14,31 @@ from common.meta.base.gate_util import read_text_cached
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
-# --- The contract (mirror of common/meta/readme.md "Cross-tier MUST
-# --- rules", rule 2). Keep these in sync with the SSOT subsection.
-
-# Protected CODE-ONLY / financial-truth modules, as path globs relative to the repo
-# root. These are deterministic modules whose output can become financial truth;
-# none of them may import the LLM layer. Each glob is confirmed to resolve to at
-# least one real file (see ``missing_protected_globs``).
 PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
-    # money primitives + the ledger/journal core (the journal ORM moved into
-    # ledger/orm/, #1675 D5 — it is covered by the ledger glob)
     "apps/backend/src/audit/money/**/*.py",
     "apps/backend/src/ledger/**/*.py",
-    # deterministic financial-truth services
     "apps/backend/src/extraction/extension/deduplication.py",
     "apps/backend/src/ledger/extension/accounting.py",
     "apps/backend/src/ledger/extension/account_service.py",
     "apps/backend/src/portfolio/extension/accounting.py",
     "apps/backend/src/extraction/extension/statement_posting.py",
-    # reporting moved to its package home (#1666); services/reporting/ and
-    # services/reporting_calc.py are gone (#1610 P2 re-homed manual_valuation.py
-    # into pricing and deleted the directory; reporting_calc.py moved inside
-    # the reporting package, already covered by the glob below).
     "apps/backend/src/reporting/**/*.py",
-    # manual-valuation balance-sheet math (financial-truth, #1610 P2 —
-    # re-homed from the protected services/reporting/manual_valuation.py).
     "apps/backend/src/pricing/extension/valuation.py",
     "apps/backend/src/extraction/base/validation.py",
     "apps/backend/src/extraction/extension/statement_validation.py",
-    # FX (deterministic conversion / revaluation / transfer math) — the
-    # lookup module moved into pricing (#1610 P2 retired services/fx.py)
     "apps/backend/src/pricing/extension/fx.py",
     "apps/backend/src/ledger/extension/fx_revaluation.py",
     "apps/backend/src/reconciliation/extension/fx_transfer.py",
     "apps/backend/src/reconciliation/extension/fx_transfer_discovery.py",
-    # portfolio / performance / allocation deterministic calc (moved into the
-    # portfolio package's extension layer, #1643)
     "apps/backend/src/portfolio/extension/holdings.py",
     "apps/backend/src/portfolio/extension/performance.py",
     "apps/backend/src/portfolio/extension/performance_report.py",
     "apps/backend/src/portfolio/extension/allocation.py",
 )
 
-# Forbidden import targets. A protected module may not import any of these, nor
-# any submodule of them (prefix match on the dotted module path).
 FORBIDDEN_IMPORT_PREFIXES: tuple[str, ...] = (
-    # the project's own LLM layer (the backend imports it as ``src.llm``)
     "src.llm",
     "apps.backend.src.llm",
-    # raw LLM SDKs / provider clients
     "litellm",
     "openrouter",
     "anthropic",

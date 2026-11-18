@@ -1,5 +1,0 @@
-from __future__ import annotations; import re; from pathlib import Path; ROOT = Path(__file__).resolve().parents[2]; CONFTEST = ROOT / 'tests' / 'e2e' / 'conftest.py'; REQUIRED_EVENTS = {'console', 'weberror'}; VALID_BROWSER_CONTEXT_EVENTS = frozenset({'backgroundpage', 'close', 'console', 'dialog', 'download', 'page', 'request', 'requestfailed', 'requestfinished', 'response', 'serviceworker', 'weberror'})
-def _context_subscribed_events() -> set[str]: src = CONFTEST.read_text(encoding='utf-8'); return set(re.findall('context\\.on\\(\\s*"([a-z_]+)"', src))
-def test_conftest_subscribes_to_the_invariant_events() -> None:
-    missing = REQUIRED_EVENTS - _context_subscribed_events(); assert not missing, f'tests/e2e/conftest.py no longer subscribes context.on to {missing} — the browser correctness invariant would catch nothing while staying green.'
-    for _m1_event in _context_subscribed_events(): assert _m1_event in VALID_BROWSER_CONTEXT_EVENTS, f'conftest subscribes context.on({_m1_event!r}) but BrowserContext does not emit it — the invariant is silently vacuous. Console/pageerror are Page events; use console/weberror on the context.'

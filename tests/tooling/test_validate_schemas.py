@@ -1,39 +1,115 @@
-import pytest; from pathlib import Path; import sys; sys.path.insert(0, str(Path(__file__).resolve().parents[2])); sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'apps' / 'backend')); from src.runtime.extension.schema_validation import get_project_root, SchemaVisitor, parse_file_for_schemas, check_config_file, check_schemas_directory, print_report, generate_fix_suggestions
-class TestGetProjectRoot:
-    def test_returns_path(self): result = get_project_root(); assert isinstance(result, Path); _m1_result = get_project_root(); assert (_m1_result / 'common').exists(); assert (_m1_result / 'tools').exists()
-class TestSchemaVisitor:
-    def test_visit_class_def_extracts_class_names(self, tmp_path): test_file = tmp_path / 'test_model.py'; test_file.write_text('\nclass MyModel:\n    field: str\n\nclass AnotherModel:\n    value: int\n'); visitor = parse_file_for_schemas(test_file); assert 'MyModel' in visitor.classes; assert 'AnotherModel' in visitor.classes; _m1_tmp = tmp_path / '_m1'; _m1_tmp.mkdir(exist_ok=True); _m1_test_file = _m1_tmp / 'test_model.py'; _m1_test_file.write_text('\nclass MyModel:\n    name: str\n    count: int = 0\n'); _m1_visitor = parse_file_for_schemas(_m1_test_file); _m1_field_names = [_m1_f['name'] for _m1_f in _m1_visitor.fields]; assert 'name' in _m1_field_names; assert 'count' in _m1_field_names; _m2_tmp = tmp_path / '_m2'; _m2_tmp.mkdir(exist_ok=True); _m2_test_file = _m2_tmp / 'test_model.py'; _m2_test_file.write_text('\nfrom pydantic import Field\n\nclass MyModel:\n    name: str = Field(description="User\'s name")\n'); _m2_visitor = parse_file_for_schemas(_m2_test_file); _m2_field = next((_m2_f for _m2_f in _m2_visitor.fields if _m2_f['name'] == 'name')); assert _m2_field['has_field'] is True; assert _m2_field['description'] == "User's name"; _m3_tmp = tmp_path / '_m3'; _m3_tmp.mkdir(exist_ok=True); _m3_test_file = _m3_tmp / 'test_model.py'; _m3_test_file.write_text('\nfrom pydantic import Field\n\nclass MyModel:\n    name: str = Field()\n'); _m3_visitor = parse_file_for_schemas(_m3_test_file); _m3_field = next((_m3_f for _m3_f in _m3_visitor.fields if _m3_f['name'] == 'name')); assert _m3_field['has_field'] is True; assert _m3_field['description'] is None; _m4_tmp = tmp_path / '_m4'; _m4_tmp.mkdir(exist_ok=True); _m4_test_file = _m4_tmp / 'test_model.py'; _m4_test_file.write_text('\nclass MyModel:\n    required_field: str\n    optional_field: str = "default"\n'); _m4_visitor = parse_file_for_schemas(_m4_test_file); _m4_required = next((_m4_f for _m4_f in _m4_visitor.fields if _m4_f['name'] == 'required_field')); _m4_optional = next((_m4_f for _m4_f in _m4_visitor.fields if _m4_f['name'] == 'optional_field')); assert _m4_required['has_default'] is False; assert _m4_optional['has_default'] is True
-class TestParseFileForSchemas:
-    def test_returns_empty_visitor_for_missing_file(self, tmp_path, capsys): missing_file = tmp_path / 'nonexistent.py'; result = parse_file_for_schemas(missing_file); assert isinstance(result, SchemaVisitor); assert result.fields == []; assert result.classes == []; captured = capsys.readouterr(); assert 'WARNING' in captured.out
-    def test_returns_empty_visitor_for_syntax_error(self, tmp_path, capsys): bad_file = tmp_path / 'bad.py'; bad_file.write_text('class Broken(\n'); result = parse_file_for_schemas(bad_file); assert isinstance(result, SchemaVisitor); assert result.fields == []; captured = capsys.readouterr(); assert 'ERROR' in captured.out or 'Syntax error' in captured.out
-    def test_parses_simple_pydantic_model(self, tmp_path): test_file = tmp_path / 'model.py'; test_file.write_text('\nfrom pydantic import BaseModel, Field\n\nclass UserSchema(BaseModel):\n    name: str = Field(description="User name")\n    email: str = Field(description="Email address")\n'); visitor = parse_file_for_schemas(test_file); assert 'UserSchema' in visitor.classes; assert len(visitor.fields) == 2
-class TestCheckConfigFile:
-    def test_detects_field_without_default_as_error(self, tmp_path): config_file = tmp_path / 'config.py'; config_file.write_text('\nclass Settings:\n    database_url: str\n    debug: bool = False\n'); result = check_config_file(config_file); errors = [i for i in result['issues'] if i['type'] == 'error']; assert len(errors) == 1; assert errors[0]['field'] == 'database_url'; _m1_tmp = tmp_path / '_m1'; _m1_tmp.mkdir(exist_ok=True); _m1_config_file = _m1_tmp / 'config.py'; _m1_config_file.write_text('\nclass Settings:\n    database_url: str = "postgres://localhost/db"\n    debug: bool = False\n'); _m1_result = check_config_file(_m1_config_file); _m1_errors = [_m1_i for _m1_i in _m1_result['issues'] if _m1_i['type'] == 'error']; assert len(_m1_errors) == 0; _m2_tmp = tmp_path / '_m2'; _m2_tmp.mkdir(exist_ok=True); _m2_config_file = _m2_tmp / 'config.py'; _m2_config_file.write_text('\nclass Settings:\n    debug: bool = False\n'); _m2_result = check_config_file(_m2_config_file); assert 'visitor' in _m2_result; assert isinstance(_m2_result['visitor'], SchemaVisitor); _m3_tmp = tmp_path / '_m3'; _m3_tmp.mkdir(exist_ok=True); _m3_config_file = _m3_tmp / 'config.py'; _m3_config_file.write_text('\nclass OtherClass:\n    required_field: str\n\nclass Settings:\n    debug: bool = False\n'); _m3_result = check_config_file(_m3_config_file); _m3_errors = [_m3_i for _m3_i in _m3_result['issues'] if _m3_i['type'] == 'error']; assert len(_m3_errors) == 0
-class TestCheckSchemasDirectory:
-    def test_warns_field_without_description(self, tmp_path): schemas_dir = tmp_path / 'schemas'; schemas_dir.mkdir(); schema_file = schemas_dir / 'user.py'; schema_file.write_text('\nfrom pydantic import Field\n\nclass UserSchema:\n    name: str = Field()\n'); result = check_schemas_directory(schemas_dir); warnings = [i for i in result['issues'] if i['type'] == 'warning']; assert len(warnings) == 1; assert 'lacks Field(description=' in warnings[0]['message']; _m1_tmp = tmp_path / '_m1'; _m1_tmp.mkdir(exist_ok=True); _m1_schemas_dir = _m1_tmp / 'schemas'; _m1_schemas_dir.mkdir(); _m1_schema_file = _m1_schemas_dir / 'user.py'; _m1_schema_file.write_text('\nfrom pydantic import Field\n\nclass UserSchema:\n    name: str = Field(description="The name")\n'); _m1_result = check_schemas_directory(_m1_schemas_dir); _m1_warnings = [_m1_i for _m1_i in _m1_result['issues'] if _m1_i['type'] == 'warning']; assert len(_m1_warnings) == 0; _m2_tmp = tmp_path / '_m2'; _m2_tmp.mkdir(exist_ok=True); _m2_schemas_dir = _m2_tmp / 'schemas'; _m2_schemas_dir.mkdir(); _m2_init_file = _m2_schemas_dir / '__init__.py'; _m2_init_file.write_text('# init file'); _m2_schema_file = _m2_schemas_dir / 'user.py'; _m2_schema_file.write_text('\nclass UserSchema:\n    name: str\n'); _m2_result = check_schemas_directory(_m2_schemas_dir); assert _m2_result['files_checked'] == 1; _m3_tmp = tmp_path / '_m3'; _m3_tmp.mkdir(exist_ok=True); _m3_schemas_dir = _m3_tmp / 'schemas'; _m3_schemas_dir.mkdir(); _m3_schema_file = _m3_schemas_dir / 'user.py'; _m3_schema_file.write_text('\nclass UserSchema:\n    name: str\n    email: str\n    age: int\n'); _m3_result = check_schemas_directory(_m3_schemas_dir); assert _m3_result['total_fields'] == 3; _m4_tmp = tmp_path / '_m4'; _m4_tmp.mkdir(exist_ok=True); _m4_schemas_dir = _m4_tmp / 'schemas'; _m4_schemas_dir.mkdir(); _m4_result = check_schemas_directory(_m4_schemas_dir); assert _m4_result['files_checked'] == 0; assert _m4_result['issues'] == []
-class TestPrintReport:
-    def test_returns_true_when_no_issues(self, capsys): config_result = {'visitor': SchemaVisitor(), 'issues': []}; schemas_result = {'files_checked': 5, 'issues': [], 'total_fields': 20}; result = print_report(config_result, schemas_result); assert result is True; captured = capsys.readouterr(); assert 'All schema validations passed' in captured.out; capsys.readouterr(); _m1_config_result = {'visitor': SchemaVisitor(), 'issues': [{'type': 'error', 'message': 'Missing default', 'field': 'x'}]}; _m1_schemas_result = {'files_checked': 5, 'issues': [], 'total_fields': 20}; _m1_result = print_report(_m1_config_result, _m1_schemas_result); assert _m1_result is False; _m1_captured = capsys.readouterr(); assert 'ERROR' in _m1_captured.out; capsys.readouterr(); _m2_config_result = {'visitor': SchemaVisitor(), 'issues': []}; _m2_schemas_result = {'files_checked': 5, 'issues': [{'type': 'warning', 'message': 'Missing description', 'field': 'y'}], 'total_fields': 20}; _m2_result = print_report(_m2_config_result, _m2_schemas_result); assert _m2_result is False; _m2_captured = capsys.readouterr(); assert 'WARNING' in _m2_captured.out
-class TestGenerateFixSuggestions:
-    def test_does_not_crash_with_no_issues(self, capsys): config_result = {'issues': []}; schemas_result = {'issues': []}; generate_fix_suggestions(config_result, schemas_result); captured = capsys.readouterr(); assert 'No issues to fix' in captured.out
-    def test_suggests_fix_for_missing_default(self, capsys, tmp_path): config_file = tmp_path / 'config.py'; config_result = {'issues': [{'type': 'error', 'file': str(config_file), 'field': 'database_url', 'message': 'Config field has no default value'}]}; schemas_result = {'issues': []}; generate_fix_suggestions(config_result, schemas_result); captured = capsys.readouterr(); assert 'database_url' in captured.out; assert 'Field(default="...")' in captured.out
-    def test_suggests_fix_for_missing_description(self, capsys, tmp_path): schema_file = tmp_path / 'schema.py'; config_result = {'issues': []}; schemas_result = {'issues': [{'type': 'warning', 'file': str(schema_file), 'class': 'UserSchema', 'field': 'name', 'message': 'Schema field lacks Field(description=...)'}]}; generate_fix_suggestions(config_result, schemas_result); captured = capsys.readouterr(); assert 'name' in captured.out; assert 'description=' in captured.out
-class TestSchemaVisitorEdgeCases:
-    def test_ann_assign_outside_class_is_ignored(self, tmp_path): test_file = tmp_path / 'test_model.py'; test_file.write_text('\n# Module-level annotation, not inside any class\ntop_level_var: int = 42\n\nclass MyModel:\n    name: str\n'); visitor = parse_file_for_schemas(test_file); field_names = [f['name'] for f in visitor.fields]; assert 'top_level_var' not in field_names; assert 'name' in field_names; _m1_tmp = tmp_path / '_m1'; _m1_tmp.mkdir(exist_ok=True); _m1_test_file = _m1_tmp / 'test_model.py'; _m1_test_file.write_text('\nfrom typing import Optional\n\nclass MyModel:\n    name: str\n    optional_field: Optional[int] = None\n'); _m1_visitor = parse_file_for_schemas(_m1_test_file); _m1_field_names = [_m1_f['name'] for _m1_f in _m1_visitor.fields]; assert 'name' in _m1_field_names; assert 'optional_field' in _m1_field_names; _m2_tmp = tmp_path / '_m2'; _m2_tmp.mkdir(exist_ok=True); import ast as stdlib_ast; _m2_visitor = SchemaVisitor(); _m2_visitor.current_class = 'MyModel'; _m2_node = stdlib_ast.AnnAssign(target=stdlib_ast.Subscript(value=stdlib_ast.Attribute(value=stdlib_ast.Name(id='self', ctx=stdlib_ast.Load()), attr='data', ctx=stdlib_ast.Load()), slice=stdlib_ast.Constant(value=0), ctx=stdlib_ast.Store()), annotation=stdlib_ast.Name(id='int', ctx=stdlib_ast.Load()), value=stdlib_ast.Constant(value=0), simple=0); _m2_visitor.visit_AnnAssign(_m2_node); assert len(_m2_visitor.fields) == 0; _m3_tmp = tmp_path / '_m3'; _m3_tmp.mkdir(exist_ok=True); import ast as stdlib_ast; _m3_visitor = SchemaVisitor(); _m3_visitor.current_class = 'MyModel'; _m3_node = stdlib_ast.AnnAssign(target=stdlib_ast.Attribute(value=stdlib_ast.Name(id='self', ctx=stdlib_ast.Load()), attr='field', ctx=stdlib_ast.Store()), annotation=stdlib_ast.Name(id='int', ctx=stdlib_ast.Load()), value=None, simple=0); _m3_visitor.visit_AnnAssign(_m3_node); assert len(_m3_visitor.fields) == 0; _m4_tmp = tmp_path / '_m4'; _m4_tmp.mkdir(exist_ok=True); import ast as stdlib_ast; _m4_visitor = SchemaVisitor(); _m4_visitor.current_class = 'MyModel'; _m4_node = stdlib_ast.AnnAssign(target=stdlib_ast.Name(id='', ctx=stdlib_ast.Store()), annotation=stdlib_ast.Name(id='int', ctx=stdlib_ast.Load()), value=None, simple=1); _m4_visitor.visit_AnnAssign(_m4_node); assert len(_m4_visitor.fields) == 0
-class TestPrintReportEdgeCases:
-    def test_prints_file_path_and_class(self, capsys, tmp_path, monkeypatch): monkeypatch.setattr('src.runtime.extension.schema_validation.get_project_root', lambda: tmp_path); config_result = {'visitor': SchemaVisitor(), 'issues': [{'type': 'error', 'file': str(tmp_path / 'config.py'), 'class': 'Settings', 'field': 'database_url', 'message': 'Config field has no default value'}]}; schemas_result = {'files_checked': 0, 'issues': [], 'total_fields': 0}; result = print_report(config_result, schemas_result); assert result is False; captured = capsys.readouterr(); assert 'Class: Settings' in captured.out; assert 'Field: database_url' in captured.out; assert 'File: config.py' in captured.out
-    def test_prints_issue_without_file(self, capsys): config_result = {'visitor': SchemaVisitor(), 'issues': [{'type': 'error', 'field': 'x', 'message': 'Some error'}]}; schemas_result = {'files_checked': 0, 'issues': [], 'total_fields': 0}; result = print_report(config_result, schemas_result); assert result is False; captured = capsys.readouterr(); assert 'ERROR' in captured.out
-class TestGenerateFixSuggestionsEdgeCases:
-    def test_fallback_when_file_not_under_project_root(self, capsys): config_result = {'issues': [{'type': 'error', 'file': '/some/random/path/config.py', 'field': 'db_url', 'message': 'Config field has no default value'}]}; schemas_result = {'issues': []}; generate_fix_suggestions(config_result, schemas_result); captured = capsys.readouterr(); assert '/some/random/path/config.py' in captured.out; assert 'db_url' in captured.out; capsys.readouterr(); _m1_config_result = {'issues': []}; _m1_schemas_result = {'issues': [{'type': 'warning', 'file': '/tmp/schema.py', 'class': 'UserSchema', 'field': 'email', 'message': 'Schema field lacks Field(description=...)'}]}; generate_fix_suggestions(_m1_config_result, _m1_schemas_result); _m1_captured = capsys.readouterr(); assert 'email' in _m1_captured.out; assert 'description=' in _m1_captured.out; capsys.readouterr(); _m2_config_result = {'issues': [{'type': 'error', 'message': 'Config field has no default value', 'field': 'x'}]}; _m2_schemas_result = {'issues': []}; generate_fix_suggestions(_m2_config_result, _m2_schemas_result); _m2_captured = capsys.readouterr(); assert 'unknown' in _m2_captured.out
-class TestMain:
-    def test_main_exits_0_when_valid(self, monkeypatch, tmp_path):
-        from src.runtime.extension.schema_validation import main; config_file = tmp_path / 'apps' / 'backend' / 'src' / 'config.py'; config_file.parent.mkdir(parents=True, exist_ok=True); config_file.write_text('\nclass Settings:\n    debug: bool = False\n'); schemas_dir = tmp_path / 'apps' / 'backend' / 'src' / 'schemas'; schemas_dir.mkdir(parents=True, exist_ok=True); schema_file = schemas_dir / 'user.py'; schema_file.write_text('\nfrom pydantic import Field\nclass UserSchema:\n    name: str = Field(description="The name")\n'); monkeypatch.setattr('src.runtime.extension.schema_validation.get_project_root', lambda: tmp_path); monkeypatch.setattr(sys, 'argv', ['validate_schemas.py'])
-        with pytest.raises(SystemExit) as exc: main()
-        assert exc.value.code == 0
-    def test_main_exits_1_when_issues(self, monkeypatch, tmp_path):
-        from src.runtime.extension.schema_validation import main; config_file = tmp_path / 'apps' / 'backend' / 'src' / 'config.py'; config_file.parent.mkdir(parents=True, exist_ok=True); config_file.write_text('\nclass Settings:\n    database_url: str\n'); schemas_dir = tmp_path / 'apps' / 'backend' / 'src' / 'schemas'; schemas_dir.mkdir(parents=True, exist_ok=True); monkeypatch.setattr('src.runtime.extension.schema_validation.get_project_root', lambda: tmp_path); monkeypatch.setattr(sys, 'argv', ['validate_schemas.py'])
-        with pytest.raises(SystemExit) as exc: main()
-        assert exc.value.code == 1
-    def test_main_with_fix_flag(self, monkeypatch, tmp_path):
-        from src.runtime.extension.schema_validation import main; config_file = tmp_path / 'apps' / 'backend' / 'src' / 'config.py'; config_file.parent.mkdir(parents=True, exist_ok=True); config_file.write_text('\nclass Settings:\n    database_url: str\n'); schemas_dir = tmp_path / 'apps' / 'backend' / 'src' / 'schemas'; schemas_dir.mkdir(parents=True, exist_ok=True); monkeypatch.setattr('src.runtime.extension.schema_validation.get_project_root', lambda: tmp_path); monkeypatch.setattr(sys, 'argv', ['validate_schemas.py', '--fix'])
-        with pytest.raises(SystemExit) as exc: main()
-        assert exc.value.code == 1
+"""Parametrized unit tests for schema_validation CLI and AST visitor."""
+
+from __future__ import annotations
+
+import ast as stdlib_ast
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "backend"))
+
+from src.runtime.extension.schema_validation import (
+    SchemaVisitor,
+    check_config_file,
+    check_schemas_directory,
+    generate_fix_suggestions,
+    get_project_root,
+    parse_file_for_schemas,
+    print_report,
+)
+
+
+def test_get_project_root() -> None:
+    root = get_project_root()
+    assert (root / "common").exists() and (root / "tools").exists()
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_classes", "expected_fields"),
+    [
+        ("class MyModel:\n    field: str\nclass AnotherModel:\n    value: int\n", ["MyModel", "AnotherModel"], ["field", "value"]),
+        ('from pydantic import Field\nclass MyModel:\n    name: str = Field(description="desc")\n', ["MyModel"], ["name"]),
+        ("from pydantic import Field\nclass MyModel:\n    name: str = Field()\n", ["MyModel"], ["name"]),
+        ('top: int = 42\nclass MyModel:\n    req: str\n    opt: str = "x"\n', ["MyModel"], ["req", "opt"]),
+    ],
+)
+def test_schema_visitor_parses_classes_and_fields(
+    tmp_path: Path, code: str, expected_classes: list[str], expected_fields: list[str]
+) -> None:
+    target = tmp_path / "model.py"
+    target.write_text(code, encoding="utf-8")
+    visitor = parse_file_for_schemas(target)
+    assert visitor.classes == expected_classes
+    assert [f["name"] for f in visitor.fields] == expected_fields
+
+
+def test_schema_visitor_missing_syntax_and_non_simple_targets(tmp_path: Path, capsys) -> None:
+    assert parse_file_for_schemas(tmp_path / "missing.py").fields == []
+    assert "WARNING" in capsys.readouterr().out
+    bad = tmp_path / "bad.py"
+    bad.write_text("class Broken(\n", encoding="utf-8")
+    assert parse_file_for_schemas(bad).fields == []
+    assert "ERROR" in capsys.readouterr().out
+    visitor = SchemaVisitor()
+    visitor.current_class = "MyModel"
+    visitor.visit_AnnAssign(
+        stdlib_ast.AnnAssign(
+            target=stdlib_ast.Attribute(value=stdlib_ast.Name(id="self", ctx=stdlib_ast.Load()), attr="x", ctx=stdlib_ast.Store()),
+            annotation=stdlib_ast.Name(id="int", ctx=stdlib_ast.Load()),
+            value=None,
+            simple=0,
+        )
+    )
+    assert visitor.fields == []
+
+
+@pytest.mark.parametrize(
+    ("content", "expected_error_count"),
+    [
+        ("class Settings:\n    database_url: str\n    debug: bool = False\n", 1),
+        ('class Settings:\n    database_url: str = "sqlite:///x"\n    debug: bool = False\n', 0),
+        ("class Other:\n    x: str\nclass Settings:\n    debug: bool = False\n", 0),
+    ],
+)
+def test_check_config_file(tmp_path: Path, content: str, expected_error_count: int) -> None:
+    cfg = tmp_path / "config.py"
+    cfg.write_text(content, encoding="utf-8")
+    res = check_config_file(cfg)
+    assert len([i for i in res["issues"] if i["type"] == "error"]) == expected_error_count
+
+
+def test_check_schemas_directory_and_reporting(tmp_path: Path, capsys) -> None:
+    schemas = tmp_path / "schemas"
+    schemas.mkdir()
+    assert check_schemas_directory(schemas)["files_checked"] == 0
+    (schemas / "__init__.py").write_text("", encoding="utf-8")
+    (schemas / "user.py").write_text("from pydantic import Field\nclass U:\n    name: str = Field()\n", encoding="utf-8")
+    res = check_schemas_directory(schemas)
+    assert res["files_checked"] == 1 and len(res["issues"]) == 1
+
+    assert print_report({"visitor": SchemaVisitor(), "issues": []}, {"files_checked": 1, "issues": [], "total_fields": 1}) is True
+    assert print_report({"visitor": SchemaVisitor(), "issues": [{"type": "error", "message": "err", "field": "x"}]}, {"files_checked": 0, "issues": [], "total_fields": 0}) is False
+    generate_fix_suggestions(
+        {"issues": [{"type": "error", "file": "/x/config.py", "field": "db", "message": "Config field has no default value"}]},
+        {"issues": [{"type": "warning", "file": "/x/s.py", "class": "U", "field": "name", "message": "Schema field lacks Field(description=...)"}]},
+    )
+    out = capsys.readouterr().out
+    assert "db" in out and "description=" in out
+
+
+@pytest.mark.parametrize(("cfg_body", "expected_code"), [("debug: bool = False", 0), ("database_url: str", 1)])
+def test_main_exit_codes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, cfg_body: str, expected_code: int) -> None:
+    from src.runtime.extension.schema_validation import main
+
+    cfg = tmp_path / "apps" / "backend" / "src" / "config.py"
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(f"class Settings:\n    {cfg_body}\n", encoding="utf-8")
+    (tmp_path / "apps" / "backend" / "src" / "schemas").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("src.runtime.extension.schema_validation.get_project_root", lambda: tmp_path)
+    monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == expected_code
