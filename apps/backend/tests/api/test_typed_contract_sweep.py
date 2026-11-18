@@ -1,8 +1,73 @@
-from __future__ import annotations; from typing import Any; from fastapi import status; from httpx import AsyncClient
-async def test_AC12_27_1_http_error_has_structured_error_id(client: AsyncClient) -> None: 'AC-platform.27.1'; missing = '00000000-0000-0000-0000-000000000000'; response = await client.patch(f'/reconciliation/matches/{missing}', json={'action': 'accept'}); assert response.status_code == status.HTTP_404_NOT_FOUND; body = response.json(); assert body['error_id'] == 'not_found'; assert isinstance(body['detail'], str) and body['detail']; assert body['request_id'] and body['request_id'] == response.headers['X-Request-ID']
-async def test_AC12_27_2_openapi_declares_error_response_contract(openapi_schema: dict[str, Any]) -> None: 'AC-platform.27.2'; schema = openapi_schema; assert 'ErrorResponse' in schema['components']['schemas']; props = schema['components']['schemas']['ErrorResponse']['properties']; assert {'error_id', 'detail', 'request_id'} <= set(props); responses = schema['paths']['/accounts']['get']['responses']; ref = responses['404']['content']['application/json']['schema']['$ref']; assert ref.endswith('/ErrorResponse')
-async def test_AC4_12_1_accept_match_malformed_uuid_returns_422(client: AsyncClient) -> None: 'AC-reconciliation.uuid-path-params.1 AC4.12.1'; response = await client.patch('/reconciliation/matches/not-a-uuid', json={'action': 'accept'}); assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-async def test_AC4_12_2_reviewed_disposition_malformed_uuid_returns_422(client: AsyncClient) -> None: 'AC-reconciliation.uuid-path-params.2'; response = await client.post('/reconciliation/unmatched/not-a-uuid/reviewed-dispositions', json={'intent': 'expense', 'counter_account_id': '00000000-0000-0000-0000-000000000001', 'category': 'DINING', 'rationale': 'Reviewed source evidence.'}); assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-async def test_AC17_31_1_prices_update_returns_typed_batch_response(client: AsyncClient) -> None: 'AC-portfolio.typed-responses.1 AC17.31.1'; response = await client.post('/pricing/price-overrides', json={'updates': []}); assert response.status_code == status.HTTP_200_OK; body = response.json(); assert body['updated_count'] == 0; assert body['results'] == []
-async def test_AC17_31_2_patch_unknown_holding_returns_404(client: AsyncClient) -> None: 'AC-portfolio.typed-responses.2 AC17.31.2'; response = await client.patch('/portfolio/NOPE', json={'cost_basis_method': 'FIFO'}); assert response.status_code == status.HTTP_404_NOT_FOUND; assert response.json()['error_id'] == 'not_found'
-async def test_AC16_35_1_batch_approve_empty_returns_typed_response(client: AsyncClient) -> None: 'AC-reconciliation.stage2-batch.3 AC16.35.1'; response = await client.post('/reconciliation/matches', json={'action': 'accept', 'match_ids': []}); assert response.status_code == status.HTTP_200_OK; body = response.json(); assert body == {'approved_count': 0, 'rejected_count': 0, 'journal_entries_reconciled': 0}; assert 'success' not in body
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+from fastapi import status
+from httpx import AsyncClient
+
+
+async def test_AC12_27_1_http_error_has_structured_error_id(client: AsyncClient) -> None:
+    resp = await client.patch("/reconciliation/matches/00000000-0000-0000-0000-000000000000", json={"action": "accept"})
+    body = resp.json()
+    assert resp.status_code == status.HTTP_404_NOT_FOUND and body["error_id"] == "not_found"
+    assert isinstance(body["detail"], str) and body["detail"] and body["request_id"] == resp.headers["X-Request-ID"]
+
+
+async def test_AC12_27_2_openapi_declares_error_response_contract(openapi_schema: dict[str, Any]) -> None:
+    assert "ErrorResponse" in openapi_schema["components"]["schemas"]
+    assert {"error_id", "detail", "request_id"} <= set(
+        openapi_schema["components"]["schemas"]["ErrorResponse"]["properties"]
+    )
+    assert openapi_schema["paths"]["/accounts"]["get"]["responses"]["404"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/ErrorResponse")
+
+
+@pytest.mark.parametrize(
+    ("method", "url", "payload", "expected_status", "expected_body"),
+    [
+        (
+            "PATCH",
+            "/reconciliation/matches/not-a-uuid",
+            {"action": "accept"},
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            None,
+        ),
+        (
+            "POST",
+            "/reconciliation/unmatched/not-a-uuid/reviewed-dispositions",
+            {
+                "intent": "expense",
+                "counter_account_id": "00000000-0000-0000-0000-000000000001",
+                "category": "DINING",
+                "rationale": "Reviewed.",
+            },
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            None,
+        ),
+        ("POST", "/pricing/price-overrides", {"updates": []}, status.HTTP_200_OK, {"updated_count": 0, "results": []}),
+        (
+            "PATCH",
+            "/portfolio/NOPE",
+            {"cost_basis_method": "FIFO"},
+            status.HTTP_404_NOT_FOUND,
+            {"error_id": "not_found"},
+        ),
+        (
+            "POST",
+            "/reconciliation/matches",
+            {"action": "accept", "match_ids": []},
+            status.HTTP_200_OK,
+            {"approved_count": 0, "rejected_count": 0, "journal_entries_reconciled": 0},
+        ),
+    ],
+)
+async def test_AC4_12_AC16_35_AC17_31_typed_contract_routes(
+    client: AsyncClient, method, url, payload, expected_status, expected_body
+) -> None:
+    resp = await client.request(method, url, json=payload)
+    assert resp.status_code == expected_status
+    if expected_body is not None:
+        body = resp.json()
+        assert all(body[k] == v for k, v in expected_body.items()) and "success" not in body

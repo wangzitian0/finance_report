@@ -26,7 +26,6 @@ async def _posted_entry(
 
 
 async def test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf(db: AsyncSession, test_user) -> None:
-    "AC-reporting.integration.1 AC-testing.trust-mirrors.4 AC5.15.1 AC8.14.4"
     user_id = test_user.id
     period_start = date(2026, 1, 1)
     period_end = date(2026, 1, 31)

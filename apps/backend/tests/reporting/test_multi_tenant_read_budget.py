@@ -1,12 +1,44 @@
-from __future__ import annotations; from collections.abc import Awaitable, Callable; from datetime import date; from typing import Any; import pytest; from src.reporting import _aggregate_net_income_sql; from tests.query_budget import rows_read_by, seed_other_tenants, seed_tenant_rows; OTHER_TENANTS = 100; OWN_ENTRIES = 150; OWN_TRANSACTIONS = 60; OTHER_ENTRIES = 100; OTHER_TRANSACTIONS = 10; GROWTH_FACTOR = 1.25; GROWTH_ALLOWANCE_ROWS = 100; REPORT_PATHS = ('/reports/balance-sheet', '/reports/income-statement?start_date=2026-01-01&end_date=2026-12-31', '/reports/cash-flow?start_date=2026-01-01&end_date=2026-12-31', '/reports/net-worth/timeseries?from=2026-01-01&to=2026-12-31&granularity=monthly', ); MONTH_TO_DATE_NET_INCOME = 'month-to-date net income'
-async def _read_all(db, db_engine, client, user_id) -> dict[str, tuple[Any, Any]]:
-    def get(path: str) -> Callable[[], Awaitable[Any]]:
-        async def action() -> Any: response = await client.get(path); assert response.status_code == 200, (path, response.status_code, response.text[:300]); return response.json()
-        return action
-    async def month_to_date_net_income() -> Any: net_income, _ = await _aggregate_net_income_sql(db, user_id, 'SGD', date(2026, 1, 31), start_date=date(2026, 1, 1)); return str(net_income)
-    actions = {path: get(path) for path in REPORT_PATHS}; actions[MONTH_TO_DATE_NET_INCOME] = month_to_date_net_income; return {name: await rows_read_by(db_engine, action) for name, action in actions.items()}
-async def test_AC_reporting_2617_1_report_reads_do_not_grow_with_other_tenants(db, db_engine, client, test_user) -> None:
-    'AC-reporting.2617.1'; user_id = test_user.id; await seed_tenant_rows(db, user_id, entries=OWN_ENTRIES, transactions=OWN_TRANSACTIONS); alone = await _read_all(db, db_engine, client, user_id); await seed_other_tenants(db, count=OTHER_TENANTS, entries=OTHER_ENTRIES, transactions=OTHER_TRANSACTIONS); shared = await _read_all(db, db_engine, client, user_id); violations = []
-    for (name, (own_by_table, own_result)) in alone.items(): shared_by_table, shared_result = shared[name]; assert shared_result == own_result, f'{name} changed when other users were added'; assert own_result, f'{name} returned an empty result'; own_rows = sum(own_by_table.values()); shared_rows = sum(shared_by_table.values()); assert own_rows > 0, f'{name} read no row: the budget would pass on an empty read'; violations.append(f'{name} reads {shared_rows} rows with {OTHER_TENANTS} other users and {own_rows} rows alone. By table, alone: {_nonzero(own_by_table)}; shared: {_nonzero(shared_by_table)}') if shared_rows > GROWTH_FACTOR * own_rows + GROWTH_ALLOWANCE_ROWS else None
-    assert not violations, '\n'.join(violations)
-_nonzero = lambda rows_by_table: {table: rows for table, rows in rows_by_table.items() if rows}
+from __future__ import annotations
+
+from datetime import date
+from typing import Any
+
+from src.reporting import _aggregate_net_income_sql
+from tests.query_budget import rows_read_by, seed_other_tenants, seed_tenant_rows
+
+OTHER_TENANTS = 100
+GROWTH_FACTOR = 1.25
+GROWTH_ALLOWANCE_ROWS = 100
+REPORT_PATHS = (
+    "/reports/balance-sheet",
+    "/reports/income-statement?start_date=2026-01-01&end_date=2026-12-31",
+    "/reports/cash-flow?start_date=2026-01-01&end_date=2026-12-31",
+    "/reports/net-worth/timeseries?from=2026-01-01&to=2026-12-31&granularity=monthly",
+)
+
+
+async def _read_all(db, db_engine, client, user_id) -> dict[str, tuple[dict[str, int], Any]]:
+    async def get(path: str) -> Any:
+        resp = await client.get(path)
+        assert resp.status_code == 200, (path, resp.status_code, resp.text[:300])
+        return resp.json()
+
+    actions = {path: (lambda p=path: get(p)) for path in REPORT_PATHS}
+    actions["month-to-date net income"] = lambda: _aggregate_net_income_sql(
+        db, user_id, "SGD", date(2026, 1, 31), start_date=date(2026, 1, 1)
+    )
+    return {name: await rows_read_by(db_engine, action) for name, action in actions.items()}
+
+
+async def test_AC_reporting_2617_1_report_reads_do_not_grow_with_other_tenants(
+    db, db_engine, client, test_user
+) -> None:
+    await seed_tenant_rows(db, test_user.id, entries=150, transactions=60)
+    alone = await _read_all(db, db_engine, client, test_user.id)
+    await seed_other_tenants(db, count=OTHER_TENANTS, entries=100, transactions=10)
+    shared = await _read_all(db, db_engine, client, test_user.id)
+    for name, (own_by_table, own_res) in alone.items():
+        shared_by_table, shared_res = shared[name]
+        own_rows, shared_rows = sum(own_by_table.values()), sum(shared_by_table.values())
+        assert shared_res == own_res and own_res and own_rows > 0, name
+        assert shared_rows <= GROWTH_FACTOR * own_rows + GROWTH_ALLOWANCE_ROWS, (name, own_rows, shared_rows)

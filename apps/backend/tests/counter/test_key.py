@@ -1,4 +1,3 @@
-"AC-counter.1.1 EPIC-025"
 
 import pytest
 from src.counter import CounterKey, InvalidCounterKeyError
@@ -7,7 +6,6 @@ pytestmark = pytest.mark.no_db
 
 
 def test_counter_key_accepts_valid():
-    "AC-counter.1.1"
     assert all(
         (
             str(CounterKey(value)) == value
@@ -17,7 +15,6 @@ def test_counter_key_accepts_valid():
 
 
 def test_counter_key_rejects_invalid():
-    "AC-counter.1.1"
     invalid = [
         "",
         "report",
@@ -35,7 +32,6 @@ def test_counter_key_rejects_invalid():
 
 
 def test_counter_key_is_frozen_value_object():
-    "AC-counter.1.1"
     a, b = (CounterKey("report.generated"), CounterKey("report.generated"))
     assert a == b
     assert hash(a) == hash(b)

@@ -20,7 +20,6 @@ OTHER_TRANSACTIONS = 10
 
 
 async def test_AC_extraction_2994_151_a_lookup_by_row_reads_only_the_rows_of_that_user(db, db_engine, test_user):
-    """AC-extraction.2994.151: With 100 other users and fresh statistics, a lookup reads at most the rows of the user."""
     await seed_tenant_rows(db, test_user.id, entries=1, transactions=OWN_TRANSACTIONS)
     await seed_other_tenants(db, count=OTHER_TENANTS, entries=1, transactions=OTHER_TRANSACTIONS)
     policy = tc.POLICY_VERSIONS[0]

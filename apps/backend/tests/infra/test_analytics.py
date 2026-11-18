@@ -1,16 +1,31 @@
-'AC24.2.2 EPIC-024'; from __future__ import annotations; from typing import Any; import pytest; from src.config import settings; from src.observability import analytics
-class _ImmediateThread:
-    def __init__(self, target=None, args=(), daemon=None, **_kw: Any) -> None: self._target = target; self._args = args
-    def start(self) -> None: self._target(*self._args)
-@pytest.fixture(autouse=True)
-def _sync_threads(monkeypatch): monkeypatch.setattr(analytics.threading, 'Thread', _ImmediateThread)
-def _configure(monkeypatch, *, client_id='62d5cfe0-test', api_url='https://openpanel.example/api', env='production'): monkeypatch.setattr(settings, 'openpanel_client_id', client_id); monkeypatch.setattr(settings, 'openpanel_api_url', api_url); monkeypatch.setattr(settings, 'openpanel_environment', env)
-def test_track_is_noop_when_unconfigured(monkeypatch) -> None: _configure(monkeypatch, client_id=''); posted: list[Any] = []; monkeypatch.setattr(analytics, '_post', lambda *a: posted.append(a)); assert analytics.track('report_generated') is False; assert posted == []; assert analytics.is_configured() is False
-def test_track_posts_to_track_endpoint_with_client_id_and_no_profileid(monkeypatch) -> None: _configure(monkeypatch); calls: list[dict[str, Any]] = []; monkeypatch.setattr(analytics, '_post', lambda payload, cid, endpoint: calls.append({'payload': payload, 'cid': cid, 'endpoint': endpoint})); assert analytics.track('report_generated', {'framework_id': 'us_gaap_like'}) is True; assert len(calls) == 1; c = calls[0]; assert c['endpoint'] == 'https://openpanel.example/api/track'; assert c['cid'] == '62d5cfe0-test'; body = c['payload']; assert body['type'] == 'track'; assert 'profileId' not in body['payload']; assert body['payload']['name'] == 'report_generated'; props = body['payload']['properties']; assert props['source'] == 'backend'; assert props['deployment_environment'] == 'production'; assert props['framework_id'] == 'us_gaap_like'
+from __future__ import annotations
+
+import types
+from typing import Any
+
+from src.config import settings
+from src.observability import analytics
+
+
+def test_track_noop_posts_and_ignores_transport_errors(monkeypatch) -> None:
+    monkeypatch.setattr(analytics.threading, "Thread", lambda target, args=(), **_kw: types.SimpleNamespace(start=lambda: target(*args)))
+    for k, v in (("openpanel_client_id", ""), ("openpanel_api_url", "https://openpanel.example/api"), ("openpanel_environment", "production")):
+        monkeypatch.setattr(settings, k, v)
+    posted: list[Any] = []
+    monkeypatch.setattr(analytics, "_post", lambda *a: posted.append(a))
+    assert analytics.track("report_generated") is False and posted == [] and analytics.is_configured() is False
+
+    monkeypatch.setattr(settings, "openpanel_client_id", "62d5cfe0-test")
+    assert analytics.track("report_generated", {"framework_id": "us_gaap_like"}) is True and len(posted) == 1
+    body, cid, ep = posted[0]
+    assert (ep, cid, body["type"], body["payload"]["name"]) == ("https://openpanel.example/api/track", "62d5cfe0-test", "track", "report_generated")
+    assert "profileId" not in body["payload"] and body["payload"]["properties"] == {"source": "backend", "deployment_environment": "production", "framework_id": "us_gaap_like"}
+
+
 def test_track_never_raises_on_transport_error(monkeypatch) -> None:
-    _configure(monkeypatch)
-    class _BoomClient:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def post(self, *a: Any, **k: Any): raise RuntimeError('connection refused')
-    monkeypatch.setattr('httpx.Client', lambda *a, **k: _BoomClient()); assert analytics.track('report_generated') is True
+    monkeypatch.setattr(analytics.threading, "Thread", lambda target, args=(), **_kw: types.SimpleNamespace(start=lambda: target(*args)))
+    for k, v in (("openpanel_client_id", "62d5cfe0-test"), ("openpanel_api_url", "https://openpanel.example/api"), ("openpanel_environment", "production")):
+        monkeypatch.setattr(settings, k, v)
+    cm = types.SimpleNamespace(__enter__=lambda s: s, __exit__=lambda *_a: False, post=lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("connection refused")))
+    monkeypatch.setattr("httpx.Client", lambda *_a, **_k: cm)
+    assert analytics.track("report_generated") is True

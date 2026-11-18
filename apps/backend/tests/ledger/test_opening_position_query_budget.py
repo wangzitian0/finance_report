@@ -8,7 +8,7 @@ async def _seed_openings_and_activity(sessions) -> tuple[UUID, list[UUID], set[U
         for index in range(ACTIVITY_COUNT): await submit_system_journal_entry(setup, user_id=user.id, entry_date=date(2026, 1, 2 + index), memo=f'Anchored activity {index}', operation='budget-activity', base_currency='SGD', lines_data=[{'account_id': legacy.id, 'direction': Direction.DEBIT, 'amount': Decimal('1'), 'currency': 'SGD'}, {'account_id': equity_id, 'direction': Direction.CREDIT, 'amount': Decimal('1'), 'currency': 'SGD'}])
         await setup.commit(); return (user.id, [account.id for account in accounts], record_entry_ids, legacy.id, legacy_entry.id)
 async def test_AC_ledger_opening_position_10_projection_reads_fixed_statements_and_only_opening_entries(db_engine) -> None:
-    'AC-ledger.opening-position.10'; sessions = async_sessionmaker(db_engine, expire_on_commit=False); user_id, account_ids, record_entry_ids, legacy_id, legacy_entry_id = await _seed_openings_and_activity(sessions); statements = {'count': 0}; loaded_entry_ids: set = set()
+    sessions = async_sessionmaker(db_engine, expire_on_commit=False); user_id, account_ids, record_entry_ids, legacy_id, legacy_entry_id = await _seed_openings_and_activity(sessions); statements = {'count': 0}; loaded_entry_ids: set = set()
     def _count(conn, cursor, statement, parameters, context, executemany) -> None: statements['count'] += 1
     def _loaded(target: JournalEntry, _context) -> None: loaded_entry_ids.add(target.id)
     async with sessions() as session:
@@ -17,7 +17,7 @@ async def test_AC_ledger_opening_position_10_projection_reads_fixed_statements_a
         finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', _count); event.remove(JournalEntry, 'load', _loaded)
     by_account = {position.account_id: position for position in positions}; assert len(positions) == RECORD_COUNT + 1; assert {by_account[account_id].amount for account_id in account_ids} == {Decimal(100 + i) for i in range(RECORD_COUNT)}; assert all((by_account[account_id].state == 'authoritative' for account_id in account_ids)); assert by_account[legacy_id].amount == Decimal('50'); assert by_account[legacy_id].journal_entry_id == legacy_entry_id; assert by_account[legacy_id].decision is not None; assert loaded_entry_ids == record_entry_ids | {legacy_entry_id}, 'the projection loaded non-opening entries'; assert statements['count'] <= PROJECTION_SQL_BUDGET, f"the projection issued {statements['count']} statements"
 async def test_AC_ledger_opening_position_11_projection_reads_only_the_decisions_it_needs(db_engine) -> None:
-    'AC-ledger.opening-position.11'; sessions = async_sessionmaker(db_engine, expire_on_commit=False); user_id, account_ids, _record_entry_ids, legacy_id, legacy_entry_id = await _seed_openings_and_activity(sessions); projection_rows: list[int] = []
+    sessions = async_sessionmaker(db_engine, expire_on_commit=False); user_id, account_ids, _record_entry_ids, legacy_id, legacy_entry_id = await _seed_openings_and_activity(sessions); projection_rows: list[int] = []
     def _rows(conn, cursor, statement, parameters, context, executemany) -> None: projection_rows.append(cursor.rowcount) if PROJECTION_MARKER in statement else None
     async with sessions() as session:
         event.listen(db_engine.sync_engine, 'after_cursor_execute', _rows)

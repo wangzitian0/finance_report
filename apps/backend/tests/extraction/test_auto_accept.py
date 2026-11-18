@@ -1,84 +1,469 @@
-from __future__ import annotations; import json; import pytest; from sqlalchemy import func, select; from src.config import settings; from src.extraction import ClassificationStatus, TransactionDirection; from src.extraction.extension import transaction_classification as tc; from src.extraction.extension.transaction_classification import CategoryProposal; from src.extraction.orm.layer3 import TransactionClassification; from src.ledger import Account, AccountType; from tests.factories import AtomicTransactionFactory; from tests.statement_ingestion import classify_transactions; pytestmark = pytest.mark.asyncio; V2 = tc.POLICY_VERSIONS[-1]
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+from sqlalchemy import func, select
+
+from src.config import settings
+from src.extraction import ClassificationStatus, TransactionDirection, apply_suggestion_feedback, effective_auto_accept
+from src.extraction.extension import transaction_classification as tc
+from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
+from src.extraction.extension.transaction_classification import CategoryProposal
+from src.ledger import Account, AccountType
+from tests.extraction._statement_run_helpers import (
+    constant_proposer as _answer,
+    draft_via_review_path as _draft_from_the_review_path,
+    make_txn as _txn,
+    mock_model_answers as _model_answers,
+    row_account as _account,
+    txn_classification as _row,
+    verify_batch_scale_0_to_1,
+    verify_classified_rows_not_asked_again,
+    verify_existing_and_rejected_drafts,
+)
+from tests.statement_ingestion import classify_transactions
+
+pytestmark = pytest.mark.asyncio
+V2 = tc.POLICY_VERSIONS[-1]
+
+
 @pytest.fixture(autouse=True)
-def _automatic_path(monkeypatch): monkeypatch.setattr(settings, 'enable_ai_classification', True); monkeypatch.setattr(settings, 'auto_accept_ai_suggestions', True)
-async def _txn(db, user, *, direction: TransactionDirection=TransactionDirection.OUT, description: str='ROW'): return await AtomicTransactionFactory.create_async(db, user_id=user.id, description=description, direction=direction, currency='SGD')
-def _answer(category: str | None, confidence: int=70):
-    async def proposer(transactions, _policy):
-        if category is None: return [None for _ in transactions]
-        return [CategoryProposal(category=category, confidence=confidence, reason='test') for _ in transactions]
-    return proposer
-async def _row(db, txn) -> TransactionClassification | None: return (await db.execute(select(TransactionClassification).where(TransactionClassification.atomic_txn_id == txn.id))).scalar_one_or_none()
-async def _account(db, row) -> Account: return await db.get(Account, row.account_id)
-async def test_AC_extraction_auto_accept_2_a_review_band_proposal_is_applied(db, test_user): 'AC-extraction.auto-accept.2'; txn = await _txn(db, test_user); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('DINING', 70)); row = await _row(db, txn); assert row.status is ClassificationStatus.APPLIED; assert (await _account(db, row)).name == 'Expense - Dining'; assert outcomes[0].disposition == 'applied'; assert row.tags['auto_accepted'] is True
-@pytest.mark.parametrize(('category', 'confidence', 'direction', 'tagged'), [('DINING', 70, TransactionDirection.OUT, True), ('DINING', 84, TransactionDirection.OUT, True), ('DINING', 85, TransactionDirection.OUT, False), ('OTHER_EXPENSE', 95, TransactionDirection.OUT, True), ('OTHER_INCOME', 95, TransactionDirection.IN, True)])
-async def test_AC_extraction_auto_accept_2_only_a_row_that_the_review_path_would_hold_gets_the_tag(db, test_user, category, confidence, direction, tagged): 'AC-extraction.auto-accept.2'; txn = await _txn(db, test_user, direction=direction); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, confidence)); row = await _row(db, txn); assert row.status is ClassificationStatus.APPLIED; assert row.tags.get('auto_accepted', False) is tagged
-async def test_AC_extraction_auto_accept_2_other_income_is_applied_to_the_other_account(db, test_user): 'AC-extraction.auto-accept.2'; txn = await _txn(db, test_user, direction=TransactionDirection.IN); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('OTHER_INCOME', 72)); row = await _row(db, txn); assert row.status is ClassificationStatus.APPLIED; assert (await _account(db, row)).name == 'Income - Other'
-@pytest.mark.parametrize(('category', 'confidence', 'reason'), [('DINING', 40, 'below the review score'), ('DINING', 0, 'an explicit zero: the model says that it cannot place the row'), ('SALARY', 95, 'an income category for money out')])
-async def test_AC_extraction_auto_accept_3_a_row_that_the_model_cannot_place_gets_the_general_account(db, test_user, category, confidence, reason): 'AC-extraction.auto-accept.3'; txn = await _txn(db, test_user); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, confidence)); row = await _row(db, txn); assert row.status is ClassificationStatus.APPLIED, reason; assert (await _account(db, row)).name == 'General Expense (SGD)'; assert (await _account(db, row)).type is AccountType.EXPENSE; assert row.tags['category'] == 'UNCLASSIFIED'; assert row.confidence_score == 0; assert row.tags['original_category'] == category; assert row.tags['original_confidence'] == confidence; assert outcomes[0].disposition == 'fallback'
-async def test_AC_extraction_auto_accept_3_money_in_falls_back_to_general_income(db, test_user): 'AC-extraction.auto-accept.3'; txn = await _txn(db, test_user, direction=TransactionDirection.IN); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('DINING', 90)); row = await _row(db, txn); assert (await _account(db, row)).name == 'General Income (SGD)'; assert (await _account(db, row)).type is AccountType.INCOME
-async def test_AC_extraction_auto_accept_4_no_answer_writes_nothing(db, test_user): 'AC-extraction.auto-accept.4'; txn = await _txn(db, test_user); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(None)); assert await _row(db, txn) is None; assert outcomes[0].disposition == 'no_proposal'; retried = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('GROCERIES', 91)); assert retried[0].disposition == 'applied'; assert (await _account(db, await _row(db, txn))).name == 'Expense - Groceries'
-@pytest.mark.parametrize(('category', 'direction', 'intent', 'account_name', 'account_type'), [('LOAN_PRINCIPAL', TransactionDirection.OUT, 'loan_principal', 'Loans Payable (SGD)', AccountType.LIABILITY), ('LOAN_PRINCIPAL', TransactionDirection.IN, 'loan_principal', 'Loans Payable (SGD)', AccountType.LIABILITY), ('INVESTMENT_TRADE', TransactionDirection.OUT, 'investment_purchase', 'Investments (SGD)', AccountType.ASSET), ('INVESTMENT_TRADE', TransactionDirection.IN, 'investment_sale', 'Investments (SGD)', AccountType.ASSET)])
-async def test_AC_extraction_auto_accept_5_a_loan_or_a_trade_is_applied_with_an_explicit_intent(db, test_user, category, direction, intent, account_name, account_type): 'AC-extraction.auto-accept.5'; txn = await _txn(db, test_user, direction=direction); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 66)); row = await _row(db, txn); account = await _account(db, row); assert row.status is ClassificationStatus.APPLIED; assert (account.name, account.type) == (account_name, account_type); assert row.tags['intent'] == intent; assert row.tags['category'] == category
-@pytest.mark.parametrize('category', ['TRANSFER', 'CARD_REPAYMENT'])
-async def test_AC_extraction_auto_accept_5_a_transfer_stays_a_draft_for_the_leg(db, test_user, category): 'AC-extraction.auto-accept.5'; txn = await _txn(db, test_user); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 88)); row = await _row(db, txn); assert row.status is ClassificationStatus.DRAFT; assert row.account_id is None; assert row.tags['category'] == category; assert 'suspense' not in row.tags
-async def test_AC_extraction_auto_accept_6_existing_drafts_are_promoted(db, test_user): 'AC-extraction.auto-accept.6'; txn = await _txn(db, test_user); row = await _draft_from_the_review_path(db, test_user, txn, 'DINING', 70); assert 'auto_accepted' not in row.tags; await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('DINING', 70)); await db.refresh(row); assert row.status is ClassificationStatus.APPLIED; assert row.tags['auto_accepted'] is True
-async def test_AC_extraction_auto_accept_6_a_rejected_draft_is_not_promoted(db, test_user): 'AC-extraction.auto-accept.6'; txn = await _txn(db, test_user); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('DINING', 70)); row = await _row(db, txn); row.status = ClassificationStatus.SUPERSEDED; row.tags = {**row.tags, 'rejected_by_user': True}; await db.flush(); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('DINING', 70)); await db.refresh(row); assert row.status is ClassificationStatus.SUPERSEDED
+def _automatic_path(monkeypatch):
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+
+
+async def _general_account_count(db) -> int:
+    return (await db.execute(select(func.count(Account.id)).where(Account.name.like("General %")))).scalar_one()
+
+
+@pytest.mark.parametrize(
+    ("category", "confidence", "direction", "expected_account", "tagged"),
+    [
+        ("DINING", 70, TransactionDirection.OUT, "Expense - Dining", True),
+        ("DINING", 84, TransactionDirection.OUT, "Expense - Dining", True),
+        ("DINING", 85, TransactionDirection.OUT, "Expense - Dining", False),
+        ("OTHER_EXPENSE", 95, TransactionDirection.OUT, "Expense - Other", True),
+        ("OTHER_INCOME", 72, TransactionDirection.IN, "Income - Other", True),
+        ("OTHER_INCOME", 95, TransactionDirection.IN, "Income - Other", True),
+    ],
+)
+async def test_AC_extraction_auto_accept_2_review_band_and_other_proposals_apply_with_tag(
+    db, test_user, category, confidence, direction, expected_account, tagged
+):
+    txn = await _txn(db, test_user, direction=direction)
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, confidence))
+    row = await _row(db, txn)
+    assert (
+        row.status,
+        (await _account(db, row)).name,
+        outcomes[0].disposition,
+        row.tags.get("auto_accepted", False),
+    ) == (ClassificationStatus.APPLIED, expected_account, "applied", tagged)
+
+
+@pytest.mark.parametrize(
+    ("category", "confidence", "direction", "acct_name", "acct_type"),
+    [
+        ("DINING", 40, TransactionDirection.OUT, "General Expense (SGD)", AccountType.EXPENSE),
+        ("DINING", 0, TransactionDirection.OUT, "General Expense (SGD)", AccountType.EXPENSE),
+        ("SALARY", 95, TransactionDirection.OUT, "General Expense (SGD)", AccountType.EXPENSE),
+        ("DINING", 90, TransactionDirection.IN, "General Income (SGD)", AccountType.INCOME),
+    ],
+)
+async def test_AC_extraction_auto_accept_3_unplaced_row_falls_back_to_general_account(
+    db, test_user, category, confidence, direction, acct_name, acct_type
+):
+    txn = await _txn(db, test_user, direction=direction)
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, confidence))
+    row = await _row(db, txn)
+    acct = await _account(db, row)
+    assert (row.status, acct.name, acct.type, row.confidence_score, outcomes[0].disposition) == (
+        ClassificationStatus.APPLIED,
+        acct_name,
+        acct_type,
+        0,
+        "fallback",
+    )
+    assert (row.tags["category"], row.tags["original_category"], row.tags["original_confidence"]) == (
+        "UNCLASSIFIED",
+        category,
+        confidence,
+    )
+
+
+async def test_AC_extraction_auto_accept_4_no_answer_writes_nothing_and_allows_retry(db, test_user):
+    txn = await _txn(db, test_user)
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(None))
+    assert await _row(db, txn) is None and outcomes[0].disposition == "no_proposal"
+    retried = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("GROCERIES", 91))
+    assert (
+        retried[0].disposition == "applied" and (await _account(db, await _row(db, txn))).name == "Expense - Groceries"
+    )
+
+
+@pytest.mark.parametrize(
+    ("category", "direction", "intent", "account_name", "account_type"),
+    [
+        ("LOAN_PRINCIPAL", TransactionDirection.OUT, "loan_principal", "Loans Payable (SGD)", AccountType.LIABILITY),
+        ("LOAN_PRINCIPAL", TransactionDirection.IN, "loan_principal", "Loans Payable (SGD)", AccountType.LIABILITY),
+        ("INVESTMENT_TRADE", TransactionDirection.OUT, "investment_purchase", "Investments (SGD)", AccountType.ASSET),
+        ("INVESTMENT_TRADE", TransactionDirection.IN, "investment_sale", "Investments (SGD)", AccountType.ASSET),
+    ],
+)
+async def test_AC_extraction_auto_accept_5_a_loan_or_a_trade_is_applied_with_an_explicit_intent(
+    db, test_user, category, direction, intent, account_name, account_type
+):
+    txn = await _txn(db, test_user, direction=direction)
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 66))
+    row = await _row(db, txn)
+    acct = await _account(db, row)
+    assert (row.status, acct.name, acct.type, row.tags["intent"], row.tags["category"]) == (
+        ClassificationStatus.APPLIED,
+        account_name,
+        account_type,
+        intent,
+        category,
+    )
+
+
+@pytest.mark.parametrize(
+    ("category", "confidence"), [("TRANSFER", 88), ("CARD_REPAYMENT", 88), ("TRANSFER", 55), ("CARD_REPAYMENT", 55)]
+)
+async def test_AC_extraction_auto_accept_5_a_transfer_stays_a_draft_for_the_leg(db, test_user, category, confidence):
+    txn = await _txn(db, test_user)
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, confidence))
+    row = await _row(db, txn)
+    assert (
+        row.status,
+        row.account_id,
+        row.tags["category"],
+        outcomes[0].disposition,
+        "suspense" in row.tags,
+        await _general_account_count(db),
+    ) == (ClassificationStatus.DRAFT, None, category, "non_pnl", False, 0)
+
+
+async def test_AC_extraction_auto_accept_6_existing_drafts_promote_unless_rejected_and_scoped_to_call(db, test_user):
+    await verify_existing_and_rejected_drafts(db, test_user)
+
+
 async def test_AC_extraction_auto_accept_1_a_user_who_turned_it_off_keeps_the_review_path(db, test_user):
-    'AC-extraction.auto-accept.1'; test_user.ai_settings = {'auto_accept_ai_suggestions': False}; await db.flush(); review = await _txn(db, test_user); other = await _txn(db, test_user, direction=TransactionDirection.IN); tail = await _txn(db, test_user)
-    async def proposer(transactions, _policy): answers = {review.id: ('DINING', 70), other.id: ('OTHER_INCOME', 95), tail.id: ('DINING', 40)}; return [CategoryProposal(category=answers[t.id][0], confidence=answers[t.id][1]) for t in transactions]
-    outcomes = await classify_transactions(db, test_user.id, [review, other, tail], policy=V2, proposer=proposer); assert {outcome.disposition for outcome in outcomes} == {'review', 'tail'}; assert (await _row(db, review)).status is ClassificationStatus.DRAFT; assert (await _row(db, other)).status is ClassificationStatus.DRAFT; assert await _row(db, tail) is None
-async def _draft_from_the_review_path(db, user, txn, category: str, confidence: int) -> TransactionClassification: user.ai_settings = {'auto_accept_ai_suggestions': False}; await db.flush(); await classify_transactions(db, user.id, [txn], policy=V2, proposer=_answer(category, confidence)); user.ai_settings = {'auto_accept_ai_suggestions': True}; await db.flush(); row = await _row(db, txn); assert row.status is ClassificationStatus.DRAFT; return row
-@pytest.mark.parametrize(('category', 'direction', 'intent', 'account_name'), [('LOAN_PRINCIPAL', TransactionDirection.OUT, 'loan_principal', 'Loans Payable (SGD)'), ('INVESTMENT_TRADE', TransactionDirection.IN, 'investment_sale', 'Investments (SGD)')])
-async def test_AC_extraction_auto_accept_6_a_loan_or_a_trade_draft_gets_its_account_and_its_intent(db, test_user, category, direction, intent, account_name): 'AC-extraction.auto-accept.6'; txn = await _txn(db, test_user, direction=direction); draft = await _draft_from_the_review_path(db, test_user, txn, category, 70); assert draft.account_id is None; await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 70)); await db.refresh(draft); assert draft.status is ClassificationStatus.APPLIED; assert (await _account(db, draft)).name == account_name; assert draft.tags['intent'] == intent; assert draft.tags['category'] == category
-@pytest.mark.parametrize('category', ['TRANSFER', 'CARD_REPAYMENT'])
-async def test_AC_extraction_auto_accept_6_a_transfer_draft_stays_a_draft(db, test_user, category): 'AC-extraction.auto-accept.6'; txn = await _txn(db, test_user); draft = await _draft_from_the_review_path(db, test_user, txn, category, 80); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 80)); await db.refresh(draft); assert draft.status is ClassificationStatus.DRAFT; assert draft.account_id is None
-async def test_AC_extraction_auto_accept_6_a_draft_against_the_direction_goes_to_the_general_account(db, test_user): 'AC-extraction.auto-accept.6'; txn = await _txn(db, test_user, direction=TransactionDirection.OUT); draft = await _draft_from_the_review_path(db, test_user, txn, 'SALARY', 70); assert (await _account(db, draft)).name == 'Income - Salary'; await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('SALARY', 70)); await db.refresh(draft); assert draft.status is ClassificationStatus.APPLIED; assert (await _account(db, draft)).name == 'General Expense (SGD)'; assert draft.tags['category'] == 'UNCLASSIFIED'; assert draft.tags['original_category'] == 'SALARY'; assert draft.confidence_score == 0
-async def test_AC_extraction_auto_accept_6_promotion_touches_only_the_rows_of_the_call(db, test_user): 'AC-extraction.auto-accept.6'; in_call = await _txn(db, test_user); elsewhere = await _txn(db, test_user); in_call_draft = await _draft_from_the_review_path(db, test_user, in_call, 'DINING', 70); elsewhere_draft = await _draft_from_the_review_path(db, test_user, elsewhere, 'DINING', 70); await classify_transactions(db, test_user.id, [in_call], policy=V2, proposer=_answer('DINING', 70)); await db.refresh(in_call_draft); await db.refresh(elsewhere_draft); assert in_call_draft.status is ClassificationStatus.APPLIED; assert elsewhere_draft.status is ClassificationStatus.DRAFT
-@pytest.mark.parametrize(('overrides', 'expected'), [({}, True), ({'auto_accept_ai_suggestions': False}, False), ({'enable_ai_classification': False}, False), ({'enable_ai_classification': False, 'auto_accept_ai_suggestions': True}, False), ({'enable_ai_classification': True, 'auto_accept_ai_suggestions': True}, True)])
-async def test_AC_extraction_auto_accept_1_the_setting_needs_ai_classification(db, test_user, overrides, expected): 'AC-extraction.auto-accept.1'; from src.extraction.extension.ai_settings import auto_accept_enabled; test_user.ai_settings = overrides; await db.flush(); assert await auto_accept_enabled(db, test_user.id) is expected
-async def test_AC_extraction_auto_accept_1_the_process_default_of_classification_applies_without_an_override(db, test_user, monkeypatch): 'AC-extraction.auto-accept.1'; from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled; monkeypatch.setattr(settings, 'enable_ai_classification', False); assert await classification_enabled(db, test_user.id) is False; assert await auto_accept_enabled(db, test_user.id) is False
-def _model_answers(monkeypatch, items: list[dict]) -> None:
-    async def stream(): yield json.dumps(items)
-    monkeypatch.setattr('src.llm.stream_ai_json', lambda **_kwargs: stream()); monkeypatch.setattr(settings, 'ai_api_key', 'test-key')
-async def _general_account_count(db) -> int: return (await db.execute(select(func.count(Account.id)).where(Account.name.like('General %')))).scalar_one()
-@pytest.mark.parametrize('answer', [pytest.param({'index': 0}, id='no-category-no-confidence'), pytest.param({'index': 0, 'category': 'DINING'}, id='no-confidence'), pytest.param({'index': 0, 'confidence': 90}, id='no-category'), pytest.param({'index': 0, 'category': None, 'confidence': 90}, id='null-category'), pytest.param({'index': 0, 'category': '  ', 'confidence': 90}, id='blank-category'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': 'high'}, id='word'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': None}, id='null-confidence'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': True}, id='boolean-confidence'), pytest.param({'index': 0, 'category': 7, 'confidence': 90}, id='number-category'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': -5}, id='negative-score'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': '-5'}, id='negative-string-score'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': -5.5}, id='negative-float-score'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': '1e3'}, id='exponent-string-score'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': -10 ** 400}, id='huge-negative-integer'), pytest.param({'index': 0, 'category': 'DINING', 'confidence': '9' * 400}, id='huge-digit-string')])
-async def test_AC_extraction_auto_accept_4_an_unreadable_answer_writes_nothing(db, test_user, monkeypatch, answer): 'AC-extraction.auto-accept.4'; txn = await _txn(db, test_user); _model_answers(monkeypatch, [answer]); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2); assert await _row(db, txn) is None; assert await _general_account_count(db) == 0; assert outcomes[0].disposition == 'no_proposal'
-async def test_AC_extraction_auto_accept_4_a_class_outside_the_catalog_writes_nothing(db, test_user, monkeypatch): 'AC-extraction.auto-accept.4'; txn = await _txn(db, test_user); _model_answers(monkeypatch, [{'index': 0, 'category': 'FOOD_AND_DRINK', 'confidence': 95}]); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2); assert await _row(db, txn) is None; assert await _general_account_count(db) == 0; assert outcomes[0].disposition == 'off_catalog'
-@pytest.mark.parametrize(('answer', 'account_name', 'score'), [pytest.param({'category': 'dining', 'confidence': 90}, 'Expense - Dining', 90, id='lower-case'), pytest.param({'category': ' Dining ', 'confidence': '90%'}, 'Expense - Dining', 90, id='spaces-and-percent'), pytest.param({'category': 'DINING', 'confidence': 87.6}, 'Expense - Dining', 87, id='decimal-score-is-cut'), pytest.param({'category': 'dining', 'confidence': 250}, 'Expense - Dining', 100, id='score-above-100'), pytest.param({'category': 'DINING', 'confidence': '87.0'}, 'Expense - Dining', 87, id='decimal-string'), pytest.param({'category': 'DINING', 'confidence': 87.0}, 'Expense - Dining', 87, id='whole-float'), pytest.param({'category': 'DINING', 'confidence': 0.95}, 'Expense - Dining', 95, id='scale-from-0-to-1'), pytest.param({'category': 'DINING', 'confidence': 10 ** 400}, 'Expense - Dining', 100, id='huge-integer')])
-async def test_AC_extraction_auto_accept_4_a_readable_answer_is_normalized(db, test_user, monkeypatch, answer, account_name, score): 'AC-extraction.auto-accept.4'; txn = await _txn(db, test_user); _model_answers(monkeypatch, [{'index': 0, **answer}]); await classify_transactions(db, test_user.id, [txn], policy=V2); row = await _row(db, txn); assert (await _account(db, row)).name == account_name; assert row.confidence_score == score
-async def test_AC_extraction_auto_accept_4_a_mixed_case_class_with_a_hyphen_is_read(db, test_user, monkeypatch): 'AC-extraction.auto-accept.4'; txn = await _txn(db, test_user, direction=TransactionDirection.IN); _model_answers(monkeypatch, [{'index': 0, 'category': 'Other-Income', 'confidence': 70}]); await classify_transactions(db, test_user.id, [txn], policy=V2); assert (await _account(db, await _row(db, txn))).name == 'Income - Other'
-@pytest.mark.parametrize('category', ['TRANSFER', 'CARD_REPAYMENT'])
-async def test_AC_extraction_auto_accept_5_a_transfer_is_accepted_below_the_review_score(db, test_user, category): 'AC-extraction.auto-accept.5'; txn = await _txn(db, test_user); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 55)); row = await _row(db, txn); assert row.status is ClassificationStatus.DRAFT; assert row.account_id is None; assert row.tags['category'] == category; assert outcomes[0].disposition == 'non_pnl'; assert await _general_account_count(db) == 0
-@pytest.mark.parametrize(('category', 'direction'), [('LOAN_PRINCIPAL', TransactionDirection.IN), ('LOAN_PRINCIPAL', TransactionDirection.OUT), ('INVESTMENT_TRADE', TransactionDirection.OUT), ('INVESTMENT_TRADE', TransactionDirection.IN)])
-async def test_AC_extraction_auto_accept_5_a_loan_or_a_trade_below_the_review_score_waits_in_suspense(db, test_user, category, direction): 'AC-extraction.auto-accept.5'; txn = await _txn(db, test_user, direction=direction); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 59)); row = await _row(db, txn); assert row.status is ClassificationStatus.DRAFT; assert row.account_id is None; assert row.tags['category'] == category; assert row.tags['suspense'] is True; assert row.confidence_score == 59; assert outcomes[0].disposition == 'non_pnl'; assert await _general_account_count(db) == 0
-@pytest.mark.parametrize(('category', 'direction', 'account_name'), [('LOAN_PRINCIPAL', TransactionDirection.OUT, 'Loans Payable (SGD)'), ('INVESTMENT_TRADE', TransactionDirection.OUT, 'Investments (SGD)')])
-async def test_AC_extraction_auto_accept_5_the_review_score_itself_books_a_loan_or_a_trade(db, test_user, category, direction, account_name):
-    'AC-extraction.auto-accept.5'; at_gate = await _txn(db, test_user, direction=direction); below_gate = await _txn(db, test_user, direction=direction); answers = {at_gate.id: 60, below_gate.id: 59}
-    async def proposer(transactions, _policy): return [CategoryProposal(category=category, confidence=answers[t.id], reason='test') for t in transactions]
-    await classify_transactions(db, test_user.id, [at_gate, below_gate], policy=V2, proposer=proposer); booked = await _row(db, at_gate); assert booked.status is ClassificationStatus.APPLIED; assert (await _account(db, booked)).name == account_name; suspended = await _row(db, below_gate); assert suspended.status is ClassificationStatus.DRAFT and suspended.tags['suspense'] is True
-async def test_AC_extraction_auto_accept_3_the_review_score_itself_applies_a_class_and_59_does_not(db, test_user):
-    'AC-extraction.auto-accept.3'; at_gate = await _txn(db, test_user, description='AT GATE'); below_gate = await _txn(db, test_user, description='BELOW GATE'); answers = {at_gate.id: 60, below_gate.id: 59}
-    async def proposer(transactions, _policy): return [CategoryProposal(category='DINING', confidence=answers[t.id], reason='test') for t in transactions]
-    await classify_transactions(db, test_user.id, [at_gate, below_gate], policy=V2, proposer=proposer); assert (await _account(db, await _row(db, at_gate))).name == 'Expense - Dining'; assert (await _account(db, await _row(db, below_gate))).name == 'General Expense (SGD)'
-async def test_AC_extraction_auto_accept_4_a_decimal_part_never_rounds_a_score_up_to_the_gate(db, test_user, monkeypatch): 'AC-extraction.auto-accept.4'; below = await _txn(db, test_user, description='ROW A'); at_gate = await _txn(db, test_user, description='ROW B'); _model_answers(monkeypatch, [{'index': 0, 'category': 'DINING', 'confidence': 59.9}, {'index': 1, 'category': 'DINING', 'confidence': 60.4}]); await classify_transactions(db, test_user.id, [below, at_gate], policy=V2); assert (await _row(db, below)).tags['original_confidence'] == 59; assert (await _account(db, await _row(db, below))).name == 'General Expense (SGD)'; assert (await _row(db, at_gate)).confidence_score == 60; assert (await _account(db, await _row(db, at_gate))).name == 'Expense - Dining'
-async def test_AC_extraction_auto_accept_5_a_suspense_draft_stays_a_draft_when_the_pass_promotes_drafts(db, test_user): 'AC-extraction.auto-accept.5'; txn = await _txn(db, test_user); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('INVESTMENT_TRADE', 55)); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('INVESTMENT_TRADE', 55)); row = await _row(db, txn); assert row.status is ClassificationStatus.DRAFT; assert row.account_id is None
-async def test_AC_extraction_auto_accept_5_a_correction_of_a_suspense_draft_is_the_decision_of_the_person(db, test_user): 'AC-extraction.auto-accept.5'; from src.extraction import apply_suggestion_feedback; txn = await _txn(db, test_user); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('INVESTMENT_TRADE', 55)); draft = await _row(db, txn); effect = await apply_suggestion_feedback(db, test_user.id, draft.id, 'edit_accept', {'value': 'loan_principal'}); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('INVESTMENT_TRADE', 55)); assert effect == 'corrected'; await db.refresh(draft); assert 'suspense' not in draft.tags; assert draft.tags['corrected_by_user'] is True; assert draft.status is ClassificationStatus.APPLIED; assert (await _account(db, draft)).name == 'Loans Payable (SGD)'
-@pytest.mark.parametrize('category', ['LOAN_PRINCIPAL', 'INVESTMENT_TRADE', 'TRANSFER', 'CARD_REPAYMENT'])
-async def test_AC_extraction_auto_accept_5_a_balance_sheet_class_at_a_score_of_zero_is_no_answer(db, test_user, category): 'AC-extraction.auto-accept.5'; txn = await _txn(db, test_user); outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 0)); assert await _row(db, txn) is None; assert await _general_account_count(db) == 0; assert outcomes[0].disposition == 'no_proposal'
-async def test_AC_extraction_auto_accept_4_a_batch_on_the_scale_from_0_to_1_is_read_as_percent(db, test_user, monkeypatch): 'AC-extraction.auto-accept.4'; first = await _txn(db, test_user, description='ROW A'); second = await _txn(db, test_user, description='ROW B'); third = await _txn(db, test_user, description='ROW C'); fourth = await _txn(db, test_user, description='ROW D'); _model_answers(monkeypatch, [{'index': 0, 'category': 'DINING', 'confidence': 0.9}, {'index': 1, 'category': 'GROCERIES', 'confidence': 1.0}, {'index': 2, 'category': 'TRANSPORT', 'confidence': '0.58'}, {'index': 3, 'category': 'SHOPPING', 'confidence': 0.895}]); await classify_transactions(db, test_user.id, [first, second, third, fourth], policy=V2); assert (await _row(db, first)).confidence_score == 90; assert (await _row(db, second)).confidence_score == 100; assert (await _row(db, fourth)).confidence_score == 89, 'a decimal part is cut, not rounded'; assert (await _account(db, await _row(db, second))).name == 'Expense - Groceries'; assert (await _account(db, await _row(db, third))).name == 'General Expense (SGD)'; assert (await _row(db, third)).tags['original_confidence'] == 58
-async def test_AC_extraction_auto_accept_4_a_fraction_among_larger_numbers_is_no_answer_for_that_item_only(db, test_user, monkeypatch): 'AC-extraction.auto-accept.4'; first = await _txn(db, test_user, description='ROW A'); second = await _txn(db, test_user, description='ROW B'); _model_answers(monkeypatch, [{'index': 0, 'category': 'DINING', 'confidence': 90}, {'index': 1, 'category': 'GROCERIES', 'confidence': 0.5}]); outcomes = await classify_transactions(db, test_user.id, [first, second], policy=V2); assert (await _account(db, await _row(db, first))).name == 'Expense - Dining'; assert await _row(db, second) is None; assert [outcome.disposition for outcome in outcomes] == ['applied', 'no_proposal']
-async def test_AC_extraction_auto_accept_4_whole_numbers_in_a_batch_without_a_fraction_are_scores(db, test_user, monkeypatch): 'AC-extraction.auto-accept.4'; first = await _txn(db, test_user, description='ROW A'); second = await _txn(db, test_user, description='ROW B'); _model_answers(monkeypatch, [{'index': 0, 'category': 'DINING', 'confidence': 90}, {'index': 1, 'category': 'GROCERIES', 'confidence': 1.0}]); await classify_transactions(db, test_user.id, [first, second], policy=V2); assert (await _account(db, await _row(db, first))).name == 'Expense - Dining'; assert (await _account(db, await _row(db, second))).name.startswith('General ')
-async def test_AC_extraction_auto_accept_4_a_float_zero_does_not_show_a_unit_scale(db, test_user, monkeypatch): 'AC-extraction.auto-accept.4'; first = await _txn(db, test_user, description='ROW A'); second = await _txn(db, test_user, description='ROW B'); _model_answers(monkeypatch, [{'index': 0, 'category': 'DINING', 'confidence': 90}, {'index': 1, 'category': 'TRANSFER', 'confidence': 0.0}]); outcomes = await classify_transactions(db, test_user.id, [first, second], policy=V2); assert (await _account(db, await _row(db, first))).name == 'Expense - Dining'; assert await _row(db, second) is None; assert [outcome.disposition for outcome in outcomes] == ['applied', 'no_proposal']
-async def test_AC_extraction_auto_accept_12_a_row_that_has_its_row_is_not_asked_again(db, test_user):
-    'AC-extraction.auto-accept.12'; answered = await _txn(db, test_user, description='ANSWERED'); unanswered = await _txn(db, test_user, description='UNANSWERED'); asked: list[list[str]] = []
-    async def first_pass(transactions, _policy): asked.append([t.description for t in transactions]); return [CategoryProposal(category='DINING', confidence=80) if t.description == 'ANSWERED' else None for t in transactions]
-    async def retry(transactions, _policy): asked.append([t.description for t in transactions]); return [CategoryProposal(category='GROCERIES', confidence=80) for _ in transactions]
-    await classify_transactions(db, test_user.id, [answered, unanswered], policy=V2, proposer=first_pass); outcomes = await classify_transactions(db, test_user.id, [answered, unanswered], policy=V2, proposer=retry); assert asked == [['ANSWERED', 'UNANSWERED'], ['UNANSWERED']]; assert [outcome.disposition for outcome in outcomes] == ['already_classified', 'applied']; assert (await _account(db, await _row(db, answered))).name == 'Expense - Dining'; assert (await _account(db, await _row(db, unanswered))).name == 'Expense - Groceries'
-async def test_AC_extraction_auto_accept_12_a_pass_over_classified_rows_does_not_call_the_model(db, test_user):
-    'AC-extraction.auto-accept.12'; txn = await _txn(db, test_user); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('DINING', 80))
-    async def must_not_run(_transactions, _policy): raise AssertionError('the model must not be asked for a row that has its row')
-    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=must_not_run); assert [outcome.disposition for outcome in outcomes] == ['already_classified']
-async def test_AC_extraction_auto_accept_6_a_corrected_draft_is_applied_as_the_decision_of_the_person(db, test_user): 'AC-extraction.auto-accept.6'; txn = await _txn(db, test_user); draft = await _draft_from_the_review_path(db, test_user, txn, 'DINING', 70); draft.tags = {**draft.tags, 'corrected_by_user': True}; await db.flush(); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('DINING', 70)); await db.refresh(draft); assert draft.status is ClassificationStatus.APPLIED; assert draft.tags['corrected_by_user'] is True; assert 'auto_accepted' not in draft.tags; assert (await _account(db, draft)).name == 'Expense - Dining'
-async def test_AC_extraction_auto_accept_6_a_corrected_draft_against_the_direction_stays_a_draft(db, test_user): 'AC-extraction.auto-accept.6'; txn = await _txn(db, test_user, direction=TransactionDirection.OUT); draft = await _draft_from_the_review_path(db, test_user, txn, 'SALARY', 70); draft.tags = {**draft.tags, 'corrected_by_user': True}; await db.flush(); await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer('SALARY', 70)); await db.refresh(draft); assert draft.status is ClassificationStatus.DRAFT; assert (await _account(db, draft)).name == 'Income - Salary'
-@pytest.mark.parametrize(('process_flag', 'stored', 'expected'), [(True, None, True), (True, True, True), (True, False, False), (False, None, False), (False, True, False), (False, False, False)])
-async def test_AC_extraction_auto_accept_1_the_process_flag_is_a_ceiling(db, test_user, monkeypatch, process_flag, stored, expected): 'AC-extraction.auto-accept.1'; from src.extraction import effective_auto_accept; from src.extraction.extension.ai_settings import auto_accept_enabled; monkeypatch.setattr(settings, 'auto_accept_ai_suggestions', process_flag); test_user.ai_settings = {} if stored is None else {'auto_accept_ai_suggestions': stored}; await db.flush(); assert await auto_accept_enabled(db, test_user.id) is expected; assert effective_auto_accept(test_user.ai_settings) is expected
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False}
+    await db.flush()
+    review, other, tail = (
+        await _txn(db, test_user),
+        await _txn(db, test_user, direction=TransactionDirection.IN),
+        await _txn(db, test_user),
+    )
+    answers = {review.id: ("DINING", 70), other.id: ("OTHER_INCOME", 95), tail.id: ("DINING", 40)}
+    outcomes = await classify_transactions(
+        db,
+        test_user.id,
+        [review, other, tail],
+        policy=V2,
+        proposer=lambda txns, _p: asyncio.sleep(
+            0, result=[CategoryProposal(category=answers[t.id][0], confidence=answers[t.id][1]) for t in txns]
+        ),
+    )
+    assert {o.disposition for o in outcomes} == {"review", "tail"} and (
+        (await _row(db, review)).status,
+        (await _row(db, other)).status,
+        await _row(db, tail),
+    ) == (ClassificationStatus.DRAFT, ClassificationStatus.DRAFT, None)
+
+
+@pytest.mark.parametrize(
+    ("category", "direction", "intent", "account_name"),
+    [
+        ("LOAN_PRINCIPAL", TransactionDirection.OUT, "loan_principal", "Loans Payable (SGD)"),
+        ("INVESTMENT_TRADE", TransactionDirection.IN, "investment_sale", "Investments (SGD)"),
+    ],
+)
+async def test_AC_extraction_auto_accept_6_a_loan_or_a_trade_draft_gets_its_account_and_its_intent(
+    db, test_user, category, direction, intent, account_name
+):
+    txn = await _txn(db, test_user, direction=direction)
+    draft = await _draft_from_the_review_path(db, test_user, txn, category, 70)
+    assert draft.account_id is None
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 70))
+    await db.refresh(draft)
+    assert (draft.status, (await _account(db, draft)).name, draft.tags["intent"], draft.tags["category"]) == (
+        ClassificationStatus.APPLIED,
+        account_name,
+        intent,
+        category,
+    )
+
+
+@pytest.mark.parametrize("category", ["TRANSFER", "CARD_REPAYMENT"])
+async def test_AC_extraction_auto_accept_6_a_transfer_draft_stays_a_draft(db, test_user, category):
+    txn = await _txn(db, test_user)
+    draft = await _draft_from_the_review_path(db, test_user, txn, category, 80)
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 80))
+    await db.refresh(draft)
+    assert (draft.status, draft.account_id) == (ClassificationStatus.DRAFT, None)
+
+
+async def test_AC_extraction_auto_accept_6_a_draft_against_the_direction_goes_to_the_general_account(db, test_user):
+    txn = await _txn(db, test_user, direction=TransactionDirection.OUT)
+    draft = await _draft_from_the_review_path(db, test_user, txn, "SALARY", 70)
+    assert (await _account(db, draft)).name == "Income - Salary"
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("SALARY", 70))
+    await db.refresh(draft)
+    assert (
+        draft.status,
+        (await _account(db, draft)).name,
+        draft.tags["category"],
+        draft.tags["original_category"],
+        draft.confidence_score,
+    ) == (ClassificationStatus.APPLIED, "General Expense (SGD)", "UNCLASSIFIED", "SALARY", 0)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "process_flag", "expected"),
+    [
+        ({}, True, True),
+        ({"auto_accept_ai_suggestions": False}, True, False),
+        ({"enable_ai_classification": False}, True, False),
+        ({"enable_ai_classification": False, "auto_accept_ai_suggestions": True}, True, False),
+        ({"enable_ai_classification": True, "auto_accept_ai_suggestions": True}, True, True),
+        ({}, False, False),
+        ({"auto_accept_ai_suggestions": True}, False, False),
+        ({"auto_accept_ai_suggestions": False}, False, False),
+    ],
+)
+async def test_AC_extraction_auto_accept_1_settings_and_process_ceiling(
+    db, test_user, monkeypatch, overrides, process_flag, expected
+):
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", process_flag)
+    test_user.ai_settings = overrides
+    await db.flush()
+    assert (
+        await auto_accept_enabled(db, test_user.id) is expected
+        and effective_auto_accept(test_user.ai_settings) is expected
+    )
+
+
+async def test_AC_extraction_auto_accept_1_the_process_default_of_classification_applies_without_an_override(
+    db, test_user, monkeypatch
+):
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    assert (
+        await classification_enabled(db, test_user.id) is False and await auto_accept_enabled(db, test_user.id) is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected_disp"),
+    [
+        ({"index": 0}, "no_proposal"),
+        ({"index": 0, "category": "DINING"}, "no_proposal"),
+        ({"index": 0, "confidence": 90}, "no_proposal"),
+        ({"index": 0, "category": None, "confidence": 90}, "no_proposal"),
+        ({"index": 0, "category": "  ", "confidence": 90}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": "high"}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": None}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": True}, "no_proposal"),
+        ({"index": 0, "category": 7, "confidence": 90}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": -5}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": "-5"}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": -5.5}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": "1e3"}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": -(10**400)}, "no_proposal"),
+        ({"index": 0, "category": "DINING", "confidence": "9" * 400}, "no_proposal"),
+        ({"index": 0, "category": "FOOD_AND_DRINK", "confidence": 95}, "off_catalog"),
+    ],
+)
+async def test_AC_extraction_auto_accept_4_unusable_answers_write_nothing(
+    db, test_user, monkeypatch, answer, expected_disp
+):
+    txn = await _txn(db, test_user)
+    _model_answers(monkeypatch, [answer])
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2)
+    assert (await _row(db, txn), await _general_account_count(db), outcomes[0].disposition) == (None, 0, expected_disp)
+
+
+@pytest.mark.parametrize(
+    ("answer", "direction", "account_name", "score"),
+    [
+        ({"category": "dining", "confidence": 90}, TransactionDirection.OUT, "Expense - Dining", 90),
+        ({"category": " Dining ", "confidence": "90%"}, TransactionDirection.OUT, "Expense - Dining", 90),
+        ({"category": "DINING", "confidence": 87.6}, TransactionDirection.OUT, "Expense - Dining", 87),
+        ({"category": "dining", "confidence": 250}, TransactionDirection.OUT, "Expense - Dining", 100),
+        ({"category": "DINING", "confidence": "87.0"}, TransactionDirection.OUT, "Expense - Dining", 87),
+        ({"category": "DINING", "confidence": 87.0}, TransactionDirection.OUT, "Expense - Dining", 87),
+        ({"category": "DINING", "confidence": 0.95}, TransactionDirection.OUT, "Expense - Dining", 95),
+        ({"category": "DINING", "confidence": 10**400}, TransactionDirection.OUT, "Expense - Dining", 100),
+        ({"category": "Other-Income", "confidence": 70}, TransactionDirection.IN, "Income - Other", 70),
+    ],
+)
+async def test_AC_extraction_auto_accept_4_a_readable_answer_is_normalized(
+    db, test_user, monkeypatch, answer, direction, account_name, score
+):
+    txn = await _txn(db, test_user, direction=direction)
+    _model_answers(monkeypatch, [{"index": 0, **answer}])
+    await classify_transactions(db, test_user.id, [txn], policy=V2)
+    row = await _row(db, txn)
+    assert ((await _account(db, row)).name, row.confidence_score) == (account_name, score)
+
+
+@pytest.mark.parametrize(
+    ("category", "direction"),
+    [
+        ("LOAN_PRINCIPAL", TransactionDirection.IN),
+        ("LOAN_PRINCIPAL", TransactionDirection.OUT),
+        ("INVESTMENT_TRADE", TransactionDirection.OUT),
+        ("INVESTMENT_TRADE", TransactionDirection.IN),
+    ],
+)
+async def test_AC_extraction_auto_accept_5_a_loan_or_a_trade_below_the_review_score_waits_in_suspense(
+    db, test_user, category, direction
+):
+    txn = await _txn(db, test_user, direction=direction)
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 59))
+    row = await _row(db, txn)
+    assert (
+        row.status,
+        row.account_id,
+        row.tags["category"],
+        row.tags["suspense"],
+        row.confidence_score,
+        outcomes[0].disposition,
+        await _general_account_count(db),
+    ) == (ClassificationStatus.DRAFT, None, category, True, 59, "non_pnl", 0)
+
+
+@pytest.mark.parametrize(
+    ("category", "direction", "account_name"),
+    [
+        ("LOAN_PRINCIPAL", TransactionDirection.OUT, "Loans Payable (SGD)"),
+        ("INVESTMENT_TRADE", TransactionDirection.OUT, "Investments (SGD)"),
+        ("DINING", TransactionDirection.OUT, "Expense - Dining"),
+    ],
+)
+async def test_AC_extraction_auto_accept_3_5_review_score_60_vs_59_gate(
+    db, test_user, category, direction, account_name
+):
+    at_gate, below_gate = await _txn(db, test_user, direction=direction), await _txn(db, test_user, direction=direction)
+    answers = {at_gate.id: 60, below_gate.id: 59}
+    await classify_transactions(
+        db,
+        test_user.id,
+        [at_gate, below_gate],
+        policy=V2,
+        proposer=lambda txns, _p: asyncio.sleep(
+            0, result=[CategoryProposal(category=category, confidence=answers[t.id], reason="test") for t in txns]
+        ),
+    )
+    booked, below = await _row(db, at_gate), await _row(db, below_gate)
+    assert (booked.status, (await _account(db, booked)).name) == (ClassificationStatus.APPLIED, account_name)
+    assert (
+        (below.status, (await _account(db, below)).name) == (ClassificationStatus.APPLIED, "General Expense (SGD)")
+        if category == "DINING"
+        else (below.status is ClassificationStatus.DRAFT and below.tags["suspense"] is True)
+    )
+
+
+async def test_AC_extraction_auto_accept_4_a_decimal_part_never_rounds_a_score_up_to_the_gate(
+    db, test_user, monkeypatch
+):
+    below, at_gate = await _txn(db, test_user, description="ROW A"), await _txn(db, test_user, description="ROW B")
+    _model_answers(
+        monkeypatch,
+        [
+            {"index": 0, "category": "DINING", "confidence": 59.9},
+            {"index": 1, "category": "DINING", "confidence": 60.4},
+        ],
+    )
+    await classify_transactions(db, test_user.id, [below, at_gate], policy=V2)
+    assert (
+        (await _row(db, below)).tags["original_confidence"],
+        (await _account(db, await _row(db, below))).name,
+        (await _row(db, at_gate)).confidence_score,
+        (await _account(db, await _row(db, at_gate))).name,
+    ) == (59, "General Expense (SGD)", 60, "Expense - Dining")
+
+
+async def test_AC_extraction_auto_accept_5_suspense_draft_and_user_correction(db, test_user):
+    txn = await _txn(db, test_user)
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("INVESTMENT_TRADE", 55))
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("INVESTMENT_TRADE", 55))
+    draft = await _row(db, txn)
+    assert (draft.status, draft.account_id) == (ClassificationStatus.DRAFT, None)
+    effect = await apply_suggestion_feedback(db, test_user.id, draft.id, "edit_accept", {"value": "loan_principal"})
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("INVESTMENT_TRADE", 55))
+    await db.refresh(draft)
+    assert (
+        effect,
+        "suspense" in draft.tags,
+        draft.tags["corrected_by_user"],
+        draft.status,
+        (await _account(db, draft)).name,
+    ) == ("corrected", False, True, ClassificationStatus.APPLIED, "Loans Payable (SGD)")
+
+
+@pytest.mark.parametrize("category", ["LOAN_PRINCIPAL", "INVESTMENT_TRADE", "TRANSFER", "CARD_REPAYMENT"])
+async def test_AC_extraction_auto_accept_5_a_balance_sheet_class_at_a_score_of_zero_is_no_answer(
+    db, test_user, category
+):
+    txn = await _txn(db, test_user)
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 0))
+    assert (await _row(db, txn), await _general_account_count(db), outcomes[0].disposition) == (None, 0, "no_proposal")
+
+
+async def test_AC_extraction_auto_accept_4_a_batch_on_the_scale_from_0_to_1_is_read_as_percent(
+    db, test_user, monkeypatch
+):
+    await verify_batch_scale_0_to_1(db, test_user, monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("second_item", "second_written", "expected_disps"),
+    [
+        ({"index": 1, "category": "GROCERIES", "confidence": 0.5}, False, ["applied", "no_proposal"]),
+        ({"index": 1, "category": "GROCERIES", "confidence": 1.0}, True, ["applied", "fallback"]),
+        ({"index": 1, "category": "TRANSFER", "confidence": 0.0}, False, ["applied", "no_proposal"]),
+    ],
+)
+async def test_AC_extraction_auto_accept_4_mixed_scale_batch_cases(
+    db, test_user, monkeypatch, second_item, second_written, expected_disps
+):
+    first, second = await _txn(db, test_user, description="ROW A"), await _txn(db, test_user, description="ROW B")
+    _model_answers(monkeypatch, [{"index": 0, "category": "DINING", "confidence": 90}, second_item])
+    outcomes = await classify_transactions(db, test_user.id, [first, second], policy=V2)
+    assert (await _account(db, await _row(db, first))).name == "Expense - Dining" and [
+        o.disposition for o in outcomes
+    ] == expected_disps
+    assert (
+        (await _account(db, await _row(db, second))).name.startswith("General ")
+        if second_written
+        else await _row(db, second) is None
+    )
+
+
+async def test_AC_extraction_auto_accept_12_classified_rows_are_not_asked_again(db, test_user):
+    await verify_classified_rows_not_asked_again(db, test_user)
+
+
+@pytest.mark.parametrize(
+    ("category", "direction", "expected_status", "expected_account"),
+    [
+        ("DINING", TransactionDirection.OUT, ClassificationStatus.APPLIED, "Expense - Dining"),
+        ("SALARY", TransactionDirection.OUT, ClassificationStatus.DRAFT, "Income - Salary"),
+    ],
+)
+async def test_AC_extraction_auto_accept_6_corrected_draft_respects_direction(
+    db, test_user, category, direction, expected_status, expected_account
+):
+    txn = await _txn(db, test_user, direction=direction)
+    draft = await _draft_from_the_review_path(db, test_user, txn, category, 70)
+    draft.tags = {**draft.tags, "corrected_by_user": True}
+    await db.flush()
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 70))
+    await db.refresh(draft)
+    assert (draft.status, (await _account(db, draft)).name) == (expected_status, expected_account)
+    assert expected_status is not ClassificationStatus.APPLIED or (
+        draft.tags["corrected_by_user"] is True and "auto_accepted" not in draft.tags
+    )

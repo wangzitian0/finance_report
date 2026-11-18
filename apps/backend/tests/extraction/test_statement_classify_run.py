@@ -1,80 +1,73 @@
-"""Classification is a run with a state; the approve only posts (#2994, slice S3).
-
-The extract run ends and creates a `classify` run in the same transaction. The same worker task claims that
-run, asks the model for the rows without an answer, and ends the run. A high-confidence statement is
-auto-approved by the transaction that ends the classify run. No lock guards the classification: the active-run index
-and a 409 with `active_run_id` replace it.
-"""
+"""Classification is a run with a state; the approve only posts (#2994, slice S3)."""
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
-import time
-from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
-from io import BytesIO
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from reportlab.pdfgen import canvas
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from src.audit.orm import TraceRecordRow
-from src.composition import compose_statement_posting_dependencies
+from src.composition import auto_fill_default_statement_dispositions, compose_statement_posting_dependencies
 from src.config import settings
 from src.database import create_session_maker_from_db
 from src.extraction import (
     ActiveRunExists,
     BankStatementStatus,
     ExtractionError,
-    ParseJob,
     RuleType,
     RunActorKind,
-    RunHints,
     RunKind,
     RunState,
     RunTrigger,
     StatementIngestionStatus,
-    StatementSummary,
-    TransactionDirection,
-    claim_run,
-    create_run,
-    finish_run,
-    reap_stale_runs,
 )
-from src.extraction.extension import statement_classification_run, statement_parsing, transaction_classification
-from src.extraction.extension.service import ExtractionService
-from src.extraction.extension.statement_classification_run import execute_classify_run
-from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
+from src.extraction.extension import statement_parsing, transaction_classification
+from src.extraction.extension.statement_posting import auto_approve_parsed_candidate
+from src.extraction.extension.transaction_classification import (
+    CLASSIFICATION_PHASE_DEADLINE_SECONDS,
+    ClassificationOutcome,
+    summarize_outcomes,
+)
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
-from src.extraction.orm.statement_run import StatementRun
-from src.ledger import Account, AccountType, JournalEntry
+from src.ledger import Account, JournalEntry
+from src.schemas.extraction import StatementReviewResponse
 from tests.extraction._statement_run_helpers import (
+    ANSWERS,
     CSV,
+    WAIT_SECONDS,
+    Proposer,
     ScriptedService,
     Sleeps,
+    _count,
     _runs,
     _statement,
     _statement_with_run,
     _use_case,
     _worker,
+    add_coffee_rule as _add_coffee_rule,
+    count_user_answers as _answers,
+    create_parsing_job as _parsing_job,
+    get_run as _run,
+    high_confidence_pdf_service as _high_confidence,
+    install_proposer as _install,
+    make_rows as _rows,
+    parsed_candidate_after_extract as _parsed_candidate_after_an_extract_run,
+    seed_classify_statement as _seed,
+    spy_classify_outcomes as _spy_outcomes,
+    verify_approve_active_or_failed_classify_run,
+    verify_classify_reaper_paths,
+    verify_gated_auto_approve,
+    verify_phase_batches_release_connections,
+    verify_two_writers_keyword_rule_serialize,
 )
-from tests.factories import StatementSummaryFactory, seed_parsed_statement
-from tests.statement_ingestion import classify_run_for, classify_statement, run_for
+from tests.factories import seed_parsed_statement
+from tests.statement_ingestion import classify_run_for, classify_statement
 
-WAIT_SECONDS = 20
-DEADLINE_SECONDS = 3.0  # the deadline covers the plan: it must stay far above the plan time of a busy machine
-ANSWERS = {
-    "Salary": (TransactionCategory.SALARY, 95),
-    "Coffee": (TransactionCategory.DINING, 92),
-    "Grab": (TransactionCategory.TRANSPORT, 90),
-    "Rent": (TransactionCategory.HOUSING, 94),
-    "Refund": (TransactionCategory.REFUND, 91),
-}
-KINDS = list(ANSWERS)
+DEADLINE_SECONDS = 3.0
 
 
 @pytest.fixture(autouse=True)
@@ -84,297 +77,131 @@ def _model_on(monkeypatch):
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
 
 
-class Proposer:
-    """A model that records its calls and can wait, fail or refuse a kind of row."""
-
-    def __init__(self, *, gate: asyncio.Event | None = None, error: Exception | None = None, refuse=frozenset()):
-        self.calls: list[list[str]] = []
-        self.gate = gate
-        self.error = error
-        self.refuse = refuse
-        self.started = asyncio.Event()
-
-    @property
-    def rows_asked(self) -> int:
-        return sum(len(call) for call in self.calls)
-
-    async def __call__(self, transactions, _policy):
-        self.calls.append([transaction.description for transaction in transactions])
-        self.started.set()
-        if self.gate is not None:
-            await self.gate.wait()
-        if self.error is not None:
-            raise self.error
-        proposals: list[CategoryProposal | None] = []
-        for transaction in transactions:
-            kind = transaction.description.split()[0]
-            category, confidence = ANSWERS[kind]
-            proposals.append(
-                None
-                if kind in self.refuse
-                else CategoryProposal(category=category.value, confidence=confidence, reason="fixture")
-            )
-        return proposals
-
-
-def _install(monkeypatch, proposer: Proposer) -> Proposer:
-    monkeypatch.setattr(transaction_classification, "propose_categories", proposer)
-    return proposer
-
-
-def _rows(count: int = 5, first_day: date = date(2026, 1, 1)) -> list[dict]:
-    rows = []
-    for index in range(count):
-        kind = KINDS[index % len(KINDS)]
-        incoming = kind in ("Salary", "Refund")
-        rows.append(
-            {
-                "description": f"{kind} {index:03d}",
-                "amount": (Decimal("2500.00") if incoming else Decimal("12.50")) + Decimal(index),
-                "direction": TransactionDirection.IN if incoming else TransactionDirection.OUT,
-                "date": first_day + timedelta(days=index),
-            }
-        )
-    return rows
-
-
-async def _seed(db, user, rows=None):
-    rows = rows or _rows()
-    seeded = await seed_parsed_statement(
-        db,
-        user.id,
-        institution="DBS",
-        original_filename="classify.pdf",
-        opening_balance=Decimal("1000.00"),
-        transactions=rows,
-    )
-    seeded.statement.period_start, seeded.statement.period_end = rows[0]["date"], rows[-1]["date"]
-    await db.commit()
-    return seeded
-
-
-async def _run(db, run_id) -> StatementRun:
-    return await db.scalar(
-        select(StatementRun).where(StatementRun.id == run_id).execution_options(populate_existing=True)
-    )
-
-
-async def _count(db, model, *where) -> int:
-    return int(await db.scalar(select(func.count()).select_from(model).where(*where)) or 0)
-
-
-async def _answers(db, user) -> int:
-    from src.extraction.orm.layer2 import AtomicTransaction
-
-    return await _count(
-        db,
-        TransactionClassification,
-        TransactionClassification.atomic_txn_id.in_(
-            select(AtomicTransaction.id).where(AtomicTransaction.user_id == user.id)
-        ),
-    )
-
-
-def _spy_outcomes(monkeypatch) -> list[str]:
-    outcomes: list[str] = []
-    monkeypatch.setattr(
-        statement_classification_run,
-        "record_statement_classification_outcome",
-        lambda *, outcome: outcomes.append(outcome),
-    )
-    return outcomes
-
-
-def _high_confidence(rows: list[dict]):
-    """A PDF payload that the parse scores as an auto-approve candidate: balanced, with an account."""
-    opening = Decimal("1000.00")
-    closing = opening + sum(
-        (r["amount"] if r["direction"] is TransactionDirection.IN else -r["amount"] for r in rows), start=Decimal("0")
-    )
-    service = ExtractionService()
-    service.extract_financial_data = AsyncMock(
-        return_value={
-            "institution": "DBS",
-            "account_last4": "1234",
-            "currency": "SGD",
-            "period_start": rows[0]["date"].isoformat(),
-            "period_end": rows[-1]["date"].isoformat(),
-            "opening_balance": str(opening),
-            "closing_balance": str(closing),
-            "transactions": [
-                {
-                    "date": r["date"].isoformat(),
-                    "description": r["description"],
-                    "amount": str(r["amount"]),
-                    "direction": r["direction"].value,
-                    "currency": "SGD",
-                }
-                for r in rows
-            ],
-        }
-    )
-    buffer = BytesIO()
-    page = canvas.Canvas(buffer)
-    page.drawString(72, 720, f"Opening: {opening} Closing: {closing}")
-    for row in rows:
-        page.drawString(72, 700, f"{row['date'].isoformat()} {row['description']} {row['amount']}")
-    page.showPage()
-    page.save()
-    return service, buffer.getvalue()
-
-
-async def _parsing_job(db, user, content: bytes, name: str = "high.pdf"):
-    file_hash = hashlib.sha256(content).hexdigest()
-    statement = StatementSummaryFactory.build(
-        id=uuid4(), user_id=user.id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution="DBS"
-    )
-    db.add(statement)
-    await db.commit()
-    job = ParseJob(
-        statement_id=statement.id,
-        run_id=await run_for(db, statement.id),
-        filename=name,
-        institution="DBS",
-        user_id=user.id,
-        account_id=None,
-        file_hash=file_hash,
-        storage_key=f"statements/{name}",
-        model=None,
-        request_id=f"req-{name}",
-    )
-    return statement.id, job
-
-
-# --- The extract run creates the classify run, and the same task executes it -------------------------
-
-
 async def test_AC_extraction_2994_88_a_successful_extract_run_creates_the_classify_run_in_its_transaction(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.88: The extract run and the new classify run commit together, and the same task gets the run id."""
     statement_id, job = await _statement_with_run(db, test_user)
     received: list = []
-
-    async def spy(session_maker, *, run_id, posting_dependencies, **_options):
-        received.append(run_id)
-        return 0
-
-    monkeypatch.setattr(statement_parsing, "execute_classify_run", spy)
-
+    monkeypatch.setattr(
+        statement_parsing,
+        "execute_classify_run",
+        AsyncMock(side_effect=lambda _sm, *, run_id, **_kw: received.append(run_id) or 0),
+    )
     outcome = await _use_case(db).execute(job, content=CSV)
-
     extract, classify = await _runs(db, statement_id)
-    assert outcome.status is StatementIngestionStatus.COMPLETED
-    assert (extract.kind, extract.state) == (RunKind.EXTRACT, RunState.SUCCEEDED)
-    assert (classify.kind, classify.state, classify.seq) == (RunKind.CLASSIFY, RunState.REQUESTED, 2)
-    assert (classify.actor_kind, classify.trigger) == (RunActorKind.SYSTEM, RunTrigger.AUTO_CLASSIFY)
-    assert classify.parent_run_id == extract.id
-    assert classify.hints == {"keywords": [], "note": None}
-    assert classify.model is None
-    assert received == [classify.id], "the same worker task executes the run: no second dispatch"
-    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSED
+    assert (outcome.status, extract.kind, extract.state) == (
+        StatementIngestionStatus.COMPLETED,
+        RunKind.EXTRACT,
+        RunState.SUCCEEDED,
+    )
+    assert (
+        classify.kind,
+        classify.state,
+        classify.seq,
+        classify.actor_kind,
+        classify.trigger,
+        classify.parent_run_id,
+        classify.hints,
+        classify.model,
+    ) == (
+        RunKind.CLASSIFY,
+        RunState.REQUESTED,
+        2,
+        RunActorKind.SYSTEM,
+        RunTrigger.AUTO_CLASSIFY,
+        extract.id,
+        {"keywords": [], "note": None},
+        None,
+    )
+    assert received == [classify.id] and (await _statement(db, statement_id)).status is BankStatementStatus.PARSED
 
 
-async def test_AC_extraction_2994_88_a_failed_classify_insert_leaves_no_succeeded_extract_run(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.88: The classify run insert is part of the final transaction of the extract run."""
+async def test_AC_extraction_2994_88_89_extract_failure_and_classify_insert_atomicity(db, test_user, monkeypatch):
     statement_id, job = await _statement_with_run(db, test_user)
     real_create_run = statement_parsing.create_run
-
-    async def create_run_that_fails_for_classify(session, **kwargs):
-        if kwargs["kind"] is RunKind.CLASSIFY:
-            raise RuntimeError("the classify run insert failed")
-        return await real_create_run(session, **kwargs)
-
-    monkeypatch.setattr(statement_parsing, "create_run", create_run_that_fails_for_classify)
-
+    monkeypatch.setattr(
+        statement_parsing,
+        "create_run",
+        lambda s, **kw: (_ for _ in ()).throw(RuntimeError("the classify run insert failed"))
+        if kw["kind"] is RunKind.CLASSIFY
+        else real_create_run(s, **kw),
+    )
     with pytest.raises(Exception, match="finalization"):
         await _use_case(db, sleeps=Sleeps()).execute(job, content=CSV)
-
     runs = await _runs(db, statement_id)
-    assert {run.kind for run in runs} == {RunKind.EXTRACT}
-    assert RunState.SUCCEEDED not in {run.state for run in runs}, "a succeeded extract run needs its classify run"
-    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSING
+    assert (
+        {r.kind for r in runs} == {RunKind.EXTRACT}
+        and RunState.SUCCEEDED not in {r.state for r in runs}
+        and (await _statement(db, statement_id)).status is BankStatementStatus.PARSING
+    )
 
-
-async def test_AC_extraction_2994_89_a_failed_extract_run_creates_no_classify_run(db, test_user, monkeypatch):
-    """AC-extraction.2994.89: A source rejection fails the extract run and no classify run exists."""
-    statement_id, job = await _statement_with_run(db, test_user)
-    called: list = []
-
-    async def spy(*_args, **_kwargs):
-        called.append(True)
-        return 0
-
+    fail_csv = CSV + b"SGD,2026-01-21,Coffee,5.00,\n"
+    sid_fail, job_fail = await _statement_with_run(db, test_user, content=fail_csv)
+    spy = AsyncMock(return_value=0)
     monkeypatch.setattr(statement_parsing, "execute_classify_run", spy)
-
-    outcome = await _use_case(db, ScriptedService([ExtractionError("unreadable")])).execute(job, content=CSV)
-
-    assert outcome.status is StatementIngestionStatus.SOURCE_REJECTED
-    assert [(run.kind, run.state) for run in await _runs(db, statement_id)] == [(RunKind.EXTRACT, RunState.FAILED)]
-    assert called == []
-
-
-# --- The classify run: success, timeout, failure, model off, reaper ------------------------------------
+    assert (
+        await _use_case(db, ScriptedService([ExtractionError("unreadable")])).execute(job_fail, content=fail_csv)
+    ).status is StatementIngestionStatus.SOURCE_REJECTED
+    assert [(r.kind, r.state) for r in await _runs(db, sid_fail)] == [(RunKind.EXTRACT, RunState.FAILED)]
+    spy.assert_not_awaited()
 
 
 async def test_AC_extraction_2994_90_a_classify_run_ends_with_counts_and_no_row_text(db, test_user, monkeypatch):
-    """AC-extraction.2994.90: The summary holds counts only: no description, no amount."""
-    outcomes = _spy_outcomes(monkeypatch)
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
-
-    run_id = await classify_statement(db, seeded.id)
-
-    run = await _run(db, run_id)
-    assert (run.kind, run.state) == (RunKind.CLASSIFY, RunState.SUCCEEDED)
-    assert run.started_at is not None and run.heartbeat_at is not None and run.finished_at is not None
-    assert run.error_code is None
-    assert run.result_summary["outcome"] == "classified"
-    assert run.result_summary["total"] == 5
-    assert run.result_summary["by_disposition"] == {"applied": 5}
-    assert run.result_summary["by_category"]["SALARY"] == 1
-    flat = json.dumps(run.result_summary)
-    for row in _rows():
-        assert row["description"] not in flat and str(row["amount"]) not in flat
-    assert proposer.rows_asked == 5
-    assert await _answers(db, test_user) == 5
-    assert outcomes == ["classified"]
-    records = await db.execute(
-        select(TraceRecordRow.assertion_id)
-        .where(TraceRecordRow.execution_id == f"statement:{seeded.id}:run:{run_id}")
-        .order_by(TraceRecordRow.occurred_at)
+    outcomes, proposer, seeded = (
+        _spy_outcomes(monkeypatch),
+        _install(monkeypatch, Proposer()),
+        await _seed(db, test_user),
     )
-    assert list(records.scalars()) == ["classify.requested", "classify.running", "classify.succeeded"]
+    run_id = await classify_statement(db, seeded.id)
+    run = await _run(db, run_id)
+    assert (
+        (run.kind, run.state, run.error_code) == (RunKind.CLASSIFY, RunState.SUCCEEDED, None)
+        and run.started_at
+        and run.heartbeat_at
+        and run.finished_at
+    )
+    assert (
+        run.result_summary["outcome"],
+        run.result_summary["total"],
+        run.result_summary["by_disposition"],
+        run.result_summary["by_category"]["SALARY"],
+    ) == ("classified", 5, {"applied": 5}, 1)
+    flat = json.dumps(run.result_summary)
+    assert all(row["description"] not in flat and str(row["amount"]) not in flat for row in _rows())
+    assert (proposer.rows_asked, await _answers(db, test_user), outcomes) == (5, 5, ["classified"])
+    assert list(
+        (
+            await db.execute(
+                select(TraceRecordRow.assertion_id)
+                .where(TraceRecordRow.execution_id == f"statement:{seeded.id}:run:{run_id}")
+                .order_by(TraceRecordRow.occurred_at)
+            )
+        ).scalars()
+    ) == ["classify.requested", "classify.running", "classify.succeeded"]
 
 
 async def test_AC_extraction_2994_91_a_classify_run_that_passes_its_deadline_fails_with_a_timeout_code(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.91: The run fails with classification_timeout. A call that never returned writes nothing."""
-    outcomes = _spy_outcomes(monkeypatch)
-    hung = _install(monkeypatch, Proposer(gate=asyncio.Event()))
-    seeded = await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-
-    posted = await asyncio.wait_for(
-        execute_classify_run(
-            create_session_maker_from_db(db),
-            run_id=run_id,
-            posting_dependencies=compose_statement_posting_dependencies(),
-            deadline_seconds=DEADLINE_SECONDS,
-        ),
-        timeout=WAIT_SECONDS,
+    outcomes, hung, seeded = (
+        _spy_outcomes(monkeypatch),
+        _install(monkeypatch, Proposer(gate=asyncio.Event())),
+        await _seed(db, test_user),
     )
-
+    run_id = await classify_run_for(db, seeded.id)
+    posted = await asyncio.wait_for(
+        _worker(create_session_maker_from_db(db), run_id, deadline_seconds=DEADLINE_SECONDS), timeout=WAIT_SECONDS
+    )
     run = await _run(db, run_id)
-    assert posted == 0
-    assert (run.state, run.error_code) == (RunState.FAILED, "classification_timeout")
-    assert hung.rows_asked == 5
-    assert await _answers(db, test_user) == 0
+    assert (posted, run.state, run.error_code, hung.rows_asked, await _answers(db, test_user), outcomes) == (
+        0,
+        RunState.FAILED,
+        "classification_timeout",
+        5,
+        0,
+        ["timed_out"],
+    )
     assert (await _statement(db, seeded.id)).status is BankStatementStatus.PARSED
-    assert outcomes == ["timed_out"]
 
 
 @pytest.mark.parametrize(
@@ -383,520 +210,226 @@ async def test_AC_extraction_2994_91_a_classify_run_that_passes_its_deadline_fai
 async def test_AC_extraction_2994_92_any_other_error_fails_the_run_with_a_code_and_no_row_text(
     db, test_user, monkeypatch, error
 ):
-    """AC-extraction.2994.92: The failure keeps its code. A driver timeout is a failure, not the deadline."""
-    outcomes = _spy_outcomes(monkeypatch)
-    _install(monkeypatch, Proposer(error=error))
+    outcomes, _ = _spy_outcomes(monkeypatch), _install(monkeypatch, Proposer(error=error))
     seeded = await _seed(db, test_user)
-
-    run_id = await classify_statement(db, seeded.id)
-
-    run = await _run(db, run_id)
-    assert (run.state, run.error_code) == (RunState.FAILED, "classification_failed")
-    assert run.error_message and len(run.error_message) <= 500
-    for secret in ("Salary", "owner@example.com", "2500.00"):
-        assert secret not in run.error_message
-    assert await _answers(db, test_user) == 0
+    run = await _run(db, await classify_statement(db, seeded.id))
+    assert (run.state, run.error_code, await _answers(db, test_user), outcomes) == (
+        RunState.FAILED,
+        "classification_failed",
+        0,
+        ["failed"],
+    )
+    assert (
+        run.error_message
+        and len(run.error_message) <= 500
+        and all(s not in run.error_message for s in ("Salary", "owner@example.com", "2500.00"))
+    )
     assert (await _statement(db, seeded.id)).status is BankStatementStatus.PARSED
-    assert outcomes == ["failed"]
 
 
-async def test_AC_extraction_2994_93_a_classify_run_with_the_model_off_succeeds_with_a_skipped_summary(
-    db, test_user, monkeypatch
+@pytest.mark.parametrize("mode", ["disabled", "refused", "empty", "retired"])
+async def test_AC_extraction_2994_93_94_classify_run_outcomes_without_full_classification(
+    db, test_user, monkeypatch, mode
 ):
-    """AC-extraction.2994.93: The model off is not a failure. The run succeeds, the model is not asked."""
-    monkeypatch.setattr(settings, "enable_ai_classification", False)
     outcomes = _spy_outcomes(monkeypatch)
-    proposer = _install(monkeypatch, Proposer(error=AssertionError("the model was asked")))
-    seeded = await _seed(db, test_user)
-
-    run_id = await classify_statement(db, seeded.id)
-
-    run = await _run(db, run_id)
-    assert run.state is RunState.SUCCEEDED
-    assert run.result_summary["outcome"] == "skipped_disabled"
-    assert proposer.calls == []
-    assert outcomes == ["skipped_disabled"]
-
-
-async def test_AC_extraction_2994_93_a_run_with_a_refused_row_ends_partial_and_a_statement_without_rows_ends_empty(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.93: A row without a usable answer gives partial. A statement without rows gives nothing_to_classify."""
-    outcomes = _spy_outcomes(monkeypatch)
-    _install(monkeypatch, Proposer(refuse=frozenset({"Coffee"})))
-    seeded = await _seed(db, test_user)
-    empty = await seed_parsed_statement(db, test_user.id, original_filename="empty.pdf", transactions=[])
-
-    partial_id = await classify_statement(db, seeded.id)
-    empty_id = await classify_statement(db, empty.statement.id)
-
-    assert (await _run(db, partial_id)).result_summary["outcome"] == "partial"
-    assert (await _run(db, empty_id)).result_summary["outcome"] == "nothing_to_classify"
-    assert (await _run(db, empty_id)).state is RunState.SUCCEEDED
-    assert outcomes == ["partial", "nothing_to_classify"]
-
-
-async def test_AC_extraction_2994_94_a_statement_that_left_parsed_is_skipped_and_the_run_still_ends(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.94: A run that finds a statement outside PARSED asks no model and ends succeeded."""
-    outcomes = _spy_outcomes(monkeypatch)
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
-    seeded.statement.status = BankStatementStatus.RETIRED
-    await db.commit()
-
-    run_id = await classify_statement(db, seeded.id)
-
-    assert (await _run(db, run_id)).state is RunState.SUCCEEDED
-    assert (await _run(db, run_id)).result_summary["outcome"] == "skipped_state"
-    assert proposer.calls == [] and outcomes == ["skipped_state"]
-
-
-async def test_AC_extraction_2994_95_the_reaper_fails_a_classify_run_that_no_worker_claimed(db, test_user, monkeypatch):
-    """AC-extraction.2994.95: A requested classify run fails with claim_timeout, and a late worker cannot claim it."""
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-    maker = create_session_maker_from_db(db)
-
-    async with maker() as session:
-        reaped = await reap_stale_runs(session, now=datetime.now(UTC) + timedelta(minutes=10))
-        await session.commit()
-    posted = await execute_classify_run(
-        maker, run_id=run_id, posting_dependencies=compose_statement_posting_dependencies()
+    if mode == "disabled":
+        monkeypatch.setattr(settings, "enable_ai_classification", False)
+    proposer = _install(
+        monkeypatch,
+        Proposer(
+            error=AssertionError("asked") if mode == "disabled" else None,
+            refuse=frozenset({"Coffee"}) if mode == "refused" else frozenset(),
+        ),
     )
-
-    run = await _run(db, run_id)
-    assert reaped == [run_id]
-    assert (run.state, run.error_code) == (RunState.FAILED, "claim_timeout")
-    assert posted == 0 and proposer.calls == []
-
-
-async def test_AC_extraction_2994_95_a_finish_after_the_reaper_failed_the_classify_run_discards_the_answers(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.95: The reaper fails the run during the model call: the batch is not written."""
-    seeded = await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-    maker = create_session_maker_from_db(db)
-    real = Proposer()
-
-    async def reaped_during_the_call(transactions, policy):
-        async with maker() as other_session:
-            assert await reap_stale_runs(other_session, now=datetime.now(UTC) + timedelta(minutes=10)) == [run_id]
-            await other_session.commit()
-        return await real(transactions, policy)
-
-    _install(monkeypatch, reaped_during_the_call)
-
-    posted = await execute_classify_run(
-        maker, run_id=run_id, posting_dependencies=compose_statement_posting_dependencies()
+    seeded = (
+        await seed_parsed_statement(db, test_user.id, original_filename="empty.pdf", transactions=[])
+        if mode == "empty"
+        else await _seed(db, test_user)
     )
+    if mode == "retired":
+        seeded.statement.status = BankStatementStatus.RETIRED
+        await db.commit()
+    run = await _run(db, await classify_statement(db, seeded.id))
+    expected = {
+        "disabled": "skipped_disabled",
+        "refused": "partial",
+        "empty": "nothing_to_classify",
+        "retired": "skipped_state",
+    }[mode]
+    assert (run.state, run.result_summary["outcome"], outcomes) == (RunState.SUCCEEDED, expected, [expected])
+    assert mode == "refused" or proposer.calls == []
 
-    run = await _run(db, run_id)
-    assert posted == 0
-    assert (run.state, run.error_code) == (RunState.FAILED, "heartbeat_lost")
-    assert await _answers(db, test_user) == 0
 
-
-# --- Keyword rules answer in the run ---------------------------------------------------------------------
-
-
-async def _add_coffee_rule(db, user) -> None:
-    account = Account(user_id=user.id, name="Expense - Reviewed Coffee", type=AccountType.EXPENSE, currency="SGD")
-    db.add(account)
-    await db.flush()
-    db.add(
-        ClassificationRule(
-            user_id=user.id,
-            created_by=user.id,
-            version_number=1,
-            effective_date=date(2020, 1, 1),
-            is_active=True,
-            rule_name="coffee-rule",
-            rule_type=RuleType.KEYWORD_MATCH,
-            rule_config={"keywords": ["Coffee"]},
-            tag_mappings={"category": "REVIEWED_COFFEE"},
-            default_account_id=account.id,
-        )
-    )
-    await db.commit()
+async def test_AC_extraction_2994_95_reaper_fails_unclaimed_and_lost_heartbeat_runs(db, test_user, monkeypatch):
+    await verify_classify_reaper_paths(db, test_user, monkeypatch)
 
 
 async def test_AC_extraction_2994_97_the_classify_run_answers_a_keyword_rule_row_without_the_model_and_approve_posts(
     client, db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.97: The run applies the keyword rule: no model call for the row, and the approve posts all rows."""
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
+    proposer, seeded = _install(monkeypatch, Proposer()), await _seed(db, test_user)
     await _add_coffee_rule(db, test_user)
-
     run_id = await classify_statement(db, seeded.id)
-
-    assert (await _run(db, run_id)).state is RunState.SUCCEEDED
-    assert not any(description.startswith("Coffee") for call in proposer.calls for description in call)
-    assert proposer.rows_asked == 4
-    rule_answers = await _count(
-        db,
-        TransactionClassification,
-        TransactionClassification.rule_version_id.in_(
-            select(ClassificationRule.id).where(ClassificationRule.rule_type == RuleType.KEYWORD_MATCH)
-        ),
+    assert (
+        (await _run(db, run_id)).state is RunState.SUCCEEDED
+        and proposer.rows_asked == 4
+        and not any(d.startswith("Coffee") for c in proposer.calls for d in c)
     )
-    assert rule_answers == 1, "the row of the keyword rule has its answer from the rule"
-    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
-    assert response.status_code == 200, response.text
-    assert response.json()["journal_entries_created"] == 5
-    assert proposer.rows_asked == 4, "the approve asks no model"
-
-
-# --- Approve only posts ----------------------------------------------------------------------------------
-
-
-async def test_AC_extraction_2994_98_approve_with_an_active_classify_run_gives_409_at_once_and_writes_nothing(
-    client, db, test_user, monkeypatch
-):
-    """AC-extraction.2994.98: Approve refuses an active classify run in under 1 s with the run id. After the run it posts."""
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
-    seeded_id = seeded.id
-    run_id = await classify_run_for(db, seeded_id)
-
-    started = time.perf_counter()
-    refused = await client.post(f"/statements/{seeded_id}/approvals", json={"create_account_if_missing": True})
-    elapsed = time.perf_counter() - started
-
-    assert refused.status_code == 409, refused.text
-    assert refused.json()["active_run_id"] == str(run_id)
-    assert elapsed < 1.0, f"the 409 took {elapsed:.2f} s"
-    assert await _count(db, JournalEntry) == 0
-    assert await _count(db, Account, Account.user_id == test_user.id) == 0, "the refused approve created no account"
-    assert (await _statement(db, seeded_id)).status is BankStatementStatus.PARSED
-
-    posted = await execute_classify_run(
-        create_session_maker_from_db(db), run_id=run_id, posting_dependencies=compose_statement_posting_dependencies()
+    assert (
+        await _count(
+            db,
+            TransactionClassification,
+            TransactionClassification.rule_version_id.in_(
+                select(ClassificationRule.id).where(ClassificationRule.rule_type == RuleType.KEYWORD_MATCH)
+            ),
+        )
+        == 1
     )
-    assert posted == 0
-    response = await client.post(f"/statements/{seeded_id}/approvals", json={"create_account_if_missing": True})
-    assert response.status_code == 200, response.text
-    assert response.json()["journal_entries_created"] == 5
-    assert proposer.rows_asked == 5, "the approve asks no row"
+    resp = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
+    assert (resp.status_code, resp.json()["journal_entries_created"], proposer.rows_asked) == (200, 5, 4)
 
 
-async def test_AC_extraction_2994_98_approve_of_rows_after_a_failed_classify_run_goes_to_economic_review(
-    client, db, test_user, monkeypatch
-):
-    """AC-extraction.2994.98: The failed run leaves no answer. The approve asks no model and posts nothing wrong."""
-    failing = _install(monkeypatch, Proposer(error=RuntimeError("provider down")))
-    seeded = await _seed(db, test_user)
-    run_id = await classify_statement(db, seeded.id)
-    assert (await _run(db, run_id)).state is RunState.FAILED
-
-    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
-
-    assert response.status_code == 409, response.text
-    assert response.json()["detail"].startswith("Economic review required:")
-    assert len(failing.calls) == 1, "only the classify run asked the model"
-    assert await _count(db, JournalEntry) == 0
-    assert await _answers(db, test_user) == 0
-    assert (await _statement(db, seeded.id)).status is BankStatementStatus.PARSED
-
-
-# --- Auto-approve follows a succeeded classify run -----------------------------------------------------
+async def test_AC_extraction_2994_98_approve_with_active_or_failed_classify_run(client, db, test_user, monkeypatch):
+    await verify_approve_active_or_failed_classify_run(client, db, test_user, monkeypatch)
 
 
 async def test_AC_extraction_2994_99_a_high_confidence_statement_is_approved_only_after_the_classify_run_succeeded(
     client, db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.99: PARSED with visible rows while the run runs; APPROVED with entries once the run succeeded."""
-    gate = asyncio.Event()
-    proposer = _install(monkeypatch, Proposer(gate=gate))
-    rows = _rows()
-    service, content = _high_confidence(rows)
-    statement_id, job = await _parsing_job(db, test_user, content)
-
-    task = asyncio.create_task(_use_case(db, service).execute(job, content=content))
-    try:
-        await asyncio.wait_for(proposer.started.wait(), timeout=WAIT_SECONDS)
-        statement = await _statement(db, statement_id)
-        extract, classify = await _runs(db, statement_id)
-        assert statement.status is BankStatementStatus.PARSED, "APPROVED only when the entries are posted"
-        assert statement.stage1_status.value == "pending_review"
-        assert (extract.state, classify.kind, classify.state) == (
-            RunState.SUCCEEDED,
-            RunKind.CLASSIFY,
-            RunState.RUNNING,
-        )
-        assert extract.result_summary == {"auto_approve_candidate": True}
-        assert await _count(db, JournalEntry) == 0
-        review = await client.get(f"/statements/{statement_id}/review")
-        assert review.status_code == 200, review.text
-        assert len(review.json()["transactions"]) == len(rows), "the rows are visible while the classify run is active"
-        started = time.perf_counter()
-        refused = await client.post(f"/statements/{statement_id}/approvals", json={})
-        assert refused.status_code == 409 and refused.json()["active_run_id"] == str(classify.id)
-        assert time.perf_counter() - started < 1.0
-    finally:
-        gate.set()
-    outcome = await asyncio.wait_for(task, timeout=WAIT_SECONDS)
-
-    assert outcome.status is StatementIngestionStatus.COMPLETED
-    assert outcome.auto_posted_count == len(rows)
-    assert (await _statement(db, statement_id)).status is BankStatementStatus.APPROVED
-    assert await _count(db, JournalEntry) >= len(rows)
-    assert proposer.rows_asked == len(rows), "one model call for each row, in the classify run"
+    await verify_gated_auto_approve(client, db, test_user, monkeypatch)
 
 
-async def test_AC_extraction_2994_99_a_high_confidence_statement_stays_parsed_when_the_classify_run_fails(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.99: A failed classify run posts nothing and leaves the statement PARSED with no review notice."""
+async def test_AC_extraction_2994_99_high_and_low_confidence_non_auto_approve_paths(db, test_user, monkeypatch):
     _install(monkeypatch, Proposer(error=RuntimeError("provider down")))
     service, content = _high_confidence(_rows())
-    statement_id, job = await _parsing_job(db, test_user, content)
-
+    sid, job = await _parsing_job(db, test_user, content)
     outcome = await _use_case(db, service).execute(job, content=content)
-
-    statement = await _statement(db, statement_id)
-    assert outcome.status is StatementIngestionStatus.COMPLETED and outcome.auto_posted_count == 0
-    assert statement.status is BankStatementStatus.PARSED
-    assert statement.validation_error is None
-    assert await _count(db, JournalEntry) == 0
-    assert [(run.kind, run.state) for run in await _runs(db, statement_id)] == [
+    stmt = await _statement(db, sid)
+    assert (outcome.status, outcome.auto_posted_count, stmt.status, stmt.validation_error) == (
+        StatementIngestionStatus.COMPLETED,
+        0,
+        BankStatementStatus.PARSED,
+        None,
+    )
+    assert [(r.kind, r.state) for r in await _runs(db, sid)] == [
         (RunKind.EXTRACT, RunState.SUCCEEDED),
         (RunKind.CLASSIFY, RunState.FAILED),
     ]
 
-
-async def test_AC_extraction_2994_99_a_low_confidence_statement_is_never_auto_approved(db, test_user, monkeypatch):
-    """AC-extraction.2994.99: Only the candidate that the parse marked is approved: a CSV without balances stays PARSED."""
     _install(monkeypatch, Proposer())
-    statement_id, job = await _statement_with_run(db, test_user)
-
-    outcome = await _use_case(db).execute(job, content=CSV)
-
-    extract, classify = await _runs(db, statement_id)
-    assert extract.result_summary == {"auto_approve_candidate": False}
-    assert classify.state is RunState.SUCCEEDED
-    assert outcome.auto_posted_count == 0
-    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSED
-    assert await _count(db, JournalEntry) == 0
-
-
-async def _parsed_candidate_after_an_extract_run(db, user, *, marked: bool):
-    """A PARSED statement with a high score and a classify run whose extract run marked it, or did not."""
-    from tests.api._statement_router_fixtures import create_statement_account
-
-    seeded = await _seed(db, user)
-    seeded.statement.balance_validated = True
-    seeded.statement.confidence_score = 95
-    seeded.statement.account_last4 = "1234"
-    seeded.statement.account_id = (await create_statement_account(db, user.id)).id
-    extract = await create_run(
-        db,
-        statement_id=seeded.id,
-        user_id=user.id,
-        kind=RunKind.EXTRACT,
-        actor_kind=RunActorKind.SYSTEM,
-        trigger=RunTrigger.UPLOAD,
-        hints=RunHints(),
-    )
-    await claim_run(db, extract.id)
-    await finish_run(db, extract.id, result_summary={"auto_approve_candidate": marked})
-    await db.commit()
-    return seeded.id, await classify_run_for(db, seeded.id, parent_run_id=extract.id)
+    low_id, low_job = await _statement_with_run(db, test_user)
+    low_out = await _use_case(db).execute(low_job, content=CSV)
+    extract, classify = await _runs(db, low_id)
+    assert (
+        extract.result_summary,
+        classify.state,
+        low_out.auto_posted_count,
+        (await _statement(db, low_id)).status,
+        await _count(db, JournalEntry),
+    ) == ({"auto_approve_candidate": False}, RunState.SUCCEEDED, 0, BankStatementStatus.PARSED, 0)
 
 
-async def test_AC_extraction_2994_99_the_mark_of_the_parse_decides_not_the_score(db, test_user, monkeypatch):
-    """AC-extraction.2994.99: A PARSED statement with a high score and no mark (a position snapshot) is not approved."""
+@pytest.mark.parametrize(
+    ("marked", "expected_posted", "expected_status"),
+    [(False, 0, BankStatementStatus.PARSED), (True, 5, BankStatementStatus.APPROVED)],
+)
+async def test_AC_extraction_2994_99_the_mark_of_the_parse_decides_auto_approve(
+    db, test_user, monkeypatch, marked, expected_posted, expected_status
+):
     _install(monkeypatch, Proposer())
-    statement_id, run_id = await _parsed_candidate_after_an_extract_run(db, test_user, marked=False)
-
-    posted = await execute_classify_run(
-        create_session_maker_from_db(db), run_id=run_id, posting_dependencies=compose_statement_posting_dependencies()
+    statement_id, run_id = await _parsed_candidate_after_an_extract_run(db, test_user, marked=marked)
+    posted = await _worker(create_session_maker_from_db(db), run_id)
+    assert ((await _run(db, run_id)).state, posted, (await _statement(db, statement_id)).status) == (
+        RunState.SUCCEEDED,
+        expected_posted,
+        expected_status,
     )
-
-    assert (await _run(db, run_id)).state is RunState.SUCCEEDED
-    assert posted == 0
-    assert (await _statement(db, statement_id)).status is BankStatementStatus.PARSED
-    assert await _count(db, JournalEntry) == 0
-
-
-async def test_AC_extraction_2994_99_a_marked_statement_is_approved_at_the_end_of_its_run(db, test_user, monkeypatch):
-    """AC-extraction.2994.99: The same statement with the mark is approved and posted when its run succeeds."""
-    _install(monkeypatch, Proposer())
-    statement_id, run_id = await _parsed_candidate_after_an_extract_run(db, test_user, marked=True)
-
-    posted = await execute_classify_run(
-        create_session_maker_from_db(db), run_id=run_id, posting_dependencies=compose_statement_posting_dependencies()
-    )
-
-    assert posted == 5
-    assert (await _statement(db, statement_id)).status is BankStatementStatus.APPROVED
-    assert await _count(db, JournalEntry) >= 5
+    assert await _count(db, JournalEntry) >= 5 if marked else await _count(db, JournalEntry) == 0
 
 
 async def test_AC_extraction_2994_99_the_auto_approve_leaves_a_statement_that_a_user_approved_first(
     client, db, test_user, monkeypatch
 ):
-    """AC-extraction.2994.99: The user approve wins the race: the auto-approve posts nothing more and keeps the review time."""
-    from src.extraction.extension.statement_posting import auto_approve_parsed_candidate
-
     _install(monkeypatch, Proposer())
     statement_id, run_id = await _parsed_candidate_after_an_extract_run(db, test_user, marked=False)
     maker = create_session_maker_from_db(db)
-    await execute_classify_run(maker, run_id=run_id, posting_dependencies=compose_statement_posting_dependencies())
-    response = await client.post(f"/statements/{statement_id}/approvals", json={})
-    assert response.status_code == 200, response.text
+    await _worker(maker, run_id)
+    assert (await client.post(f"/statements/{statement_id}/approvals", json={})).status_code == 200
     approved = await _statement(db, statement_id)
     reviewed_at, entries = approved.stage1_reviewed_at, await _count(db, JournalEntry)
-    assert approved.status is BankStatementStatus.APPROVED
-
-    # The end of the run reaches the auto-approve after the user approve committed.
     async with maker() as session:
         posted = await auto_approve_parsed_candidate(
             session, statement_id, test_user.id, dependencies=compose_statement_posting_dependencies()
         )
         await session.commit()
+    assert (
+        posted,
+        approved.status,
+        (await _statement(db, statement_id)).stage1_reviewed_at,
+        await _count(db, JournalEntry),
+    ) == (0, BankStatementStatus.APPROVED, reviewed_at, entries)
 
-    assert posted == 0
-    assert (await _statement(db, statement_id)).stage1_reviewed_at == reviewed_at
-    assert await _count(db, JournalEntry) == entries
 
-
-async def test_AC_extraction_2994_99_a_candidate_with_a_refused_row_waits_in_the_economic_review_until_the_next_run(
-    client, db, test_user, monkeypatch
+@pytest.mark.parametrize("model_off", [False, True])
+async def test_AC_extraction_2994_99_candidate_without_full_answers_goes_to_economic_review(
+    client, db, test_user, monkeypatch, model_off
 ):
-    """AC-extraction.2994.99: A partial run leaves the candidate PARSED with the notice. The next run answers the row."""
-    _install(monkeypatch, Proposer(refuse=frozenset({"Refund"})))
+    if model_off:
+        monkeypatch.setattr(settings, "enable_ai_classification", False)
+    else:
+        _install(monkeypatch, Proposer(refuse=frozenset({"Refund"})))
     rows = _rows()
     service, content = _high_confidence(rows)
-    statement_id, job = await _parsing_job(db, test_user, content)
-
+    sid, job = await _parsing_job(db, test_user, content)
     outcome = await _use_case(db, service).execute(job, content=content)
-
-    statement = await _statement(db, statement_id)
-    assert outcome.auto_posted_count == 0
-    assert statement.status is BankStatementStatus.PARSED
-    assert (statement.validation_error or "").startswith("Economic review required:")
-    assert await _count(db, JournalEntry) == 0
-    healthy = _install(monkeypatch, Proposer())
-    await classify_statement(db, statement_id)
-    assert healthy.rows_asked == 1, "the next run asks only the row without an answer"
-    response = await client.post(f"/statements/{statement_id}/approvals", json={})
-    assert response.status_code == 200, response.text
-    assert response.json()["journal_entries_created"] == len(rows)
-    assert healthy.rows_asked == 1
+    stmt = await _statement(db, sid)
+    assert (outcome.auto_posted_count, stmt.status, await _count(db, JournalEntry)) == (
+        0,
+        BankStatementStatus.PARSED,
+        0,
+    ) and (stmt.validation_error or "").startswith("Economic review required:")
+    if not model_off:
+        healthy = _install(monkeypatch, Proposer())
+        await classify_statement(db, sid)
+        resp = await client.post(f"/statements/{sid}/approvals", json={})
+        assert (healthy.rows_asked, resp.status_code, resp.json()["journal_entries_created"]) == (1, 200, len(rows))
 
 
-async def test_AC_extraction_2994_99_a_candidate_with_the_model_off_goes_to_economic_review(db, test_user, monkeypatch):
-    """AC-extraction.2994.99: Rows without an answer stay PARSED with the review notice, as the model-off case did before."""
-    monkeypatch.setattr(settings, "enable_ai_classification", False)
-    service, content = _high_confidence(_rows())
-    statement_id, job = await _parsing_job(db, test_user, content)
-
-    outcome = await _use_case(db, service).execute(job, content=content)
-
-    statement = await _statement(db, statement_id)
-    assert outcome.auto_posted_count == 0
-    assert statement.status is BankStatementStatus.PARSED
-    assert (statement.validation_error or "").startswith("Economic review required:")
-    assert await _count(db, JournalEntry) == 0
-
-
-# --- The other callers of the classification -----------------------------------------------------------
-
-
-async def test_AC_extraction_2994_101_the_one_click_fill_refuses_a_statement_with_an_active_run(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.101: The fill asks no model while a run is active. It raises ActiveRunExists with the run id."""
-    from src.composition import auto_fill_default_statement_dispositions
-
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-
+async def test_AC_extraction_2994_101_155_one_click_fill_guards_and_posts(client, db, test_user, monkeypatch):
+    uid = test_user.id
+    proposer, seeded_active = _install(monkeypatch, Proposer()), await _seed(db, uid)
+    active_id = seeded_active.id
+    run_id = await classify_run_for(db, active_id)
     with pytest.raises(ActiveRunExists) as caught:
-        await auto_fill_default_statement_dispositions(db, seeded.statement, test_user.id)
-
-    assert caught.value.active_run_id == run_id
-    assert proposer.calls == []
-
-
-async def test_AC_extraction_2994_155_the_one_click_fill_asks_no_model_and_posts_to_the_general_accounts(
-    db, test_user, monkeypatch
-):
-    """AC-extraction.2994.155: The fill makes zero model calls. A row without an answer posts to a general account."""
-    from src.composition import auto_fill_default_statement_dispositions
-
-    proposer = _install(monkeypatch, Proposer(error=AssertionError("the fill asked the model")))
-    seeded = await _seed(db, test_user)
-
-    filled = await auto_fill_default_statement_dispositions(db, seeded.statement, test_user.id)
-
-    assert proposer.calls == []
-    assert filled == 5
-    assert await _answers(db, test_user) == 0
-    names = set(await db.scalars(select(Account.name).where(Account.user_id == test_user.id)))
-    assert {"General Expense (SGD)", "General Income (SGD)"} <= names
-
-
-async def test_AC_extraction_2994_101_the_approve_route_with_the_fill_option_gives_409_while_a_run_is_active(
-    client, db, test_user, monkeypatch
-):
-    """AC-extraction.2994.101: The fill option of the approve route cannot start a classification during a run."""
-    proposer = _install(monkeypatch, Proposer())
-    seeded = await _seed(db, test_user)
-    run_id = await classify_run_for(db, seeded.id)
-
-    response = await client.post(
-        f"/statements/{seeded.id}/approvals",
+        await auto_fill_default_statement_dispositions(db, seeded_active.statement, uid)
+    assert caught.value.active_run_id == run_id and proposer.calls == []
+    await db.rollback()
+    resp = await client.post(
+        f"/statements/{active_id}/approvals",
         json={"create_account_if_missing": True, "auto_fill_default_categories": True},
     )
+    assert resp.status_code == 409 and resp.json()["active_run_id"] == str(run_id) and proposer.calls == []
 
-    assert response.status_code == 409, response.text
-    assert response.json()["active_run_id"] == str(run_id)
-    assert proposer.calls == []
-
-
-# --- Interleavings with real sessions: the routes are in tests/api/test_statement_classify_run_routes.py -----
-
-
-async def _active_classify_run(db, user, monkeypatch, proposer):
-    """Start a classify run that waits in the model call. Return the statement id, the run id and the worker task."""
-    seeded = await _seed(db, user)
-    run_id = await classify_run_for(db, seeded.id)
-    worker = asyncio.create_task(
-        execute_classify_run(
-            create_session_maker_from_db(db),
-            run_id=run_id,
-            posting_dependencies=compose_statement_posting_dependencies(),
-        )
+    no_model, seeded_fill = (
+        _install(monkeypatch, Proposer(error=AssertionError("the fill asked the model"))),
+        await _seed(db, uid),
     )
-    await asyncio.wait_for(proposer.started.wait(), timeout=WAIT_SECONDS)
-    return seeded.id, run_id, worker
+    filled = await auto_fill_default_statement_dispositions(db, seeded_fill.statement, uid)
+    names = set(await db.scalars(select(Account.name).where(Account.user_id == uid)))
+    assert (no_model.calls, filled, await _answers(db, uid)) == ([], 5, 0) and {
+        "General Expense (SGD)",
+        "General Income (SGD)",
+    } <= names
 
 
-# --- The flag and the lock are gone ---------------------------------------------------------------------
-
-
-def test_AC_extraction_2994_103_the_review_response_has_no_classification_flag(openapi_schema):
-    """AC-extraction.2994.103: The review payload carries no preclassification_in_progress. The runs list shows the state."""
-    from src.schemas.extraction import StatementReviewResponse
-
-    assert "preclassification_in_progress" not in StatementReviewResponse.model_fields
-    assert (
-        "preclassification_in_progress"
-        not in openapi_schema["components"]["schemas"]["StatementReviewResponse"]["properties"]
-    )
-
-
-def test_AC_extraction_2994_104_no_advisory_lock_guards_the_classification():
-    """AC-extraction.2994.104: The lock functions, the wait constants and the busy error do not exist."""
+def test_AC_extraction_2994_103_104_and_summarize_outcomes(openapi_schema):
     import src.extraction as package
 
+    assert (
+        "preclassification_in_progress" not in StatementReviewResponse.model_fields
+        and "preclassification_in_progress"
+        not in openapi_schema["components"]["schemas"]["StatementReviewResponse"]["properties"]
+    )
     for name in (
         "lock_statement_classification",
         "try_lock_statement_classification",
@@ -904,19 +437,9 @@ def test_AC_extraction_2994_104_no_advisory_lock_guards_the_classification():
         "classify_statement_by_effective_policy",
         "StatementClassificationBusy",
     ):
-        assert not hasattr(package, name), name
-        assert not hasattr(transaction_classification, name), name
+        assert not hasattr(package, name) and not hasattr(transaction_classification, name)
     for name in ("CLASSIFICATION_LOCK_WAIT_SECONDS", "_LOCK_POLL_SECONDS", "_statement_lock_key"):
-        assert not hasattr(transaction_classification, name), name
-
-
-def test_summarize_outcomes_and_phase_deadline():
-    from src.extraction.extension.transaction_classification import (
-        CLASSIFICATION_PHASE_DEADLINE_SECONDS,
-        ClassificationOutcome,
-        summarize_outcomes,
-    )
-
+        assert not hasattr(transaction_classification, name)
     assert 0 < CLASSIFICATION_PHASE_DEADLINE_SECONDS <= 180
     outcomes = [
         ClassificationOutcome(
@@ -932,50 +455,8 @@ def test_summarize_outcomes_and_phase_deadline():
 async def test_phase_batches_commit_independently_and_release_connections(
     db, test_user, test_database_url, monkeypatch
 ):
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-    from src.database import create_app_engine
-    from tests.extraction._statement_run_helpers import ScriptedModel, _wait_until
-
-    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_BATCH_SIZE", 2)
-    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_PARALLEL_BATCHES", 1)
-    seeded = await _seed(db, test_user, _rows(6))
-    gate = asyncio.Event()
-    model = _install(monkeypatch, ScriptedModel(None, gate))
-    run_id = await classify_run_for(db, seeded.id)
-    engine = create_app_engine(test_database_url, pool_size=4, max_overflow=0)
-    worker = asyncio.create_task(_worker(async_sessionmaker(engine, expire_on_commit=False), run_id))
-    try:
-        await asyncio.wait_for(model.reached(1).wait(), timeout=WAIT_SECONDS)
-
-        async def _idle() -> bool:
-            return engine.pool.checkedout() == 0
-
-        assert await _wait_until(_idle)
-    finally:
-        gate.set()
-        await asyncio.wait_for(worker, timeout=WAIT_SECONDS)
-        await engine.dispose()
-    run = await _run(db, run_id)
-    assert run.state is RunState.SUCCEEDED
+    await verify_phase_batches_release_connections(db, test_user, test_database_url, monkeypatch)
 
 
 async def test_two_writers_of_keyword_rule_serialize_without_collision(db, test_user):
-    from src.extraction.extension.transaction_classification import ClassificationService
-
-    seeded = await _seed(db, test_user)
-    await _add_coffee_rule(db, test_user)
-    coffee = next(txn for txn in seeded.transactions if txn.description.startswith("Coffee"))
-    maker = create_session_maker_from_db(db)
-    async with maker() as first, maker() as second:
-        rows_a = await ClassificationService().apply_rules(
-            first, test_user.id, [await first.get(type(coffee), coffee.id)]
-        )
-        task_b = asyncio.create_task(
-            ClassificationService().apply_rules(second, test_user.id, [await second.get(type(coffee), coffee.id)])
-        )
-        done, _ = await asyncio.wait({task_b}, timeout=0.4)
-        assert not done
-        await first.commit()
-        rows_b = await asyncio.wait_for(task_b, timeout=WAIT_SECONDS)
-        await second.commit()
-    assert [r.id for r in rows_a] == [r.id for r in rows_b]
+    await verify_two_writers_keyword_rule_serialize(db, test_user)

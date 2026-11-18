@@ -75,7 +75,6 @@ def _directions(payload: dict) -> list[str]:
 
 
 def test_AC_extraction_2987_13_a_one_entry_balances_list_does_not_block_the_card_sign_inversion():
-    """AC-extraction.2987.13: A single-currency statement with a one-entry balances list reconciles like one without."""
     plain = normalize_statement_balance_payload(_card_payload())
     listed = normalize_statement_balance_payload(
         _card_payload(balances=[{"currency": "SGD", "opening": "412.16", "closing": "702.10"}])
@@ -87,7 +86,6 @@ def test_AC_extraction_2987_13_a_one_entry_balances_list_does_not_block_the_card
 
 
 def test_AC_extraction_2987_14_a_balances_list_of_two_currencies_is_kept():
-    """AC-extraction.2987.14: Dropping the one-entry list must not drop the list of a statement in two currencies."""
     payload = _card_payload(
         balances=[
             {"currency": "SGD", "opening": "412.16", "closing": "702.10"},
@@ -101,7 +99,6 @@ def test_AC_extraction_2987_14_a_balances_list_of_two_currencies_is_kept():
 
 @pytest.mark.parametrize("flipped", [0, 2, 5])
 def test_AC_extraction_2987_15_a_direction_that_the_running_balance_contradicts_is_repaired(flipped):
-    """AC-extraction.2987.15: One wrong direction among rows with a running balance is set from the balance."""
     payload = _running_balance_payload(SPEC, "1000.00")
     truth = _directions(payload)
     payload["transactions"][flipped]["direction"] = "OUT" if truth[flipped] == "IN" else "IN"
@@ -113,7 +110,6 @@ def test_AC_extraction_2987_15_a_direction_that_the_running_balance_contradicts_
 
 
 def test_AC_extraction_2987_16_a_statement_that_prints_balances_owed_keeps_its_directions():
-    """AC-extraction.2987.16: When most rows disagree with the balance sign, the convention is inverted and nothing is flipped."""
     payload = _running_balance_payload(SPEC, "1000.00")
     for txn in payload["transactions"]:
         txn["direction"] = "OUT" if txn["direction"] == "IN" else "IN"
@@ -123,7 +119,6 @@ def test_AC_extraction_2987_16_a_statement_that_prints_balances_owed_keeps_its_d
 
 
 def test_AC_extraction_2987_17_a_row_whose_balance_step_differs_from_its_amount_keeps_its_direction():
-    """AC-extraction.2987.17: A balance step that does not equal the amount proves nothing, so the direction stays."""
     payload = _running_balance_payload(SPEC, "1000.00")
     payload["transactions"][2]["balance_after"] = "1234.56"
     payload["transactions"][2]["direction"] = "OUT"
@@ -132,7 +127,6 @@ def test_AC_extraction_2987_17_a_row_whose_balance_step_differs_from_its_amount_
 
 
 def test_AC_extraction_2987_18_rows_without_a_running_balance_keep_their_directions():
-    """AC-extraction.2987.18: A statement with no balance_after column is not touched by the repair."""
     payload = _running_balance_payload(SPEC, "1000.00")
     for txn in payload["transactions"]:
         del txn["balance_after"]

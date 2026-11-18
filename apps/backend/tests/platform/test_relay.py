@@ -1,4 +1,3 @@
-"AC-platform.1.2 AC-platform.1.3"
 
 import asyncio
 from datetime import UTC, datetime
@@ -22,7 +21,6 @@ async def _seed(db, *, n=1, name="counter.Incremented"):
 
 
 async def test_run_once_dispatches_and_marks_published(db):
-    "AC-platform.1.2"
     registry = SubscriberRegistry()
     seen: list[dict] = []
     registry.subscribe("counter.Incremented", lambda e: seen.append(e.payload()))
@@ -49,7 +47,6 @@ async def test_run_once_awaits_async_handlers(db):
 
 
 async def test_second_run_does_not_redispatch_published(db):
-    "AC-platform.1.3"
     registry = SubscriberRegistry()
     deliveries: list[str] = []
     registry.subscribe("counter.Incremented", lambda e: deliveries.append(e.event_type))
@@ -61,7 +58,6 @@ async def test_second_run_does_not_redispatch_published(db):
 
 
 async def test_redelivery_of_pending_is_idempotent_safe(db):
-    "AC-platform.1.3"
     registry = SubscriberRegistry()
     applied: set[str] = set()
     events: list[str] = []

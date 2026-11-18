@@ -1,4 +1,3 @@
-"EPIC-018"
 
 from decimal import Decimal
 from uuid import uuid4
@@ -21,7 +20,6 @@ _correction = lambda *, description=None, original=None, corrected="Office Suppl
 
 
 def test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern():
-    "AC-extraction.1814.1 AC18.14.1"
     corrections = [
         _correction(description="  Starbucks  COFFEE ", original="Travel", corrected="Meals"),
         _correction(description=None, original="Misc", corrected="Software"),
@@ -35,7 +33,6 @@ def test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern():
 
 
 def test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur():
-    "AC-extraction.1814.2 AC18.14.2"
     corpus = [
         CorrectionRecord(key="rent", corrected_category="Housing", proposed_category="Misc"),
         CorrectionRecord(key="salary", corrected_category="Income", proposed_category=None),
@@ -48,8 +45,6 @@ def test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur()
     assert result.proportion_before == Decimal("1")
     assert result.proportion_after == Decimal("0.5")
     assert result.reduced is True
-    "AC18.14.2"
-    "AC18.14.2"
     _m1_corpus = [
         CorrectionRecord(key="a", corrected_category="A", proposed_category=None),
         CorrectionRecord(key="b", corrected_category="B", proposed_category=None),
@@ -63,7 +58,6 @@ def test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur()
 
 
 async def test_AC18_14_3_service_builds_corpus_from_persisted_corrections(db, test_user):
-    "AC-extraction.1814.3 AC18.14.3"
     from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
     document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
@@ -87,7 +81,6 @@ async def test_AC18_14_3_service_builds_corpus_from_persisted_corrections(db, te
 
 
 async def test_AC18_14_4_service_replay_measures_held_out_reduction(db, test_user):
-    "AC-extraction.1814.4 AC18.14.4"
     from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
     document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
@@ -118,7 +111,6 @@ async def test_AC18_14_4_service_replay_measures_held_out_reduction(db, test_use
 
 
 async def test_AC18_14_4_service_replay_counts_real_statement_confidence_tiers(db, test_user):
-    "AC-extraction.1814.4"
     from src.extraction import BankStatementStatus
     from tests.factories import StatementSummaryFactory
 

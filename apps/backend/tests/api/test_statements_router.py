@@ -106,7 +106,6 @@ def _patch_parse_document(
 
 
 async def test_upload_statement_duplicate(client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    "AC-extraction.5.4"
     content = b"duplicate-statement"
     _patch_parse_document(monkeypatch, test_user.id)
     first = await _post_upload(client, "statement.pdf", content, institution="DBS", model="google/gemini-3-flash-preview")
@@ -118,7 +117,6 @@ async def test_upload_statement_duplicate(client: AsyncClient, monkeypatch, stor
 
 
 async def test_upload_storage_failure(client: AsyncClient, monkeypatch, model_catalog_stub):
-    "AC-extraction.5.5"
     mock_storage = MagicMock()
     mock_storage.upload_bytes.side_effect = StorageError("S3 Down")
     monkeypatch.setattr("src.routers.statements.StorageService", MagicMock(return_value=mock_storage))
@@ -129,7 +127,6 @@ async def test_upload_storage_failure(client: AsyncClient, monkeypatch, model_ca
 
 
 async def test_upload_invalid_extension(client: AsyncClient):
-    "AC-extraction.5.6"
     resp = await _post_upload(client, "statement.exe", b"content", institution="DBS")
     assert resp.status_code == status.HTTP_400_BAD_REQUEST
     assert "Unsupported file type" in resp.json()["detail"]
@@ -149,7 +146,6 @@ async def test_AC3_5_upload_rejects_cross_user_account_id(client: AsyncClient, d
 
 
 async def test_upload_uses_default_ocr_pipeline_for_pdf(client: AsyncClient, monkeypatch, storage_stub, test_user):
-    "AC-extraction.5.7"
     mock_parse = AsyncMock(return_value=None)
     monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
 
@@ -171,7 +167,6 @@ async def test_upload_uses_default_ocr_pipeline_for_pdf(client: AsyncClient, mon
 async def test_AC_extraction_1913_9_upload_registers_source_before_dispatch(
     client: AsyncClient, db, monkeypatch, storage_stub
 ):
-    "AC-extraction.1913.9"
     mock_parse = AsyncMock(return_value=None)
     monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
 
@@ -201,7 +196,6 @@ async def test_AC_extraction_1913_9_upload_registers_source_before_dispatch(
 async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
     client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub
 ):
-    "AC-observability.8.1"
     content = b"audit-log-input"
     mock_parse = AsyncMock(return_value=None)
     mock_info = MagicMock()
@@ -247,7 +241,6 @@ async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
 async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(
     client: AsyncClient, monkeypatch, model_catalog_stub
 ):
-    "AC-observability.8.1"
     content = b"storage-failure-input"
     mock_error = MagicMock()
     monkeypatch.setattr("src.routers.statements.logger.error", mock_error)
@@ -276,7 +269,6 @@ async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(
 
 
 async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(client: AsyncClient, db, test_user, monkeypatch):
-    "AC-observability.8.3"
     statement = build_statement(test_user.id, "manual_brokerage_audit", 95)
     statement.institution = "Moomoo"
     db.add(statement)
@@ -318,7 +310,6 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(client: Asy
 
 
 async def test_upload_rejects_text_only_model(client: AsyncClient, monkeypatch):
-    "AC-extraction.5.8"
 
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
@@ -330,7 +321,6 @@ async def test_upload_rejects_text_only_model(client: AsyncClient, monkeypatch):
 
 
 async def test_pending_review_and_decisions(client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    "AC-extraction.5.10"
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
     score_by_hash = {
@@ -390,7 +380,6 @@ async def test_pending_review_and_decisions(client: AsyncClient, db, monkeypatch
 
 
 async def test_stage1_reject_triggers_reparse(client: AsyncClient, db, monkeypatch, storage_stub, test_user):
-    "AC-extraction.stage1-validation.9 AC16.22.2"
     statement = build_statement(test_user.id, "hash_stage1_reject_reparse", 70)
     statement.status = BankStatementStatus.PARSED
     db.add(statement)
@@ -435,13 +424,11 @@ async def test_stage1_reject_triggers_reparse(client: AsyncClient, db, monkeypat
 
 
 async def test_get_statement_not_found(client: AsyncClient):
-    "AC-extraction.5.11"
     resp = await client.get("/statements/00000000-0000-0000-0000-000000000000")
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 async def test_upload_file_too_large(client: AsyncClient, model_catalog_stub):
-    "AC-extraction.5.12"
     content = b"x" * (10 * 1024 * 1024 + 1)
     resp = await _post_upload(client, "large-statement.pdf", content, institution="DBS", model="google/gemini-3-flash-preview")
     assert resp.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
@@ -449,7 +436,6 @@ async def test_upload_file_too_large(client: AsyncClient, model_catalog_stub):
 
 
 async def test_upload_extraction_failure(client: AsyncClient, db, monkeypatch, model_catalog_stub, test_user):
-    "AC-extraction.5.13"
     mock_storage = MagicMock()
     mock_storage.upload_bytes.return_value = None
     mock_storage.generate_presigned_url.return_value = "https://example.com/file"
@@ -469,13 +455,11 @@ async def test_upload_extraction_failure(client: AsyncClient, db, monkeypatch, m
 
 
 async def test_retry_statement_not_found(client: AsyncClient):
-    "AC-extraction.5.14"
     resp = await client.post("/statements/00000000-0000-0000-0000-000000000000/runs", json={})
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 async def test_retry_rejects_text_only_model(client: AsyncClient, db, monkeypatch, test_user):
-    "AC-extraction.5.15"
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
     db.add(statement)
@@ -495,7 +479,6 @@ async def test_retry_rejects_text_only_model(client: AsyncClient, db, monkeypatc
 async def test_retry_statement_storage_failure(
     client: AsyncClient, db, monkeypatch, test_user, prior_status, source_available
 ):
-    "AC-extraction.5.16"
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = prior_status
     statement.validation_error = "Original review failure"
@@ -522,7 +505,6 @@ async def test_retry_statement_storage_failure(
 async def test_retry_statement_invalid_status(
     client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    "AC-extraction.5.17"
     _patch_parse_document(monkeypatch, test_user.id, status=BankStatementStatus.PARSING)
     upload_resp = await _post_upload(
         client, "statement.pdf", b"statement", institution="DBS", model="google/gemini-3-flash-preview"
@@ -540,7 +522,6 @@ async def test_retry_statement_invalid_status(
 
 
 async def test_retry_statement_parsing_allowed(client: AsyncClient, db, storage_stub, test_user):
-    "AC-extraction.5.18"
     sid = uuid4()
     statement = StatementSummary(
         id=sid, user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash="h_parsing", institution="DBS"
@@ -561,7 +542,6 @@ async def test_retry_statement_parsing_allowed(client: AsyncClient, db, storage_
 
 
 async def test_AC13_21_3_retry_accepts_parsed_resting_state(client: AsyncClient, db, storage_stub, test_user):
-    "AC-extraction.121.3"
     sid = uuid4()
     statement = StatementSummary(
         id=sid,
@@ -589,14 +569,12 @@ async def test_AC13_21_3_retry_accepts_parsed_resting_state(client: AsyncClient,
 
 
 async def test_AC13_21_6_csv_missing_institution_rejected_sync(client: AsyncClient, storage_stub):
-    "AC-extraction.121.6"
     resp = await _post_upload(client, "statement.csv", b"date,amount\n2025-01-01,10.00\n", institution=None)
     assert resp.status_code == status.HTTP_400_BAD_REQUEST
     assert "institution" in resp.json()["detail"].lower()
 
 
 async def test_retry_statement_success(client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    "AC-extraction.5.19"
     _patch_parse_document(monkeypatch, test_user.id, confidence_score=60, status=BankStatementStatus.REJECTED)
     upload_resp = await _post_upload(
         client, "statement.pdf", b"statement", institution="DBS", model="google/gemini-3-flash-preview"
@@ -617,7 +595,6 @@ async def test_retry_statement_success(client: AsyncClient, db, monkeypatch, sto
 async def test_retry_statement_extraction_failure(
     client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    "AC-extraction.5.20"
     _patch_parse_document(monkeypatch, test_user.id, status=BankStatementStatus.REJECTED)
     upload_resp = await _post_upload(
         client, "statement.pdf", b"statement", institution="DBS", model="google/gemini-3-flash-preview"
@@ -642,7 +619,6 @@ async def test_retry_statement_extraction_failure(
 
 
 async def test_upload_statement_rejects_invalid_model(client: AsyncClient, storage_stub, monkeypatch):
-    "AC-extraction.5.21"
 
     async def fake_catalog_get(self, model_id):
         return None
@@ -654,7 +630,6 @@ async def test_upload_statement_rejects_invalid_model(client: AsyncClient, stora
 
 
 async def test_upload_statement_rejects_model_without_image_modality(client: AsyncClient, storage_stub, monkeypatch):
-    "AC-extraction.5.22"
 
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
@@ -666,7 +641,6 @@ async def test_upload_statement_rejects_model_without_image_modality(client: Asy
 
 
 async def test_retry_statement_rejects_invalid_model(client: AsyncClient, db, test_user, monkeypatch, storage_stub):
-    "AC-extraction.5.23"
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
     db.add(statement)
@@ -682,7 +656,6 @@ async def test_retry_statement_rejects_invalid_model(client: AsyncClient, db, te
 
 
 async def test_background_parse_error_logging(client: AsyncClient, db, monkeypatch, test_user, storage_stub):
-    "AC-extraction.5.24"
     started = time.monotonic()
     monkeypatch.setattr(statement_parsing_mod, "PARSE_RETRY_DELAY_SECONDS", 0)
     _patch_parse_document(monkeypatch, test_user.id, side_effect=Exception("Fatal background error"))
@@ -702,7 +675,6 @@ async def test_background_parse_error_logging(client: AsyncClient, db, monkeypat
 
 
 async def test_background_retry_error_logging(client: AsyncClient, db, monkeypatch, test_user, storage_stub):
-    "AC-extraction.5.25"
     started = time.monotonic()
     monkeypatch.setattr(statement_parsing_mod, "PARSE_RETRY_DELAY_SECONDS", 0)
     statement = build_statement(test_user.id, "hash_retry", 80)
@@ -783,7 +755,6 @@ async def test_get_statement_for_review(client: AsyncClient, db, test_user, monk
 
 
 async def test_AC16_33_5_get_statement_document_streams_bytes_same_origin(client: AsyncClient, db, test_user, monkeypatch):
-    "AC-extraction.document-delivery.2 AC16.33.5"
     statement = build_statement(test_user.id, "hash_doc_stream", 75)
     db.add(statement)
     await db.flush()
@@ -799,7 +770,6 @@ async def test_AC16_33_5_get_statement_document_streams_bytes_same_origin(client
 
 
 async def test_AC16_33_5_get_statement_document_404_when_no_document(client: AsyncClient, db, test_user):
-    "AC16.33.5"
     statement = build_statement(test_user.id, "hash_doc_missing", 75)
     db.add(statement)
     await db.commit()
@@ -809,7 +779,6 @@ async def test_AC16_33_5_get_statement_document_404_when_no_document(client: Asy
 
 
 async def test_AC16_33_5_get_statement_document_storage_error_maps_to_502(client: AsyncClient, db, test_user, monkeypatch):
-    "AC16.33.5"
     statement = build_statement(test_user.id, "hash_doc_storage_err", 75)
     db.add(statement)
     await db.flush()
@@ -845,7 +814,6 @@ async def test_get_statement_for_review_storage_error(client: AsyncClient, db, t
 
 
 async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(client: AsyncClient, db, test_user, monkeypatch):
-    "AC-extraction.document-delivery.1 AC16.33.4"
     statement = build_statement(test_user.id, "hash_review_short_presign", 75)
     db.add(statement)
     await db.flush()
@@ -880,7 +848,6 @@ async def test_retry_statement_invalid_model(client: AsyncClient, db, monkeypatc
 
 
 async def test_list_and_transactions_flow(client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    "AC-extraction.5.9"
     from src.extraction.extension.deduplication import DeduplicationService
 
     txn_date = date(2025, 1, 2)

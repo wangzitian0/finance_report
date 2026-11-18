@@ -102,7 +102,6 @@ async def _failed_first_run(db, user, statement_id):
 async def test_AC_extraction_2994_50_post_runs_starts_a_rerun_with_the_hints_as_typed(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.50: POST runs writes a user rerun run with the typed hints and dispatches it."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     first_id = await _failed_first_run(db, test_user, statement_id)
@@ -136,7 +135,6 @@ async def test_AC_extraction_2994_50_post_runs_starts_a_rerun_with_the_hints_as_
 async def test_AC_extraction_2994_50_the_body_may_omit_kind_hints_and_model(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.50: An empty body runs the extraction again with no hints, like the old retry."""
     statement = await _statement(db, test_user, status=BankStatementStatus.REJECTED)
     jobs = _capture_dispatch(monkeypatch)
 
@@ -151,7 +149,6 @@ async def test_AC_extraction_2994_50_the_body_may_omit_kind_hints_and_model(
 async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_hints(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.50: The new run carries the template version and a digest that its columns reproduce."""
     statement = await _statement(db, test_user)
     _capture_dispatch(monkeypatch)
     hints = {"keywords": ["salary"], "note": None}
@@ -192,7 +189,6 @@ async def test_AC_extraction_2994_50_the_run_stores_the_digest_of_its_model_and_
 async def test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits(
     body, client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.51: An unknown kind, an actor in the body or a hint over its limit gives 422 and no run."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)
@@ -207,7 +203,6 @@ async def test_AC_extraction_2994_51_post_runs_rejects_a_body_outside_the_limits
 async def test_AC_extraction_2994_51_post_runs_accepts_the_hint_limits(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.51: 20 keywords of 64 characters and a 500-character note are valid."""
     statement = await _statement(db, test_user)
     _capture_dispatch(monkeypatch)
     hints = {"keywords": [f"{n:02d}" + "k" * 62 for n in range(20)], "note": "n" * 500}
@@ -221,7 +216,6 @@ async def test_AC_extraction_2994_51_post_runs_accepts_the_hint_limits(
 async def test_AC_extraction_2994_52_post_runs_of_another_users_statement_gives_404(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.52: A statement of another user gives 404, and no run starts."""
     other = User(id=uuid4(), email=f"other-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other)
     await db.commit()
@@ -237,7 +231,6 @@ async def test_AC_extraction_2994_52_post_runs_of_another_users_statement_gives_
 
 
 async def test_AC_extraction_2994_52_post_runs_of_an_unknown_statement_gives_404(client, test_user):
-    """AC-extraction.2994.52: An unknown statement id gives 404."""
     response = await client.post(f"/statements/{uuid4()}/runs", json={})
 
     assert response.status_code == 404, response.text
@@ -246,7 +239,6 @@ async def test_AC_extraction_2994_52_post_runs_of_an_unknown_statement_gives_404
 async def test_AC_extraction_2994_53_post_runs_of_a_csv_statement_with_hints_gives_400(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.53: A CSV parse sends no prompt, so hints on a CSV statement give 400 and no run."""
     statement = await _statement(db, test_user, name="bank.csv")
     statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)
@@ -261,7 +253,6 @@ async def test_AC_extraction_2994_53_post_runs_of_a_csv_statement_with_hints_giv
 
 
 async def test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_their_hints(client, db, test_user):
-    """AC-extraction.2994.54: GET runs returns each attempt by seq with its hints, actor, state and error."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     first_id = await _failed_first_run(db, test_user, statement_id)
@@ -307,7 +298,6 @@ async def test_AC_extraction_2994_54_get_runs_lists_the_attempts_in_order_with_t
 async def test_AC_extraction_2994_54_get_runs_shows_two_runs_with_identical_results_as_two_rows(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.54: Two runs with different hints leave two rows, whatever their results."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     _capture_dispatch(monkeypatch)
@@ -325,7 +315,6 @@ async def test_AC_extraction_2994_54_get_runs_shows_two_runs_with_identical_resu
 
 
 async def test_AC_extraction_2994_54_get_runs_is_scoped_to_the_owner(client, db, test_user):
-    """AC-extraction.2994.54: A statement of another user gives 404, never an empty or a foreign list."""
     other = User(id=uuid4(), email=f"owner-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other)
     await db.commit()
@@ -349,7 +338,6 @@ async def test_AC_extraction_2994_54_get_runs_is_scoped_to_the_owner(client, db,
 
 
 async def test_AC_extraction_2994_54_get_runs_of_a_statement_without_runs_is_an_empty_list(client, db, test_user):
-    """AC-extraction.2994.54: An older statement with no run row gives an empty list, not an error."""
     statement = await _statement(db, test_user)
 
     response = await client.get(f"/statements/{statement.id}/runs")
@@ -359,7 +347,6 @@ async def test_AC_extraction_2994_54_get_runs_of_a_statement_without_runs_is_an_
 
 
 async def test_AC_extraction_2994_55_the_retry_route_and_its_request_schema_are_gone(client, db, test_user):
-    """AC-extraction.2994.55: POST /retry no longer exists, and neither does RetryParsingRequest."""
     from src import schemas
     from src.main import app
 
@@ -380,7 +367,6 @@ async def test_AC_extraction_2994_55_the_retry_route_and_its_request_schema_are_
 
 
 async def test_AC_extraction_2994_54_list_runs_returns_only_the_runs_of_the_given_user(db, test_user):
-    """AC-extraction.2994.54: list_runs filters by user, so it never returns the runs of another user."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     await _failed_first_run(db, test_user, statement_id)
@@ -409,7 +395,6 @@ async def _status(db, statement_id) -> BankStatementStatus:
 async def test_AC_extraction_2994_67_a_status_that_changed_after_the_check_gives_409_and_no_write(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.67: An approval that commits after the status check wins: the rerun gives 409 and writes nothing."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     approved = await _approved_values(db, test_user)
@@ -439,7 +424,6 @@ async def test_AC_extraction_2994_67_a_status_that_changed_after_the_check_gives
 async def test_AC_extraction_2994_69_reject_on_a_csv_statement_records_empty_hints(
     client, db, monkeypatch, storage_stub, test_user
 ):
-    """AC-extraction.2994.69: A CSV parse sends no prompt, so a reject of a CSV statement records no hint note."""
     statement = await _statement(db, test_user, name="bank.csv")
     statement_id = statement.id
     _capture_dispatch(monkeypatch)
@@ -454,7 +438,6 @@ async def test_AC_extraction_2994_69_reject_on_a_csv_statement_records_empty_hin
 async def test_AC_extraction_2994_69_reject_on_a_pdf_statement_still_records_its_note(
     client, db, monkeypatch, storage_stub, test_user
 ):
-    """AC-extraction.2994.69: A reject of a PDF statement keeps the notes as the hint note."""
     statement = await _statement(db, test_user, name="bank.pdf")
     statement_id = statement.id
     _capture_dispatch(monkeypatch)
@@ -471,14 +454,12 @@ async def test_AC_extraction_2994_69_reject_on_a_pdf_statement_still_records_its
     "file_type,applies", [("pdf", True), ("png", True), ("jpg", True), ("jpeg", True), ("csv", False)]
 )
 def test_AC_extraction_2994_69_hints_apply_only_to_the_file_types_that_send_a_prompt(file_type, applies):
-    """AC-extraction.2994.69: The package rule says which file types send a prompt, and the parse uses the same set."""
     from src.extraction import hints_apply_to_file_type
 
     assert hints_apply_to_file_type(file_type) is applies
 
 
 async def test_AC_extraction_2994_54_get_runs_lists_a_run_whose_stored_hints_no_longer_validate(client, db, test_user):
-    """AC-extraction.2994.54: A stored row that the current rules reject does not break the audit list."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     run_id = await _failed_first_run(db, test_user, statement_id)
@@ -506,7 +487,6 @@ class _CountingStorage:
 async def test_AC_extraction_2994_78_hints_on_a_csv_statement_give_400_before_any_storage_read(
     client, db, monkeypatch, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.78: The CSV rule comes before the storage read: a missing file still gives 400, not 503."""
     statement = await _statement(db, test_user, name="bank.csv")
     statement_id = statement.id
     _CountingStorage.reads = 0
@@ -522,7 +502,6 @@ async def test_AC_extraction_2994_78_hints_on_a_csv_statement_give_400_before_an
 async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_after_its_first_read(
     client, db, monkeypatch, storage_stub, test_user
 ):
-    """AC-extraction.2994.78: The reject locks the statement row and checks the status again: a retired statement gives 409."""
     statement = await _statement(db, test_user)
     statement_id = statement.id
     jobs = _capture_dispatch(monkeypatch)
@@ -554,7 +533,6 @@ async def test_AC_extraction_2994_78_a_reject_refuses_a_status_that_changed_afte
 async def test_AC_extraction_2994_78_a_reject_and_a_rerun_at_once_give_one_winner_and_one_409(
     client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC-extraction.2994.78: A reject against a rerun, and a reject against a reject: one winner, a 409 for the loser."""
     jobs = _capture_dispatch(monkeypatch)
     for round_number in range(6):
         statement = await _statement(db, test_user)

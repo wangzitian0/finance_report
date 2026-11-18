@@ -158,7 +158,6 @@ def _all_router_violations() -> dict[str, set[str]]:
 
 @pytest.mark.no_db
 def test_routers_have_no_legacy_patterns() -> None:
-    """AC-platform.router-contract.1: reject legacy router violations with zero allowlist exceptions."""
     actual = _all_router_violations()
     assert actual == {}, f"Unexpected legacy router violations: {actual}"
 
@@ -168,7 +167,6 @@ _NON_DOMAIN_PACKAGE_DIRS = frozenset({"routers", "__pycache__"})
 
 @pytest.mark.no_db
 def test_domain_packages_do_not_import_config_app() -> None:
-    """AC-platform.router-contract.3: keep domain packages free of src.config_app imports."""
     violators: list[str] = []
     discovered_dirs = tuple(
         sorted(
@@ -201,7 +199,6 @@ def test_domain_packages_do_not_import_config_app() -> None:
 
 @pytest.mark.no_db
 def test_tests_do_not_use_dual_http_and_domain_error_raises() -> None:
-    """AC-platform.router-contract.4: keep backend tests free of (HTTPException, DomainError) tuple catches."""
     tests_dir = Path(__file__).resolve().parents[1]
     violators: list[str] = []
     for path in sorted(tests_dir.rglob("*.py")):
@@ -228,7 +225,6 @@ def test_tests_do_not_use_dual_http_and_domain_error_raises() -> None:
 
 @pytest.mark.no_db
 def test_api_tests_do_not_import_src_routers() -> None:
-    """AC-platform.router-contract.5: keep tests/api free of direct src.routers imports."""
     api_tests_dir = Path(__file__).resolve().parents[1] / "api"
     violators: list[str] = []
     for path in sorted(api_tests_dir.rglob("*.py")):

@@ -1,4 +1,4 @@
-'AC-extraction.source-conservation.1'; from uuid import uuid4; import pytest; from src.extraction import DocumentType; from src.extraction.extension.source_lifecycle import SourceIdentityCommand
+from uuid import uuid4; import pytest; from src.extraction import DocumentType; from src.extraction.extension.source_lifecycle import SourceIdentityCommand
 def test_document_type_rejects_unsupported_document_types():
     unsupported_types = ['tax_return', 'payslip', 'utility_bill', 'crypto_wallet', 'invoice']
     for doc_type in unsupported_types:

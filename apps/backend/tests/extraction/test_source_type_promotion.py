@@ -16,7 +16,6 @@ from src.request_context import RequestContext
 
 
 async def test_stage1_approve_preserves_auto_parsed_provenance(db: AsyncSession, test_user: User) -> None:
-    "AC-extraction.110.3"
     bank_account = Account(
         user_id=test_user.id, name=f"DBS Confirmed {uuid4()}", type=AccountType.ASSET, currency="SGD"
     )

@@ -1,4 +1,4 @@
-'AC-audit.trace-record.3'; from __future__ import annotations; from collections.abc import Sequence; from dataclasses import dataclass; from uuid import uuid4; import pytest; from src.audit import TraceCausality, TraceDecisionOutcome, TraceRecord, TraceRecordValidationError, TraceResult, TraceScope, TraceTargetClass, VersionedTraceRef; from .conftest import authority, decision_policy, observation
+from __future__ import annotations; from collections.abc import Sequence; from dataclasses import dataclass; from uuid import uuid4; import pytest; from src.audit import TraceCausality, TraceDecisionOutcome, TraceRecord, TraceRecordValidationError, TraceResult, TraceScope, TraceTargetClass, VersionedTraceRef; from .conftest import authority, decision_policy, observation
 def _decision(parents, *, policy=None, target=None, execution_id=None): first = parents[0]; return TraceRecord.decision(scope=first.scope, target=target or first.target, policy=policy or decision_policy(), execution_id=execution_id or first.execution_id, occurred_at=first.occurred_at, parents=parents)
 def test_AC_audit_trace_record_3_decision_causality_fails_closed():
     parent = observation(); assert _decision([parent]).parent_ids == (parent.record_id,); mutations = [observation(scope=TraceScope.tenant(uuid4())), observation(scope=parent.scope, target_id='other-target'), observation(scope=parent.scope, execution_id='other-execution'), observation(scope=parent.scope, result=TraceResult.SKIPPED)]
@@ -16,6 +16,6 @@ class RequiredManifestPolicy:
         if actual != self.required_assertion_ids: raise TraceRecordValidationError('incomplete MANIFEST parent set')
         return TraceDecisionOutcome(result=TraceResult.AUTHORITATIVE, reason_code='manifest_complete')
 def test_AC_audit_trace_record_5_financial_authority_requires_code_parent():
-    'AC-audit.trace-record.5'; llm_observation = observation(profile=authority(tier='LLM-LED', proof_kind='eval', provenance='live_llm'))
+    llm_observation = observation(profile=authority(tier='LLM-LED', proof_kind='eval', provenance='live_llm'))
     with pytest.raises(TraceRecordValidationError, match='CODE-ONLY'): _decision([llm_observation], policy=decision_policy(profile=authority(tier='LLM-ONLY', proof_kind='eval', provenance='live_llm')))
     invariant_observation = observation(scope=llm_observation.scope, execution_id=llm_observation.execution_id, assertion_id='balance-invariant'); invariant_decision = _decision([invariant_observation], policy=decision_policy(assertion_kind='invariant', assertion_id='balance-guard')); authoritative = _decision([llm_observation, invariant_decision], policy=decision_policy(assertion_id='financial-authority')); assert authoritative.result is TraceResult.AUTHORITATIVE

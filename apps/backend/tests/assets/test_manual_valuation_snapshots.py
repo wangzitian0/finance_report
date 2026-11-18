@@ -20,7 +20,6 @@ from src.schemas.pricing import ManualValuationSnapshotCreate
 
 
 async def test_create_manual_valuation_snapshot_crud_api(client):
-    "AC-pricing.manualvaluation.5 AC11.9.1"
     payload = {
         "component_type": "property_value",
         "as_of_date": "2026-05-18",
@@ -71,7 +70,6 @@ async def test_create_manual_valuation_snapshot_crud_api(client):
 
 
 async def test_manual_valuation_snapshot_filter_and_default_liquidity(client):
-    "AC11.9.1"
     property_payload = {
         "component_type": "property_value",
         "as_of_date": "2026-05-18",
@@ -102,13 +100,11 @@ async def test_manual_valuation_snapshot_filter_and_default_liquidity(client):
 
 
 async def test_manual_valuation_snapshot_errors(client):
-    "AC11.9.1"
     invalid_filter_response = await client.get("/pricing/manual-valuations", params={"component_type": "unsupported"})
     assert invalid_filter_response.status_code == 400
 
 
 async def test_manual_valuation_components_api_returns_latest_as_of_values(client):
-    "AC11.9.2 AC22.13.1"
     old_property = {
         "component_type": "property_value",
         "as_of_date": "2026-01-31",
@@ -139,7 +135,6 @@ async def test_manual_valuation_components_api_returns_latest_as_of_values(clien
 
 @pytest.mark.no_db
 def test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type() -> None:
-    "AC-pricing.provenance.1 AC22.13.1"
     assert ValuationComponentItem.__dataclass_fields__["provenance"].type == DataProvenance
 
 
@@ -149,7 +144,6 @@ class _HeadQueryIssued(Exception):
 
 @pytest.mark.no_db
 async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
-    "AC11.19.1"
     db = MagicMock()
     db.execute = AsyncMock(side_effect=_HeadQueryIssued)
     with pytest.raises(_HeadQueryIssued):
@@ -169,7 +163,6 @@ async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
 
 
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
-    "AC11.9.1"
     from src.routers import pricing as pricing_router
 
     async def raise_on_create(*args, **kwargs):
@@ -190,7 +183,6 @@ async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(cli
 
 
 async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history(db, test_user):
-    "AC-pricing.manualvaluation.1 AC11.19.1"
     service = ValuationService()
     identity = dict(
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
@@ -230,7 +222,6 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
 
 
 async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user):
-    "AC-pricing.manualvaluation.2 AC11.19.2"
     service = ValuationService()
     key = dict(
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
@@ -249,7 +240,6 @@ async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(
 
 
 def test_manual_valuation_snapshot_schema_normalizes_currency():
-    "AC11.9.1"
     create_payload = ManualValuationSnapshotCreate(
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
         as_of_date=date(2026, 5, 18),
@@ -261,7 +251,6 @@ def test_manual_valuation_snapshot_schema_normalizes_currency():
 
 
 async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_user):
-    "AC-pricing.manualvaluation.6 AC11.9.2"
     service = ValuationService()
     await service.create_valuation_snapshot(
         db,
@@ -300,7 +289,6 @@ async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_us
 
 
 async def test_manual_valuation_snapshot_restricted_toggle(db, test_user):
-    "AC-pricing.manualvaluation.7 AC11.9.3"
     service = ValuationService()
     await service.create_valuation_snapshot(
         db,

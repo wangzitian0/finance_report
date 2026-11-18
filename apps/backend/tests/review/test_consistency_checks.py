@@ -1,64 +1,203 @@
-from datetime import date; from decimal import Decimal; from types import SimpleNamespace; from unittest.mock import AsyncMock, patch; from uuid import uuid4; import pytest; from sqlalchemy import select; from sqlalchemy.ext.asyncio import AsyncSession; from src.extraction import BankStatementStatus, DocumentType, TransactionDirection, UploadedDocument; from src.extraction.orm.layer2 import AtomicTransaction; from src.extraction.orm.statement_summary import StatementSummary; from src.ledger import Account, AccountType, create_transfer_in_entry, create_transfer_out_entry; from src.reconciliation import CheckResolutionAction, ConsistencyCheckNotFoundError, InvalidCheckActionError, paired_transfer_entry_ids; from src.reconciliation.extension.consistency_checks import detect_anomalies_batch, detect_duplicates, detect_transfer_pairs, has_unresolved_checks, list_checks, resolve_check, run_all_consistency_checks; from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck; from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus, ReconciliationTransferPair, TransferPairDecision
-@pytest.fixture
-def user_id(test_user): return test_user.id
-async def _make_statement(db, user_id, *, file_hash: str) -> StatementSummary: account = Account(user_id=user_id, name=f'Consistency Account {uuid4()}', type=AccountType.ASSET, currency='USD'); doc = UploadedDocument(id=uuid4(), user_id=user_id, file_path=f'statements/{file_hash}.pdf', file_hash=file_hash, original_filename='test.pdf', document_type=DocumentType.BANK_STATEMENT); db.add_all([account, doc]); await db.flush(); statement = StatementSummary(id=uuid4(), user_id=user_id, uploaded_document_id=doc.id, file_hash=file_hash, account_id=account.id, institution='Test Bank', currency='USD', period_start=date(2024, 1, 1), period_end=date(2024, 1, 31), opening_balance=Decimal('0.00'), closing_balance=Decimal('0.00'), status=BankStatementStatus.APPROVED); db.add(statement); await db.flush(); return statement
-async def _add_txn(db, user_id, *, amount: Decimal, direction: TransactionDirection, txn_date: date, description: str, source_doc_id=None, currency: str='USD') -> AtomicTransaction: txn = AtomicTransaction(id=uuid4(), user_id=user_id, txn_date=txn_date, description=description, amount=amount, direction=direction, currency=currency, dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(source_doc_id or uuid4()), 'doc_type': DocumentType.BANK_STATEMENT.value}]); db.add(txn); await db.flush(); return txn
-@pytest.fixture
-async def approved_statement(db, user_id): return await _make_statement(db, user_id, file_hash=str(uuid4()))
-class TestDetectDuplicates:
-    async def test_detect_duplicates(self, db, user_id, approved_statement): 'AC-reconciliation.consistency-checks.8 AC16.2.1'; await _add_txn(db, user_id, amount=Decimal('5.50'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Starbucks'); await _add_txn(db, user_id, amount=Decimal('5.50'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Starbucks'); checks = await detect_duplicates(db, user_id, approved_statement.id); assert len(checks) == 1; assert checks[0].check_type == CheckType.DUPLICATE; assert len(checks[0].related_txn_ids) == 2
-class TestDetectTransferPairs:
-    async def test_detect_transfer_pairs(self, db, user_id): 'AC-reconciliation.consistency-checks.9 AC16.2.2'; txn_out = await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Transfer to Bank B'); txn_in = await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.IN, txn_date=date(2024, 1, 16), description='Transfer from Bank A'); checks = await detect_transfer_pairs(db, user_id); assert len(checks) == 1; assert checks[0].check_type == CheckType.TRANSFER_PAIR; assert checks[0].details.get('currency') == 'USD'; assert set(checks[0].related_txn_ids) == {str(txn_out.id), str(txn_in.id)}
-    async def test_detect_transfer_pairs_ignores_cross_currency(self, db, user_id): await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Transfer out USD', currency='USD'); await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.IN, txn_date=date(2024, 1, 16), description='Transfer in EUR', currency='EUR'); checks = await detect_transfer_pairs(db, user_id); assert len(checks) == 0
-class TestDetectAnomalies:
-    async def test_detect_large_amount(self, db, user_id, approved_statement):
-        for i in range(10): await _add_txn(db, user_id, amount=Decimal('10.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, i + 1), description='Regular')
-        await _add_txn(db, user_id, amount=Decimal('1000.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Giant Buy'); checks = await detect_anomalies_batch(db, user_id, approved_statement.id); assert len(checks) >= 1; types = [c.check_type for c in checks]; assert CheckType.ANOMALY in types
-class TestResolveCheck:
-    async def test_resolve_check(self, db, user_id): check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn1'], details={}); db.add(check); await db.flush(); assert await has_unresolved_checks(db, user_id) is True; resolved = await resolve_check(db, check.id, 'approve', user_id, 'All good'); assert resolved.status == CheckStatus.APPROVED; assert resolved.resolution_note == 'All good'; assert resolved.resolved_at is not None; assert await has_unresolved_checks(db, user_id) is False
-    async def test_has_unresolved_checks_prevents_phantom_run_id_bypass(self, db, user_id): check = ConsistencyCheck(id=uuid4(), user_id=user_id, run_id=None, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn_null_run'], details={}); db.add(check); await db.flush(); assert await has_unresolved_checks(db, user_id, run_id='run-active') is True
-    async def test_has_unresolved_checks_matches_specific_run_id(self, db, user_id): check = ConsistencyCheck(id=uuid4(), user_id=user_id, run_id='run-alpha', check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn_alpha'], details={}); db.add(check); await db.flush(); assert await has_unresolved_checks(db, user_id, run_id='run-alpha') is True; assert await has_unresolved_checks(db, user_id, run_id='run-beta') is False
-    async def test_has_unresolved_checks_ignores_low_severity_anomalies(self, db, user_id): low_check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.ANOMALY, status=CheckStatus.PENDING, related_txn_ids=['txn_low'], details={'anomaly_type': 'NEW_MERCHANT'}, severity='low'); db.add(low_check); await db.flush(); assert await has_unresolved_checks(db, user_id) is False; medium_check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.ANOMALY, status=CheckStatus.PENDING, related_txn_ids=['txn_med'], details={'anomaly_type': 'LARGE_AMOUNT'}, severity='medium'); db.add(medium_check); await db.flush(); assert await has_unresolved_checks(db, user_id) is True
-class TestRunAllConsistencyChecks:
-    async def test_run_all_aggregates_results(self, db, user_id, approved_statement): await _add_txn(db, user_id, amount=Decimal('5.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Coffee'); await _add_txn(db, user_id, amount=Decimal('5.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Coffee'); checks = await run_all_consistency_checks(db, user_id, approved_statement.id); assert len(checks) >= 1; types = {c.check_type for c in checks}; assert CheckType.DUPLICATE in types
-    async def test_run_all_empty_statement(self, db, user_id, approved_statement): checks = await run_all_consistency_checks(db, user_id, approved_statement.id); assert checks == []
-    async def test_run_all_propagates_run_id(self, db, user_id, approved_statement): await _add_txn(db, user_id, amount=Decimal('15.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Lunch'); await _add_txn(db, user_id, amount=Decimal('15.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Lunch'); checks = await run_all_consistency_checks(db, user_id, approved_statement.id, run_id='run-tagged'); assert len(checks) >= 1; assert all((c.run_id == 'run-tagged' for c in checks))
-class TestGetPendingChecks:
-    async def test_get_pending_returns_only_pending(self, db, user_id): pending = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn1'], details={}); resolved = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.ANOMALY, status=CheckStatus.APPROVED, related_txn_ids=['txn2'], details={}); db.add_all([pending, resolved]); await db.flush(); result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING); assert len(result) == 1; assert result[0].id == pending.id; assert result[0].status == CheckStatus.PENDING
-    async def test_get_pending_filters_by_type(self, db, user_id): dup = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn1'], details={}); anomaly = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.ANOMALY, status=CheckStatus.PENDING, related_txn_ids=['txn2'], details={}); db.add_all([dup, anomaly]); await db.flush(); result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING, check_type=CheckType.DUPLICATE); assert len(result) == 1; assert result[0].check_type == CheckType.DUPLICATE
-    async def test_get_pending_empty(self, db, user_id): result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING); assert result == []
-    async def test_get_pending_filters_by_run_id_includes_unassociated(self, db, user_id): scoped_check = ConsistencyCheck(id=uuid4(), user_id=user_id, run_id='run-test-1', check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn-run-1'], details={}); null_run_check = ConsistencyCheck(id=uuid4(), user_id=user_id, run_id=None, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn-null-run'], details={}); other_run_check = ConsistencyCheck(id=uuid4(), user_id=user_id, run_id='run-test-2', check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn-run-2'], details={}); db.add_all([scoped_check, null_run_check, other_run_check]); await db.flush(); results, total = await list_checks(db, user_id, status=CheckStatus.PENDING, run_id='run-test-1'); assert total == 2; assert {c.id for c in results} == {scoped_check.id, null_run_check.id}
-class TestDetectDuplicatesEdgeCases:
-    async def test_global_scan_no_statement_id(self, db, user_id, approved_statement): 'AC-reconciliation.consistency-checks.1 AC16.4.1'; await _add_txn(db, user_id, amount=Decimal('9.99'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Global dup'); await _add_txn(db, user_id, amount=Decimal('9.99'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Global dup'); checks = await detect_duplicates(db, user_id); assert len(checks) >= 1; assert checks[0].check_type == CheckType.DUPLICATE
-    async def test_idempotent_duplicate_detection(self, db, user_id, approved_statement): 'AC-reconciliation.consistency-checks.2 AC16.4.2'; await _add_txn(db, user_id, amount=Decimal('4.50'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 20), description='Coffee Shop'); await _add_txn(db, user_id, amount=Decimal('4.50'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 20), description='Coffee Shop'); checks1 = await detect_duplicates(db, user_id, approved_statement.id); assert len(checks1) == 1; checks2 = await detect_duplicates(db, user_id, approved_statement.id); assert len(checks2) == 0
-    async def test_no_duplicate_when_date_spread_exceeds_1_day(self, db, user_id, approved_statement): await _add_txn(db, user_id, amount=Decimal('25.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 10), description='Grocery'); await _add_txn(db, user_id, amount=Decimal('25.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 15), description='Grocery'); checks = await detect_duplicates(db, user_id, approved_statement.id); assert len(checks) == 0
-    async def test_global_scan_detects_duplicates_across_statements(self, db, user_id): anchor_stmt = await _make_statement(db, user_id, file_hash='hash_anchor'); other_stmt = await _make_statement(db, user_id, file_hash='hash_other'); await _add_txn(db, user_id, amount=Decimal('11.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 5), description='Anchor Unique', source_doc_id=anchor_stmt.uploaded_document_id); await _add_txn(db, user_id, amount=Decimal('20.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 8), description='Outside Anchor Dup', source_doc_id=other_stmt.uploaded_document_id); await _add_txn(db, user_id, amount=Decimal('20.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 1, 8), description='Outside Anchor Dup', source_doc_id=other_stmt.uploaded_document_id); checks = await detect_duplicates(db, user_id, anchor_stmt.id); assert len(checks) == 1; assert checks[0].check_type == CheckType.DUPLICATE
-class TestDetectTransferPairsEdgeCases:
-    async def test_global_scan_no_statement_id(self, db, user_id): 'AC-reconciliation.consistency-checks.3 AC16.4.3'; await _add_txn(db, user_id, amount=Decimal('200.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 2, 1), description='Transfer out'); await _add_txn(db, user_id, amount=Decimal('200.00'), direction=TransactionDirection.IN, txn_date=date(2024, 2, 2), description='Transfer in'); checks = await detect_transfer_pairs(db, user_id); assert len(checks) >= 1; assert checks[0].check_type == CheckType.TRANSFER_PAIR
-    async def test_idempotent_transfer_pair_detection(self, db, user_id): 'AC16.4.3'; out_txn = await _add_txn(db, user_id, amount=Decimal('75.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 2, 5), description='Idem transfer out'); await _add_txn(db, user_id, amount=Decimal('75.00'), direction=TransactionDirection.IN, txn_date=date(2024, 2, 6), description='Idem transfer in'); checks1 = await detect_transfer_pairs(db, user_id, out_txn.id); assert len(checks1) == 1; checks2 = await detect_transfer_pairs(db, user_id, out_txn.id); assert len(checks2) == 0
-    async def test_transfer_pair_matching_skips_already_used_in_candidate(self, db, user_id): await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 3, 1), description='Transfer out 1'); await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 3, 2), description='Transfer out 2'); await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.IN, txn_date=date(2024, 3, 1), description='Transfer in 1'); await _add_txn(db, user_id, amount=Decimal('100.00'), direction=TransactionDirection.IN, txn_date=date(2024, 3, 2), description='Transfer in 2'); checks = await detect_transfer_pairs(db, user_id); assert len(checks) == 2
-class TestResolveCheckEdgeCases:
-    async def test_resolve_check_invalid_action_raises(self, db, user_id):
-        'AC-reconciliation.consistency-checks.4'; check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn_x'], details={}); db.add(check); await db.flush()
-        with pytest.raises(InvalidCheckActionError, match='Invalid action'): await resolve_check(db, check.id, 'unknown_action', user_id)
-    async def test_resolve_check_not_found_raises(self, db, user_id):
-        'AC-reconciliation.consistency-checks.5'; non_existent_id = uuid4()
-        with pytest.raises(ConsistencyCheckNotFoundError, match='Check not found or access denied'): await resolve_check(db, non_existent_id, 'approve', user_id)
-    async def test_resolve_check_wrong_user_raises(self, db, user_id):
-        'AC16.4.5'; check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.ANOMALY, status=CheckStatus.PENDING, related_txn_ids=['txn_y'], details={}); db.add(check); await db.flush(); wrong_user_id = uuid4()
-        with pytest.raises(ConsistencyCheckNotFoundError, match='Check not found or access denied'): await resolve_check(db, check.id, 'approve', wrong_user_id)
-    async def test_resolve_check_sets_flagged(self, db, user_id): 'AC-reconciliation.consistency-checks.6 AC16.4.6'; check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn_z'], details={}); db.add(check); await db.flush(); resolved = await resolve_check(db, check.id, 'flag', user_id, 'Suspicious'); assert resolved.status == CheckStatus.FLAGGED; assert resolved.resolution_note == 'Suspicious'
-    async def test_resolve_check_sets_rejected(self, db, user_id): check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.TRANSFER_PAIR, status=CheckStatus.PENDING, related_txn_ids=['txn_r'], details={}); db.add(check); await db.flush(); resolved = await resolve_check(db, check.id, 'reject', user_id); assert resolved.status == CheckStatus.REJECTED
-class TestDetectAnomaliesEdgeCases:
-    async def test_detect_anomalies_batch_skips_existing_same_anomaly_type(self, db, user_id, approved_statement):
-        txn = await _add_txn(db, user_id, amount=Decimal('33.00'), direction=TransactionDirection.OUT, txn_date=date(2024, 4, 1), description='Recurring Charge'); db.add(ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.ANOMALY, status=CheckStatus.PENDING, related_txn_ids=[str(txn.id)], details={'anomaly_type': 'REPEATED_DESCRIPTION'})); await db.flush()
-        with patch('src.reconciliation.extension.consistency_checks.detect_anomalies', new=AsyncMock(return_value=[SimpleNamespace(anomaly_type='REPEATED_DESCRIPTION', message='x', severity='low')])): checks = await detect_anomalies_batch(db, user_id, approved_statement.id)
-        assert checks == []
-class TestGetPendingChecksEdgeCases:
-    async def test_get_pending_filters_by_severity(self, db, user_id): 'AC-reconciliation.consistency-checks.7 AC16.4.7'; high_check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, related_txn_ids=['txn_high'], details={}, severity='high'); medium_check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.TRANSFER_PAIR, status=CheckStatus.PENDING, related_txn_ids=['txn_med'], details={}, severity='medium'); db.add_all([high_check, medium_check]); await db.flush(); result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING, severity='high'); assert len(result) == 1; assert result[0].id == high_check.id
-async def test_AC_consistency_checks_10_list_endpoint_rejects_unbounded_limit(client): 'AC-reconciliation.consistency-checks.10'; response = await client.get('/reconciliation/consistency-checks', params={'limit': 10000}); assert response.status_code == 422; response = await client.get('/reconciliation/consistency-checks', params={'limit': 0}); assert response.status_code == 422
-async def test_flow_12_consistency_checks_list_accepts_limit_500(client): response = await client.get('/reconciliation/consistency-checks', params={'limit': 500}); assert response.status_code == 200; payload = response.json(); assert 'items' in payload; assert 'total' in payload
-@pytest.mark.parametrize(('desc_out', 'desc_in', 'expected_confidence'), [('Transfer to B', 'Transfer from A', 75), ('TRANSFER TO SAVINGS ACCOUNT', 'TRANSFER FROM CURRENT ACCOUNT', 74), ('IBG TRANSFER TO B REF TRF20260310001', 'IBG TRANSFER FROM A REF TRF20260310001', 80)])
-async def test_issue2388_review_band_transfer_pair_approval_persists_pair_and_clears_pending(client, db: AsyncSession, test_user, desc_out: str, desc_in: str, expected_confidence: int) -> None: user_id = test_user.id; bank_a = Account(user_id=user_id, name=f'Bank A {uuid4().hex[:6]}', code=f'A{uuid4().hex[:4]}', type=AccountType.ASSET, currency='SGD'); bank_b = Account(user_id=user_id, name=f'Bank B {uuid4().hex[:6]}', code=f'B{uuid4().hex[:4]}', type=AccountType.ASSET, currency='SGD'); db.add_all([bank_a, bank_b]); await db.flush(); out_entry = await create_transfer_out_entry(db, user_id=user_id, source_account_id=bank_a.id, amount=Decimal('500.00'), txn_date=date(2026, 3, 10), description=desc_out, currency='SGD'); in_entry = await create_transfer_in_entry(db, user_id=user_id, dest_account_id=bank_b.id, amount=Decimal('500.00'), txn_date=date(2026, 3, 11), description=desc_in, currency='SGD'); out_txn = await _add_txn(db, user_id, amount=Decimal('500.00'), direction=TransactionDirection.OUT, txn_date=date(2026, 3, 10), description=desc_out, currency='SGD'); in_txn = await _add_txn(db, user_id, amount=Decimal('500.00'), direction=TransactionDirection.IN, txn_date=date(2026, 3, 11), description=desc_in, currency='SGD'); out_match = ReconciliationMatch(atomic_txn_id=out_txn.id, journal_entry_ids=[str(out_entry.id)], match_score=90, score_breakdown={}, status=ReconciliationStatus.AUTO_ACCEPTED, disposition_kind=DispositionKind.TRANSFER_LEG); in_match = ReconciliationMatch(atomic_txn_id=in_txn.id, journal_entry_ids=[str(in_entry.id)], match_score=90, score_breakdown={}, status=ReconciliationStatus.AUTO_ACCEPTED, disposition_kind=DispositionKind.TRANSFER_LEG); db.add_all([out_match, in_match]); await db.flush(); db.add_all([ReconciliationMatchJournalEntry(match_id=out_match.id, journal_entry_id=out_entry.id), ReconciliationMatchJournalEntry(match_id=in_match.id, journal_entry_id=in_entry.id)]); check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.TRANSFER_PAIR, status=CheckStatus.PENDING, related_txn_ids=sorted([str(out_txn.id), str(in_txn.id)]), details={}, severity='medium'); db.add(check); await db.commit(); assert await paired_transfer_entry_ids(db, user_id=user_id) == set(); resp_before = await client.get('/reconciliation/transfers/pending'); assert resp_before.status_code == 200; assert resp_before.json()['total'] == 2; resolved = await resolve_check(db, check.id, CheckResolutionAction.APPROVE, user_id); assert resolved.status == CheckStatus.APPROVED; await db.commit(); pair_res = await db.execute(select(ReconciliationTransferPair).where(ReconciliationTransferPair.confidence == expected_confidence)); persisted_pair = pair_res.scalars().first(); assert persisted_pair is not None; assert persisted_pair.decision == TransferPairDecision.REVIEWER_PAIRED; assert persisted_pair.confidence == expected_confidence; assert persisted_pair.confidence in (75, 74, 80); assert await paired_transfer_entry_ids(db, user_id=user_id) == {out_entry.id, in_entry.id}; assert await detect_transfer_pairs(db, user_id) == []; resp_after = await client.get('/reconciliation/transfers/pending'); assert resp_after.status_code == 200; assert resp_after.json()['total'] == 0; assert resp_after.json()['items'] == []
-async def test_issue2388_review_band_transfer_pair_rejection_leaves_legs_in_transit(client, db: AsyncSession, test_user) -> None: user_id = test_user.id; bank_a = Account(user_id=user_id, name=f'Bank A {uuid4().hex[:6]}', code=f'A{uuid4().hex[:4]}', type=AccountType.ASSET, currency='SGD'); bank_b = Account(user_id=user_id, name=f'Bank B {uuid4().hex[:6]}', code=f'B{uuid4().hex[:4]}', type=AccountType.ASSET, currency='SGD'); db.add_all([bank_a, bank_b]); await db.flush(); out_entry = await create_transfer_out_entry(db, user_id=user_id, source_account_id=bank_a.id, amount=Decimal('500.00'), txn_date=date(2026, 3, 10), description='Transfer to B', currency='SGD'); in_entry = await create_transfer_in_entry(db, user_id=user_id, dest_account_id=bank_b.id, amount=Decimal('500.00'), txn_date=date(2026, 3, 11), description='Transfer from A', currency='SGD'); out_txn = await _add_txn(db, user_id, amount=Decimal('500.00'), direction=TransactionDirection.OUT, txn_date=date(2026, 3, 10), description='Transfer to B', currency='SGD'); in_txn = await _add_txn(db, user_id, amount=Decimal('500.00'), direction=TransactionDirection.IN, txn_date=date(2026, 3, 11), description='Transfer from A', currency='SGD'); out_match = ReconciliationMatch(atomic_txn_id=out_txn.id, journal_entry_ids=[str(out_entry.id)], match_score=90, score_breakdown={}, status=ReconciliationStatus.AUTO_ACCEPTED, disposition_kind=DispositionKind.TRANSFER_LEG); in_match = ReconciliationMatch(atomic_txn_id=in_txn.id, journal_entry_ids=[str(in_entry.id)], match_score=90, score_breakdown={}, status=ReconciliationStatus.AUTO_ACCEPTED, disposition_kind=DispositionKind.TRANSFER_LEG); db.add_all([out_match, in_match]); await db.flush(); db.add_all([ReconciliationMatchJournalEntry(match_id=out_match.id, journal_entry_id=out_entry.id), ReconciliationMatchJournalEntry(match_id=in_match.id, journal_entry_id=in_entry.id)]); check = ConsistencyCheck(id=uuid4(), user_id=user_id, check_type=CheckType.TRANSFER_PAIR, status=CheckStatus.PENDING, related_txn_ids=sorted([str(out_txn.id), str(in_txn.id)]), details={}, severity='medium'); db.add(check); await db.commit(); resolved = await resolve_check(db, check.id, CheckResolutionAction.REJECT, user_id); assert resolved.status == CheckStatus.REJECTED; await db.commit(); assert await paired_transfer_entry_ids(db, user_id=user_id) == set(); resp = await client.get('/reconciliation/transfers/pending'); assert resp.status_code == 200; assert resp.json()['total'] == 2
-async def test_AC_reconciliation_2548_5_consistency_checks_guard_same_account_refund_and_adjacent_day_spend(db: AsyncSession, user_id) -> None: 'AC-reconciliation.2548.5'; stmt_a = await _make_statement(db, user_id, file_hash=f'stmt_a_{uuid4().hex}'); stmt_b = await _make_statement(db, user_id, file_hash=f'stmt_b_{uuid4().hex}'); await _add_txn(db, user_id, amount=Decimal('88.00'), direction=TransactionDirection.OUT, txn_date=date(2026, 6, 1), description='Merchant purchase', source_doc_id=stmt_a.uploaded_document_id); await _add_txn(db, user_id, amount=Decimal('88.00'), direction=TransactionDirection.IN, txn_date=date(2026, 6, 2), description='Merchant refund', source_doc_id=stmt_a.uploaded_document_id); transfer_checks = await detect_transfer_pairs(db, user_id, stmt_a.id); assert transfer_checks == []; await _add_txn(db, user_id, amount=Decimal('6.50'), direction=TransactionDirection.OUT, txn_date=date(2026, 6, 10), description='MRT Transit', source_doc_id=stmt_a.uploaded_document_id); await _add_txn(db, user_id, amount=Decimal('6.50'), direction=TransactionDirection.OUT, txn_date=date(2026, 6, 11), description='MRT Transit', source_doc_id=stmt_a.uploaded_document_id); await _add_txn(db, user_id, amount=Decimal('12.00'), direction=TransactionDirection.OUT, txn_date=date(2026, 6, 12), description='Cafe Lunch', source_doc_id=stmt_a.uploaded_document_id); await _add_txn(db, user_id, amount=Decimal('12.00'), direction=TransactionDirection.OUT, txn_date=date(2026, 6, 12), description='Cafe Lunch', source_doc_id=stmt_b.uploaded_document_id); dup_checks = await detect_duplicates(db, user_id, stmt_a.id); assert dup_checks == []
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction import BankStatementStatus, TransactionDirection
+from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import Account, AccountType, create_transfer_in_entry, create_transfer_out_entry
+from src.reconciliation import CheckResolutionAction, ConsistencyCheckNotFoundError, InvalidCheckActionError, paired_transfer_entry_ids
+from src.reconciliation.extension.consistency_checks import (
+    detect_anomalies_batch,
+    detect_duplicates,
+    detect_transfer_pairs,
+    has_unresolved_checks,
+    list_checks,
+    resolve_check,
+    run_all_consistency_checks,
+)
+from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.reconciliation.orm.reconciliation import (
+    DispositionKind,
+    ReconciliationMatch,
+    ReconciliationMatchJournalEntry,
+    ReconciliationStatus,
+    ReconciliationTransferPair,
+    TransferPairDecision,
+)
+from tests.factories import AccountFactory, AtomicTransactionFactory, StatementSummaryFactory, UploadedDocumentFactory, UserFactory
+
+
+async def _stmt(db, uid, tag: str) -> StatementSummary:
+    acc = await AccountFactory.create_async(db, user_id=uid, currency="USD")
+    doc = await UploadedDocumentFactory.create_async(db, user_id=uid, file_hash=tag)
+    return await StatementSummaryFactory.create_async(
+        db,
+        user_id=uid,
+        uploaded_document_id=doc.id,
+        file_hash=tag,
+        account_id=acc.id,
+        currency="USD",
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+
+
+async def _txn(db, uid, amt: str, direction: TransactionDirection, d: date, desc: str, *, doc_id=None, ccy: str = "USD"):
+    return await AtomicTransactionFactory.create_async(db, user_id=uid, source_doc_id=doc_id, txn_date=d, description=desc, amount=Decimal(amt), direction=direction, currency=ccy)
+
+
+async def _check(db, uid, *, check_type=CheckType.DUPLICATE, status=CheckStatus.PENDING, txns=None, details=None, severity: str = "medium", run_id: str | None = None) -> ConsistencyCheck:
+    c = ConsistencyCheck(id=uuid4(), user_id=uid, run_id=run_id, check_type=check_type, status=status, related_txn_ids=txns or ["txn1"], details=details or {}, severity=severity)
+    db.add(c)
+    await db.flush()
+    return c
+
+
+async def test_duplicates_transfers_and_anomalies(db, test_user):
+    uid = test_user.id
+    stmt = await _stmt(db, uid, f"main_{uuid4().hex}")
+    assert await run_all_consistency_checks(db, uid, stmt.id) == []
+
+    for _ in range(2):
+        await _txn(db, uid, "5.50", TransactionDirection.OUT, date(2024, 1, 15), "Starbucks")
+    dups = await detect_duplicates(db, uid, stmt.id)
+    assert len(dups) == 1 and dups[0].check_type == CheckType.DUPLICATE and len(dups[0].related_txn_ids) == 2
+    assert await detect_duplicates(db, uid, stmt.id) == [] and await detect_duplicates(db, uid) == []
+
+    anchor, other = await _stmt(db, uid, "hash_anchor"), await _stmt(db, uid, "hash_other")
+    for d in (date(2024, 1, 10), date(2024, 1, 15)):
+        await _txn(db, uid, "25.00", TransactionDirection.OUT, d, "Grocery", doc_id=anchor.uploaded_document_id)
+    assert await detect_duplicates(db, uid, anchor.id) == []
+    for _ in range(2):
+        await _txn(db, uid, "20.00", TransactionDirection.OUT, date(2024, 1, 8), "Outside", doc_id=other.uploaded_document_id)
+    assert len(await detect_duplicates(db, uid)) == 1
+
+    t_out = await _txn(db, uid, "100.00", TransactionDirection.OUT, date(2024, 1, 15), "Transfer to Bank B")
+    t_in = await _txn(db, uid, "100.00", TransactionDirection.IN, date(2024, 1, 16), "Transfer from Bank A")
+    xp = await detect_transfer_pairs(db, uid)
+    assert len(xp) == 1 and xp[0].check_type == CheckType.TRANSFER_PAIR and xp[0].details.get("currency") == "USD" and set(xp[0].related_txn_ids) == {str(t_out.id), str(t_in.id)}
+    assert await detect_transfer_pairs(db, uid, t_out.id) == []
+
+    await _txn(db, uid, "100.00", TransactionDirection.OUT, date(2024, 1, 15), "X USD", ccy="USD")
+    await _txn(db, uid, "100.00", TransactionDirection.IN, date(2024, 1, 16), "X EUR", ccy="EUR")
+    assert await detect_transfer_pairs(db, uid) == []
+    for d in (date(2024, 3, 1), date(2024, 3, 2)):
+        await _txn(db, uid, "100.00", TransactionDirection.OUT, d, "Transfer out")
+        await _txn(db, uid, "100.00", TransactionDirection.IN, d, "Transfer in")
+    assert len(await detect_transfer_pairs(db, uid)) == 2
+
+    for i in range(10):
+        await _txn(db, uid, "10.00", TransactionDirection.OUT, date(2024, 1, i + 1), "Regular")
+    await _txn(db, uid, "1000.00", TransactionDirection.OUT, date(2024, 1, 15), "Giant Buy")
+    assert CheckType.ANOMALY in [c.check_type for c in await detect_anomalies_batch(db, uid, stmt.id)]
+
+    uid2 = (await UserFactory.create_async(db)).id
+    stmt2 = await _stmt(db, uid2, f"rec_{uuid4().hex}")
+    rec_txn = await _txn(db, uid2, "33.00", TransactionDirection.OUT, date(2024, 4, 1), "Recurring Charge")
+    await _check(db, uid2, check_type=CheckType.ANOMALY, txns=[str(rec_txn.id)], details={"anomaly_type": "REPEATED_DESCRIPTION"})
+    with patch("src.reconciliation.extension.consistency_checks.detect_anomalies", new=AsyncMock(return_value=[SimpleNamespace(anomaly_type="REPEATED_DESCRIPTION", message="x", severity="low")])):
+        assert await detect_anomalies_batch(db, uid2, stmt2.id) == []
+
+    run_checks = await run_all_consistency_checks(db, uid2, stmt2.id, run_id="run-tagged")
+    assert all(c.run_id == "run-tagged" for c in run_checks)
+
+
+@pytest.mark.parametrize(("action", "expected_status", "note"), [("approve", CheckStatus.APPROVED, "All good"), ("flag", CheckStatus.FLAGGED, "Suspicious"), ("reject", CheckStatus.REJECTED, None)])
+async def test_resolve_check_actions(db, test_user, action, expected_status, note):
+    uid = test_user.id
+    chk = await _check(db, uid)
+    assert await has_unresolved_checks(db, uid) is True
+    resolved = await resolve_check(db, chk.id, action, uid, note)
+    assert (resolved.status, resolved.resolution_note) == (expected_status, note) and resolved.resolved_at is not None and await has_unresolved_checks(db, uid) is False
+
+
+async def test_resolve_errors_and_list_filters(db, test_user):
+    uid = test_user.id
+    assert (await list_checks(db, uid, status=CheckStatus.PENDING))[0] == []
+    c_low = await _check(db, uid, check_type=CheckType.ANOMALY, severity="low", run_id="run-low", txns=["low"])
+    assert await has_unresolved_checks(db, uid) is False
+    c_dup = await _check(db, uid, severity="high", run_id="run-1", txns=["1"])
+    assert await has_unresolved_checks(db, uid, run_id="run-1") is True and await has_unresolved_checks(db, uid, run_id="run-beta") is False
+    c_anom = await _check(db, uid, check_type=CheckType.ANOMALY, severity="medium", run_id=None, txns=["2"])
+    assert await has_unresolved_checks(db, uid, run_id="run-active") is True
+    await _check(db, uid, check_type=CheckType.ANOMALY, status=CheckStatus.APPROVED, run_id="run-2", txns=["3"])
+
+    for bad_id, act, actor, exc, msg in ((c_dup.id, "bad", uid, InvalidCheckActionError, "Invalid action"), (uuid4(), "approve", uid, ConsistencyCheckNotFoundError, "Check not found"), (c_dup.id, "approve", uuid4(), ConsistencyCheckNotFoundError, "Check not found")):
+        with pytest.raises(exc, match=msg):
+            await resolve_check(db, bad_id, act, actor)
+
+    assert {c.id for c in (await list_checks(db, uid, status=CheckStatus.PENDING))[0]} == {c_low.id, c_dup.id, c_anom.id}
+    assert [c.id for c in (await list_checks(db, uid, status=CheckStatus.PENDING, check_type=CheckType.DUPLICATE))[0]] == [c_dup.id]
+    assert [c.id for c in (await list_checks(db, uid, status=CheckStatus.PENDING, severity="high"))[0]] == [c_dup.id]
+    by_run, total = await list_checks(db, uid, status=CheckStatus.PENDING, run_id="run-1")
+    assert total == 2 and {c.id for c in by_run} == {c_dup.id, c_anom.id}
+
+
+@pytest.mark.parametrize(("limit", "expected_status"), [(10000, 422), (0, 422), (500, 200)])
+async def test_AC_consistency_checks_10_list_endpoint_limit_bounds(client, limit: int, expected_status: int):
+    resp = await client.get("/reconciliation/consistency-checks", params={"limit": limit})
+    assert resp.status_code == expected_status and (expected_status != 200 or {"items", "total"} <= set(resp.json()))
+
+
+@pytest.mark.parametrize(
+    ("action", "desc_out", "desc_in", "expected_confidence"),
+    [
+        (CheckResolutionAction.APPROVE, "Transfer to B", "Transfer from A", 75),
+        (CheckResolutionAction.APPROVE, "TRANSFER TO SAVINGS ACCOUNT", "TRANSFER FROM CURRENT ACCOUNT", 74),
+        (CheckResolutionAction.APPROVE, "IBG TRANSFER TO B REF TRF20260310001", "IBG TRANSFER FROM A REF TRF20260310001", 80),
+        (CheckResolutionAction.REJECT, "Transfer to B", "Transfer from A", None),
+    ],
+)
+async def test_issue2388_review_band_transfer_pair_decision(client, db: AsyncSession, test_user, action, desc_out: str, desc_in: str, expected_confidence: int | None) -> None:
+    uid = test_user.id
+    bank_a = Account(user_id=uid, name=f"A-{uuid4().hex[:6]}", code=f"A{uuid4().hex[:4]}", type=AccountType.ASSET, currency="SGD")
+    bank_b = Account(user_id=uid, name=f"B-{uuid4().hex[:6]}", code=f"B{uuid4().hex[:4]}", type=AccountType.ASSET, currency="SGD")
+    db.add_all([bank_a, bank_b])
+    await db.flush()
+    out_entry = await create_transfer_out_entry(db, user_id=uid, source_account_id=bank_a.id, amount=Decimal("500.00"), txn_date=date(2026, 3, 10), description=desc_out, currency="SGD")
+    in_entry = await create_transfer_in_entry(db, user_id=uid, dest_account_id=bank_b.id, amount=Decimal("500.00"), txn_date=date(2026, 3, 11), description=desc_in, currency="SGD")
+    out_txn = await _txn(db, uid, "500.00", TransactionDirection.OUT, date(2026, 3, 10), desc_out, ccy="SGD")
+    in_txn = await _txn(db, uid, "500.00", TransactionDirection.IN, date(2026, 3, 11), desc_in, ccy="SGD")
+    out_m = ReconciliationMatch(atomic_txn_id=out_txn.id, journal_entry_ids=[str(out_entry.id)], match_score=90, score_breakdown={}, status=ReconciliationStatus.AUTO_ACCEPTED, disposition_kind=DispositionKind.TRANSFER_LEG)
+    in_m = ReconciliationMatch(atomic_txn_id=in_txn.id, journal_entry_ids=[str(in_entry.id)], match_score=90, score_breakdown={}, status=ReconciliationStatus.AUTO_ACCEPTED, disposition_kind=DispositionKind.TRANSFER_LEG)
+    db.add_all([out_m, in_m])
+    await db.flush()
+    db.add_all([ReconciliationMatchJournalEntry(match_id=out_m.id, journal_entry_id=out_entry.id), ReconciliationMatchJournalEntry(match_id=in_m.id, journal_entry_id=in_entry.id)])
+    chk = await _check(db, uid, check_type=CheckType.TRANSFER_PAIR, txns=sorted([str(out_txn.id), str(in_txn.id)]))
+    await db.commit()
+
+    assert await paired_transfer_entry_ids(db, user_id=uid) == set()
+    resolved = await resolve_check(db, chk.id, action, uid)
+    await db.commit()
+    resp = await client.get("/reconciliation/transfers/pending")
+    if action is CheckResolutionAction.APPROVE:
+        pair = (await db.execute(select(ReconciliationTransferPair).where(ReconciliationTransferPair.confidence == expected_confidence))).scalars().first()
+        assert resolved.status == CheckStatus.APPROVED and pair.decision == TransferPairDecision.REVIEWER_PAIRED
+        assert await paired_transfer_entry_ids(db, user_id=uid) == {out_entry.id, in_entry.id} and await detect_transfer_pairs(db, uid) == []
+        assert resp.status_code == 200 and (resp.json()["total"], resp.json()["items"]) == (0, [])
+    else:
+        assert resolved.status == CheckStatus.REJECTED and await paired_transfer_entry_ids(db, user_id=uid) == set() and resp.status_code == 200 and resp.json()["total"] == 2
+
+
+async def test_AC_reconciliation_2548_5_consistency_checks_guard_same_account_refund_and_adjacent_day_spend(db: AsyncSession, test_user) -> None:
+    uid = test_user.id
+    stmt_a, stmt_b = await _stmt(db, uid, f"a_{uuid4().hex}"), await _stmt(db, uid, f"b_{uuid4().hex}")
+    await _txn(db, uid, "88.00", TransactionDirection.OUT, date(2026, 6, 1), "Merchant purchase", doc_id=stmt_a.uploaded_document_id)
+    await _txn(db, uid, "88.00", TransactionDirection.IN, date(2026, 6, 2), "Merchant refund", doc_id=stmt_a.uploaded_document_id)
+    assert await detect_transfer_pairs(db, uid, stmt_a.id) == []
+    for d in (date(2026, 6, 10), date(2026, 6, 11)):
+        await _txn(db, uid, "6.50", TransactionDirection.OUT, d, "MRT Transit", doc_id=stmt_a.uploaded_document_id)
+    for doc_id in (stmt_a.uploaded_document_id, stmt_b.uploaded_document_id):
+        await _txn(db, uid, "12.00", TransactionDirection.OUT, date(2026, 6, 12), "Cafe Lunch", doc_id=doc_id)
+    assert await detect_duplicates(db, uid, stmt_a.id) == []

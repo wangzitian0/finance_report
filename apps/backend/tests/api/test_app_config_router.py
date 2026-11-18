@@ -29,7 +29,6 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncSession, test_user: User) -> None:
-    "AC-audit.39.2"
     import src.config_app as config_app
 
     assert not hasattr(config_app, "_user_base_currency_cache")
@@ -47,7 +46,6 @@ async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncS
 
 
 async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient) -> None:
-    "AC-audit.39.1 AC12.39.1"
     response = await client.get("/users/me/settings/base-currency")
     assert response.status_code == 200
     assert response.json() == {"base_currency": Currency(settings.base_currency).code}
@@ -56,7 +54,6 @@ async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient)
 async def test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
-    "AC-audit.39.4 AC12.39.4"
     target = "EUR" if Currency(settings.base_currency).code != "EUR" else "USD"
     response = await client.put("/users/me/settings/base-currency", json={"base_currency": target.lower()})
     assert response.status_code == 200
@@ -69,14 +66,12 @@ async def test_AC12_39_4_update_persists_and_effective_accessor_returns_new_valu
 async def test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
-    "AC-audit.39.5 AC12.39.1"
     response = await client.put("/users/me/settings/base-currency", json={"base_currency": "XYZ"})
     assert response.status_code == 422
     assert await get_effective_base_currency(db, user_id=test_user.id) == Currency(settings.base_currency).code
 
 
 async def test_AC_audit_39_6_put_changes_only_the_callers_base_currency(client: AsyncClient, db: AsyncSession) -> None:
-    "AC-audit.39.6"
     default = Currency(settings.base_currency).code
     target = "EUR" if default != "EUR" else "USD"
     other = User(id=uuid4(), email=f"other-{uuid4()}@example.com", hashed_password="hashed")
@@ -93,7 +88,6 @@ async def test_AC_audit_39_6_put_changes_only_the_callers_base_currency(client: 
 
 
 async def test_AC_audit_39_7_only_boundary_modules_read_settings_base_currency() -> None:
-    "AC-audit.39.7"
     backend_root = Path(__file__).resolve().parents[2]
     src_root = backend_root / "src"
     allowed = {"src/config_app.py", "src/ledger/orm/journal.py", "src/ledger/extension/repository.py"}
@@ -116,7 +110,6 @@ async def test_AC_audit_39_7_only_boundary_modules_read_settings_base_currency()
 async def test_AC_audit_39_8_usd_user_reports_and_revaluation_use_user_effective_base_currency(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
-    "AC-audit.39.8"
     assert Currency(settings.base_currency).code == "SGD"
     test_user.base_currency = "USD"
     await db.flush()

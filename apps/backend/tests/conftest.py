@@ -113,7 +113,7 @@ async def db(db_engine):
 @pytest_asyncio.fixture(scope='function')
 async def test_user(db: AsyncSession): from src.identity import User; user = User(id=uuid4(), email=f'test-{uuid4()}@example.com', hashed_password='hashed'); db.add(user); await db.commit(); return user
 @pytest.fixture(scope='function')
-def test_user_id(test_user): 'EPIC-025'; return test_user.id
+def test_user_id(test_user): return test_user.id
 @pytest_asyncio.fixture(scope='function')
 async def client(db_engine, test_user, test_database_url):
     os.environ['DATABASE_URL'] = test_database_url; from src.identity import create_access_token; from src.main import app; token = create_access_token(data={'sub': str(test_user.id)})

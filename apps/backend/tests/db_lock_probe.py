@@ -1,4 +1,4 @@
-'AC-ledger.71.5 AC-reconciliation.named-transfer-legs.2'; from __future__ import annotations; import asyncio; from sqlalchemy import text; from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from __future__ import annotations; import asyncio; from sqlalchemy import text; from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 async def backend_pid(session: AsyncSession) -> int: return int(await session.scalar(text('SELECT pg_backend_pid()')))
 async def backend_waits_for_a_lock(engine: AsyncEngine, pid: int, *, seconds: float=10.0) -> bool:
     deadline = asyncio.get_running_loop().time() + seconds

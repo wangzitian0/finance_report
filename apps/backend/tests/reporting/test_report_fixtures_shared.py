@@ -1,2 +1,29 @@
-'AC25.4.1 EPIC-025'; from datetime import date; from decimal import Decimal; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import JournalEntrySourceType; from src.ledger import AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.reporting import generate_balance_sheet; from tests.reporting._report_fixtures import STANDARD_CHART_SPEC, build_standard_chart_of_accounts
-async def test_report_fixtures_shared(db: AsyncSession, test_user_id): 'AC-reporting.dry-ssot.2 AC25.4.1'; accounts = await build_standard_chart_of_accounts(db, test_user_id); assert [(a.name, a.type) for a in accounts] == list(STANDARD_CHART_SPEC); assert all((a.id is not None for a in accounts)); assert all((a.currency == 'SGD' for a in accounts)); assert [a.type for a in accounts] == [AccountType.ASSET, AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME, AccountType.EXPENSE]; cash, _liability, equity, *_rest = accounts; entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo='Owner contribution', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.DEBIT, amount=Decimal('1000.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=equity.id, direction=Direction.CREDIT, amount=Decimal('1000.00'), currency='SGD')]); await db.commit(); report = await generate_balance_sheet(db, test_user_id, as_of_date=date.today(), currency='SGD'); assert report['total_assets'] == Decimal('1000.00'); assert report['total_equity'] == Decimal('1000.00'); assert report['is_balanced'] is True
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.ledger import AccountType
+from src.reporting import generate_balance_sheet
+from tests.reporting._report_fixtures import STANDARD_CHART_SPEC, build_standard_chart_of_accounts, post_pair
+
+
+async def test_report_fixtures_shared(db: AsyncSession, test_user_id) -> None:
+    accounts = await build_standard_chart_of_accounts(db, test_user_id)
+    assert [(a.name, a.type) for a in accounts] == list(STANDARD_CHART_SPEC)
+    assert all(a.id is not None and a.currency == "SGD" for a in accounts)
+    assert [a.type for a in accounts] == [
+        AccountType.ASSET,
+        AccountType.LIABILITY,
+        AccountType.EQUITY,
+        AccountType.INCOME,
+        AccountType.EXPENSE,
+    ]
+    cash, _liability, equity, *_rest = accounts
+    await post_pair(db, test_user_id, date.today(), "Owner contribution", cash, equity, "1000.00", commit=True)
+    report = await generate_balance_sheet(db, test_user_id, as_of_date=date.today(), currency="SGD")
+    assert (report["total_assets"], report["total_equity"], report["is_balanced"]) == (
+        Decimal("1000.00"),
+        Decimal("1000.00"),
+        True,
+    )

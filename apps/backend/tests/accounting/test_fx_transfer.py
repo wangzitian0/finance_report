@@ -41,7 +41,6 @@ def _legs(*, user_id=None, out_account=None, in_account=None, when=None):
 
 
 def test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance():
-    "AC-reconciliation.fx-transfer.1 AC4.14.1"
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
     assert pair is not None
@@ -55,14 +54,12 @@ def test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance():
 
 
 def test_AC2_implied_rate_outside_tolerance_does_not_pair():
-    "AC-reconciliation.fx-transfer.2 AC4.14.2"
     out_leg, in_leg = _legs()
     assert pair_fx_legs(out_leg, in_leg, Decimal("1.500000")) is None
     assert pair_fx_legs(out_leg, in_leg, Decimal("1.364000")) is not None
 
 
 def test_AC2_non_candidate_legs_do_not_pair():
-    "AC-reconciliation.fx-transfer.3 AC4.14.3"
     out_leg, in_leg = _legs()
     far_in = TransferLeg(
         user_id=out_leg.user_id,
@@ -83,7 +80,6 @@ def test_AC2_non_candidate_legs_do_not_pair():
 
 
 def test_AC3_internal_transfer_classified_net_zero():
-    "AC-reconciliation.fx-transfer.4 AC4.14.4"
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
     classification = classify_internal_transfer(pair, fee=Decimal("2.50"))
@@ -95,7 +91,6 @@ def test_AC3_internal_transfer_classified_net_zero():
 
 
 def test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee():
-    "AC-reconciliation.fx-transfer.5 AC4.14.5"
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
     no_fee = classify_internal_transfer(pair)
@@ -105,7 +100,6 @@ def test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee():
 
 
 def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee():
-    "AC-reconciliation.fx-transfer.6 AC4.14.6"
     pnl = round_trip_realized_pnl(Decimal("1360.00"), rate_out=_MARKET_RATE, rate_back=_MARKET_RATE, fee=Decimal("0"))
     assert pnl == Decimal("0.00")
     pnl_with_fee = round_trip_realized_pnl(
@@ -115,14 +109,12 @@ def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee():
 
 
 def test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type():
-    "AC-reconciliation.fx-transfer.7 AC4.14.7"
     assert round_trip_realized_pnl(Decimal("1000.00"), rate_out=_MARKET_RATE, rate_back=_MARKET_RATE) == Decimal("0.00")
     assert REVALUATION_SOURCE_TYPE is JournalEntrySourceType.FX_REVALUATION
     assert REVALUATION_SOURCE_TYPE.value == "fx_revaluation"
 
 
 def test_AC2_fx_conversion_model_round_trips_decimals():
-    "AC-reconciliation.fx-transfer.8 AC4.14.8"
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
     assert pair is not None

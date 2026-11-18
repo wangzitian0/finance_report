@@ -1,100 +1,455 @@
-from decimal import Decimal; from pathlib import Path; from uuid import uuid4; import pytest; from src.extraction import DocumentSource; from src.extraction.base.validation import compute_confidence_score, validate_balance; from src.extraction.extension.service import ExtractionError, ExtractionService
+from decimal import Decimal
+from io import BytesIO
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+from reportlab.pdfgen import canvas
+
+from src.extraction import DocumentSource
+from src.extraction.base.validation import (
+    _score_balance_progression,
+    _score_currency_consistency,
+    compute_confidence_score,
+    validate_balance,
+)
+from src.extraction.extension.prompts.statement import get_parsing_prompt
+from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.observability import detect_pii
+
+FIXTURES = {
+    "DBS": {
+        "success": True,
+        "institution": "DBS",
+        "statement": {
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "100.00",
+            "closing_balance": "250.00",
+            "currency": "SGD",
+            "balance_validated": True,
+            "confidence_score": 95,
+        },
+        "events": [
+            {"date": "2025-01-05", "description": "Card payment", "amount": "50.00", "direction": "OUT"},
+            {"date": "2025-01-10", "description": "Salary credit", "amount": "200.00", "direction": "IN"},
+        ],
+    },
+    "MariBank": {
+        "success": True,
+        "institution": "MariBank",
+        "statement": {
+            "period_start": "2025-04-01",
+            "period_end": "2025-04-30",
+            "opening_balance": "0.00",
+            "closing_balance": "18.00",
+            "currency": "SGD",
+            "balance_validated": True,
+        },
+        "events": [
+            {"date": "2025-04-03", "description": "Card payment", "amount": "12.00", "direction": "OUT"},
+            {"date": "2025-04-15", "description": "Transfer in", "amount": "30.00", "direction": "IN"},
+        ],
+    },
+    "GXS": {
+        "success": True,
+        "institution": "GXS",
+        "statement": {
+            "period_start": "2025-06-01",
+            "period_end": "2025-06-30",
+            "opening_balance": "0.00",
+            "closing_balance": "0.25",
+            "currency": "SGD",
+            "balance_validated": True,
+        },
+        "events": [
+            {"date": f"2025-06-{day:02d}", "description": "Interest", "amount": "0.01", "direction": "IN"}
+            for day in range(1, 26)
+        ],
+    },
+}
+
+
+def _extracted(txns: list[dict], *, institution: str = "DBS", currency: str | None = None, **extra) -> dict:
+    base = {
+        "institution": institution,
+        "period_start": "2025-01-01",
+        "period_end": "2025-01-31",
+        "opening_balance": "0.00",
+        "closing_balance": "100.00",
+        "transactions": txns,
+    }
+    if currency is not None:
+        base["currency"] = currency
+    return {**base, **extra}
+
+
 class TestBalanceValidation:
-    def setup_method(self): self.service = ExtractionService()
-    def test_balance_valid(self): 'AC-extraction.101.1'; extracted = {'opening_balance': '1000.00', 'closing_balance': '1100.00', 'transactions': [{'amount': '200.00', 'direction': 'IN'}, {'amount': '100.00', 'direction': 'OUT'}]}; result = validate_balance(extracted); assert result['balance_valid'] is True; assert result['difference'] == '0.00'
-    def test_balance_invalid(self): 'AC-extraction.101.2'; extracted = {'opening_balance': '1000.00', 'closing_balance': '2000.00', 'transactions': [{'amount': '100.00', 'direction': 'IN'}]}; result = validate_balance(extracted); assert result['balance_valid'] is False; assert 'mismatch' in result['notes'].lower()
-    def test_balance_tolerance(self): 'AC-extraction.101.3'; extracted = {'opening_balance': '1000.00', 'closing_balance': '1100.005', 'transactions': [{'amount': '100.00', 'direction': 'IN'}]}; result = validate_balance(extracted); assert result['balance_valid'] is True
+    @pytest.mark.parametrize(
+        ("opening", "closing", "txns", "valid", "diff", "note_sub"),
+        [
+            (
+                "1000.00",
+                "1100.00",
+                [{"amount": "200.00", "direction": "IN"}, {"amount": "100.00", "direction": "OUT"}],
+                True,
+                "0.00",
+                None,
+            ),
+            ("1000.00", "2000.00", [{"amount": "100.00", "direction": "IN"}], False, None, "mismatch"),
+            ("1000.00", "1100.005", [{"amount": "100.00", "direction": "IN"}], True, None, None),
+        ],
+    )
+    def test_balance_validation(self, opening, closing, txns, valid, diff, note_sub):
+        result = validate_balance({"opening_balance": opening, "closing_balance": closing, "transactions": txns})
+        assert result["balance_valid"] is valid
+        if diff is not None:
+            assert result["difference"] == diff
+        if note_sub is not None:
+            assert note_sub in result["notes"].lower()
+
+
 class TestConfidenceScoring:
-    def setup_method(self): self.service = ExtractionService()
-    def test_high_confidence(self): 'AC-extraction.102.1'; extracted = {'institution': 'DBS', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '1000.00', 'closing_balance': '1100.00', 'transactions': [{'date': '2025-01-15', 'amount': '100.00', 'direction': 'IN'}]}; validation = {'balance_valid': True, 'difference': '0.00'}; score = compute_confidence_score(extracted, validation); assert score >= 85, f'Expected high confidence, got {score}'
-    def test_medium_confidence(self): 'AC-extraction.3.2'; extracted = {'institution': 'DBS', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '1000.00', 'closing_balance': '1105.00', 'transactions': [{'date': '2025-01-15', 'amount': '100.00', 'direction': 'IN'}]}; validation = {'balance_valid': False, 'difference': '5.00'}; score = compute_confidence_score(extracted, validation); assert 60 <= score < 85, f'Expected medium confidence, got {score}'
-    def test_low_confidence_empty_transactions(self): 'AC-extraction.3.3 AC-extraction.102.3'; extracted = {'institution': 'DBS', 'period_start': 'invalid-date', 'period_end': '2025-01-31', 'opening_balance': '0', 'closing_balance': '0', 'transactions': []}; validation = {'balance_valid': False, 'difference': '100.00'}; score = compute_confidence_score(extracted, validation); assert score < 60, 'Low-confidence statements should require manual review'
+    @pytest.mark.parametrize(
+        ("extracted", "validation", "low", "high"),
+        [
+            (
+                _extracted(
+                    [{"date": "2025-01-15", "amount": "100.00", "direction": "IN"}],
+                    opening_balance="1000.00",
+                    closing_balance="1100.00",
+                ),
+                {"balance_valid": True, "difference": "0.00"},
+                85,
+                100,
+            ),
+            (
+                _extracted(
+                    [{"date": "2025-01-15", "amount": "100.00", "direction": "IN"}],
+                    opening_balance="1000.00",
+                    closing_balance="1105.00",
+                ),
+                {"balance_valid": False, "difference": "5.00"},
+                60,
+                84,
+            ),
+            (
+                {
+                    "institution": "DBS",
+                    "period_start": "invalid-date",
+                    "period_end": "2025-01-31",
+                    "opening_balance": "0",
+                    "closing_balance": "0",
+                    "transactions": [],
+                },
+                {"balance_valid": False, "difference": "100.00"},
+                0,
+                59,
+            ),
+            (
+                {
+                    "institution": "DBS",
+                    "period_start": "2025-01-01",
+                    "period_end": "2025-01-31",
+                    "opening_balance": "0",
+                    "closing_balance": "0",
+                },
+                {"balance_valid": True, "difference": "0.00"},
+                0,
+                100,
+            ),
+        ],
+    )
+    def test_confidence_bands(self, extracted, validation, low, high):
+        assert low <= compute_confidence_score(extracted, validation) <= high
+
+
 class TestFixtureData:
-    @pytest.fixture
-    def dbs_fixture(self): return {'success': True, 'institution': 'DBS', 'statement': {'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '100.00', 'closing_balance': '250.00', 'currency': 'SGD', 'balance_validated': True, 'confidence_score': 95}, 'events': [{'date': '2025-01-05', 'description': 'Card payment', 'amount': '50.00', 'direction': 'OUT'}, {'date': '2025-01-10', 'description': 'Salary credit', 'amount': '200.00', 'direction': 'IN'}]}
-    @pytest.fixture
-    def maribank_fixture(self): return {'success': True, 'institution': 'MariBank', 'statement': {'period_start': '2025-04-01', 'period_end': '2025-04-30', 'opening_balance': '0.00', 'closing_balance': '18.00', 'currency': 'SGD', 'balance_validated': True}, 'events': [{'date': '2025-04-03', 'description': 'Card payment', 'amount': '12.00', 'direction': 'OUT'}, {'date': '2025-04-15', 'description': 'Transfer in', 'amount': '30.00', 'direction': 'IN'}]}
-    @pytest.fixture
-    def gxs_fixture(self): return {'success': True, 'institution': 'GXS', 'statement': {'period_start': '2025-06-01', 'period_end': '2025-06-30', 'opening_balance': '0.00', 'closing_balance': '0.25', 'currency': 'SGD', 'balance_validated': True}, 'events': [{'date': f'2025-06-{day:02d}', 'description': 'Interest', 'amount': '0.01', 'direction': 'IN'} for day in range(1, 26)]}
-    def test_dbs_fixture_structure(self, dbs_fixture): 'AC-extraction.103.1'; assert dbs_fixture['success'] is True; assert dbs_fixture['institution'] == 'DBS'; assert 'statement' in dbs_fixture; assert 'events' in dbs_fixture; assert len(dbs_fixture['events']) > 0
-    def test_dbs_balance_reconciliation(self, dbs_fixture): 'AC-extraction.103.2'; stmt = dbs_fixture['statement']; events = dbs_fixture['events']; opening = Decimal(stmt['opening_balance']); closing = Decimal(stmt['closing_balance']); net = sum((Decimal(e['amount']) if e['direction'] == 'IN' else -Decimal(e['amount']) for e in events)); expected_closing = opening + net; diff = abs(closing - expected_closing); assert diff < Decimal('1.00'), f'Balance mismatch: {diff}'
-    def test_maribank_fixture_descriptions_carry_no_pii(self, maribank_fixture):
-        'AC-extraction.103.3'; from src.observability import detect_pii
-        for event in maribank_fixture['events']: desc = event.get('description', ''); assert detect_pii(desc) == [], f'PII leaked into fixture description: {desc!r}'
-    def test_gxs_fixture_daily_interest(self, gxs_fixture): 'AC-extraction.103.4'; events = gxs_fixture['events']; interest_events = [e for e in events if 'Interest' in e.get('description', '')]; assert len(interest_events) > 20, 'GXS should have daily interest entries'
-    def test_all_fixtures_have_dates(self, dbs_fixture, maribank_fixture, gxs_fixture):
-        'AC-extraction.103.5'
-        for fixture in [dbs_fixture, maribank_fixture, gxs_fixture]:
-            for event in fixture['events']: assert event.get('date'), 'Event missing date'; assert len(event['date']) == 10, f"Invalid date format: {event['date']}"; assert event['date'][4] == '-', f"Invalid date format: {event['date']}"
+    @pytest.mark.parametrize("name", list(FIXTURES))
+    def test_fixture_structure_and_dates(self, name):
+        fx = FIXTURES[name]
+        assert fx["success"] is True and fx["institution"] == name and fx["events"]
+        for event in fx["events"]:
+            assert len(event["date"]) == 10 and event["date"][4] == "-"
+
+    def test_fixture_invariants(self):
+        dbs = FIXTURES["DBS"]
+        net = sum((Decimal(e["amount"]) if e["direction"] == "IN" else -Decimal(e["amount"]) for e in dbs["events"]))
+        assert abs(
+            Decimal(dbs["statement"]["closing_balance"]) - (Decimal(dbs["statement"]["opening_balance"]) + net)
+        ) < Decimal("1.00")
+        assert all(detect_pii(e["description"]) == [] for e in FIXTURES["MariBank"]["events"])
+        assert sum(1 for e in FIXTURES["GXS"]["events"] if "Interest" in e["description"]) > 20
+
+
 class TestPromptGeneration:
-    def test_get_parsing_prompt_default(self): 'AC-extraction.104.1 AC18.1.1'; from src.extraction.extension.prompts.statement import get_parsing_prompt; prompt = get_parsing_prompt(); assert 'financial statement parser' in prompt.lower(); assert 'JSON' in prompt; assert 'transactions' in prompt; assert 'MULTI-SECTION' in prompt; assert 'EVERY section' in prompt; assert 'COMPLETENESS SELF-CHECK' in prompt; assert 'reconcile EACH currency separately' in prompt; assert 'Never add amounts across different currencies' in prompt; assert 'EXACTLY ONCE' in prompt; assert 'do NOT double-count' in prompt; assert 'NEVER invent, fabricate' in prompt
-    def test_get_parsing_prompt_dbs(self): 'AC-extraction.104.2'; from src.extraction.extension.prompts.statement import get_parsing_prompt; prompt = get_parsing_prompt('DBS'); assert 'DBS' in prompt; assert 'Singapore' in prompt or 'GIRO' in prompt or 'PayNow' in prompt
-    def test_get_parsing_prompt_cmb(self): 'AC-extraction.104.3'; from src.extraction.extension.prompts.statement import get_parsing_prompt; prompt = get_parsing_prompt('CMB'); assert 'CMB' in prompt or '招商' in prompt; assert 'Chinese' in prompt or '中文' in prompt
-    def test_get_parsing_prompt_unknown_institution(self): 'AC-extraction.104.4'; from src.extraction.extension.prompts.statement import get_parsing_prompt; prompt = get_parsing_prompt('UnknownBank'); assert 'financial statement parser' in prompt.lower()
-    def test_get_parsing_prompt_futu(self): 'AC-extraction.104.5'; from src.extraction.extension.prompts.statement import get_parsing_prompt; prompt = get_parsing_prompt('Futu'); assert 'Futu' in prompt or '富途' in prompt
-    def test_get_parsing_prompt_gxs(self): 'AC-extraction.104.6'; from src.extraction.extension.prompts.statement import get_parsing_prompt; prompt = get_parsing_prompt('GXS'); assert 'GXS' in prompt
-    def test_get_parsing_prompt_maribank(self): 'AC-extraction.104.7'; from src.extraction.extension.prompts.statement import get_parsing_prompt; prompt = get_parsing_prompt('MariBank'); assert 'MariBank' in prompt; assert 'Buy - Mari Invest' in prompt; assert 'Sell - Mari Invest' in prompt
+    @pytest.mark.parametrize(
+        ("institution", "required_groups"),
+        [
+            (
+                None,
+                [
+                    ["financial statement parser"],
+                    ["JSON"],
+                    ["transactions"],
+                    ["MULTI-SECTION"],
+                    ["EVERY section"],
+                    ["COMPLETENESS SELF-CHECK"],
+                    ["reconcile EACH currency separately"],
+                    ["Never add amounts across different currencies"],
+                    ["EXACTLY ONCE"],
+                    ["do NOT double-count"],
+                    ["NEVER invent, fabricate"],
+                ],
+            ),
+            ("DBS", [["DBS"], ["Singapore", "GIRO", "PayNow"]]),
+            ("CMB", [["CMB", "招商"], ["Chinese", "中文"]]),
+            ("UnknownBank", [["financial statement parser"]]),
+            ("Futu", [["Futu", "富途"]]),
+            ("GXS", [["GXS"]]),
+            ("MariBank", [["MariBank"], ["Buy - Mari Invest"], ["Sell - Mari Invest"]]),
+        ],
+    )
+    def test_get_parsing_prompt(self, institution, required_groups):
+        prompt = get_parsing_prompt() if institution is None else get_parsing_prompt(institution)
+        for alts in required_groups:
+            assert any((s in prompt.lower() if s == "financial statement parser" else s in prompt) for s in alts)
+
+
 class TestMediaPayloadBuilder:
-    def setup_method(self): from src.extraction.extension.service import ExtractionService; self.service = ExtractionService()
-    def test_pdf_url_uses_zai_image_url_type(self):
-        'AC-extraction.105.1'; data = 'https://s3.example.test/bucket/statement.pdf?signature=secret'; payload = self.service._build_media_payload('pdf', 'application/pdf', data); assert payload['type'] == 'image_url'; assert payload['image_url']['url'] == data; 'AC-extraction.105.1'; 'AC-extraction.105.1'; _m1_data = 'data:application/pdf;base64,JVBERi0xLjQ='; _m1_payload = self.service._build_media_payload('pdf', 'application/pdf', _m1_data); assert _m1_payload['type'] == 'file'; assert _m1_payload['file']['filename'] == 'statement.pdf'; assert _m1_payload['file']['file_data'] == _m1_data; 'AC-extraction.105.1'; 'AC-extraction.105.1'; from io import BytesIO; from reportlab.pdfgen import canvas; _m2_buffer = BytesIO(); _m2_pdf = canvas.Canvas(_m2_buffer); _m2_pdf.drawString(72, 720, 'DBS statement fixture'); _m2_pdf.save(); _m2_batches = self.service._render_pdf_pages_as_image_payload_batches(_m2_buffer.getvalue()); assert len(_m2_batches) == 1; assert len(_m2_batches[0]) == 1; assert _m2_batches[0][0]['type'] == 'image_url'; assert _m2_batches[0][0]['image_url']['url'].startswith('data:image/png;base64,'); 'AC-extraction.105.1'; 'AC-extraction.105.1'
-        with pytest.raises(ExtractionError, match='No valid file content or accessible URL'): self.service._build_ai_file_input(file_content=None, file_url='http://10.0.0.5/statements/file.pdf?token=secret', file_type='pdf', mime_type='application/pdf', prefer_url=True)
-    def test_png_uses_image_url_type(self): 'AC-extraction.105.2'; data = 'data:image/png;base64,iVBORw0KGgo='; payload = self.service._build_media_payload('png', 'image/png', data); assert payload['type'] == 'image_url'; assert 'image_url' in payload; assert payload['image_url']['url'] == data
-    def test_jpg_uses_image_url_type(self): 'AC-extraction.105.3'; data = 'data:image/jpeg;base64,/9j/4AAQSkZJRg=='; payload = self.service._build_media_payload('jpg', 'image/jpeg', data); assert payload['type'] == 'image_url'; assert payload['image_url']['url'] == data
-    def test_jpeg_uses_image_url_type(self): 'AC-extraction.105.4'; data = 'https://example.com/statement.jpeg'; payload = self.service._build_media_payload('jpeg', 'image/jpeg', data); assert payload['type'] == 'image_url'; assert payload['image_url']['url'] == data
+    def setup_method(self):
+        self.service = ExtractionService()
+
+    @pytest.mark.parametrize(
+        ("file_type", "mime", "data", "expected_type"),
+        [
+            ("pdf", "application/pdf", "https://s3.example.test/bucket/statement.pdf?signature=secret", "image_url"),
+            ("pdf", "application/pdf", "data:application/pdf;base64,JVBERi0xLjQ=", "file"),
+            ("png", "image/png", "data:image/png;base64,iVBORw0KGgo=", "image_url"),
+            ("jpg", "image/jpeg", "data:image/jpeg;base64,/9j/4AAQSkZJRg==", "image_url"),
+            ("jpeg", "image/jpeg", "https://example.com/statement.jpeg", "image_url"),
+        ],
+    )
+    def test_media_payload_types(self, file_type, mime, data, expected_type):
+        payload = self.service._build_media_payload(file_type, mime, data)
+        assert payload["type"] == expected_type
+        if expected_type == "file":
+            assert payload["file"] == {"filename": "statement.pdf", "file_data": data}
+        else:
+            assert payload["image_url"]["url"] == data
+
+    def test_pdf_render_and_private_url_rejection(self):
+        buf = BytesIO()
+        pdf = canvas.Canvas(buf)
+        pdf.drawString(72, 720, "DBS statement fixture")
+        pdf.save()
+        batches = self.service._render_pdf_pages_as_image_payload_batches(buf.getvalue())
+        assert len(batches) == 1 and len(batches[0]) == 1
+        assert batches[0][0]["image_url"]["url"].startswith("data:image/png;base64,")
+        with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
+            self.service._build_ai_file_input(
+                file_content=None,
+                file_url="http://10.0.0.5/statements/file.pdf?token=secret",
+                file_type="pdf",
+                mime_type="application/pdf",
+                prefer_url=True,
+            )
+
+
 class TestInstitutionDetection:
-    def setup_method(self): from src.extraction.extension.service import ExtractionService; self.service = ExtractionService()
-    async def test_csv_requires_institution(self):
-        'AC-extraction.106.1'; from src.extraction.extension.service import ExtractionError
-        with pytest.raises(ExtractionError, match='Institution is required for CSV'): await self.service.parse_document(DocumentSource.resolve(path=Path('test.csv'), content=b'date,amount\n2025-01-01,100'), institution=None, user_id=uuid4(), file_type='csv', account_id=None)
-    async def test_parse_document_accepts_none_institution_for_pdf(self):
-        'AC-extraction.106.2'
-        with pytest.raises(Exception) as exc_info: await self.service.parse_document(DocumentSource.resolve(path=Path('test.pdf'), content=b'fake pdf content'), institution=None, user_id=uuid4(), file_type='pdf', account_id=None)
-        assert 'Institution is required' not in str(exc_info.value)
+    def setup_method(self):
+        self.service = ExtractionService()
+
+    async def test_csv_requires_institution_but_pdf_allows_none(self):
+        with pytest.raises(ExtractionError, match="Institution is required for CSV"):
+            await self.service.parse_document(
+                DocumentSource.resolve(path=Path("test.csv"), content=b"date,amount\n2025-01-01,100"),
+                institution=None,
+                user_id=uuid4(),
+                file_type="csv",
+                account_id=None,
+            )
+        with pytest.raises(Exception) as exc_info:
+            await self.service.parse_document(
+                DocumentSource.resolve(path=Path("test.pdf"), content=b"fake pdf content"),
+                institution=None,
+                user_id=uuid4(),
+                file_type="pdf",
+                account_id=None,
+            )
+        assert "Institution is required" not in str(exc_info.value)
+
+
 class TestExtractionServiceHelpers:
-    def setup_method(self): from src.extraction.extension.service import ExtractionService; self.service = ExtractionService()
-    def test_safe_date_valid(self): 'AC-extraction.107.5'; d = self.service._safe_date('2025-01-01'); assert d.year == 2025; assert d.month == 1; assert d.day == 1
-    def test_safe_date_invalid_format(self):
-        'AC-extraction.107.6'; import pytest
-        with pytest.raises(ValueError, match='Invalid date format'): self.service._safe_date('invalid-date')
-    def test_safe_date_empty(self):
-        'AC-extraction.107.7'; import pytest
-        with pytest.raises(ValueError, match='Date is required'): self.service._safe_date(None)
-    def test_safe_decimal_valid(self): 'AC-extraction.107.8'; d = self.service._safe_decimal('100.50'); from decimal import Decimal; assert d == Decimal('100.50')
-    def test_safe_decimal_invalid(self):
-        'AC-extraction.107.9'; import pytest
-        with pytest.raises(ValueError, match='Invalid decimal value'): self.service._safe_decimal('abc')
-    def test_safe_decimal_none(self): 'AC-extraction.107.10'; assert self.service._safe_decimal(None) is None
-    def test_safe_decimal_none_required(self):
-        'AC-extraction.107.11'; import pytest
-        with pytest.raises(ValueError, match='Decimal value is required'): self.service._safe_decimal(None, required=True)
-    def test_compute_confidence_missing_transactions(self): 'AC-extraction.107.12'; extracted = {'institution': 'DBS', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '0', 'closing_balance': '0'}; validation = {'balance_valid': True, 'difference': '0.00'}; score = compute_confidence_score(extracted, validation); assert 0 <= score <= 100
+    def setup_method(self):
+        self.service = ExtractionService()
+
+    @pytest.mark.parametrize(
+        ("value", "expected", "match"),
+        [
+            ("2025-01-01", (2025, 1, 1), None),
+            ("invalid-date", None, "Invalid date format"),
+            (None, None, "Date is required"),
+        ],
+    )
+    def test_safe_date(self, value, expected, match):
+        if match:
+            with pytest.raises(ValueError, match=match):
+                self.service._safe_date(value)
+        else:
+            d = self.service._safe_date(value)
+            assert (d.year, d.month, d.day) == expected
+
+    @pytest.mark.parametrize(
+        ("value", "required", "expected", "match"),
+        [
+            ("100.50", False, Decimal("100.50"), None),
+            (None, False, None, None),
+            ("abc", False, None, "Invalid decimal value"),
+            (None, True, None, "Decimal value is required"),
+        ],
+    )
+    def test_safe_decimal(self, value, required, expected, match):
+        if match:
+            with pytest.raises(ValueError, match=match):
+                self.service._safe_decimal(value, required=required)
+        else:
+            assert self.service._safe_decimal(value, required=required) == expected
+
     async def test_parse_document_accepts_force_model(self):
-        'AC-extraction.106.3'; service = ExtractionService()
-        with pytest.raises(ExtractionError, match='File content is required'): await service.parse_document(DocumentSource(path=Path('test.pdf'), content=None, url=None, content_hash='0' * 64, filename='test.pdf'), institution='DBS', user_id=uuid4(), file_type='pdf', account_id=None, force_model='google/gemini-2.0-flash-exp:free')
+        with pytest.raises(ExtractionError, match="File content is required"):
+            await self.service.parse_document(
+                DocumentSource(
+                    path=Path("test.pdf"), content=None, url=None, content_hash="0" * 64, filename="test.pdf"
+                ),
+                institution="DBS",
+                user_id=uuid4(),
+                file_type="pdf",
+                account_id=None,
+                force_model="google/gemini-2.0-flash-exp:free",
+            )
+
+
 class TestBalanceProgression:
-    def test_consistent_chain(self): 'AC-extraction.108.1'; from src.extraction.base.validation import _score_balance_progression; txns = [{'balance_after': '1000.00', 'amount': '100.00', 'direction': 'IN'}, {'balance_after': '1100.00', 'amount': '100.00', 'direction': 'IN'}, {'balance_after': '1050.00', 'amount': '50.00', 'direction': 'OUT'}]; assert _score_balance_progression(txns) == 10
-    def test_inconsistent_chain(self): 'AC-extraction.108.2'; from src.extraction.base.validation import _score_balance_progression; txns = [{'balance_after': '1000.00', 'amount': '100.00', 'direction': 'IN'}, {'balance_after': '5000.00', 'amount': '100.00', 'direction': 'IN'}]; assert _score_balance_progression(txns) == 0
-    def test_single_txn(self): 'AC-extraction.108.3'; from src.extraction.base.validation import _score_balance_progression; txns = [{'balance_after': '1000.00', 'amount': '100.00', 'direction': 'IN'}]; assert _score_balance_progression(txns) == 0
-    def test_no_balance_after(self): 'AC-extraction.108.4'; from src.extraction.base.validation import _score_balance_progression; txns = [{'amount': '100.00', 'direction': 'IN'}, {'amount': '200.00', 'direction': 'OUT'}]; assert _score_balance_progression(txns) == 0
-    def test_empty_list(self): 'AC-extraction.108.5'; from src.extraction.base.validation import _score_balance_progression; assert _score_balance_progression([]) == 0
-    def test_partial_consistency(self): 'AC-extraction.108.6'; from src.extraction.base.validation import _score_balance_progression; txns = [{'balance_after': '1000.00', 'amount': '100.00', 'direction': 'IN'}, {'balance_after': '1100.00', 'amount': '100.00', 'direction': 'IN'}, {'balance_after': '9999.00', 'amount': '50.00', 'direction': 'OUT'}]; assert _score_balance_progression(txns) == 5
+    @pytest.mark.parametrize(
+        ("txns", "expected"),
+        [
+            (
+                [
+                    {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
+                    {"balance_after": "1100.00", "amount": "100.00", "direction": "IN"},
+                    {"balance_after": "1050.00", "amount": "50.00", "direction": "OUT"},
+                ],
+                10,
+            ),
+            (
+                [
+                    {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
+                    {"balance_after": "5000.00", "amount": "100.00", "direction": "IN"},
+                ],
+                0,
+            ),
+            ([{"balance_after": "1000.00", "amount": "100.00", "direction": "IN"}], 0),
+            ([{"amount": "100.00", "direction": "IN"}, {"amount": "200.00", "direction": "OUT"}], 0),
+            ([], 0),
+            (
+                [
+                    {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
+                    {"balance_after": "1100.00", "amount": "100.00", "direction": "IN"},
+                    {"balance_after": "9999.00", "amount": "50.00", "direction": "OUT"},
+                ],
+                5,
+            ),
+        ],
+    )
+    def test_progression(self, txns, expected):
+        assert _score_balance_progression(txns) == expected
+
+
 class TestCurrencyConsistency:
-    def test_all_match_header(self): 'AC-extraction.108.7'; from src.extraction.base.validation import _score_currency_consistency; txns = [{'currency': 'SGD'}, {'currency': 'SGD'}, {'currency': 'SGD'}]; assert _score_currency_consistency(txns, 'SGD') == 5
-    def test_none_match(self): 'AC-extraction.108.8'; from src.extraction.base.validation import _score_currency_consistency; txns = [{'currency': 'USD'}, {'currency': 'EUR'}]; assert _score_currency_consistency(txns, 'SGD') == 0
-    def test_no_header_uses_most_common(self): 'AC-extraction.108.9'; from src.extraction.base.validation import _score_currency_consistency; txns = [{'currency': 'SGD'}, {'currency': 'SGD'}, {'currency': 'USD'}]; assert _score_currency_consistency(txns, None) == 3
-    def test_no_currencies(self): 'AC-extraction.108.10'; from src.extraction.base.validation import _score_currency_consistency; txns = [{'amount': '100'}, {'amount': '200'}]; assert _score_currency_consistency(txns, 'SGD') == 0
-    def test_empty_list(self): 'AC-extraction.108.11'; from src.extraction.base.validation import _score_currency_consistency; assert _score_currency_consistency([], 'SGD') == 0
-    def test_mixed_currencies_partial(self): 'AC-extraction.108.12'; from src.extraction.base.validation import _score_currency_consistency; txns = [{'currency': 'SGD'}, {'currency': 'USD'}, {'currency': 'SGD'}, {'currency': 'SGD'}]; assert _score_currency_consistency(txns, 'SGD') == 3
-    def test_missing_currencies_penalized(self): 'AC-extraction.108.13'; from src.extraction.base.validation import _score_currency_consistency; txns = [{'currency': 'SGD'}, {'amount': '100'}, {'amount': '200'}]; assert _score_currency_consistency(txns, 'SGD') == 1
+    @pytest.mark.parametrize(
+        ("txns", "header", "expected"),
+        [
+            ([{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "SGD"}], "SGD", 5),
+            ([{"currency": "USD"}, {"currency": "EUR"}], "SGD", 0),
+            ([{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "USD"}], None, 3),
+            ([{"amount": "100"}, {"amount": "200"}], "SGD", 0),
+            ([], "SGD", 0),
+            ([{"currency": "SGD"}, {"currency": "USD"}, {"currency": "SGD"}, {"currency": "SGD"}], "SGD", 3),
+            ([{"currency": "SGD"}, {"amount": "100"}, {"amount": "200"}], "SGD", 1),
+        ],
+    )
+    def test_consistency(self, txns, header, expected):
+        assert _score_currency_consistency(txns, header) == expected
+
+
 class TestConfidenceScoringV2:
-    def test_full_score_with_all_factors(self): 'AC-extraction.109.1'; txns = [{'date': '2025-01-01', 'description': 'A', 'amount': '100.00', 'direction': 'IN', 'currency': 'SGD', 'balance_after': '1000.00'}, {'date': '2025-01-02', 'description': 'B', 'amount': '50.00', 'direction': 'IN', 'currency': 'SGD', 'balance_after': '1050.00'}]; extracted = {'institution': 'DBS', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '900.00', 'closing_balance': '1050.00', 'currency': 'SGD', 'transactions': txns}; balance_result = {'balance_valid': True, 'difference': '0.00'}; from src.extraction.base.validation import compute_confidence_score; score = compute_confidence_score(extracted, balance_result); assert score == 100
-    def test_no_new_factors_caps_at_85(self): 'AC-extraction.109.2'; txns = [{'date': '2025-01-01', 'description': 'A', 'amount': '100.00', 'direction': 'IN'}]; extracted = {'institution': 'DBS', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '0.00', 'closing_balance': '100.00', 'transactions': txns}; balance_result = {'balance_valid': True, 'difference': '0.00'}; from src.extraction.base.validation import compute_confidence_score; score = compute_confidence_score(extracted, balance_result); assert score == 85
+    @pytest.mark.parametrize(
+        ("txns", "opening", "closing", "currency", "expected"),
+        [
+            (
+                [
+                    {
+                        "date": "2025-01-01",
+                        "description": "A",
+                        "amount": "100.00",
+                        "direction": "IN",
+                        "currency": "SGD",
+                        "balance_after": "1000.00",
+                    },
+                    {
+                        "date": "2025-01-02",
+                        "description": "B",
+                        "amount": "50.00",
+                        "direction": "IN",
+                        "currency": "SGD",
+                        "balance_after": "1050.00",
+                    },
+                ],
+                "900.00",
+                "1050.00",
+                "SGD",
+                100,
+            ),
+            (
+                [{"date": "2025-01-01", "description": "A", "amount": "100.00", "direction": "IN"}],
+                "0.00",
+                "100.00",
+                None,
+                85,
+            ),
+        ],
+    )
+    def test_v2_scoring(self, txns, opening, closing, currency, expected):
+        extracted = _extracted(txns, opening_balance=opening, closing_balance=closing, currency=currency)
+        assert compute_confidence_score(extracted, {"balance_valid": True, "difference": "0.00"}) == expected
+
+
 class TestUnderExtractionPenalty:
-    @staticmethod
-    def _brokerage_extracted(transactions): return {'institution': 'Futu', 'period_start': '2025-06-01', 'period_end': '2025-06-30', 'opening_balance': '0.00', 'closing_balance': '100.00', 'currency': 'HKD', 'transactions': transactions}
-    def test_brokerage_single_txn_penalized(self): 'AC-extraction.115.1'; extracted = self._brokerage_extracted([{'date': '2025-06-15', 'description': 'Aggregate', 'amount': '100.00', 'direction': 'IN', 'currency': 'HKD'}]); balance_result = {'balance_valid': True, 'difference': '0.00'}; unpenalized = compute_confidence_score(extracted, balance_result, is_brokerage=False); penalized = compute_confidence_score(extracted, balance_result, is_brokerage=True); assert penalized < unpenalized, 'Under-capture should lower confidence vs the un-penalized score'; assert penalized <= 60, f'1-txn brokerage should stay in review band, got {penalized}'
-    def test_brokerage_sufficient_txns_not_penalized(self): 'AC-extraction.115.2'; txns = [{'date': '2025-06-10', 'description': 'Buy', 'amount': '40.00', 'direction': 'OUT', 'currency': 'HKD'}, {'date': '2025-06-20', 'description': 'Sell', 'amount': '140.00', 'direction': 'IN', 'currency': 'HKD'}]; extracted = self._brokerage_extracted(txns); balance_result = {'balance_valid': True, 'difference': '0.00'}; score = compute_confidence_score(extracted, balance_result, is_brokerage=True); assert score > 60, f'Plausible brokerage parse should not be penalized, got {score}'
-    def test_bank_single_txn_not_penalized(self): 'AC-extraction.115.3'; extracted = {'institution': 'DBS', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '0.00', 'closing_balance': '100.00', 'transactions': [{'date': '2025-01-01', 'description': 'A', 'amount': '100.00', 'direction': 'IN'}]}; balance_result = {'balance_valid': True, 'difference': '0.00'}; assert compute_confidence_score(extracted, balance_result, is_brokerage=False) == 85
-    def test_default_is_not_brokerage(self): 'AC-extraction.115.4'; extracted = self._brokerage_extracted([{'date': '2025-06-15', 'description': 'Aggregate', 'amount': '100.00', 'direction': 'IN', 'currency': 'HKD'}]); balance_result = {'balance_valid': True, 'difference': '0.00'}; assert compute_confidence_score(extracted, balance_result) == compute_confidence_score(extracted, balance_result, is_brokerage=False)
-    def test_effective_count_uses_persisted_not_extracted(self): 'AC-extraction.115.5'; txns = [{'date': '2025-06-10', 'description': 'Buy', 'amount': '40.00', 'direction': 'OUT', 'currency': 'HKD'}, {'date': '2025-06-20', 'description': 'Sell', 'amount': '140.00', 'direction': 'IN', 'currency': 'HKD'}]; extracted = self._brokerage_extracted(txns); balance_result = {'balance_valid': True, 'difference': '0.00'}; not_capped = compute_confidence_score(extracted, balance_result, is_brokerage=True); capped = compute_confidence_score(extracted, balance_result, is_brokerage=True, effective_txn_count=1); assert capped <= 60 < not_capped
+    _ONE_BROKER = [
+        {"date": "2025-06-15", "description": "Aggregate", "amount": "100.00", "direction": "IN", "currency": "HKD"}
+    ]
+    _TWO_BROKER = [
+        {"date": "2025-06-10", "description": "Buy", "amount": "40.00", "direction": "OUT", "currency": "HKD"},
+        {"date": "2025-06-20", "description": "Sell", "amount": "140.00", "direction": "IN", "currency": "HKD"},
+    ]
+
+    def test_brokerage_and_effective_count_penalty(self):
+        bal = {"balance_valid": True, "difference": "0.00"}
+        one_broker = _extracted(
+            self._ONE_BROKER, institution="Futu", currency="HKD", period_start="2025-06-01", period_end="2025-06-30"
+        )
+        unpenalized = compute_confidence_score(one_broker, bal, is_brokerage=False)
+        penalized = compute_confidence_score(one_broker, bal, is_brokerage=True)
+        assert penalized <= 60 < unpenalized
+        assert compute_confidence_score(one_broker, bal) == unpenalized
+
+        two_broker = _extracted(
+            self._TWO_BROKER, institution="Futu", currency="HKD", period_start="2025-06-01", period_end="2025-06-30"
+        )
+        not_capped = compute_confidence_score(two_broker, bal, is_brokerage=True)
+        capped = compute_confidence_score(two_broker, bal, is_brokerage=True, effective_txn_count=1)
+        assert capped <= 60 < not_capped
+
+        bank_one = _extracted([{"date": "2025-01-01", "description": "A", "amount": "100.00", "direction": "IN"}])
+        assert compute_confidence_score(bank_one, bal, is_brokerage=False) == 85

@@ -1,4 +1,4 @@
-'AC-extraction.source-routing.2'; from uuid import uuid4; from src.extraction.base.types import DocumentSource; from src.extraction.extension.prompts.statement import get_parsing_prompt; from src.extraction.extension.service import ExtractionService
+from uuid import uuid4; from src.extraction.base.types import DocumentSource; from src.extraction.extension.prompts.statement import get_parsing_prompt; from src.extraction.extension.service import ExtractionService
 def test_brokerage_prompt_contains_dual_extraction_guidance(): prompt = get_parsing_prompt(document_kind='brokerage'); assert 'extract both' in prompt.lower(); assert 'no cash transactions occurred' in prompt.lower()
 async def test_empty_extraction_sets_clear_validation_error(monkeypatch):
     service = ExtractionService()

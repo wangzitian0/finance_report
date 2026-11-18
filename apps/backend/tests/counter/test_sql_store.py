@@ -1,4 +1,3 @@
-"AC-counter.1.3 AC-counter.1.4 EPIC-025"
 
 from uuid import uuid4
 import pytest
@@ -10,7 +9,6 @@ KEY = CounterKey("report.generated")
 
 
 async def test_sql_bump_is_atomic_and_per_user(db):
-    "AC-counter.1.3"
     repo = SqlCounterRepository(db)
     u1, u2 = (uuid4(), uuid4())
     assert await repo.bump(u1, KEY) == 1
@@ -22,7 +20,6 @@ async def test_sql_bump_is_atomic_and_per_user(db):
 
 
 async def test_sql_global_and_per_user_reads(db):
-    "AC-counter.1.4"
     repo = SqlCounterRepository(db)
     u1, u2 = (uuid4(), uuid4())
     await repo.bump(u1, KEY)
@@ -36,7 +33,6 @@ async def test_sql_global_and_per_user_reads(db):
 
 
 async def test_sql_repo_satisfies_read_via_ops_after_sync_snapshot(db):
-    "AC-counter.1.4"
     from tests.counter._fake import InMemoryCounterRepository
 
     repo = SqlCounterRepository(db)

@@ -1,4 +1,3 @@
-"""AC-extraction.retry-identity.1: a stalled parse is recovered from its run heartbeat, a live parse is not."""
 
 from datetime import timedelta
 

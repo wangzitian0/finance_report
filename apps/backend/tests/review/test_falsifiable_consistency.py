@@ -1,5 +1,43 @@
-'AC-reconciliation.consistency-checks.11'; from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.extraction import DocumentType, TransactionDirection; from src.extraction.orm.layer2 import AtomicTransaction; from src.reconciliation.extension.consistency_checks import detect_duplicates, detect_transfer_pairs
-async def _create_txn(db: AsyncSession, user_id, *, amount: Decimal, direction: TransactionDirection, currency: str, txn_date: date, description: str) -> AtomicTransaction: txn = AtomicTransaction(id=uuid4(), user_id=user_id, txn_date=txn_date, description=description, amount=amount, direction=direction, currency=currency, dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(uuid4()), 'doc_type': DocumentType.BANK_STATEMENT.value}]); db.add(txn); await db.flush(); return txn
-async def test_detect_duplicates_does_not_flag_different_currencies(db: AsyncSession, test_user): 'AC-reconciliation.consistency-checks.11'; d = date(2026, 3, 15); await _create_txn(db, test_user.id, amount=Decimal('100.00'), direction=TransactionDirection.OUT, currency='USD', txn_date=d, description='Coffee shop'); await _create_txn(db, test_user.id, amount=Decimal('100.00'), direction=TransactionDirection.OUT, currency='JPY', txn_date=d, description='Coffee shop'); checks = await detect_duplicates(db, test_user.id); assert len(checks) == 0, f'Expected 0 duplicate checks for different currencies, got {len(checks)}'
-async def test_detect_transfer_pairs_does_not_pair_different_currencies(db: AsyncSession, test_user): 'AC-reconciliation.consistency-checks.11'; d = date(2026, 3, 15); await _create_txn(db, test_user.id, amount=Decimal('100.00'), direction=TransactionDirection.OUT, currency='USD', txn_date=d, description='Payment out'); await _create_txn(db, test_user.id, amount=Decimal('100.00'), direction=TransactionDirection.IN, currency='JPY', txn_date=d, description='Deposit in'); checks = await detect_transfer_pairs(db, test_user.id); assert len(checks) == 0, f'Expected 0 transfer pair checks for different currencies, got {len(checks)}'
-async def test_consistency_checks_strictly_partition_by_currency(db: AsyncSession, test_user): 'AC-reconciliation.consistency-checks.11'; d1 = date(2026, 4, 1); d2 = date(2026, 4, 20); await _create_txn(db, test_user.id, amount=Decimal('50.00'), direction=TransactionDirection.OUT, currency='USD', txn_date=d1, description='Subscription'); await _create_txn(db, test_user.id, amount=Decimal('50.00'), direction=TransactionDirection.OUT, currency='SGD', txn_date=d1, description='Subscription'); dup_checks = await detect_duplicates(db, test_user.id); assert len(dup_checks) == 0, f'Expected 0 duplicate checks across USD and SGD, got {len(dup_checks)}'; await _create_txn(db, test_user.id, amount=Decimal('200.00'), direction=TransactionDirection.OUT, currency='USD', txn_date=d2, description='Wire transfer'); await _create_txn(db, test_user.id, amount=Decimal('200.00'), direction=TransactionDirection.IN, currency='EUR', txn_date=d2, description='Wire transfer'); pair_checks = await detect_transfer_pairs(db, test_user.id); assert len(pair_checks) == 0, f'Expected 0 transfer pair checks across USD and EUR, got {len(pair_checks)}'
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction import TransactionDirection
+from src.reconciliation.extension.consistency_checks import detect_duplicates, detect_transfer_pairs
+from tests.factories import AtomicTransactionFactory
+
+
+async def _add_txns(db: AsyncSession, user_id, rows: list[tuple[Decimal, TransactionDirection, str, date, str]]) -> None:
+    for amount, direction, currency, txn_date, description in rows:
+        await AtomicTransactionFactory.create_async(db, user_id=user_id, amount=amount, direction=direction, currency=currency, txn_date=txn_date, description=description)
+
+
+async def test_consistency_checks_strictly_partition_by_currency(db: AsyncSession, test_user):
+    d1, d2 = date(2026, 3, 15), date(2026, 4, 20)
+    await _add_txns(
+        db,
+        test_user.id,
+        [
+            (Decimal("100.00"), TransactionDirection.OUT, "USD", d1, "Coffee shop"),
+            (Decimal("100.00"), TransactionDirection.OUT, "JPY", d1, "Coffee shop"),
+            (Decimal("50.00"), TransactionDirection.OUT, "USD", d2, "Subscription"),
+            (Decimal("50.00"), TransactionDirection.OUT, "SGD", d2, "Subscription"),
+        ],
+    )
+    assert await detect_duplicates(db, test_user.id) == []
+
+    d3, d4 = date(2026, 5, 10), date(2026, 6, 15)
+    await _add_txns(
+        db,
+        test_user.id,
+        [
+            (Decimal("100.00"), TransactionDirection.OUT, "USD", d3, "Payment out"),
+            (Decimal("100.00"), TransactionDirection.IN, "JPY", d3, "Deposit in"),
+            (Decimal("200.00"), TransactionDirection.OUT, "USD", d4, "Wire transfer"),
+            (Decimal("200.00"), TransactionDirection.IN, "EUR", d4, "Wire transfer"),
+        ],
+    )
+    assert await detect_transfer_pairs(db, test_user.id) == []

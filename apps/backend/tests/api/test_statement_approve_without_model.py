@@ -1,9 +1,4 @@
-"""Approve of a statement whose rows have no model answer (#2994, slice S3 precondition tests).
-
-The first test passed on main before the change (the approve then called the classification): a row without an
-answer ends in the "Economic review required" 409. The second test posted a keyword-rule row at the approve
-on main. Slice S3 moves the keyword rule step from the approve to the classify run and keeps both results.
-"""
+"""Approve of a statement whose rows have no model answer (#2994, slice S3 precondition tests)."""
 
 from __future__ import annotations
 
@@ -38,10 +33,7 @@ ROWS = [
 
 
 class ForbiddenProposer:
-    """A model that must not be asked. The calls are recorded so that the test can show it."""
-
-    def __init__(self) -> None:
-        self.calls = 0
+    calls = 0
 
     async def __call__(self, transactions, _policy):
         self.calls += 1
@@ -77,32 +69,33 @@ async def _count(db, model) -> int:
 async def test_AC_extraction_2994_100_approve_of_rows_without_an_answer_goes_to_economic_review(
     client, db, test_user, model_off
 ):
-    """AC-extraction.2994.100: With the model off and no stored answer, approve gives the 409 and posts nothing."""
     seeded = await _seed(db, test_user)
-
-    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
-
-    assert response.status_code == 409, response.text
-    assert response.json()["detail"].startswith("Economic review required:"), response.text
-    assert model_off.calls == 0
-    assert await _count(db, JournalEntry) == 0, "nothing is posted"
-    assert await _count(db, TransactionClassification) == 0, "no answer is invented"
+    resp = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
     refreshed = await db.scalar(
         select(StatementSummary).where(StatementSummary.id == seeded.id).execution_options(populate_existing=True)
     )
-    assert refreshed.status is BankStatementStatus.PARSED
+    assert resp.status_code == 409 and resp.json()["detail"].startswith("Economic review required:")
+    assert (
+        model_off.calls,
+        await _count(db, JournalEntry),
+        await _count(db, TransactionClassification),
+        refreshed.status,
+    ) == (0, 0, 0, BankStatementStatus.PARSED)
 
 
-async def _add_keyword_rule(db, user, keyword: str) -> None:
-    account = Account(user_id=user.id, name=f"Expense - {keyword}", type=AccountType.EXPENSE, currency="SGD")
-    income = Account(user_id=user.id, name=f"Income - {keyword}", type=AccountType.INCOME, currency="SGD")
-    db.add_all([account, income])
+async def test_AC_extraction_2994_100_the_classify_run_applies_the_keyword_rules_and_approve_posts_them_without_a_model_call(
+    client, db, test_user, model_off
+):
+    seeded = await _seed(db, test_user)
+    exp = Account(user_id=test_user.id, name="Expense - Reviewed", type=AccountType.EXPENSE, currency="SGD")
+    inc = Account(user_id=test_user.id, name="Income - Reviewed", type=AccountType.INCOME, currency="SGD")
+    db.add_all([exp, inc])
     await db.flush()
-    for name, kw, target in (("expense", "Coffee", account), ("income", "Salary", income)):
-        db.add(
+    db.add_all(
+        [
             ClassificationRule(
-                user_id=user.id,
-                created_by=user.id,
+                user_id=test_user.id,
+                created_by=test_user.id,
                 version_number=1,
                 effective_date=date(2020, 1, 1),
                 is_active=True,
@@ -112,26 +105,17 @@ async def _add_keyword_rule(db, user, keyword: str) -> None:
                 tag_mappings={"category": name.upper()},
                 default_account_id=target.id,
             )
-        )
+            for name, kw, target in (("expense", "Coffee", exp), ("income", "Salary", inc))
+        ]
+    )
     await db.commit()
 
-
-async def test_AC_extraction_2994_100_the_classify_run_applies_the_keyword_rules_and_approve_posts_them_without_a_model_call(
-    client, db, test_user, model_off
-):
-    """AC-extraction.2994.100: The rule step moved from the approve to the classify run. The model stays off."""
-    seeded = await _seed(db, test_user)
-    await _add_keyword_rule(db, test_user, "Reviewed")
-
-    before_the_run = await client.post(
-        f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True}
-    )
+    before = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
     await classify_statement(db, seeded.id)
-    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
-
-    assert before_the_run.status_code == 409, "the approve alone applies no rule any more"
-    assert before_the_run.json()["detail"].startswith("Economic review required:")
-    assert response.status_code == 200, response.text
-    assert response.json()["journal_entries_created"] == len(ROWS)
-    assert model_off.calls == 0
-    assert await _count(db, TransactionClassification) == len(ROWS), "each row has its answer from the rule"
+    after = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
+    assert before.status_code == 409 and before.json()["detail"].startswith("Economic review required:")
+    assert after.status_code == 200 and (
+        after.json()["journal_entries_created"],
+        model_off.calls,
+        await _count(db, TransactionClassification),
+    ) == (len(ROWS), 0, len(ROWS))

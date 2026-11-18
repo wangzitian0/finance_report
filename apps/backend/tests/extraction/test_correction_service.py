@@ -1,4 +1,3 @@
-"EPIC-018"
 
 from uuid import uuid4
 import pytest
@@ -19,7 +18,6 @@ def _clear_cache():
 
 
 async def test_record_correction_stores_corrected_category(db, test_user):
-    "AC-extraction.1802.1 AC18.2.1"
     txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Grab taxi")
     await db.commit()
     correction = await record_correction(
@@ -49,7 +47,6 @@ async def test_record_correction_not_found_raises(db, test_user):
 
 
 async def test_AC18_2_2_record_correction_rejects_cross_user_corrected_account(db, test_user):
-    "AC-extraction.1802.2 AC18.2.2"
     txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Grab taxi")
     other_user = await UserFactory.create_async(db)
     other_account = await AccountFactory.create_async(db, user_id=other_user.id, name="Other User Account")
@@ -91,7 +88,6 @@ async def test_few_shot_examples_empty_returns_empty(db, test_user):
 
 
 async def test_few_shot_cache_invalidates(db, test_user):
-    "AC-extraction.1802.4 AC18.2.4"
     examples = await get_few_shot_examples(db, user_id=test_user.id)
     assert examples == []
     txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Uber ride")

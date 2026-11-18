@@ -42,7 +42,6 @@ async def _approve_batch_and_count(client, db, db_engine, user_id, count: int) -
 
 
 async def test_batch_approve_over_http_costs_a_bounded_number_of_statements_per_match(client, db, db_engine, test_user):
-    "AC-reconciliation.stage2-batch.3"
     small_body, small_sql = await _approve_batch_and_count(client, db, db_engine, test_user.id, 2)
     large_body, large_sql = await _approve_batch_and_count(client, db, db_engine, test_user.id, 6)
 

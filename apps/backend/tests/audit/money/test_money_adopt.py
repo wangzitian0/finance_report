@@ -1,4 +1,3 @@
-"AC-audit.22.2 EPIC-002"
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -24,7 +23,6 @@ pytestmark = pytest.mark.no_db
     ],
 )
 def test_AC2_22_2_balance_check_is_byte_identical(opening, closing, net, currency):
-    "AC-audit.22.2"
     expected_legacy = opening + net
     diff_legacy = abs(closing - expected_legacy)
     expected, diff = balance_check(opening, closing, net, currency)
@@ -32,7 +30,6 @@ def test_AC2_22_2_balance_check_is_byte_identical(opening, closing, net, currenc
 
 
 def test_AC2_22_2_per_currency_validation_totals_unchanged():
-    "AC-audit.22.2"
     extracted = {
         "balances": [
             {"currency": "USD", "opening": "100.00", "closing": "150.00"},
@@ -54,7 +51,6 @@ def test_AC2_22_2_per_currency_validation_totals_unchanged():
 
 
 def test_AC2_22_4_transfer_leg_exposes_typed_money():
-    "AC-audit.22.4"
     leg = TransferLeg(
         user_id=uuid4(),
         account_id=uuid4(),
@@ -78,7 +74,6 @@ def test_AC2_22_4_transfer_leg_exposes_typed_money():
 
 
 def test_AC2_22_1_statement_summary_typed_currency_balances():
-    "AC-audit.22.1"
     stmt = StatementSummary()
     stmt.currency_balances = [
         {"currency": "USD", "opening": "100.00", "closing": "150.00"},

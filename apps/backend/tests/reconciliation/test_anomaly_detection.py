@@ -1,4 +1,4 @@
-'AC4.5.1'; from datetime import date, timedelta; from decimal import Decimal; from src.extraction import TransactionDirection; from src.reconciliation.extension.anomaly import detect_anomalies; from tests.factories import AtomicTransactionFactory; OUT = TransactionDirection.OUT
+from datetime import date, timedelta; from decimal import Decimal; from src.extraction import TransactionDirection; from src.reconciliation.extension.anomaly import detect_anomalies; from tests.factories import AtomicTransactionFactory; OUT = TransactionDirection.OUT
 async def test_detect_large_amount_anomaly(db, test_user):
     for i in range(30): await AtomicTransactionFactory.create_async(db, user_id=test_user.id, amount=Decimal('1.00'), direction=OUT, txn_date=date.today() - timedelta(days=i % 29 + 1))
     large_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, amount=Decimal('5000.00'), direction=OUT, txn_date=date.today(), description='HUGE PURCHASE ELECTRONICS'); await db.commit(); anomalies = await detect_anomalies(db, large_txn, user_id=test_user.id); types = [a.anomaly_type for a in anomalies]; assert 'LARGE_AMOUNT' in types

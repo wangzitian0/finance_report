@@ -1,18 +1,17 @@
-"AC4.14.13 AC4.14.14"
-
 from datetime import date
 from decimal import Decimal
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.audit import JournalEntrySourceType
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+
+from src.ledger import AccountType
 from src.pricing import FxConversion
-from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet, generate_income_statement
+from tests.reporting._report_fixtures import post_pair, seed_accounts, seed_fx_rates
 
 _OUT_SGD = Decimal("1360.00")
 _IN_USD = Decimal("1000.00")
-_RATE_SGD_PER_USD = Decimal("1.360000")
+_RATE = Decimal("1.360000")
 _SALARY_SGD = Decimal("5000.00")
 _FEE_SGD = Decimal("2.50")
 _REPORT_DATE = date(2025, 6, 30)
@@ -20,205 +19,111 @@ _PERIOD_START = date(2025, 6, 1)
 _TXN_DATE = date(2025, 6, 15)
 
 
-async def _account(db, user_id, *, name, account_type, currency="SGD") -> Account:
-    account = Account(user_id=user_id, name=name, type=account_type, currency=currency)
-    db.add(account)
-    await db.flush()
-    return account
-
-
-async def _post_entry(db, user_id, *, debit_account, credit_account, amount, currency) -> JournalEntry:
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=_TXN_DATE,
-        memo="seed",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+async def _seed_transfer(db: AsyncSession, user_id, *, with_conversion_row: bool) -> None:
+    await seed_fx_rates(
+        db,
+        ("USD", "SGD", _RATE, _TXN_DATE),
+        ("SGD", "USD", (Decimal("1") / _RATE).quantize(Decimal("0.000001")), _TXN_DATE),
+        commit=False,
     )
-    db.add(entry)
-    await db.flush()
-    line_fx_rate = None if currency.upper() == "SGD" else _RATE_SGD_PER_USD
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=debit_account.id,
-                direction=Direction.DEBIT,
-                amount=amount,
-                currency=currency,
-                fx_rate=line_fx_rate,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=credit_account.id,
-                direction=Direction.CREDIT,
-                amount=amount,
-                currency=currency,
-                fx_rate=line_fx_rate,
-            ),
-        ]
+    sgd_bank, usd_bank, salary, x_in, x_out = await seed_accounts(
+        db,
+        user_id,
+        ("SGD Bank", AccountType.ASSET, "SGD"),
+        ("USD Bank", AccountType.ASSET, "USD"),
+        ("Salary", AccountType.INCOME, "SGD"),
+        ("Misclassified Transfer In", AccountType.INCOME, "USD"),
+        ("Misclassified Transfer Out", AccountType.EXPENSE, "SGD"),
     )
-    await db.flush()
-    return entry
-
-
-async def _seed_fx_rate(db) -> None:
-    db.add(
-        FxRate(base_currency="USD", quote_currency="SGD", rate=_RATE_SGD_PER_USD, rate_date=_TXN_DATE, source="test")
-    )
-    db.add(
-        FxRate(
-            base_currency="SGD",
-            quote_currency="USD",
-            rate=(Decimal("1") / _RATE_SGD_PER_USD).quantize(Decimal("0.000001")),
-            rate_date=_TXN_DATE,
-            source="test",
+    await post_pair(db, user_id, _TXN_DATE, "sal", sgd_bank, salary, _SALARY_SGD, currency="SGD")
+    in_e = await post_pair(db, user_id, _TXN_DATE, "in", usd_bank, x_in, _IN_USD, currency="USD", fx_rate=_RATE)
+    out_e = await post_pair(db, user_id, _TXN_DATE, "out", x_out, sgd_bank, _OUT_SGD, currency="SGD")
+    if with_conversion_row:
+        db.add(
+            FxConversion(
+                user_id=user_id,
+                from_account_id=sgd_bank.id,
+                to_account_id=usd_bank.id,
+                amount_from=_OUT_SGD,
+                currency_from="SGD",
+                amount_to=_IN_USD,
+                currency_to="USD",
+                rate=_RATE,
+                fee=_FEE_SGD,
+                fee_currency="SGD",
+                conversion_date=_TXN_DATE,
+                from_journal_entry_id=out_e.id,
+                to_journal_entry_id=in_e.id,
+            )
         )
-    )
-
-
-async def _seed_raw_ledger_transfer(db: AsyncSession, user_id) -> None:
-    await _seed_fx_rate(db)
-    sgd_bank = await _account(db, user_id, name="SGD Bank", account_type=AccountType.ASSET, currency="SGD")
-    usd_bank = await _account(db, user_id, name="USD Bank", account_type=AccountType.ASSET, currency="USD")
-    salary_income = await _account(db, user_id, name="Salary", account_type=AccountType.INCOME, currency="SGD")
-    transfer_income = await _account(
-        db, user_id, name="Misclassified Transfer In", account_type=AccountType.INCOME, currency="USD"
-    )
-    transfer_expense = await _account(
-        db, user_id, name="Misclassified Transfer Out", account_type=AccountType.EXPENSE, currency="SGD"
-    )
-    await _post_entry(
-        db, user_id, debit_account=sgd_bank, credit_account=salary_income, amount=_SALARY_SGD, currency="SGD"
-    )
-    await _post_entry(
-        db, user_id, debit_account=usd_bank, credit_account=transfer_income, amount=_IN_USD, currency="USD"
-    )
-    await _post_entry(
-        db, user_id, debit_account=transfer_expense, credit_account=sgd_bank, amount=_OUT_SGD, currency="SGD"
-    )
     await db.commit()
 
 
-async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSession, test_user):
-    "AC-reconciliation.fx-transfer.13 AC4.14.13"
-    await _seed_raw_ledger_transfer(db, test_user.id)
-    recorded = (await db.execute(select(FxConversion).where(FxConversion.user_id == test_user.id))).scalars().all()
-    assert recorded == [], "scenario must rely on auto-discovery, not a recorded fx_conversions row"
-    report = await generate_income_statement(
+async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSession, test_user) -> None:
+    await _seed_transfer(db, test_user.id, with_conversion_row=False)
+    assert (await db.execute(select(FxConversion).where(FxConversion.user_id == test_user.id))).scalars().all() == []
+    rep = await generate_income_statement(
         db, test_user.id, start_date=_PERIOD_START, end_date=_REPORT_DATE, currency="SGD"
     )
-    assert report["total_income"] == _SALARY_SGD
-    assert report["total_expenses"] == Decimal("0.00")
-    assert report["net_income"] == _SALARY_SGD
-    balance_sheet = await generate_balance_sheet(
-        db, test_user.id, as_of_date=_REPORT_DATE, currency="SGD", include_trust_signals=False
+    assert (rep["total_income"], rep["total_expenses"], rep["net_income"]) == (
+        _SALARY_SGD,
+        Decimal("0.00"),
+        _SALARY_SGD,
     )
-    assert balance_sheet["net_income"] == _SALARY_SGD
-
-
-async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: AsyncSession, test_user):
-    "AC-reconciliation.fx-transfer.14 AC4.14.14"
-    await _seed_fx_rate(db)
-    sgd_bank = await _account(db, test_user.id, name="SGD Bank", account_type=AccountType.ASSET, currency="SGD")
-    usd_bank = await _account(db, test_user.id, name="USD Bank", account_type=AccountType.ASSET, currency="USD")
-    transfer_income_usd = await _account(
-        db, test_user.id, name="Transfer In USD", account_type=AccountType.INCOME, currency="USD"
-    )
-    transfer_expense_sgd = await _account(
-        db, test_user.id, name="Transfer Out SGD", account_type=AccountType.EXPENSE, currency="SGD"
-    )
-    transfer_income_sgd = await _account(
-        db, test_user.id, name="Transfer In SGD", account_type=AccountType.INCOME, currency="SGD"
-    )
-    transfer_expense_usd = await _account(
-        db, test_user.id, name="Transfer Out USD", account_type=AccountType.EXPENSE, currency="USD"
-    )
-    await _post_entry(
-        db, test_user.id, debit_account=transfer_expense_sgd, credit_account=sgd_bank, amount=_OUT_SGD, currency="SGD"
-    )
-    await _post_entry(
-        db, test_user.id, debit_account=usd_bank, credit_account=transfer_income_usd, amount=_IN_USD, currency="USD"
-    )
-    await _post_entry(
-        db, test_user.id, debit_account=transfer_expense_usd, credit_account=usd_bank, amount=_IN_USD, currency="USD"
-    )
-    await _post_entry(
-        db, test_user.id, debit_account=sgd_bank, credit_account=transfer_income_sgd, amount=_OUT_SGD, currency="SGD"
-    )
-    await db.commit()
-    report = await generate_income_statement(
-        db, test_user.id, start_date=_PERIOD_START, end_date=_REPORT_DATE, currency="SGD"
-    )
-    assert report["total_income"] == Decimal("0.00")
-    assert report["total_expenses"] == Decimal("0.00")
-    assert report["net_income"] == Decimal("0.00")
-
-
-async def _seed_internal_transfer_scenario(db: AsyncSession, user_id) -> None:
-    db.add(
-        FxRate(base_currency="USD", quote_currency="SGD", rate=_RATE_SGD_PER_USD, rate_date=_TXN_DATE, source="test")
-    )
-    sgd_bank = await _account(db, user_id, name="SGD Bank", account_type=AccountType.ASSET, currency="SGD")
-    usd_bank = await _account(db, user_id, name="USD Bank", account_type=AccountType.ASSET, currency="USD")
-    salary_income = await _account(db, user_id, name="Salary", account_type=AccountType.INCOME, currency="SGD")
-    transfer_income = await _account(
-        db, user_id, name="Misclassified Transfer In", account_type=AccountType.INCOME, currency="USD"
-    )
-    transfer_expense = await _account(
-        db, user_id, name="Misclassified Transfer Out", account_type=AccountType.EXPENSE, currency="SGD"
-    )
-    await _post_entry(
-        db, user_id, debit_account=sgd_bank, credit_account=salary_income, amount=_SALARY_SGD, currency="SGD"
-    )
-    in_entry = await _post_entry(
-        db, user_id, debit_account=usd_bank, credit_account=transfer_income, amount=_IN_USD, currency="USD"
-    )
-    out_entry = await _post_entry(
-        db, user_id, debit_account=transfer_expense, credit_account=sgd_bank, amount=_OUT_SGD, currency="SGD"
-    )
-    db.add(
-        FxConversion(
-            user_id=user_id,
-            from_account_id=sgd_bank.id,
-            to_account_id=usd_bank.id,
-            amount_from=_OUT_SGD,
-            currency_from="SGD",
-            amount_to=_IN_USD,
-            currency_to="USD",
-            rate=_RATE_SGD_PER_USD,
-            fee=_FEE_SGD,
-            fee_currency="SGD",
-            conversion_date=_TXN_DATE,
-            from_journal_entry_id=out_entry.id,
-            to_journal_entry_id=in_entry.id,
+    assert (
+        await generate_balance_sheet(
+            db, test_user.id, as_of_date=_REPORT_DATE, currency="SGD", include_trust_signals=False
         )
+    )["net_income"] == _SALARY_SGD
+
+
+async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: AsyncSession, test_user) -> None:
+    await seed_fx_rates(
+        db,
+        ("USD", "SGD", _RATE, _TXN_DATE),
+        ("SGD", "USD", (Decimal("1") / _RATE).quantize(Decimal("0.000001")), _TXN_DATE),
+        commit=False,
     )
-    await db.commit()
-
-
-async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: AsyncSession, test_user):
-    "AC-reconciliation.fx-transfer.9"
-    await _seed_internal_transfer_scenario(db, test_user.id)
-    report = await generate_income_statement(
+    sgd_b, usd_b, in_u, out_s, in_s, out_u = await seed_accounts(
+        db,
+        test_user.id,
+        ("SGD Bank", AccountType.ASSET, "SGD"),
+        ("USD Bank", AccountType.ASSET, "USD"),
+        ("Transfer In USD", AccountType.INCOME, "USD"),
+        ("Transfer Out SGD", AccountType.EXPENSE, "SGD"),
+        ("Transfer In SGD", AccountType.INCOME, "SGD"),
+        ("Transfer Out USD", AccountType.EXPENSE, "USD"),
+    )
+    await post_pair(db, test_user.id, _TXN_DATE, "1", out_s, sgd_b, _OUT_SGD, currency="SGD")
+    await post_pair(db, test_user.id, _TXN_DATE, "2", usd_b, in_u, _IN_USD, currency="USD", fx_rate=_RATE)
+    await post_pair(db, test_user.id, _TXN_DATE, "3", out_u, usd_b, _IN_USD, currency="USD", fx_rate=_RATE)
+    await post_pair(db, test_user.id, _TXN_DATE, "4", sgd_b, in_s, _OUT_SGD, currency="SGD", commit=True)
+    rep = await generate_income_statement(
         db, test_user.id, start_date=_PERIOD_START, end_date=_REPORT_DATE, currency="SGD"
     )
-    assert report["total_income"] == _SALARY_SGD
-    assert report["total_expenses"] == _FEE_SGD
-    assert report["net_income"] == Decimal("4997.50")
-    expense_lines = report["expenses"]
-    expense_line_sum = sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0"))
-    assert expense_line_sum == report["total_expenses"]
-    fee_lines = [line for line in expense_lines if Decimal(str(line["amount"])) == _FEE_SGD]
-    assert len(fee_lines) == 1, "internal-transfer fee must appear as a single expense line"
-    assert fee_lines[0]["account_id"] is not None
-    assert sum((Decimal(str(t["total_expenses"])) for t in report["trends"]), Decimal("0")) == _FEE_SGD
-
-
-async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, test_user):
-    "AC-reconciliation.fx-transfer.10"
-    await _seed_internal_transfer_scenario(db, test_user.id)
-    report = await generate_balance_sheet(
-        db, test_user.id, as_of_date=_REPORT_DATE, currency="SGD", include_trust_signals=False
+    assert (rep["total_income"], rep["total_expenses"], rep["net_income"]) == (
+        Decimal("0.00"),
+        Decimal("0.00"),
+        Decimal("0.00"),
     )
-    assert report["net_income"] == Decimal("4997.50")
+
+
+async def test_AC3_internal_transfer_excluded_and_fee_only_e2e(db: AsyncSession, test_user) -> None:
+    await _seed_transfer(db, test_user.id, with_conversion_row=True)
+    rep = await generate_income_statement(
+        db, test_user.id, start_date=_PERIOD_START, end_date=_REPORT_DATE, currency="SGD"
+    )
+    assert (rep["total_income"], rep["total_expenses"], rep["net_income"]) == (
+        _SALARY_SGD,
+        _FEE_SGD,
+        Decimal("4997.50"),
+    )
+    assert sum((Decimal(str(item["amount"])) for item in rep["expenses"]), Decimal("0")) == _FEE_SGD
+    fees = [item for item in rep["expenses"] if Decimal(str(item["amount"])) == _FEE_SGD]
+    assert len(fees) == 1 and fees[0]["account_id"] is not None
+    assert sum((Decimal(str(t["total_expenses"])) for t in rep["trends"]), Decimal("0")) == _FEE_SGD
+    assert (
+        await generate_balance_sheet(
+            db, test_user.id, as_of_date=_REPORT_DATE, currency="SGD", include_trust_signals=False
+        )
+    )["net_income"] == Decimal("4997.50")

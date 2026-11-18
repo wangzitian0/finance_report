@@ -1,4 +1,3 @@
-"AC-counter.1.4 EPIC-025"
 
 from uuid import uuid4
 import pytest
@@ -10,7 +9,6 @@ KEY = CounterKey("report.generated")
 
 
 async def test_global_vs_per_user_count():
-    "AC-counter.1.4"
     repo = InMemoryCounterRepository()
     u1, u2 = (uuid4(), uuid4())
     await increment(repo, user_id=u1, key=KEY)
@@ -23,7 +21,6 @@ async def test_global_vs_per_user_count():
 
 
 async def test_unknown_key_or_user_is_zero():
-    "AC-counter.1.4"
     repo = InMemoryCounterRepository()
     assert await get_count(repo, key=KEY) == Count(0)
     assert await get_count(repo, key=KEY, user_id=uuid4()) == Count(0)

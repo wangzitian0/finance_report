@@ -36,7 +36,6 @@ CLICK = {"auto_fill_default_categories": True}
 async def test_AC_extraction_accept_ai_suggestions_1_auto_fill_posts_the_draft_category_and_account(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.accept-ai-suggestions.1"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, bank = await create_statement_with_bank(db, test_user.id, "hash_accept_ai_1", bank_name="DBS Accept AI")
     interest = await add_txn(
@@ -71,7 +70,6 @@ async def test_AC_extraction_accept_ai_suggestions_1_auto_fill_posts_the_draft_c
 async def test_AC_extraction_accept_ai_suggestions_2_a_gxs_shaped_statement_reaches_approved(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.accept-ai-suggestions.2"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, bank = await create_statement_with_bank(db, test_user.id, "hash_bs_gxs", closing="370.00", confidence=95)
     statement.validation_error = "Economic review required: intent_missing"
@@ -150,7 +148,6 @@ async def test_AC_extraction_accept_ai_suggestions_2_a_gxs_shaped_statement_reac
 async def test_AC_extraction_accept_ai_suggestions_3_a_suggestion_that_contradicts_the_direction_falls_back(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.accept-ai-suggestions.3"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, bank = await create_statement_with_bank(db, test_user.id, "hash_accept_ai_3", bank_name="DBS Accept AI")
     outgoing = await add_txn(
@@ -174,7 +171,6 @@ async def test_AC_extraction_accept_ai_suggestions_3_a_suggestion_that_contradic
 async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_category(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.accept-ai-suggestions.5"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, bank = await create_statement_with_bank(db, test_user.id, "hash_accept_ai_5", bank_name="DBS Accept AI")
     applied = await add_txn(
@@ -230,7 +226,6 @@ async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_
 async def test_AC_extraction_accept_ai_suggestions_6_posting_clears_only_the_economic_review_note(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.accept-ai-suggestions.6"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     notes = {
         "hash_note_review": ("Economic review required: intent_missing", None),
@@ -266,7 +261,6 @@ async def test_AC_extraction_accept_ai_suggestions_6_posting_clears_only_the_eco
 async def test_AC_extraction_accept_ai_suggestions_7_a_loan_or_a_trade_posts_to_a_balance_sheet_account(
     client: AsyncClient, db, test_user, monkeypatch, category, direction, account_name, account_type, bank_side, counter_side
 ):
-    "AC-extraction.accept-ai-suggestions.7"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     closing = "0.00" if direction == "OUT" else "200.00"
     statement, bank = await create_statement_with_bank(
@@ -307,7 +301,6 @@ async def test_AC_extraction_accept_ai_suggestions_7_a_loan_or_a_trade_posts_to_
 async def test_AC_extraction_classification_hardening_4_an_applied_row_that_the_policy_refuses_gets_the_default(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.classification-hardening.4"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, bank = await create_statement_with_bank(
         db, test_user.id, "hash_hardening_4", closing="80.00", bank_name="DBS Accept AI"
@@ -331,7 +324,6 @@ async def test_AC_extraction_classification_hardening_4_an_applied_row_that_the_
 async def test_AC_extraction_classification_hardening_8_the_approval_settles_the_drafts_it_decided(
     client: AsyncClient, db, test_user, monkeypatch
 ):
-    "AC-extraction.classification-hardening.8"
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, _bank = await create_statement_with_bank(
         db, test_user.id, "hash_hardening_2_settle", closing="65.00", bank_name="DBS Accept AI"

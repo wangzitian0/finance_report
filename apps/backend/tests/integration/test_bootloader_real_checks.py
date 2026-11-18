@@ -13,14 +13,13 @@ async def _ensure_bucket_exists() -> None:
         allow_create=True,
     )
 async def test_AC_runtime_guard_proofs_4_real_database_check_passes_against_live_service() -> None:
-    'AC-runtime.guard-proofs.4'
     with _real_checks_patched(): status: ServiceStatus = await Bootloader._check_database()
     assert status.message != _MOCK_MESSAGE, 'autouse bootloader mock leaked into the honest-health lane'; assert status.status == 'ok', f'real database check failed: {status.message}'; assert status.duration_ms > 0
 async def test_AC_runtime_guard_proofs_5_real_s3_check_passes_against_live_service() -> None:
-    'AC-runtime.guard-proofs.5'; await _ensure_bucket_exists()
+    await _ensure_bucket_exists()
     with _real_checks_patched(): status: ServiceStatus = await Bootloader._check_s3()
     assert status.message != _MOCK_MESSAGE, 'autouse bootloader mock leaked into the honest-health lane'; assert status.status == 'ok', f'real S3 check failed: {status.message}'; assert status.duration_ms > 0
 async def test_AC_runtime_guard_proofs_6_real_database_check_reds_on_dead_port(monkeypatch) -> None:
-    'AC-runtime.guard-proofs.6'; monkeypatch.setattr(settings, 'database_url', 'postgresql+asyncpg://postgres:placeholder-password@127.0.0.1:9/finance_report_test')
+    monkeypatch.setattr(settings, 'database_url', 'postgresql+asyncpg://postgres:placeholder-password@127.0.0.1:9/finance_report_test')
     with _real_checks_patched(): status: ServiceStatus = await Bootloader._check_database()
     assert status.message != _MOCK_MESSAGE; assert status.status == 'error', 'real database check reported ok against a dead port'

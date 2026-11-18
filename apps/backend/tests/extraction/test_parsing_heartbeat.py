@@ -100,7 +100,6 @@ async def _wait_for_beat(maker, run_id, since: datetime, timeout: float = 20.0) 
 
 
 async def test_AC_extraction_2960_5_a_running_parse_with_a_heartbeat_is_not_reset_by_the_watchdog(db, test_user):
-    """AC-extraction.2960.5: The reaper leaves a running run alone while the heartbeat runs."""
     statement, run_id = await _row(db, test_user)
     maker = create_session_maker_from_db(db)
     before = (await _run_row(maker, run_id)).heartbeat_at
@@ -115,7 +114,6 @@ async def test_AC_extraction_2960_5_a_running_parse_with_a_heartbeat_is_not_rese
 
 
 async def test_AC_extraction_2960_6_the_heartbeat_does_not_touch_a_row_that_left_parsing(db, test_user):
-    """AC-extraction.2960.6: The heartbeat never changes a run that is no longer running; it ends the work (#2994)."""
     failed_statement, failed_run_id = await _row(db, test_user, status=BankStatementStatus.REJECTED)
     await fail_run(db, failed_run_id, error_code="heartbeat_lost", error_message="No heartbeat.")
     await db.commit()
@@ -132,7 +130,6 @@ async def test_AC_extraction_2960_6_the_heartbeat_does_not_touch_a_row_that_left
 
 
 async def test_AC_extraction_2960_7_the_heartbeat_stops_when_the_parse_ends(db, test_user):
-    """AC-extraction.2960.7: No beat is written after the parse leaves the heartbeat block."""
     _statement, run_id = await _row(db, test_user)
     maker = create_session_maker_from_db(db)
     before = (await _run_row(maker, run_id)).heartbeat_at
@@ -144,12 +141,10 @@ async def test_AC_extraction_2960_7_the_heartbeat_stops_when_the_parse_ends(db, 
 
 
 def test_AC_extraction_2960_8_the_heartbeat_interval_fits_three_times_into_the_stale_threshold():
-    """AC-extraction.2960.8: Two lost beats in a row do not make a live job stale."""
     assert PARSING_HEARTBEAT_INTERVAL_SECONDS * 3 <= DEFAULT_STALE_AFTER.total_seconds()
 
 
 async def test_AC_extraction_2960_9_the_use_case_beats_while_parse_document_runs(db, test_user, monkeypatch):
-    """AC-extraction.2960.9: The ingestion use case runs the heartbeat around parse_document."""
     statement, run_id = await _row(db, test_user, claim=False)
     maker = create_session_maker_from_db(db)
     seen: dict[str, datetime] = {}

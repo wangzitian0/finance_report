@@ -175,7 +175,6 @@ async def attach_reviewed_corpus_semantics(db, user_id, transactions: list[Atomi
 
 @pytest.mark.e2e
 def test_corpus_manifest_is_diverse():
-    "AC-llm.11.1 EPIC-023"
     assert len(CORPUS_FINGERPRINTS) == 10
     assert len(set(CORPUS_FINGERPRINTS)) == 10, "corpus fingerprints must be unique"
     cases = [load_corpus_case(fp) for fp in CORPUS_FINGERPRINTS]
@@ -207,7 +206,6 @@ def test_corpus_manifest_is_diverse():
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):
-    "AC-llm.11.2 AC-llm.11.4 AC-llm.11.5 EPIC-023"
     case = load_corpus_case(fingerprint)
     seeded = await seed_parsed_statement(
         db,
@@ -313,7 +311,6 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
 
 @pytest.mark.e2e
 async def test_corpus_zero_transaction_statement_approves_empty(client, db, test_user):
-    "AC-llm.11.3 EPIC-023"
     case = load_corpus_case(ZERO_TXN_FINGERPRINT)
     assert not case.rows, "manifest drift: the zero-transaction fingerprint gained rows"
     seeded = await seed_parsed_statement(
@@ -347,7 +344,6 @@ MULTI_STATEMENT_FINGERPRINTS: tuple[str, ...] = (
 
 @pytest.mark.e2e
 async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user):
-    "AC-llm.11.6 AC8.15.1 EPIC-023"
     cases = [load_corpus_case(fp) for fp in MULTI_STATEMENT_FINGERPRINTS]
     account_ids: list[str] = []
     for case in cases:

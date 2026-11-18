@@ -1,29 +1,76 @@
-'EPIC-004'; import time; from datetime import date, timedelta; from decimal import Decimal; from uuid import UUID, uuid4; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import JournalEntrySourceType; from src.extraction import TransactionDirection; from src.extraction.orm.layer2 import AtomicTransaction; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.reconciliation import DEFAULT_CONFIG, execute_matching, score_single; _make_atomic = lambda *, owner_id, txn_date, description, amount, direction: AtomicTransaction(user_id=owner_id, txn_date=txn_date, description=description, amount=amount, direction=TransactionDirection(direction), currency='SGD', dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{'doc_id': str(uuid4()), 'doc_type': 'bank_statement'}])
-class TestMatchingAccuracy:
-    async def test_high_confidence_matches_are_correct(self, db: AsyncSession, test_user):
-        user_id = test_user.id; bank = Account(user_id=user_id, name='Bank - Accuracy Test', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=user_id, name='Income - Accuracy Test', type=AccountType.INCOME, currency='SGD'); db.add_all([bank, income]); await db.flush(); correct_matches = []
-        for i in range(10): entry_date = date(2024, 1, 15) + timedelta(days=i); amount = Decimal('100.00') + Decimal(str(i * 10)); memo = f'Exact Match Test {i}'; entry = JournalEntry(user_id=user_id, entry_date=entry_date, memo=memo, source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.DEBIT, amount=amount, currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=income.id, direction=Direction.CREDIT, amount=amount, currency='SGD')]); txn = _make_atomic(owner_id=user_id, txn_date=entry_date, description=memo, amount=amount, direction='IN'); db.add(txn); correct_matches.append((entry.id, txn))
-        await db.commit(); high_score_count = 0; matches = await execute_matching(db, user_id=user_id, currency='SGD')
-        for match in matches:
-            if match.match_score >= 85: high_score_count += 1
-        assert high_score_count >= 8, f'Expected 80%+ of exact matches to score >= 85, got {high_score_count}/10'
-    async def test_unrelated_transactions_score_low(self, db: AsyncSession, test_user): user_id = test_user.id; bank = Account(user_id=user_id, name='Bank - FP Test', type=AccountType.ASSET, currency='SGD'); expense = Account(user_id=user_id, name='Expense - FP Test', type=AccountType.EXPENSE, currency='SGD'); db.add_all([bank, expense]); await db.flush(); entry = JournalEntry(user_id=user_id, entry_date=date(2024, 1, 5), memo='Monthly Rent Payment to Landlord', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=expense.id, direction=Direction.DEBIT, amount=Decimal('2000.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.CREDIT, amount=Decimal('2000.00'), currency='SGD')]); txn = _make_atomic(owner_id=user_id, txn_date=date(2023, 12, 20), description='Coffee Shop Purchase', amount=Decimal('5.50'), direction='OUT'); db.add(txn); await db.commit(); await db.refresh(entry, ['lines']); score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id); assert score_result.score < 60, f'Unrelated transaction should score < 60, got {score_result.score}'
-    async def test_similar_transactions_found(self, db: AsyncSession, test_user): user_id = test_user.id; bank = Account(user_id=user_id, name='Bank - FN Test', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=user_id, name='Income - FN Test', type=AccountType.INCOME, currency='SGD'); db.add_all([bank, income]); await db.flush(); entry = JournalEntry(user_id=user_id, entry_date=date(2024, 1, 25), memo='January Salary from Employer Inc', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.DEBIT, amount=Decimal('5000.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=income.id, direction=Direction.CREDIT, amount=Decimal('5000.00'), currency='SGD')]); txn = _make_atomic(owner_id=user_id, txn_date=date(2024, 1, 25), description='EMPLOYER INC SALARY JAN', amount=Decimal('5000.00'), direction='IN'); db.add(txn); await db.commit(); await db.refresh(entry, ['lines']); score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id); assert score_result.score >= 60, f'Similar transaction should score >= 60, got {score_result.score}'
-class TestBatchPerformance:
-    @pytest.mark.slow
-    async def test_batch_1000_transactions_reasonable_time(self, db: AsyncSession, test_user):
-        'AC-reconciliation.performance.1 AC4.4.1'; user_id = test_user.id; bank = Account(user_id=user_id, name='Bank - Perf', type=AccountType.ASSET, currency='SGD'); expense = Account(user_id=user_id, name='Expense - Perf', type=AccountType.EXPENSE, currency='SGD'); db.add_all([bank, expense]); await db.flush(); txn_count = 100
-        for i in range(txn_count): txn = _make_atomic(owner_id=user_id, txn_date=date(2024, 1, 1) + timedelta(days=i % 30), description=f'Transaction {i}', amount=Decimal(str(10 + i % 100)), direction='OUT' if i % 2 == 0 else 'IN'); db.add(txn)
-        for j in range(20): entry = JournalEntry(user_id=user_id, entry_date=date(2024, 1, 1) + timedelta(days=j), memo=f'Entry {j}', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=expense.id, direction=Direction.DEBIT, amount=Decimal(str(10 + j)), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.CREDIT, amount=Decimal(str(10 + j)), currency='SGD')])
-        await db.commit(); start_time = time.perf_counter(); matches = await execute_matching(db, user_id=user_id, currency='SGD'); elapsed = time.perf_counter() - start_time; assert elapsed < 5.0, f'Matching {txn_count} transactions took {elapsed:.2f}s (> 5s limit)'; assert isinstance(matches, list); assert len(matches) > 0, f'Expected matching transactions, got {len(matches)}'
-class TestConcurrentMatching:
-    async def test_parallel_matching_different_statements(self, db: AsyncSession, test_user):
-        user_id = test_user.id; bank = Account(user_id=user_id, name='Bank - Concurrent', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=user_id, name='Income - Concurrent', type=AccountType.INCOME, currency='SGD'); db.add_all([bank, income]); await db.flush()
-        for i in range(3):
-            for j in range(5): txn = _make_atomic(owner_id=user_id, txn_date=date(2024, 1, i + 1), description=f'Stmt{i} Txn{j}', amount=Decimal(str(100 + i * 10 + j)), direction='IN'); db.add(txn)
-        await db.commit(); results = []
-        for _ in range(3): matches = await execute_matching(db, user_id=user_id, currency='SGD'); results.append(matches)
-        assert len(results) == 3; assert all((isinstance(r, list) for r in results))
-class TestCrossMonthMatching:
-    async def test_month_end_to_month_start_match(self, db: AsyncSession, test_user): 'AC-reconciliation.performance.2 AC4.4.2'; user_id = test_user.id; bank = Account(user_id=user_id, name='Bank - CrossMonth', type=AccountType.ASSET, currency='SGD'); income = Account(user_id=user_id, name='Income - CrossMonth', type=AccountType.INCOME, currency='SGD'); db.add_all([bank, income]); await db.flush(); entry = JournalEntry(user_id=user_id, entry_date=date(2024, 2, 1), memo='Monthly Subscription', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.DEBIT, amount=Decimal('99.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=income.id, direction=Direction.CREDIT, amount=Decimal('99.00'), currency='SGD')]); txn = _make_atomic(owner_id=user_id, txn_date=date(2024, 1, 31), description='Monthly Subscription', amount=Decimal('99.00'), direction='IN'); db.add(txn); await db.commit(); await db.refresh(entry, ['lines']); score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id); assert score_result.score >= 70, f'Cross-month (1 day diff) match should score >= 70, got {score_result.score}'
-    async def test_friday_to_monday_weekend_gap(self, db: AsyncSession, test_user): user_id = test_user.id; bank = Account(user_id=user_id, name='Bank - Weekend', type=AccountType.ASSET, currency='SGD'); expense = Account(user_id=user_id, name='Expense - Weekend', type=AccountType.EXPENSE, currency='SGD'); db.add_all([bank, expense]); await db.flush(); monday = date(2024, 1, 15); entry = JournalEntry(user_id=user_id, entry_date=monday, memo='Client Dinner Expense', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=expense.id, direction=Direction.DEBIT, amount=Decimal('150.00'), currency='SGD'), JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.CREDIT, amount=Decimal('150.00'), currency='SGD')]); friday = date(2024, 1, 12); txn = _make_atomic(owner_id=user_id, txn_date=friday, description='CLIENT DINNER', amount=Decimal('150.00'), direction='OUT'); db.add(txn); await db.commit(); await db.refresh(entry, ['lines']); score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id); assert score_result.score >= 65, f'Weekend gap (3 days) match should score >= 65, got {score_result.score}'
+from __future__ import annotations
+
+import time
+from datetime import date, timedelta
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import JournalEntrySourceType
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.ledger import AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.reconciliation import DEFAULT_CONFIG, execute_matching, score_single
+from tests.factories import AccountFactory
+
+
+def _atomic(uid, d: date, desc: str, amt: Decimal, direction: str) -> AtomicTransaction:
+    return AtomicTransaction(user_id=uid, txn_date=d, description=desc, amount=amt, direction=TransactionDirection(direction), currency="SGD", dedup_hash=uuid4().hex + uuid4().hex, source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}])
+
+
+def _entry(db: AsyncSession, uid, debit_acc, credit_acc, amt: Decimal, d: date, memo: str) -> JournalEntry:
+    e = JournalEntry(user_id=uid, entry_date=d, memo=memo, source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED, lines=[JournalLine(account_id=debit_acc.id, direction=Direction.DEBIT, amount=amt, currency="SGD"), JournalLine(account_id=credit_acc.id, direction=Direction.CREDIT, amount=amt, currency="SGD")])
+    db.add(e)
+    return e
+
+
+async def test_high_confidence_matches_and_parallel_matching(db: AsyncSession, test_user):
+    uid = test_user.id
+    bank, income = await AccountFactory.create_async(db, user_id=uid, name="Bank Acc"), await AccountFactory.create_async(db, user_id=uid, name="Inc Acc", type=AccountType.INCOME)
+    for i in range(10):
+        d, amt, memo = date(2024, 1, 15) + timedelta(days=i), Decimal("100.00") + Decimal(str(i * 10)), f"Exact Match Test {i}"
+        _entry(db, uid, bank, income, amt, d, memo)
+        db.add(_atomic(uid, d, memo, amt, "IN"))
+    await db.commit()
+    assert sum(1 for m in await execute_matching(db, user_id=uid, currency="SGD") if m.match_score >= 85) >= 8
+
+    db.add_all([_atomic(uid, date(2024, 1, i + 1), f"Stmt{i} Txn{j}", Decimal(str(100 + i * 10 + j)), "IN") for i in range(3) for j in range(5)])
+    await db.commit()
+    results = [await execute_matching(db, user_id=uid, currency="SGD") for _ in range(3)]
+    assert len(results) == 3 and all(isinstance(r, list) for r in results)
+
+
+@pytest.mark.parametrize(
+    ("acc_type", "entry_date", "memo", "entry_amt", "txn_date", "txn_desc", "txn_amt", "direction", "min_score", "max_score"),
+    [
+        (AccountType.EXPENSE, date(2024, 1, 5), "Monthly Rent Payment to Landlord", "2000.00", date(2023, 12, 20), "Coffee Shop Purchase", "5.50", "OUT", 0, 59),
+        (AccountType.INCOME, date(2024, 1, 25), "January Salary from Employer Inc", "5000.00", date(2024, 1, 25), "EMPLOYER INC SALARY JAN", "5000.00", "IN", 60, 100),
+        (AccountType.INCOME, date(2024, 2, 1), "Monthly Subscription", "99.00", date(2024, 1, 31), "Monthly Subscription", "99.00", "IN", 70, 100),
+        (AccountType.EXPENSE, date(2024, 1, 15), "Client Dinner Expense", "150.00", date(2024, 1, 12), "CLIENT DINNER", "150.00", "OUT", 65, 100),
+    ],
+)
+async def test_score_single_bands(db: AsyncSession, test_user, acc_type, entry_date, memo, entry_amt, txn_date, txn_desc, txn_amt, direction, min_score, max_score):
+    uid = test_user.id
+    bank, other = await AccountFactory.create_async(db, user_id=uid, name=f"B-{memo[:8]}"), await AccountFactory.create_async(db, user_id=uid, name=f"O-{memo[:8]}", type=acc_type)
+    debit, credit = (bank, other) if direction == "IN" else (other, bank)
+    entry = _entry(db, uid, debit, credit, Decimal(entry_amt), entry_date, memo)
+    txn = _atomic(uid, txn_date, txn_desc, Decimal(txn_amt), direction)
+    db.add(txn)
+    await db.commit()
+    await db.refresh(entry, ["lines"])
+    assert min_score <= (await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=uid)).score <= max_score
+
+
+@pytest.mark.slow
+async def test_batch_1000_transactions_reasonable_time(db: AsyncSession, test_user):
+    uid = test_user.id
+    bank, exp = await AccountFactory.create_async(db, user_id=uid, name="Bank Perf"), await AccountFactory.create_async(db, user_id=uid, name="Exp Perf", type=AccountType.EXPENSE)
+    db.add_all([_atomic(uid, date(2024, 1, 1) + timedelta(days=i % 30), f"Transaction {i}", Decimal(str(10 + i % 100)), "OUT" if i % 2 == 0 else "IN") for i in range(100)])
+    for j in range(20):
+        _entry(db, uid, exp, bank, Decimal(str(10 + j)), date(2024, 1, 1) + timedelta(days=j), f"Entry {j}")
+    await db.commit()
+    start = time.perf_counter()
+    matches = await execute_matching(db, user_id=uid, currency="SGD")
+    assert time.perf_counter() - start < 5.0 and isinstance(matches, list) and len(matches) > 0

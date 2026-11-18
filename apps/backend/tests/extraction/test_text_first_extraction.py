@@ -83,7 +83,6 @@ async def _extract(service, content: bytes, *, file_type: str = "pdf", **kwargs)
 
 
 async def test_AC_extraction_2987_1_a_pdf_with_a_text_layer_reaches_the_model_as_text():
-    """AC-extraction.2987.1: A PDF with a text layer is sent as page text and carries no image part."""
     _, model_call = await _extract(_service(), _pdf([ROW]))
     (call,) = model_call.await_args_list
     messages = call.kwargs["messages"]
@@ -93,31 +92,26 @@ async def test_AC_extraction_2987_1_a_pdf_with_a_text_layer_reaches_the_model_as
 
 
 async def test_AC_extraction_2987_2_a_pdf_without_a_text_layer_takes_the_image_path():
-    """AC-extraction.2987.2: A PDF page without text is read as an image."""
     _, model_call = await _extract(_service(), _pdf([""]))
     assert _has_image(model_call.await_args_list[0].kwargs["messages"])
 
 
 async def test_AC_extraction_2987_11_a_pdf_whose_only_text_is_a_page_number_takes_the_image_path():
-    """AC-extraction.2987.11: A scanned page with a page number prints no amount, so the text layer is not used."""
     _, model_call = await _extract(_service(), _pdf(["Page 1 of 3"]))
     assert _has_image(model_call.await_args_list[0].kwargs["messages"])
 
 
 async def test_AC_extraction_2987_3_a_png_takes_the_image_path():
-    """AC-extraction.2987.3: A PNG is read as an image."""
     _, model_call = await _extract(_service(), b"png-bytes", file_type="png")
     assert _has_image(model_call.await_args_list[0].kwargs["messages"])
 
 
 async def test_AC_extraction_2987_4_a_pass_that_skips_the_text_layer_reads_images():
-    """AC-extraction.2987.4: read_text_layer=False reads the images of a PDF that has a text layer."""
     _, model_call = await _extract(_service(), _pdf([ROW]), read_text_layer=False)
     assert _has_image(model_call.await_args_list[0].kwargs["messages"])
 
 
 async def test_AC_extraction_2987_5_the_first_pass_reads_text_and_the_second_pass_reads_images():
-    """AC-extraction.2987.5: The re-extract loop gives the second pass another reader than the first."""
     first = {
         "institution": "DBS",
         "period_start": "2025-01-01",
@@ -139,7 +133,6 @@ async def test_AC_extraction_2987_5_the_first_pass_reads_text_and_the_second_pas
 
 
 async def test_AC_extraction_2987_6_a_text_layer_that_yields_no_rows_falls_back_to_the_images():
-    """AC-extraction.2987.6: A text layer that yields no rows is not trusted; the same call reads the images."""
     service = _service()
     model_call = AsyncMock(side_effect=[{"transactions": []}, {"transactions": [{"amount": "5.00"}]}])
     with (
@@ -154,7 +147,6 @@ async def test_AC_extraction_2987_6_a_text_layer_that_yields_no_rows_falls_back_
 
 
 async def test_AC_extraction_2987_7_a_long_pdf_is_sent_as_text_in_batches_of_five_pages():
-    """AC-extraction.2987.7: Seven text pages make one metadata call and two batch calls, all text."""
     service = _service()
     parts = [{"institution": "DBS"}, {"transactions": [{"amount": "1.00"}]}, {"transactions": [{"amount": "2.00"}]}]
     pages = [f"{ROW} page {n}" for n in range(1, 8)]
@@ -170,7 +162,6 @@ async def test_AC_extraction_2987_7_a_long_pdf_is_sent_as_text_in_batches_of_fiv
 
 
 def test_AC_extraction_2987_8_the_bank_prompt_asks_for_no_category_confidence_or_raw_text():
-    """AC-extraction.2987.8: No code reads these fields of a bank row, so the prompt does not ask for them."""
     bank_prompt = get_parsing_prompt("DBS", document_kind="bank")
     for field in ("suggested_category", "category_confidence", "raw_text"):
         assert field not in bank_prompt
@@ -178,12 +169,10 @@ def test_AC_extraction_2987_8_the_bank_prompt_asks_for_no_category_confidence_or
 
 
 def test_AC_extraction_2987_9_the_prompt_does_not_tell_the_model_to_combine_accounts():
-    """AC-extraction.2987.9: The prompt must not contradict the code, which rejects a merged multi-account result."""
     assert "combine them into one response" not in SYSTEM_PROMPT
 
 
 def test_AC_extraction_2987_10_the_paged_prompts_say_page_and_not_image():
-    """AC-extraction.2987.10: One paged prompt serves both the image reader and the text reader."""
     meta = build_paged_meta_prompt("BASE", page_numbers=[1, 2, 7], total_pages=7)
     batch = build_paged_prompt(
         "BASE", part_index=2, part_count=2, page_start=6, page_end=7, total_pages=7, has_context_page=True
@@ -193,7 +182,6 @@ def test_AC_extraction_2987_10_the_paged_prompts_say_page_and_not_image():
 
 
 async def test_AC_extraction_2983_5_duplicate_currency_balances_stop_the_retry_with_a_message_that_names_the_cause():
-    """AC-extraction.2983.5: Two balances in one currency end the extraction after one pass, with a clear message."""
     duplicate = {
         "institution": "BNP",
         "balances": [
@@ -215,7 +203,6 @@ async def test_AC_extraction_2983_5_duplicate_currency_balances_stop_the_retry_w
 
 
 async def test_AC_extraction_2987_12_the_cells_of_one_table_row_reach_the_model_on_one_line():
-    """AC-extraction.2987.12: Date, description and amount of one row stay on one line of the page text."""
     _, model_call = await _extract(_service(), _column_major_table_pdf())
     text = _text_of(model_call.await_args_list[0].kwargs["messages"])
     lines = [line for line in text.split("\n") if "SAVORY" in line or "METRO" in line or "SUNNY" in line]

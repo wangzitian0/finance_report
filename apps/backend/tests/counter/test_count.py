@@ -1,4 +1,3 @@
-"AC-counter.1.2 EPIC-025"
 
 import pytest
 from src.counter import Count, NegativeCountError
@@ -7,7 +6,6 @@ pytestmark = pytest.mark.no_db
 
 
 def test_count_accepts_zero_and_positive():
-    "AC-counter.1.2"
     assert int(Count(0)) == 0
     assert int(Count(7)) == 7
     assert Count(3) < Count(4)
@@ -15,7 +13,6 @@ def test_count_accepts_zero_and_positive():
 
 
 def test_count_rejects_negative():
-    "AC-counter.1.2"
     with pytest.raises(NegativeCountError):
         Count(-1)
     with pytest.raises(NegativeCountError):

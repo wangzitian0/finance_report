@@ -13,7 +13,6 @@ def _regenerated(pkg: str) -> dict:
 
 
 def test_AC_reporting_api_vectors_1_balance_sheet_matches_committed_vector():
-    "AC-reporting.api-vectors.1"
     regenerated = _regenerated("reporting")
     committed = _committed(_vector_file("reporting"))
     assert regenerated == committed, (
@@ -25,7 +24,6 @@ def test_AC_reporting_api_vectors_1_balance_sheet_matches_committed_vector():
 
 
 def test_AC_ledger_api_vectors_1_accounts_list_matches_committed_vector():
-    "AC-ledger.api-vectors.1"
     regenerated = _regenerated("ledger")
     committed = _committed(_vector_file("ledger"))
     assert regenerated == committed, (
@@ -41,7 +39,6 @@ def test_AC_ledger_api_vectors_1_accounts_list_matches_committed_vector():
 
 
 def test_AC_extraction_api_vectors_1_statement_upload_matches_committed_vector():
-    "AC-extraction.api-vectors.1"
     regenerated = _regenerated("extraction")
     committed = _committed(_vector_file("extraction"))
     assert regenerated == committed, (

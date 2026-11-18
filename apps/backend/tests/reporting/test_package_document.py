@@ -1,75 +1,785 @@
-from __future__ import annotations; import ast; import copy; from datetime import UTC, datetime; from decimal import Decimal; from pathlib import Path; from types import SimpleNamespace; from uuid import UUID, uuid4; import pytest; from src.audit import TraceAuthorityProfile, TraceCausality, TraceDecisionOutcome, TraceDecisionRef, TraceRecord, TraceRecordValidationError, TraceResult, TraceScope, TraceTargetClass, VersionedTraceRef; from src.extraction import StatementSourceType; from src.reporting import personal_report_package_decision_ref, personal_report_package_target; from src.reporting.base.cash_flow_types import CashFlowBridge; from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution; from src.reporting.base.package_decision import PackageReadinessDecisionPolicy; from src.reporting.extension.package_document import PackageAssembler, _cash_inputs_from_contributions, _policy_blockers, _section_invariant_blockers, _valuation_section_contribution; from src.schemas.reporting import BalanceSheetResponse, PersonalReportPackageDocument, PersonalReportPackageDocumentLifecycle, PersonalReportPackageInputCoverage, PersonalReportPackageReadinessState; REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+from __future__ import annotations
+
+import ast
+import copy
+import json
+import typing
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from pathlib import Path
+from types import SimpleNamespace
+from uuid import UUID, uuid4
+
+import pytest
+from pydantic import BaseModel
+
+import src.reporting.extension.framework_report as framework_report_mod
+import src.reporting.extension.income_statement as income_statement_mod
+import src.reporting.extension.package_document as package_document_mod
+from src.audit import (
+    Money,
+    TraceAuthorityProfile,
+    TraceCausality,
+    TraceDecisionOutcome,
+    TraceDecisionRef,
+    TraceRecord,
+    TraceRecordValidationError,
+    TraceResult,
+    TraceScope,
+    TraceTargetClass,
+    VersionedTraceRef,
+)
+from src.config import settings
+from src.extraction import StatementSourceType
+from src.ledger import AccountType, Entry, post_entry
+from src.reporting import personal_report_package_decision_ref, personal_report_package_target
+from src.reporting.base.cash_flow_types import CashFlowBridge
+from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution
+from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
+from src.reporting.extension.balance_sheet import generate_balance_sheet as real_generate_balance_sheet
+from src.reporting.extension.package_document import (
+    PackageAssembler,
+    _cash_inputs_from_contributions,
+    _package_notes,
+    _package_statement_disposition_policy,
+    _policy_blockers,
+    _section_invariant_blockers,
+    _valuation_section_contribution,
+    current_package_readiness,
+)
+from src.reporting.extension.report_traceability import (
+    build_personal_report_package_traceability_payload as real_build_traceability,
+)
+from src.schemas.reporting import (
+    BalanceSheetResponse,
+    PersonalReportPackageDocument,
+    PersonalReportPackageDocumentLifecycle,
+    PersonalReportPackageInputCoverage,
+    PersonalReportPackageReadinessState,
+)
+from tests.reporting._report_fixtures import seed_accounts
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+
+
 class _InputPolicy:
-    assertion = VersionedTraceRef('ledger_authority', 'fixture', '1'); authority = TraceAuthorityProfile(package='ledger', tier='CODE-ONLY', proof_kind='exact', provenance='deterministic', execution_stage='product.runtime', assertion_owner_digest='a' * 64, producer_version='1'); causality = TraceCausality.DIRECT; target_class = TraceTargetClass.FINANCIAL
-    def fold(self, parents): return TraceDecisionOutcome(TraceResult.AUTHORITATIVE, 'fixture_authorized')
-_observation = lambda *, scope, target, reason_code='fixture_input': TraceRecord.observation(scope=scope, target=target, target_class=TraceTargetClass.FINANCIAL, assertion=VersionedTraceRef('invariant', reason_code, '1'), authority=_InputPolicy.authority, result=TraceResult.PASS, execution_id='package-fixture', evidence_manifest_digest='b' * 64, occurred_at=datetime(2026, 7, 18, tzinfo=UTC), score=None, reason_code=reason_code)
-def test_AC_reporting_package_document_1_requires_typed_delivery_sections() -> None: 'AC-reporting.package-document.1'; schema = PersonalReportPackageDocument.model_json_schema(); required = set(schema['required']); assert {'schema_version', 'lifecycle', 'status', 'contract', 'readiness', 'framework_policy', 'input_manifest', 'sections'} <= required; section_schema = schema['$defs']['PersonalReportPackageSections']; assert {'balance_sheet', 'income_statement', 'cash_flow', 'investment_performance', 'annualized_income_long_term', 'notes', 'traceability_appendix'} <= set(section_schema['required']); assert section_schema['additionalProperties'] is False
-def test_AC_reporting_package_document_2_has_one_assembler_and_no_live_package_export() -> None: 'AC-reporting.package-document.2'; router_source = (REPOSITORY_ROOT / 'apps/backend/src/routers/reports.py').read_text(); assert 'PackageAssembler,' in router_source; assert 'async def _personal_report_package_section_payloads' not in router_source; assert 'async def _build_personal_report_package_snapshot_data' not in router_source; assert 'elif report_type == ExportReportType.PACKAGE' not in router_source; package_init = REPOSITORY_ROOT / 'apps/backend/src/reporting/__init__.py'; assert '"get_personal_report_package_readiness"' not in package_init.read_text(); assert not (REPOSITORY_ROOT / 'apps/backend/src/reporting/extension/report_readiness.py').exists(); assembler_source = (REPOSITORY_ROOT / 'apps/backend/src/reporting/extension/package_document.py').read_text(); assert all((forbidden_raw_input not in assembler_source for forbidden_raw_input in ('AtomicPosition', 'ManualValuationSnapshot', 'DividendIncome'))); _m1_ready = PackageAssembler._readiness(policy=SimpleNamespace(gaps=[]), coverage=PersonalReportPackageInputCoverage(manifest_decision_count=1, authoritative_input_count=1)); assert _m1_ready.state is PersonalReportPackageReadinessState.READY; _m1_draft = PackageAssembler._readiness(policy=SimpleNamespace(gaps=[]), coverage=PersonalReportPackageInputCoverage(manifest_decision_count=1, authoritative_input_count=1, unproven_input_count=3)); assert _m1_draft.state is PersonalReportPackageReadinessState.BLOCKED; assert {_m1_blocker.code for _m1_blocker in _m1_draft.blockers} == {'unproven_package_input'}
-def test_AC_reporting_package_document_3_trust_is_one_trace_decision_fold() -> None: 'AC-reporting.package-document.3'; scope = TraceScope.tenant(uuid4()); input_target = VersionedTraceRef('journal_command', 'entry-1', '1'); input_observation = _observation(scope=scope, target=input_target); input_decision = TraceRecord.decision(scope=scope, target=input_target, policy=_InputPolicy(), execution_id=input_observation.execution_id, occurred_at=input_observation.occurred_at, parents=(input_observation,)); package_target = VersionedTraceRef('personal_report_package', 'snapshot-1', 'c' * 64); section_observation = _observation(scope=scope, target=package_target, reason_code='package_sections_valid'); decision = TraceRecord.decision(scope=scope, target=package_target, policy=PackageReadinessDecisionPolicy(), execution_id='package-fixture', occurred_at=section_observation.occurred_at, parents=(section_observation, input_decision)); assert decision.result is TraceResult.AUTHORITATIVE; assert decision.parent_ids == tuple(sorted((section_observation.record_id, input_decision.record_id), key=str)); 'AC-reporting.package-document.3 AC-reporting.cash-events.7'; 'AC-reporting.package-document.3 AC-reporting.cash-events.7'; _m2_period_start = datetime(2025, 1, 1).date(); _m2_period_end = datetime(2025, 12, 31).date(); _m2_sections = SimpleNamespace(balance_sheet=SimpleNamespace(is_balanced=False, equation_delta=Decimal('1.00'), net_income=Decimal('25.00'), as_of_date=_m2_period_end, currency='SGD', opening_balance_warnings=[], portfolio_warnings=[]), income_statement=SimpleNamespace(net_income=Decimal('24.00'), start_date=_m2_period_start, end_date=_m2_period_end, currency='SGD'), cash_flow=SimpleNamespace(start_date=_m2_period_start, end_date=_m2_period_end, currency='SGD', proof_state='proven', proof_reasons=[], cash_bridge=CashFlowBridge(classified_activity=Decimal('5.00'), unclassified_cash=Decimal('0.00'), fx_effect=Decimal('0.00'), cash_delta=Decimal('4.00'), reconciles=False), summary=SimpleNamespace(beginning_cash=Decimal('10.00'), net_cash_flow=Decimal('5.00'), ending_cash=Decimal('14.00'))), investment_performance=SimpleNamespace(period_start=_m2_period_start, period_end=_m2_period_end, as_of_date=_m2_period_end, currency='SGD', holdings=[SimpleNamespace()], data_freshness=SimpleNamespace(stale=False)), annualized_income_long_term=SimpleNamespace(as_of_date=_m2_period_end, income=SimpleNamespace(currency='USD'), restricted_fair_value_total_currency='USD', restricted_fair_value_total_excludes=['Employer RSU (HKD 1,000.00)'])); _m2_blockers = _section_invariant_blockers(_m2_sections, cumulative_net_income=Decimal('25.00'), period_net_income=Decimal('25.00'), start_date=_m2_period_start, end_date=_m2_period_end, as_of_date=_m2_period_end, currency='SGD', contributions=(SimpleNamespace(is_authoritative=True, section_ids=('balance_sheet',)),), cash_inputs=PackageCashInputs.missing()); _m2_readiness = PackageAssembler._readiness(policy=SimpleNamespace(gaps=[]), coverage=PersonalReportPackageInputCoverage(manifest_decision_count=1, authoritative_input_count=1), section_blockers=_m2_blockers); assert _m2_readiness.state is PersonalReportPackageReadinessState.BLOCKED; assert {_m2_blocker.code for _m2_blocker in _m2_readiness.blockers} == {'balance_sheet_equation_failed', 'cash_flow_rollforward_failed', 'investment_contribution_missing', 'section_currency_mismatch', 'statement_net_income_mismatch', 'cash_balance_input_missing', 'restricted_holding_fx_unavailable'}; _m2_empty_input_blockers = _section_invariant_blockers(_m2_sections, cumulative_net_income=Decimal('25.00'), period_net_income=Decimal('25.00'), start_date=_m2_period_start, end_date=_m2_period_end, as_of_date=_m2_period_end, currency='SGD', contributions=(), cash_inputs=PackageCashInputs.missing()); assert 'cash_balance_input_missing' not in {_m2_blocker.code for _m2_blocker in _m2_empty_input_blockers}; _m2_sections.balance_sheet.opening_balance_warnings = [{}]; _m2_sections.balance_sheet.portfolio_warnings = [{}]; _m2_sections.investment_performance.data_freshness.stale = True; _m2_sections.investment_performance.as_of_date = _m2_period_start; _m2_warning_blockers = _section_invariant_blockers(_m2_sections, cumulative_net_income=Decimal('25.00'), period_net_income=Decimal('25.00'), start_date=_m2_period_start, end_date=_m2_period_end, as_of_date=_m2_period_end, currency='SGD', contributions=(), cash_inputs=PackageCashInputs.missing()); assert {'investment_market_data_stale', 'opening_balance_missing', 'portfolio_value_incomplete', 'section_period_mismatch'} <= {_m2_blocker.code for _m2_blocker in _m2_warning_blockers}; _m2_sections.cash_flow.proof_state = 'unproven'; _m2_sections.cash_flow.proof_reasons = ['cash_event_classification_ambiguous']; _m2_proof_blockers = _section_invariant_blockers(_m2_sections, cumulative_net_income=Decimal('25.00'), period_net_income=Decimal('25.00'), start_date=_m2_period_start, end_date=_m2_period_end, as_of_date=_m2_period_end, currency='SGD', contributions=(), cash_inputs=PackageCashInputs.missing()); assert 'cash_event_classification_ambiguous' not in {_m2_blocker.code for _m2_blocker in _m2_proof_blockers}; _m2_proof_blockers = _section_invariant_blockers(_m2_sections, cumulative_net_income=Decimal('25.00'), period_net_income=Decimal('25.00'), start_date=_m2_period_start, end_date=_m2_period_end, as_of_date=_m2_period_end, currency='SGD', contributions=(SimpleNamespace(is_authoritative=False, section_ids=('cash_flow',)),), cash_inputs=PackageCashInputs.missing()); assert 'cash_event_classification_ambiguous' in {_m2_blocker.code for _m2_blocker in _m2_proof_blockers}; _m2_sections.cash_flow.proof_reasons = ['opening_coverage_starts_after_period']; _m2_coverage_blockers = _section_invariant_blockers(_m2_sections, cumulative_net_income=Decimal('25.00'), period_net_income=Decimal('25.00'), start_date=_m2_period_start, end_date=_m2_period_end, as_of_date=_m2_period_end, currency='SGD', contributions=(SimpleNamespace(is_authoritative=True, section_ids=('cash_flow',)),), cash_inputs=PackageCashInputs.missing()); _m2_coverage_blocker = next((_m2_b for _m2_b in _m2_coverage_blockers if _m2_b.code == 'opening_coverage_starts_after_period')); assert _m2_coverage_blocker.reason.startswith('Your statements start after the first day of this period.')
-def test_AC_reporting_2466_1_every_cash_flow_proof_reason_has_its_own_text() -> None:
-    'AC-reporting.2466.1'; import ast; from src.reporting.extension import cash_flow as cash_flow_module; from src.reporting.extension.cash_flow import CASH_FLOW_PROOF_REASON_TEXT, CASH_FLOW_UNPROVEN_FALLBACK_TEXT, cash_flow_proof_reason_text; tree = ast.parse(Path(cash_flow_module.__file__).read_text(encoding='utf-8')); emitted = {node.args[0].value for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and (node.func.attr == 'add') and isinstance(node.func.value, ast.Name) and (node.func.value.id == 'proof_reasons') and node.args and isinstance(node.args[0], ast.Constant)}; assert len(emitted) >= 6, emitted; assert emitted == set(CASH_FLOW_PROOF_REASON_TEXT); texts = [cash_flow_proof_reason_text(code) for code in sorted(emitted)]; assert CASH_FLOW_UNPROVEN_FALLBACK_TEXT not in texts; assert len(set(texts)) == len(texts); assert cash_flow_proof_reason_text('unknown_reason') == CASH_FLOW_UNPROVEN_FALLBACK_TEXT; 'AC-reporting.package-document.8'; 'AC-reporting.package-document.8'; _m3_cash_inputs = PackageCashInputs.missing(); assert not _m3_cash_inputs.is_complete; assert _m3_cash_inputs.account_ids == frozenset(); assert _m3_cash_inputs.reason_code == 'cash_balance_input_missing'
-    with pytest.raises(ValueError, match='exact input ref'): PackageCashInputs(account_ids=frozenset({uuid4()}), input_refs=('statement_result:fixture',))
-    with pytest.raises(ValueError, match='at least one account'): PackageCashInputs(account_ids=frozenset(), input_refs=())
-    with pytest.raises(ValueError, match='cannot be blank'): PackageCashInputs.missing().__class__(account_ids=frozenset(), input_refs=('',), reason_code='cash_balance_input_missing')
-    _m4_decision = TraceDecisionRef(decision_id=uuid4(), target=VersionedTraceRef('journal_command', 'entry-1', '1'), assertion=VersionedTraceRef('ledger_authority', 'posted', '1')); _m4_invalid_states = ({'section_ids': (), 'state': 'unproven', 'decision': None, 'reason_code': 'missing'}, {'section_ids': ('balance_sheet',), 'state': 'unproven', 'decision': None, 'reason_code': 'missing', 'input_refs': ()}, {'section_ids': ('balance_sheet',), 'state': 'authoritative', 'decision': None, 'reason_code': None}, {'section_ids': ('balance_sheet',), 'state': 'unproven', 'decision': None, 'reason_code': None}, {'section_ids': ('balance_sheet',), 'state': 'unproven', 'decision': _m4_decision, 'reason_code': 'missing'})
-    for _m4_state in _m4_invalid_states:
-        with pytest.raises(ValueError): PackageSectionContribution(contribution_type='ledger_command', payload=object(), input_refs=_m4_state.pop('input_refs', ('journal_entry:entry-1',)), **_m4_state)
-    _m5_valuation = _valuation_section_contribution(SimpleNamespace(input_refs=(), lineage_id=None, subject=SimpleNamespace(kind=SimpleNamespace(value='security'), key='ACME'), state='unproven', decision=None, reason_code='missing_current_decision_anchor')); assert _m5_valuation.input_refs == ('valuation:security:ACME',); _m5_unproven_bank = PackageSectionContribution(contribution_type='statement_source', section_ids=('balance_sheet',), payload=SimpleNamespace(source_result=SimpleNamespace(source_type=StatementSourceType.BANK), account_id=None), state='unproven', decision=None, input_refs=('statement:bank-1',), reason_code='missing_current_decision_anchor'); _m5_cash_inputs = _cash_inputs_from_contributions((_m5_unproven_bank,)); assert _m5_cash_inputs.reason_code == 'cash_balance_input_unproven'; assert _m5_cash_inputs.input_refs == ('statement:bank-1',); _m5_blockers = _policy_blockers(SimpleNamespace(gaps=[SimpleNamespace(blocker=True, code='unsupported_policy_domain'), SimpleNamespace(blocker=False, code='non_blocking_gap')])); assert [(_m5_blocker.code, _m5_blocker.count) for _m5_blocker in _m5_blockers] == [('unsupported_policy_domain', 1)]
+    assertion = VersionedTraceRef("ledger_authority", "fixture", "1")
+    authority = TraceAuthorityProfile(
+        package="ledger",
+        tier="CODE-ONLY",
+        proof_kind="exact",
+        provenance="deterministic",
+        execution_stage="product.runtime",
+        assertion_owner_digest="a" * 64,
+        producer_version="1",
+    )
+    causality = TraceCausality.DIRECT
+    target_class = TraceTargetClass.FINANCIAL
+
+    def fold(self, parents):
+        return TraceDecisionOutcome(TraceResult.AUTHORITATIVE, "fixture_authorized")
+
+
+def _obs(*, scope, target, reason_code: str = "fixture_input"):
+    return TraceRecord.observation(
+        scope=scope,
+        target=target,
+        target_class=TraceTargetClass.FINANCIAL,
+        assertion=VersionedTraceRef("invariant", reason_code, "1"),
+        authority=_InputPolicy.authority,
+        result=TraceResult.PASS,
+        execution_id="package-fixture",
+        evidence_manifest_digest="b" * 64,
+        occurred_at=datetime(2026, 7, 18, tzinfo=UTC),
+        score=None,
+        reason_code=reason_code,
+    )
+
+
+def test_AC_reporting_package_document_1_2_6_7_contract_and_closure() -> None:
+    schema = PersonalReportPackageDocument.model_json_schema()
+    assert {
+        "schema_version",
+        "lifecycle",
+        "status",
+        "contract",
+        "readiness",
+        "framework_policy",
+        "input_manifest",
+        "sections",
+    } <= set(schema["required"])
+    sec_schema = schema["$defs"]["PersonalReportPackageSections"]
+    assert {
+        "balance_sheet",
+        "income_statement",
+        "cash_flow",
+        "investment_performance",
+        "annualized_income_long_term",
+        "notes",
+        "traceability_appendix",
+    } <= set(sec_schema["required"]) and sec_schema["additionalProperties"] is False
+
+    ready = PackageAssembler._readiness(
+        policy=SimpleNamespace(gaps=[]),
+        coverage=PersonalReportPackageInputCoverage(manifest_decision_count=1, authoritative_input_count=1),
+    )
+    draft = PackageAssembler._readiness(
+        policy=SimpleNamespace(gaps=[]),
+        coverage=PersonalReportPackageInputCoverage(
+            manifest_decision_count=1, authoritative_input_count=1, unproven_input_count=3
+        ),
+    )
+    assert (
+        ready.state is PersonalReportPackageReadinessState.READY
+        and draft.state is PersonalReportPackageReadinessState.BLOCKED
+    )
+    assert {b.code for b in draft.blockers} == {"unproven_package_input"}
+
+    router_src = (REPOSITORY_ROOT / "apps/backend/src/routers/reports.py").read_text()
+    asm_src = (REPOSITORY_ROOT / "apps/backend/src/reporting/extension/package_document.py").read_text()
+    trace_src = (REPOSITORY_ROOT / "apps/backend/src/reporting/extension/report_traceability.py").read_text()
+    assert "PackageAssembler," in router_src and all(
+        s not in router_src
+        for s in (
+            "async def _personal_report_package_section_payloads",
+            "async def _build_personal_report_package_snapshot_data",
+            "elif report_type == ExportReportType.PACKAGE",
+        )
+    )
+    assert (
+        '"get_personal_report_package_readiness"'
+        not in (REPOSITORY_ROOT / "apps/backend/src/reporting/__init__.py").read_text()
+    )
+    assert all(raw not in asm_src for raw in ("AtomicPosition", "ManualValuationSnapshot", "DividendIncome"))
+    assert (
+        "class PackageSectionContribution"
+        in (REPOSITORY_ROOT / "apps/backend/src/reporting/base/package_contribution.py").read_text()
+    )
+    assert all(
+        b in asm_src
+        for b in (
+            "list_statement_contributions",
+            "list_journal_contributions",
+            "resolve_manual_valuation_contributions",
+            "resolve_selected_market_valuation_contribution",
+        )
+    )
+    sig = asm_src.split("async def _input_manifest", 1)[1].split(") ->", 1)[0]
+    assert (
+        "contributions:" in sig
+        and "traceability:" not in sig
+        and "contributions: tuple[PackageSectionContribution" in trace_src
+    )
+    assert all(
+        raw not in trace_src
+        for raw in (
+            "AtomicPosition",
+            "ManualValuationSnapshot",
+            "DividendIncome",
+            "MarketDataOverride",
+            "JournalEntry",
+            "StatementSummary",
+        )
+    )
+
+    prod = REPOSITORY_ROOT / "apps/backend/src"
+    assert [
+        p.relative_to(REPOSITORY_ROOT).as_posix()
+        for p in prod.rglob("*.py")
+        if any(
+            isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "PersonalReportPackageDocument"
+            for n in ast.walk(ast.parse(p.read_text()))
+        )
+    ] == ["apps/backend/src/reporting/extension/package_document.py"]
+    assert all(
+        not (REPOSITORY_ROOT / r).exists()
+        for r in (
+            "apps/backend/src/reporting/extension/report_readiness.py",
+            "apps/backend/src/reporting/extension/confidence_metric.py",
+        )
+    )
+    assert all("get_personal_report_package_readiness" not in p.read_text() for p in prod.rglob("*.py"))
+    assert all(
+        "/api/reports/package/readiness" not in p.read_text()
+        for p in (REPOSITORY_ROOT / "apps/frontend/src").rglob("*.ts*")
+    )
+    retired = (
+        "/api/reports/package/contract",
+        "/api/reports/package/readiness",
+        "/api/reports/package/framework-policy",
+        "/api/reports/package/annualized-income-schedule",
+        "/api/reports/package/notes",
+        "/api/reports/package/traceability",
+    )
+    assert all(
+        r not in (REPOSITORY_ROOT / rel).read_text()
+        for rel in (
+            "common/reporting/readme.md",
+            "common/reporting/framework-reporting.md",
+            "common/workflow/workflow-events.md",
+            "common/pricing/readme.md",
+            "docs/user-guide/reports.md",
+        )
+        for r in retired
+    )
+    journey = (REPOSITORY_ROOT / "tests/e2e/test_personal_financial_report_package.py").read_text()
+    assert all(r.removeprefix("/api") not in journey for r in retired)
+    assert (
+        "confidence_metric_snapshots"
+        not in (REPOSITORY_ROOT / "apps/backend/src/runtime/extension/snapshot_anonymizer.py").read_text()
+    )
+
+
+def test_AC_reporting_package_document_3_trust_is_one_trace_decision_fold() -> None:
+    scope, input_t, pkg_t = (
+        TraceScope.tenant(uuid4()),
+        VersionedTraceRef("journal_command", "entry-1", "1"),
+        VersionedTraceRef("personal_report_package", "snapshot-1", "c" * 64),
+    )
+    in_obs = _obs(scope=scope, target=input_t)
+    in_dec = TraceRecord.decision(
+        scope=scope,
+        target=input_t,
+        policy=_InputPolicy(),
+        execution_id=in_obs.execution_id,
+        occurred_at=in_obs.occurred_at,
+        parents=(in_obs,),
+    )
+    sec_obs = _obs(scope=scope, target=pkg_t, reason_code="package_sections_valid")
+    dec = TraceRecord.decision(
+        scope=scope,
+        target=pkg_t,
+        policy=PackageReadinessDecisionPolicy(),
+        execution_id="package-fixture",
+        occurred_at=sec_obs.occurred_at,
+        parents=(sec_obs, in_dec),
+    )
+    assert dec.result is TraceResult.AUTHORITATIVE and dec.parent_ids == tuple(
+        sorted((sec_obs.record_id, in_dec.record_id), key=str)
+    )
+
+    p_start, p_end = date(2025, 1, 1), date(2025, 12, 31)
+    sections = SimpleNamespace(
+        balance_sheet=SimpleNamespace(
+            is_balanced=False,
+            equation_delta=Decimal("1.00"),
+            net_income=Decimal("25.00"),
+            as_of_date=p_end,
+            currency="SGD",
+            opening_balance_warnings=[],
+            portfolio_warnings=[],
+        ),
+        income_statement=SimpleNamespace(
+            net_income=Decimal("24.00"), start_date=p_start, end_date=p_end, currency="SGD"
+        ),
+        cash_flow=SimpleNamespace(
+            start_date=p_start,
+            end_date=p_end,
+            currency="SGD",
+            proof_state="proven",
+            proof_reasons=[],
+            cash_bridge=CashFlowBridge(
+                classified_activity=Decimal("5.00"),
+                unclassified_cash=Decimal("0.00"),
+                fx_effect=Decimal("0.00"),
+                cash_delta=Decimal("4.00"),
+                reconciles=False,
+            ),
+            summary=SimpleNamespace(
+                beginning_cash=Decimal("10.00"), net_cash_flow=Decimal("5.00"), ending_cash=Decimal("14.00")
+            ),
+        ),
+        investment_performance=SimpleNamespace(
+            period_start=p_start,
+            period_end=p_end,
+            as_of_date=p_end,
+            currency="SGD",
+            holdings=[SimpleNamespace()],
+            data_freshness=SimpleNamespace(stale=False),
+        ),
+        annualized_income_long_term=SimpleNamespace(
+            as_of_date=p_end,
+            income=SimpleNamespace(currency="USD"),
+            restricted_fair_value_total_currency="USD",
+            restricted_fair_value_total_excludes=["Employer RSU (HKD 1,000.00)"],
+        ),
+    )
+    blockers = lambda c=(): _section_invariant_blockers(
+        sections,
+        cumulative_net_income=Decimal("25.00"),
+        period_net_income=Decimal("25.00"),
+        start_date=p_start,
+        end_date=p_end,
+        as_of_date=p_end,
+        currency="SGD",
+        contributions=c,
+        cash_inputs=PackageCashInputs.missing(),
+    )
+    b_auth = blockers((SimpleNamespace(is_authoritative=True, section_ids=("balance_sheet",)),))
+    assert (
+        PackageAssembler._readiness(
+            policy=SimpleNamespace(gaps=[]),
+            coverage=PersonalReportPackageInputCoverage(manifest_decision_count=1, authoritative_input_count=1),
+            section_blockers=b_auth,
+        ).state
+        is PersonalReportPackageReadinessState.BLOCKED
+    )
+    assert {b.code for b in b_auth} == {
+        "balance_sheet_equation_failed",
+        "cash_flow_rollforward_failed",
+        "investment_contribution_missing",
+        "section_currency_mismatch",
+        "statement_net_income_mismatch",
+        "cash_balance_input_missing",
+        "restricted_holding_fx_unavailable",
+    }
+    assert "cash_balance_input_missing" not in {b.code for b in blockers()}
+
+    sections.balance_sheet.opening_balance_warnings, sections.balance_sheet.portfolio_warnings = [{}], [{}]
+    sections.investment_performance.data_freshness.stale, sections.investment_performance.as_of_date = True, p_start
+    assert {
+        "investment_market_data_stale",
+        "opening_balance_missing",
+        "portfolio_value_incomplete",
+        "section_period_mismatch",
+    } <= {b.code for b in blockers()}
+    sections.cash_flow.proof_state, sections.cash_flow.proof_reasons = (
+        "unproven",
+        ["cash_event_classification_ambiguous"],
+    )
+    assert "cash_event_classification_ambiguous" not in {b.code for b in blockers()}
+    assert "cash_event_classification_ambiguous" in {
+        b.code for b in blockers((SimpleNamespace(is_authoritative=False, section_ids=("cash_flow",)),))
+    }
+    sections.cash_flow.proof_reasons = ["opening_coverage_starts_after_period"]
+    assert next(
+        b
+        for b in blockers((SimpleNamespace(is_authoritative=True, section_ids=("cash_flow",)),))
+        if b.code == "opening_coverage_starts_after_period"
+    ).reason.startswith("Your statements start after the first day of this period.")
+
+
+def test_AC_reporting_2466_1_proof_reasons_cash_inputs_and_contributions() -> None:
+    from src.reporting.extension import cash_flow as cash_flow_module
+    from src.reporting.extension.cash_flow import (
+        CASH_FLOW_PROOF_REASON_TEXT,
+        CASH_FLOW_UNPROVEN_FALLBACK_TEXT,
+        cash_flow_proof_reason_text,
+    )
+
+    emitted = {
+        n.args[0].value
+        for n in ast.walk(ast.parse(Path(cash_flow_module.__file__).read_text(encoding="utf-8")))
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "add"
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "proof_reasons"
+        and n.args
+        and isinstance(n.args[0], ast.Constant)
+    }
+    assert len(emitted) >= 6 and emitted == set(CASH_FLOW_PROOF_REASON_TEXT)
+    texts = [cash_flow_proof_reason_text(c) for c in sorted(emitted)]
+    assert (
+        CASH_FLOW_UNPROVEN_FALLBACK_TEXT not in texts
+        and len(set(texts)) == len(texts)
+        and cash_flow_proof_reason_text("unknown_reason") == CASH_FLOW_UNPROVEN_FALLBACK_TEXT
+    )
+
+    missing = PackageCashInputs.missing()
+    assert (
+        not missing.is_complete
+        and missing.account_ids == frozenset()
+        and missing.reason_code == "cash_balance_input_missing"
+    )
+    for kw, m in (
+        ({"account_ids": frozenset({uuid4()}), "input_refs": ("statement_result:fixture",)}, "exact input ref"),
+        ({"account_ids": frozenset(), "input_refs": ()}, "at least one account"),
+        (
+            {"account_ids": frozenset(), "input_refs": ("",), "reason_code": "cash_balance_input_missing"},
+            "cannot be blank",
+        ),
+    ):
+        with pytest.raises(ValueError, match=m):
+            PackageCashInputs(**kw)
+
+    dec = TraceDecisionRef(
+        decision_id=uuid4(),
+        target=VersionedTraceRef("journal_command", "entry-1", "1"),
+        assertion=VersionedTraceRef("ledger_authority", "posted", "1"),
+    )
+    for st in (
+        {"section_ids": (), "state": "unproven", "decision": None, "reason_code": "m"},
+        {
+            "section_ids": ("balance_sheet",),
+            "state": "unproven",
+            "decision": None,
+            "reason_code": "m",
+            "input_refs": (),
+        },
+        {"section_ids": ("balance_sheet",), "state": "authoritative", "decision": None, "reason_code": None},
+        {"section_ids": ("balance_sheet",), "state": "unproven", "decision": None, "reason_code": None},
+        {"section_ids": ("balance_sheet",), "state": "unproven", "decision": dec, "reason_code": "m"},
+    ):
+        with pytest.raises(ValueError):
+            PackageSectionContribution(
+                contribution_type="ledger_command",
+                payload=object(),
+                input_refs=st.pop("input_refs", ("journal_entry:entry-1",)),
+                **st,
+            )
+
+    assert _valuation_section_contribution(
+        SimpleNamespace(
+            input_refs=(),
+            lineage_id=None,
+            subject=SimpleNamespace(kind=SimpleNamespace(value="security"), key="ACME"),
+            state="unproven",
+            decision=None,
+            reason_code="missing",
+        )
+    ).input_refs == ("valuation:security:ACME",)
+    ci = _cash_inputs_from_contributions(
+        (
+            PackageSectionContribution(
+                contribution_type="statement_source",
+                section_ids=("balance_sheet",),
+                payload=SimpleNamespace(
+                    source_result=SimpleNamespace(source_type=StatementSourceType.BANK), account_id=None
+                ),
+                state="unproven",
+                decision=None,
+                input_refs=("statement:bank-1",),
+                reason_code="missing",
+            ),
+        )
+    )
+    assert (ci.reason_code, ci.input_refs) == ("cash_balance_input_unproven", ("statement:bank-1",))
+    assert [
+        (b.code, b.count)
+        for b in _policy_blockers(
+            SimpleNamespace(
+                gaps=[
+                    SimpleNamespace(blocker=True, code="unsupported_policy_domain"),
+                    SimpleNamespace(blocker=False, code="non_blocking_gap"),
+                ]
+            )
+        )
+    ] == [("unsupported_policy_domain", 1)]
+
+
 async def test_AC_reporting_package_document_9_requires_exact_decision_coordinates() -> None:
-    'AC-reporting.package-document.9'; expected_target = VersionedTraceRef('journal_command', 'expected', 'v1'); expected_assertion = VersionedTraceRef('ledger_authority', 'expected', 'v1'); wrong_target = VersionedTraceRef('journal_command', 'other', 'v1'); wrong_assertion = VersionedTraceRef('ledger_authority', 'other', 'v1'); exact_id, target_mismatch_id, assertion_mismatch_id, cross_scope_id = (uuid4(), uuid4(), uuid4(), uuid4())
-    with pytest.raises(TraceRecordValidationError, match='decision id must be a UUID'): TraceDecisionRef(decision_id='not-a-uuid', target=expected_target, assertion=expected_assertion)
-    with pytest.raises(TraceRecordValidationError, match='decision target must be a VersionedTraceRef'): TraceDecisionRef(decision_id=uuid4(), target='not-a-ref', assertion=expected_assertion)
-    with pytest.raises(TraceRecordValidationError, match='decision assertion must be a VersionedTraceRef'): TraceDecisionRef(decision_id=uuid4(), target=expected_target, assertion='not-a-ref')
-    class _Row:
-        def __init__(self, values): self._mapping = values; self.__dict__.update(values)
-    class _Rows:
-        def __iter__(self): return iter((_Row(values) for values in ({'decision_id': exact_id, 'target_kind': expected_target.kind, 'target_id': expected_target.id, 'target_version': expected_target.version, 'assertion_kind': expected_assertion.kind, 'assertion_id': expected_assertion.id, 'assertion_version': expected_assertion.version, 'authority_tier': 'CODE-ONLY'}, {'decision_id': target_mismatch_id, 'target_kind': wrong_target.kind, 'target_id': wrong_target.id, 'target_version': wrong_target.version, 'assertion_kind': expected_assertion.kind, 'assertion_id': expected_assertion.id, 'assertion_version': expected_assertion.version, 'authority_tier': 'CODE-ONLY'}, {'decision_id': assertion_mismatch_id, 'target_kind': expected_target.kind, 'target_id': expected_target.id, 'target_version': expected_target.version, 'assertion_kind': wrong_assertion.kind, 'assertion_id': wrong_assertion.id, 'assertion_version': wrong_assertion.version, 'authority_tier': 'CODE-ONLY'})))
-    class _Session:
-        info: dict = {}
-        async def execute(self, _query): return _Rows()
-    contribution = lambda decision_id, input_ref: PackageSectionContribution(contribution_type='ledger_command', section_ids=('balance_sheet',), payload=object(), state='authoritative', decision=TraceDecisionRef(decision_id=decision_id, target=expected_target, assertion=expected_assertion), input_refs=(input_ref,), reason_code=None); manifest, unproven = await PackageAssembler()._input_manifest(_Session(), user_id=uuid4(), contributions=(contribution(exact_id, 'journal_entry:exact'), contribution(target_mismatch_id, 'journal_entry:wrong-target'), contribution(assertion_mismatch_id, 'journal_entry:wrong-assertion'), contribution(cross_scope_id, 'journal_entry:cross-scope'))); assert [item.decision_id for item in manifest] == [exact_id]; assert unproven == ['journal_entry:cross-scope', 'journal_entry:wrong-assertion', 'journal_entry:wrong-target']
-def test_AC_reporting_package_document_6_producer_and_consumer_closure() -> None:
-    'AC-reporting.package-document.6'; production = REPOSITORY_ROOT / 'apps/backend/src'; constructors = []
-    for path in production.rglob('*.py'): tree = ast.parse(path.read_text()); constructors.append(path.relative_to(REPOSITORY_ROOT).as_posix()) if any((isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and (node.func.id == 'PersonalReportPackageDocument') for node in ast.walk(tree))) else None
-    assert constructors == ['apps/backend/src/reporting/extension/package_document.py']; assert all((not (REPOSITORY_ROOT / retired).exists() for retired in ('apps/backend/src/reporting/extension/report_readiness.py', 'apps/backend/src/reporting/extension/confidence_metric.py')))
-    for path in production.rglob('*.py'): assert 'get_personal_report_package_readiness' not in path.read_text(), path
-    for path in (REPOSITORY_ROOT / 'apps/frontend/src').rglob('*.ts*'): assert '/api/reports/package/readiness' not in path.read_text(), path
-    current_docs = ('common/reporting/readme.md', 'common/reporting/framework-reporting.md', 'common/workflow/workflow-events.md', 'common/pricing/readme.md', 'docs/user-guide/reports.md'); retired_package_routes = ('/api/reports/package/contract', '/api/reports/package/readiness', '/api/reports/package/framework-policy', '/api/reports/package/annualized-income-schedule', '/api/reports/package/notes', '/api/reports/package/traceability')
-    for relative_path in current_docs:
-        source = (REPOSITORY_ROOT / relative_path).read_text()
-        for retired_route in retired_package_routes: assert retired_route not in source, (relative_path, retired_route)
-    runtime_journey = (REPOSITORY_ROOT / 'tests/e2e/test_personal_financial_report_package.py').read_text()
-    for retired_route in retired_package_routes: assert retired_route.removeprefix('/api') not in runtime_journey, retired_route
-    anonymizer = (REPOSITORY_ROOT / 'apps/backend/src/runtime/extension/snapshot_anonymizer.py').read_text(); assert 'confidence_metric_snapshots' not in anonymizer
-def test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions() -> None: 'AC-reporting.package-document.7'; contribution_source = (REPOSITORY_ROOT / 'apps/backend/src/reporting/base/package_contribution.py').read_text(); assert 'class PackageSectionContribution' in contribution_source; assembler_source = (REPOSITORY_ROOT / 'apps/backend/src/reporting/extension/package_document.py').read_text(); assert all((public_boundary in assembler_source for public_boundary in ('list_statement_contributions', 'list_journal_contributions', 'resolve_manual_valuation_contributions', 'resolve_selected_market_valuation_contribution'))); input_manifest_source = assembler_source.split('async def _input_manifest', 1)[1]; assert 'contributions:' in input_manifest_source.split(') ->', 1)[0]; assert 'traceability:' not in input_manifest_source.split(') ->', 1)[0]; assert 'for contribution in contributions' in input_manifest_source; traceability_source = (REPOSITORY_ROOT / 'apps/backend/src/reporting/extension/report_traceability.py').read_text(); assert 'contributions: tuple[PackageSectionContribution' in traceability_source; assert all((forbidden_raw_input not in traceability_source for forbidden_raw_input in ('AtomicPosition', 'ManualValuationSnapshot', 'DividendIncome', 'MarketDataOverride', 'JournalEntry', 'StatementSummary')))
-class _JsonValue:
-    def __init__(self, value): self.value = value
-    def model_dump(self, *, mode): assert mode == 'json'; return copy.deepcopy(self.value)
-def test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinates() -> None:
-    'AC-reporting.package-document.10'; snapshot_id = UUID('10000000-0000-0000-0000-000000000001'); decision_id = UUID('20000000-0000-0000-0000-000000000002'); semantics = {'context': {'framework_id': 'personal_financial_reporting', 'start_date': '2026-01-01', 'end_date': '2026-12-31', 'as_of_date': '2026-12-31', 'currency': 'SGD'}, 'framework_policy': {'result_id': 'policy-1', 'gaps': []}, 'statement_disposition_policy': {'policy_version': '2026-07-19'}, 'input_manifest': [{'decision_id': str(decision_id), 'input_refs': ['statement:1']}], 'sections': {'balance_sheet': {'total_assets': '125.00'}}}; target = personal_report_package_target(snapshot_id=snapshot_id, **semantics); assert target == VersionedTraceRef(kind='personal_report_package', id=str(snapshot_id), version='9d136a722c6fee121996a72b47f70e46633ea8828c57d96899a96f56f56ec5ae'); document = SimpleNamespace(schema_version='2', lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN, snapshot_id=snapshot_id, package_decision_id=decision_id, context=_JsonValue(semantics['context']), framework_policy=_JsonValue(semantics['framework_policy']), statement_disposition_policy=_JsonValue(semantics['statement_disposition_policy']), input_manifest=[_JsonValue(item) for item in semantics['input_manifest']], sections=_JsonValue(semantics['sections'])); decision_ref = personal_report_package_decision_ref(document); assert decision_ref == TraceDecisionRef(decision_id=decision_id, target=target, assertion=PackageReadinessDecisionPolicy().assertion); changed_document = lambda **updates: SimpleNamespace(**vars(document) | updates)
-    with pytest.raises(ValueError, match='schema version'): personal_report_package_decision_ref(changed_document(schema_version='1'))
-    with pytest.raises(ValueError, match='frozen document'): personal_report_package_decision_ref(changed_document(lifecycle=PersonalReportPackageDocumentLifecycle.PREVIEW))
-    with pytest.raises(ValueError, match='snapshot and decision ids'): personal_report_package_decision_ref(changed_document(package_decision_id=None))
-    with pytest.raises(ValueError, match='statement disposition policy'): personal_report_package_decision_ref(changed_document(statement_disposition_policy=None))
-    for field in semantics:
-        changed = copy.deepcopy(semantics); value = changed[field]
-        if isinstance(value, list): value.append({'decision_id': str(uuid4()), 'input_refs': ['statement:changed']})
-        else: value['counterfactual'] = field
-        assert personal_report_package_target(snapshot_id=snapshot_id, **changed) != target, field
-    assert personal_report_package_target(snapshot_id=uuid4(), **semantics) != target; assembler_source = (REPOSITORY_ROOT / 'apps/backend/src/reporting/extension/package_document.py').read_text(); assert 'personal_report_package_target(' in assembler_source; assert 'semantic_payload =' not in assembler_source
-async def test_AC_extraction_auto_accept_8_the_package_discloses_the_score_gate_of_the_user(db, test_user, monkeypatch): 'AC-extraction.auto-accept.8'; from src.config import settings; from src.reporting.extension.package_document import _package_notes, _package_statement_disposition_policy; monkeypatch.setattr(settings, 'enable_ai_classification', True); monkeypatch.setattr(settings, 'auto_accept_ai_suggestions', True); automatic = await _package_statement_disposition_policy(db, test_user.id); test_user.ai_settings = {'auto_accept_ai_suggestions': False}; await db.flush(); manual = await _package_statement_disposition_policy(db, test_user.id); assert str(automatic.machine_confidence_threshold) == '0'; assert str(manual.machine_confidence_threshold) == '0.85'; assert automatic.semantic_digest != manual.semantic_digest; balance_sheet = BalanceSheetResponse.model_validate({'as_of_date': '2026-07-31', 'currency': 'SGD', 'assets': [], 'liabilities': [], 'equity': [], 'total_assets': '0.00', 'total_liabilities': '0.00', 'total_equity': '0.00', 'equation_delta': '0.00', 'is_balanced': True}); note = lambda policy: next((item['disclosure'] for item in _package_notes(policy, balance_sheet=balance_sheet, include_restricted=False).model_dump()['notes'] if item['note_id'] == 'statement-disposition-policy')); assert 'accepts AI suggestions at any score' in note(automatic); assert 'accepts AI suggestions at any score' not in note(manual)
-async def test_AC_reporting_package_document_13_single_pass_traceability_and_unrealized_fx_reuse(db, test_user, monkeypatch) -> None:
-    'AC-reporting.package-document.13'; from datetime import date; import src.reporting.extension.framework_report as framework_report_mod; import src.reporting.extension.income_statement as income_statement_mod; import src.reporting.extension.package_document as package_document_mod; from src.reporting.extension.balance_sheet import generate_balance_sheet as real_generate_balance_sheet; from src.reporting.extension.report_traceability import build_personal_report_package_traceability_payload as real_build_traceability; traceability_calls = 0; balance_sheet_calls = 0
-    async def counting_traceability(**kwargs): nonlocal traceability_calls; traceability_calls += 1; return await real_build_traceability(**kwargs)
-    async def counting_balance_sheet(*args, **kwargs): nonlocal balance_sheet_calls; balance_sheet_calls += 1; return await real_generate_balance_sheet(*args, **kwargs)
-    monkeypatch.setattr(package_document_mod, 'build_personal_report_package_traceability_payload', counting_traceability); monkeypatch.setattr(framework_report_mod, 'generate_balance_sheet', counting_balance_sheet); monkeypatch.setattr(income_statement_mod, 'generate_balance_sheet', counting_balance_sheet) if hasattr(income_statement_mod, 'generate_balance_sheet') else None; document = await PackageAssembler().assemble(db, user_id=test_user.id, framework_id=package_document_mod.PersonalReportingFrameworkId.US_GAAP_LIKE, start_date=date(2026, 7, 1), end_date=date(2026, 7, 31), as_of_date=date(2026, 7, 31), currency='SGD'); assert document.sections.traceability_appendix is not None; assert traceability_calls == 1; assert balance_sheet_calls == 1
-def test_AC_reporting_2667_1_pre_2655_frozen_package_keeps_decision_ref_and_locks_bound_defaults() -> None:
-    'AC-reporting.2667.1'; import json; import typing; from pydantic import BaseModel; fixture_path = REPOSITORY_ROOT / 'apps/backend/tests/fixtures/package_document_main_shape.json'; post_2655_stored = json.loads(fixture_path.read_text()); pre_2655_stored = copy.deepcopy(post_2655_stored); pre_2655_stored['sections']['balance_sheet'].pop('excluded_holdings'); expected_pre_2655_target = personal_report_package_target(snapshot_id=UUID(pre_2655_stored['snapshot_id']), context=pre_2655_stored['context'], framework_policy=pre_2655_stored['framework_policy'], statement_disposition_policy=pre_2655_stored['statement_disposition_policy'], input_manifest=pre_2655_stored['input_manifest'], sections=pre_2655_stored['sections']); pre_2655_doc = PersonalReportPackageDocument.model_validate(pre_2655_stored); assert 'excluded_holdings' not in pre_2655_doc.sections.balance_sheet.model_fields_set; assert pre_2655_doc.model_dump(mode='json') == pre_2655_stored; assert personal_report_package_decision_ref(pre_2655_doc).target == expected_pre_2655_target; post_2655_doc = PersonalReportPackageDocument.model_validate(post_2655_stored); assert 'excluded_holdings' in post_2655_doc.sections.balance_sheet.model_fields_set; assert post_2655_doc.model_dump(mode='json') == post_2655_stored; assert personal_report_package_decision_ref(post_2655_doc).target.version == 'aacc713256b0f0411ce8c416598a2b75ddbb8a0634fe0e4036f773f2094da538'; assert personal_report_package_decision_ref(pre_2655_doc).target.version != personal_report_package_decision_ref(post_2655_doc).target.version; visited: set[type[BaseModel]] = set(); discovered_defaults: set[tuple[str, str]] = set()
-    def _walk(tp: object) -> None:
-        origin = typing.get_origin(tp)
-        if origin is not None: [_walk(arg) for arg in typing.get_args(tp)]; return
-        if isinstance(tp, type) and issubclass(tp, BaseModel) and (tp not in visited):
+    t_ok, a_ok = (
+        VersionedTraceRef("journal_command", "expected", "v1"),
+        VersionedTraceRef("ledger_authority", "expected", "v1"),
+    )
+    t_bad, a_bad = (
+        VersionedTraceRef("journal_command", "other", "v1"),
+        VersionedTraceRef("ledger_authority", "other", "v1"),
+    )
+    for kw, m in (
+        ({"decision_id": "bad", "target": t_ok, "assertion": a_ok}, "UUID"),
+        ({"decision_id": uuid4(), "target": "bad", "assertion": a_ok}, "VersionedTraceRef"),
+        ({"decision_id": uuid4(), "target": t_ok, "assertion": "bad"}, "VersionedTraceRef"),
+    ):
+        with pytest.raises(TraceRecordValidationError, match=m):
+            TraceDecisionRef(**kw)
+    exact_id, t_id, a_id, cross_id = uuid4(), uuid4(), uuid4(), uuid4()
+    rows = [
+        SimpleNamespace(
+            _mapping={
+                "decision_id": did,
+                "target_kind": t.kind,
+                "target_id": t.id,
+                "target_version": t.version,
+                "assertion_kind": a.kind,
+                "assertion_id": a.id,
+                "assertion_version": a.version,
+                "authority_tier": "CODE-ONLY",
+            },
+            decision_id=did,
+            target_kind=t.kind,
+            target_id=t.id,
+            target_version=t.version,
+            assertion_kind=a.kind,
+            assertion_id=a.id,
+            assertion_version=a.version,
+            authority_tier="CODE-ONLY",
+        )
+        for did, t, a in ((exact_id, t_ok, a_ok), (t_id, t_bad, a_ok), (a_id, t_ok, a_bad))
+    ]
+    contribs = tuple(
+        PackageSectionContribution(
+            contribution_type="ledger_command",
+            section_ids=("balance_sheet",),
+            payload=object(),
+            state="authoritative",
+            decision=TraceDecisionRef(decision_id=did, target=t_ok, assertion=a_ok),
+            input_refs=(ref,),
+            reason_code=None,
+        )
+        for did, ref in (
+            (exact_id, "journal_entry:exact"),
+            (t_id, "journal_entry:wrong-target"),
+            (a_id, "journal_entry:wrong-assertion"),
+            (cross_id, "journal_entry:cross-scope"),
+        )
+    )
+    manifest, unproven = await PackageAssembler()._input_manifest(
+        SimpleNamespace(info={}, execute=lambda _q: _async_val(rows)), user_id=uuid4(), contributions=contribs
+    )
+    assert [m.decision_id for m in manifest] == [exact_id] and unproven == [
+        "journal_entry:cross-scope",
+        "journal_entry:wrong-assertion",
+        "journal_entry:wrong-target",
+    ]
+
+
+async def _async_val(v):
+    return v
+
+
+def test_AC_reporting_package_document_10_and_2667_1_coordinates_and_bound_defaults() -> None:
+    sid, did = UUID("10000000-0000-0000-0000-000000000001"), UUID("20000000-0000-0000-0000-000000000002")
+    sem = {
+        "context": {
+            "framework_id": "personal_financial_reporting",
+            "start_date": "2026-01-01",
+            "end_date": "2026-12-31",
+            "as_of_date": "2026-12-31",
+            "currency": "SGD",
+        },
+        "framework_policy": {"result_id": "policy-1", "gaps": []},
+        "statement_disposition_policy": {"policy_version": "2026-07-19"},
+        "input_manifest": [{"decision_id": str(did), "input_refs": ["statement:1"]}],
+        "sections": {"balance_sheet": {"total_assets": "125.00"}},
+    }
+    jv = lambda v: SimpleNamespace(model_dump=lambda *, mode: copy.deepcopy(v))
+    target = personal_report_package_target(snapshot_id=sid, **sem)
+    assert target == VersionedTraceRef(
+        kind="personal_report_package",
+        id=str(sid),
+        version="9d136a722c6fee121996a72b47f70e46633ea8828c57d96899a96f56f56ec5ae",
+    )
+    doc = SimpleNamespace(
+        schema_version="2",
+        lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
+        snapshot_id=sid,
+        package_decision_id=did,
+        context=jv(sem["context"]),
+        framework_policy=jv(sem["framework_policy"]),
+        statement_disposition_policy=jv(sem["statement_disposition_policy"]),
+        input_manifest=[jv(i) for i in sem["input_manifest"]],
+        sections=jv(sem["sections"]),
+    )
+    assert personal_report_package_decision_ref(doc) == TraceDecisionRef(
+        decision_id=did, target=target, assertion=PackageReadinessDecisionPolicy().assertion
+    )
+    for upd, m in (
+        ({"schema_version": "1"}, "schema version"),
+        ({"lifecycle": PersonalReportPackageDocumentLifecycle.PREVIEW}, "frozen document"),
+        ({"package_decision_id": None}, "snapshot and decision ids"),
+        ({"statement_disposition_policy": None}, "statement disposition policy"),
+    ):
+        with pytest.raises(ValueError, match=m):
+            personal_report_package_decision_ref(SimpleNamespace(**vars(doc) | upd))
+    for field in sem:
+        ch = copy.deepcopy(sem)
+        ch[field].append({"decision_id": str(uuid4()), "input_refs": ["statement:c"]}) if isinstance(
+            ch[field], list
+        ) else ch[field].__setitem__("counterfactual", field)
+        assert personal_report_package_target(snapshot_id=sid, **ch) != target
+    assert personal_report_package_target(snapshot_id=uuid4(), **sem) != target
+    asm_src = (REPOSITORY_ROOT / "apps/backend/src/reporting/extension/package_document.py").read_text()
+    assert "personal_report_package_target(" in asm_src and "semantic_payload =" not in asm_src
+
+    post_stored = json.loads(
+        (REPOSITORY_ROOT / "apps/backend/tests/fixtures/package_document_main_shape.json").read_text()
+    )
+    pre_stored = copy.deepcopy(post_stored)
+    pre_stored["sections"]["balance_sheet"].pop("excluded_holdings")
+    pre_doc, post_doc = (
+        PersonalReportPackageDocument.model_validate(pre_stored),
+        PersonalReportPackageDocument.model_validate(post_stored),
+    )
+    assert (
+        "excluded_holdings" not in pre_doc.sections.balance_sheet.model_fields_set
+        and "excluded_holdings" in post_doc.sections.balance_sheet.model_fields_set
+    )
+    assert pre_doc.model_dump(mode="json") == pre_stored and post_doc.model_dump(mode="json") == post_stored
+    assert personal_report_package_decision_ref(pre_doc).target == personal_report_package_target(
+        snapshot_id=UUID(pre_stored["snapshot_id"]),
+        context=pre_stored["context"],
+        framework_policy=pre_stored["framework_policy"],
+        statement_disposition_policy=pre_stored["statement_disposition_policy"],
+        input_manifest=pre_stored["input_manifest"],
+        sections=pre_stored["sections"],
+    )
+    assert (
+        personal_report_package_decision_ref(post_doc).target.version
+        == "aacc713256b0f0411ce8c416598a2b75ddbb8a0634fe0e4036f773f2094da538"
+    )
+    assert (
+        personal_report_package_decision_ref(pre_doc).target.version
+        != personal_report_package_decision_ref(post_doc).target.version
+    )
+
+    visited, defaults = set(), set()
+
+    def walk(tp: object) -> None:
+        if typing.get_origin(tp) is not None:
+            [walk(a) for a in typing.get_args(tp)]
+        elif isinstance(tp, type) and issubclass(tp, BaseModel) and tp not in visited:
             visited.add(tp)
-            for (field_name, field_info) in tp.model_fields.items(): discovered_defaults.add((tp.__name__, field_name)) if not field_info.is_required() else None; _walk(field_info.annotation)
-    [_walk(PersonalReportPackageDocument.model_fields[root_field].annotation) for root_field in ('context', 'framework_policy', 'statement_disposition_policy', 'input_manifest', 'sections')]; locked_bound_defaults = {('AnnualizedIncomeScheduleHolding', 'unlock_date'), ('AnnualizedIncomeScheduleHolding', 'vesting_schedule'), ('AnnualizedIncomeScheduleResponse', 'restricted_fair_value_total_excludes'), ('BalanceSheetResponse', 'cta_adjustment'), ('BalanceSheetResponse', 'excluded_holdings'), ('BalanceSheetResponse', 'fx_warnings'), ('BalanceSheetResponse', 'net_income'), ('BalanceSheetResponse', 'net_worth_adjustment_gain_loss'), ('BalanceSheetResponse', 'opening_balance_warnings'), ('BalanceSheetResponse', 'portfolio_warnings'), ('BalanceSheetResponse', 'unrealized_fx_gain_loss'), ('CashFlowBridge', 'discrepancy'), ('CashFlowBridge', 'opening_stock_adjustment'), ('CashFlowEventLineage', 'decision_anchor_id'), ('CashFlowEventLineage', 'event_types'), ('CashFlowEventLineage', 'reason_code'), ('CashFlowEventLineage', 'source_id'), ('CashFlowItem', 'account_id'), ('CashFlowItem', 'description'), ('CashFlowResponse', 'cash_bridge'), ('CashFlowResponse', 'event_lineage'), ('CashFlowResponse', 'fx_warnings'), ('ExcludedHoldingRow', 'warnings'), ('FrameworkPolicyDecision', 'accepted_value'), ('FrameworkPolicyDecision', 'classification'), ('FrameworkPolicyDecision', 'disclosure'), ('FrameworkPolicyDecision', 'evidence_anchors'), ('FrameworkPolicyDecision', 'measurement'), ('FrameworkPolicyDecision', 'policy_field_name'), ('FrameworkPolicyDecision', 'presentation'), ('FrameworkPolicyDecision', 'provenance'), ('FrameworkPolicyDecision', 'recognition'), ('FrameworkPolicyDecision', 'review_state'), ('FrameworkPolicyEvidenceAnchor', 'description'), ('FrameworkPolicyGap', 'evidence_anchors'), ('FrameworkPolicyResult', 'gaps'), ('IncomeStatementResponse', 'fx_warnings'), ('InvestmentPerformanceDataFreshness', 'manual_override_basis'), ('InvestmentPerformanceDataFreshness', 'stale_holdings'), ('InvestmentPerformanceReportScheduleResponse', 'market_valuation_selections'), ('PersonalReportPackageCompletenessWarning', 'remediation'), ('PersonalReportPackageContext', 'include_restricted'), ('PersonalReportPackageTraceabilityAnchor', 'details'), ('PersonalReportPackageTraceabilityAnchor', 'entry_statuses'), ('PersonalReportPackageTraceabilityAnchor', 'identifier_fields'), ('PersonalReportPackageTraceabilityAnchor', 'identifiers'), ('PersonalReportPackageTraceabilityAnchor', 'source_types'), ('PersonalReportPackageTraceabilityAnchor', 'unavailable_reason'), ('PersonalReportPackageTraceabilityLine', 'amount_field'), ('PersonalReportPackageTraceabilityLine', 'anchor_count'), ('PersonalReportPackageTraceabilityLine', 'blocker_codes'), ('PersonalReportPackageTraceabilityLine', 'currency_field'), ('ReportLine', 'allocation_source_type'), ('ReportLine', 'line_id'), ('ReportLine', 'native_amount'), ('ReportLine', 'parent_id'), ('ReportLine', 'provenance'), ('ReportLine', 'source_currency')}; assert discovered_defaults == locked_bound_defaults
-async def test_AC_reporting_2623_1_system_accounts_receive_l1_policy_mappings(db, test_user) -> None: 'AC-reporting.2623.1'; from datetime import date; from decimal import Decimal; from src.audit import Money; from src.ledger import Account, AccountType, Entry, post_entry; from src.reporting.extension.package_document import current_package_readiness; bank = Account(user_id=test_user.id, name='DBS Checking', type=AccountType.ASSET, currency='SGD'); sys_rounding = Account(user_id=test_user.id, name='Bank Rounding Difference', code='SYS-ROUND', type=AccountType.EXPENSE, currency='SGD', is_system=True); sys_liability = Account(user_id=test_user.id, name='System Clearing Liability', code='SYS-LIAB', type=AccountType.LIABILITY, currency='SGD', is_system=True); db.add_all((bank, sys_rounding, sys_liability)); await db.flush(); await post_entry(db, user_id=test_user.id, entry_date=date(2026, 7, 15), memo='Rounding adjustment', entry=Entry.transfer(debit=sys_rounding.id, credit=sys_liability.id, money=Money(Decimal('0.05'), 'SGD')), base_currency='SGD'); await db.flush(); readiness = await current_package_readiness(db, user_id=test_user.id, as_of_date=date(2026, 7, 31), base_currency='SGD'); assert readiness.package_id == 'personal-financial-report-package'
+            for fn, fi in tp.model_fields.items():
+                if not fi.is_required():
+                    defaults.add((tp.__name__, fn))
+                walk(fi.annotation)
+
+    [
+        walk(PersonalReportPackageDocument.model_fields[r].annotation)
+        for r in ("context", "framework_policy", "statement_disposition_policy", "input_manifest", "sections")
+    ]
+    assert defaults == {
+        ("AnnualizedIncomeScheduleHolding", "unlock_date"),
+        ("AnnualizedIncomeScheduleHolding", "vesting_schedule"),
+        ("AnnualizedIncomeScheduleResponse", "restricted_fair_value_total_excludes"),
+        ("BalanceSheetResponse", "cta_adjustment"),
+        ("BalanceSheetResponse", "excluded_holdings"),
+        ("BalanceSheetResponse", "fx_warnings"),
+        ("BalanceSheetResponse", "net_income"),
+        ("BalanceSheetResponse", "net_worth_adjustment_gain_loss"),
+        ("BalanceSheetResponse", "opening_balance_warnings"),
+        ("BalanceSheetResponse", "portfolio_warnings"),
+        ("BalanceSheetResponse", "unrealized_fx_gain_loss"),
+        ("CashFlowBridge", "discrepancy"),
+        ("CashFlowBridge", "opening_stock_adjustment"),
+        ("CashFlowEventLineage", "decision_anchor_id"),
+        ("CashFlowEventLineage", "event_types"),
+        ("CashFlowEventLineage", "reason_code"),
+        ("CashFlowEventLineage", "source_id"),
+        ("CashFlowItem", "account_id"),
+        ("CashFlowItem", "description"),
+        ("CashFlowResponse", "cash_bridge"),
+        ("CashFlowResponse", "event_lineage"),
+        ("CashFlowResponse", "fx_warnings"),
+        ("ExcludedHoldingRow", "warnings"),
+        ("FrameworkPolicyDecision", "accepted_value"),
+        ("FrameworkPolicyDecision", "classification"),
+        ("FrameworkPolicyDecision", "disclosure"),
+        ("FrameworkPolicyDecision", "evidence_anchors"),
+        ("FrameworkPolicyDecision", "measurement"),
+        ("FrameworkPolicyDecision", "policy_field_name"),
+        ("FrameworkPolicyDecision", "presentation"),
+        ("FrameworkPolicyDecision", "provenance"),
+        ("FrameworkPolicyDecision", "recognition"),
+        ("FrameworkPolicyDecision", "review_state"),
+        ("FrameworkPolicyEvidenceAnchor", "description"),
+        ("FrameworkPolicyGap", "evidence_anchors"),
+        ("FrameworkPolicyResult", "gaps"),
+        ("IncomeStatementResponse", "fx_warnings"),
+        ("InvestmentPerformanceDataFreshness", "manual_override_basis"),
+        ("InvestmentPerformanceDataFreshness", "stale_holdings"),
+        ("InvestmentPerformanceReportScheduleResponse", "market_valuation_selections"),
+        ("PersonalReportPackageCompletenessWarning", "remediation"),
+        ("PersonalReportPackageContext", "include_restricted"),
+        ("PersonalReportPackageTraceabilityAnchor", "details"),
+        ("PersonalReportPackageTraceabilityAnchor", "entry_statuses"),
+        ("PersonalReportPackageTraceabilityAnchor", "identifier_fields"),
+        ("PersonalReportPackageTraceabilityAnchor", "identifiers"),
+        ("PersonalReportPackageTraceabilityAnchor", "source_types"),
+        ("PersonalReportPackageTraceabilityAnchor", "unavailable_reason"),
+        ("PersonalReportPackageTraceabilityLine", "amount_field"),
+        ("PersonalReportPackageTraceabilityLine", "anchor_count"),
+        ("PersonalReportPackageTraceabilityLine", "blocker_codes"),
+        ("PersonalReportPackageTraceabilityLine", "currency_field"),
+        ("ReportLine", "allocation_source_type"),
+        ("ReportLine", "line_id"),
+        ("ReportLine", "native_amount"),
+        ("ReportLine", "parent_id"),
+        ("ReportLine", "provenance"),
+        ("ReportLine", "source_currency"),
+    }
+
+
+async def test_AC_extraction_auto_accept_8_and_package_doc_13_and_2623_1(db, test_user, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+    auto = await _package_statement_disposition_policy(db, test_user.id)
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False}
+    await db.flush()
+    manual = await _package_statement_disposition_policy(db, test_user.id)
+    assert (str(auto.machine_confidence_threshold), str(manual.machine_confidence_threshold)) == (
+        "0",
+        "0.85",
+    ) and auto.semantic_digest != manual.semantic_digest
+    bs = BalanceSheetResponse.model_validate(
+        {
+            "as_of_date": "2026-07-31",
+            "currency": "SGD",
+            "assets": [],
+            "liabilities": [],
+            "equity": [],
+            "total_assets": "0.00",
+            "total_liabilities": "0.00",
+            "total_equity": "0.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        }
+    )
+    note = lambda p: next(
+        i["disclosure"]
+        for i in _package_notes(p, balance_sheet=bs, include_restricted=False).model_dump()["notes"]
+        if i["note_id"] == "statement-disposition-policy"
+    )
+    assert "accepts AI suggestions at any score" in note(auto) and "accepts AI suggestions at any score" not in note(
+        manual
+    )
+
+    _bank, sys_round, sys_liab = await seed_accounts(
+        db,
+        test_user.id,
+        ("DBS", AccountType.ASSET),
+        ("Rounding", AccountType.EXPENSE, "SGD", {"code": "SYS-ROUND", "is_system": True}),
+        ("Sys Liab", AccountType.LIABILITY, "SGD", {"code": "SYS-LIAB", "is_system": True}),
+    )
+    await post_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 7, 15),
+        memo="Rounding",
+        entry=Entry.transfer(debit=sys_round.id, credit=sys_liab.id, money=Money(Decimal("0.05"), "SGD")),
+        base_currency="SGD",
+    )
+    await db.flush()
+    assert (
+        await current_package_readiness(db, user_id=test_user.id, as_of_date=date(2026, 7, 31), base_currency="SGD")
+    ).package_id == "personal-financial-report-package"
+
+    trace_calls = bs_calls = 0
+
+    async def count_trace(**kw):
+        nonlocal trace_calls
+        trace_calls += 1
+        return await real_build_traceability(**kw)
+
+    async def count_bs(*a, **kw):
+        nonlocal bs_calls
+        bs_calls += 1
+        return await real_generate_balance_sheet(*a, **kw)
+
+    monkeypatch.setattr(package_document_mod, "build_personal_report_package_traceability_payload", count_trace)
+    monkeypatch.setattr(framework_report_mod, "generate_balance_sheet", count_bs)
+    if hasattr(income_statement_mod, "generate_balance_sheet"):
+        monkeypatch.setattr(income_statement_mod, "generate_balance_sheet", count_bs)
+
+    doc = await PackageAssembler().assemble(
+        db,
+        user_id=test_user.id,
+        framework_id=package_document_mod.PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 7, 31),
+        as_of_date=date(2026, 7, 31),
+        currency="SGD",
+    )
+    assert doc.sections.traceability_appendix is not None and trace_calls == 1 and bs_calls == 1

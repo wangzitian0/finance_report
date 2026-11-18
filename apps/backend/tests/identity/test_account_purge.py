@@ -1,4 +1,3 @@
-"EPIC-008"
 
 from __future__ import annotations
 from datetime import date
@@ -38,7 +37,6 @@ async def _count(db, model, user_id: UUID) -> int:
 
 
 class TestTestAccountSelection:
-    "AC-identity.purge.1 AC8.17.1"
 
     async def test_selection_matches_test_accounts_and_excludes_real_ones(self, db):
         qa = await _make_user(db, "qa.alice@example.com")
@@ -58,7 +56,6 @@ class TestTestAccountSelection:
         assert "users" not in names
 
     def test_environment_guard_allows_dev_staging_and_refuses_production(self):
-        "AC-identity.purge.5 AC8.17.5"
         assert all(
             (
                 is_safe_purge_environment(safe) is True
@@ -70,7 +67,6 @@ class TestTestAccountSelection:
 
 class TestPurge:
     async def test_apply_purges_clean_account_and_leaves_others(self, db):
-        "AC-identity.purge.2 AC8.17.2"
         victim = await _make_user(db, "qa.delete-me@example.com")
         victim_id = victim.id
         await AccountFactory.create_async(db, user_id=victim_id, name="QA Cash")
@@ -100,7 +96,6 @@ class TestPurge:
         assert await _count(db, Account, bystander_id) == 1
 
     async def test_account_with_posted_ledger_entry_is_blocked_not_deleted(self, db):
-        "AC-identity.purge.3 AC8.17.3"
         protected = await _make_user(db, "qa.has-ledger@example.com")
         protected_id = protected.id
         await JournalEntryFactory.create_balanced_async(db, user_id=protected_id, amount=Decimal("50.00"))
@@ -113,7 +108,6 @@ class TestPurge:
         assert await _user_exists(db, protected_id)
 
     async def test_dry_run_reports_but_persists_nothing(self, db):
-        "AC-identity.purge.4 AC8.17.4"
         victim = await _make_user(db, "qa.dry-run@example.com")
         victim_id = victim.id
         await AccountFactory.create_async(db, user_id=victim_id, name="QA Cash")
@@ -136,7 +130,6 @@ class TestStagingTenantRotation:
     """Tests for #3050 staging-only disposable tenant rotation and trigger-safe cleanup."""
 
     async def test_owned_tables_loads_workflow_sync_states_and_child_fk_tables(self):
-        """AC-identity.purge.6"""
         from src.identity.extension.account_purge import non_user_child_tables_in_delete_order
 
         owned = {t.name for t in owned_tables_in_delete_order()}
@@ -151,7 +144,6 @@ class TestStagingTenantRotation:
         } <= children
 
     async def test_selection_respects_disposable_prefixes_age_and_allowlist(self, db):
-        """AC-identity.purge.7"""
         from datetime import UTC, datetime, timedelta
         from src.identity import DEFAULT_TEST_EMAIL_PATTERN, PERSISTENT_TEST_EMAILS
 
@@ -197,7 +189,6 @@ class TestStagingTenantRotation:
             assert user.email not in selected_emails
 
     async def test_purge_test_accounts_rotates_trigger_tables_and_refuses_production(self, db):
-        """AC-identity.purge.8"""
         from datetime import UTC, datetime, timedelta
         import pytest
         from src.audit.base.trace import (

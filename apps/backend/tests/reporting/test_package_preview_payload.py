@@ -1,51 +1,392 @@
-from __future__ import annotations; from collections.abc import Iterator, Sequence; from contextlib import contextmanager; from datetime import UTC, date, datetime, timedelta; from decimal import Decimal; from uuid import UUID, uuid4; import pytest; from sqlalchemy import event, insert, inspect as sa_inspect, text; from sqlalchemy.engine import Result; from sqlalchemy.ext.asyncio import AsyncSession; from sqlalchemy.orm import ORMExecuteState, Session; from src.audit import JournalEntrySourceType, TraceRecord, TraceResult, TraceScope, TraceTargetClass, VersionedTraceRef; from src.audit.extension.trace_repository import _row_from_record; from src.audit.orm import TraceRecordParentRow, TraceRecordRow; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryAuthorityState, JournalEntryStatus, JournalLine, initialize_opening_positions; from src.ledger.base.decision_anchor import journal_command_target; from src.ledger.extension.anchored_posting import SystemJournalCommandPolicy; from src.ledger.orm.opening_position import OpeningPositionRecord; from src.pricing import ManualValuationComponentType, ManualValuationLiquidityClass; from src.pricing.orm.manual_valuation import ManualValuationSnapshot; from src.pricing.orm.market_data import StockPrice; from src.reporting import PackageAssembler; from src.reporting.extension.package_document import _traceability_appendix; from src.schemas.reporting import PersonalReportingFrameworkId, PersonalReportPackageTraceabilityAnchorName; from tests.portfolio.test_portfolio_router import _make_atomic_position, _make_managed_position; from tests.reporting.test_package_readiness_path import _seed_ready; YEAR_ENTRY_COUNT = 1000; PREVIEW_BYTE_BUDGET = 300000; PREVIEW_SQL_BUDGET = 86; YEAR = {'start_date': '2026-01-01', 'end_date': '2026-12-31', 'as_of_date': '2026-12-31', 'currency': 'SGD'}; JUNE = {'start_date': '2026-06-01', 'end_date': '2026-06-30', 'as_of_date': '2026-06-30', 'currency': 'SGD'}; ANCHORS = ('source_anchor', 'ledger_anchor')
-async def _seed_year_of_anchored_entries(db: AsyncSession, user_id: UUID, *, bank: Account | None=None, categories: Sequence[str]=()) -> None:
-    bank = bank or Account(user_id=user_id, name='Bank', code='1001', type=AccountType.ASSET, currency='SGD'); salary = Account(user_id=user_id, name='Salary', code='4001', type=AccountType.INCOME, currency='SGD'); expense_names = list(categories) or ['Groceries']; expenses = [Account(user_id=user_id, name=name.title(), code=f'5{number:03d}', type=AccountType.EXPENSE, currency='SGD') for number, name in enumerate(expense_names, start=1)]; db.add_all([bank, salary, *expenses]); await db.flush(); policy = SystemJournalCommandPolicy(); scope = TraceScope.tenant(user_id); now = datetime.now(UTC); trace_rows = []; parent_rows = []; entry_rows = []; line_rows = []
-    for index in range(YEAR_ENTRY_COUNT): entry_date = date(2026, 1, 1) + timedelta(days=index % 365); memo = f'year-scale entry {index}'; income = index % 2 == 0; amount = Decimal('3000.00') if income else Decimal(f'{index % 90 + 10}.25'); expense = expenses[index % len(expenses)]; debit, credit = (bank.id, salary.id) if income else (expense.id, bank.id); counter_id = salary.id if income else expense.id; counter_tags = {'economic_category': 'SALARY' if income else expense_names[index % len(expenses)]}; lines_data = [{'account_id': debit, 'direction': Direction.DEBIT, 'amount': amount, 'currency': 'SGD'}, {'account_id': credit, 'direction': Direction.CREDIT, 'amount': amount, 'currency': 'SGD'}]; target = journal_command_target(entry_date=entry_date, memo=memo, lines_data=lines_data, base_currency='SGD', source_identity=f'ledger-system:year-scale:{index}'); observation = TraceRecord.observation(scope=scope, target=target, target_class=TraceTargetClass.FINANCIAL, assertion=VersionedTraceRef('ledger_system_input', 'year-scale', '1'), authority=policy.authority, result=TraceResult.PASS, execution_id=f'ledger-system:{target.id}:{target.version}', evidence_manifest_digest=target.version, occurred_at=now, score=None, reason_code='ledger_system_command_materialized'); decision = TraceRecord.decision(scope=scope, target=target, policy=policy, execution_id=observation.execution_id, occurred_at=now, parents=(observation,)); trace_rows.extend((_row_from_record(observation), _row_from_record(decision))); parent_rows.append({'scope_kind': scope.kind, 'scope_id': scope.id, 'record_id': decision.record_id, 'parent_id': observation.record_id}); entry_id = uuid4(); entry_rows.append({'id': entry_id, 'user_id': user_id, 'entry_date': entry_date, 'memo': memo, 'source_type': JournalEntrySourceType.SYSTEM, 'source_id': None, 'decision_anchor_id': decision.record_id, 'decision_authority_state': JournalEntryAuthorityState.ANCHORED, 'base_currency': 'SGD', 'status': JournalEntryStatus.POSTED, 'void_reason': None, 'void_reversal_entry_id': None, 'created_at': now, 'updated_at': now}); [line_rows.append({'id': uuid4(), 'journal_entry_id': entry_id, 'line_no': line_no, 'account_id': line['account_id'], 'direction': line['direction'], 'amount': line['amount'], 'currency': 'SGD', 'fx_rate': None, 'event_type': None, 'tags': counter_tags if categories and line['account_id'] == counter_id else None, 'created_at': now, 'updated_at': now}) for line_no, line in enumerate(lines_data)]
-    trace_columns = [(attribute.key, attribute.columns[0].name) for attribute in sa_inspect(TraceRecordRow).column_attrs]; await db.execute(insert(TraceRecordRow.__table__), [{column: getattr(row, key) for key, column in trace_columns} for row in trace_rows]); await db.execute(insert(TraceRecordParentRow), parent_rows); await db.execute(insert(JournalEntry), entry_rows); await db.execute(insert(JournalLine), line_rows); await db.execute(text('ANALYZE trace_records, trace_record_parents')); await db.commit()
-async def _seed_reviewed_statement(db: AsyncSession, user_id: UUID, monkeypatch: pytest.MonkeyPatch) -> StockPrice: await _seed_ready(db, user_id, monkeypatch); brokerage = Account(user_id=user_id, name='Brokerage', type=AccountType.ASSET, currency='SGD'); db.add(brokerage); await db.flush(); stock_price = StockPrice(symbol='AAPL', price=Decimal('125.05'), currency='SGD', price_date=date(2026, 6, 30), source='recorded-provider'); db.add_all([ManualValuationSnapshot(user_id=user_id, component_type=ManualValuationComponentType.PROPERTY_VALUE, liquidity_class=ManualValuationLiquidityClass.ILLIQUID, value=Decimal('250000.00'), currency='SGD', as_of_date=date(2026, 6, 20), source='Property appraisal'), _make_managed_position(user_id, brokerage.id, 'AAPL', quantity=Decimal('10'), cost_basis=Decimal('1000.00'), acquisition_date=date(2026, 6, 2)), _make_atomic_position(user_id, 'AAPL', broker='Brokerage', quantity=Decimal('10'), market_value=Decimal('1200.00'), snapshot_date=date(2026, 6, 30), dedup_hash='s8-aapl-2026-06-30'), stock_price]); await db.commit(); return stock_price
-@contextmanager
-def _counting_statements(db_engine) -> Iterator[dict[str, int]]:
-    counter = {'statements': 0}
-    def _count(conn, cursor, statement, parameters, context, executemany): counter['statements'] += 1
-    event.listen(db_engine.sync_engine, 'before_cursor_execute', _count)
-    try: yield counter
-    finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', _count)
-async def _all_pages(client, path: str, params: dict[str, str], *, limit: int, item_key: str) -> tuple[list, int]:
-    items: list = []; offset = 0; total = None
-    while True:
-        response = await client.get(path, params={**params, 'limit': limit, 'offset': offset}); assert response.status_code == 200, response.text; page = response.json(); assert page['limit'] == limit; assert page['offset'] == offset
-        if total is None: total = page['total']
-        assert page['total'] == total; assert len(page[item_key]) == min(limit, max(total - offset, 0)); items.extend(page[item_key]); offset += limit
-        if offset >= total: return (items, total)
-async def test_AC_reporting_package_traceability_7_year_scale_preview_is_bounded(client, db: AsyncSession, db_engine, test_user) -> None:
-    'AC-reporting.package-traceability.7'; await _seed_year_of_anchored_entries(db, test_user.id)
-    with _counting_statements(db_engine) as counter: response = await client.get('/reports/package', params=YEAR)
-    assert response.status_code == 200, response.text; statements = counter['statements']; assert len(response.content) < PREVIEW_BYTE_BUDGET, (len(response.content), statements); assert statements <= PREVIEW_SQL_BUDGET, statements; preview = response.json(); assert preview['lifecycle'] == 'preview'; assert 'input_manifest' not in preview; document = await PackageAssembler().assemble(db, user_id=test_user.id, framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE, start_date=date(2026, 1, 1), end_date=date(2026, 12, 31), as_of_date=date(2026, 12, 31), currency='SGD'); assert preview['readiness'] == document.readiness.model_dump(mode='json'); assert document.readiness.input_coverage.manifest_decision_count == YEAR_ENTRY_COUNT; assert len(document.input_manifest) == YEAR_ENTRY_COUNT; full_lines = {line.line_id: line for line in document.sections.traceability_appendix.lines}; preview_lines = preview['sections']['traceability_appendix']['lines']; assert [line['line_id'] for line in preview_lines] == list(full_lines); detail_total = 0
-    for line in preview_lines:
-        full_line = full_lines[line['line_id']]; assert line['anchor_count'] == full_line.anchor_count; assert line['blocker_codes'] == full_line.blocker_codes
-        for anchor_name in ANCHORS: anchor = line[anchor_name]; assert 'details' not in anchor; assert 'identifiers' not in anchor; full_anchor = getattr(full_line, anchor_name); assert anchor['state'] == full_anchor.state; assert anchor['detail_count'] == len(full_anchor.details) == len(full_anchor.identifiers); detail_total += anchor['detail_count']
-    assert detail_total >= 2 * YEAR_ENTRY_COUNT; full_json = document.model_dump(mode='json'); assets_ledger = next((line['ledger_anchor']['details'] for line in full_json['sections']['traceability_appendix']['lines'] if line['line_id'] == 'balance_sheet.total_assets')); assert len(assets_ledger) == 2 * YEAR_ENTRY_COUNT; last_details = await client.get('/reports/package/line-details', params={**YEAR, 'line_id': 'balance_sheet.total_assets', 'anchor': 'ledger_anchor', 'limit': 500, 'offset': 1500}); assert last_details.status_code == 200, last_details.text; assert last_details.json()['total'] == len(assets_ledger); assert last_details.json()['details'] == assets_ledger[1500:]; last_entries = await client.get('/reports/package/manifest-entries', params={**YEAR, 'limit': 500, 'offset': 500}); assert last_entries.status_code == 200, last_entries.text; assert last_entries.json()['total'] == YEAR_ENTRY_COUNT; assert last_entries.json()['entries'] == full_json['input_manifest'][500:]
-async def test_AC_reporting_package_traceability_8_evidence_pages_equal_snapshot(client, db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.package-traceability.8'; stock_price = await _seed_reviewed_statement(db, test_user.id, monkeypatch); market_identifier = f'pricing_observation:{stock_price.id}'; period = JUNE; generated = await client.post('/reports/package/snapshots', json={**period, 'framework_id': PersonalReportingFrameworkId.US_GAAP_LIKE.value}); assert generated.status_code == 200, generated.text; snapshot = generated.json()['document']; preview_response = await client.get('/reports/package', params=period); assert preview_response.status_code == 200, preview_response.text; preview_lines = {line['line_id']: line for line in preview_response.json()['sections']['traceability_appendix']['lines']}; anchors = [(line['line_id'], anchor_name, line[anchor_name]['details']) for line in snapshot['sections']['traceability_appendix']['lines'] for anchor_name in ANCHORS]; user_id = test_user.id; db.expire_all(); evidence = await PackageAssembler()._evidence_contributions(db, user_id=user_id, start_date=date(2026, 6, 1), end_date=date(2026, 6, 30), as_of_date=date(2026, 6, 30), currency='SGD'); built = {line['line_id']: line for line in (await _traceability_appendix(evidence)).model_dump(mode='json')['lines']}
-    for (line_id, anchor_name, expected) in anchors: assert preview_lines[line_id][anchor_name]['detail_count'] == len(expected), (line_id, anchor_name); assert built[line_id][anchor_name]['details'] == expected, (line_id, anchor_name)
-    largest = max(anchors, key=lambda item: len(item[2])); assert len(largest[2]) > 2; paged = [largest]; [paged.append(next((item for item in anchors if any((d['source_kind'] == kind for d in item[2]))))) if not any((detail['source_kind'] == kind for _, _, details in paged for detail in details)) else None for kind in sorted({detail['source_kind'] for _, _, details in anchors for detail in details})]; detail_kinds = set()
-    for (line_id, anchor_name, expected) in paged: limit = 2 if (line_id, anchor_name) == largest[:2] else 500; details, total = await _all_pages(client, '/reports/package/line-details', {**period, 'line_id': line_id, 'anchor': anchor_name}, limit=limit, item_key='details'); assert total == len(expected), (line_id, anchor_name); assert details == expected, (line_id, anchor_name); detail_kinds.update((detail['source_kind'] for detail in expected))
-    entries, total = await _all_pages(client, '/reports/package/manifest-entries', period, limit=3, item_key='entries'); assert total == len(snapshot['input_manifest']); assert entries == snapshot['input_manifest']; assert total > 3; market_line = next((line for line in snapshot['sections']['traceability_appendix']['lines'] if line['line_id'] == 'investment_performance.market_value')); assert market_identifier in {detail['identifier'] for detail in market_line['source_anchor']['details']}; assert detail_kinds == {'journal_line', 'opening_position', 'package_contract', 'pricing_valuation_observation', 'statement_extraction_result'}
-async def test_AC_reporting_package_traceability_8_line_details_reject_unknown_lines(client, db: AsyncSession, test_user) -> None: 'AC-reporting.package-traceability.8'; unknown = await client.get('/reports/package/line-details', params={**JUNE, 'line_id': 'x.y', 'anchor': 'ledger_anchor'}); assert unknown.status_code == 404, unknown.text; bad_anchor = await client.get('/reports/package/line-details', params={**JUNE, 'line_id': 'balance_sheet.total_assets', 'anchor': 'other_anchor'}); assert bad_anchor.status_code == 422, bad_anchor.text; too_big = await client.get('/reports/package/manifest-entries', params={**JUNE, 'limit': 501}); assert too_big.status_code == 422, too_big.text; static_note = await client.get('/reports/package/line-details', params={**JUNE, 'line_id': 'notes.non_compliance_statement', 'anchor': 'source_anchor'}); assert static_note.status_code == 200, static_note.text; assert static_note.json()['total'] == 1; assert static_note.json()['details'][0]['source_kind'] == 'package_contract'; past_end = await client.get('/reports/package/line-details', params={**JUNE, 'line_id': 'notes.non_compliance_statement', 'anchor': 'source_anchor', 'offset': 5}); assert past_end.status_code == 200, past_end.text; assert past_end.json()['total'] == 1; assert past_end.json()['details'] == []
-def _equal_rank_order(direction: str):
-    def _hook(state: ORMExecuteState) -> Result | None:
-        statement = state.statement
-        if not state.is_select or not hasattr(statement, 'column_descriptions'): return None
-        entities = {column.get('entity') for column in statement.column_descriptions}
-        if OpeningPositionRecord not in entities: return None
-        tiebreak = OpeningPositionRecord.id.asc() if direction == 'asc' else OpeningPositionRecord.id.desc(); return state.invoke_statement(statement=statement.order_by(tiebreak))
-    return _hook
-async def test_AC_reporting_package_traceability_8_detail_order_does_not_depend_on_database_tie_order(db: AsyncSession, test_user) -> None:
-    'AC-reporting.package-traceability.8'; accounts = [Account(user_id=test_user.id, name=f'Cash {index}', type=AccountType.ASSET, currency='SGD') for index in range(4)]; db.add_all(accounts); await db.flush(); await initialize_opening_positions(db, test_user.id, entry_date=date(2026, 1, 1), balances={account.id: Decimal(f'{index + 1}000.00') for index, account in enumerate(accounts)}, currency='SGD', base_currency='SGD'); await db.commit(); orders = []
-    for direction in ('asc', 'desc'):
-        hook = _equal_rank_order(direction); event.listen(Session, 'do_orm_execute', hook)
-        try: details = await PackageAssembler().line_details(db, user_id=test_user.id, start_date=date(2026, 6, 1), end_date=date(2026, 6, 30), as_of_date=date(2026, 6, 30), currency='SGD', line_id='balance_sheet.total_assets', anchor=PersonalReportPackageTraceabilityAnchorName.LEDGER)
-        finally: event.remove(Session, 'do_orm_execute', hook)
-        assert details is not None; orders.append([detail['identifier'] for detail in details])
-    opening = [identifier for identifier in orders[0] if str(identifier).startswith('opening_position:')]; assert len(opening) == 4, orders[0]; assert orders[0] == orders[1]
+from __future__ import annotations
+
+import json
+from collections import Counter, defaultdict
+from datetime import date
+from decimal import Decimal
+
+import pytest
+from sqlalchemy import event, select
+from sqlalchemy.engine import Result
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import ORMExecuteState, Session
+
+from src.identity import User
+from src.ledger import Account, AccountType, JournalLine, initialize_opening_positions
+from src.ledger.orm.opening_position import OpeningPositionRecord
+from src.reporting import PackageAssembler, derive_user_framework_policy_result
+from src.reporting.extension import package_document
+from src.reporting.extension.package_document import _traceability_appendix
+from src.schemas.reporting import PersonalReportingFrameworkId, PersonalReportPackageTraceabilityAnchorName
+from tests.reporting._report_fixtures import (
+    JUNE_PERIOD,
+    YEAR_ENTRY_COUNT,
+    YEAR_PERIOD,
+    all_pages,
+    count_sql_statements,
+    seed_accounts,
+    seed_ready_package_state,
+    seed_reviewed_statement,
+    seed_year_of_anchored_entries,
+)
+
+FRAMEWORK = PersonalReportingFrameworkId.US_GAAP_LIKE
+EXPENSE_CATEGORIES = ("GROCERIES", "DINING")
+PREVIEW_BYTE_BUDGET = 300000
+ANCHORS = ("source_anchor", "ledger_anchor")
+SECTIONS = ("operating", "investing", "financing")
+
+_json = lambda v: json.loads(json.dumps(v, default=str))
+_size = lambda v: len(json.dumps(v, separators=(",", ":"), default=str))
+
+
+async def _seed_year_reviewed(db: AsyncSession, user_id, monkeypatch: pytest.MonkeyPatch) -> Account:
+    await seed_ready_package_state(db, user_id, monkeypatch)
+    bank = (await db.execute(select(Account).where(Account.user_id == user_id, Account.name == "DBS"))).scalar_one()
+    await seed_year_of_anchored_entries(db, user_id, bank=bank, categories=EXPENSE_CATEGORIES)
+    return bank
+
+
+async def test_AC_reporting_package_traceability_7_and_9_year_scale_previews_are_bounded(
+    client, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seed_year_of_anchored_entries(db, test_user.id)
+    with count_sql_statements(db_engine) as counter:
+        resp = await client.get("/reports/package", params=YEAR_PERIOD)
+    assert resp.status_code == 200 and len(resp.content) < PREVIEW_BYTE_BUDGET and counter["count"] <= 86
+    preview = resp.json()
+    assert preview["lifecycle"] == "preview" and "input_manifest" not in preview
+    doc = await PackageAssembler().assemble(
+        db,
+        user_id=test_user.id,
+        framework_id=FRAMEWORK,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31),
+        as_of_date=date(2026, 12, 31),
+        currency="SGD",
+    )
+    assert (
+        preview["readiness"] == doc.readiness.model_dump(mode="json")
+        and doc.readiness.input_coverage.manifest_decision_count == len(doc.input_manifest) == YEAR_ENTRY_COUNT
+    )
+    full_lines = {line.line_id: line for line in doc.sections.traceability_appendix.lines}
+    prev_lines = preview["sections"]["traceability_appendix"]["lines"]
+    assert [item["line_id"] for item in prev_lines] == list(full_lines)
+    detail_total = 0
+    for line in prev_lines:
+        fl = full_lines[line["line_id"]]
+        assert (line["anchor_count"], line["blocker_codes"]) == (fl.anchor_count, fl.blocker_codes)
+        for a_name in ANCHORS:
+            a, fa = line[a_name], getattr(fl, a_name)
+            assert (
+                "details" not in a
+                and "identifiers" not in a
+                and a["state"] == fa.state
+                and a["detail_count"] == len(fa.details) == len(fa.identifiers)
+            )
+            detail_total += a["detail_count"]
+    assert detail_total >= 2 * YEAR_ENTRY_COUNT
+    full_json = doc.model_dump(mode="json")
+    assets_ledger = next(
+        item["ledger_anchor"]["details"]
+        for item in full_json["sections"]["traceability_appendix"]["lines"]
+        if item["line_id"] == "balance_sheet.total_assets"
+    )
+    assert len(assets_ledger) == 2 * YEAR_ENTRY_COUNT
+    last_details = await client.get(
+        "/reports/package/line-details",
+        params={
+            **YEAR_PERIOD,
+            "line_id": "balance_sheet.total_assets",
+            "anchor": "ledger_anchor",
+            "limit": 500,
+            "offset": 1500,
+        },
+    )
+    assert (last_details.status_code, last_details.json()["total"], last_details.json()["details"]) == (
+        200,
+        len(assets_ledger),
+        assets_ledger[1500:],
+    )
+    last_entries = await client.get(
+        "/reports/package/manifest-entries", params={**YEAR_PERIOD, "limit": 500, "offset": 500}
+    )
+    assert (last_entries.status_code, last_entries.json()["total"], last_entries.json()["entries"]) == (
+        200,
+        YEAR_ENTRY_COUNT,
+        full_json["input_manifest"][500:],
+    )
+
+
+async def test_AC_reporting_package_traceability_9_and_10_categorized_year_scale_and_policy_pages(
+    client, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _seed_year_reviewed(db, test_user.id, monkeypatch)
+    with count_sql_statements(db_engine) as counter:
+        resp = await client.get("/reports/package", params=YEAR_PERIOD)
+    assert resp.status_code == 200 and len(resp.content) < PREVIEW_BYTE_BUDGET and counter["count"] <= 105
+    preview = resp.json()
+    full = (
+        await PackageAssembler().assemble(
+            db,
+            user_id=test_user.id,
+            framework_id=FRAMEWORK,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            as_of_date=date(2026, 12, 31),
+            currency="SGD",
+        )
+    ).model_dump(mode="json")
+    assert (
+        _size(full["framework_policy"]["decisions"]) > 700000
+        and _size(full["sections"]["cash_flow"]) > 400000
+        and len(full["sections"]["cash_flow"]["event_lineage"]) > 1000
+    )
+    assert preview["readiness"] == full["readiness"]
+    pol, full_pol, page_sz = (
+        preview["framework_policy"],
+        full["framework_policy"],
+        package_document.PACKAGE_POLICY_PREVIEW_DECISIONS,
+    )
+    assert (
+        pol["decision_count"] == len(full_pol["decisions"]) > page_sz
+        and pol["decisions"] == full_pol["decisions"][:page_sz]
+        and pol["gaps"] == full_pol["gaps"]
+    )
+    assert all(
+        pol[k] == full_pol[k]
+        for k in ("result_id", "framework_id", "matrix_version", "required_statements", "generated_at")
+    )
+    refs = {
+        f"{a['anchor_type']}:{a['source_id']}"
+        for item in [*full_pol["decisions"], *full_pol["gaps"]]
+        for a in item["evidence_anchors"]
+    }
+    assert pol["evidence_reference_count"] == len(refs) > page_sz
+    cf, full_cf = preview["sections"]["cash_flow"], full["sections"]["cash_flow"]
+    assert "event_lineage" not in cf and all(
+        cf[k] == full_cf[k]
+        for k in ("start_date", "end_date", "currency", "summary", "cash_bridge", "proof_state", "proof_reasons")
+    )
+    reasons = Counter(r["reason_code"] for r in full_cf["event_lineage"])
+    assert cf["lineage_summary"] == {
+        "event_count": len(full_cf["event_lineage"]),
+        "classified_event_count": reasons[None],
+        "unclassified_event_count": reasons["cash_event_classification_ambiguous"],
+        "opening_stock_event_count": reasons["opening_stock"],
+    }
+    for sec in SECTIONS:
+        expected = defaultdict(lambda: [Decimal("0"), 0])
+        for item in full_cf[sec]:
+            g = expected[item["description"], item["account_id"]]
+            g[0] += Decimal(item["amount"])
+            g[1] += 1
+        assert {
+            (line["description"], line["account_id"]): (Decimal(line["amount"]), line["event_count"])
+            for line in cf[sec]
+        } == {k: tuple(v) for k, v in expected.items()}
+    assert (
+        len(cf["operating"]) >= 1 + len(EXPENSE_CATEGORIES)
+        and sum(line["event_count"] for sec in SECTIONS for line in cf[sec]) == reasons[None]
+    )
+    assert all(
+        preview["sections"][k] == full["sections"][k]
+        for k in ("balance_sheet", "income_statement", "investment_performance", "annualized_income_long_term", "notes")
+    )
+
+    derived_pol = await derive_user_framework_policy_result(
+        db,
+        test_user.id,
+        framework_id=FRAMEWORK,
+        report_period_start=date(2026, 1, 1),
+        report_period_end=date(2026, 12, 31),
+        as_of_date=date(2026, 12, 31),
+    )
+    assert full_pol == _json(derived_pol.model_dump(mode="json")) and len(full_pol["decisions"]) > 1000
+    query = {"framework_id": FRAMEWORK.value, **{k: YEAR_PERIOD[k] for k in ("start_date", "end_date", "as_of_date")}}
+    decisions, total = await all_pages(
+        client, "/reports/package/policy-decisions", query, limit=500, item_key="decisions"
+    )
+    assert (total, decisions) == (len(full_pol["decisions"]), full_pol["decisions"])
+    small = (await client.get("/reports/package/policy-decisions", params={**query, "limit": 7, "offset": 13})).json()
+    assert (small["total"], small["decisions"]) == (total, decisions[13:20])
+    assert (await client.get("/reports/package/policy-decisions", params={**query, "offset": total + 5})).json()[
+        "decisions"
+    ] == []
+
+
+async def test_AC_reporting_package_traceability_8_and_11_evidence_and_snapshot_pages(
+    client, db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user.id
+    stock_price = await seed_reviewed_statement(db, user_id, monkeypatch)
+    gen = (
+        await client.post("/reports/package/snapshots", json={**JUNE_PERIOD, "framework_id": FRAMEWORK.value})
+    ).json()
+    snapshot = (await client.get(f"/reports/package/snapshots/{gen['id']}")).json()["document"]
+    assert snapshot["lifecycle"] == "frozen"
+    prev = (await client.get("/reports/package", params=JUNE_PERIOD)).json()
+    prev_lines = {item["line_id"]: item for item in prev["sections"]["traceability_appendix"]["lines"]}
+    anchors = [
+        (item["line_id"], an, item[an]["details"])
+        for item in snapshot["sections"]["traceability_appendix"]["lines"]
+        for an in ANCHORS
+    ]
+    db.expire_all()
+    evidence = await PackageAssembler()._evidence_contributions(
+        db,
+        user_id=user_id,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 30),
+        as_of_date=date(2026, 6, 30),
+        currency="SGD",
+    )
+    built = {
+        item["line_id"]: item for item in (await _traceability_appendix(evidence)).model_dump(mode="json")["lines"]
+    }
+    for lid, an, expected in anchors:
+        assert prev_lines[lid][an]["detail_count"] == len(expected) and built[lid][an]["details"] == expected
+    largest = max(anchors, key=lambda item: len(item[2]))
+    paged = [largest] + [
+        next(item for item in anchors if any(d["source_kind"] == kind for d in item[2]))
+        for kind in sorted({d["source_kind"] for _, _, dets in anchors for d in dets})
+        if not any(d["source_kind"] == kind for d in largest[2])
+    ]
+    detail_kinds = set()
+    for lid, an, expected in paged:
+        details, total = await all_pages(
+            client,
+            "/reports/package/line-details",
+            {**JUNE_PERIOD, "line_id": lid, "anchor": an},
+            limit=2 if (lid, an) == largest[:2] else 500,
+            item_key="details",
+        )
+        assert (total, details) == (len(expected), expected)
+        detail_kinds.update(d["source_kind"] for d in expected)
+    entries, total = await all_pages(
+        client, "/reports/package/manifest-entries", JUNE_PERIOD, limit=3, item_key="entries"
+    )
+    assert (total, entries) == (len(snapshot["input_manifest"]), snapshot["input_manifest"]) and total > 3
+    mkt = next(
+        item
+        for item in snapshot["sections"]["traceability_appendix"]["lines"]
+        if item["line_id"] == "investment_performance.market_value"
+    )
+    assert f"pricing_observation:{stock_price.id}" in {d["identifier"] for d in mkt["source_anchor"]["details"]}
+    assert detail_kinds == {
+        "journal_line",
+        "opening_position",
+        "package_contract",
+        "pricing_valuation_observation",
+        "statement_extraction_result",
+    }
+    decisions = snapshot["framework_policy"]["decisions"]
+    pol_pages, pol_total = await all_pages(
+        client,
+        "/reports/package/policy-decisions",
+        {"framework_id": FRAMEWORK.value, **{k: JUNE_PERIOD[k] for k in ("start_date", "end_date", "as_of_date")}},
+        limit=3,
+        item_key="decisions",
+    )
+    assert (pol_pages, pol_total) == (decisions, len(decisions)) and len(
+        decisions
+    ) > package_document.PACKAGE_POLICY_PREVIEW_DECISIONS // 5
+    assert sum(line["event_count"] for sec in SECTIONS for line in prev["sections"]["cash_flow"][sec]) == sum(
+        len(snapshot["sections"]["cash_flow"][sec]) for sec in SECTIONS
+    )
+
+
+async def test_AC_reporting_package_traceability_8_line_details_reject_unknown_lines(
+    client, db: AsyncSession, test_user
+) -> None:
+    assert (
+        await client.get(
+            "/reports/package/line-details", params={**JUNE_PERIOD, "line_id": "x.y", "anchor": "ledger_anchor"}
+        )
+    ).status_code == 404
+    assert (
+        await client.get(
+            "/reports/package/line-details",
+            params={**JUNE_PERIOD, "line_id": "balance_sheet.total_assets", "anchor": "other_anchor"},
+        )
+    ).status_code == 422
+    assert (
+        await client.get("/reports/package/manifest-entries", params={**JUNE_PERIOD, "limit": 501})
+    ).status_code == 422
+    static = await client.get(
+        "/reports/package/line-details",
+        params={**JUNE_PERIOD, "line_id": "notes.non_compliance_statement", "anchor": "source_anchor"},
+    )
+    assert (static.status_code, static.json()["total"], static.json()["details"][0]["source_kind"]) == (
+        200,
+        1,
+        "package_contract",
+    )
+    past = await client.get(
+        "/reports/package/line-details",
+        params={**JUNE_PERIOD, "line_id": "notes.non_compliance_statement", "anchor": "source_anchor", "offset": 5},
+    )
+    assert (past.status_code, past.json()["total"], past.json()["details"]) == (200, 1, [])
+
+
+async def test_AC_reporting_package_traceability_8_and_10_deterministic_tiebreak_order(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = test_user.id
+    pol_user = User(email="tiebreak-pol@example.com", hashed_password="hashed")
+    db.add(pol_user)
+    await db.flush()
+    pol_user_id = pol_user.id
+    await seed_ready_package_state(db, pol_user_id, monkeypatch)
+    accs = await seed_accounts(db, user_id, *[(f"Cash {i}", AccountType.ASSET) for i in range(4)])
+    await initialize_opening_positions(
+        db,
+        user_id,
+        entry_date=date(2026, 1, 1),
+        balances={a.id: Decimal(f"{i + 1}000.00") for i, a in enumerate(accs)},
+        currency="SGD",
+        base_currency="SGD",
+    )
+    await db.commit()
+    detail_orders, policy_orders = [], []
+    for direction in ("asc", "desc"):
+
+        def hook(state: ORMExecuteState, _d=direction) -> Result | None:
+            stmt = state.statement
+            if not state.is_select or not hasattr(stmt, "column_descriptions"):
+                return None
+            entities = {col.get("entity") for col in stmt.column_descriptions}
+            target = next((e for e in (OpeningPositionRecord, JournalLine, Account) if e in entities), None)
+            if target is None:
+                return None
+            return state.invoke_statement(statement=stmt.order_by(target.id.asc() if _d == "asc" else target.id.desc()))
+
+        event.listen(Session, "do_orm_execute", hook)
+        try:
+            details = await PackageAssembler().line_details(
+                db,
+                user_id=user_id,
+                start_date=date(2026, 6, 1),
+                end_date=date(2026, 6, 30),
+                as_of_date=date(2026, 6, 30),
+                currency="SGD",
+                line_id="balance_sheet.total_assets",
+                anchor=PersonalReportPackageTraceabilityAnchorName.LEDGER,
+            )
+            pol = await derive_user_framework_policy_result(
+                db,
+                pol_user_id,
+                framework_id=FRAMEWORK,
+                report_period_start=date(2026, 6, 1),
+                report_period_end=date(2026, 6, 30),
+                as_of_date=date(2026, 6, 30),
+            )
+        finally:
+            event.remove(Session, "do_orm_execute", hook)
+        detail_orders.append([d["identifier"] for d in details])
+        policy_orders.append([a.anchor_id for d in pol.decisions for a in d.evidence_anchors[:1]])
+    assert (
+        len([i for i in detail_orders[0] if str(i).startswith("opening_position:")]) == 4
+        and detail_orders[0] == detail_orders[1]
+    )
+    assert len(policy_orders[0]) > 5 and policy_orders[0] == policy_orders[1]

@@ -1,19 +1,133 @@
-from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from src.audit import JournalEntrySourceType; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.pricing.orm.market_data import FxRate; from src.reporting import ReportError, get_net_worth_timeseries; from src.reporting.extension.reporting_calc import MAX_NET_WORTH_MONTHLY_POINTS
-async def _account(db, user_id, name: str, account_type: AccountType, currency: str='SGD') -> Account: account = Account(user_id=user_id, name=name, type=account_type, currency=currency); db.add(account); await db.flush(); return account
-async def _entry(db, user_id, entry_date: date, lines: list[tuple[Account, Direction, Decimal, str]]) -> None: entry = JournalEntry(user_id=user_id, entry_date=entry_date, memo='timeseries fixture', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); [db.add(JournalLine(journal_entry_id=entry.id, account_id=account.id, direction=direction, amount=amount, currency=currency, fx_rate=Decimal('1.00') if currency.upper() != 'SGD' else None)) for account, direction, amount, currency in lines]; await db.flush()
-async def test_net_worth_timeseries_daily_points(db, test_user): 'AC5.7.1'; user_id = test_user.id; cash = await _account(db, user_id, 'Cash', AccountType.ASSET); equity = await _account(db, user_id, 'Owner Equity', AccountType.EQUITY); expense = await _account(db, user_id, 'Dining', AccountType.EXPENSE); await _entry(db, user_id, date(2026, 1, 1), [(cash, Direction.DEBIT, Decimal('1000.00'), 'SGD'), (equity, Direction.CREDIT, Decimal('1000.00'), 'SGD')]); await _entry(db, user_id, date(2026, 1, 3), [(expense, Direction.DEBIT, Decimal('200.00'), 'SGD'), (cash, Direction.CREDIT, Decimal('200.00'), 'SGD')]); await db.commit(); report = await get_net_worth_timeseries(db, user_id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 3), granularity='daily', currency='SGD'); assert report['currency'] == 'SGD'; assert [point['date'] for point in report['points']] == [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]; assert [point['net_worth'] for point in report['points']] == [Decimal('1000.00'), Decimal('1000.00'), Decimal('800.00')]
-async def test_net_worth_timeseries_uses_historical_fx_per_point(db, test_user): 'AC-reporting.net-worth-timeseries.2 AC5.7.3'; user_id = test_user.id; usd_cash = await _account(db, user_id, 'USD Cash', AccountType.ASSET, currency='USD'); equity = await _account(db, user_id, 'Owner Equity', AccountType.EQUITY, currency='USD'); await _entry(db, user_id, date(2026, 1, 1), [(usd_cash, Direction.DEBIT, Decimal('100.00'), 'USD'), (equity, Direction.CREDIT, Decimal('100.00'), 'USD')]); db.add_all([FxRate(base_currency='USD', quote_currency='SGD', rate_date=date(2026, 1, 1), rate=Decimal('1.30'), source='test'), FxRate(base_currency='USD', quote_currency='SGD', rate_date=date(2026, 1, 2), rate=Decimal('1.40'), source='test')]); await db.commit(); report = await get_net_worth_timeseries(db, user_id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 2), granularity='daily', currency='SGD'); assert [point['net_worth'] for point in report['points']] == [Decimal('130.00'), Decimal('140.00')]
-async def test_net_worth_timeseries_daily_cap(db):
-    'AC5.7.1'
-    with pytest.raises(ReportError, match='Daily net worth time-series is capped'): await get_net_worth_timeseries(db, uuid4(), start_date=date(2025, 1, 1), end_date=date(2026, 2, 1), granularity='daily', currency='SGD')
-async def test_net_worth_timeseries_rejects_reversed_dates(db):
-    'AC5.7.1'
-    with pytest.raises(ReportError, match='from date must be before to date'): await get_net_worth_timeseries(db, uuid4(), start_date=date(2026, 2, 1), end_date=date(2026, 1, 1), granularity='monthly', currency='SGD')
-async def test_net_worth_timeseries_rejects_unknown_granularity(db):
-    'AC5.7.1'
-    with pytest.raises(ReportError, match='Unsupported net worth granularity'): await get_net_worth_timeseries(db, uuid4(), start_date=date(2026, 1, 1), end_date=date(2026, 1, 31), granularity='weekly', currency='SGD')
-async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_currency(db, test_user): 'AC5.7.1'; user_id = test_user.id; usd_cash = await _account(db, user_id, 'USD Cash', AccountType.ASSET, currency='USD'); usd_card = await _account(db, user_id, 'USD Card', AccountType.LIABILITY, currency='USD'); equity = await _account(db, user_id, 'Owner Equity', AccountType.EQUITY, currency='USD'); await _entry(db, user_id, date(2026, 1, 20), [(usd_cash, Direction.DEBIT, Decimal('1000.00'), 'USD'), (equity, Direction.CREDIT, Decimal('1000.00'), 'USD')]); await _entry(db, user_id, date(2026, 2, 1), [(equity, Direction.DEBIT, Decimal('250.00'), 'USD'), (usd_card, Direction.CREDIT, Decimal('250.00'), 'USD')]); await db.commit(); report = await get_net_worth_timeseries(db, user_id, start_date=date(2026, 1, 15), end_date=date(2026, 2, 2), granularity='monthly', currency='usd'); assert report['currency'] == 'USD'; assert [point['date'] for point in report['points']] == [date(2026, 1, 31), date(2026, 2, 2)]; assert [point['currency'] for point in report['points']] == ['USD', 'USD']; assert [point['net_worth'] for point in report['points']] == [Decimal('1000.00'), Decimal('750.00')]
-async def test_AC_reporting_net_worth_timeseries_5_monthly_series_starts_at_first_month_with_value(db, test_user): 'AC-reporting.net-worth-timeseries.5'; user_id = test_user.id; cash = await _account(db, user_id, 'Cash', AccountType.ASSET); equity = await _account(db, user_id, 'Owner Equity', AccountType.EQUITY); await _entry(db, user_id, date(2026, 3, 9), [(cash, Direction.DEBIT, Decimal('500.00'), 'SGD'), (equity, Direction.CREDIT, Decimal('500.00'), 'SGD')]); await db.commit(); report = await get_net_worth_timeseries(db, user_id, start_date=date(1970, 1, 1), end_date=date(2026, 6, 10), granularity='monthly', currency='SGD'); assert [point['date'] for point in report['points']] == [date(2026, 3, 31), date(2026, 4, 30), date(2026, 5, 31), date(2026, 6, 10)]; assert {point['net_worth'] for point in report['points']} == {Decimal('500.00')}; long_history = await get_net_worth_timeseries(db, user_id, start_date=date(1970, 1, 1), end_date=date(2057, 6, 10), granularity='monthly', currency='SGD'); assert len(long_history['points']) == MAX_NET_WORTH_MONTHLY_POINTS; assert long_history['points'][0]['date'] == date(2027, 1, 31); assert long_history['points'][-1]['date'] == date(2057, 6, 10)
-async def test_AC_reporting_net_worth_timeseries_5_empty_monthly_series_keeps_its_last_point(db, test_user): 'AC-reporting.net-worth-timeseries.5'; report = await get_net_worth_timeseries(db, test_user.id, start_date=date(1970, 1, 1), end_date=date(2026, 6, 10), granularity='monthly', currency='SGD'); assert [point['date'] for point in report['points']] == [date(2026, 6, 10)]; assert report['points'][0]['net_worth'] == Decimal('0.00')
-async def test_net_worth_timeseries_router(client): 'AC-reporting.net-worth-timeseries.1 AC5.7.1'; response = await client.get('/reports/net-worth/timeseries', params={'from': '2026-01-01', 'to': '2026-01-31', 'granularity': 'monthly', 'currency': 'SGD'}); assert response.status_code == 200; assert response.json()['granularity'] == 'monthly'; assert response.json()['points']
-async def test_net_worth_timeseries_router_returns_bad_request_for_invalid_window(client): 'AC5.7.1'; response = await client.get('/reports/net-worth/timeseries', params={'from': '2026-02-01', 'to': '2026-01-01', 'granularity': 'monthly', 'currency': 'SGD'}); assert response.status_code == 400
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+
+from src.ledger import AccountType, Direction
+from src.reporting import ReportError, get_net_worth_timeseries
+from src.reporting.extension.reporting_calc import MAX_NET_WORTH_MONTHLY_POINTS
+from tests.reporting._report_fixtures import post_lines, seed_accounts, seed_fx_rates
+
+
+async def test_net_worth_timeseries_daily_and_fx(db, test_user) -> None:
+    cash, eq, exp, usd_cash, usd_eq = await seed_accounts(
+        db,
+        test_user.id,
+        ("Cash", AccountType.ASSET),
+        ("Owner Equity", AccountType.EQUITY),
+        ("Dining", AccountType.EXPENSE),
+        ("USD Cash", AccountType.ASSET, "USD"),
+        ("USD Equity", AccountType.EQUITY, "USD"),
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 1, 1),
+        "Init",
+        [(cash, Direction.DEBIT, "1000.00", "SGD"), (eq, Direction.CREDIT, "1000.00", "SGD")],
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 1, 3),
+        "Din",
+        [(exp, Direction.DEBIT, "200.00", "SGD"), (cash, Direction.CREDIT, "200.00", "SGD")],
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 1, 1),
+        "USD",
+        [
+            (usd_cash, Direction.DEBIT, "100.00", "USD", Decimal("1.00")),
+            (usd_eq, Direction.CREDIT, "100.00", "USD", Decimal("1.00")),
+        ],
+    )
+    await seed_fx_rates(db, ("USD", "SGD", "1.30", date(2026, 1, 1)), ("USD", "SGD", "1.40", date(2026, 1, 2)))
+    rep = await get_net_worth_timeseries(
+        db, test_user.id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 3), granularity="daily", currency="SGD"
+    )
+    assert rep["currency"] == "SGD" and [p["date"] for p in rep["points"]] == [
+        date(2026, 1, 1),
+        date(2026, 1, 2),
+        date(2026, 1, 3),
+    ]
+    assert [p["net_worth"] for p in rep["points"]] == [Decimal("1130.00"), Decimal("1140.00"), Decimal("940.00")]
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "gran", "match"),
+    [
+        (date(2025, 1, 1), date(2026, 2, 1), "daily", "Daily net worth time-series is capped"),
+        (date(2026, 2, 1), date(2026, 1, 1), "monthly", "from date must be before to date"),
+        (date(2026, 1, 1), date(2026, 1, 31), "weekly", "Unsupported net worth granularity"),
+    ],
+)
+async def test_net_worth_timeseries_validation_errors(db, start: date, end: date, gran: str, match: str) -> None:
+    with pytest.raises(ReportError, match=match):
+        await get_net_worth_timeseries(db, uuid4(), start_date=start, end_date=end, granularity=gran, currency="SGD")
+
+
+async def test_net_worth_timeseries_monthly_series_and_router(client, db, test_user) -> None:
+    empty = await get_net_worth_timeseries(
+        db, test_user.id, start_date=date(1970, 1, 1), end_date=date(2026, 6, 10), granularity="monthly", currency="SGD"
+    )
+    assert [(p["date"], p["net_worth"]) for p in empty["points"]] == [(date(2026, 6, 10), Decimal("0.00"))]
+
+    usd_cash, usd_card, eq = await seed_accounts(
+        db,
+        test_user.id,
+        ("USD Cash", AccountType.ASSET, "USD"),
+        ("USD Card", AccountType.LIABILITY, "USD"),
+        ("Owner Equity", AccountType.EQUITY, "USD"),
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 1, 20),
+        "Init",
+        [
+            (usd_cash, Direction.DEBIT, "1000.00", "USD", Decimal("1.00")),
+            (eq, Direction.CREDIT, "1000.00", "USD", Decimal("1.00")),
+        ],
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 2, 1),
+        "Card",
+        [
+            (eq, Direction.DEBIT, "250.00", "USD", Decimal("1.00")),
+            (usd_card, Direction.CREDIT, "250.00", "USD", Decimal("1.00")),
+        ],
+        commit=True,
+    )
+    rep = await get_net_worth_timeseries(
+        db, test_user.id, start_date=date(2026, 1, 15), end_date=date(2026, 2, 2), granularity="monthly", currency="usd"
+    )
+    assert rep["currency"] == "USD" and [(p["date"], p["currency"], p["net_worth"]) for p in rep["points"]] == [
+        (date(2026, 1, 31), "USD", Decimal("1000.00")),
+        (date(2026, 2, 2), "USD", Decimal("750.00")),
+    ]
+
+    hist = await get_net_worth_timeseries(
+        db, test_user.id, start_date=date(1970, 1, 1), end_date=date(2057, 6, 10), granularity="monthly", currency="USD"
+    )
+    assert len(hist["points"]) == MAX_NET_WORTH_MONTHLY_POINTS and (
+        hist["points"][0]["date"],
+        hist["points"][-1]["date"],
+    ) == (date(2027, 1, 31), date(2057, 6, 10))
+
+    assert (
+        await client.get(
+            "/reports/net-worth/timeseries",
+            params={"from": "2026-01-01", "to": "2026-01-31", "granularity": "monthly", "currency": "SGD"},
+        )
+    ).json()["granularity"] == "monthly"
+    assert (
+        await client.get(
+            "/reports/net-worth/timeseries",
+            params={"from": "2026-02-01", "to": "2026-01-01", "granularity": "monthly", "currency": "SGD"},
+        )
+    ).status_code == 400

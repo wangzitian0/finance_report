@@ -1,10 +1,110 @@
-from datetime import date; from decimal import Decimal; import pytest; from httpx import AsyncClient; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import JournalEntrySourceType; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine; from src.reporting import EquationDiagnosticCategory, diagnose_equation_imbalance, run_balance_sheet_diagnostics
-def test_flow_24_diagnostics_balanced(): result = diagnose_equation_imbalance(equation_delta=Decimal('0.00'), is_multicurrency=False); assert result.is_balanced is True; assert result.primary_category == EquationDiagnosticCategory.BALANCED; assert result.equation_delta == Decimal('0.00'); _m1_result = diagnose_equation_imbalance(equation_delta=Decimal('-150.00'), unposted_draft_count=2, is_multicurrency=False); assert _m1_result.is_balanced is False; assert _m1_result.primary_category == EquationDiagnosticCategory.UNPOSTED_DRAFT; assert 'pending statement' in _m1_result.suggested_action.lower(); _m2_result = diagnose_equation_imbalance(equation_delta=Decimal('0.04'), is_multicurrency=True); assert _m2_result.is_balanced is False; assert _m2_result.primary_category == EquationDiagnosticCategory.FX_ROUNDING_DRIFT; assert 'revaluation' not in _m2_result.suggested_action.lower(); assert 'POST /reconciliation/adjustments' in _m2_result.suggested_action; _m3_result = diagnose_equation_imbalance(equation_delta=Decimal('12.50'), is_multicurrency=True); assert _m3_result.is_balanced is False; assert _m3_result.primary_category == EquationDiagnosticCategory.UNKNOWN_DISCREPANCY; assert _m3_result.details == {'delta': '12.50'}; _m4_produced = {diagnose_equation_imbalance(Decimal('0.00')).primary_category, diagnose_equation_imbalance(Decimal('-150.00'), unposted_draft_count=2).primary_category, diagnose_equation_imbalance(Decimal('0.04'), is_multicurrency=True).primary_category, diagnose_equation_imbalance(Decimal('12.50'), is_multicurrency=True).primary_category}; assert _m4_produced == set(EquationDiagnosticCategory)
-async def test_AC_reporting_2664_1_balanced_usd_entry_without_fx_rate_row_never_reports_unclassified_discrepancy(client: AsyncClient, db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    'AC-reporting.2664.1'; import src.pricing.extension.market_data.service as md_service; bank = Account(user_id=test_user.id, name='DBS Savings', type=AccountType.ASSET, currency='SGD'); equity = Account(user_id=test_user.id, name='Opening Balance', type=AccountType.EQUITY, currency='SGD'); db.add_all([bank, equity]); await db.flush(); entry = JournalEntry(user_id=test_user.id, entry_date=date(2026, 10, 24), memo='USD opening contribution', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=entry.id, account_id=bank.id, direction=Direction.DEBIT, amount=Decimal('500.00'), currency='USD', fx_rate=Decimal('1.35')), JournalLine(journal_entry_id=entry.id, account_id=equity.id, direction=Direction.CREDIT, amount=Decimal('500.00'), currency='USD', fx_rate=Decimal('1.35'))]); await db.commit()
-    async def resolve_spot(_db, base: str, quote: str, _rate_date: date) -> Decimal | None:
-        if (base.upper(), quote.upper()) == ('USD', 'SGD'): return Decimal('1.27832')
-        return None
-    monkeypatch.setattr(md_service, 'resolve_missing_fx_rate', resolve_spot); diag_with_lazy_spot = await run_balance_sheet_diagnostics(db, test_user.id, as_of_date=date(2026, 10, 24), currency='SGD'); assert 'Unclassified discrepancy' not in diag_with_lazy_spot.suggested_action; assert diag_with_lazy_spot.is_balanced is True; assert diag_with_lazy_spot.equation_delta == Decimal('0.00'); dq_resp = await client.get('/reports/data-quality?as_of_date=2026-10-24&currency=SGD'); assert dq_resp.status_code == 200; dq_body = dq_resp.json(); assert dq_body['equation_invariant']['is_healthy'] is True; assert Decimal(str(dq_body['equation_invariant']['delta'])) == Decimal('0.00'); assert all(('Unclassified discrepancy' not in item['description'] for item in dq_body['action_items']))
-    async def resolve_none(_db, _base: str, _quote: str, _rate_date: date) -> Decimal | None: return None
-    monkeypatch.setattr(md_service, 'resolve_missing_fx_rate', resolve_none); mixed_entry = JournalEntry(user_id=test_user.id, entry_date=date(2026, 10, 24), memo='USD asset funded by SGD equity', source_type=JournalEntrySourceType.MANUAL, status=JournalEntryStatus.POSTED); db.add(mixed_entry); await db.flush(); db.add_all([JournalLine(journal_entry_id=mixed_entry.id, account_id=bank.id, direction=Direction.DEBIT, amount=Decimal('500.00'), currency='USD', fx_rate=Decimal('1.35')), JournalLine(journal_entry_id=mixed_entry.id, account_id=equity.id, direction=Direction.CREDIT, amount=Decimal('675.00'), currency='SGD')]); await db.commit(); diag_missing = await run_balance_sheet_diagnostics(db, test_user.id, as_of_date=date(2026, 10, 24), currency='SGD'); assert 'Unclassified discrepancy' not in diag_missing.suggested_action; assert 'USD/SGD' in diag_missing.suggested_action; assert diag_missing.primary_category == EquationDiagnosticCategory.FX_ROUNDING_DRIFT
+from datetime import date
+from decimal import Decimal
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.ledger import AccountType, Direction
+from src.reporting import EquationDiagnosticCategory, diagnose_equation_imbalance, run_balance_sheet_diagnostics
+from tests.reporting._report_fixtures import make_entry, seed_accounts
+
+
+@pytest.mark.parametrize(
+    ("delta", "drafts", "multi", "expected_bal", "expected_cat", "action_contains", "action_excludes"),
+    [
+        (Decimal("0.00"), 0, False, True, EquationDiagnosticCategory.BALANCED, None, None),
+        (Decimal("-150.00"), 2, False, False, EquationDiagnosticCategory.UNPOSTED_DRAFT, "pending statement", None),
+        (
+            Decimal("0.04"),
+            0,
+            True,
+            False,
+            EquationDiagnosticCategory.FX_ROUNDING_DRIFT,
+            "POST /reconciliation/adjustments",
+            "revaluation",
+        ),
+        (Decimal("12.50"), 0, True, False, EquationDiagnosticCategory.UNKNOWN_DISCREPANCY, None, None),
+    ],
+)
+def test_flow_24_diagnostics_categories(
+    delta: Decimal,
+    drafts: int,
+    multi: bool,
+    expected_bal: bool,
+    expected_cat: EquationDiagnosticCategory,
+    action_contains: str | None,
+    action_excludes: str | None,
+) -> None:
+    res = diagnose_equation_imbalance(equation_delta=delta, unposted_draft_count=drafts, is_multicurrency=multi)
+    assert (res.is_balanced, res.primary_category, res.equation_delta) == (expected_bal, expected_cat, delta)
+    if action_contains:
+        assert action_contains.lower() in res.suggested_action.lower()
+    if action_excludes:
+        assert action_excludes not in res.suggested_action.lower()
+    if expected_cat is EquationDiagnosticCategory.UNKNOWN_DISCREPANCY:
+        assert res.details == {"delta": str(delta)}
+
+
+async def test_AC_reporting_2664_1_balanced_usd_entry_without_fx_rate_row_never_reports_unclassified_discrepancy(
+    client: AsyncClient, db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import src.pricing.extension.market_data.service as md_service
+
+    bank, equity = await seed_accounts(
+        db, test_user.id, ("DBS Savings", AccountType.ASSET), ("Opening Balance", AccountType.EQUITY)
+    )
+    db.add(
+        make_entry(
+            test_user.id,
+            date(2026, 10, 24),
+            "USD opening",
+            [
+                (bank, Direction.DEBIT, "500.00", "USD", Decimal("1.35")),
+                (equity, Direction.CREDIT, "500.00", "USD", Decimal("1.35")),
+            ],
+        )
+    )
+    await db.commit()
+
+    monkeypatch.setattr(
+        md_service,
+        "resolve_missing_fx_rate",
+        lambda _db, base, quote, _d: _async_val(
+            Decimal("1.27832") if (base.upper(), quote.upper()) == ("USD", "SGD") else None
+        ),
+    )
+    diag = await run_balance_sheet_diagnostics(db, test_user.id, as_of_date=date(2026, 10, 24), currency="SGD")
+    assert (
+        diag.is_balanced is True
+        and diag.equation_delta == Decimal("0.00")
+        and "Unclassified discrepancy" not in diag.suggested_action
+    )
+
+    dq_resp = await client.get("/reports/data-quality?as_of_date=2026-10-24&currency=SGD")
+    assert dq_resp.status_code == 200
+    dq_body = dq_resp.json()
+    assert dq_body["equation_invariant"]["is_healthy"] is True and Decimal(
+        str(dq_body["equation_invariant"]["delta"])
+    ) == Decimal("0.00")
+    assert all("Unclassified discrepancy" not in item["description"] for item in dq_body["action_items"])
+
+    monkeypatch.setattr(md_service, "resolve_missing_fx_rate", lambda *_a: _async_val(None))
+    db.add(
+        make_entry(
+            test_user.id,
+            date(2026, 10, 24),
+            "Mixed",
+            [(bank, Direction.DEBIT, "500.00", "USD", Decimal("1.35")), (equity, Direction.CREDIT, "675.00", "SGD")],
+        )
+    )
+    await db.commit()
+    diag_missing = await run_balance_sheet_diagnostics(db, test_user.id, as_of_date=date(2026, 10, 24), currency="SGD")
+    assert diag_missing.primary_category == EquationDiagnosticCategory.FX_ROUNDING_DRIFT
+    assert (
+        "USD/SGD" in diag_missing.suggested_action and "Unclassified discrepancy" not in diag_missing.suggested_action
+    )
+
+
+async def _async_val(val):
+    return val

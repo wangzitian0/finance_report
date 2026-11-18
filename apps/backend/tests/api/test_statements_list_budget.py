@@ -1,15 +1,109 @@
-from __future__ import annotations; from decimal import Decimal; from uuid import uuid4; import pytest; from sqlalchemy import event; from src.extraction import DocumentType, UploadedDocument; from src.extraction.orm.statement_summary import StatementSummary; from src.identity import User; from tests.factories import seed_parsed_statement; pytestmark = pytest.mark.asyncio; ROWS_PER_STATEMENT = 2
-async def _seed_statements(db, user_id, count: int, *, name_prefix: str='list_budget'):
-    seeded = []
-    for index in range(count): seeded.append(await seed_parsed_statement(db, user_id, institution='DBS', original_filename=f'{name_prefix}_{index:02d}.pdf', opening_balance=Decimal('1000.00')))
-    await db.commit(); return seeded
-async def _count_sql(db_engine, client, path: str, params: dict | None=None):
-    statements: list[str] = []
-    def capture(_conn, _cursor, statement_text, _parameters, _context, _executemany): statements.append(statement_text)
-    event.listen(db_engine.sync_engine, 'before_cursor_execute', capture)
-    try: response = await client.get(path, params=params)
-    finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', capture)
-    assert response.status_code == 200, response.text; return (response, statements)
-async def test_AC_extraction_statement_list_1_sql_count_does_not_grow_with_statement_count(client, db, db_engine, test_user): 'AC-extraction.statement-list.1'; await _seed_statements(db, test_user.id, 3); small_response, small_sql = await _count_sql(db_engine, client, '/statements'); assert small_response.json()['total'] == 3; await _seed_statements(db, test_user.id, 9, name_prefix='list_budget_more'); large_response, large_sql = await _count_sql(db_engine, client, '/statements'); assert large_response.json()['total'] == 12; assert len(large_response.json()['items']) == 12; assert len(large_sql) == len(small_sql), f'SQL count grew with statement count: 3 statements -> {len(small_sql)}, 12 statements -> {len(large_sql)}'; assert len(large_sql) <= 8, f'expected a bounded list, got {len(large_sql)} SQL statements'
-async def test_AC_extraction_statement_list_2_list_has_no_transactions_option(client, db, db_engine, test_user, openapi_schema): 'AC-extraction.statement-list.2'; seeded = await _seed_statements(db, test_user.id, 3); assert all((len(item.transactions) == ROWS_PER_STATEMENT for item in seeded)); parameters = openapi_schema['paths']['/statements']['get'].get('parameters', []); assert 'include_transactions' not in {parameter['name'] for parameter in parameters}; list_item_schema = openapi_schema['components']['schemas']['BankStatementListItemResponse']; assert 'transactions' not in list_item_schema['properties']; assert openapi_schema['components']['schemas']['ListResponse_BankStatementListItemResponse_']['properties']['items']['items']['$ref'] == '#/components/schemas/BankStatementListItemResponse'; default_response, default_sql = await _count_sql(db_engine, client, '/statements'); default_items = default_response.json()['items']; assert len(default_items) == 3; assert all(('transactions' not in item for item in default_items)); assert {item['original_filename'] for item in default_items} == {f'list_budget_{i:02d}.pdf' for i in range(3)}; assert all((item['file_path'] for item in default_items)); ignored_response, ignored_sql = await _count_sql(db_engine, client, '/statements', params={'include_transactions': 'true'}); ignored_items = ignored_response.json()['items']; assert len(ignored_items) == 3; assert all(('transactions' not in item for item in ignored_items)); assert len(ignored_sql) == len(default_sql); pending_response, _ = await _count_sql(db_engine, client, '/statements/pending-review'); pending_items = pending_response.json()['items']; assert len(pending_items) == 3; assert all(('transactions' not in item for item in pending_items))
-async def test_AC_extraction_statement_list_3_document_lookup_keeps_user_isolation_and_hash_fallback(client, db, db_engine, test_user): 'AC-extraction.statement-list.3'; seeded = await _seed_statements(db, test_user.id, 2); linked, unlinked = (seeded[0], seeded[1]); unlinked_statement = await db.get(StatementSummary, unlinked.id); unlinked_statement.uploaded_document_id = None; other_user = User(id=uuid4(), email=f'other_{uuid4().hex[:8]}@example.com', name='Other User', hashed_password='test_hashed_password'); db.add(other_user); await db.flush(); foreign_document = UploadedDocument(id=uuid4(), user_id=other_user.id, file_path='foreign/path.pdf', file_hash=uuid4().hex + uuid4().hex[:32], original_filename='foreign.pdf', document_type=DocumentType.BANK_STATEMENT); db.add(foreign_document); await db.flush(); linked_statement = await db.get(StatementSummary, linked.id); linked_statement.uploaded_document_id = foreign_document.id; await db.commit(); response, _ = await _count_sql(db_engine, client, '/statements'); by_id = {item['id']: item for item in response.json()['items']}; assert by_id[str(unlinked.id)]['original_filename'] == 'list_budget_01.pdf'; assert by_id[str(linked.id)]['original_filename'] != 'foreign.pdf'; assert by_id[str(linked.id)]['file_path'] != 'foreign/path.pdf'
+from __future__ import annotations
+
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import event
+
+from src.extraction import DocumentType, UploadedDocument
+from src.extraction.orm.statement_summary import StatementSummary
+from tests.factories import UserFactory, seed_parsed_statement
+
+pytestmark = pytest.mark.asyncio
+ROWS_PER_STATEMENT = 2
+
+
+async def _seed_statements(db, user_id, count: int, *, name_prefix: str = "list_budget"):
+    seeded = [
+        await seed_parsed_statement(
+            db,
+            user_id,
+            institution="DBS",
+            original_filename=f"{name_prefix}_{i:02d}.pdf",
+            opening_balance=Decimal("1000.00"),
+        )
+        for i in range(count)
+    ]
+    await db.commit()
+    return seeded
+
+
+async def _count_sql(db_engine, client, path: str, params: dict | None = None):
+    stmts: list[str] = []
+    capture = lambda _c, _cur, text, *_a: stmts.append(text)
+    event.listen(db_engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        resp = await client.get(path, params=params)
+    finally:
+        event.remove(db_engine.sync_engine, "before_cursor_execute", capture)
+    assert resp.status_code == 200, resp.text
+    return resp, stmts
+
+
+async def test_AC_extraction_statement_list_1_sql_count_does_not_grow_with_statement_count(
+    client, db, db_engine, test_user
+):
+    await _seed_statements(db, test_user.id, 3)
+    small_resp, small_sql = await _count_sql(db_engine, client, "/statements")
+    await _seed_statements(db, test_user.id, 9, name_prefix="list_budget_more")
+    large_resp, large_sql = await _count_sql(db_engine, client, "/statements")
+    assert (small_resp.json()["total"], large_resp.json()["total"], len(large_resp.json()["items"])) == (3, 12, 12)
+    assert len(large_sql) == len(small_sql) <= 8
+
+
+async def test_AC_extraction_statement_list_2_list_has_no_transactions_option(
+    client, db, db_engine, test_user, openapi_schema
+):
+    seeded = await _seed_statements(db, test_user.id, 3)
+    assert all(len(i.transactions) == ROWS_PER_STATEMENT for i in seeded)
+    assert "include_transactions" not in {
+        p["name"] for p in openapi_schema["paths"]["/statements"]["get"].get("parameters", [])
+    }
+    assert "transactions" not in openapi_schema["components"]["schemas"]["BankStatementListItemResponse"]["properties"]
+    assert (
+        openapi_schema["components"]["schemas"]["ListResponse_BankStatementListItemResponse_"]["properties"]["items"][
+            "items"
+        ]["$ref"]
+        == "#/components/schemas/BankStatementListItemResponse"
+    )
+
+    default_resp, default_sql = await _count_sql(db_engine, client, "/statements")
+    ignored_resp, ignored_sql = await _count_sql(
+        db_engine, client, "/statements", params={"include_transactions": "true"}
+    )
+    pending_resp, _ = await _count_sql(db_engine, client, "/statements/pending-review")
+    assert len(ignored_sql) == len(default_sql)
+    for items in (default_resp.json()["items"], ignored_resp.json()["items"], pending_resp.json()["items"]):
+        assert len(items) == 3 and all("transactions" not in i for i in items)
+    assert {i["original_filename"] for i in default_resp.json()["items"]} == {
+        f"list_budget_{i:02d}.pdf" for i in range(3)
+    }
+    assert all(i["file_path"] for i in default_resp.json()["items"])
+
+
+async def test_AC_extraction_statement_list_3_document_lookup_keeps_user_isolation_and_hash_fallback(
+    client, db, db_engine, test_user
+):
+    linked, unlinked = await _seed_statements(db, test_user.id, 2)
+    (await db.get(StatementSummary, unlinked.id)).uploaded_document_id = None
+    other = await UserFactory.create_async(db)
+    foreign_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=other.id,
+        file_path="foreign/path.pdf",
+        file_hash=uuid4().hex + uuid4().hex[:32],
+        original_filename="foreign.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(foreign_doc)
+    await db.flush()
+    (await db.get(StatementSummary, linked.id)).uploaded_document_id = foreign_doc.id
+    await db.commit()
+    resp, _ = await _count_sql(db_engine, client, "/statements")
+    by_id = {i["id"]: i for i in resp.json()["items"]}
+    assert by_id[str(unlinked.id)]["original_filename"] == "list_budget_01.pdf"
+    assert (
+        by_id[str(linked.id)]["original_filename"] != "foreign.pdf"
+        and by_id[str(linked.id)]["file_path"] != "foreign/path.pdf"
+    )

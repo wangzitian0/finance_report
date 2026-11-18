@@ -352,7 +352,6 @@ async def _supersede_selected_authority_parents(db, *, user_id, document) -> Non
 async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle(
     db, test_user, monkeypatch, request
 ) -> None:
-    "AC-testing.trusted-year.2 AC-testing.trusted-year.3 AC-testing.package-lifecycle.1"
     scenario = TRUSTED_YEAR_SCENARIO
     monkeypatch.setattr(settings, "enable_ai_classification", True)
 

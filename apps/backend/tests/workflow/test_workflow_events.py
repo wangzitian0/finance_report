@@ -1,4 +1,3 @@
-"EPIC-019"
 
 from __future__ import annotations
 import asyncio
@@ -104,7 +103,6 @@ async def _make_statement(
 
 
 def test_AC19_8_2_workflow_session_model_contract() -> None:
-    "AC-platform.33.1 AC-platform.33.2 AC19.8.1 AC19.8.2"
     session_table = WorkflowSession.__table__
     event_table = WorkflowEvent.__table__
     assert session_table.name == "workflow_sessions"
@@ -131,7 +129,6 @@ def test_AC19_8_2_workflow_session_model_contract() -> None:
 
 
 async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe(db_engine, test_user) -> None:
-    "AC-platform.33.4 AC19.8.9"
     sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
     async with sessionmaker() as first_session, sessionmaker() as second_session:
         first = await get_or_create_active_workflow_session(first_session, user_id=test_user.id)
@@ -158,7 +155,6 @@ async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_saf
 
 
 async def test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_dedupe_row(db, test_user) -> None:
-    "AC19.8.9"
     archived_session = WorkflowSession(
         user_id=test_user.id,
         status=WorkflowSessionStatus.ARCHIVED,
@@ -177,7 +173,6 @@ async def test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_de
 
 
 def test_AC19_1_2_workflow_event_model_contract() -> None:
-    "AC-platform.30.2 AC19.1.2"
     table = WorkflowEvent.__table__
     assert table.name == "workflow_events"
     enum_names = {
@@ -228,7 +223,6 @@ def test_AC19_1_2_workflow_event_model_contract() -> None:
 
 
 def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
-    "AC-platform.30.3 AC19.1.3"
     valid = WorkflowEventCreate(
         family=WorkflowEventFamily.SOURCE_UPLOADED,
         severity=WorkflowEventSeverity.INFO,
@@ -293,7 +287,6 @@ def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
 
 
 async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, test_user) -> None:
-    "AC-platform.30.4 AC19.1.4"
     statement, _document = await _make_statement(db, test_user.id, original_filename="demo.csv", file_hash="a" * 64)
     uploaded_events = (
         select(WorkflowEvent)
@@ -314,7 +307,6 @@ async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, tes
 
 
 async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user) -> None:
-    "AC-platform.30.5 AC19.1.5"
     other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other_user)
     await db.flush()
@@ -352,7 +344,6 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
 
 
 async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None:
-    "AC-platform.32.1 AC19.3.1"
     statement, document = await _make_statement(db, test_user.id, original_filename="original.csv", file_hash="e" * 64)
     await sync_workflow_events_for_user(db, user_id=test_user.id, base_currency="SGD")
     event = (
@@ -384,7 +375,6 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
 
 
 async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
-    "AC-platform.34.1 AC-platform.34.2 AC-platform.36.1 AC-platform.36.2 AC19.12.1 AC19.12.2 AC22.2.2 AC22.2.5"
     statement, _document = await _make_statement(
         db,
         test_user.id,
@@ -441,7 +431,6 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
 
 
 async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure(db, test_user) -> None:
-    "AC19.12.2"
     pending_statement, _pending_document = await _make_statement(
         db,
         test_user.id,
@@ -512,7 +501,6 @@ async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without
 async def test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers(
     db, test_user, monkeypatch
 ) -> None:
-    "AC-platform.34.3 AC19.12.3"
     blocker_payload = {
         "state": "blocked",
         "action_href": "/audit",
@@ -604,7 +592,6 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
 async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_payloads(
     db, test_user, monkeypatch
 ) -> None:
-    "AC19.12.3"
     blocker_payload = {
         "state": "blocked",
         "action_href": "/audit",
@@ -642,7 +629,6 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
 async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_processing(
     db, test_user, monkeypatch
 ) -> None:
-    "AC19.12.3"
     await _make_statement(
         db,
         test_user.id,
@@ -665,7 +651,6 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
 
 
 async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
-    "AC-platform.34.4 AC19.12.4"
 
     async def fake_readiness(_db, **_kwargs):
         return {
@@ -717,7 +702,6 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
 
 
 async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, test_user) -> None:
-    "AC19.3.1"
     from sqlalchemy import event as sqlalchemy_event
 
     for index in range(3):
@@ -739,7 +723,6 @@ async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, t
 
 
 async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(db, db_engine, test_user) -> None:
-    "AC-platform.32.2 AC-platform.32.3 AC19.3.2 AC19.4.1 AC22.21.1 AC19.6.1"
     from sqlalchemy import event as sqlalchemy_event
 
     await _seed_workflow_event(
@@ -800,7 +783,6 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(d
 
 
 async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user):
-    "AC-platform.36.3 AC22.4.1"
     from tests.factories import AtomicTransactionFactory, ReconciliationMatchFactory
 
     atomic_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
@@ -820,7 +802,6 @@ async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_even
 
 
 async def test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500(db_engine, test_user) -> None:
-    "AC-platform.35.1 AC19.14.1"
     sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
     source_id = uuid4()
     payload = build_uploaded_statement_event_payload(
@@ -851,7 +832,6 @@ async def test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500(db_engin
 
 
 async def test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction(db, test_user) -> None:
-    "AC-platform.35.2 AC19.14.2"
     source_id = uuid4()
     payload = build_uploaded_statement_event_payload(
         SimpleNamespace(id=source_id, created_at=datetime.now(UTC)), "duplicate.pdf"
@@ -874,7 +854,6 @@ async def test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction(db, 
 
 
 async def test_AC19_14_3_sync_tolerates_concurrent_event_creation(db_engine, test_user) -> None:
-    "AC-platform.35.3 AC19.14.3"
     sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
     file_hash = uuid4().hex
     async with sessionmaker() as setup_session:
@@ -909,7 +888,6 @@ async def test_AC19_14_3_sync_tolerates_concurrent_event_creation(db_engine, tes
 
 
 async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(db, test_user, monkeypatch) -> None:
-    "AC-platform.31.7 AC19.2.7"
 
     async def fake_readiness(_db, **_kwargs):
         return {
@@ -945,7 +923,6 @@ async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(d
 
 
 async def test_AC19_2_7_events_read_computes_readiness_once(db, test_user, monkeypatch) -> None:
-    "AC19.2.7"
     call_count = 0
 
     async def counting_readiness(_db, **_kwargs):
