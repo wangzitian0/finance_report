@@ -18,7 +18,7 @@ from sqlalchemy.orm import aliased
 from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry, TraceEmitter
 from src.config import settings
 from src.config_app import get_effective_base_currency
-from src.database import async_session_maker
+from src.database import async_session_maker, create_session_maker_from_db
 from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
     BROKERAGE_POSITIONS_MISSING,
@@ -31,6 +31,7 @@ from src.extraction import (
     DispositionMode,
     DispositionPolicy,
     EconomicIntent,
+    ParseJob,
     StatementIngestionUseCase,
     StatementPostingDependencies,
     StatementSummary,
@@ -56,9 +57,12 @@ from src.extraction import (
     settle_drafts_after_posting,
     snapshot_currencies,
     statement_disposition_policy_for_user,
+    submit_classify_run as _submit_classify_run,
+    submit_parse_pipeline as _submit_parse_pipeline,
 )
 from src.ledger import (
     Account,
+    AccountNotFoundError,
     AccountType,
     JournalEntry,
     JournalEntryStatus,
@@ -474,6 +478,38 @@ def compose_statement_ingestion_use_case(
         posting_dependencies=compose_statement_posting_dependencies(),
         trace_emitter_factory=compose_financial_trace_emitter,
     )
+
+
+async def submit_parse_pipeline(
+    *,
+    job: ParseJob,
+    content: bytes,
+    db: AsyncSession,
+) -> asyncio.Task[None] | None:
+    """L4 composition wrapper binding session maker and use-case composer for statement parsing."""
+    session_maker = create_session_maker_from_db(db)
+    return await _submit_parse_pipeline(
+        job=job,
+        content=content,
+        use_case_factory=lambda: compose_statement_ingestion_use_case(session_maker=session_maker),
+    )
+
+
+def submit_classify_run(run_id: UUID, *, db: AsyncSession) -> asyncio.Task[int]:
+    """L4 composition wrapper binding session maker and posting dependencies for classification."""
+    return _submit_classify_run(
+        run_id,
+        session_maker=create_session_maker_from_db(db),
+        posting_dependencies=compose_statement_posting_dependencies(),
+    )
+
+
+async def ensure_owned_account(db: AsyncSession, user_id: UUID, account_id: UUID) -> None:
+    """Verify that ``account_id`` exists and belongs to ``user_id``."""
+    try:
+        await account_service.get_account(db, user_id, account_id)
+    except AccountNotFoundError as exc:
+        raise ResourceNotFoundError("Account not found") from exc
 
 
 async def observed_fx_pairs(

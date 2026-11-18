@@ -19,6 +19,8 @@ from src.reconciliation import (
     ReconciliationStatus,
     ReviewedDispositionCommand,
     ReviewedDispositionDependencies,
+    load_entry_summaries_for_matches,
+    load_transactions_for_matches,
     submit_reviewed_disposition,
 )
 from src.reconciliation.extension import review_queue
@@ -29,7 +31,6 @@ from src.reconciliation.extension.review_queue import (
 )
 from src.request_context import RequestContext
 from src.routers import reconciliation as reconciliation_router
-from src.routers.reconciliation import _load_entry_summaries
 from src.schemas.reconciliation import (
     ReconciliationMatchBatchRequest,
     ReconciliationRunRequest,
@@ -68,7 +69,9 @@ async def test_AC_reconciliation_review_queue_15_scopes_statement_in_sql(db, db_
     assert sum("source_documents" in statement_text for statement_text in executed_statements) == 2
 
 
-async def test_reviewed_disposition_rolls_back_its_decision_when_posting_fails(db, test_user: User, monkeypatch) -> None:
+async def test_reviewed_disposition_rolls_back_its_decision_when_posting_fails(
+    db, test_user: User, monkeypatch
+) -> None:
     _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Fault Injection")
     transaction_id = transaction.id
 
@@ -137,9 +140,9 @@ def test_legacy_unmatched_create_entry_helper_removed() -> None:
 async def test_load_transactions_enforces_user_isolation(db, test_user: User) -> None:
     other_user_id = uuid4()
     _, transaction, match = await _seed_router_match(db, test_user)
-    loaded_owner = await reconciliation_router._load_transactions(db, [match], user_id=test_user.id)
+    loaded_owner = await load_transactions_for_matches(db, [match], user_id=test_user.id)
     assert transaction.id in loaded_owner
-    loaded_other = await reconciliation_router._load_transactions(db, [match], user_id=other_user_id)
+    loaded_other = await load_transactions_for_matches(db, [match], user_id=other_user_id)
     assert transaction.id not in loaded_other
 
 
@@ -163,7 +166,7 @@ async def test_build_match_response_includes_entries(db, test_user: User) -> Non
     )
     db.add(match)
     await db.commit()
-    entry_summaries = await _load_entry_summaries(db, [match], test_user.id)
+    entry_summaries = await load_entry_summaries_for_matches(db, [match], test_user.id)
     response = reconciliation_router._build_match_response(
         match, transaction=transaction, entry_summaries=entry_summaries
     )
@@ -176,7 +179,9 @@ async def test_build_match_response_includes_entries(db, test_user: User) -> Non
     assert response.score_breakdown == {"amount": 90.0, "group_total": "100.00"}
 
 
-async def test_AC10_8_3_reconciliation_run_audit_checkpoints(db, test_user: User, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_AC10_8_3_reconciliation_run_audit_checkpoints(
+    db, test_user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
     statement, _ = await _seed_router_txns(db, test_user, count=1)
     statement_id = statement.id
 
@@ -231,19 +236,21 @@ async def test_AC10_8_3_reconciliation_run_audit_checkpoints(db, test_user: User
 
 
 async def test_load_entry_summaries_edge_cases(db, test_user: User) -> None:
-    assert await _load_entry_summaries(db, [], test_user.id) == {}
+    assert await load_entry_summaries_for_matches(db, [], test_user.id) == {}
     bad_match = ReconciliationMatch(
         atomic_txn_id=uuid4(),
         journal_entry_ids=["not-a-uuid", "also-invalid"],
         match_score=80,
         status=ReconciliationStatus.PENDING_REVIEW,
     )
-    assert await _load_entry_summaries(db, [bad_match], test_user.id) == {}
+    assert await load_entry_summaries_for_matches(db, [bad_match], test_user.id) == {}
 
 
 async def test_accept_reject_tolerance_and_batch_guards(db, test_user: User) -> None:
     _, _, rejected_match = await _seed_router_match(db, test_user, status=ReconciliationStatus.REJECTED, score=60)
-    assert (await reject_match_service(db, str(rejected_match.id), user_id=test_user.id)).status == ReconciliationStatus.REJECTED
+    assert (
+        await reject_match_service(db, str(rejected_match.id), user_id=test_user.id)
+    ).status == ReconciliationStatus.REJECTED
     account, statement, txn_tol, expense = await _seed_expense_setup(db, test_user)
     entry_tol = await create_anchored_match_entry(
         db,

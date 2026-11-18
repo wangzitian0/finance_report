@@ -1,6 +1,8 @@
 """The AI settings of a user: the user override on top of the process default.
 
-Both readers load the user row. A user without an override gets the process default.
+Pure policy evaluation lives in ``src.extraction.base.ai_settings``. This extension
+module binds the process defaults from ``src.config.settings`` and resolves user
+overrides via ``src.identity.get_user_ai_overrides``.
 """
 
 from __future__ import annotations
@@ -11,16 +13,21 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.extraction.base.ai_settings import (
+    AiSettingsDefaults,
+    evaluate_classification_enabled,
+    evaluate_effective_auto_accept,
+    evaluate_reconciliation_enabled,
+)
+from src.identity import get_user_ai_overrides
 
 
-async def _overrides(db: AsyncSession, user_id: UUID) -> dict:
-    from src.identity import User
-
-    user = await db.get(User, user_id)
-    if user is not None:
-        # The identity map holds rows weakly: without a strong reference every reader reloads the user row.
-        db.info.setdefault("held_users", {})[user_id] = user
-    return user.ai_settings if user is not None and isinstance(user.ai_settings, dict) else {}
+def _current_defaults() -> AiSettingsDefaults:
+    return AiSettingsDefaults(
+        enable_ai_reconciliation=settings.enable_ai_reconciliation,
+        enable_ai_classification=settings.enable_ai_classification,
+        auto_accept_ai_suggestions=settings.auto_accept_ai_suggestions,
+    )
 
 
 def effective_reconciliation(
@@ -29,24 +36,15 @@ def effective_reconciliation(
     default: bool | None = None,
 ) -> bool:
     """The EPIC-018 reconciliation flag, with the per-user ``ai_settings`` override on top (#2417)."""
-    raw = (overrides or {}).get("enable_ai_reconciliation")
-    if isinstance(raw, bool):
-        return raw
-    return settings.enable_ai_reconciliation if default is None else default
+    return evaluate_reconciliation_enabled(
+        overrides,
+        default=settings.enable_ai_reconciliation if default is None else default,
+    )
 
 
 def effective_classification(overrides: Mapping[str, object] | None) -> bool:
     """The EPIC-018 flag, with the per-user ``ai_settings`` override on top."""
-    return bool((overrides or {}).get("enable_ai_classification", settings.enable_ai_classification))
-
-
-def auto_accept_preference(overrides: Mapping[str, object] | None) -> bool:
-    """What the user chose for ``auto_accept_ai_suggestions`` (#2405). A user without a choice wants it on.
-
-    The settings panel shows and saves this value. It is not the value that the system uses: the process flag
-    and AI classification can switch the automatic path off whatever the user chose.
-    """
-    return bool((overrides or {}).get("auto_accept_ai_suggestions", True))
+    return evaluate_classification_enabled(overrides, default=settings.enable_ai_classification)
 
 
 def effective_auto_accept(overrides: Mapping[str, object] | None) -> bool:
@@ -56,11 +54,15 @@ def effective_auto_accept(overrides: Mapping[str, object] | None) -> bool:
     automatic path, whatever a stored preference says. When the flag is on, the user can still turn it off.
     The setting needs AI classification: without proposals there is nothing to accept.
     """
-    return (
-        settings.auto_accept_ai_suggestions
-        and auto_accept_preference(overrides)
-        and effective_classification(overrides)
-    )
+    return evaluate_effective_auto_accept(overrides, defaults=_current_defaults())
+
+
+async def _resolve_overrides(
+    db: AsyncSession, user_id: UUID, overrides: Mapping[str, object] | None
+) -> Mapping[str, object]:
+    if overrides is not None:
+        return overrides
+    return await get_user_ai_overrides(db, user_id)
 
 
 async def reconciliation_enabled(
@@ -68,13 +70,27 @@ async def reconciliation_enabled(
     user_id: UUID,
     *,
     default: bool | None = None,
+    overrides: Mapping[str, object] | None = None,
 ) -> bool:
-    return effective_reconciliation(await _overrides(db, user_id), default=default)
+    resolved = await _resolve_overrides(db, user_id, overrides)
+    return effective_reconciliation(resolved, default=default)
 
 
-async def classification_enabled(db: AsyncSession, user_id: UUID) -> bool:
-    return effective_classification(await _overrides(db, user_id))
+async def classification_enabled(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    overrides: Mapping[str, object] | None = None,
+) -> bool:
+    resolved = await _resolve_overrides(db, user_id, overrides)
+    return effective_classification(resolved)
 
 
-async def auto_accept_enabled(db: AsyncSession, user_id: UUID) -> bool:
-    return effective_auto_accept(await _overrides(db, user_id))
+async def auto_accept_enabled(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    overrides: Mapping[str, object] | None = None,
+) -> bool:
+    resolved = await _resolve_overrides(db, user_id, overrides)
+    return effective_auto_accept(resolved)

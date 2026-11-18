@@ -102,9 +102,7 @@ async def _get_locked_pending_match(db: AsyncSession, match_id: UUID | str, user
     return match
 
 
-async def accept_pending_matches(
-    db: AsyncSession, matches: Sequence[ReconciliationMatch], *, user_id: UUID
-) -> int:
+async def accept_pending_matches(db: AsyncSession, matches: Sequence[ReconciliationMatch], *, user_id: UUID) -> int:
     """Accept already-locked pending matches after entry-balance verification.
 
     Loads the transactions and every referenced journal entry once, checks each amount, flips the
@@ -117,21 +115,29 @@ async def accept_pending_matches(
     txns = {
         t.id: t
         for t in (
-            await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_({m.atomic_txn_id for m in pending})))
+            await db.execute(
+                select(AtomicTransaction).where(AtomicTransaction.id.in_({m.atomic_txn_id for m in pending}))
+            )
         ).scalars()
     }
-    missing_txn_ids = [match.atomic_txn_id for match in pending if not match.journal_entry_ids and match.atomic_txn_id in txns]
+    missing_txn_ids = [
+        match.atomic_txn_id for match in pending if not match.journal_entry_ids and match.atomic_txn_id in txns
+    ]
     preloaded_entries: dict[UUID, JournalEntry] = {}
     if missing_txn_ids:
         matched_entries = (
-            await db.execute(
-                _anchored_entries(user_id=user_id, transaction_ids=missing_txn_ids)
-                .where(JournalEntry.status != JournalEntryStatus.VOID)
-                .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-                .order_by(JournalEntry.created_at, JournalEntry.id)
-                .with_for_update(of=JournalEntry)
+            (
+                await db.execute(
+                    _anchored_entries(user_id=user_id, transaction_ids=missing_txn_ids)
+                    .where(JournalEntry.status != JournalEntryStatus.VOID)
+                    .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+                    .order_by(JournalEntry.created_at, JournalEntry.id)
+                    .with_for_update(of=JournalEntry)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         entries_by_txn: dict[UUID, JournalEntry] = {}
         for entry in matched_entries:
             if entry.source_id is not None and entry.source_id not in entries_by_txn:
@@ -187,7 +193,10 @@ async def accept_pending_matches(
     await db.flush()
     await sync_reconciliation_matches_journal_entry_links_batch(db, pending, user_id=user_id, known_candidates=entries)
     return sum(
-        entries[i].status == JournalEntryStatus.RECONCILED for ids in entry_ids_by_match.values() for i in ids if i in entries
+        entries[i].status == JournalEntryStatus.RECONCILED
+        for ids in entry_ids_by_match.values()
+        for i in ids
+        if i in entries
     )
 
 
@@ -328,7 +337,7 @@ async def batch_decide_matches(
     user_id: UUID,
     action: Literal["accept", "reject"],
     match_ids: Sequence[UUID],
-    run_id: UUID | None = None,
+    run_id: str | None = None,
     min_score: float | None = None,
 ) -> BatchMatchDecisionResult:
     """Apply a batch accept or reject decision to pending reconciliation matches."""

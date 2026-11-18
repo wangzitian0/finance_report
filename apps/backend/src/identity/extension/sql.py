@@ -79,3 +79,12 @@ class SqlUserRepository:
     async def add(self, user: User) -> None:
         """Stage a new ``User`` for persistence; the caller owns the commit."""
         self._db.add(user)
+
+
+async def get_user_ai_overrides(db: AsyncSession, user_id: UUID) -> dict[str, bool]:
+    """Return the user's persisted ``ai_settings`` overrides while keeping the User row held."""
+    user = await db.get(User, user_id)
+    if user is not None:
+        # The identity map holds rows weakly: without a strong reference every reader reloads the user row.
+        db.info.setdefault("held_users", {})[user_id] = user
+    return dict(user.ai_settings) if user is not None and isinstance(user.ai_settings, dict) else {}

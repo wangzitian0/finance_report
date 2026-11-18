@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from contextlib import suppress
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.config
-from src.database import create_session_maker_from_db
 from src.extraction.base.types import ParseJob
 from src.extraction.extension.statement_classification_run import execute_classify_run
-from src.extraction.orm.statement_summary import StatementSummary
+from src.extraction.extension.statement_parsing import StatementIngestionUseCase
+from src.extraction.extension.statement_posting import StatementPostingDependencies
 from src.extraction.orm.layer1 import UploadedDocument
+from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import get_logger, run_with_async_parse_tracking
 
 logger = get_logger(__name__)
@@ -53,26 +55,23 @@ async def resolve_uploaded_document(
     ).scalar_one_or_none()
 
 
-def compose_statement_ingestion_use_case(*, session_maker):
-    from src.composition import compose_statement_ingestion_use_case as compose
-
-    return compose(session_maker=session_maker)
-
-
 def _consume_background_task_exception(task: asyncio.Task) -> None:
     with suppress(asyncio.CancelledError):
         task.exception()
 
 
-def submit_classify_run(run_id: UUID, *, db: AsyncSession) -> asyncio.Task[int]:
+def submit_classify_run(
+    run_id: UUID,
+    *,
+    session_maker: async_sessionmaker[AsyncSession],
+    posting_dependencies: StatementPostingDependencies,
+) -> asyncio.Task[int]:
     """Run a classify run as a task of this process. If the process dies, the run stays `requested` until the reaper."""
-    from src.composition import compose_statement_posting_dependencies
-
     task = asyncio.create_task(
         execute_classify_run(
-            create_session_maker_from_db(db),
+            session_maker,
             run_id=run_id,
-            posting_dependencies=compose_statement_posting_dependencies(),
+            posting_dependencies=posting_dependencies,
         )
     )
     task.add_done_callback(_consume_background_task_exception)
@@ -83,12 +82,12 @@ async def submit_parse_pipeline(
     *,
     job: ParseJob,
     content: bytes,
-    db: AsyncSession,
+    use_case_factory: Callable[[], StatementIngestionUseCase],
 ) -> asyncio.Task[None] | None:
     """Dispatch statement parsing to Prefect when configured, falling back to in-process task."""
 
     def _run_in_process() -> asyncio.Task[None]:
-        use_case = compose_statement_ingestion_use_case(session_maker=create_session_maker_from_db(db))
+        use_case = use_case_factory()
         task = asyncio.create_task(
             run_with_async_parse_tracking(
                 use_case.execute(job, content=content),

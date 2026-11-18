@@ -60,7 +60,7 @@ def _capture_dispatch(monkeypatch) -> list[ParseJob]:
     async def capture(*, job, content):
         jobs.append(job)
 
-    monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_mock_ingestion(capture))
+    monkeypatch.setattr("src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(capture))
     return jobs
 
 

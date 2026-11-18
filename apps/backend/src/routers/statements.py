@@ -19,6 +19,9 @@ from src.composition import (
     auto_fill_default_statement_dispositions,
     compose_correction_callbacks,
     compose_statement_posting_dependencies,
+    ensure_owned_account,
+    submit_classify_run,
+    submit_parse_pipeline,
 )
 from src.config import settings
 from src.deps import Ctx, ReadCtx
@@ -70,13 +73,10 @@ from src.extraction import (
     retire_statement,
     start_user_classify_run,
     start_user_extract_run,
-    submit_classify_run,
-    submit_parse_pipeline,
     supports_reviewed_statement_envelope,
     track_parse_task as _track_task,
     validate_balance_chain,
 )
-from src.ledger import Account
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
@@ -163,7 +163,9 @@ def _materialization_failure_status(blockers: list[EvidenceLineageBlocker]) -> i
     return max(statuses) if statuses else None
 
 
-def _should_attempt_lazy_materialization(*, entity_type: str, node_kind: str | None, anchor: EvidenceNode | None) -> bool:
+def _should_attempt_lazy_materialization(
+    *, entity_type: str, node_kind: str | None, anchor: EvidenceNode | None
+) -> bool:
     if anchor is not None and entity_type not in {"opening_position", "journal_entry", "journal_line"}:
         return False
     expected = _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS.get(entity_type)
@@ -453,10 +455,7 @@ async def upload_statement(
         raise ValidationFailedError("Institution is required for CSV uploads. Please select an institution and retry.")
 
     if account_id is not None:
-        if (
-            await db.execute(select(Account.id).where(Account.id == account_id, Account.user_id == user_id))
-        ).scalar_one_or_none() is None:
-            raise ResourceNotFoundError("Account not found")
+        await ensure_owned_account(db, user_id, account_id)
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
@@ -741,10 +740,10 @@ async def get_evidence_lineage(
         if direction in {"downstream", "both"}
         else []
     )
-    nodes = list(
-        {n.id: n for n in (anchor, *(s.node for s in up_steps), *(s.node for s in down_steps))}.values()
+    nodes = list({n.id: n for n in (anchor, *(s.node for s in up_steps), *(s.node for s in down_steps))}.values())
+    opening_blockers = await EvidenceGraphMaterializationService().validate_opening_nodes(
+        db, user_id=user_id, nodes=nodes
     )
-    opening_blockers = await EvidenceGraphMaterializationService().validate_opening_nodes(db, user_id=user_id, nodes=nodes)
     if opening_blockers:
         err = EvidenceLineageError(
             message="Opening lineage no longer has current source authority.",
@@ -754,7 +753,10 @@ async def get_evidence_lineage(
     return EvidenceLineageResponse(
         anchor=_node_dto(anchor),
         nodes=[_node_dto(n) for n in nodes],
-        edges=[*(_edge_dto(s, direction="upstream") for s in up_steps), *(_edge_dto(s, direction="downstream") for s in down_steps)],
+        edges=[
+            *(_edge_dto(s, direction="upstream") for s in up_steps),
+            *(_edge_dto(s, direction="downstream") for s in down_steps),
+        ],
         blockers=mat_blockers,
         max_depth=max_depth,
     )
@@ -1003,7 +1005,7 @@ async def approve_statement_stage1(
     """Stage 1: Approve statement with balance validation."""
     db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
-    preloaded_account: Account | None = None
+    preloaded_account: Any | None = None
     if request and request.account_id is not None:
         statement.account_id = request.account_id
         await db.flush()
@@ -1062,9 +1064,7 @@ async def reject_statement_stage1(
 
 
 @router.get("/{statement_id}/conflicts", response_model=ReviewConflictsResponse)
-async def get_review_conflicts(
-    statement_id: UUID, ctx: ReadCtx
-) -> ReviewConflictsResponse:
+async def get_review_conflicts(statement_id: UUID, ctx: ReadCtx) -> ReviewConflictsResponse:
     """Return duplicate and transfer-pair candidates for a statement."""
     db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)

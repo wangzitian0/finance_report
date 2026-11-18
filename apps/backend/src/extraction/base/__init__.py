@@ -7,6 +7,13 @@ No ORM, no network, no LLM — the extension pipeline calls DOWN into these.
 
 from __future__ import annotations
 
+from src.extraction.base.ai_settings import (
+    AiSettingsDefaults,
+    evaluate_auto_accept_preference,
+    evaluate_classification_enabled,
+    evaluate_effective_auto_accept,
+    evaluate_reconciliation_enabled,
+)
 from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.disposition import (
     DispositionCommand,
@@ -50,7 +57,12 @@ from src.extraction.base.types import (
 )
 
 __all__ = [
+    "AiSettingsDefaults",
     "DispositionCommand",
+    "evaluate_auto_accept_preference",
+    "evaluate_classification_enabled",
+    "evaluate_effective_auto_accept",
+    "evaluate_reconciliation_enabled",
     "DispositionContext",
     "DispositionDecision",
     "DispositionMode",

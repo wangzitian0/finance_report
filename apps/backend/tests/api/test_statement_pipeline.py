@@ -8,33 +8,30 @@ from uuid import uuid4
 
 import pytest
 
+from src import statement_flow
 from src.extraction import ParseJob
-from src.extraction.extension import statement_flow, statement_pipeline
+from src.extraction.extension import statement_pipeline
 
 pytestmark = pytest.mark.no_db
 
 
-def _dispatch_kwargs():
-    return {
-        "job": ParseJob(
-            statement_id=uuid4(),
-            run_id=uuid4(),
-            filename="stmt.pdf",
-            institution=None,
-            user_id=uuid4(),
-            account_id=None,
-            file_hash="hash",
-            storage_key="uploads/stmt.pdf",
-            model=None,
-            request_id="req-1",
-        ),
-        "content": b"file-bytes",
-        "db": object(),
-    }
+def _make_job() -> ParseJob:
+    return ParseJob(
+        statement_id=uuid4(),
+        run_id=uuid4(),
+        filename="stmt.pdf",
+        institution=None,
+        user_id=uuid4(),
+        account_id=None,
+        file_hash="hash",
+        storage_key="uploads/stmt.pdf",
+        model=None,
+        request_id="req-1",
+    )
 
 
-def _compose_fake_use_case(seen: dict):
-    def compose(*, session_maker):
+def _fake_use_case_factory(seen: dict):
+    def factory(*, session_maker=None):
         seen["session_maker"] = session_maker
 
         class FakeUseCase:
@@ -43,14 +40,12 @@ def _compose_fake_use_case(seen: dict):
 
         return FakeUseCase()
 
-    return compose
+    return factory
 
 
 @pytest.mark.parametrize("prefect_mode", ["unset", "absent", "submit_fails"])
 async def test_AC19_13_1_dispatch_falls_back_to_asyncio(monkeypatch, prefect_mode):
     seen: dict = {}
-    monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_fake_use_case(seen))
-    monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
     run_dep = None
     if prefect_mode == "unset":
         monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", None)
@@ -64,14 +59,14 @@ async def test_AC19_13_1_dispatch_falls_back_to_asyncio(monkeypatch, prefect_mod
             fake.run_deployment = run_dep
             monkeypatch.setitem(sys.modules, "prefect", types.ModuleType("prefect"))
             monkeypatch.setitem(sys.modules, "prefect.deployments", fake)
-    task = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
+    task = await statement_pipeline.submit_parse_pipeline(
+        job=_make_job(),
+        content=b"file-bytes",
+        use_case_factory=_fake_use_case_factory(seen),
+    )
     assert isinstance(task, asyncio.Task)
     await task
-    assert (seen["job"].filename, seen["content"], seen["session_maker"]) == (
-        "stmt.pdf",
-        b"file-bytes",
-        "session-maker",
-    )
+    assert (seen["job"].filename, seen["content"]) == ("stmt.pdf", b"file-bytes")
     if run_dep is not None:
         run_dep.assert_awaited_once()
 
@@ -86,13 +81,18 @@ async def test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback(monke
             self.callbacks.append(cb)
 
     task = FakeTask()
-    monkeypatch.setattr(statement_pipeline, "compose_statement_ingestion_use_case", _compose_fake_use_case({}))
     monkeypatch.setattr(
         statement_pipeline, "run_with_async_parse_tracking", lambda aw, **_kw: (aw.close(), asyncio.sleep(0))[1]
     )
-    monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
     monkeypatch.setattr(statement_pipeline.asyncio, "create_task", lambda coro: (coro.close(), task)[1])
-    assert await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs()) is task
+    assert (
+        await statement_pipeline.submit_parse_pipeline(
+            job=_make_job(),
+            content=b"file-bytes",
+            use_case_factory=_fake_use_case_factory({}),
+        )
+        is task
+    )
     assert task.callbacks == [statement_pipeline._consume_background_task_exception]
 
 
@@ -103,19 +103,26 @@ async def test_AC19_13_2_dispatch_submits_serializable_params_and_worker_rehydra
     fake.run_deployment = run_dep
     monkeypatch.setitem(sys.modules, "prefect", types.ModuleType("prefect"))
     monkeypatch.setitem(sys.modules, "prefect.deployments", fake)
-    kwargs = _dispatch_kwargs()
-    assert await statement_pipeline.submit_parse_pipeline(**kwargs) is None
-    params = run_dep.await_args.kwargs["parameters"]
+    job = _make_job()
     assert (
-        not ({"content", "db", "session_maker"} & params.keys()) and params["job"] == kwargs["job"].to_prefect_params()
+        await statement_pipeline.submit_parse_pipeline(
+            job=job,
+            content=b"file-bytes",
+            use_case_factory=_fake_use_case_factory({}),
+        )
+        is None
     )
+    params = run_dep.await_args.kwargs["parameters"]
+    assert not ({"content", "db", "session_maker"} & params.keys()) and params["job"] == job.to_prefect_params()
 
     seen: dict = {}
-    monkeypatch.setattr(statement_flow, "compose_statement_ingestion_use_case", _compose_fake_use_case(seen))
     monkeypatch.setattr(statement_flow, "run_with_async_parse_tracking", lambda aw, **_kw: aw)
-    await statement_flow.parse_statement_flow.fn(job=kwargs["job"].to_prefect_params())
+    await statement_flow.parse_statement_flow.fn(
+        job=job.to_prefect_params(),
+        use_case_factory=_fake_use_case_factory(seen),
+    )
     assert (seen["job"], seen["content"], seen["session_maker"]) == (
-        kwargs["job"],
+        job,
         None,
         statement_flow.async_session_maker,
     )

@@ -69,8 +69,10 @@ from src.extraction.base.validation import (
     detect_balance_chain_break,
     validate_balance,
 )
+from src.extraction.base.ai_settings import (
+    evaluate_auto_accept_preference as auto_accept_preference,
+)
 from src.extraction.extension.ai_settings import (
-    auto_accept_preference,
     effective_auto_accept,
     effective_classification,
     effective_reconciliation,

@@ -37,6 +37,7 @@ from src.pricing.extension.fx import (
     get_average_rate,
     get_exchange_rate,
     get_exchange_rate_series,
+    list_available_fx_currencies,
 )
 from src.pricing.extension.ingest import ingest_statement_price, subscribe_price_ingest
 from src.pricing.extension.manual import record_manual_valuation, record_override
@@ -91,6 +92,7 @@ __all__ = [
     "get_exchange_rate_series",
     "get_market_data_status",
     "ingest_statement_price",
+    "list_available_fx_currencies",
     "list_current_manual_valuation_facts",
     "next_market_data_sync_at",
     "record_manual_valuation",

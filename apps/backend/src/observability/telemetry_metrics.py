@@ -166,7 +166,7 @@ def record_async_parse_failure(*, error_type: str, task_name: str = "statement_p
 
 
 async def run_with_async_parse_tracking(
-    awaitable: Awaitable[None],
+    awaitable: Awaitable[Any],
     *,
     statement_id: object | None = None,
     request_id: str | None = None,
