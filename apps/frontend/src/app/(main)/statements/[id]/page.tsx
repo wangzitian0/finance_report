@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -247,9 +247,32 @@ export default function StatementDetailPage() {
   const needsCustodyAccountSelection = isParsed && (requiresEnvelopeConfirmation || (review?.account_id === null && !requiresOtherSourceReview));
   const { data: custodyAccountsData } = useQuery({
     queryKey: ["statement-review-custody-accounts", statementId],
-    queryFn: () => apiOperation("list_accounts_accounts_get", { query: { account_type: "ASSET", is_active: true } }),
+    queryFn: async () => {
+      const result = await apiOperation("list_accounts_accounts_get", { query: { is_active: true } });
+      return {
+        ...result,
+        items: (result.items ?? []).filter((a) => !a.type || a.type === "ASSET" || a.type === "LIABILITY"),
+      };
+    },
     enabled: needsCustodyAccountSelection,
   });
+
+  const isCreditCardStatement = useMemo(() => {
+    const label = `${statement?.institution ?? ""} ${statement?.original_filename ?? ""}`.toLowerCase();
+    if (/(credit[\s_-]?card|card statement|mastercard|visa|amex|american express|discover card)/.test(label)) {
+      return true;
+    }
+    const open = Number(review?.opening_balance ?? statement?.opening_balance);
+    const close = Number(review?.closing_balance ?? statement?.closing_balance);
+    return Number.isFinite(open) && Number.isFinite(close) && open < 0 && close <= 0;
+  }, [
+    review?.closing_balance,
+    review?.opening_balance,
+    statement?.closing_balance,
+    statement?.institution,
+    statement?.opening_balance,
+    statement?.original_filename,
+  ]);
 
   const refreshAfterReview = () => {
     void queryClient.invalidateQueries({ queryKey: ["pending-statements"] });
@@ -348,7 +371,10 @@ export default function StatementDetailPage() {
   });
 
   const createCustodyAccountMutation = useMutation({
-    mutationFn: (name: string) => apiOperation("create_account_accounts_post", { body: { name, type: "ASSET", currency: envelopeDraft.currency } }),
+    mutationFn: (name: string) =>
+      apiOperation("create_account_accounts_post", {
+        body: { name, type: isCreditCardStatement ? "LIABILITY" : "ASSET", currency: envelopeDraft.currency },
+      }),
     onSuccess: async (account) => {
       await queryClient.invalidateQueries({ queryKey: ["statement-review-custody-accounts", statementId] });
       setEnvelopeDraft((current) => ({ ...current, accountId: account.id }));
@@ -399,9 +425,12 @@ export default function StatementDetailPage() {
   useEffect(() => {
     if (!review || !requiresEnvelopeConfirmation) return;
     const targetCurrency = (review.currency || statement?.currency || "").toUpperCase();
-    const matchingAccounts = targetCurrency
+    const expectedType = isCreditCardStatement ? "LIABILITY" : "ASSET";
+    const currencyMatches = targetCurrency
       ? (custodyAccountsData?.items ?? []).filter((a) => a.currency?.toUpperCase() === targetCurrency)
       : [];
+    const typedMatches = currencyMatches.filter((a) => !a.type || a.type === expectedType);
+    const matchingAccounts = typedMatches.length > 0 ? typedMatches : currencyMatches;
     const institution = statement?.institution?.trim().toLowerCase() ?? "";
     const autoAccount = !review.account_id
       ? (institution ? matchingAccounts.find((a) => a.name.toLowerCase().includes(institution)) : undefined) ??
@@ -416,7 +445,7 @@ export default function StatementDetailPage() {
       closingBalance: review.closing_balance?.toString() || current.closingBalance || "",
       rationale: current.rationale || "",
     }));
-  }, [review, requiresEnvelopeConfirmation, custodyAccountsData?.items, statement?.currency, statement?.institution]);
+  }, [review, requiresEnvelopeConfirmation, custodyAccountsData?.items, statement?.currency, statement?.institution, isCreditCardStatement]);
 
   const runAgainMutation = useMutation({
     mutationFn: ({ kind, hints }: { kind: StatementRunKind; hints: StatementRunHints }) => apiOperation("create_statement_run_statements__statement_id__runs_post", { path: { statement_id: statementId }, body: { kind, hints } }),

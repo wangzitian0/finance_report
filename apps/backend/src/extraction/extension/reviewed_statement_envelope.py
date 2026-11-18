@@ -348,8 +348,8 @@ async def confirm_reviewed_statement_envelope(
     account = (
         await db.execute(select(Account).where(Account.id == command.account_id, Account.user_id == user_id))
     ).scalar_one_or_none()
-    if account is None or not account.is_active or account.type is not AccountType.ASSET:
-        raise ValidationFailedError("A user-owned active asset custody account is required")
+    if account is None or not account.is_active or account.type not in (AccountType.ASSET, AccountType.LIABILITY):
+        raise ValidationFailedError("A user-owned active asset or liability custody account is required")
     if account.currency.strip().upper() != command.currency:
         raise ValidationFailedError("Custody account currency must match the confirmed statement currency")
     if (
@@ -364,6 +364,7 @@ async def confirm_reviewed_statement_envelope(
             account_last4=source_result.account_last4,
             currency=command.currency,
             account_id=account.id,
+            account_type=account.type,
         )
 
     existing = (

@@ -106,9 +106,14 @@ async def get_or_create_account(
 
 
 async def resolve_secondary_currency_custody_account(
-    db: AsyncSession, *, statement: StatementSummary, user_id: UUID, currency: str
+    db: AsyncSession,
+    *,
+    statement: StatementSummary,
+    user_id: UUID,
+    currency: str,
+    account_type: AccountType = AccountType.ASSET,
 ) -> Account:
-    """Resolve or create a custody asset account for a secondary statement currency."""
+    """Resolve or create a custody account for a secondary statement currency."""
     if statement.institution and statement.account_last4:
         return await resolve_bank_custody_account(
             db,
@@ -117,11 +122,12 @@ async def resolve_secondary_currency_custody_account(
             account_last4=statement.account_last4,
             currency=currency,
             create_if_missing=True,
+            account_type=account_type,
         )
     return await get_or_create_account(
         db,
         name=f"{statement.institution or 'Statement Account'} ({currency})",
-        account_type=AccountType.ASSET,
+        account_type=account_type,
         currency=currency,
         user_id=user_id,
     )
@@ -191,11 +197,11 @@ async def _plan_entry_command(
 
     if not bank_account:
         raise ValidationFailedError("Account mapping required before statement posting")
-    if bank_account.type is not AccountType.ASSET or not bank_account.is_active:
-        raise ValidationFailedError("Statement posting account must be an active asset account")
+    if bank_account.type not in (AccountType.ASSET, AccountType.LIABILITY) or not bank_account.is_active:
+        raise ValidationFailedError("Statement posting account must be an active asset or liability account")
     if bank_account.currency != currency and statement is not None and len(statement.typed_currency_balances()) > 1:
         bank_account = await resolve_secondary_currency_custody_account(
-            db, statement=statement, user_id=user_id, currency=currency
+            db, statement=statement, user_id=user_id, currency=currency, account_type=bank_account.type
         )
     if bank_account.currency != currency:
         raise ValidationFailedError("Statement posting account currency must match the transaction currency")

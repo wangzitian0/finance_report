@@ -73,8 +73,14 @@
 
 ## Brokerage Position Import
 
-- Broker documents route to `BROKERAGE_POSITIONS_PROMPT` before the model call and import into `AtomicPosition` + `ManagedPosition` via `POST /api/portfolio/brokerage-imports` (`BrokeragePositionImportService`).
+- Broker documents (IBKR, Moomoo, Futu, Fidelity, Charles Schwab, Pershing, Vanguard, E\*TRADE, TD Ameritrade, Saxo, Tiger Brokers) route to `BROKERAGE_POSITIONS_PROMPT` before the model call and import into `AtomicPosition` + `ManagedPosition` via `POST /api/portfolio/brokerage-imports` (`BrokeragePositionImportService`).
+- Text-layer brokerage parses with `positions` return directly without vision fallback, and consolidated brokerage merges permit multiple subaccount suffixes (`allow_multiple_accounts=True`).
 - Import failures persist non-destructively in `extraction_metadata["brokerage_import_failure"]` (`record_brokerage_import_failure` / `clear_brokerage_import_failure`). Missing snapshot dates, zero extracted positions (`brokerage_positions_missing`), or out-of-range/non-ISO-4217 values return HTTP 422 (`brokerage_snapshot_date_missing`, `brokerage_positions_missing`, `brokerage_position_out_of_range`).
+
+## Credit Card Liability Custody
+
+- Credit card statements (`is_credit_card_statement` via card markers or `opening_balance < 0` with `closing_balance <= 0`) bind `AUTO-CARD` `AccountType.LIABILITY` accounts instead of `AUTO-BANK` `ASSET` accounts.
+- `statement_balance_to_ledger_amount` negates statement debt balances into positive credit-normal `LIABILITY` ledger positions, and `coverage_bank_custody_account_ids` excludes `LIABILITY` custody from Cash Flow cash.
 
 ## Statement run
 

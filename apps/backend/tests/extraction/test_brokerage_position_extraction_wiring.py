@@ -3,6 +3,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
+
+import pytest
 from sqlalchemy import select
 from src.database import create_session_maker_from_db
 from src.extraction import (
@@ -353,3 +355,54 @@ def test_brokerage_position_prefers_ticker_over_company_name():
     snapshots = _parse_structured_positions(payload, broker="SynthBroker", snapshot_date=date(2025, 6, 30))
     assert len(snapshots) == 1
     assert snapshots[0].asset_identifier == "SYNC"
+
+
+@pytest.mark.parametrize(
+    ("filename", "institution"),
+    [
+        ("fidelity_brokerage_sample.pdf", None),
+        ("schwab_brokerage_sample.pdf", "Charles Schwab & Co., Inc."),
+        ("pershing_brokerage_sample.pdf", "Pershing LLC"),
+    ],
+)
+def test_public_us_brokerages_route_through_brokerage_prompt(filename, institution):
+    assert looks_like_brokerage_document(filename=filename, institution=institution)
+
+
+async def test_text_layer_positions_short_circuit_without_vision_fallback(monkeypatch):
+    from io import BytesIO
+    from unittest.mock import AsyncMock, MagicMock
+
+    from reportlab.pdfgen import canvas
+
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_provider", "zai")
+    service = ExtractionService()
+    service.api_key = "test-key"
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer)
+    pdf.drawString(72, 720, "Fidelity Brokerage Statement FXAIX Market Value 1500.00")
+    pdf.showPage()
+    pdf.drawString(72, 720, "Fidelity Statement Page 2 Total Holdings 1500.00")
+    pdf.showPage()
+    pdf.save()
+    pdf_bytes = buffer.getvalue()
+
+    mock_extract = AsyncMock(
+        return_value={
+            "institution": "Fidelity",
+            "positions": [{"symbol": "FXAIX", "quantity": "10", "market_value": "1500.00", "currency": "USD"}],
+            "transactions": [],
+        }
+    )
+    monkeypatch.setattr(service, "_extract_json_with_model", mock_extract)
+    vision_spy = MagicMock(side_effect=AssertionError("should not invoke vision fallback when text positions exist"))
+    monkeypatch.setattr(service, "_build_vision_media_payload_batches", vision_spy)
+
+    result = await service.extract_financial_data(
+        pdf_bytes, institution="Fidelity", file_type="pdf", filename="fidelity_brokerage_sample.pdf"
+    )
+    assert len(result["positions"]) == 1
+    assert mock_extract.await_count == 1
+    vision_spy.assert_not_called()

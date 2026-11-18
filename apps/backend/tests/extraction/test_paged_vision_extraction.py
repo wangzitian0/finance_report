@@ -62,3 +62,16 @@ async def test_AC_extraction_2813_1_staged_head_tail_meta_and_body_batches(monke
     assert small_mock.await_count == 1; assert small_res['transactions'] == [{'description': 'small'}]; pdf_bytes = _pdf_with_pages(12); batches_ref = list(service._render_pdf_pages_as_image_payload_batches(pdf_bytes)); all_pages = [p for b in batches_ref for p in b]; expected_head_tail = [*all_pages[:5], *all_pages[7:12]]; call_payloads = [{'institution': 'DBS POSB', 'account_last4': '8123', 'currency': 'SGD', 'period_start': '2024-11-01', 'period_end': '2024-11-30', 'opening_balance': '124781.91', 'closing_balance': '133583.07', 'transactions': []}, {'transactions': [{'description': 'batch-1-txn'}]}, {'transactions': [{'description': 'batch-2-txn'}]}, {'transactions': [{'description': 'batch-3-txn'}]}]; large_mock = AsyncMock(side_effect=call_payloads)
     with patch.object(service, '_extract_json_with_model', large_mock): merged = await service.extract_financial_data(pdf_bytes, 'DBS', 'pdf')
     assert large_mock.await_count == 4; meta_call_content = large_mock.await_args_list[0].kwargs['messages'][0]['content']; meta_prompt_text = meta_call_content[0]['text']; meta_images = meta_call_content[1:]; assert 'STAGE 1 — DOCUMENT METADATA' in meta_prompt_text; assert 'Balance Carried Forward' in meta_prompt_text; assert len(meta_images) == 10; assert meta_images == expected_head_tail; direct_meta_prompt = build_paged_meta_prompt('BASE', page_numbers=[1, 2, 3, 4, 5, 8, 9, 10, 11, 12], total_pages=12); assert 'pages 1, 2, 3, 4, 5, 8, 9, 10, 11, 12 of a 12-page statement' in direct_meta_prompt; assert merged['institution'] == 'DBS POSB'; assert merged['account_last4'] == '8123'; assert merged['currency'] == 'SGD'; assert merged['period_start'] == '2024-11-01'; assert merged['period_end'] == '2024-11-30'; assert merged['opening_balance'] == '124781.91'; assert merged['closing_balance'] == '133583.07'; assert [t['description'] for t in merged['transactions']] == ['batch-1-txn', 'batch-2-txn', 'batch-3-txn']
+
+
+def test_consolidated_brokerage_allows_multiple_subaccounts_while_bank_still_rejects():
+    from src.extraction.base.paged_extraction import MultipleAccountsError
+    parts = [
+        {'institution': 'Fidelity', 'account_last4': 'Z401', 'currency': 'USD', 'positions': [{'symbol': 'SPY', 'quantity': '5', 'market_value': '2500.00', 'currency': 'USD'}]},
+        {'institution': 'Fidelity', 'account_last4': '2252', 'currency': 'USD', 'positions': [{'symbol': 'QQQ', 'quantity': '2', 'market_value': '1000.00', 'currency': 'USD'}]},
+    ]
+    with pytest.raises(MultipleAccountsError):
+        merge_paged_extractions(parts)
+    merged = merge_paged_extractions(parts, allow_multiple_accounts=True)
+    assert merged['account_last4'] == 'Z401'
+    assert [p['symbol'] for p in merged['positions']] == ['SPY', 'QQQ']

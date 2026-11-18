@@ -335,4 +335,60 @@ describe("StatementDetailPage - import and lifecycle coverage", () => {
       expect(showToastMock).toHaveBeenCalledWith("Failed to delete", "error");
     });
   });
+
+  it("queries active ASSET and LIABILITY accounts and creates LIABILITY custody when inline-adding for a credit card statement", async () => {
+    const creditCardReview = {
+      ...parsedBrokerageStatement,
+      institution: "Liberty National Credit Card",
+      original_filename: "bsb_002_liberty_national.pdf",
+      account_id: null,
+      currency: "USD",
+      opening_balance: -1847.32,
+      closing_balance: -9532.91,
+      source_result_digest: "d".repeat(64),
+      source_missing_facts: ["account_last4"],
+      source_envelope_reviewable: true,
+      reviewed_envelope: null,
+      balance_validation_result: null,
+    };
+    mockByOperation(creditCardReview, {
+      get_statement_for_review_statements__statement_id__review_get: () => Promise.resolve(creditCardReview),
+      list_accounts_accounts_get: () =>
+        Promise.resolve({
+          items: [
+            { id: "a-1", name: "Checking", type: "ASSET", currency: "USD", is_active: true, is_system: false },
+            { id: "l-1", name: "Existing Card", type: "LIABILITY", currency: "USD", is_active: true, is_system: false },
+          ],
+          total: 2,
+        }),
+    });
+    const firstRender = renderWithClient();
+    await waitFor(() =>
+      expect(mockedApi).toHaveBeenCalledWith(
+        "list_accounts_accounts_get",
+        { query: { is_active: true } },
+      ),
+    );
+    expect(await screen.findByText(/Existing Card/)).toBeInTheDocument();
+    expect(screen.getByText(/Checking/)).toBeInTheDocument();
+    firstRender.unmount();
+
+    mockedApi.mockClear();
+    mockByOperation(creditCardReview, {
+      get_statement_for_review_statements__statement_id__review_get: () => Promise.resolve(creditCardReview),
+      list_accounts_accounts_get: () => Promise.resolve({ items: [], total: 0 }),
+      create_account_accounts_post: () =>
+        Promise.resolve({ id: "l-new", name: "Liberty Card", type: "LIABILITY", currency: "USD" }),
+    });
+    renderWithClient();
+    const createBtn = await screen.findByRole("button", { name: "Create account" });
+    await waitFor(() => expect(createBtn).toBeEnabled());
+    fireEvent.click(createBtn);
+    await waitFor(() =>
+      expect(mockedApi).toHaveBeenCalledWith(
+        "create_account_accounts_post",
+        { body: { name: "Liberty National Credit Card account", type: "LIABILITY", currency: "USD" } },
+      ),
+    );
+  });
 }); // AC-portfolio.fe-assets2.13 AC-portfolio.fe-assets2.15

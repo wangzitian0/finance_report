@@ -153,7 +153,11 @@ def text_page_batches(pages: list[str], pages_per_call: int) -> list[list[dict[s
     return [parts[start : start + pages_per_call] for start in range(0, len(parts), pages_per_call)]
 
 
-def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
+def merge_paged_extractions(
+    parts: list[dict[str, Any]],
+    *,
+    allow_multiple_accounts: bool = False,
+) -> dict[str, Any]:
     """Merge per-batch extraction payloads into one whole-document payload."""
     dict_parts = [part for part in parts if isinstance(part, dict)]
     if not dict_parts:
@@ -166,7 +170,7 @@ def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
         suffix = sanitize_account_last4(str(part["account_last4"])) if part.get("account_last4") else None
         if suffix:
             parts_by_account.setdefault(suffix, []).append(index)
-    if len(parts_by_account) > 1:
+    if len(parts_by_account) > 1 and not allow_multiple_accounts:
         raise MultipleAccountsError(parts_by_account)
     merged: dict[str, Any] = dict(dict_parts[0])
 

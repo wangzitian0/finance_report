@@ -565,13 +565,15 @@ async def ingest_csv_statement(db: AsyncSession, user_id: UUID, name: str, rows:
     statement = StatementSummaryFactory.build(
         id=uuid4(), user_id=user_id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution="DBS"
     )
+    statement_id = statement.id
     db.add(statement)
     await db.commit()
     outcome = await _use_case(db).execute(
-        make_parse_job(statement.id, user_id, name, file_hash, await run_for(db, statement.id)), content=content
+        make_parse_job(statement_id, user_id, name, file_hash, await run_for(db, statement_id)), content=content
     )
     assert outcome.status is StatementIngestionStatus.COMPLETED
-    return statement.id
+    db.expire(statement)
+    return statement_id
 
 
 async def confirm_csv_envelope(client, db: AsyncSession, user_id: UUID, statement_id: UUID, rows: list[dict]) -> None:

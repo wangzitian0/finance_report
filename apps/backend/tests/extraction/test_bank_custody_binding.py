@@ -255,3 +255,52 @@ async def test_parse_fallback_custody_when_last4_is_missing(db, test_user, activ
         with pytest.raises(ExtractionError, match="Custody account is archived"):
             await parse(db, test_user.id, account_id=None, account_last4=None)
     assert payload()["institution"] == "DBS"
+
+
+async def test_credit_card_statement_allocates_liability_custody_and_validates_explicit_liability(db, test_user):
+    stmt = await parse(
+        db,
+        test_user.id,
+        institution="Liberty National Credit Card",
+        account_last4="8899",
+        currency="SGD",
+        opening_balance="-1000.00",
+        closing_balance="-1250.00",
+        transactions=[
+            {
+                "date": "2026-01-10",
+                "description": "Dining charge",
+                "amount": "250.00",
+                "direction": "OUT",
+                "currency": "SGD",
+                "balance_after": "-1250.00",
+            }
+        ],
+    )
+    assert stmt.account_id is not None
+    account = await db.get(Account, stmt.account_id)
+    assert account is not None
+    assert account.type is AccountType.LIABILITY
+    assert account.code == "AUTO-CARD"
+
+    re_parsed = await parse(
+        db,
+        test_user.id,
+        institution="Liberty National Credit Card",
+        account_last4="8899",
+        currency="SGD",
+        account_id=account.id,
+        opening_balance="-1250.00",
+        closing_balance="-1000.00",
+        transactions=[
+            {
+                "date": "2026-02-05",
+                "description": "Card payment",
+                "amount": "250.00",
+                "direction": "IN",
+                "currency": "SGD",
+                "balance_after": "-1000.00",
+            }
+        ],
+    )
+    assert re_parsed.account_id == account.id
