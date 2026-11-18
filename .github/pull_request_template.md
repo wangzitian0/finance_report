@@ -6,21 +6,21 @@ Closes #<!-- issue number -->
 
 ---
 
-## Linked EPIC and ACs
+## Linked EPIC and User Cases
 
 | Field | Value |
 |-------|-------|
 | **EPIC** | EPIC-XXX — _Name_ |
-| **AC IDs** | AC0.0.0, AC0.0.1 |
-| **AC source updated** | Owning package `contract.py` / Owning EPIC / N/A |
+| **User Cases** | UC-XX / N/A |
+| **Package docs updated** | `common/<pkg>/readme.md` / N/A |
 
 ---
 
 ## SSOT Changes
 
-<!-- List every package readme.md/contract.py concept changed or created in this PR. Write "None" if purely code changes with existing coverage. -->
+<!-- List every package readme.md or user_cases_ssot.json concept changed or created in this PR. Write "None" if purely code changes with existing coverage. -->
 
-- [ ] `common/meta/data/MANIFEST.yaml` — added/updated concept(s): _list them_
+- [ ] `common/meta/flows/user_cases_ssot.json` — added/updated user case(s): _list them_
 - [ ] `common/<pkg>/readme.md` — _describe change_
 - [ ] None — existing package docs already cover this change
 
@@ -43,7 +43,7 @@ Closes #<!-- issue number -->
 - [ ] `NEXT_PUBLIC_` variables added to `apps/frontend/Dockerfile` `ARG`/`ENV` (if applicable)
 - [ ] Separate infra2 PR linked for production Vault/Compose changes (if applicable)
 - [ ] `tools/check_env_keys.py` passes (if env vars changed)
-- [ ] `tools/check_manifest.py` passes (if SSOT files changed)
+- [ ] `apps/backend/.venv/bin/python tools/preflight.py --tier=static` passes
 - [ ] No real financial data — amounts, balances, account numbers, holder names, local paths, or real statement filenames are redacted or generated/anonymized.
 
 ### CI/CD, Runtime, and VPS Infra Audit

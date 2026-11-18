@@ -3,7 +3,7 @@
 The price/valuation **observation + resolution** SSOT (design review
 2026-07-06): *an observation that a subject was worth X at time T, from a
 source, with an authority rank — plus the resolution policy for conflicting
-observations*. See ``common/pricing/contract.py`` for the full model and the
+observations*. See ``common/pricing/readme.md`` for the full model and the
 boundary rulings (FX split with audit, the extraction event-ingest boundary,
 bitemporal semantics, append-only overrides).
 

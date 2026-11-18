@@ -13,4 +13,4 @@
 ## App-side consumption docs (pointers only, not the contract)
 - [`common/observability/observability.md`](../../common/observability/observability.md) - [`common/runtime/environments.md`](../../common/runtime/environments.md)
 ## Anti-regression guard
-`tests/tooling/test_env_contract_boundary.py` fails if this repo re-grows the contract (missing pointers, drift patterns, or a hardcoded `openpanel_clients` map in `config.py`).
+`apps/backend/src/config.py` and observability docs must keep canonical infra2 pointers and avoid duplicating environment maps or hardcoded `openpanel_clients` in `config.py`.

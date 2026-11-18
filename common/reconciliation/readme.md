@@ -13,7 +13,7 @@
 
 ## Cross-package edges
 
-`extraction` (`AtomicTransaction`), `ledger` (`JournalEntry` linked by ID only, no cross-domain FK: `AC-reconciliation.txn.1`), `portfolio`, `pricing` (FX rates), `audit`, `platform` (`WorkflowEvent`).
+`extraction` (`AtomicTransaction`), `ledger` (`JournalEntry` linked by ID only, no cross-domain FK), `portfolio`, `pricing` (FX rates), `audit`, `platform` (`WorkflowEvent`).
 
 ## Governance
 

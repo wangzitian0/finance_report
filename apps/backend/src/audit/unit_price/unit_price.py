@@ -1,8 +1,6 @@
-"""``UnitPrice`` — money-per-quantity composite value type (mirrors common/audit/unit_price).
+"""``UnitPrice`` — money-per-quantity composite value type (#2752).
 
-Backend runtime copy: identical semantics to ``common/audit/unit_price/unit_price.py``,
-importing the shipped ``src.audit.money`` / ``src.audit.quantity`` types. The conformance
-suite proves the two stay identical (``common/`` is not shipped into the image).
+Single-source Python implementation bridged to ``common.audit.unit_price``.
 See ``common/audit/readme.md#base-packages``.
 """
 
@@ -49,7 +47,7 @@ class UnitPrice:
 
     @classmethod
     def zero(cls, currency: Currency | str, unit: Unit | str) -> UnitPrice:
-        return cls(Decimal("0"), currency, unit)
+        return cls(Decimal("0"), Currency.of(currency), Unit.of(unit))
 
     @classmethod
     def from_total(cls, total: Money, quantity: Quantity) -> UnitPrice:

@@ -1,11 +1,10 @@
 """Backend runtime money value types — the backend's "end" of the money standard.
 
-Mirrors ``common/audit/money`` (the reference impl) as a **self-contained, shippable**
-module: the backend image does not ship ``common/``, so the backend is treated as
-its own conformant end — exactly like the frontend has ``apps/frontend/src/lib/audit/money``
-(#1167). It is kept in lockstep with the reference impl by the shared conformance
-vectors (``common/audit/money/conformance/vectors.json``, asserted in
-``tests/money/test_money_backend_module.py``) and the narrow-waist guard (#1172).
+Single-source Python money value types (#2752), bridged to ``common.audit.money``
+for tools/tests and aligned with ``apps/frontend/src/lib/audit/money`` via
+``common/audit/money/conformance/vectors.json`` (executed by frontend
+Vitest conformance specs; backend unit assertions in
+``apps/backend/tests/audit/money/``).
 
 Contract: ``common/audit/money/readme.md#money-type``.
 """

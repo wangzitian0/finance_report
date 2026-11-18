@@ -1,7 +1,7 @@
 """``src.audit`` — the number-governor's published package surface.
 
 Re-exports the Shared-Kernel value objects and the TraceRecord assurance
-boundary declared by ``common/audit/contract.py``. Domain-specific errors and
+boundary documented in ``common/audit/readme.md``. Domain-specific errors and
 wire helpers mostly stay under their submodules because names collide; only the
 collision-free cross-package interface is published here (#1421, #1610).
 """

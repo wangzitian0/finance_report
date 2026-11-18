@@ -18,12 +18,12 @@ Carried over from ``services/fx.py`` for its repointed consumers:
   :func:`~src.pricing.extension.market_data.service.resolve_missing_fx_rate`
   (safe inverse/bridge derivation, then an optional provider fetch) — the
   behavior the portfolio read-side queries depend on (#1641/#1643).
-- **``fx_warnings`` side-channel** (AC-pricing.fx.1) — the caller learns it
+- **``fx_warnings`` side-channel** — the caller learns it
   got the period-end spot fallback instead of a true average; reporting
   surfaces these warnings on the generated report payloads.
-- **Average-rate windows on the ``convert_*`` pair** (AC-pricing.fx.3) — the
+- **Average-rate windows on the ``convert_*`` pair** — the
   income-statement convention converts flows at the period-average rate.
-- **``PrefetchedFxRates``** (AC-pricing.fx.2) — the explicit batch-prefetch
+- **``PrefetchedFxRates``** — the explicit batch-prefetch
   cache the report builders use to avoid per-line lookups.
 
 Deliberately NOT carried over: the in-process TTL ``_FxRateCache`` — a
@@ -61,8 +61,7 @@ class ExchangeRateLookup(Protocol):
 
     :func:`get_exchange_rate` implements it. A caller that accepts a replacement
     lookup (extraction's posting dependencies) types the parameter with this
-    Protocol. No other Protocol with this shape may exist
-    (``tests/tooling/test_single_fx_rate_port.py``, #2774).
+    Protocol. No other Protocol with this shape should be added (#2774).
     """
 
     def __call__(
@@ -212,7 +211,7 @@ async def get_average_rate(
     query) — the repository's one job stays "what observations exist"; the
     averaging is pricing's own business logic, same as ``resolve()``. The
     period-end fallback is surfaced through ``fx_warnings``
-    (AC-pricing.fx.1) so a report can tell its consumer the average was
+    so a report can tell its consumer the average was
     unavailable.
     """
     base = normalize_currency_code(base_currency)
@@ -271,8 +270,8 @@ async def convert_amount(
     """Convert ``amount`` into ``target_currency`` using the resolved rate.
 
     With both ``average_start`` and ``average_end`` set, the period-average
-    rate is used instead of the ``rate_date`` spot rate (AC-pricing.fx.3 —
-    the income-statement convention), with the same period-end fallback +
+    rate is used instead of the ``rate_date`` spot rate (the
+    income-statement convention), with the same period-end fallback +
     ``fx_warnings`` semantics as :func:`get_average_rate`.
     """
     source = normalize_currency_code(currency)
@@ -327,7 +326,7 @@ async def convert_money(
 
 
 class PrefetchedFxRates:
-    """Explicit batch-prefetch cache for report builders (AC-pricing.fx.2).
+    """Explicit batch-prefetch cache for report builders.
 
     The report builders (net worth, cash flow, income statement) resolve the
     same handful of pairs for hundreds of lines; they prefetch once and read

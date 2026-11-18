@@ -6,7 +6,7 @@ Reserved home for the package's read models. The first planned occupant is the
 and the durable rollup that consumes it lands here as a projection — a
 package-internal addition (new adapter behind the reserved ``UsageRepository``
 port + a read model in this layer), NOT a re-cutover. See
-``common/llm/contract.py`` for the reserved units.
+``common/llm/readme.md`` for package boundaries.
 
 Nothing imports this layer yet; per the data-sink rule nothing in ``base/`` or
 ``extension/`` ever will.

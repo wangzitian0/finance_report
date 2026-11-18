@@ -2,8 +2,7 @@
 
 Pure structural mixins with no platform-specific behavior — a natural fit for
 ``platform`` (L1 infra, business-agnostic foundations). Every package that owns
-ORM entities imports these directly (a deep import of a published name is
-allowed, see ``common/meta/extension/check_package_contract.py``).
+ORM entities imports these directly as shared L1 foundation mixins.
 """
 
 from datetime import UTC, datetime

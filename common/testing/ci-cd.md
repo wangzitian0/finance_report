@@ -34,13 +34,13 @@ Default local verification uses `moon run :test -- --smart` or focused Vitest/to
 - `accounting, posting, reconciliation, money, balance`: focused domain pytest suite
 - `schema, migrations`: `alembic upgrade head` + `alembic check` + DB tests
 - `API contract, OpenAPI`: backend API tests + `tools/preflight.py` (`api-reference`, `router-contract`)
-- `shared common/tooling`: `pytest tests/tooling/`
+- `shared common/ / tools/`: `pytest tests/tooling/`
 - `Docker, workflow, environment, deploy`: static contract checks (runtime proof in PR CI/staging)
 - `docs-only`: static SSOT/manifest checks
 
 ### Coverage & Metric Semantics
 
-- Coverage scope is deny-list based within each governed source root (`common/meta/extension/coverage/policy.py`). New `apps/*/src`, `packages/*/src`, or root shared source roots must register in `common/meta/extension/coverage/policy.py`.
+- Coverage thresholds and deny-list omissions live in `apps/backend/pyproject.toml` (`--cov-fail-under=96` BE) and `apps/frontend/vitest.config.ts` (`98/98/84/98` FE).
 - PR CI dry-runs staging image builds before merge; Main and release-branch push CI, plus on-demand `workflow_dispatch` push immutable `:<sha>` images.
 - CI observability artifacts (JUnit XML, coverage, run context) upload on both success and failure (`if: always()`).
 - Local pytest/Vitest thresholds govern line/branch floors (`--cov-fail-under=96` BE; Vitest `98/98/84/98` FE).

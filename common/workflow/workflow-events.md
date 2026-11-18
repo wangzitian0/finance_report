@@ -7,7 +7,7 @@
 | Concern | Location |
 |---|---|
 | Models & sync state | `apps/backend/src/workflow/orm/models.py` (`workflow_sessions`, `workflow_events`, `workflow_sync_states`) |
-| Schemas | `apps/backend/src/schemas/workflow.py` |
+| Types & schemas | `apps/backend/src/workflow/base/types.py` |
 | Sync & status derivation | `apps/backend/src/workflow/extension/events.py` (`get_workflow_status`, `list_workflow_events_response`, `ensure_workflow_events_synced`) |
 | Router | `apps/backend/src/routers/workflow.py` |
 | Package readiness input | `current_package_readiness` in `apps/backend/src/reporting/extension/package_document.py` |
@@ -55,13 +55,13 @@ Surfaces:
 
 ## 7. Workflow Navigation
 
-Product navigation IA is owned by EPIC-022 (`apps/frontend/frontend-patterns.md` §9, mobile/PWA bottom tab bar; the earlier multi-split nav model was superseded by EPIC-022 AC22.21). Navigation attention indicators must use `GET /api/workflow/status` through `lib/api.ts` rather than separate polling.
+Product navigation IA is owned by EPIC-022 (`apps/frontend/frontend-patterns.md` §9, mobile/PWA bottom tab bar; the earlier multi-split nav model was superseded in #864). Navigation attention indicators must use `GET /api/workflow/status` through `lib/api.ts` rather than separate polling.
 
 ## 12. Initial Derivation
 
 `workflow_input_stamp` computes a single-query stamp over explicit domain input tables + date + settings (`blake2b`). `GET /api/workflow/status` and `GET /api/workflow/events` run under `ReadDbSession` with zero DB writes (`stored_package_readiness` reuses cached state `< 15m` (`WORKFLOW_SYNC_STATE_MAX_AGE`) when the stamp matches, and otherwise projects state in memory without writing `workflow_sync_states` or `workflow_events`). `ensure_workflow_events_synced` / `PATCH /api/workflow/events/{event_id}` persist deterministic UUIDv5 workflow rows when needed.
 
-AC19.12 completes the first lightweight user-facing derivation set. Workflow events are a product attention projection, not a low-level event log; authoritative facts remain in normalized owner tables. Derivation answers only:
+Lightweight user-facing workflow events are a product attention projection, not a low-level event log; authoritative facts remain in normalized owner tables. Derivation answers only:
 - What needs my action now?
 - What is blocking trusted report readiness?
 - Can I open a trusted report package?

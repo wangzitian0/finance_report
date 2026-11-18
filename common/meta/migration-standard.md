@@ -9,7 +9,7 @@ Each package converges by **layer**:
 - **extension**: Impure repository adapters, domain services, ORM models, and transport/event publishers.
 - **data**: CQRS read projections (leaf sinks, zero FK constraints into write tables, bitemporal + idempotent with provenance ids).
 
-`check_app_boundary` prevents boundary leaks between domain packages and `routers/` / `schemas/` (**The app delivery layer**, baseline-ratcheted by `common/meta/data/delivery-layer-baseline.json` in `tests/tooling/test_delivery_layer_ratchet.py`).
+`check_app_boundary` prevents boundary leaks between domain packages and `routers/` / `schemas/` (**The app delivery layer**, baseline in `common/meta/data/delivery-layer-baseline.json`).
 
 ## Cross-domain DB & flow rules
 
