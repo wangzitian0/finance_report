@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date
 from uuid import UUID
 
@@ -23,8 +24,10 @@ from src.extraction.extension.reviewed_statement_envelope import (
     ReviewedEnvelopeDecisionTracePolicy,
     current_reviewed_statement_envelope,
 )
+from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import Account, AccountType
 
 
 def _unproven(
@@ -52,8 +55,62 @@ def _unproven(
     )
 
 
+async def _load_asset_bindings_by_identity(
+    db: AsyncSession, *, user_id: UUID
+) -> dict[tuple[str, str], tuple[tuple[str, UUID], ...]]:
+    rows = (
+        await db.execute(
+            select(
+                BankCustodyBinding.institution,
+                BankCustodyBinding.account_last4,
+                BankCustodyBinding.currency,
+                BankCustodyBinding.account_id,
+            )
+            .join(Account, Account.id == BankCustodyBinding.account_id)
+            .where(
+                BankCustodyBinding.user_id == user_id,
+                Account.type == AccountType.ASSET,
+                Account.is_active.is_(True),
+            )
+        )
+    ).all()
+    grouped: dict[tuple[str, str], list[tuple[str, UUID]]] = {}
+    for institution, last4, ccy, account_id in rows:
+        grouped.setdefault((institution, last4), []).append((ccy, account_id))
+    return {key: tuple(items) for key, items in grouped.items()}
+
+
+def _secondary_custody_account_ids(
+    statement: StatementSummary,
+    source_result: StatementExtractionResult,
+    primary_account_id: UUID | None,
+    bindings_by_identity: Mapping[tuple[str, str], tuple[tuple[str, UUID], ...]],
+) -> tuple[UUID, ...]:
+    if not statement.institution or not statement.account_last4:
+        return ()
+    if not (
+        source_result.source_type is StatementSourceType.BANK
+        or source_result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+    ):
+        return ()
+    stmt_currencies = {b.currency for b in source_result.balances} | {
+        t.currency for t in source_result.transactions if t.currency
+    }
+    if not stmt_currencies:
+        return ()
+    matches = bindings_by_identity.get((statement.institution, statement.account_last4), ())
+    secondary = {
+        aid for ccy, aid in matches if aid != primary_account_id and ccy in stmt_currencies
+    }
+    return tuple(sorted(secondary, key=str))
+
+
 async def resolve_statement_contribution(
-    db: AsyncSession, *, user_id: UUID, statement_id: UUID
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    statement_id: UUID,
+    bindings_by_identity: Mapping[tuple[str, str], tuple[tuple[str, UUID], ...]] | None = None,
 ) -> ResolvedStatementContribution:
     """Resolve one current statement source result into an authoritative or unproven contribution."""
     statement = await db.get(StatementSummary, statement_id)
@@ -137,6 +194,16 @@ async def resolve_statement_contribution(
         or source_result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
     ) and account_id is None:
         return fail("missing_custody_account", acct=None, ps=eff_start, pe=eff_end)
+    resolved_bindings = (
+        bindings_by_identity
+        if bindings_by_identity is not None
+        else (
+            await _load_asset_bindings_by_identity(db, user_id=user_id)
+            if statement.institution and statement.account_last4 and len(source_result.balances) > 1
+            else {}
+        )
+    )
+    secondary_ids = _secondary_custody_account_ids(statement, source_result, account_id, resolved_bindings)
     return ResolvedStatementContribution(
         statement_id=statement.id,
         source_result_id=source_record.id,
@@ -148,6 +215,7 @@ async def resolve_statement_contribution(
         decision=TraceDecisionRef(decision.record_id, decision.target, decision.assertion),
         source_document_id=doc_id,
         account_id=account_id,
+        secondary_account_ids=secondary_ids,
     )
 
 
@@ -165,8 +233,12 @@ async def list_statement_contributions(
         .scalars()
         .all()
     )
+    bindings_by_identity = await _load_asset_bindings_by_identity(db, user_id=user_id) if statement_ids else {}
     contributions = [
-        await resolve_statement_contribution(db, user_id=user_id, statement_id=sid) for sid in statement_ids
+        await resolve_statement_contribution(
+            db, user_id=user_id, statement_id=sid, bindings_by_identity=bindings_by_identity
+        )
+        for sid in statement_ids
     ]
     return tuple(
         c for c in contributions if c.effective_period_end is not None and c.effective_period_end <= as_of

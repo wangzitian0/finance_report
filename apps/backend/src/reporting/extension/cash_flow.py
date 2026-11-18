@@ -453,11 +453,17 @@ def opening_coverage_start(opening_positions: Iterable[Any]) -> date | None:
     return max((position.effective_date for position in opening_positions), default=None)
 
 
+def earliest_opening_start(opening_positions: Iterable[Any]) -> date | None:
+    """Return the earliest effective date among opening positions (#3128)."""
+    return min((position.effective_date for position in opening_positions), default=None)
+
+
 @dataclass(frozen=True, slots=True)
 class CashCoverage:
     start: date | None
     limiting_account_names: tuple[str, ...]
     latest_statement_end: date | None = None
+    earliest_start: date | None = None
 
 
 async def cash_coverage(
@@ -475,9 +481,15 @@ async def cash_coverage(
         cash_ids.update(_select_cash_account_ids(accounts, ids)[0])
     positions = await cash_opening_positions(db, user_id, as_of=as_of, cash_account_ids=frozenset(cash_ids))
     start = opening_coverage_start(positions)
+    earliest = earliest_opening_start(positions)
     names = {account.id: account.name for account in accounts}
     limiting = sorted({names[p.account_id] for p in positions if p.effective_date == start and p.account_id in names})
-    return CashCoverage(start=start, limiting_account_names=tuple(limiting), latest_statement_end=latest_statement_end)
+    return CashCoverage(
+        start=start,
+        limiting_account_names=tuple(limiting),
+        latest_statement_end=latest_statement_end,
+        earliest_start=earliest,
+    )
 
 
 async def _build_cash_flow(
@@ -547,8 +559,19 @@ async def _build_cash_flow(
 
     if any(position.state != "authoritative" or position.decision is None for position in opening_positions):
         proof_reasons.add("opening_position_unproven")
-    coverage_start = opening_coverage_start(opening_positions)
-    if coverage_start is not None and coverage_start > start_date:
+    earliest_opening = earliest_opening_start(opening_positions)
+    earliest_by_account: dict[UUID, date] = {}
+    for position in opening_positions:
+        existing = earliest_by_account.get(position.account_id)
+        if existing is None or position.effective_date < existing:
+            earliest_by_account[position.account_id] = position.effective_date
+    if earliest_opening is not None and earliest_opening > start_date:
+        proof_reasons.add("opening_coverage_starts_after_period")
+    elif any(
+        (acct_open := earliest_by_account.get(account.id)) is not None and event.entry.entry_date < acct_open
+        for event in events
+        for _line, account in event.cash_lines
+    ):
         proof_reasons.add("opening_coverage_starts_after_period")
 
     for event in events:

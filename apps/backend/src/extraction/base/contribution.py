@@ -31,6 +31,17 @@ class ResolvedStatementContribution:
     decision: TraceDecisionRef | None
     source_document_id: UUID | None = None
     account_id: UUID | None = None
+    secondary_account_ids: tuple[UUID, ...] = ()
+
+    @property
+    def all_account_ids(self) -> tuple[UUID, ...]:
+        ids: list[UUID] = []
+        if self.account_id is not None:
+            ids.append(self.account_id)
+        for aid in self.secondary_account_ids:
+            if aid not in ids:
+                ids.append(aid)
+        return tuple(ids)
 
     def __post_init__(self) -> None:
         if self.state == "authoritative" and (
@@ -69,6 +80,6 @@ class ResolvedStatementContribution:
         refs = [f"statement_result:{self.source_result_id}"]
         if self.source_document_id is not None:
             refs.append(f"source_document:{self.source_document_id}")
-        if self.account_id is not None:
-            refs.append(f"account:{self.account_id}")
+        for aid in self.all_account_ids:
+            refs.append(f"account:{aid}")
         return tuple(refs)

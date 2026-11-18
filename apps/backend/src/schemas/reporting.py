@@ -414,6 +414,7 @@ class PersonalReportPackageInputCoverage(BaseModel):
 class ReportCoverageResponse(BaseModel):
     as_of_date: date
     coverage_start: date | None = None
+    earliest_start: date | None = None
     limiting_accounts: list[str] = default_list()
     latest_statement_end: date | None = None
 
