@@ -1,34 +1,191 @@
-from __future__ import annotations; import hashlib; import re; from datetime import UTC, date, datetime; from decimal import Decimal; from unittest.mock import AsyncMock, MagicMock; from uuid import uuid4; import pytest; from sqlalchemy import func, select, text; from sqlalchemy.dialects import postgresql; from sqlalchemy.sql.selectable import CTE; from sqlalchemy.sql.visitors import iterate; from src.extraction import effective_statement_transaction_filter; from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection; from src.extraction.extension.deduplication import DeduplicationService; from src.extraction.extension.statement_workflow import TENANT_ANALYZE_TABLES, analyze_tenant_tables; from src.extraction.extension.transaction_identity import versioned_transaction_hash; from src.extraction.orm.layer1 import UploadedDocument; from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity; from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord; from tests.factories import AccountFactory, StatementSummaryFactory
-async def _create_source(db, user_id, *, account=None, currency: str='SGD', currency_balances: list[dict] | None=None, status: BankStatementStatus=BankStatementStatus.APPROVED, stage1_status: Stage1Status | None=Stage1Status.APPROVED, payload: dict | None=None):
-    document = UploadedDocument(user_id=user_id, file_path=f'synthetic/{uuid4()}.pdf', file_hash=hashlib.sha256(uuid4().bytes).hexdigest(), original_filename='synthetic.pdf', document_type=DocumentType.BANK_STATEMENT); db.add(document); await db.flush(); summary = StatementSummaryFactory.build(user_id=user_id, uploaded_document_id=document.id, file_hash=document.file_hash, account_id=account.id if account else None, currency=currency, currency_balances=currency_balances, institution='Synthetic Bank', period_start=date(2025, 1, 1), period_end=date(2025, 1, 31), opening_balance=Decimal('100.00'), closing_balance=Decimal('145.00'), status=status, stage1_status=stage1_status); db.add(summary); await db.flush()
-    if payload is not None: result_id = uuid4(); db.add(StatementExtractionResultRecord(id=result_id, user_id=user_id, statement_id=summary.id, content_digest=hashlib.sha256(result_id.bytes).hexdigest(), source_content_digest=document.file_hash, schema_version=str(payload.get('schema_version') or '1'), producer_version='test-v1', payload=payload, source_trace_record_id=uuid4(), created_at=datetime.now(UTC))); await db.flush(); summary.current_extraction_result_id = result_id; await db.flush()
-    return (document, summary)
-async def _create_txn(db, user_id, *, source_docs: list[dict], txn_date: date=date(2025, 1, 2), amount: Decimal=Decimal('10.00'), currency: str='SGD', description: str='Synthetic txn', dedup_hash: str | None=None) -> AtomicTransaction: computed_hash = dedup_hash or DeduplicationService.calculate_transaction_hash(user_id, txn_date, amount, TransactionDirection.IN, description, balance_after=Decimal('110.00')); txn = AtomicTransaction(user_id=user_id, txn_date=txn_date, amount=amount, direction=TransactionDirection.IN, description=description, currency=currency, balance_after=Decimal('110.00'), dedup_hash=computed_hash, source_documents=source_docs); db.add(txn); await db.flush(); return txn
-async def test_set_based_filter_covers_custody_alias_multicurrency_and_stage1_matrix(db, test_user): account_a = AccountFactory.build(user_id=test_user.id, currency='SGD'); account_b = AccountFactory.build(user_id=test_user.id, currency='SGD'); db.add_all([account_a, account_b]); await db.flush(); legacy_hash = DeduplicationService.calculate_transaction_hash(test_user.id, date(2025, 1, 5), Decimal('45.00'), TransactionDirection.IN, 'EUR v2 alias deposit', balance_after=Decimal('145.00')); v2_hash = versioned_transaction_hash(legacy_hash, 'EUR', f'account:{account_a.id}'); approved_payload = {'schema_version': 1, 'currency': 'SGD', 'balances': [{'currency': 'SGD', 'opening': '100', 'closing': '100'}, {'currency': 'EUR', 'opening': '100', 'closing': '145'}], 'transactions': [{'fact_id': v2_hash, 'currency': 'EUR'}]}; doc_approved, summary_approved = await _create_source(db, test_user.id, account=account_a, currency='SGD', currency_balances=[{'currency': 'SGD', 'opening': '100', 'closing': '100'}, {'currency': 'EUR', 'opening': '100', 'closing': '145'}], status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED, payload=approved_payload); txn_v2_eur = await _create_txn(db, test_user.id, source_docs=[{'doc_id': str(doc_approved.id), 'doc_type': 'bank_statement'}], currency='EUR', description='EUR v2 alias deposit', dedup_hash=legacy_hash); db.add(AtomicTransactionIdentity(user_id=test_user.id, identity_version='v2', identity_hash=v2_hash, legacy_hash=legacy_hash, atomic_txn_id=txn_v2_eur.id, currency='EUR', custody_scope=f'account:{account_a.id}')); doc_legacy, summary_legacy = await _create_source(db, test_user.id, account=account_a, currency='SGD', status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED, payload=None); txn_legacy = await _create_txn(db, test_user.id, source_docs=[{'doc_id': str(doc_legacy.id), 'doc_type': 'bank_statement'}], currency='SGD', description='Legacy statement row'); doc_pending, summary_pending = await _create_source(db, test_user.id, account=account_a, currency='SGD', status=BankStatementStatus.PARSED, stage1_status=Stage1Status.PENDING_REVIEW, payload=None); txn_pending = await _create_txn(db, test_user.id, source_docs=[{'doc_id': str(doc_pending.id), 'doc_type': 'bank_statement'}], currency='SGD', description='Pending stage1 row'); doc_rejected, summary_rejected = await _create_source(db, test_user.id, account=account_a, currency='SGD', status=BankStatementStatus.REJECTED, stage1_status=Stage1Status.REJECTED, payload=None); txn_rejected = await _create_txn(db, test_user.id, source_docs=[{'doc_id': str(doc_rejected.id), 'doc_type': 'bank_statement'}], currency='SGD', description='Rejected statement row'); doc_compat_2, _ = await _create_source(db, test_user.id, account=account_a, currency='SGD', status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED, payload=None); txn_compat_multi = await _create_txn(db, test_user.id, source_docs=[{'doc_id': str(doc_legacy.id), 'doc_type': 'bank_statement'}, {'doc_id': str(doc_compat_2.id), 'doc_type': 'bank_statement'}], currency='SGD', description='Compatible multi-source row'); doc_incompat, _ = await _create_source(db, test_user.id, account=account_b, currency='SGD', status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED, payload=None); txn_incompat_multi = await _create_txn(db, test_user.id, source_docs=[{'doc_id': str(doc_legacy.id), 'doc_type': 'bank_statement'}, {'doc_id': str(doc_incompat.id), 'doc_type': 'bank_statement'}], currency='SGD', description='Incompatible multi-source row'); txn_standalone = await _create_txn(db, test_user.id, source_docs=[{'doc_id': str(uuid4()), 'doc_type': 'receipt'}], currency='SGD', description='Standalone receipt row'); await db.flush(); default_ids = set((await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id)))).all()); assert txn_v2_eur.id in default_ids; assert txn_legacy.id in default_ids; assert txn_compat_multi.id in default_ids; assert txn_standalone.id in default_ids; assert txn_pending.id in default_ids; assert txn_rejected.id not in default_ids; assert txn_incompat_multi.id not in default_ids; approved_only_ids = set((await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id, include_pending_stage1=False)))).all()); assert txn_pending.id not in approved_only_ids; assert txn_v2_eur.id in approved_only_ids; assert txn_legacy.id in approved_only_ids; scoped_approved = set((await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id, summary_approved.id)))).all()); assert scoped_approved == {txn_v2_eur.id}; scoped_rejected = set((await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id, summary_rejected.id)))).all()); assert scoped_rejected == set()
+from __future__ import annotations
+
+import hashlib
+import re
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import func, select, text
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.sql.selectable import CTE
+from sqlalchemy.sql.visitors import iterate
+
+from src.config import settings
+from src.extraction import effective_statement_transaction_filter
+from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
+from src.extraction.extension import statement_workflow
+from src.extraction.extension.deduplication import DeduplicationService
+from src.extraction.extension.statement_workflow import TENANT_ANALYZE_TABLES, analyze_tenant_tables, request_tenant_statistics_refresh
+from src.extraction.extension.transaction_identity import versioned_transaction_hash
+from src.extraction.orm.layer1 import UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
+from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
+from src.identity import User
+from tests.factories import AccountFactory, StatementSummaryFactory
+
+_ANONYMOUS_CTE_NAME = re.compile(r"%\((\d+) anon\)s")
+
+
+def _source_models(user_id, *, doc_id=None, account=None, status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED, currency_balances=None, payload=None, prefix="synthetic"):
+    did = doc_id or uuid4()
+    fhash = hashlib.sha256(did.bytes).hexdigest()
+    doc = UploadedDocument(id=did, user_id=user_id, file_path=f"synthetic/{prefix}_{did}.pdf", file_hash=fhash, original_filename=f"{prefix}.pdf", document_type=DocumentType.BANK_STATEMENT)
+    rid = uuid4() if payload is not None else None
+    summary = StatementSummaryFactory.build(id=uuid4(), user_id=user_id, uploaded_document_id=did, file_hash=fhash, account_id=account.id if account else None, currency="SGD", currency_balances=currency_balances, institution="Synthetic Bank", period_start=date(2025, 1, 1), period_end=date(2025, 1, 31), opening_balance=Decimal("100.00"), closing_balance=Decimal("145.00"), status=status, stage1_status=stage1_status, current_extraction_result_id=None)
+    rec = None if rid is None else StatementExtractionResultRecord(id=rid, user_id=user_id, statement_id=summary.id, content_digest=hashlib.sha256(rid.bytes).hexdigest(), source_content_digest=fhash, schema_version=str(payload.get("schema_version") or "1"), producer_version="test-v1", payload=payload, source_trace_record_id=uuid4(), created_at=datetime.now(UTC))
+    return doc, summary, rec
+
+
+async def _create_source(db, user_id, **kwargs):
+    doc, summary, rec = _source_models(user_id, **kwargs)
+    db.add_all([doc, summary])
+    await db.flush()
+    if rec is not None:
+        db.add(rec)
+        await db.flush()
+        summary.current_extraction_result_id = rec.id
+        await db.flush()
+    return doc, summary
+
+
+async def _create_txn(db, user_id, *, source_docs: list[dict], description: str, currency: str = "SGD", dedup_hash: str | None = None) -> AtomicTransaction:
+    computed = dedup_hash or DeduplicationService.calculate_transaction_hash(user_id, date(2025, 1, 2), Decimal("10.00"), TransactionDirection.IN, description, balance_after=Decimal("110.00"))
+    txn = AtomicTransaction(user_id=user_id, txn_date=date(2025, 1, 2), amount=Decimal("10.00"), direction=TransactionDirection.IN, description=description, currency=currency, balance_after=Decimal("110.00"), dedup_hash=computed, source_documents=source_docs)
+    db.add(txn)
+    await db.flush()
+    return txn
+
+
+def _doc_ref(doc: UploadedDocument) -> dict[str, str]:
+    return {"doc_id": str(doc.id), "doc_type": "bank_statement"}
+
+
+async def test_set_based_filter_covers_custody_alias_multicurrency_and_stage1_matrix(db, test_user):
+    account_a, account_b = AccountFactory.build(user_id=test_user.id, currency="SGD"), AccountFactory.build(user_id=test_user.id, currency="SGD")
+    db.add_all([account_a, account_b])
+    await db.flush()
+
+    legacy_hash = DeduplicationService.calculate_transaction_hash(test_user.id, date(2025, 1, 5), Decimal("45.00"), TransactionDirection.IN, "EUR v2 alias deposit", balance_after=Decimal("145.00"))
+    v2_hash, balances = versioned_transaction_hash(legacy_hash, "EUR", f"account:{account_a.id}"), [{"currency": "SGD", "opening": "100", "closing": "100"}, {"currency": "EUR", "opening": "100", "closing": "145"}]
+    doc_app, sum_app = await _create_source(db, test_user.id, account=account_a, currency_balances=balances, payload={"schema_version": 1, "currency": "SGD", "balances": balances, "transactions": [{"fact_id": v2_hash, "currency": "EUR"}]})
+    txn_v2 = await _create_txn(db, test_user.id, source_docs=[_doc_ref(doc_app)], currency="EUR", description="EUR v2 alias deposit", dedup_hash=legacy_hash)
+    db.add(AtomicTransactionIdentity(user_id=test_user.id, identity_version="v2", identity_hash=v2_hash, legacy_hash=legacy_hash, atomic_txn_id=txn_v2.id, currency="EUR", custody_scope=f"account:{account_a.id}"))
+
+    doc_leg, _ = await _create_source(db, test_user.id, account=account_a)
+    doc_pen, _ = await _create_source(db, test_user.id, account=account_a, status=BankStatementStatus.PARSED, stage1_status=Stage1Status.PENDING_REVIEW)
+    doc_rej, sum_rej = await _create_source(db, test_user.id, account=account_a, status=BankStatementStatus.REJECTED, stage1_status=Stage1Status.REJECTED)
+    doc_c2, _ = await _create_source(db, test_user.id, account=account_a)
+    doc_inc, _ = await _create_source(db, test_user.id, account=account_b)
+
+    txn_leg, txn_pen, txn_rej, txn_compat, txn_incompat, txn_receipt = [
+        await _create_txn(db, test_user.id, source_docs=sdocs, description=desc)
+        for sdocs, desc in (
+            ([_doc_ref(doc_leg)], "Legacy statement row"),
+            ([_doc_ref(doc_pen)], "Pending stage1 row"),
+            ([_doc_ref(doc_rej)], "Rejected statement row"),
+            ([_doc_ref(doc_leg), _doc_ref(doc_c2)], "Compatible multi-source row"),
+            ([_doc_ref(doc_leg), _doc_ref(doc_inc)], "Incompatible multi-source row"),
+            ([{"doc_id": str(uuid4()), "doc_type": "receipt"}], "Standalone receipt row"),
+        )
+    ]
+    await db.flush()
+
+    async def _ids(stmt_id=None, *, include_pending_stage1=True):
+        return set((await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id, stmt_id, include_pending_stage1=include_pending_stage1)))).all())
+
+    default_ids, approved_only_ids = await _ids(), await _ids(include_pending_stage1=False)
+    assert {txn_v2.id, txn_leg.id, txn_compat.id, txn_receipt.id, txn_pen.id} <= default_ids and {txn_rej.id, txn_incompat.id}.isdisjoint(default_ids)
+    assert txn_pen.id not in approved_only_ids and {txn_v2.id, txn_leg.id} <= approved_only_ids and (await _ids(sum_app.id), await _ids(sum_rej.id)) == ({txn_v2.id}, set())
+
+
 def _sum_leaf_scan_rows_read(node: dict) -> int:
-    loops = int(node.get('Actual Loops') or 1); plans = node.get('Plans') or []
-    if not plans: own_rows = int(node.get('Actual Rows') or 0) * loops; removed = (int(node.get('Rows Removed by Filter') or 0) + int(node.get('Rows Removed by Index Recheck') or 0)) * loops; return own_rows + removed
-    return sum((_sum_leaf_scan_rows_read(child) for child in plans))
+    if plans := (node.get("Plans") or []):
+        return sum(_sum_leaf_scan_rows_read(child) for child in plans)
+    return (int(node.get("Actual Rows") or 0) + int(node.get("Rows Removed by Filter") or 0) + int(node.get("Rows Removed by Index Recheck") or 0)) * int(node.get("Actual Loops") or 1)
+
+
 async def _seed_and_measure_scale(db, user_id, *, num_statements: int, txns_per_statement: int, prefix: str) -> int:
-    account = AccountFactory.build(user_id=user_id, currency='SGD'); db.add(account); await db.flush(); doc_ids: list = []; summaries: list = []; fact_hashes_by_stmt: list[list[str]] = []
-    for s_idx in range(num_statements): doc_id = uuid4(); doc_ids.append(doc_id); db.add(UploadedDocument(id=doc_id, user_id=user_id, file_path=f'synthetic/{prefix}_{s_idx}.pdf', file_hash=hashlib.sha256(doc_id.bytes).hexdigest(), original_filename=f'{prefix}_{s_idx}.pdf', document_type=DocumentType.BANK_STATEMENT)); summary_id = uuid4(); summary = StatementSummaryFactory.build(id=summary_id, user_id=user_id, uploaded_document_id=doc_id, file_hash=hashlib.sha256(doc_id.bytes).hexdigest(), account_id=account.id, currency='SGD', institution='Synthetic Bank', period_start=date(2025, 1, 1), period_end=date(2025, 1, 31), opening_balance=Decimal('1000.00'), closing_balance=Decimal('2000.00'), status=BankStatementStatus.APPROVED, stage1_status=Stage1Status.APPROVED); summaries.append(summary); db.add(summary); fact_hashes_by_stmt.append([])
-    await db.flush(); txns: list[AtomicTransaction] = []
-    for s_idx in range(num_statements):
-        doc_id = doc_ids[s_idx]; next_doc_id = doc_ids[(s_idx + 1) % num_statements]
-        for t_idx in range(txns_per_statement): dedup_hash = hashlib.sha256(f'{user_id}:{prefix}:{s_idx}:{t_idx}'.encode()).hexdigest(); fact_hashes_by_stmt[s_idx].append(dedup_hash); source_docs = [{'doc_id': str(doc_id), 'doc_type': 'bank_statement'}, {'doc_id': str(next_doc_id), 'doc_type': 'bank_statement'}] if t_idx % 10 == 0 else [{'doc_id': str(doc_id), 'doc_type': 'bank_statement'}]; txns.append(AtomicTransaction(id=uuid4(), user_id=user_id, txn_date=date(2025, s_idx % 12 + 1, t_idx % 28 + 1), amount=Decimal('10.00') + Decimal(t_idx), direction=TransactionDirection.OUT, description=f'Bench txn {prefix}-{s_idx}-{t_idx}', currency='SGD', dedup_hash=dedup_hash, source_documents=source_docs))
-    db.add_all(txns); await db.flush(); results: list[StatementExtractionResultRecord] = []
-    for s_idx in range(num_statements): doc_id = doc_ids[s_idx]; summary = summaries[s_idx]; result_id = uuid4(); payload = {'schema_version': 1, 'currency': 'SGD', 'balances': [{'currency': 'SGD', 'opening': '1000', 'closing': '2000'}], 'transactions': [{'fact_id': h, 'currency': 'SGD'} for h in fact_hashes_by_stmt[s_idx]]}; results.append(StatementExtractionResultRecord(id=result_id, user_id=user_id, statement_id=summary.id, content_digest=hashlib.sha256(result_id.bytes).hexdigest(), source_content_digest=hashlib.sha256(doc_id.bytes).hexdigest(), schema_version='1', producer_version='test-v1', payload=payload, source_trace_record_id=uuid4(), created_at=datetime.now(UTC))); summary.current_extraction_result_id = result_id
-    db.add_all(results); await db.flush(); total_expected = num_statements * txns_per_statement; stmt = select(func.count(AtomicTransaction.id)).where(AtomicTransaction.user_id == user_id, effective_statement_transaction_filter(user_id)); count = await db.scalar(stmt); assert count == total_expected; compiled = stmt.compile(dialect=db.bind.dialect, compile_kwargs={'literal_binds': True}); explain_rows = (await db.execute(text(f'EXPLAIN (ANALYZE, FORMAT JSON) {compiled}'))).scalar_one(); plan_root = explain_rows[0]['Plan']; return _sum_leaf_scan_rows_read(plan_root)
-async def test_set_based_filter_scales_linearly_at_year_scale(db, test_user): from src.identity import User; rows_12 = await _seed_and_measure_scale(db, test_user.id, num_statements=12, txns_per_statement=80, prefix='s12'); assert rows_12 < 19200, f'Expected < 19,200 leaf rows read (< 20 rows/txn) for 960 txns, got {rows_12}'; assert rows_12 / 960 < 20.0; user_120 = User(id=uuid4(), email=f'scale120-{uuid4()}@example.com', hashed_password='hashed'); db.add(user_120); await db.flush(); rows_120 = await _seed_and_measure_scale(db, user_120.id, num_statements=120, txns_per_statement=80, prefix='s120'); assert rows_120 < 192000, f'Expected < 192,000 leaf rows read (< 20 rows/txn) for 9,600 txns, got {rows_120}'; assert rows_120 / 9600 < 20.0; assert rows_120 / 9600 <= rows_12 / 960 * 1.5, f'Expected linear O(transactions) scaling between 12 and 120 statements, got {rows_120 / 9600:.2f} rows/txn vs {rows_12 / 960:.2f} rows/txn'
+    account = AccountFactory.build(user_id=user_id, currency="SGD")
+    db.add(account)
+    await db.flush()
+    doc_ids = [uuid4() for _ in range(num_statements)]
+    hashes_by_stmt = [[hashlib.sha256(f"{user_id}:{prefix}:{s}:{t}".encode()).hexdigest() for t in range(txns_per_statement)] for s in range(num_statements)]
+    rows = [_source_models(user_id, doc_id=doc_ids[s], account=account, prefix=f"{prefix}_{s}", payload={"schema_version": 1, "currency": "SGD", "balances": [{"currency": "SGD", "opening": "1000", "closing": "2000"}], "transactions": [{"fact_id": h, "currency": "SGD"} for h in hashes_by_stmt[s]]}) for s in range(num_statements)]
+    db.add_all([m for doc, summary, _ in rows for m in (doc, summary)])
+    await db.flush()
+    db.add_all([rec for _, _, rec in rows])
+    for _, summary, rec in rows:
+        summary.current_extraction_result_id = rec.id
+    db.add_all([
+        AtomicTransaction(
+            id=uuid4(), user_id=user_id, txn_date=date(2025, s % 12 + 1, t % 28 + 1), amount=Decimal("10.00") + Decimal(t), direction=TransactionDirection.OUT, description=f"Bench txn {prefix}-{s}-{t}", currency="SGD", dedup_hash=hashes_by_stmt[s][t],
+            source_documents=[{"doc_id": str(doc_ids[s]), "doc_type": "bank_statement"}] + ([{"doc_id": str(doc_ids[(s + 1) % num_statements]), "doc_type": "bank_statement"}] if t % 10 == 0 else []),
+        )
+        for s in range(num_statements)
+        for t in range(txns_per_statement)
+    ])
+    await db.flush()
+    stmt = select(func.count(AtomicTransaction.id)).where(AtomicTransaction.user_id == user_id, effective_statement_transaction_filter(user_id))
+    assert await db.scalar(stmt) == num_statements * txns_per_statement
+    explain_rows = (await db.execute(text(f"EXPLAIN (ANALYZE, FORMAT JSON) {stmt.compile(dialect=db.bind.dialect, compile_kwargs={'literal_binds': True})}"))).scalar_one()
+    return _sum_leaf_scan_rows_read(explain_rows[0]["Plan"])
+
+
+async def test_set_based_filter_scales_linearly_at_year_scale(db, test_user):
+    rows_12 = await _seed_and_measure_scale(db, test_user.id, num_statements=12, txns_per_statement=80, prefix="s12")
+    user_120 = User(id=uuid4(), email=f"scale120-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(user_120)
+    await db.flush()
+    rows_120 = await _seed_and_measure_scale(db, user_120.id, num_statements=120, txns_per_statement=80, prefix="s120")
+    assert rows_12 < 19200 and rows_12 / 960 < 20.0 and rows_120 < 192000 and rows_120 / 9600 < 20.0 and rows_120 / 9600 <= rows_12 / 960 * 1.5
+
+
 async def test_source_documents_gin_index_and_analyze_helper(db, monkeypatch):
-    from src.config import settings; index_def = await db.scalar(text("SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'ix_atomic_transactions_source_documents_gin'")); assert index_def is not None; assert 'USING gin' in index_def; assert 'jsonb_path_ops' in index_def; reloptions_rows = (await db.execute(text("SELECT c.relname, coalesce(c.reloptions, ARRAY[]::text[]) FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = ANY(:tables)"), {'tables': list(TENANT_ANALYZE_TABLES)})).all(); reloptions_by_table = {row[0]: set(row[1]) for row in reloptions_rows}; assert set(reloptions_by_table) == set(TENANT_ANALYZE_TABLES)
-    for (table, opts) in reloptions_by_table.items(): assert 'autovacuum_analyze_scale_factor=0.02' in opts, (table, opts); assert 'autovacuum_analyze_threshold=50' in opts, (table, opts)
-    from src.extraction.extension import statement_workflow; from src.extraction.extension.statement_workflow import request_tenant_statistics_refresh; spy_runner = AsyncMock(); monkeypatch.setattr(statement_workflow, 'analyze_tenant_tables', spy_runner); monkeypatch.setattr(statement_workflow, '_refresh_task', None); monkeypatch.setattr(statement_workflow, '_refresh_requested', False); monkeypatch.setattr(settings, 'environment', 'testing'); spy_testing_session = AsyncMock(); request_tenant_statistics_refresh(spy_testing_session); assert statement_workflow._refresh_task is None; spy_runner.assert_not_awaited(); monkeypatch.setattr(settings, 'environment', 'production'); monkeypatch.setenv('ENVIRONMENT', 'production'); sqlite_session = AsyncMock(); sqlite_bind = MagicMock(); sqlite_bind.dialect.name = 'sqlite'; sqlite_session.get_bind = MagicMock(return_value=sqlite_bind); request_tenant_statistics_refresh(sqlite_session); assert statement_workflow._refresh_task is None; spy_runner.assert_not_awaited(); pg_session = AsyncMock(); pg_maker = MagicMock(); pg_maker.return_value.__aenter__.return_value = pg_session; await analyze_tenant_tables(pg_maker); pg_session.commit.assert_awaited_once(); executed_sql = [str(call.args[0]) for call in pg_session.execute.await_args_list]; assert len(executed_sql) == 3; assert executed_sql[-1] == f"ANALYZE {', '.join(TENANT_ANALYZE_TABLES)}"; from importlib.util import module_from_spec, spec_from_file_location; from pathlib import Path; migration_path = Path(__file__).resolve().parents[2] / 'migrations' / 'versions' / '0073_statement_filter_gin_and_trace_trigger_perf.py'; spec = spec_from_file_location('migration_0073', migration_path); assert spec is not None and spec.loader is not None; module = module_from_spec(spec); spec.loader.exec_module(module); assert module.AUTOVACUUM_TUNED_TABLES == TENANT_ANALYZE_TABLES
-_NAME_OWNER_ATTR = '_anonymous_name_owner'; _ANONYMOUS_CTE_NAME = re.compile('%\\((\\d+) anon\\)s')
-def _filter_ctes(expression) -> list[CTE]: distinct: dict[int, CTE] = {}; [distinct.setdefault(id(element), element) if isinstance(element, CTE) else None for element in iterate(expression)]; return list(distinct.values())
-def _name_address(cte: CTE) -> int: match = _ANONYMOUS_CTE_NAME.fullmatch(str(cte.name)); assert match is not None, f'CTE name is not an anonymous name: {cte.name!r}'; return int(match.group(1))
-@pytest.mark.parametrize(('with_statement', 'include_pending_stage1'), [(False, True), (True, True), (True, False)], ids=['global', 'scoped', 'scoped-approved-only'])
-def test_AC_extraction_2899_1_filter_ctes_keep_their_name_owner_alive(with_statement, include_pending_stage1):
-    expression = effective_statement_transaction_filter(uuid4(), uuid4() if with_statement else None, include_pending_stage1=include_pending_stage1); ctes = _filter_ctes(expression); assert len(ctes) == 3; assert len({str(cte.name) for cte in ctes}) == 3
-    for cte in ctes: owner = getattr(cte, _NAME_OWNER_ATTR, cte); address = _name_address(cte); assert address in {id(cte), id(owner)}, f'CTE {cte.name!r} (id {id(cte)}) names address {address}, which is not the CTE itself and not an object that the CTE holds (id {id(owner)})'
-def test_two_filter_instances_compile_in_one_query(): user_id = uuid4(); statement = select(AtomicTransaction.id).where(effective_statement_transaction_filter(user_id), AtomicTransaction.id.in_(select(AtomicTransaction.id).where(effective_statement_transaction_filter(user_id, uuid4())))); compiled_sql = str(statement.compile(dialect=postgresql.dialect())); cte_names = re.findall('(anon_\\d+) AS\\s+(?:MATERIALIZED\\s+)?\\(SELECT', compiled_sql); assert len(cte_names) == len(set(cte_names)); assert len(set(cte_names)) == 6
+    index_def = await db.scalar(text("SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'ix_atomic_transactions_source_documents_gin'"))
+    reloptions = {r[0]: set(r[1]) for r in (await db.execute(text("SELECT c.relname, coalesce(c.reloptions, ARRAY[]::text[]) FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = ANY(:tables)"), {"tables": list(TENANT_ANALYZE_TABLES)})).all()}
+    assert index_def is not None and "USING gin" in index_def and "jsonb_path_ops" in index_def and set(reloptions) == set(TENANT_ANALYZE_TABLES)
+    assert all({"autovacuum_analyze_scale_factor=0.02", "autovacuum_analyze_threshold=50"} <= opts for opts in reloptions.values())
+
+    spy_runner = AsyncMock()
+    for name, val in (("analyze_tenant_tables", spy_runner), ("_refresh_task", None), ("_refresh_requested", False)):
+        monkeypatch.setattr(statement_workflow, name, val)
+    monkeypatch.setattr(settings, "environment", "testing")
+    request_tenant_statistics_refresh(AsyncMock())
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    sqlite_session = AsyncMock()
+    sqlite_session.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+    sqlite_session.get_bind.return_value.dialect.name = "sqlite"
+    request_tenant_statistics_refresh(sqlite_session)
+    assert statement_workflow._refresh_task is None
+    spy_runner.assert_not_awaited()
+
+    pg_session, pg_maker = AsyncMock(), MagicMock()
+    pg_maker.return_value.__aenter__.return_value = pg_session
+    await analyze_tenant_tables(pg_maker)
+    pg_session.commit.assert_awaited_once()
+    executed_sql = [str(call.args[0]) for call in pg_session.execute.await_args_list]
+    spec = spec_from_file_location("migration_0073", Path(__file__).resolve().parents[2] / "migrations" / "versions" / "0073_statement_filter_gin_and_trace_trigger_perf.py")
+    assert spec is not None and spec.loader is not None
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert len(executed_sql) == 3 and executed_sql[-1] == f"ANALYZE {', '.join(TENANT_ANALYZE_TABLES)}" and module.AUTOVACUUM_TUNED_TABLES == TENANT_ANALYZE_TABLES
+
+
+@pytest.mark.parametrize(("with_statement", "include_pending_stage1"), [(False, True), (True, True), (True, False)], ids=["global", "scoped", "scoped-approved-only"])
+def test_filter_ctes_keep_their_name_owner_alive(with_statement, include_pending_stage1):
+    ctes = list({id(el): el for el in iterate(effective_statement_transaction_filter(uuid4(), uuid4() if with_statement else None, include_pending_stage1=include_pending_stage1)) if isinstance(el, CTE)}.values())
+    assert len(ctes) == 3 and len({str(c.name) for c in ctes}) == 3
+    assert all((m := _ANONYMOUS_CTE_NAME.fullmatch(str(c.name))) is not None and int(m.group(1)) in {id(c), id(getattr(c, "_anonymous_name_owner", c))} for c in ctes)
+
+
+def test_two_filter_instances_compile_in_one_query():
+    uid = uuid4()
+    stmt = select(AtomicTransaction.id).where(effective_statement_transaction_filter(uid), AtomicTransaction.id.in_(select(AtomicTransaction.id).where(effective_statement_transaction_filter(uid, uuid4()))))
+    cte_names = re.findall(r"(anon_\d+) AS\s+(?:MATERIALIZED\s+)?\(SELECT", str(stmt.compile(dialect=postgresql.dialect())))
+    assert len(cte_names) == len(set(cte_names)) == 6

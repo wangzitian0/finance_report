@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import asyncio
 import hashlib
 import subprocess
@@ -8,8 +9,10 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
+
 import pytest
 from sqlalchemy import select
+
 from src import statement_flow
 from src.audit import SqlTraceRecordRepository, TraceEmitter
 from src.audit.orm.trace_record import TraceRecordRow
@@ -44,57 +47,93 @@ from src.ledger import JournalEntry, JournalEntryStatus
 from tests.factories import StatementSummaryFactory
 from tests.statement_ingestion import classify_statement_rows, run_for
 
-
-async def _no_sleep(_delay):
-    return None
-
-
-async def _no_transfers(_db, _txn_ids):
-    return set()
-
-
-def test_statement_disposition_mode_is_resolved_once_at_composition(monkeypatch):
-    monkeypatch.setattr(settings, "statement_disposition_mode", "observe")
-    dependencies = compose_statement_posting_dependencies()
-    assert dependencies.disposition_mode is DispositionMode.OBSERVE
+_async_val = lambda val: (lambda *_a, **_kw: asyncio.sleep(0, result=val))
 
 
 async def _fx_rate(_db, _base, _quote, _date, *, lazy_load=False):
     raise AssertionError("base-currency test must not request FX")
 
 
-async def _content_loader(_storage_key: str) -> bytes:
-    return b"stored-content"
+def _posting_dependencies() -> StatementPostingDependencies:
+    return StatementPostingDependencies(
+        transfer_exclusions=_async_val(set()),
+        fx_rate_provider=_fx_rate,
+        fx_rate_error=RuntimeError,
+        trace_emitter_factory=compose_financial_trace_emitter,
+        disposition_mode=DispositionMode.ENFORCE,
+        base_currency_resolver=_async_val("SGD"),
+    )
 
 
-async def _brokerage_router(**_kwargs) -> None:
-    return None
+def _job(*, statement_id=None, user_id=None, file_hash: str = "statement-ingestion-ac", run_id=None) -> ParseJob:
+    return ParseJob(
+        statement_id=statement_id or uuid4(),
+        run_id=run_id or uuid4(),
+        filename="statement.pdf",
+        institution="DBS",
+        user_id=user_id or uuid4(),
+        account_id=None,
+        file_hash=file_hash,
+        storage_key="uploads/statement.pdf",
+        model=None,
+        request_id="req-1913",
+    )
 
 
-async def _resolve_sgd(_db, _user_id) -> str:
-    return "SGD"
+def _make_use_case(
+    db, service, *, content_loader=_async_val(b"stored-content"), trace_emitter_factory=lambda _db: None
+):
+    return StatementIngestionUseCase(
+        session_maker=create_session_maker_from_db(db),
+        content_loader=content_loader,
+        extraction_service_factory=lambda: service,
+        posting_dependencies=_posting_dependencies(),
+        brokerage_router=_async_val(None),
+        trace_emitter_factory=trace_emitter_factory,
+        clock=lambda: 0.0,
+        sleep=_async_val(None),
+    )
 
 
-_posting_dependencies = lambda: StatementPostingDependencies(
-    transfer_exclusions=_no_transfers,
-    fx_rate_provider=_fx_rate,
-    fx_rate_error=RuntimeError,
-    trace_emitter_factory=compose_financial_trace_emitter,
-    disposition_mode=DispositionMode.ENFORCE,
-    base_currency_resolver=_resolve_sgd,
-)
-_job = lambda *, statement_id=None, user_id=None, file_hash="statement-ingestion-ac", run_id=None: ParseJob(
-    statement_id=statement_id or uuid4(),
-    run_id=run_id or uuid4(),
-    filename="statement.pdf",
-    institution="DBS",
-    user_id=user_id or uuid4(),
-    account_id=None,
-    file_hash=file_hash,
-    storage_key="uploads/statement.pdf",
-    model=None,
-    request_id="req-1913",
-)
+def _interest_service(last4: str, month: str) -> ExtractionService:
+    svc = ExtractionService()
+    svc.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "DBS",
+            "account_last4": last4,
+            "currency": "SGD",
+            "period_start": f"{month}-01",
+            "period_end": f"{month}-30",
+            "opening_balance": "100.00",
+            "closing_balance": "110.00",
+            "transactions": [
+                {
+                    "date": f"{month}-15",
+                    "description": "Interest",
+                    "amount": "10.00",
+                    "direction": "IN",
+                    "currency": "SGD",
+                    "balance_after": "110.00",
+                }
+            ],
+        }
+    )
+    return svc
+
+
+def test_statement_disposition_mode_and_composition_guards(monkeypatch):
+    monkeypatch.setattr(settings, "statement_disposition_mode", "observe")
+    assert compose_statement_posting_dependencies().disposition_mode is DispositionMode.OBSERVE
+    with pytest.raises(StatementIngestionConfigurationError, match="content_loader"):
+        StatementIngestionUseCase(
+            session_maker=object(),
+            content_loader=None,
+            extraction_service_factory=ExtractionService,
+            posting_dependencies=_posting_dependencies(),
+            brokerage_router=_async_val(None),
+            trace_emitter_factory=lambda _db: None,
+            clock=lambda: 0.0,
+        )
 
 
 async def test_AC_extraction_1913_4_api_and_prefect_use_same_composed_use_case(monkeypatch):
@@ -119,19 +158,6 @@ async def test_AC_extraction_1913_4_api_and_prefect_use_same_composed_use_case(m
     assert calls == [(job, b"api-content"), (job, None)]
 
 
-def test_AC_extraction_1913_5_incomplete_composition_fails_before_job():
-    with pytest.raises(StatementIngestionConfigurationError, match="content_loader"):
-        StatementIngestionUseCase(
-            session_maker=object(),
-            content_loader=None,
-            extraction_service_factory=ExtractionService,
-            posting_dependencies=_posting_dependencies(),
-            brokerage_router=_brokerage_router,
-            trace_emitter_factory=lambda _db: None,
-            clock=lambda: 0.0,
-        )
-
-
 async def test_AC_extraction_1913_6_application_error_does_not_reject_source(db, test_user):
     statement = StatementSummaryFactory.build(
         id=uuid4(),
@@ -144,60 +170,30 @@ async def test_AC_extraction_1913_6_application_error_does_not_reject_source(db,
     await db.commit()
     service = ExtractionService()
     service.parse_document = AsyncMock(side_effect=RuntimeError("composition unavailable"))
-    use_case = StatementIngestionUseCase(
-        session_maker=create_session_maker_from_db(db),
-        content_loader=_content_loader,
-        extraction_service_factory=lambda: service,
-        posting_dependencies=_posting_dependencies(),
-        brokerage_router=_brokerage_router,
-        trace_emitter_factory=lambda _db: None,
-        clock=lambda: 0.0,
-        sleep=_no_sleep,
-    )
     with pytest.raises(RetryableStatementIngestionError, match="composition unavailable"):
-        await use_case.execute(
+        await _make_use_case(db, service).execute(
             _job(statement_id=statement.id, user_id=test_user.id, run_id=await run_for(db, statement.id)),
             content=b"content",
         )
     await db.refresh(statement)
-    assert statement.status == BankStatementStatus.PARSING
-    assert statement.validation_error is None
+    assert (statement.status, statement.validation_error) == (BankStatementStatus.PARSING, None)
 
 
 def test_AC_extraction_1913_7_fresh_worker_composes_without_main():
-    backend_root = Path(__file__).resolve().parents[2]
-    script = "\nimport sys\nfrom src.composition import compose_statement_ingestion_use_case\ncase = compose_statement_ingestion_use_case()\nassert case.posting_dependencies.transfer_exclusions is not None\nassert case.posting_dependencies.fx_rate_provider is not None\nassert 'src.main' not in sys.modules\n"
+    script = "import sys\nfrom src.composition import compose_statement_ingestion_use_case\ncase = compose_statement_ingestion_use_case()\nassert case.posting_dependencies.transfer_exclusions is not None and case.posting_dependencies.fx_rate_provider is not None and 'src.main' not in sys.modules\n"
     result = subprocess.run(
-        [sys.executable, "-c", script], cwd=backend_root, capture_output=True, text=True, check=False
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
 
 
 async def test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects(db, test_user, monkeypatch):
-    service = ExtractionService()
-    service.extract_financial_data = AsyncMock(
-        return_value={
-            "institution": "DBS",
-            "account_last4": "1913",
-            "currency": "SGD",
-            "period_start": "2026-06-01",
-            "period_end": "2026-06-30",
-            "opening_balance": "100.00",
-            "closing_balance": "110.00",
-            "transactions": [
-                {
-                    "date": "2026-06-15",
-                    "description": "Interest",
-                    "amount": "10.00",
-                    "direction": "IN",
-                    "currency": "SGD",
-                    "balance_after": "110.00",
-                }
-            ],
-        }
-    )
     content = b"%PDF-1.7"
-    await service.parse_document(
+    await _interest_service("1913", "2026-06").parse_document(
         DocumentSource.resolve(
             path=Path("retry-idempotent.pdf"),
             content=content,
@@ -212,21 +208,25 @@ async def test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects(d
     statement = (
         await db.execute(select(StatementSummary).where(StatementSummary.user_id == test_user.id))
     ).scalar_one()
-
-    async def propose_income(transactions, _policy):
-        return [
-            CategoryProposal(
-                category=TransactionCategory.INTEREST.value, confidence=95, reason="deterministic idempotency fixture"
-            )
-            for _transaction in transactions
-        ]
-
     monkeypatch.setattr("src.config.settings.enable_ai_classification", True)
-    monkeypatch.setattr("src.extraction.extension.transaction_classification.propose_categories", propose_income)
-    dependencies = _posting_dependencies()
+    monkeypatch.setattr(
+        "src.extraction.extension.transaction_classification.propose_categories",
+        lambda txns, _p: asyncio.sleep(
+            0,
+            result=[
+                CategoryProposal(
+                    category=TransactionCategory.INTEREST.value,
+                    confidence=95,
+                    reason="deterministic idempotency fixture",
+                )
+                for _ in txns
+            ],
+        ),
+    )
+    deps = _posting_dependencies()
     await classify_statement_rows(db, statement)
-    first = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id, dependencies=dependencies)
-    second = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id, dependencies=dependencies)
+    first = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id, dependencies=deps)
+    second = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id, dependencies=deps)
     entries = list(
         (
             await db.execute(
@@ -238,9 +238,7 @@ async def test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects(d
             )
         ).scalars()
     )
-    assert first == 1
-    assert second == 0
-    assert len(entries) == 1
+    assert (first, second, len(entries)) == (1, 0, 1)
 
 
 async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db, test_user):
@@ -249,59 +247,6 @@ async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db
     statement = StatementSummaryFactory.build(
         id=uuid4(), user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution="DBS"
     )
-    db.add(statement)
-    await db.commit()
-    service = ExtractionService()
-    service.extract_financial_data = AsyncMock(
-        return_value={
-            "institution": "DBS",
-            "account_last4": "1914",
-            "currency": "SGD",
-            "period_start": "2026-07-01",
-            "period_end": "2026-07-31",
-            "opening_balance": "100.00",
-            "closing_balance": "110.00",
-            "transactions": [
-                {
-                    "date": "2026-07-15",
-                    "description": "Interest",
-                    "amount": "10.00",
-                    "direction": "IN",
-                    "currency": "SGD",
-                    "balance_after": "110.00",
-                }
-            ],
-        }
-    )
-    use_case = StatementIngestionUseCase(
-        session_maker=create_session_maker_from_db(db),
-        content_loader=_content_loader,
-        extraction_service_factory=lambda: service,
-        posting_dependencies=_posting_dependencies(),
-        brokerage_router=_brokerage_router,
-        trace_emitter_factory=lambda session: TraceEmitter(
-            SqlTraceRecordRepository(session, extraction_trace_policy_registry())
-        ),
-        clock=lambda: 0.0,
-        sleep=_no_sleep,
-    )
-    tenant_trace_rows = (
-        select(TraceRecordRow)
-        .where(TraceRecordRow.scope_id == str(test_user.id))
-        .where(TraceRecordRow.target_kind != "statement_run")
-    )
-    before = len((await db.execute(tenant_trace_rows)).scalars().all())
-    outcome = await use_case.execute(
-        _job(
-            statement_id=statement.id, user_id=test_user.id, file_hash=file_hash, run_id=await run_for(db, statement.id)
-        ),
-        content=content,
-    )
-    assert outcome.status.value == "completed"
-    assert len((await db.execute(tenant_trace_rows)).scalars().all()) == before + 8
-    await db.refresh(statement)
-    assert statement.status is BankStatementStatus.PARSED
-    assert statement.validation_error == "Economic review required: intent_missing"
     second_statement = StatementSummaryFactory.build(
         id=uuid4(),
         user_id=test_user.id,
@@ -309,23 +254,37 @@ async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db
         file_hash=hashlib.sha256(b"trace-failure").hexdigest(),
         institution="DBS",
     )
-    db.add(second_statement)
+    db.add_all([statement, second_statement])
     await db.commit()
+    service = _interest_service("1914", "2026-07")
+    use_case = _make_use_case(
+        db,
+        service,
+        trace_emitter_factory=lambda s: TraceEmitter(SqlTraceRecordRepository(s, extraction_trace_policy_registry())),
+    )
+    tenant_rows_q = select(TraceRecordRow).where(
+        TraceRecordRow.scope_id == str(test_user.id), TraceRecordRow.target_kind != "statement_run"
+    )
+    before = len((await db.execute(tenant_rows_q)).scalars().all())
+    outcome = await use_case.execute(
+        _job(
+            statement_id=statement.id, user_id=test_user.id, file_hash=file_hash, run_id=await run_for(db, statement.id)
+        ),
+        content=content,
+    )
+    await db.refresh(statement)
+    assert (
+        outcome.status.value,
+        len((await db.execute(tenant_rows_q)).scalars().all()),
+        statement.status,
+        statement.validation_error,
+    ) == ("completed", before + 8, BankStatementStatus.PARSED, "Economic review required: intent_missing")
 
     class FailingEmitter:
         async def emit_many(self, _records):
             raise RuntimeError("trace repository unavailable")
 
-    failing = StatementIngestionUseCase(
-        session_maker=create_session_maker_from_db(db),
-        content_loader=_content_loader,
-        extraction_service_factory=lambda: service,
-        posting_dependencies=_posting_dependencies(),
-        brokerage_router=_brokerage_router,
-        trace_emitter_factory=lambda _session: FailingEmitter(),
-        clock=lambda: 0.0,
-        sleep=_no_sleep,
-    )
+    failing = _make_use_case(db, service, trace_emitter_factory=lambda _s: FailingEmitter())
     with pytest.raises(RetryableStatementIngestionError, match="trace repository unavailable"):
         await failing.execute(
             _job(
@@ -337,12 +296,14 @@ async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db
             content=b"trace-failure",
         )
     await db.refresh(second_statement)
-    assert second_statement.status is BankStatementStatus.PARSING
-    assert len((await db.execute(tenant_trace_rows)).scalars().all()) == before + 8
+    assert (second_statement.status, len((await db.execute(tenant_rows_q)).scalars().all())) == (
+        BankStatementStatus.PARSING,
+        before + 8,
+    )
 
 
 async def test_AC_extraction_ingestion_trace_2_retries_are_idempotent_and_changes_supersede(db, test_user):
-    transaction = StatementTransaction(
+    txn = StatementTransaction(
         transaction_id=uuid4(),
         transaction_date=date(2026, 7, 1),
         amount=Decimal("10.00"),
@@ -350,39 +311,36 @@ async def test_AC_extraction_ingestion_trace_2_retries_are_idempotent_and_change
         direction=TransactionDirection.IN,
         description="Recorded credit",
     )
-    counter_account_id = uuid4()
-    policy = DispositionPolicy()
-    emitter = TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry()))
-    proposal = lambda category: IntentProposal(
-        schema_version="1",
-        policy_version="intent-v1",
-        origin=IntentProposalOrigin.REVIEWED_RULE,
-        intent=EconomicIntent.INCOME,
-        category=category,
-        confidence=Decimal("0.95"),
-        evidence=("recorded-description",),
+    counter_id, policy, emitter = (
+        uuid4(),
+        DispositionPolicy(),
+        TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())),
     )
 
     async def emit(category: str):
-        intent = proposal(category)
-        decision = policy.decide(
-            transaction, proposal=intent, context=DispositionContext(counter_account_id=counter_account_id)
+        intent = IntentProposal(
+            schema_version="1",
+            policy_version="intent-v1",
+            origin=IntentProposalOrigin.REVIEWED_RULE,
+            intent=EconomicIntent.INCOME,
+            category=category,
+            confidence=Decimal("0.95"),
+            evidence=("recorded-description",),
         )
         return await emit_disposition_trace_records(
             emitter=emitter,
             user_id=test_user.id,
-            execution_id=f"statement:stable:txn:{transaction.transaction_id}",
+            execution_id=f"statement:stable:txn:{txn.transaction_id}",
             occurred_at=datetime(2026, 7, 1, tzinfo=UTC),
-            transaction=transaction,
+            transaction=txn,
             proposal=intent,
-            decision=decision,
+            decision=policy.decide(txn, proposal=intent, context=DispositionContext(counter_account_id=counter_id)),
         )
 
-    first = await emit("SALARY")
-    retry = await emit("SALARY")
-    corrected = await emit("DIVIDEND")
-    rows = list((await db.execute(select(TraceRecordRow))).scalars())
-    assert retry == first
-    assert len(rows) == 7
-    assert corrected[2].supersedes_id == first[2].record_id
-    assert corrected[3].supersedes_id == first[3].record_id
+    first, retry, corrected = await emit("SALARY"), await emit("SALARY"), await emit("DIVIDEND")
+    assert (
+        retry == first,
+        len(list((await db.execute(select(TraceRecordRow))).scalars())),
+        corrected[2].supersedes_id,
+        corrected[3].supersedes_id,
+    ) == (True, 7, first[2].record_id, first[3].record_id)

@@ -1,18 +1,150 @@
-from datetime import date; from decimal import Decimal; from unittest.mock import patch; from sqlalchemy import select; from src.extraction import RuleType, TransactionDirection; from src.extraction.extension.classification import ClassificationService; from src.extraction.orm.layer2 import AtomicTransaction; from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification; from src.ledger import Account, AccountType; from tests.factories import AtomicTransactionFactory
-class TestClassificationService:
-    async def test_apply_keyword_rule(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Groceries', type=AccountType.EXPENSE, currency='SGD', code='6000'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Grocery Rule', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': ['fairprice', 'shengsiong']}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn1 = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('50.00'), direction=TransactionDirection.OUT, description='NTUC FAIRPRICE', currency='SGD', dedup_hash='hash1', source_documents=[]); txn2 = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.00'), direction=TransactionDirection.OUT, description='Unknown Merchant', currency='SGD', dedup_hash='hash2', source_documents=[]); db.add_all([txn1, txn2]); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn1, txn2]); assert len(results) == 1; assert results[0].atomic_txn_id == txn1.id; assert results[0].account_id == account.id; assert results[0].rule_version_id == rule.id
-    async def test_apply_regex_rule_basic_match(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Transport', type=AccountType.EXPENSE, currency='SGD', code='6100'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Grab Transport Rule', rule_type=RuleType.REGEX_MATCH, rule_config={'pattern': '^GRAB\\s+\\w+'}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn_match = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('15.00'), direction=TransactionDirection.OUT, description='GRAB RIDE payment', currency='SGD', dedup_hash='hash_regex1', source_documents=[]); txn_no_match = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('25.00'), direction=TransactionDirection.OUT, description='GOJEK RIDE payment', currency='SGD', dedup_hash='hash_regex2', source_documents=[]); db.add_all([txn_match, txn_no_match]); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn_match, txn_no_match]); assert len(results) == 1; assert results[0].atomic_txn_id == txn_match.id; assert results[0].account_id == account.id
-    async def test_apply_regex_rule_empty_pattern(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Misc', type=AccountType.EXPENSE, currency='SGD', code='6200'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Empty Pattern Rule', rule_type=RuleType.REGEX_MATCH, rule_config={'pattern': ''}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('50.00'), direction=TransactionDirection.OUT, description='Some Transaction', currency='SGD', dedup_hash='hash_empty', source_documents=[]); db.add(txn); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 0
-    async def test_apply_regex_rule_case_insensitive(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Dining', type=AccountType.EXPENSE, currency='SGD', code='6300'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Restaurant Rule', rule_type=RuleType.REGEX_MATCH, rule_config={'pattern': 'restaurant', 'case_insensitive': True}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn_upper = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('30.00'), direction=TransactionDirection.OUT, description='RESTAURANT XYZ', currency='SGD', dedup_hash='hash_case1', source_documents=[]); txn_lower = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('40.00'), direction=TransactionDirection.OUT, description='the restaurant abc', currency='SGD', dedup_hash='hash_case2', source_documents=[]); db.add_all([txn_upper, txn_lower]); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn_upper, txn_lower]); assert len(results) == 2
-    async def test_apply_regex_rule_case_sensitive(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Shopping', type=AccountType.EXPENSE, currency='SGD', code='6400'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Case Sensitive Rule', rule_type=RuleType.REGEX_MATCH, rule_config={'pattern': 'AMAZON', 'case_insensitive': False}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn_upper = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.00'), direction=TransactionDirection.OUT, description='AMAZON Purchase', currency='SGD', dedup_hash='hash_sens1', source_documents=[]); txn_lower = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('50.00'), direction=TransactionDirection.OUT, description='amazon purchase', currency='SGD', dedup_hash='hash_sens2', source_documents=[]); db.add_all([txn_upper, txn_lower]); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn_upper, txn_lower]); assert len(results) == 1; assert results[0].atomic_txn_id == txn_upper.id
-    async def test_apply_regex_rule_invalid_pattern(self, db, test_user):
-        service = ClassificationService(); account = Account(user_id=test_user.id, name='Invalid Test', type=AccountType.EXPENSE, currency='SGD', code='6500'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Invalid Regex Rule', rule_type=RuleType.REGEX_MATCH, rule_config={'pattern': '(unclosed[group'}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('75.00'), direction=TransactionDirection.OUT, description='Some Transaction', currency='SGD', dedup_hash='hash_invalid', source_documents=[]); db.add(txn); await db.flush()
-        with patch('src.extraction.extension.classification.logger') as mock_logger: results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 0; mock_logger.warning.assert_called_once(); call_args = mock_logger.warning.call_args[0][0]; assert 'Invalid regex pattern' in call_args
-    async def test_apply_regex_rule_missing_pattern_key(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Missing Key Test', type=AccountType.EXPENSE, currency='SGD', code='6600'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='No Pattern Rule', rule_type=RuleType.REGEX_MATCH, rule_config={}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('60.00'), direction=TransactionDirection.OUT, description='Some Transaction', currency='SGD', dedup_hash='hash_nokey', source_documents=[]); db.add(txn); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 0
-    async def test_apply_keyword_rule_empty_keywords(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Empty Keywords Test', type=AccountType.EXPENSE, currency='SGD', code='6700'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Empty Keywords Rule', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': []}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('50.00'), direction=TransactionDirection.OUT, description='NTUC FAIRPRICE', currency='SGD', dedup_hash='hash_empty_kw', source_documents=[]); db.add(txn); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 0
-    async def test_apply_no_active_rules(self, db, test_user): service = ClassificationService(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('50.00'), direction=TransactionDirection.OUT, description='Some Transaction', currency='SGD', dedup_hash='hash_no_rules', source_documents=[]); db.add(txn); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 0
-    async def test_apply_no_matching_keywords(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='No Match Test', type=AccountType.EXPENSE, currency='SGD', code='6800'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Non-matching Rule', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': ['NONEXISTENT_KEYWORD_ZZZ']}, default_account_id=account.id, created_by=test_user.id); db.add(rule); await db.flush(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('50.00'), direction=TransactionDirection.OUT, description='Some Transaction UNKNOWN', currency='SGD', dedup_hash='hash_unknown', source_documents=[]); db.add(txn); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 0
-    async def test_classification_priority_keyword_over_regex(self, db, test_user): service = ClassificationService(); keyword_account = Account(user_id=test_user.id, name='Keyword Account', type=AccountType.EXPENSE, currency='SGD', code='6812'); regex_account = Account(user_id=test_user.id, name='Regex Account', type=AccountType.EXPENSE, currency='SGD', code='6813'); db.add_all([keyword_account, regex_account]); await db.flush(); keyword_rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Keyword Priority', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': ['food']}, default_account_id=keyword_account.id, created_by=test_user.id); regex_rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Regex Priority', rule_type=RuleType.REGEX_MATCH, rule_config={'pattern': 'food'}, default_account_id=regex_account.id, created_by=test_user.id); db.add_all([keyword_rule, regex_rule]); await db.flush(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('30.00'), direction=TransactionDirection.OUT, description='food delivery', currency='SGD', dedup_hash='hash_priority', source_documents=[{'category_confidence': '0.95', 'suggested_category': 'Food & Dining'}]); db.add(txn); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 1; assert results[0].account_id == keyword_account.id
-    async def test_same_type_rules_prefer_newer_version(self, db, test_user): service = ClassificationService(); old_account = Account(user_id=test_user.id, name='Old Grocery Account', type=AccountType.EXPENSE, currency='SGD', code='6817'); new_account = Account(user_id=test_user.id, name='New Grocery Account', type=AccountType.EXPENSE, currency='SGD', code='6818'); db.add_all([old_account, new_account]); await db.flush(); old_rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Grocery Rule', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': ['grocery']}, default_account_id=old_account.id, created_by=test_user.id); new_rule = ClassificationRule(user_id=test_user.id, version_number=2, effective_date=date(2024, 2, 1), rule_name='Grocery Rule', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': ['grocery']}, default_account_id=new_account.id, created_by=test_user.id); db.add_all([old_rule, new_rule]); await db.flush(); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 2, 15), amount=Decimal('42.00'), direction=TransactionDirection.OUT, description='Grocery store', currency='SGD', dedup_hash='hash_same_type_newer_version', source_documents=[]); db.add(txn); await db.flush(); results = await service.apply_rules(db, test_user.id, [txn]); assert len(results) == 1; assert results[0].rule_version_id == new_rule.id; assert results[0].account_id == new_account.id
-    async def test_apply_rules_is_idempotent_for_existing_transaction_rule_version(self, db, test_user): service = ClassificationService(); account = Account(user_id=test_user.id, name='Idempotent Classification Account', type=AccountType.EXPENSE, currency='SGD', code='6819'); db.add(account); await db.flush(); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='Idempotent Keyword Rule', rule_type=RuleType.KEYWORD_MATCH, rule_config={'keywords': ['subscription']}, default_account_id=account.id, created_by=test_user.id); txn = AtomicTransaction(user_id=test_user.id, txn_date=date(2024, 3, 15), amount=Decimal('19.99'), direction=TransactionDirection.OUT, description='Software subscription', currency='SGD', dedup_hash='hash_classification_idempotency', source_documents=[]); db.add_all([rule, txn]); await db.flush(); first_results = await service.apply_rules(db, test_user.id, [txn]); second_results = await service.apply_rules(db, test_user.id, [txn]); assert len(first_results) == 1; assert len(second_results) == 1; assert second_results[0].id == first_results[0].id; classification_result = await db.execute(select(TransactionClassification).where(TransactionClassification.atomic_txn_id == txn.id).where(TransactionClassification.rule_version_id == rule.id)); classifications = classification_result.scalars().all(); assert len(classifications) == 1
-async def test_AC18_1_3_ml_rule_matching_is_retired(db, test_user): service = ClassificationService(); assert not hasattr(service, '_extract_ai_signals'); rule = ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name='legacy-ml-rule', rule_type=RuleType.ML_MODEL, rule_config={'source': 'extraction_ai', 'confidence_threshold': '0.1'}, created_by=test_user.id); db.add(rule); await db.flush(); txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description='anything'); assert await service.apply_rules(db, test_user.id, [txn]) == []
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from unittest.mock import patch
+
+import pytest
+from sqlalchemy import select
+
+from src.composition import _get_or_create_default_counter_account
+from src.extraction import RuleType, TransactionDirection
+from src.extraction.extension.classification import ClassificationService
+from src.extraction.extension.review_queue import get_or_create_account
+from src.extraction.extension.transaction_classification import (
+    ClassificationPolicy,
+    TransactionCategory,
+    _ensure_policy_rule,
+)
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
+from src.ledger import AccountType
+from tests.extraction._statement_run_helpers import make_account
+from tests.factories import AtomicTransactionFactory
+
+
+async def _add_rule(
+    db,
+    user_id,
+    *,
+    name: str,
+    rule_type: RuleType,
+    config: dict,
+    account_id,
+    version: int = 1,
+    effective: date = date(2024, 1, 1),
+) -> ClassificationRule:
+    rule = ClassificationRule(
+        user_id=user_id,
+        version_number=version,
+        effective_date=effective,
+        rule_name=name,
+        rule_type=rule_type,
+        rule_config=config,
+        default_account_id=account_id,
+        created_by=user_id,
+    )
+    db.add(rule)
+    await db.flush()
+    return rule
+
+
+async def _add_txn(db, user_id, description: str, dedup_hash: str, *, amount: str = "50.00", source_docs=None):
+    txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2024, 1, 15),
+        amount=Decimal(amount),
+        direction=TransactionDirection.OUT,
+        description=description,
+        currency="SGD",
+        dedup_hash=dedup_hash,
+        source_documents=source_docs or [],
+    )
+    db.add(txn)
+    await db.flush()
+    return txn
+
+
+@pytest.mark.parametrize(
+    ("rule_type", "config", "descriptions", "matched_indices"),
+    [
+        (RuleType.KEYWORD_MATCH, {"keywords": ["fairprice", "shengsiong"]}, ["NTUC FAIRPRICE", "Unknown Merchant"], [0]),
+        (RuleType.REGEX_MATCH, {"pattern": r"^GRAB\s+\w+"}, ["GRAB RIDE payment", "GOJEK RIDE payment"], [0]),
+        (RuleType.REGEX_MATCH, {"pattern": ""}, ["Some Transaction"], []),
+        (RuleType.REGEX_MATCH, {"pattern": "restaurant", "case_insensitive": True}, ["RESTAURANT XYZ", "the restaurant abc"], [0, 1]),
+        (RuleType.REGEX_MATCH, {"pattern": "AMAZON", "case_insensitive": False}, ["AMAZON Purchase", "amazon purchase"], [0]),
+        (RuleType.REGEX_MATCH, {}, ["Some Transaction"], []),
+        (RuleType.KEYWORD_MATCH, {"keywords": []}, ["NTUC FAIRPRICE"], []),
+        (RuleType.KEYWORD_MATCH, {"keywords": ["NONEXISTENT_KEYWORD_ZZZ"]}, ["Some Transaction UNKNOWN"], []),
+    ],
+)
+async def test_apply_rules_matching_variants(db, test_user, rule_type, config, descriptions, matched_indices):
+    account = await make_account(db, test_user.id, "Category", AccountType.EXPENSE, code="6000")
+    rule = await _add_rule(db, test_user.id, name="Rule", rule_type=rule_type, config=config, account_id=account.id)
+    txns = [await _add_txn(db, test_user.id, desc, f"h-{i}") for i, desc in enumerate(descriptions)]
+    results = await ClassificationService().apply_rules(db, test_user.id, txns)
+    assert [(r.atomic_txn_id, r.account_id, r.rule_version_id) for r in results] == [
+        (txns[i].id, account.id, rule.id) for i in matched_indices
+    ]
+
+
+async def test_apply_rules_edge_cases_and_priority(db, test_user):
+    service = ClassificationService()
+    txn_none = await _add_txn(db, test_user.id, "No rules txn", "h-none")
+    assert await service.apply_rules(db, test_user.id, [txn_none]) == []
+
+    bad_acct = await make_account(db, test_user.id, "Invalid", AccountType.EXPENSE, code="6500")
+    await _add_rule(db, test_user.id, name="Invalid", rule_type=RuleType.REGEX_MATCH, config={"pattern": "(unclosed[group"}, account_id=bad_acct.id)
+    with patch("src.extraction.extension.classification.logger") as mock_logger:
+        assert await service.apply_rules(db, test_user.id, [txn_none]) == []
+        assert "Invalid regex pattern" in mock_logger.warning.call_args[0][0]
+
+    kw_acct = await make_account(db, test_user.id, "Keyword", AccountType.EXPENSE, code="6812")
+    rx_acct = await make_account(db, test_user.id, "Regex", AccountType.EXPENSE, code="6813")
+    await _add_rule(db, test_user.id, name="KW", rule_type=RuleType.KEYWORD_MATCH, config={"keywords": ["food"]}, account_id=kw_acct.id)
+    await _add_rule(db, test_user.id, name="RX", rule_type=RuleType.REGEX_MATCH, config={"pattern": "food"}, account_id=rx_acct.id)
+    txn_prio = await _add_txn(db, test_user.id, "food delivery", "h-prio", source_docs=[{"category_confidence": "0.95"}])
+    res_prio = await service.apply_rules(db, test_user.id, [txn_prio])
+    assert len(res_prio) == 1 and res_prio[0].account_id == kw_acct.id
+
+    old_acct = await make_account(db, test_user.id, "Old", AccountType.EXPENSE, code="6817")
+    new_acct = await make_account(db, test_user.id, "New", AccountType.EXPENSE, code="6818")
+    await _add_rule(db, test_user.id, name="Grocery", rule_type=RuleType.KEYWORD_MATCH, config={"keywords": ["grocery"]}, account_id=old_acct.id, version=1)
+    new_rule = await _add_rule(db, test_user.id, name="Grocery", rule_type=RuleType.KEYWORD_MATCH, config={"keywords": ["grocery"]}, account_id=new_acct.id, version=2, effective=date(2024, 2, 1))
+    txn_ver = await _add_txn(db, test_user.id, "Grocery store", "h-ver")
+    res_ver = await service.apply_rules(db, test_user.id, [txn_ver])
+    assert (len(res_ver), res_ver[0].rule_version_id, res_ver[0].account_id) == (1, new_rule.id, new_acct.id)
+
+    first = await service.apply_rules(db, test_user.id, [txn_ver])
+    second = await service.apply_rules(db, test_user.id, [txn_ver])
+    stored = (await db.execute(select(TransactionClassification).where(TransactionClassification.atomic_txn_id == txn_ver.id, TransactionClassification.rule_version_id == new_rule.id))).scalars().all()
+    assert (len(first), len(second), second[0].id, len(stored)) == (1, 1, first[0].id, 1)
+
+
+async def test_AC18_1_3_ml_rule_matching_is_retired(db, test_user):
+    service = ClassificationService()
+    assert not hasattr(service, "_extract_ai_signals")
+    db.add(ClassificationRule(user_id=test_user.id, version_number=1, effective_date=date(2024, 1, 1), rule_name="legacy-ml", rule_type=RuleType.ML_MODEL, rule_config={"source": "extraction_ai"}, created_by=test_user.id))
+    await db.flush()
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="anything")
+    assert await service.apply_rules(db, test_user.id, [txn]) == []
+
+
+@pytest.mark.parametrize("kind", ["account", "policy_rule", "default_counter"])
+async def test_session_caches_memoize_without_re_querying(db, test_user, kind):
+    if kind == "account":
+        first = await get_or_create_account(db, name="Test Category Account", account_type=AccountType.EXPENSE, currency="SGD", user_id=test_user.id)
+        assert (test_user.id, "Test Category Account", AccountType.EXPENSE, "SGD") in db.info.get("_default_account_cache", {})
+        call = lambda: get_or_create_account(db, name="Test Category Account", account_type=AccountType.EXPENSE, currency="SGD", user_id=test_user.id)
+    elif kind == "policy_rule":
+        policy = ClassificationPolicy(version=999, model_version="test-model-v1", catalog=(TransactionCategory.DINING, TransactionCategory.TRANSPORT), auto_apply_threshold=90, review_threshold=70, effective_from="2026-01-01")
+        first = await _ensure_policy_rule(db, test_user.id, policy)
+        assert (test_user.id, policy.version) in db.info.get("_policy_rule_cache", {})
+        call = lambda: _ensure_policy_rule(db, test_user.id, policy)
+    else:
+        first = await _get_or_create_default_counter_account(db, test_user.id, AccountType.INCOME, "USD")
+        assert (test_user.id, "General Income (USD)", AccountType.INCOME, "USD") in db.info.get("_default_account_cache", {})
+        call = lambda: _get_or_create_default_counter_account(db, test_user.id, AccountType.INCOME, "USD")
+    assert first is not None
+    with patch.object(db, "execute", side_effect=RuntimeError("database query attempted")):
+        assert await call() is first

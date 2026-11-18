@@ -1,13 +1,30 @@
-from __future__ import annotations; import pytest; from cryptography.fernet import Fernet; from src.config import settings; from src.llm.base import FernetCipher, LLMConfigError, build_cipher; _key = lambda: Fernet.generate_key().decode('ascii')
-def test_AC23_1_2_round_trips_a_provider_secret_without_storing_plaintext(): cipher = FernetCipher([_key()]); secret = 'sk-super-secret-provider-key'; sealed = cipher.encrypt(secret); assert sealed.ciphertext != secret; assert secret not in sealed.ciphertext; assert sealed.key_version == cipher.current_version; assert cipher.decrypt(sealed) == secret
-def test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts():
-    old_key, new_key = (_key(), _key()); old_cipher = FernetCipher([old_key]); sealed = old_cipher.encrypt('provider-key'); assert sealed.key_version == old_cipher.current_version; rotating = FernetCipher([new_key, old_key]); assert rotating.current_version != old_cipher.current_version; assert rotating.decrypt(sealed) == 'provider-key'; assert sealed.key_version != rotating.current_version; rotated = rotating.rotate(sealed); assert rotated.key_version == rotating.current_version; assert rotating.decrypt(rotated) == 'provider-key'; new_only = FernetCipher([new_key]); assert new_only.current_version == rotating.current_version; assert new_only.decrypt(rotated) == 'provider-key'
-    with pytest.raises(LLMConfigError): new_only.decrypt(sealed)
-    from src.llm.base import Encrypted; _m1_cipher = FernetCipher([_key()])
-    with pytest.raises(LLMConfigError): _m1_cipher.rotate(Encrypted(ciphertext='not-a-valid-token', key_version=1))
-    with pytest.raises(LLMConfigError): FernetCipher([])
-    with pytest.raises(LLMConfigError): FernetCipher(['this-is-not-a-valid-fernet-key'])
-def test_AC23_1_4_build_cipher_fails_closed_without_a_key(monkeypatch):
-    monkeypatch.setattr(settings, 'llm_encryption_key_list', [], raising=False)
-    with pytest.raises(LLMConfigError): build_cipher()
-def test_AC23_1_4_build_cipher_uses_configured_keys(monkeypatch): monkeypatch.setattr(settings, 'llm_encryption_key_list', [_key()], raising=False); cipher = build_cipher(); assert cipher.decrypt(cipher.encrypt('x')) == 'x'
+from __future__ import annotations
+
+import pytest
+from cryptography.fernet import Fernet
+
+from src.config import settings
+from src.llm.base import Encrypted, FernetCipher, LLMConfigError, build_cipher
+
+_key = lambda: Fernet.generate_key().decode("ascii")
+
+
+def test_AC23_1_cipher_round_trip_rotation_and_build(monkeypatch) -> None:
+    old_key, new_key, secret = _key(), _key(), "sk-super-secret-provider-key"
+    old_cipher, rotating, new_only = FernetCipher([old_key]), FernetCipher([new_key, old_key]), FernetCipher([new_key])
+    sealed = old_cipher.encrypt(secret)
+    rotated = rotating.rotate(sealed)
+    assert secret not in sealed.ciphertext and (sealed.key_version, old_cipher.decrypt(sealed), rotating.decrypt(sealed), rotated.key_version, rotating.decrypt(rotated), new_only.decrypt(rotated)) == (
+        old_cipher.current_version, secret, secret, rotating.current_version, secret, secret,
+    )
+    assert sealed.key_version != rotating.current_version != old_cipher.current_version
+    for fn in (lambda: new_only.decrypt(sealed), lambda: old_cipher.rotate(Encrypted(ciphertext="not-a-valid-token", key_version=1)), lambda: FernetCipher([]), lambda: FernetCipher(["this-is-not-a-valid-fernet-key"])):
+        with pytest.raises(LLMConfigError):
+            fn()
+
+    monkeypatch.setattr(settings, "llm_encryption_key_list", [], raising=False)
+    with pytest.raises(LLMConfigError):
+        build_cipher()
+    monkeypatch.setattr(settings, "llm_encryption_key_list", [_key()], raising=False)
+    cipher = build_cipher()
+    assert cipher.decrypt(cipher.encrypt("x")) == "x"

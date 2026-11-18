@@ -1,11 +1,74 @@
-from __future__ import annotations; from contextlib import asynccontextmanager; import pytest; from cryptography.fernet import Fernet; from src.config import settings; from src.llm.base import FernetCipher, ProtocolFamily, ReasoningEffort, Scene; from src.llm.extension.db_config import DbConfigSource; from src.llm.extension.env_config import EnvConfigSource; from src.llm.extension.factory import LayeredConfigSource; from src.llm.orm.config import LlmProvider, LlmSceneBinding
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from uuid import uuid4
+
+import pytest
+from cryptography.fernet import Fernet
+
+import src.llm.extension.factory as factory
+from src.config import settings
+from src.identity import User
+from src.llm.base import FernetCipher, ProtocolFamily, ReasoningEffort, Scene
+from src.llm.extension.db_config import DbConfigSource
+from src.llm.extension.env_config import EnvConfigSource
+from src.llm.extension.factory import LayeredConfigSource
+from src.llm.orm.config import LlmProvider, LlmSceneBinding
+
+
 @pytest.fixture
-def cipher() -> FernetCipher: return FernetCipher([Fernet.generate_key().decode('ascii')])
+def cipher() -> FernetCipher:
+    return FernetCipher([Fernet.generate_key().decode("ascii")])
+
+
 def _same_session_maker(session):
     @asynccontextmanager
-    async def _cm(): yield session
+    async def _cm():
+        yield session
+
     return lambda: _cm()
-async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher): from uuid import uuid4; from src.identity import User; owner = User(email=f'owner-{uuid4()}@example.com', hashed_password='x'); db.add(owner); await db.flush(); sealed = cipher.encrypt('sk-db-secret'); provider = LlmProvider(user_id=owner.id, label='zai', protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key_ciphertext=sealed.ciphertext, api_key_version=sealed.key_version, api_base='https://api.z.ai'); db.add(provider); await db.flush(); db.add(LlmSceneBinding(user_id=owner.id, scene=Scene.EXTRACTION_JSON, provider_id=provider.id, model='glm-5.1', reasoning=ReasoningEffort.MEDIUM, max_tokens=8192)); await db.flush(); source = DbConfigSource(user_id=owner.id, session_maker=_same_session_maker(db), cipher=cipher); providers = await source.list_providers(); mine = [p for p in providers if p.id == str(provider.id)]; assert len(mine) == 1; assert mine[0].api_key == 'sk-db-secret'; assert mine[0].protocol is ProtocolFamily.OPENAI_COMPATIBLE; assert mine[0].api_base == 'https://api.z.ai'; assert await source.is_configured() is True; assert await source.get_provider(str(provider.id)) is not None; binding = await source.get_binding(Scene.EXTRACTION_JSON); assert binding is not None; assert binding.model_id == f'{provider.id}/glm-5.1'; assert binding.reasoning is ReasoningEffort.MEDIUM; assert binding.max_tokens == 8192
-async def test_AC23_4_8_get_provider_is_user_scoped_no_cross_tenant_key_disclosure(db, cipher): from uuid import uuid4; from src.identity import User; user_a = User(email=f'a-{uuid4()}@example.com', hashed_password='x'); user_b = User(email=f'b-{uuid4()}@example.com', hashed_password='x'); db.add_all([user_a, user_b]); await db.flush(); sealed = cipher.encrypt('sk-user-a-secret'); provider_a = LlmProvider(user_id=user_a.id, label='a-provider', protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key_ciphertext=sealed.ciphertext, api_key_version=sealed.key_version); db.add(provider_a); await db.flush(); source_b = DbConfigSource(user_id=user_b.id, session_maker=_same_session_maker(db), cipher=cipher); assert await source_b.get_provider(str(provider_a.id)) is None; assert all((p.id != str(provider_a.id) for p in await source_b.list_providers())); source_a = DbConfigSource(user_id=user_a.id, session_maker=_same_session_maker(db), cipher=cipher); ref = await source_a.get_provider(str(provider_a.id)); assert ref is not None and ref.api_key == 'sk-user-a-secret'
-async def test_AC23_3_2_layered_uses_db_first_then_env(db, cipher, monkeypatch): monkeypatch.setattr(settings, 'ai_api_key', 'env-key', raising=False); monkeypatch.setattr(settings, 'ai_provider', 'zai', raising=False); monkeypatch.setattr(settings, 'ai_base_url', 'https://api.z.ai', raising=False); monkeypatch.setattr(settings, 'small_model', 'glm-5.1'); monkeypatch.setattr(settings, 'large_model', 'glm-5.1-large', raising=False); layered = LayeredConfigSource(DbConfigSource(session_maker=_same_session_maker(db), cipher=cipher), EnvConfigSource()); assert await layered.is_configured() is True; binding = await layered.get_binding(Scene.ADVISOR_CHAT); assert binding is not None and binding.model_id == 'glm-5.1-large'; assert any((p.id == 'env' for p in await layered.list_providers()))
-async def test_AC23_3_2_unconfigured_when_db_and_env_both_empty(db, cipher, monkeypatch): monkeypatch.setattr(settings, 'ai_api_key', '', raising=False); layered = LayeredConfigSource(DbConfigSource(session_maker=_same_session_maker(db), cipher=cipher), EnvConfigSource()); assert await layered.is_configured() is False; assert await layered.list_providers() == []
+
+
+async def _add_user_provider(db, cipher: FernetCipher, *, email: str, label: str, secret: str, api_base: str | None = None) -> tuple[User, LlmProvider]:
+    user = User(email=f"{email}-{uuid4()}@example.com", hashed_password="x")
+    db.add(user)
+    await db.flush()
+    sealed = cipher.encrypt(secret)
+    provider = LlmProvider(user_id=user.id, label=label, protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key_ciphertext=sealed.ciphertext, api_key_version=sealed.key_version, api_base=api_base)
+    db.add(provider)
+    await db.flush()
+    return (user, provider)
+
+
+async def test_AC23_3_and_4_db_config_providers_bindings_and_tenant_isolation(db, cipher) -> None:
+    owner, provider = await _add_user_provider(db, cipher, email="owner", label="zai", secret="sk-db-secret", api_base="https://api.z.ai")
+    db.add(LlmSceneBinding(user_id=owner.id, scene=Scene.EXTRACTION_JSON, provider_id=provider.id, model="glm-5.1", reasoning=ReasoningEffort.MEDIUM, max_tokens=8192))
+    await db.flush()
+    source = DbConfigSource(user_id=owner.id, session_maker=_same_session_maker(db), cipher=cipher)
+    mine = [p for p in await source.list_providers() if p.id == str(provider.id)]
+    binding = await source.get_binding(Scene.EXTRACTION_JSON)
+    assert (len(mine), mine[0].api_key, mine[0].protocol, mine[0].api_base, await source.is_configured(), await source.get_provider(str(provider.id)) is not None) == (
+        1, "sk-db-secret", ProtocolFamily.OPENAI_COMPATIBLE, "https://api.z.ai", True, True,
+    )
+    assert (binding.model_id, binding.reasoning, binding.max_tokens) == (f"{provider.id}/glm-5.1", ReasoningEffort.MEDIUM, 8192)
+
+    user_a, provider_a = await _add_user_provider(db, cipher, email="a", label="a-provider", secret="sk-user-a-secret")
+    user_b = User(email=f"b-{uuid4()}@example.com", hashed_password="x")
+    db.add(user_b)
+    await db.flush()
+    src_a = DbConfigSource(user_id=user_a.id, session_maker=_same_session_maker(db), cipher=cipher)
+    src_b = DbConfigSource(user_id=user_b.id, session_maker=_same_session_maker(db), cipher=cipher)
+    ref_a = await src_a.get_provider(str(provider_a.id))
+    assert await src_b.get_provider(str(provider_a.id)) is None and all(p.id != str(provider_a.id) for p in await src_b.list_providers()) and ref_a is not None and ref_a.api_key == "sk-user-a-secret"
+
+
+async def test_AC23_3_2_layered_config_and_usage_singleton(db, cipher, monkeypatch) -> None:
+    for attr, val in (("ai_api_key", "env-key"), ("ai_provider", "zai"), ("ai_base_url", "https://api.z.ai"), ("small_model", "glm-5.1"), ("large_model", "glm-5.1-large")):
+        monkeypatch.setattr(settings, attr, val, raising=False)
+    layered = LayeredConfigSource(DbConfigSource(session_maker=_same_session_maker(db), cipher=cipher), EnvConfigSource())
+    binding = await layered.get_binding(Scene.ADVISOR_CHAT)
+    assert (await layered.is_configured(), binding.model_id, any(p.id == "env" for p in await layered.list_providers())) == (True, "glm-5.1-large", True)
+    monkeypatch.setattr(settings, "ai_api_key", "", raising=False)
+    assert (await layered.is_configured(), await layered.list_providers()) == (False, [])
+    factory._usage_meter = None
+    assert factory.get_usage_meter() is factory.get_usage_meter()

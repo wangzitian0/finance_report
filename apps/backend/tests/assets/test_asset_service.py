@@ -1,4 +1,18 @@
-from datetime import date; from decimal import Decimal; from types import SimpleNamespace; from unittest.mock import AsyncMock, MagicMock; from uuid import uuid4; from sqlalchemy import select; from src.extraction.orm.layer2 import AtomicPosition; from src.portfolio.orm.portfolio import ManagedPosition, PositionStatus; from src.ledger import Account; from src.portfolio import PositionService
+from datetime import date
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select
+
+from src.extraction.orm.layer2 import AtomicPosition
+from src.ledger import Account
+from src.portfolio import PositionService, PositionServiceError
+from src.portfolio.orm.portfolio import ManagedPosition, PositionStatus
+
+
 async def _fetch_positions(db, user_id, *, status_filter=None):
     query = select(ManagedPosition).where(ManagedPosition.user_id == user_id).order_by(ManagedPosition.asset_identifier)
     if status_filter is not None:
@@ -7,19 +21,76 @@ async def _fetch_positions(db, user_id, *, status_filter=None):
     return rows, len(rows)
 
 
+def _snap(user_id, asset="AAPL", qty="10.0", mv="1500.00", snap_date=date(2024, 1, 15), broker="Moomoo", currency="USD", dedup=None) -> AtomicPosition:
+    return AtomicPosition(
+        user_id=user_id,
+        snapshot_date=snap_date,
+        asset_identifier=asset,
+        broker=broker,
+        quantity=Decimal(qty),
+        market_value=Decimal(mv),
+        currency=currency,
+        dedup_hash=dedup or f"{asset}_{snap_date}_{broker}_{qty}",
+        source_documents={},
+    )
+
+
+async def _reconcile(db, user_id, *snaps, status_filter=None):
+    db.add_all(snaps)
+    await db.flush()
+    result = await PositionService().reconcile_positions(db, user_id)
+    positions, total = await _fetch_positions(db, user_id, status_filter=status_filter)
+    return result, positions, total
+
+
 class TestPositionService:
-    async def test_reconcile_creates_position(self, db, test_user): service = PositionService(); snap = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash1', source_documents={}); db.add(snap); await db.flush(); await service.reconcile_positions(db, test_user.id); positions, total = await _fetch_positions(db, test_user.id); assert len(positions) == 1; assert total == 1; pos = positions[0]; assert pos.asset_identifier == 'AAPL'; assert pos.quantity == Decimal('10.0'); assert pos.status == PositionStatus.ACTIVE; account_name = await db.scalar(select(Account.name).where(Account.id == pos.account_id)); assert account_name == 'Moomoo'
-    async def test_reconcile_updates_position(self, db, test_user): service = PositionService(); snap1 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash1', source_documents={}); db.add(snap1); await service.reconcile_positions(db, test_user.id); snap2 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 16), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('15.0'), market_value=Decimal('2250.00'), currency='USD', dedup_hash='hash2', source_documents={}); db.add(snap2); await db.flush(); await service.reconcile_positions(db, test_user.id); positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 1; pos = positions[0]; assert pos.quantity == Decimal('15.0')
-    async def test_reconcile_disposes_position(self, db, test_user): service = PositionService(); snap1 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash1', source_documents={}); db.add(snap1); await service.reconcile_positions(db, test_user.id); snap2 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 17), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('0.0'), market_value=Decimal('0.00'), currency='USD', dedup_hash='hash2', source_documents={}); db.add(snap2); await db.flush(); await service.reconcile_positions(db, test_user.id); active_positions, active_count = await _fetch_positions(db, test_user.id, status_filter=PositionStatus.ACTIVE); assert len(active_positions) == 0; assert active_count == 0; res = await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == test_user.id)); pos = res.scalar_one(); assert pos.status == PositionStatus.DISPOSED; assert pos.disposal_date == date(2024, 1, 17)
-    async def test_reconcile_cost_basis_uses_market_value(self, db, test_user): service = PositionService(); snap = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='TSLA', broker='Interactive Brokers', quantity=Decimal('5.0'), market_value=Decimal('1250.00'), currency='USD', dedup_hash='hash_tsla', source_documents={}); db.add(snap); await db.flush(); await service.reconcile_positions(db, test_user.id); positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 1; assert positions[0].cost_basis == Decimal('1250.00')
-    async def test_reconcile_multiple_assets(self, db, test_user): service = PositionService(); snap1 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash_aapl', source_documents={}); snap2 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='GOOGL', broker='Moomoo', quantity=Decimal('5.0'), market_value=Decimal('700.00'), currency='USD', dedup_hash='hash_googl', source_documents={}); db.add_all([snap1, snap2]); await db.flush(); await service.reconcile_positions(db, test_user.id); positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 2; identifiers = {p.asset_identifier for p in positions}; assert identifiers == {'AAPL', 'GOOGL'}
-    async def test_reconcile_multiple_brokers_same_asset(self, db, test_user): service = PositionService(); snap1 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash_moomoo', source_documents={}); snap2 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Interactive Brokers', quantity=Decimal('20.0'), market_value=Decimal('3000.00'), currency='USD', dedup_hash='hash_ib', source_documents={}); db.add_all([snap1, snap2]); await db.flush(); await service.reconcile_positions(db, test_user.id); positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 2; broker_rows = await db.execute(select(Account.name).where(Account.id.in_({p.account_id for p in positions}))); assert set(broker_rows.scalars()) == {'Moomoo', 'Interactive Brokers'}
-    async def test_reconcile_with_null_broker(self, db, test_user): service = PositionService(); snap = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='BTC', broker=None, quantity=Decimal('0.5'), market_value=Decimal('25000.00'), currency='USD', dedup_hash='hash_btc', source_documents={}); db.add(snap); await db.flush(); await service.reconcile_positions(db, test_user.id); positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 1; account_name = await db.scalar(select(Account.name).where(Account.id == positions[0].account_id)); assert account_name == 'Unknown Broker'
-    async def test_reconcile_reactivates_disposed_position(self, db, test_user): service = PositionService(); snap1 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash1', source_documents={}); db.add(snap1); await service.reconcile_positions(db, test_user.id); snap2 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 16), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('0.0'), market_value=Decimal('0.00'), currency='USD', dedup_hash='hash2', source_documents={}); db.add(snap2); await service.reconcile_positions(db, test_user.id); snap3 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 17), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('5.0'), market_value=Decimal('800.00'), currency='USD', dedup_hash='hash3', source_documents={}); db.add(snap3); await db.flush(); await service.reconcile_positions(db, test_user.id); positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 1; pos = positions[0]; assert pos.status == PositionStatus.ACTIVE; assert pos.quantity == Decimal('5.0'); assert pos.disposal_date is None
-    async def test_reconcile_no_snapshots(self, db, test_user): service = PositionService(); await service.reconcile_positions(db, test_user.id); positions, total = await _fetch_positions(db, test_user.id); assert positions == []; assert total == 0
-    async def test_reconcile_negative_quantity_short_position(self, db, test_user): service = PositionService(); snap = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='TSLA', broker='Moomoo', quantity=Decimal('-10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash_short', source_documents={}); db.add(snap); await db.flush(); result = await service.reconcile_positions(db, test_user.id); assert result.created == 1; positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 1; pos = positions[0]; assert pos.quantity == Decimal('-10.0'); assert pos.status == PositionStatus.ACTIVE
-    async def test_reconcile_result_counts_are_mutually_exclusive(self, db, test_user): service = PositionService(); snap1 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 15), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('10.0'), market_value=Decimal('1500.00'), currency='USD', dedup_hash='hash1', source_documents={}); db.add(snap1); await service.reconcile_positions(db, test_user.id); snap2 = AtomicPosition(user_id=test_user.id, snapshot_date=date(2024, 1, 16), asset_identifier='AAPL', broker='Moomoo', quantity=Decimal('0.0'), market_value=Decimal('0.00'), currency='USD', dedup_hash='hash2', source_documents={}); db.add(snap2); await db.flush(); result = await service.reconcile_positions(db, test_user.id); assert result.disposed == 1; assert result.updated == 0
-    async def test_reconcile_positions_skips_snapshot_with_null_fields(self, test_user): service = PositionService(); broken_snapshot = SimpleNamespace(id=uuid4(), asset_identifier='BROKEN-ASSET', quantity=None, market_value=Decimal('100.00'), broker='Moomoo', currency='USD', snapshot_date=date(2024, 1, 1)); query_result = MagicMock(); query_result.scalars.return_value.all.return_value = [broken_snapshot]; db = AsyncMock(); db.execute.return_value = query_result; result = await service.reconcile_positions(db, test_user.id); assert result.skipped == 1; assert result.skipped_assets == ['BROKEN-ASSET']; db.flush.assert_awaited_once()
+    async def test_reconcile_lifecycle_create_update_dispose_and_reactivate(self, db, test_user):
+        r0, empty, total0 = await _reconcile(db, test_user.id)
+        _, created, total1 = await _reconcile(db, test_user.id, _snap(test_user.id))
+        created_state = (len(created), total1, created[0].asset_identifier, created[0].quantity, created[0].status, await db.scalar(select(Account.name).where(Account.id == created[0].account_id)))
+        _, updated, _ = await _reconcile(db, test_user.id, _snap(test_user.id, qty="15.0", mv="2250.00", snap_date=date(2024, 1, 16)))
+        updated_state = (len(updated), updated[0].quantity)
+        disp_res, active_after_disp, active_count = await _reconcile(db, test_user.id, _snap(test_user.id, qty="0.0", mv="0.00", snap_date=date(2024, 1, 17)), status_filter=PositionStatus.ACTIVE)
+        disposed_row = (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == test_user.id))).scalar_one()
+        disposed_state = (disp_res.disposed, disp_res.updated, len(active_after_disp), active_count, disposed_row.status, disposed_row.disposal_date)
+        _, reactivated, _ = await _reconcile(db, test_user.id, _snap(test_user.id, qty="5.0", mv="800.00", snap_date=date(2024, 1, 18)))
+        assert ((empty, total0, r0.created), created_state, updated_state, disposed_state, (len(reactivated), reactivated[0].status, reactivated[0].quantity, reactivated[0].disposal_date)) == (([], 0, 0), (1, 1, "AAPL", Decimal("10.0"), PositionStatus.ACTIVE, "Moomoo"), (1, Decimal("15.0")), (1, 0, 0, 0, PositionStatus.DISPOSED, date(2024, 1, 17)), (1, PositionStatus.ACTIVE, Decimal("5.0"), None))
+
+    async def test_reconcile_cost_basis_multi_asset_multi_broker_null_broker_and_short(self, db, test_user):
+        _, positions, _ = await _reconcile(
+            db,
+            test_user.id,
+            _snap(test_user.id, "TSLA", qty="5.0", mv="1250.00", broker="Interactive Brokers", dedup="h_tsla"),
+            _snap(test_user.id, "AAPL", qty="10.0", mv="1500.00", broker="Moomoo", dedup="h_aapl_m"),
+            _snap(test_user.id, "AAPL", qty="20.0", mv="3000.00", broker="Interactive Brokers", dedup="h_aapl_ib"),
+            _snap(test_user.id, "GOOGL", qty="5.0", mv="700.00", broker="Moomoo", dedup="h_googl"),
+            _snap(test_user.id, "BTC", qty="0.5", mv="25000.00", broker=None, dedup="h_btc"),
+            _snap(test_user.id, "SHORT", qty="-10.0", mv="1500.00", broker="Moomoo", dedup="h_short"),
+        )
+        by_key = {(p.asset_identifier, await db.scalar(select(Account.name).where(Account.id == p.account_id))): p for p in positions}
+        assert (
+            len(positions),
+            by_key[("TSLA", "Interactive Brokers")].cost_basis,
+            {name for asset, name in by_key if asset == "AAPL"},
+            by_key[("BTC", "Unknown Broker")].quantity,
+            (by_key[("SHORT", "Moomoo")].quantity, by_key[("SHORT", "Moomoo")].status),
+        ) == (6, Decimal("1250.00"), {"Moomoo", "Interactive Brokers"}, Decimal("0.5"), (Decimal("-10.0"), PositionStatus.ACTIVE))
+
+    async def test_reconcile_positions_skips_snapshot_with_null_fields(self, test_user):
+        broken = SimpleNamespace(id=uuid4(), asset_identifier="BROKEN-ASSET", quantity=None, market_value=Decimal("100.00"), broker="Moomoo", currency="USD", snapshot_date=date(2024, 1, 1))
+        query_result = MagicMock()
+        query_result.scalars.return_value.all.return_value = [broken]
+        db = AsyncMock()
+        db.execute.return_value = query_result
+        result = await PositionService().reconcile_positions(db, test_user.id)
+        assert (result.skipped, result.skipped_assets) == (1, ["BROKEN-ASSET"])
+        db.flush.assert_awaited_once()
+
     async def test_AC_portfolio_brokerage_import_13_reconcile_normalizes_cnh_and_rejects_invalid_currency(self, db, test_user):
-        import pytest; from src.portfolio import PositionServiceError; service = PositionService(); cnh_snap = AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 15), asset_identifier='BABA', broker='Futu', quantity=Decimal('10.0'), market_value=Decimal('7200.00'), currency='CNH', dedup_hash='hash_cnh', source_documents={}); db.add(cnh_snap); await db.flush(); result = await service.reconcile_positions(db, test_user.id); assert result.created == 1; positions, _ = await _fetch_positions(db, test_user.id); assert len(positions) == 1; assert positions[0].asset_identifier == 'BABA'; assert positions[0].currency == 'CNY'; account = await db.get(Account, positions[0].account_id); assert account is not None; assert account.currency == 'CNY'; bad_snap = AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 16), asset_identifier='BADCCY', broker='Futu', quantity=Decimal('5.0'), market_value=Decimal('100.00'), currency='XYZ', dedup_hash='hash_xyz', source_documents={}); db.add(bad_snap); await db.flush()
-        with pytest.raises(PositionServiceError, match='XYZ'): await service.reconcile_positions(db, test_user.id)
+        res, positions, _ = await _reconcile(db, test_user.id, _snap(test_user.id, "BABA", qty="10.0", mv="7200.00", snap_date=date(2026, 1, 15), broker="Futu", currency="CNH", dedup="hash_cnh"))
+        acct = await db.get(Account, positions[0].account_id)
+        assert (res.created, len(positions), positions[0].asset_identifier, positions[0].currency, acct.currency) == (1, 1, "BABA", "CNY", "CNY")
+        db.add(_snap(test_user.id, "BADCCY", qty="5.0", mv="100.00", snap_date=date(2026, 1, 16), broker="Futu", currency="XYZ", dedup="hash_xyz"))
+        await db.flush()
+        with pytest.raises(PositionServiceError, match="XYZ"):
+            await PositionService().reconcile_positions(db, test_user.id)

@@ -1,30 +1,125 @@
-from __future__ import annotations; from datetime import date; from decimal import Decimal; from unittest.mock import MagicMock; from uuid import uuid4; import pytest; from src.database import create_session_maker_from_db; from src.extraction import BankStatementStatus, ExtractionMethod, ParseJob, StatementEvidenceType; from src.extraction.extension import statement_parsing; from src.extraction.extension.result_contract import build_statement_extraction_result; from src.extraction.extension.service import ExtractionError; from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present; from src.extraction.orm.statement_summary import StatementSummary; from tests.factories import StatementSummaryFactory; from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background; _parsed_statement = lambda user_id, file_hash: StatementSummaryFactory.build(user_id=user_id, file_hash=file_hash, institution='DBS', account_last4='1234', currency='SGD', period_start=date(2026, 5, 1), period_end=date(2026, 5, 18), opening_balance=Decimal('0.00'), closing_balance=Decimal('0.00'), status=BankStatementStatus.PARSED, confidence_score=90, balance_validated=True)
-from tests.statement_ingestion import run_for
-async def _create_statement(db, user_id, *, statement_id=None, file_hash='audit-hash') -> StatementSummary: statement = StatementSummaryFactory.build(id=statement_id or uuid4(), user_id=user_id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution='DBS'); db.add(statement); await db.commit(); return statement
-async def _persist_fixture_result(*, db, statement_id, source): summary = await db.get(StatementSummary, statement_id); assert summary is not None; parsed = _parsed_statement(summary.user_id, summary.file_hash); [setattr(summary, field, getattr(parsed, field)) for field in ('institution', 'account_last4', 'currency', 'period_start', 'period_end', 'opening_balance', 'closing_balance', 'status', 'confidence_score', 'balance_validated')]; result = build_statement_extraction_result(source=source, file_type='pdf', statement=summary, transactions=[], provider_payload={'transactions': []}, model='audit-fixture', provider='audit-fixture', method=ExtractionMethod.GOLDEN_FIXTURE, is_brokerage=False, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER, positions=[]); summary.extraction_metadata = {'statement_extraction_result': result.to_payload()}; await db.flush(); return result
-async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, test_user, monkeypatch):
-    user_id = test_user.id; success = await _create_statement(db, user_id, file_hash='success-hash'); mock_info = MagicMock(); mock_error = MagicMock(); mock_warning = MagicMock(); mock_exception = MagicMock()
-    async def fake_parse_document(*args, **kwargs): return await _persist_fixture_result(db=kwargs['db'], statement_id=success.id, source=args[1])
-    monkeypatch.setattr(statement_parsing.logger, 'info', mock_info); monkeypatch.setattr(statement_parsing.logger, 'error', mock_error); monkeypatch.setattr(statement_parsing.logger, 'warning', mock_warning); monkeypatch.setattr(statement_parsing.logger, 'exception', mock_exception); monkeypatch.setattr(statement_parsing.ExtractionService, 'parse_document', fake_parse_document); monkeypatch.setattr(statement_parsing.StorageService, 'generate_presigned_url', lambda *_args, **_kwargs: 'https://example.com/audit.pdf'); await parse_statement_background(job=ParseJob(statement_id=success.id, run_id=await run_for(db, success.id), filename='audit.pdf', institution='DBS', user_id=user_id, account_id=None, file_hash='success-hash', storage_key='statements/audit.pdf', model='glm-5.1', request_id='req-success'), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); info_calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]; checkpoints = [kwargs for event, kwargs in info_calls if event == 'statement.parse.checkpoint']; assert [checkpoint['phase'] for checkpoint in checkpoints] == ['parse_started', 'storage_url_resolved', 'extraction_started', 'extraction_completed', 'statement_persisted']; assert all((checkpoint['audit_event'] == 'statement.parse.checkpoint' for checkpoint in checkpoints)); assert all((checkpoint['statement_id'] == str(success.id) for checkpoint in checkpoints)); assert all((checkpoint['request_id'] == 'req-success' for checkpoint in checkpoints)); assert all((checkpoint['model_to_use'] == 'glm-5.1' for checkpoint in checkpoints)); extraction_completed = next((kwargs for event, kwargs in info_calls if event == 'statement.parse.extraction_completed')); completed = next((kwargs for event, kwargs in info_calls if event == 'statement.parse.completed')); assert extraction_completed['audit_event'] == 'statement.parse.extraction_completed'; assert completed['audit_event'] == 'statement.parse.completed'; assert completed['phase'] == 'parse_completed'; assert completed['transactions_count'] == 0; failure = await _create_statement(db, user_id, file_hash='failure-hash')
-    async def fail_parse_document(*_args, **_kwargs): raise ExtractionError('provider failed without raw document content')
-    mock_error.reset_mock(); mock_warning.reset_mock(); mock_exception.reset_mock(); monkeypatch.setattr(statement_parsing.ExtractionService, 'parse_document', fail_parse_document); await parse_statement_background(job=ParseJob(statement_id=failure.id, run_id=await run_for(db, failure.id), filename='audit.pdf', institution='DBS', user_id=user_id, account_id=None, file_hash='failure-hash', storage_key='statements/audit.pdf', model='glm-5.1', request_id='req-failure'), content=b'%PDF-1.7 secret source bytes', session_maker=create_session_maker_from_db(db)); failed = next((call.kwargs for call in mock_warning.call_args_list if call.args[0] == 'statement.parse.failed')); assert failed['audit_event'] == 'statement.parse.failed'; assert failed['statement_id'] == str(failure.id); assert failed['request_id'] == 'req-failure'; assert failed['phase'] == 'extraction_started'; assert failed['model_to_use'] == 'glm-5.1'; assert failed['error_type'] == 'ExtractionError'; assert failed['safe_error_message'] == 'provider failed without raw document content'; assert 'secret source bytes' not in failed['safe_error_message']; mock_error.assert_not_called(); mock_exception.assert_not_called()
-async def test_AC_observability_11_4_expected_parse_failure_never_logs_at_error(db, test_user, monkeypatch):
-    user_id = test_user.id; statement = await _create_statement(db, user_id, file_hash='contract-hash'); mock_error = MagicMock(); mock_warning = MagicMock(); mock_exception = MagicMock()
-    async def fail_parse_document(*_args, **_kwargs): raise ExtractionError('could not read a bank statement from this document')
-    monkeypatch.setattr(statement_parsing.logger, 'error', mock_error); monkeypatch.setattr(statement_parsing.logger, 'warning', mock_warning); monkeypatch.setattr(statement_parsing.logger, 'exception', mock_exception); monkeypatch.setattr(statement_parsing.ExtractionService, 'parse_document', fail_parse_document); monkeypatch.setattr(statement_parsing.StorageService, 'generate_presigned_url', lambda *_args, **_kwargs: 'https://example.com/contract.pdf'); await parse_statement_background(job=ParseJob(statement_id=statement.id, run_id=await run_for(db, statement.id), filename='contract.pdf', institution='DBS', user_id=user_id, account_id=None, file_hash='contract-hash', storage_key='statements/contract.pdf', model='glm-5.1', request_id='req-contract'), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); mock_error.assert_not_called(); mock_exception.assert_not_called(); assert any((call.args[0] == 'statement.parse.failed' for call in mock_warning.call_args_list)), 'expected the routine statement.parse.failed WARNING to fire'
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+
+from src.database import create_session_maker_from_db
+from src.extraction import BankStatementStatus, ExtractionMethod, ParseJob, StatementEvidenceType
+from src.extraction.extension import statement_parsing
+from src.extraction.extension.result_contract import build_statement_extraction_result
+from src.extraction.extension.service import ExtractionError
+from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
+from src.extraction.orm.statement_summary import StatementSummary
+from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background, run_for
+
+
+async def _create_statement(db, user_id, *, file_hash: str) -> StatementSummary:
+    statement = StatementSummaryFactory.build(id=uuid4(), user_id=user_id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution="DBS")
+    db.add(statement)
+    await db.commit()
+    return statement
+
+
+async def _persist_fixture_result(*, db, statement_id, source):
+    summary = await db.get(StatementSummary, statement_id)
+    assert summary is not None
+    parsed = StatementSummaryFactory.build(user_id=summary.user_id, file_hash=summary.file_hash, institution="DBS", account_last4="1234", currency="SGD", period_start=date(2026, 5, 1), period_end=date(2026, 5, 18), opening_balance=Decimal("0.00"), closing_balance=Decimal("0.00"), status=BankStatementStatus.PARSED, confidence_score=90, balance_validated=True)
+    for field in ("institution", "account_last4", "currency", "period_start", "period_end", "opening_balance", "closing_balance", "status", "confidence_score", "balance_validated"):
+        setattr(summary, field, getattr(parsed, field))
+    result = build_statement_extraction_result(source=source, file_type="pdf", statement=summary, transactions=[], provider_payload={"transactions": []}, model="audit-fixture", provider="audit-fixture", method=ExtractionMethod.GOLDEN_FIXTURE, is_brokerage=False, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER, positions=[])
+    summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
+    await db.flush()
+    return result
+
+
+async def _run_bg(db, statement: StatementSummary, request_id: str, content: bytes = b"%PDF-1.7"):
+    await parse_statement_background(job=ParseJob(statement_id=statement.id, run_id=await run_for(db, statement.id), filename="audit.pdf", institution="DBS", user_id=statement.user_id, account_id=None, file_hash=statement.file_hash, storage_key="statements/audit.pdf", model="glm-5.1", request_id=request_id), content=content, session_maker=create_session_maker_from_db(db))
+
+
+def _spy_logs(monkeypatch):
+    mocks = {name: MagicMock() for name in ("info", "error", "warning", "exception")}
+    for name, mock in mocks.items():
+        monkeypatch.setattr(statement_parsing.logger, name, mock)
+    return mocks
+
+
+async def test_AC10_8_2_and_AC_observability_11_4_parse_logs(db, test_user, monkeypatch):
+    logs = _spy_logs(monkeypatch)
+    monkeypatch.setattr(statement_parsing.StorageService, "generate_presigned_url", lambda *_a, **_kw: "https://example.com/audit.pdf")
+
+    success = await _create_statement(db, test_user.id, file_hash="success-hash")
+    monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", lambda *a, **kw: _persist_fixture_result(db=kw["db"], statement_id=success.id, source=a[1]))
+    await _run_bg(db, success, "req-success")
+    info_calls = [(c.args[0], c.kwargs) for c in logs["info"].call_args_list]
+    checkpoints = [kw for ev, kw in info_calls if ev == "statement.parse.checkpoint"]
+    assert [c["phase"] for c in checkpoints] == ["parse_started", "storage_url_resolved", "extraction_started", "extraction_completed", "statement_persisted"]
+    assert all((c["audit_event"], c["statement_id"], c["request_id"], c["model_to_use"]) == ("statement.parse.checkpoint", str(success.id), "req-success", "glm-5.1") for c in checkpoints)
+    ext_done, done = next(kw for ev, kw in info_calls if ev == "statement.parse.extraction_completed"), next(kw for ev, kw in info_calls if ev == "statement.parse.completed")
+    assert (ext_done["audit_event"], done["audit_event"], done["phase"], done["transactions_count"]) == ("statement.parse.extraction_completed", "statement.parse.completed", "parse_completed", 0)
+
+    for file_hash, req_id, msg, payload_bytes in (
+        ("failure-hash", "req-failure", "provider failed without raw document content", b"%PDF-1.7 secret source bytes"),
+        ("contract-hash", "req-contract", "could not read a bank statement from this document", b"%PDF-1.7"),
+    ):
+        for name in ("error", "warning", "exception"):
+            logs[name].reset_mock()
+        stmt = await _create_statement(db, test_user.id, file_hash=file_hash)
+        monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", AsyncMock(side_effect=ExtractionError(msg)))
+        await _run_bg(db, stmt, req_id, payload_bytes)
+        failed = next(c.kwargs for c in logs["warning"].call_args_list if c.args[0] == "statement.parse.failed")
+        assert (failed["audit_event"], failed["statement_id"], failed["request_id"], failed["phase"], failed["model_to_use"], failed["error_type"], failed["safe_error_message"]) == ("statement.parse.failed", str(stmt.id), req_id, "extraction_started", "glm-5.1", "ExtractionError", msg)
+        assert "secret source bytes" not in failed["safe_error_message"]
+        logs["error"].assert_not_called()
+        logs["exception"].assert_not_called()
+
+
 async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user, monkeypatch):
-    statement = await _create_statement(db, test_user.id, file_hash='brokerage-audit-hash'); statement.status = BankStatementStatus.PARSED; await db.commit(); payload = {'institution': 'Moomoo', 'positions': [{'symbol': 'AAPL', 'quantity': '10'}]}; mock_info = MagicMock(); mock_exception = MagicMock(); monkeypatch.setattr(statement_parsing.logger, 'info', mock_info); monkeypatch.setattr(statement_parsing.logger, 'exception', mock_exception); await route_brokerage_for_review_if_present(summary=statement, db=db, user_id=test_user.id, filename='moomoo-positions.pdf', institution='Moomoo', payload=payload, request_id='req-brokerage', model_to_use='glm-5.1'); calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]; started = next((kwargs for event, kwargs in calls if event == 'statement.brokerage_review_routing.started')); completed = next((kwargs for event, kwargs in calls if event == 'statement.brokerage_review_routing.completed')); assert started['audit_event'] == 'statement.brokerage_review_routing.started'; assert started['statement_id'] == str(statement.id); assert started['request_id'] == 'req-brokerage'; assert started['phase'] == 'brokerage_review_routing_started'; assert started['model_to_use'] == 'glm-5.1'; assert started['broker'] == 'Moomoo'; assert started['parsed_positions'] == 1; assert completed['audit_event'] == 'statement.brokerage_review_routing.completed'; assert completed['statement_id'] == str(statement.id); assert completed['phase'] == 'brokerage_review_routing_completed'; assert completed['model_to_use'] == 'glm-5.1'; assert completed['broker'] == 'Moomoo'; assert completed['parsed_positions'] == 1; failure_statement = await _create_statement(db, test_user.id, file_hash='brokerage-failure-audit-hash'); failure_statement.status = BankStatementStatus.PARSED; await db.commit(); flush_calls = {'count': 0}
-    async def flaky_flush(*args, **kwargs): flush_calls['count'] += 1; raise RuntimeError('forced routing flush failure')
-    monkeypatch.setattr(db, 'flush', flaky_flush)
-    with pytest.raises(RuntimeError, match='forced routing flush failure'): await route_brokerage_for_review_if_present(summary=failure_statement, db=db, user_id=test_user.id, filename='moomoo-positions.pdf', institution='Moomoo', payload=payload, request_id='req-brokerage-failed', model_to_use='glm-5.1')
-    failed = next((call.kwargs for call in mock_exception.call_args_list if call.args[0] == 'statement.brokerage_review_routing.failed')); assert failed['audit_event'] == 'statement.brokerage_review_routing.failed'; assert failed['statement_id'] == str(failure_statement.id); assert failed['request_id'] == 'req-brokerage-failed'; assert failed['phase'] == 'brokerage_review_routing_failed'; assert failed['model_to_use'] == 'glm-5.1'; assert failed['error_type'] == 'RuntimeError'; assert flush_calls['count'] == 1; assert failed['safe_error_message'] == 'forced routing flush failure'
-async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch):
-    user_id = test_user.id; outcomes: list[str] = []; monkeypatch.setattr(statement_parsing, 'record_statement_parse_outcome', lambda *, outcome, parser='default': outcomes.append(outcome)); monkeypatch.setattr(statement_parsing.StorageService, 'generate_presigned_url', lambda *_args, **_kwargs: 'https://example.com/audit.pdf'); success = await _create_statement(db, user_id, file_hash='metric-success')
-    async def ok_parse_document(*args, **kwargs): return await _persist_fixture_result(db=kwargs['db'], statement_id=success.id, source=args[1])
-    monkeypatch.setattr(statement_parsing.ExtractionService, 'parse_document', ok_parse_document); await parse_statement_background(job=ParseJob(statement_id=success.id, run_id=await run_for(db, success.id), filename='audit.pdf', institution='DBS', user_id=user_id, account_id=None, file_hash='metric-success', storage_key='statements/audit.pdf', model='glm-5.1', request_id='req-metric-ok'), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); failure = await _create_statement(db, user_id, file_hash='metric-failure')
-    async def bad_parse_document(*_args, **_kwargs): raise ExtractionError('metric failure path')
-    monkeypatch.setattr(statement_parsing.ExtractionService, 'parse_document', bad_parse_document); await parse_statement_background(job=ParseJob(statement_id=failure.id, run_id=await run_for(db, failure.id), filename='audit.pdf', institution='DBS', user_id=user_id, account_id=None, file_hash='metric-failure', storage_key='statements/audit.pdf', model='glm-5.1', request_id='req-metric-fail'), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); assert outcomes == ['success', 'failure']
-async def test_AC10_10_4_quarantined_statement_records_rejected_outcome(db, test_user, monkeypatch):
-    outcomes: list[str] = []; monkeypatch.setattr(statement_parsing, 'record_statement_parse_outcome', lambda *, outcome, parser='default': outcomes.append(outcome)); monkeypatch.setattr(statement_parsing.StorageService, 'generate_presigned_url', lambda *_args, **_kwargs: 'https://example.com/audit.pdf'); statement = await _create_statement(db, test_user.id, file_hash='metric-rejected')
-    async def quarantining_parse_document(*args, **kwargs): result = await _persist_fixture_result(db=kwargs['db'], statement_id=statement.id, source=args[1]); persisted = await kwargs['db'].get(StatementSummary, statement.id); persisted.status = BankStatementStatus.REJECTED; return result
-    monkeypatch.setattr(statement_parsing.ExtractionService, 'parse_document', quarantining_parse_document); await parse_statement_background(job=ParseJob(statement_id=statement.id, run_id=await run_for(db, statement.id), filename='audit.pdf', institution='DBS', user_id=test_user.id, account_id=None, file_hash='metric-rejected', storage_key='statements/audit.pdf', model='glm-5.1', request_id='req-metric-rejected'), content=b'%PDF-1.7', session_maker=create_session_maker_from_db(db)); assert outcomes == ['rejected']
+    statement = await _create_statement(db, test_user.id, file_hash="brokerage-audit-hash")
+    statement.status = BankStatementStatus.PARSED
+    await db.commit()
+    payload, logs = {"institution": "Moomoo", "positions": [{"symbol": "AAPL", "quantity": "10"}]}, _spy_logs(monkeypatch)
+    await route_brokerage_for_review_if_present(summary=statement, db=db, user_id=test_user.id, filename="moomoo-positions.pdf", institution="Moomoo", payload=payload, request_id="req-brokerage", model_to_use="glm-5.1")
+    calls = [(c.args[0], c.kwargs) for c in logs["info"].call_args_list]
+    started, completed = next(kw for ev, kw in calls if ev == "statement.brokerage_review_routing.started"), next(kw for ev, kw in calls if ev == "statement.brokerage_review_routing.completed")
+    assert (started["audit_event"], started["statement_id"], started["request_id"], started["phase"], started["model_to_use"], started["broker"], started["parsed_positions"]) == ("statement.brokerage_review_routing.started", str(statement.id), "req-brokerage", "brokerage_review_routing_started", "glm-5.1", "Moomoo", 1)
+    assert (completed["audit_event"], completed["statement_id"], completed["phase"], completed["model_to_use"], completed["broker"], completed["parsed_positions"]) == ("statement.brokerage_review_routing.completed", str(statement.id), "brokerage_review_routing_completed", "glm-5.1", "Moomoo", 1)
+
+    fail_stmt = await _create_statement(db, test_user.id, file_hash="brokerage-failure-audit-hash")
+    fail_stmt.status = BankStatementStatus.PARSED
+    await db.commit()
+    flush_calls = [0]
+
+    async def flaky_flush(*_a, **_kw):
+        flush_calls[0] += 1
+        raise RuntimeError("forced routing flush failure")
+
+    monkeypatch.setattr(db, "flush", flaky_flush)
+    with pytest.raises(RuntimeError, match="forced routing flush failure"):
+        await route_brokerage_for_review_if_present(summary=fail_stmt, db=db, user_id=test_user.id, filename="moomoo-positions.pdf", institution="Moomoo", payload=payload, request_id="req-brokerage-failed", model_to_use="glm-5.1")
+    failed = next(c.kwargs for c in logs["exception"].call_args_list if c.args[0] == "statement.brokerage_review_routing.failed")
+    assert (failed["audit_event"], failed["statement_id"], failed["request_id"], failed["phase"], failed["model_to_use"], failed["error_type"], flush_calls[0], failed["safe_error_message"]) == ("statement.brokerage_review_routing.failed", str(fail_stmt.id), "req-brokerage-failed", "brokerage_review_routing_failed", "glm-5.1", "RuntimeError", 1, "forced routing flush failure")
+
+
+@pytest.mark.parametrize(("mode", "expected"), [("success", ["success"]), ("failure", ["failure"]), ("quarantined", ["rejected"])])
+async def test_AC10_10_4_parse_outcome_metrics(db, test_user, monkeypatch, mode, expected):
+    outcomes: list[str] = []
+    monkeypatch.setattr(statement_parsing, "record_statement_parse_outcome", lambda *, outcome, parser="default": outcomes.append(outcome))
+    monkeypatch.setattr(statement_parsing.StorageService, "generate_presigned_url", lambda *_a, **_kw: "https://example.com/audit.pdf")
+    stmt = await _create_statement(db, test_user.id, file_hash=f"metric-{mode}")
+
+    async def parse_fn(*args, **kwargs):
+        if mode == "failure":
+            raise ExtractionError("metric failure path")
+        res = await _persist_fixture_result(db=kwargs["db"], statement_id=stmt.id, source=args[1])
+        if mode == "quarantined":
+            (await kwargs["db"].get(StatementSummary, stmt.id)).status = BankStatementStatus.REJECTED
+        return res
+
+    monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", parse_fn)
+    await _run_bg(db, stmt, f"req-metric-{mode}")
+    assert outcomes == expected

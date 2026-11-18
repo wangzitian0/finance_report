@@ -1,5 +1,25 @@
-from decimal import Decimal; from src.audit.promotion import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE, STATEMENT_BALANCE_TOLERANCE, InvariantResult, PromotionDecision, evaluate_promotion, tier_rank
-def test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason(): verdict = evaluate_promotion([InvariantResult(name='balance_chain', passed=False, delta=Decimal('0.05'), tolerance=STATEMENT_BALANCE_TOLERANCE)], confidence_rank=tier_rank('TRUSTED'), min_confidence=tier_rank('HIGH')); assert verdict.decision is PromotionDecision.REJECTED; assert verdict.is_authoritative is False; assert verdict.failed_invariant == 'balance_chain'; assert verdict.detail == {'delta': '0.05', 'tolerance': '0.001'}
-def test_AC18_13_2_invariants_pass_but_low_confidence_is_review(): verdict = evaluate_promotion([InvariantResult(name='balance_chain', passed=True)], confidence_rank=tier_rank('LOW'), min_confidence=tier_rank('HIGH')); assert verdict.decision is PromotionDecision.REVIEW; assert verdict.is_authoritative is False; assert verdict.invariants_pass is True; assert verdict.confidence_ok is False; assert 'threshold' in verdict.reason
-def test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative(): by_tier = evaluate_promotion([InvariantResult(name='balance_chain', passed=True)], confidence_rank=tier_rank('HIGH'), min_confidence=tier_rank('HIGH')); assert by_tier.decision is PromotionDecision.AUTHORITATIVE; assert by_tier.is_authoritative is True; review = evaluate_promotion([InvariantResult(name='entry_balanced', passed=True)], confidence_rank=70, min_confidence=RECONCILIATION_AUTO_ACCEPT_SCORE); assert review.decision is PromotionDecision.REVIEW; cleared = evaluate_promotion([InvariantResult(name='entry_balanced', passed=True)], confidence_rank=90, min_confidence=RECONCILIATION_AUTO_ACCEPT_SCORE); assert cleared.decision is PromotionDecision.AUTHORITATIVE
-def test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services(): assert STATEMENT_BALANCE_TOLERANCE == Decimal('0.001'); assert RECONCILIATION_AUTO_ACCEPT_SCORE == 85; assert RECONCILIATION_REVIEW_SCORE == 60; import src.reconciliation as reconciliation; from src.extraction.extension import statement_validation; assert statement_validation.BALANCE_TOLERANCE is STATEMENT_BALANCE_TOLERANCE; assert reconciliation.DEFAULT_CONFIG.auto_accept == RECONCILIATION_AUTO_ACCEPT_SCORE; assert reconciliation.DEFAULT_CONFIG.pending_review == RECONCILIATION_REVIEW_SCORE
+from decimal import Decimal
+
+import src.reconciliation as reconciliation
+from src.audit.promotion import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE, STATEMENT_BALANCE_TOLERANCE, InvariantResult, PromotionDecision, evaluate_promotion, tier_rank
+from src.extraction.extension import statement_validation
+
+
+def test_AC18_13_promotion_gate_verdicts_and_thresholds() -> None:
+    rejected = evaluate_promotion([InvariantResult(name="balance_chain", passed=False, delta=Decimal("0.05"), tolerance=STATEMENT_BALANCE_TOLERANCE)], confidence_rank=tier_rank("TRUSTED"), min_confidence=tier_rank("HIGH"))
+    low_conf = evaluate_promotion([InvariantResult(name="balance_chain", passed=True)], confidence_rank=tier_rank("LOW"), min_confidence=tier_rank("HIGH"))
+    auth_tier = evaluate_promotion([InvariantResult(name="balance_chain", passed=True)], confidence_rank=tier_rank("HIGH"), min_confidence=tier_rank("HIGH"))
+    score_rev = evaluate_promotion([InvariantResult(name="entry_balanced", passed=True)], confidence_rank=70, min_confidence=RECONCILIATION_AUTO_ACCEPT_SCORE)
+    score_ok = evaluate_promotion([InvariantResult(name="entry_balanced", passed=True)], confidence_rank=90, min_confidence=RECONCILIATION_AUTO_ACCEPT_SCORE)
+    assert (
+        rejected.decision, rejected.is_authoritative, rejected.failed_invariant, rejected.detail,
+        low_conf.decision, low_conf.is_authoritative, low_conf.invariants_pass, low_conf.confidence_ok, "threshold" in low_conf.reason,
+        auth_tier.decision, auth_tier.is_authoritative, score_rev.decision, score_ok.decision,
+        STATEMENT_BALANCE_TOLERANCE, RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE,
+        statement_validation.BALANCE_TOLERANCE is STATEMENT_BALANCE_TOLERANCE, reconciliation.DEFAULT_CONFIG.auto_accept, reconciliation.DEFAULT_CONFIG.pending_review,
+    ) == (
+        PromotionDecision.REJECTED, False, "balance_chain", {"delta": "0.05", "tolerance": "0.001"},
+        PromotionDecision.REVIEW, False, True, False, True,
+        PromotionDecision.AUTHORITATIVE, True, PromotionDecision.REVIEW, PromotionDecision.AUTHORITATIVE,
+        Decimal("0.001"), 85, 60, True, RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE,
+    )

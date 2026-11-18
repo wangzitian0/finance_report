@@ -1,19 +1,46 @@
-from uuid import uuid4; import pytest; import structlog; from httpx import ASGITransport, AsyncClient; from src.identity import get_current_user_id; from src.platform import UnauthorizedError
-async def test_auth_missing_header(db_engine):
-    from src.main import app; transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url='http://test') as ac: response = await ac.get('/accounts')
-    assert response.status_code == 401; assert response.json()['detail'] == 'Not authenticated'
-async def test_auth_invalid_token(db_engine):
-    from src.main import app; transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url='http://test', headers={'Authorization': 'Bearer invalid-token'}) as ac: response = await ac.get('/accounts')
-    assert response.status_code == 401; assert response.json()['detail'] == 'Could not validate credentials'
-async def test_auth_non_existent_user(db_engine):
-    from src.identity import create_access_token; from src.main import app; transport = ASGITransport(app=app); random_uuid = str(uuid4()); token = create_access_token(data={'sub': random_uuid})
-    async with AsyncClient(transport=transport, base_url='http://test', headers={'Authorization': f'Bearer {token}'}) as ac: response = await ac.get('/accounts')
-    assert response.status_code == 401; assert response.json()['detail'] == 'User not found'
-async def test_auth_valid_user(client, test_user): response = await client.get('/accounts'); assert response.status_code == 200
-async def test_get_current_user_id_direct(db, test_user): from src.identity import create_access_token; token = create_access_token(data={'sub': str(test_user.id)}); user_id = await get_current_user_id(token=token, db=db); assert user_id == test_user.id
-async def test_AC10_11_1_get_current_user_id_binds_user_context(db, test_user): from src.identity import create_access_token; structlog.contextvars.clear_contextvars(); token = create_access_token(data={'sub': str(test_user.id)}); user_id = await get_current_user_id(token=token, db=db); assert user_id == test_user.id; assert structlog.contextvars.get_contextvars()['user_id'] == str(test_user.id)
-async def test_get_current_user_id_invalid_user_db(db):
-    from src.identity import create_access_token; token = create_access_token(data={'sub': str(uuid4())})
-    with pytest.raises(UnauthorizedError, match='User not found'): await get_current_user_id(token=token, db=db)
+from __future__ import annotations
+
+from uuid import uuid4
+
+import pytest
+import structlog
+from httpx import AsyncClient
+from src.identity import create_access_token, get_current_user_id
+from src.platform import UnauthorizedError
+
+pytestmark = pytest.mark.asyncio
+
+
+@pytest.mark.parametrize(
+    ("auth_header", "expected_detail"),
+    [
+        (None, "Not authenticated"),
+        ("Bearer invalid-token", "Could not validate credentials"),
+        ("random_user", "User not found"),
+    ],
+)
+async def test_auth_rejects_unauthenticated_requests(
+    public_client: AsyncClient, auth_header: str | None, expected_detail: str
+):
+    headers = {}
+    if auth_header == "random_user":
+        headers["Authorization"] = f"Bearer {create_access_token(data={'sub': str(uuid4())})}"
+    elif auth_header is not None:
+        headers["Authorization"] = auth_header
+    response = await public_client.get("/accounts", headers=headers)
+    assert response.status_code == 401 and response.json()["detail"] == expected_detail
+
+
+async def test_auth_valid_user(client: AsyncClient, test_user):
+    assert (await client.get("/accounts")).status_code == 200
+
+
+async def test_get_current_user_id_valid_binds_context_and_rejects_missing(db, test_user):
+    structlog.contextvars.clear_contextvars()
+    token = create_access_token(data={"sub": str(test_user.id)})
+    assert await get_current_user_id(token=token, db=db) == test_user.id
+    assert structlog.contextvars.get_contextvars()["user_id"] == str(test_user.id)
+
+    missing_token = create_access_token(data={"sub": str(uuid4())})
+    with pytest.raises(UnauthorizedError, match="User not found"):
+        await get_current_user_id(token=missing_token, db=db)

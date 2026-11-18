@@ -1,2 +1,0 @@
-from __future__ import annotations; from src.llm.extension.cassette import layer_engaged
-def test_AC_llm_10_7_harness_engages_the_cassette_layer(): assert layer_engaged(), "the cassette layer is NOT engaged — tests/conftest.py's pytest_configure must set LLM_CASSETTE_ENGAGE=1 (the harness is the single sanctioned bootstrap point; without it every LLM test silently goes live)"

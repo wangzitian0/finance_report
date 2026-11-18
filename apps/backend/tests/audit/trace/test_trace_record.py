@@ -1,16 +1,37 @@
-from __future__ import annotations; import json; from datetime import datetime, timedelta, timezone; import pytest; from src.audit import TraceAuthorityProfile, TraceJUnitAdapter, TraceRecord, TraceRecordCodec, TraceRecordValidationError; from .conftest import authority, decision_policy, observation
-def test_AC_audit_trace_record_1_schema_and_codec_are_canonical():
-    record = observation(); encoded = TraceRecordCodec.encode(record); decoded = TraceRecordCodec.decode(encoded); assert decoded == record; assert TraceRecordCodec.encode(decoded) == encoded; assert json.loads(encoded)['score'] == '1'; assert len(record.content_digest) == 64; assert str(record.record_id) == str(decoded.record_id); same_instant = observation(scope=record.scope, occurred_at=datetime(2026, 7, 17, 8, tzinfo=timezone(timedelta(hours=8)))); assert same_instant.record_id == record.record_id; payload = json.loads(encoded); payload['raw_financial_payload'] = {'amount': '100.00'}
-    with pytest.raises(TraceRecordValidationError, match='unknown fields'): TraceRecordCodec.decode(json.dumps(payload))
-    structurally_invalid = json.loads(encoded); structurally_invalid['record_type'] = 'decision'; structurally_invalid['result'] = 'authoritative'; structurally_invalid['content_digest'] = '0' * 64; structurally_invalid['record_id'] = '00000000-0000-0000-0000-000000000000'
-    with pytest.raises(TraceRecordValidationError, match='policy replay'): TraceRecordCodec.decode(json.dumps(structurally_invalid))
-    wrong_score_type = json.loads(encoded); wrong_score_type['score'] = 1
-    with pytest.raises(TraceRecordValidationError, match='score must be a string'): TraceRecordCodec.decode(json.dumps(wrong_score_type))
-    _m1_record = observation(); _m1_captured: dict[str, str] = {}; TraceJUnitAdapter.emit(lambda name, value: _m1_captured.__setitem__(name, value), _m1_record); assert TraceRecordCodec.decode(_m1_captured[TraceJUnitAdapter.PROPERTY_KEY]) == _m1_record; _m1_decision = TraceRecord.decision(scope=_m1_record.scope, target=_m1_record.target, policy=decision_policy(), execution_id=_m1_record.execution_id, occurred_at=_m1_record.occurred_at, parents=[_m1_record])
-    with pytest.raises(TraceRecordValidationError, match='policy replay'): TraceRecordCodec.decode(TraceRecordCodec.encode(_m1_decision))
-    with pytest.raises(TraceRecordValidationError, match='policy validation'): TraceJUnitAdapter.emit(lambda _name, _value: None, _m1_decision)
-def test_AC_audit_trace_record_2_authority_profile_reuses_canonical_matrix():
-    with pytest.raises(TraceRecordValidationError, match='proof_kind'): authority(tier='LLM-ONLY', proof_kind='exact')
-    with pytest.raises(TraceRecordValidationError, match='manual.adjudication'): authority(provenance='manual', stage='github_ci.merge_authority')
-    manual = TraceAuthorityProfile(package='operator', tier='CODE-LED', proof_kind='exact', provenance='manual', execution_stage='manual.adjudication', assertion_owner_digest='c' * 64, producer_version='operator-review@1'); assert manual.tier == 'CODE-LED'
-    with pytest.raises(TraceRecordValidationError, match='unknown authority tier'): TraceAuthorityProfile(package='operator', tier='HU', proof_kind='evidence', provenance='manual', execution_stage='manual.adjudication', assertion_owner_digest='c' * 64, producer_version='operator-review@1')
+from __future__ import annotations
+
+import json
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from src.audit import TraceAuthorityProfile, TraceJUnitAdapter, TraceRecord, TraceRecordCodec, TraceRecordValidationError
+from tests.audit.trace.conftest import authority, decision_policy, observation
+
+
+def test_AC_audit_trace_record_1_and_2_codec_junit_and_authority_matrix() -> None:
+    record = observation()
+    encoded = TraceRecordCodec.encode(record)
+    decoded = TraceRecordCodec.decode(encoded)
+    same_instant = observation(scope=record.scope, occurred_at=datetime(2026, 7, 17, 8, tzinfo=timezone(timedelta(hours=8))))
+    captured: dict[str, str] = {}
+    TraceJUnitAdapter.emit(lambda name, value: captured.__setitem__(name, value), record)
+    manual = TraceAuthorityProfile(package="operator", tier="CODE-LED", proof_kind="exact", provenance="manual", execution_stage="manual.adjudication", assertion_owner_digest="c" * 64, producer_version="operator-review@1")
+    assert (decoded, TraceRecordCodec.encode(decoded), json.loads(encoded)["score"], len(record.content_digest), str(record.record_id), same_instant.record_id, TraceRecordCodec.decode(captured[TraceJUnitAdapter.PROPERTY_KEY]), manual.tier) == (
+        record, encoded, "1", 64, str(decoded.record_id), record.record_id, record, "CODE-LED",
+    )
+
+    decision = TraceRecord.decision(scope=record.scope, target=record.target, policy=decision_policy(), execution_id=record.execution_id, occurred_at=record.occurred_at, parents=[record])
+    payload = json.loads(encoded)
+    for fn, match in (
+        (lambda: TraceRecordCodec.decode(json.dumps({**payload, "raw_financial_payload": {"amount": "100.00"}})), "unknown fields"),
+        (lambda: TraceRecordCodec.decode(json.dumps({**payload, "record_type": "decision", "result": "authoritative", "content_digest": "0" * 64, "record_id": "00000000-0000-0000-0000-000000000000"})), "policy replay"),
+        (lambda: TraceRecordCodec.decode(json.dumps({**payload, "score": 1})), "score must be a string"),
+        (lambda: TraceRecordCodec.decode(TraceRecordCodec.encode(decision)), "policy replay"),
+        (lambda: TraceJUnitAdapter.emit(lambda _n, _v: None, decision), "policy validation"),
+        (lambda: authority(tier="LLM-ONLY", proof_kind="exact"), "proof_kind"),
+        (lambda: authority(provenance="manual", stage="github_ci.merge_authority"), "manual.adjudication"),
+        (lambda: TraceAuthorityProfile(package="operator", tier="HU", proof_kind="evidence", provenance="manual", execution_stage="manual.adjudication", assertion_owner_digest="c" * 64, producer_version="operator-review@1"), "unknown authority tier"),
+    ):
+        with pytest.raises(TraceRecordValidationError, match=match):
+            fn()

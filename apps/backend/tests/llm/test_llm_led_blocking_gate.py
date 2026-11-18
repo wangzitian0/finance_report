@@ -1,32 +1,64 @@
-from __future__ import annotations; from decimal import Decimal; from unittest.mock import AsyncMock, patch; from uuid import uuid4; import pytest; from sqlalchemy import select; from src.extraction import BankStatementStatus, DocumentSource; from src.extraction.extension._llm_led_gate import QUARANTINE_METRIC_KIND, LlmLedQuarantineReason, evaluate_llm_led_extraction_gate; from src.extraction.extension.service import ExtractionService; from src.extraction.orm.layer2 import AtomicTransaction; from src.extraction.orm.statement_summary import StatementSummary
-@pytest.fixture
-def service() -> ExtractionService: return ExtractionService()
-_bank_payload = lambda *, opening, closing, txns: {'institution': 'UOB', 'account_last4': '6789', 'currency': 'SGD', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': opening, 'closing_balance': closing, 'transactions': txns}
-async def _parse(service: ExtractionService, tmp_path, payload: dict):
-    pdf = tmp_path / 'stmt.pdf'; pdf.write_bytes(b'dummy')
-    with patch.object(service, 'extract_financial_data', new=AsyncMock(return_value=payload)): return await service.parse_document(DocumentSource.resolve(path=pdf, content=pdf.read_bytes()), institution='UOB', user_id=uuid4())
-class TestBalanceChainBlockingGate:
-    async def test_AC20_9_2_imbalanced_bank_extraction_is_quarantined_not_parsed(self, service, tmp_path): payload = _bank_payload(opening='1000.00', closing='9999.00', txns=[{'date': '2025-01-15', 'description': 'Salary', 'amount': '100.00', 'direction': 'IN'}]); result = await _parse(service, tmp_path, payload); assert result.balance_validated is False; assert any((reason.startswith(LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value) for reason in result.review_reasons))
-    async def test_AC20_9_2_quarantined_extraction_absent_from_trusted_report_input(self, service, tmp_path): payload = _bank_payload(opening='500.00', closing='100000.00', txns=[{'date': '2025-01-10', 'description': 'Fee', 'amount': '5.00', 'direction': 'OUT'}]); result = await _parse(service, tmp_path, payload); assert result.balance_validated is False; assert any((reason.startswith(LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value) for reason in result.review_reasons))
-class TestDedupConservationBlockingGate:
-    async def test_AC20_9_3_within_doc_dedup_collapse_is_quarantined(self, service, tmp_path):
-        payload = _bank_payload(opening='0.00', closing='110.00', txns=[{'date': '2025-01-05', 'description': 'DEP A', 'amount': '50.00', 'direction': 'IN'}, {'date': '2025-01-06', 'description': 'DEP B', 'amount': '60.00', 'direction': 'IN'}]); pdf = tmp_path / 'stmt.pdf'; pdf.write_bytes(b'dummy')
-        with patch.object(service, 'extract_financial_data', new=AsyncMock(return_value=payload)), patch('src.extraction.extension.service.count_within_document_dedup_collapse', return_value=1): result = await service.parse_document(DocumentSource.resolve(path=pdf, content=pdf.read_bytes()), institution='UOB', user_id=uuid4())
-        assert any((reason.startswith(LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION.value) for reason in result.review_reasons))
-    def test_AC20_9_3_dedup_reason_code_distinct_from_balance(self): dedup = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=1); balance = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=0); assert dedup.reason == LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION; assert balance.reason == LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED; assert dedup.reason != balance.reason
-class TestFailClosedGate:
-    async def test_AC20_9_4_declared_missing_balance_is_review_only(self, service, tmp_path): payload = _bank_payload(opening='1000.00', closing='', txns=[{'date': '2025-01-15', 'description': 'Salary', 'amount': '100.00', 'direction': 'IN'}]); payload.pop('closing_balance'); result = await _parse(service, tmp_path, payload); assert result.balance_validated is None; assert result.confidence <= Decimal('0.59'); assert result.review_reasons == ('Source is missing required facts: opening and closing balances',)
-class TestOldPathRemoved:
-    async def test_AC20_9_5_imbalanced_no_longer_routes_to_parsed_review(self, service, tmp_path): payload = _bank_payload(opening='2000.00', closing='500.00', txns=[{'date': '2025-01-20', 'description': 'Refund', 'amount': '200.00', 'direction': 'IN'}]); result = await _parse(service, tmp_path, payload); assert result.balance_validated is False; assert result.review_reasons
-class TestNoFalseReject:
-    async def test_AC20_9_6_valid_extraction_passes_gate_unchanged(self, service, tmp_path): payload = _bank_payload(opening='1000.00', closing='1100.00', txns=[{'date': '2025-01-15', 'description': 'Salary', 'amount': '100.00', 'direction': 'IN'}]); result = await _parse(service, tmp_path, payload); assert result.balance_validated is True; assert result.review_reasons == ()
-    def test_AC20_9_6_valid_pure_gate_passes(self): verdict = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=0); assert verdict.quarantined is False; assert verdict.reason is None; _m1_verdict = evaluate_llm_led_extraction_gate(is_brokerage=True, balance_valid=False, within_doc_collapse=0); assert _m1_verdict.quarantined is False; _m2_passes = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=0, balance_gate_exempt=True); assert _m2_passes.quarantined is False; _m2_dedup = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=1, balance_gate_exempt=True); assert _m2_dedup.reason == LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION
-class TestObservability:
-    def test_AC20_9_7_each_failure_mode_has_distinct_reason_and_metric(self):
-        from src.observability import INVARIANT_VIOLATION_KINDS; verdicts = [evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=0), evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=2)]; reasons = {v.reason for v in verdicts}; metrics = {v.metric_kind for v in verdicts}; assert reasons == set(LlmLedQuarantineReason); assert metrics == set(QUARANTINE_METRIC_KIND.values()); assert len(metrics) == len(reasons) == 2; assert metrics == {kind for kind in INVARIANT_VIOLATION_KINDS if kind.startswith('llm_led_gate_quarantine_')}; _m1_forbidden = ('UOB', '6789', 'SGD', 'DBS')
-        for _m1_reason in LlmLedQuarantineReason: _m1_verdict = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=_m1_reason is not LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED, within_doc_collapse=1 if _m1_reason is LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION else 0); _m1_blob = f'{_m1_verdict.reason.value} {_m1_verdict.message} {_m1_verdict.metric_kind}'; assert all((_m1_token not in _m1_blob for _m1_token in _m1_forbidden))
-class TestQuarantinePersistsStatus:
-    async def test_AC20_9_8_quarantined_statement_persists_rejected_not_stuck_parsing(self, service, tmp_path, db, test_user):
-        payload = _bank_payload(opening='1000.00', closing='9999.00', txns=[{'date': '2025-01-15', 'description': 'Salary', 'amount': '100.00', 'direction': 'IN'}]); pdf = tmp_path / 'stmt.pdf'; pdf.write_bytes(b'dummy')
-        with patch.object(service, 'extract_financial_data', new=AsyncMock(return_value=payload)): result = await service.parse_document(DocumentSource.resolve(path=pdf, content=pdf.read_bytes()), institution='UOB', user_id=test_user.id, db=db)
-        await db.commit(); persisted = (await db.execute(select(StatementSummary).where(StatementSummary.user_id == test_user.id).where(StatementSummary.file_hash == result.source_content_digest))).scalar_one(); assert persisted.status == BankStatementStatus.REJECTED; txns = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))).scalars().all(); assert txns == []
+from __future__ import annotations
+
+from decimal import Decimal
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select
+
+from src.extraction import BankStatementStatus, DocumentSource
+from src.extraction.extension._llm_led_gate import QUARANTINE_METRIC_KIND, LlmLedQuarantineReason, evaluate_llm_led_extraction_gate
+from src.extraction.extension.service import ExtractionService
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.statement_summary import StatementSummary
+from src.observability import INVARIANT_VIOLATION_KINDS
+
+_bank_payload = lambda *, opening, closing, txns: {"institution": "UOB", "account_last4": "6789", "currency": "SGD", "period_start": "2025-01-01", "period_end": "2025-01-31", "opening_balance": opening, "closing_balance": closing, "transactions": txns}
+
+
+async def _parse(tmp_path, payload: dict, *, collapse: int = 0, db=None, user_id=None):
+    service, pdf = ExtractionService(), tmp_path / "stmt.pdf"
+    pdf.write_bytes(b"dummy")
+    with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=payload)), patch("src.extraction.extension.service.count_within_document_dedup_collapse", return_value=collapse):
+        return await service.parse_document(DocumentSource.resolve(path=pdf, content=pdf.read_bytes()), institution="UOB", user_id=user_id or uuid4(), db=db)
+
+
+@pytest.mark.parametrize(
+    ("payload", "collapse", "expected_valid", "expected_reason_prefix", "exact_reasons", "max_confidence"),
+    [
+        (_bank_payload(opening="1000.00", closing="9999.00", txns=[{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}]), 0, False, LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value, None, None),
+        (_bank_payload(opening="500.00", closing="100000.00", txns=[{"date": "2025-01-10", "description": "Fee", "amount": "5.00", "direction": "OUT"}]), 0, False, LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value, None, None),
+        (_bank_payload(opening="2000.00", closing="500.00", txns=[{"date": "2025-01-20", "description": "Refund", "amount": "200.00", "direction": "IN"}]), 0, False, LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value, None, None),
+        (_bank_payload(opening="0.00", closing="110.00", txns=[{"date": "2025-01-05", "description": "DEP A", "amount": "50.00", "direction": "IN"}, {"date": "2025-01-06", "description": "DEP B", "amount": "60.00", "direction": "IN"}]), 1, False, LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION.value, None, None),
+        ({"institution": "UOB", "account_last4": "6789", "currency": "SGD", "period_start": "2025-01-01", "period_end": "2025-01-31", "opening_balance": "1000.00", "transactions": [{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}]}, 0, None, None, ("Source is missing required facts: opening and closing balances",), Decimal("0.59")),
+        (_bank_payload(opening="1000.00", closing="1100.00", txns=[{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}]), 0, True, None, (), None),
+    ],
+)
+async def test_AC20_9_llm_led_blocking_gate_parse_outcomes(tmp_path, payload: dict, collapse: int, expected_valid, expected_reason_prefix: str | None, exact_reasons, max_confidence) -> None:
+    result = await _parse(tmp_path, payload, collapse=collapse)
+    assert result.balance_validated is expected_valid
+    assert expected_reason_prefix is None or any(r.startswith(expected_reason_prefix) for r in result.review_reasons)
+    assert exact_reasons is None or result.review_reasons == exact_reasons
+    assert max_confidence is None or result.confidence <= max_confidence
+
+
+async def test_AC20_9_pure_gate_observability_and_persistence(tmp_path, db, test_user) -> None:
+    dedup = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=1)
+    balance = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=0)
+    assert (
+        dedup.reason, balance.reason,
+        evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=0).quarantined,
+        evaluate_llm_led_extraction_gate(is_brokerage=True, balance_valid=False, within_doc_collapse=0).quarantined,
+        evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=0, balance_gate_exempt=True).quarantined,
+        evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=1, balance_gate_exempt=True).reason,
+    ) == (LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION, LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED, False, False, False, LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION)
+    assert {v.reason for v in (balance, dedup)} == set(LlmLedQuarantineReason) and {v.metric_kind for v in (balance, dedup)} == set(QUARANTINE_METRIC_KIND.values()) == {k for k in INVARIANT_VIOLATION_KINDS if k.startswith("llm_led_gate_quarantine_")}
+    for reason in LlmLedQuarantineReason:
+        v = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=reason is not LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED, within_doc_collapse=1 if reason is LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION else 0)
+        assert all(tok not in f"{v.reason.value} {v.message} {v.metric_kind}" for tok in ("UOB", "6789", "SGD", "DBS"))
+
+    result = await _parse(tmp_path, _bank_payload(opening="1000.00", closing="9999.00", txns=[{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}]), db=db, user_id=test_user.id)
+    await db.commit()
+    persisted = (await db.execute(select(StatementSummary).where(StatementSummary.user_id == test_user.id, StatementSummary.file_hash == result.source_content_digest))).scalar_one()
+    assert (persisted.status, (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))).scalars().all()) == (BankStatementStatus.REJECTED, [])

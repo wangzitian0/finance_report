@@ -1,33 +1,87 @@
-from __future__ import annotations; import json; import pytest; from src.llm.extension.cassette import CASSETTE_DIR, Cassette, CassetteMiss, CassetteMode, CassetteRecorder, CassetteStore, CassetteTag, CassetteValidationError, fingerprint, miss_summary; _MESSAGES = [{'role': 'system', 'content': 'Extract the closing balance.'}, {'role': 'user', 'content': 'Closing balance: 100.00 on statement S-0001.'}]; _DECODE = {'temperature': 0, 'max_tokens': 256}; _ROLE = 'extraction.json'; _RESPONSE = {'text': '{"closing_balance": "100.00"}', 'model_id': 'synthetic/glm'}; _make_recorder = lambda store, mode: CassetteRecorder(store, mode=mode)
-async def _live(_response: dict | None=None): return dict(_response if _response is not None else _RESPONSE)
-async def test_AC23_5_2_replay_returns_recorded_response_without_network(replay_recorder):
-    async def _explode(): raise AssertionError('replay must not perform a live call')
-    out = await replay_recorder.call(_explode, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); assert out == _RESPONSE
-async def test_AC23_5_3_replay_miss_is_a_hard_failure_no_network(temp_store):
-    recorder = _make_recorder(temp_store, CassetteMode.REPLAY)
-    async def _explode(): raise AssertionError('replay miss must not perform a live call')
-    with pytest.raises(CassetteMiss) as excinfo: await recorder.call(_explode, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
-    assert 'make llm-record' in str(excinfo.value); assert recorder.misses == [excinfo.value.key]
-def test_AC23_5_3_miss_summary_is_one_actionable_batch(): summary = miss_summary(['k2', 'k1', 'k1']); assert summary.startswith('2 cassette(s) need re-record'); assert 'k1' in summary and 'k2' in summary; assert 'make llm-record' in summary
-async def test_AC23_5_4_record_writes_cassette_against_mocked_client(record_recorder, temp_store):
-    out = await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); assert out == _RESPONSE; key = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); stored = temp_store.get(key); assert stored is not None; assert stored.response == _RESPONSE; replay = _make_recorder(temp_store, CassetteMode.REPLAY)
-    async def _explode(): raise AssertionError('no network')
-    assert await replay.call(_explode, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE) == _RESPONSE
-async def test_AC23_5_4_re_record_is_idempotent(record_recorder, temp_store):
+from __future__ import annotations
+
+import json
+import uuid
+
+import pytest
+
+from src.llm.extension.cassette import (
+    CASSETTE_DIR,
+    Cassette,
+    CassetteMiss,
+    CassetteMode,
+    CassetteRecorder,
+    CassetteStore,
+    CassetteTag,
+    CassetteValidationError,
+    fingerprint,
+    layer_engaged,
+    miss_summary,
+)
+
+_MESSAGES = [{"role": "system", "content": "Extract the closing balance."}, {"role": "user", "content": "Closing balance: 100.00 on statement S-0001."}]
+_DECODE = {"temperature": 0, "max_tokens": 256}
+_ROLE = "extraction.json"
+_RESPONSE = {"text": '{"closing_balance": "100.00"}', "model_id": "synthetic/glm"}
+
+
+async def _live(_response: dict | None = None):
+    return dict(_response if _response is not None else _RESPONSE)
+
+
+async def test_AC23_5_2_3_4_replay_miss_record_and_off(replay_recorder, record_recorder, temp_store, tmp_path) -> None:
+    assert layer_engaged(), "cassette layer must be engaged by tests/conftest.py"
+
+    async def _explode():
+        raise AssertionError("replay must not perform a live call")
+
+    assert await replay_recorder.call(_explode, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE) == _RESPONSE
+    miss_rec = CassetteRecorder(temp_store, mode=CassetteMode.REPLAY)
+    with pytest.raises(CassetteMiss) as excinfo:
+        await miss_rec.call(_explode, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
+    assert "make llm-record" in str(excinfo.value) and miss_rec.misses == [excinfo.value.key]
+
+    summary = miss_summary(["k2", "k1", "k1"])
+    assert summary.startswith("2 cassette(s) need re-record") and "k1" in summary and "k2" in summary and "make llm-record" in summary and miss_summary([]) == ""
+
+    async def _live_volatile():
+        return {**_RESPONSE, "request_id": uuid.uuid4().hex, "created": 1700000000}
+
     key = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
-    async def _live_volatile(): import uuid; return {**_RESPONSE, 'request_id': uuid.uuid4().hex, 'created': 1700000000}
-    await record_recorder.call(_live_volatile, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); first = temp_store._path(key).read_text(encoding='utf-8'); assert 'request_id' not in first; assert 'created' not in first; await record_recorder.call(_live_volatile, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); assert temp_store._path(key).read_text(encoding='utf-8') == first
-async def test_AC23_5_4_off_mode_is_plain_live_call(temp_store): recorder = _make_recorder(temp_store, CassetteMode.OFF); out = await recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); assert out == _RESPONSE; key = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); assert temp_store.get(key) is None
-def test_AC23_5_5_output_affecting_change_misses(): base = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); changed_msg = fingerprint(role=_ROLE, messages=[_MESSAGES[0], {'role': 'user', 'content': 'Closing balance: 200.00'}], decode_params=_DECODE); changed_param = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params={**_DECODE, 'temperature': 1}); assert base != changed_msg; assert base != changed_param; _m1_a = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); _m1_b = fingerprint(role='advisor.chat', messages=_MESSAGES, decode_params=_DECODE); assert _m1_a != _m1_b; _m2_k1 = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); _m2_k2 = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); assert _m2_k1 == _m2_k2; _m3_img_a = b'\x89PNG\r\n\x1a\nAAAA'; _m3_img_b = b'\x89PNG\r\n\x1a\nBBBB'; _m3_msg = lambda data: [{'role': 'user', 'content': [{'type': 'image', 'image': data}]}]; assert fingerprint(role='extraction.vision', messages=_m3_msg(_m3_img_a)) == fingerprint(role='extraction.vision', messages=_m3_msg(_m3_img_a)); assert fingerprint(role='extraction.vision', messages=_m3_msg(_m3_img_a)) != fingerprint(role='extraction.vision', messages=_m3_msg(_m3_img_b))
-def test_AC23_5_6_normalization_strips_only_volatile_fields():
-    with_volatile = fingerprint(role=_ROLE, messages=[{'role': 'user', 'content': 'x', 'timestamp': '2026-06-21T00:00:00Z', 'request_id': 'r1'}], decode_params=_DECODE); without_volatile = fingerprint(role=_ROLE, messages=[{'role': 'user', 'content': 'x', 'timestamp': '1999-01-01T00:00:00Z', 'request_id': 'r2'}], decode_params=_DECODE); assert with_volatile == without_volatile; content_changed = fingerprint(role=_ROLE, messages=[{'role': 'user', 'content': 'y', 'timestamp': '2026-06-21T00:00:00Z'}], decode_params=_DECODE); assert with_volatile != content_changed; assert miss_summary([]) == ''; _m5_fixtures = sorted(CASSETTE_DIR.glob('*.json')); assert _m5_fixtures, 'expected committed synthetic cassettes under the default dir'
-    for _m5_path in _m5_fixtures: _m5_data = json.loads(_m5_path.read_text(encoding='utf-8')); _m5_cassette = Cassette.from_json(_m5_data); assert _m5_path.stem == _m5_cassette.key; _m5_recomputed = fingerprint(role=_m5_cassette.request['role'], messages=_m5_cassette.request['messages'], decode_params=_m5_cassette.request['decode_params']); assert _m5_recomputed == _m5_cassette.key; assert CassetteStore().get(_m5_cassette.key) is not None
-async def test_AC23_5_7_correctness_cassette_refuses_to_record_when_validation_fails(record_recorder):
-    reject = lambda _response: False
-    with pytest.raises(CassetteValidationError): await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE, tag=CassetteTag.CORRECTNESS, validator=reject)
-async def test_AC23_5_7_correctness_cassette_records_when_validation_passes(record_recorder, temp_store): accept = lambda response: '100.00' in response['text']; await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE, tag=CassetteTag.CORRECTNESS, validator=accept); key = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE); stored = temp_store.get(key); assert stored is not None and stored.tag is CassetteTag.CORRECTNESS
-async def test_AC23_5_7_correctness_validator_raising_refuses_record(record_recorder):
-    def boom(_response: dict) -> bool: raise ValueError('ground-truth fixture unavailable')
-    with pytest.raises(CassetteValidationError): await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE, tag=CassetteTag.CORRECTNESS, validator=boom)
-async def test_AC23_5_7_correctness_record_requires_a_validator(record_recorder):
-    with pytest.raises(CassetteValidationError): await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE, tag=CassetteTag.CORRECTNESS)
+    await record_recorder.call(_live_volatile, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
+    first = temp_store._path(key).read_text(encoding="utf-8")
+    await record_recorder.call(_live_volatile, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
+    assert "request_id" not in first and "created" not in first and temp_store._path(key).read_text(encoding="utf-8") == first
+    assert await CassetteRecorder(temp_store, mode=CassetteMode.REPLAY).call(_explode, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE) == _RESPONSE
+
+    off_store = CassetteStore(directory=tmp_path / "off")
+    assert await CassetteRecorder(off_store, mode=CassetteMode.OFF).call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE) == _RESPONSE and off_store.get(key) is None
+
+
+def test_AC23_5_5_and_6_fingerprint_normalization_and_committed_fixtures() -> None:
+    base = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
+    img_msg = lambda data: [{"role": "user", "content": [{"type": "image", "image": data}]}]
+    assert base == fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
+    assert len({base, fingerprint(role=_ROLE, messages=[_MESSAGES[0], {"role": "user", "content": "Closing balance: 200.00"}], decode_params=_DECODE), fingerprint(role=_ROLE, messages=_MESSAGES, decode_params={**_DECODE, "temperature": 1}), fingerprint(role="advisor.chat", messages=_MESSAGES, decode_params=_DECODE)}) == 4
+    assert fingerprint(role="extraction.vision", messages=img_msg(b"\x89PNG\r\n\x1a\nAAAA")) != fingerprint(role="extraction.vision", messages=img_msg(b"\x89PNG\r\n\x1a\nBBBB"))
+
+    w_vol = fingerprint(role=_ROLE, messages=[{"role": "user", "content": "x", "timestamp": "2026-06-21T00:00:00Z", "request_id": "r1"}], decode_params=_DECODE)
+    assert w_vol == fingerprint(role=_ROLE, messages=[{"role": "user", "content": "x", "timestamp": "1999-01-01T00:00:00Z", "request_id": "r2"}], decode_params=_DECODE)
+    assert w_vol != fingerprint(role=_ROLE, messages=[{"role": "user", "content": "y", "timestamp": "2026-06-21T00:00:00Z"}], decode_params=_DECODE)
+
+    fixtures = sorted(CASSETTE_DIR.glob("*.json"))
+    assert fixtures
+    for path in fixtures:
+        c = Cassette.from_json(json.loads(path.read_text(encoding="utf-8")))
+        assert path.stem == c.key == fingerprint(role=c.request["role"], messages=c.request["messages"], decode_params=c.request["decode_params"]) and CassetteStore().get(c.key) is not None
+
+
+@pytest.mark.parametrize(("validator", "should_pass"), [(lambda r: "100.00" in r["text"], True), (None, False), (lambda _r: False, False), (lambda _r: (_ for _ in ()).throw(ValueError("ground-truth fixture unavailable")), False)])
+async def test_AC23_5_7_correctness_cassette_validation(record_recorder, temp_store, validator, should_pass: bool) -> None:
+    if should_pass:
+        await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE, tag=CassetteTag.CORRECTNESS, validator=validator)
+        stored = temp_store.get(fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE))
+        assert stored is not None and stored.tag is CassetteTag.CORRECTNESS
+    else:
+        with pytest.raises(CassetteValidationError):
+            await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE, tag=CassetteTag.CORRECTNESS, validator=validator)

@@ -1,16 +1,66 @@
-from __future__ import annotations; import re; from collections import Counter; from datetime import date, timedelta; from decimal import Decimal; from uuid import UUID; import pytest; from sqlalchemy import event; from sqlalchemy.ext.asyncio import AsyncSession; from src.extraction import TransactionDirection; from tests.factories import seed_parsed_statement; from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics; pytestmark = pytest.mark.asyncio; ROWS = 80; SMALL_ROWS = 8; SQL_BUDGET_AT_80_ROWS = 100; PER_ENTRY_QUERIES_BUDGET_AT_80_ROWS = 0; EXTRA_SQL_PER_EXTRA_ROW_BUDGET = 0.5; MIN_CAPTURED_STATEMENTS = 30
+from __future__ import annotations
+
+import re
+from collections import Counter
+from datetime import date, timedelta
+from decimal import Decimal
+from uuid import UUID
+
+import pytest
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction import TransactionDirection
+from tests.factories import seed_parsed_statement
+from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
+
+pytestmark = pytest.mark.asyncio
+ROWS, SMALL_ROWS = 80, 8
+
+
 def _rows(count: int, first_day: date) -> list[dict]:
-    rows = []
-    for index in range(count): incoming = index % 7 == 0; rows.append({'description': f"{('Salary' if incoming else 'Merchant')} {index}", 'amount': Decimal('1000.00') + index if incoming else Decimal('12.34') + index, 'direction': TransactionDirection.IN if incoming else TransactionDirection.OUT, 'date': first_day + timedelta(days=index)})
-    return rows
-async def _seed_reviewed_statement(db: AsyncSession, user_id: UUID, *, count: int, first_day: date) -> str: seeded = await seed_parsed_statement(db, user_id, institution='DBS', original_filename=f'approve_budget_{first_day.isoformat()}.pdf', opening_balance=Decimal('1000.00'), transactions=_rows(count, first_day)); seeded.statement.period_start = first_day; seeded.statement.period_end = first_day + timedelta(days=count - 1); await attach_reviewed_corpus_semantics(db, user_id, seeded.transactions); await db.commit(); return str(seeded.id)
+    return [
+        {
+            "description": f"{'Salary' if i % 7 == 0 else 'Merchant'} {i}",
+            "amount": Decimal("1000.00") + i if i % 7 == 0 else Decimal("12.34") + i,
+            "direction": TransactionDirection.IN if i % 7 == 0 else TransactionDirection.OUT,
+            "date": first_day + timedelta(days=i),
+        }
+        for i in range(count)
+    ]
+
+
+async def _seed_reviewed_statement(db: AsyncSession, user_id: UUID, *, count: int, first_day: date) -> str:
+    seeded = await seed_parsed_statement(db, user_id, institution="DBS", original_filename=f"approve_budget_{first_day.isoformat()}.pdf", opening_balance=Decimal("1000.00"), transactions=_rows(count, first_day))
+    seeded.statement.period_start, seeded.statement.period_end = first_day, first_day + timedelta(days=count - 1)
+    await attach_reviewed_corpus_semantics(db, user_id, seeded.transactions)
+    await db.commit()
+    return str(seeded.id)
+
+
 async def _approve_and_count(client, db_engine, statement_id: str) -> tuple[dict, list[str]]:
-    review = await client.get(f'/statements/{statement_id}/review'); assert review.status_code == 200, review.text; statements: list[str] = []
-    def capture(_conn, _cursor, statement_text, _parameters, _context, _executemany): statements.append(re.sub('\\s+', ' ', statement_text).strip())
-    event.listen(db_engine.sync_engine, 'before_cursor_execute', capture)
-    try: response = await client.post(f'/statements/{statement_id}/approvals', json={'create_account_if_missing': True})
-    finally: event.remove(db_engine.sync_engine, 'before_cursor_execute', capture)
-    assert response.status_code == 200, response.text; assert len(statements) > MIN_CAPTURED_STATEMENTS, f'the listener captured {len(statements)} statements'; return (response.json(), statements)
-def _per_entry_queries(statements: list[str], rows: int) -> int: shapes = Counter(statements); return sum((count for count in shapes.values() if count >= rows))
-async def test_AC_extraction_statement_approve_2_sql_count_of_80_rows_is_bounded(client, db, db_engine, test_user): statement_id = await _seed_reviewed_statement(db, test_user.id, count=ROWS, first_day=date(2026, 1, 1)); body, statements = await _approve_and_count(client, db_engine, statement_id); assert body['journal_entries_created'] == ROWS; per_entry = _per_entry_queries(statements, ROWS); exceeded = []; exceeded.append(f'{len(statements)} SQL statements for {ROWS} rows, budget {SQL_BUDGET_AT_80_ROWS}') if len(statements) > SQL_BUDGET_AT_80_ROWS else None; exceeded.append(f'{per_entry} statements repeat once for each entry, budget {PER_ENTRY_QUERIES_BUDGET_AT_80_ROWS}') if per_entry > PER_ENTRY_QUERIES_BUDGET_AT_80_ROWS else None; assert not exceeded, 'approve exceeded its budget: ' + '; '.join(exceeded)
-async def test_AC_extraction_statement_approve_3_extra_rows_cost_a_bounded_number_of_statements(client, db, db_engine, test_user): small_id = await _seed_reviewed_statement(db, test_user.id, count=SMALL_ROWS, first_day=date(2026, 1, 1)); small_body, small_sql = await _approve_and_count(client, db_engine, small_id); large_id = await _seed_reviewed_statement(db, test_user.id, count=ROWS, first_day=date(2026, 3, 1)); large_body, large_sql = await _approve_and_count(client, db_engine, large_id); assert small_body['journal_entries_created'] == SMALL_ROWS; assert large_body['journal_entries_created'] == ROWS; slope = (len(large_sql) - len(small_sql)) / (ROWS - SMALL_ROWS); assert slope <= EXTRA_SQL_PER_EXTRA_ROW_BUDGET, f'{SMALL_ROWS} rows -> {len(small_sql)} statements, {ROWS} rows -> {len(large_sql)} statements, slope {slope:.1f} per row, budget {EXTRA_SQL_PER_EXTRA_ROW_BUDGET}'
+    review = await client.get(f"/statements/{statement_id}/review")
+    assert review.status_code == 200, review.text
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement_text, *_args):
+        statements.append(re.sub(r"\s+", " ", statement_text).strip())
+
+    event.listen(db_engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        response = await client.post(f"/statements/{statement_id}/approvals", json={"create_account_if_missing": True})
+    finally:
+        event.remove(db_engine.sync_engine, "before_cursor_execute", capture)
+    assert response.status_code == 200 and len(statements) > 30
+    return response.json(), statements
+
+
+async def test_AC_extraction_statement_approve_2_3_sql_budget_and_scaling(client, db, db_engine, test_user):
+    small_id = await _seed_reviewed_statement(db, test_user.id, count=SMALL_ROWS, first_day=date(2026, 1, 1))
+    small_body, small_sql = await _approve_and_count(client, db_engine, small_id)
+    large_id = await _seed_reviewed_statement(db, test_user.id, count=ROWS, first_day=date(2026, 3, 1))
+    large_body, large_sql = await _approve_and_count(client, db_engine, large_id)
+    per_entry = sum(c for c in Counter(large_sql).values() if c >= ROWS)
+    slope = (len(large_sql) - len(small_sql)) / (ROWS - SMALL_ROWS)
+    assert (small_body["journal_entries_created"], large_body["journal_entries_created"]) == (SMALL_ROWS, ROWS)
+    assert len(large_sql) <= 100 and per_entry == 0 and slope <= 0.5

@@ -1,75 +1,216 @@
-from __future__ import annotations; from dataclasses import replace; from datetime import UTC, date, datetime, timedelta; from decimal import Decimal; from unittest.mock import patch; from uuid import UUID, uuid4; import pytest; from sqlalchemy import event, func, select; from sqlalchemy.ext.asyncio import AsyncSession; from src.audit import JournalEntrySourceType, TraceEmitter; from src.audit.extension.trace_repository import SqlTraceRecordRepository; from src.audit.orm import TraceRecordRow; from src.extraction import DispositionDecision, EconomicIntent, IntentProposal, IntentProposalOrigin, StatementTransaction, TransactionDirection; from src.extraction.extension import review_queue; from src.extraction.extension.disposition_trace import DispositionTraceInput, FinancialCommandRequest, authorize_financial_command, authorize_financial_commands_many, emit_disposition_trace_records, emit_disposition_trace_records_many; from src.extraction.extension.review_queue import StatementEntryRequest, create_entries_from_txns, create_entry_from_txn; from src.extraction.orm.layer2 import AtomicTransaction; from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError; from tests.factories import AtomicTransactionFactory, seed_parsed_statement; from tests.statement_ingestion import posting_dependencies, reviewed_posting_inputs; pytestmark = pytest.mark.asyncio; OCCURRED_AT = datetime(2026, 7, 1, tzinfo=UTC)
+from __future__ import annotations
+
+from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+from unittest.mock import patch
+from uuid import UUID, uuid4
+
+import pytest
+from sqlalchemy import event, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import JournalEntrySourceType, TraceEmitter
+from src.audit.orm import TraceRecordRow
+from src.extraction import DispositionDecision, EconomicIntent, IntentProposal, IntentProposalOrigin, StatementTransaction, TransactionDirection
+from src.extraction.extension import review_queue
+from src.extraction.extension.disposition_trace import (
+    DispositionTraceInput,
+    FinancialCommandRequest,
+    authorize_financial_command,
+    authorize_financial_commands_many,
+    emit_disposition_trace_records,
+    emit_disposition_trace_records_many,
+)
+from src.extraction.extension.review_queue import StatementEntryRequest, create_entries_from_txns, create_entry_from_txn
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.ledger import Account, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
+from tests.extraction._statement_run_helpers import make_account
+from tests.factories import AtomicTransactionFactory, seed_parsed_statement
+from tests.statement_ingestion import posting_dependencies, reviewed_posting_inputs
+
+pytestmark = pytest.mark.asyncio
+OCCURRED_AT = datetime(2026, 7, 1, tzinfo=UTC)
+
+
 class _Statements:
-    def __init__(self, db: AsyncSession) -> None: self._engine = db.bind.sync_engine; self.texts: list[str] = []
-    def _capture(self, _conn, _cursor, statement, _parameters, _context, _executemany) -> None: self.texts.append(statement)
-    def __enter__(self) -> _Statements: event.listen(self._engine, 'before_cursor_execute', self._capture); return self
-    def __exit__(self, *_exc) -> None: event.remove(self._engine, 'before_cursor_execute', self._capture)
-async def _transactions(db: AsyncSession, user_id: UUID, count: int) -> list[AtomicTransaction]: rows = [{'description': f'Posting batch {index}', 'amount': Decimal('5.00') + index, 'direction': TransactionDirection.OUT if index % 2 else TransactionDirection.IN, 'date': date(2026, 7, 1) + timedelta(days=index)} for index in range(count)]; seeded = await seed_parsed_statement(db, user_id, transactions=rows); return list(seeded.transactions)
-_statement_transaction = lambda txn: StatementTransaction(transaction_id=txn.id, transaction_date=txn.txn_date, amount=txn.amount, currency=txn.currency, direction=txn.direction, description=txn.description); _intent = lambda txn: EconomicIntent.INCOME if txn.direction == TransactionDirection.IN else EconomicIntent.EXPENSE; _proposal = lambda txn: IntentProposal(schema_version='1', policy_version='reviewed-test-v1', origin=IntentProposalOrigin.REVIEWED_RULE, intent=_intent(txn), category='TEST', confidence=Decimal('1'), evidence=('reviewed-test',))
+    def __init__(self, db: AsyncSession) -> None:
+        self._engine, self.texts = db.bind.sync_engine, []
+
+    def _capture(self, _conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        self.texts.append(statement)
+
+    def __enter__(self) -> _Statements:
+        event.listen(self._engine, "before_cursor_execute", self._capture)
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        event.remove(self._engine, "before_cursor_execute", self._capture)
+
+
+class _SingleRepository:
+    def __init__(self, inner) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str):
+        return getattr(self._inner, name)
+
+
+def _st_txn(txn):
+    return StatementTransaction(transaction_id=txn.id, transaction_date=txn.txn_date, amount=txn.amount, currency=txn.currency, direction=txn.direction, description=txn.description)
+
+
+def _intent(txn):
+    return EconomicIntent.INCOME if txn.direction == TransactionDirection.IN else EconomicIntent.EXPENSE
+
+
+def _proposal(txn):
+    return IntentProposal(schema_version="1", policy_version="reviewed-test-v1", origin=IntentProposalOrigin.REVIEWED_RULE, intent=_intent(txn), category="TEST", confidence=Decimal("1"), evidence=("reviewed-test",))
+
+
+async def _transactions(db: AsyncSession, user_id: UUID, count: int, prefix: str = "Posting batch") -> list[AtomicTransaction]:
+    rows = [{"description": f"{prefix} {i}", "amount": Decimal("5.00") + i, "direction": TransactionDirection.OUT if i % 2 else TransactionDirection.IN, "date": date(2026, 7, 1) + timedelta(days=i)} for i in range(count)]
+    return list((await seed_parsed_statement(db, user_id, transactions=rows)).transactions)
+
+
 async def _inputs(db: AsyncSession, user_id: UUID, transactions: list[AtomicTransaction]) -> list[tuple[DispositionTraceInput, DispositionDecision, Account]]:
     inputs = []
-    for txn in transactions: decision, counter_account = await reviewed_posting_inputs(db, user_id=user_id, transaction=txn, intent=_intent(txn)); inputs.append((DispositionTraceInput(transaction=_statement_transaction(txn), proposal=_proposal(txn), decision=decision), decision, counter_account))
+    for txn in transactions:
+        decision, counter = await reviewed_posting_inputs(db, user_id=user_id, transaction=txn, intent=_intent(txn))
+        inputs.append((DispositionTraceInput(transaction=_st_txn(txn), proposal=_proposal(txn), decision=decision), decision, counter))
     return inputs
-_emitter = lambda db: posting_dependencies().trace_emitter_factory(db)
-async def _emit_each(db: AsyncSession, user_id: UUID, items: list[DispositionTraceInput], **extra) -> list: emitter = extra.pop('emitter', None) or _emitter(db); return [await emit_disposition_trace_records(emitter=emitter, user_id=user_id, execution_id='batch-test-execution', occurred_at=OCCURRED_AT, transaction=item.transaction, proposal=item.proposal, decision=item.decision) for item in items]
-async def _emit_batch(db: AsyncSession, user_id: UUID, items: list[DispositionTraceInput], **extra) -> list: return await emit_disposition_trace_records_many(emitter=extra.pop('emitter', None) or _emitter(db), user_id=user_id, execution_id='batch-test-execution', occurred_at=OCCURRED_AT, inputs=items)
-async def test_AC_extraction_statement_approve_4_batch_disposition_records_equal_the_single_records(db, test_user):
-    transactions = await _transactions(db, test_user.id, 4); items = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]; nested = await db.begin_nested()
-    with _Statements(db) as batch_run: batch = await _emit_batch(db, test_user.id, items)
+
+
+def _emitter(db: AsyncSession):
+    return posting_dependencies().trace_emitter_factory(db)
+
+
+async def _emit_each(db: AsyncSession, user_id: UUID, items: list[DispositionTraceInput], emitter=None) -> list:
+    em = emitter or _emitter(db)
+    return [await emit_disposition_trace_records(emitter=em, user_id=user_id, execution_id="batch-test-execution", occurred_at=OCCURRED_AT, transaction=i.transaction, proposal=i.proposal, decision=i.decision) for i in items]
+
+
+async def _rollback_run(db: AsyncSession, coro, *, capture_sql: bool = False):
+    nested = await db.begin_nested()
+    if not capture_sql:
+        res = await coro
+        await nested.rollback()
+        return res
+    with _Statements(db) as sql_run:
+        res = await coro
     await nested.rollback()
-    with _Statements(db) as single_run: single = await _emit_each(db, test_user.id, items)
-    assert len(batch) == 4 and all((len(records) == 4 for records in batch)); assert batch == single; assert len(batch_run.texts) <= 8 and 3 * len(batch_run.texts) < len(single_run.texts)
-async def test_AC_extraction_statement_approve_4_a_lineage_with_a_head_keeps_the_single_path(db, test_user): transactions = await _transactions(db, test_user.id, 3); first_round = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]; await _emit_each(db, test_user.id, first_round[:2]); second_round = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]; nested = await db.begin_nested(); batch = await _emit_batch(db, test_user.id, second_round); await nested.rollback(); single = await _emit_each(db, test_user.id, second_round); assert batch == single; assert batch[0][2].supersedes_id is not None and batch[1][3].supersedes_id is not None; assert batch[2][2].supersedes_id is None and batch[2][3].supersedes_id is None
-async def test_AC_extraction_statement_approve_4_a_transaction_in_two_inputs_keeps_the_single_path(db, test_user): transactions = await _transactions(db, test_user.id, 2); first_decision = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]; second_decision = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]; items = [first_decision[0], first_decision[1], second_decision[0]]; nested = await db.begin_nested(); batch = await _emit_batch(db, test_user.id, items); await nested.rollback(); single = await _emit_each(db, test_user.id, items); assert batch == single; assert batch[2][3].supersedes_id == batch[0][3].record_id
-async def test_AC_extraction_statement_approve_4_a_repository_without_the_batch_read_keeps_the_single_path(db, test_user):
-    class SingleRepository:
-        def __init__(self, inner: SqlTraceRecordRepository) -> None: self._inner = inner
-        async def append(self, record): return await self._inner.append(record)
-        async def get(self, scope, record_id): return await self._inner.get(scope, record_id)
-        async def current_decision(self, scope, lineage): return await self._inner.current_decision(scope, lineage)
-        async def decision_head(self, scope, lineage): return await self._inner.decision_head(scope, lineage)
-    transactions = await _transactions(db, test_user.id, 2); items = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]; inner = _emitter(db).repository; legacy = TraceEmitter(SingleRepository(inner)); nested = await db.begin_nested(); batch = await _emit_batch(db, test_user.id, items, emitter=legacy); await nested.rollback(); single = await _emit_each(db, test_user.id, items); assert batch == single
-_lines = lambda txn, debit, credit: [{'account_id': debit, 'direction': Direction.DEBIT, 'amount': txn.amount, 'currency': 'SGD'}, {'account_id': credit, 'direction': Direction.CREDIT, 'amount': txn.amount, 'currency': 'SGD'}]
+    return res, sql_run.texts
+
+
+async def test_AC_extraction_statement_approve_4_batch_disposition_records_and_lineage(db, test_user):
+    items = [item for item, _, _ in await _inputs(db, test_user.id, await _transactions(db, test_user.id, 4))]
+    batch, batch_sql = await _rollback_run(db, emit_disposition_trace_records_many(emitter=_emitter(db), user_id=test_user.id, execution_id="batch-test-execution", occurred_at=OCCURRED_AT, inputs=items), capture_sql=True)
+    with _Statements(db) as single_run:
+        single = await _emit_each(db, test_user.id, items)
+    assert len(batch) == 4 and all(len(r) == 4 for r in batch) and batch == single and len(batch_sql) <= 8 and 3 * len(batch_sql) < len(single_run.texts)
+
+    txns, txns2 = await _transactions(db, test_user.id, 3, prefix="Posting lin1"), await _transactions(db, test_user.id, 2, prefix="Posting lin2")
+    await _emit_each(db, test_user.id, [item for item, _, _ in await _inputs(db, test_user.id, txns)][:2])
+    second_round = [item for item, _, _ in await _inputs(db, test_user.id, txns)]
+    b1 = await _rollback_run(db, emit_disposition_trace_records_many(emitter=_emitter(db), user_id=test_user.id, execution_id="batch-test-execution", occurred_at=OCCURRED_AT, inputs=second_round))
+    assert b1 == await _emit_each(db, test_user.id, second_round)
+    assert (b1[0][2].supersedes_id is not None, b1[1][3].supersedes_id is not None, b1[2][2].supersedes_id, b1[2][3].supersedes_id) == (True, True, None, None)
+
+    d1, d2 = [item for item, _, _ in await _inputs(db, test_user.id, txns2)], [item for item, _, _ in await _inputs(db, test_user.id, txns2)]
+    b2 = await _rollback_run(db, emit_disposition_trace_records_many(emitter=_emitter(db), user_id=test_user.id, execution_id="batch-test-execution", occurred_at=OCCURRED_AT, inputs=[d1[0], d1[1], d2[0]]))
+    assert b2 == await _emit_each(db, test_user.id, [d1[0], d1[1], d2[0]]) and b2[2][3].supersedes_id == b2[0][3].record_id
+    b_leg = await _rollback_run(db, emit_disposition_trace_records_many(emitter=TraceEmitter(_SingleRepository(_emitter(db).repository)), user_id=test_user.id, execution_id="batch-test-execution", occurred_at=OCCURRED_AT, inputs=d1))
+    assert b_leg == await _emit_each(db, test_user.id, d1)
+
+
 async def _requests(db: AsyncSession, user_id: UUID, transactions: list[AtomicTransaction]) -> tuple[list[FinancialCommandRequest], TraceEmitter]:
-    emitter = _emitter(db); debit, credit = (uuid4(), uuid4()); requests = []
-    for ((item, _decision, _counter), txn) in zip(await _inputs(db, user_id, transactions), transactions, strict=True): records = (await _emit_each(db, user_id, [item], emitter=emitter))[0]; requests.append(FinancialCommandRequest(upstream_decision=records[-1], entry_date=txn.txn_date, memo=txn.description, lines_data=_lines(txn, debit, credit), base_currency='SGD', source_id=txn.id))
-    return (requests, emitter)
-async def _authorize_each(emitter: TraceEmitter, user_id: UUID, requests: list[FinancialCommandRequest]) -> list: return [await authorize_financial_command(emitter=emitter, user_id=user_id, upstream_decision=request.upstream_decision, entry_date=request.entry_date, memo=request.memo, lines_data=request.lines_data, base_currency=request.base_currency, source_id=request.source_id) for request in requests]
-async def test_AC_extraction_statement_approve_5_batch_command_anchors_equal_the_single_anchors(db, test_user):
-    transactions = await _transactions(db, test_user.id, 4); requests, emitter = await _requests(db, test_user.id, transactions); nested = await db.begin_nested()
-    with _Statements(db) as batch_run: batch = await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=requests)
-    await nested.rollback()
-    with _Statements(db) as single_run: single = await _authorize_each(emitter, test_user.id, requests)
-    assert len(batch) == 4 and len({anchor.decision_id for anchor in batch}) == 4; assert batch == single; assert len(batch_run.texts) <= 8 and 3 * len(batch_run.texts) < len(single_run.texts)
-async def test_AC_extraction_statement_approve_5_a_command_with_a_head_keeps_the_single_path(db, test_user):
-    class SingleRepository:
-        def __init__(self, inner) -> None: self.inner = inner
-        async def decision_head(self, scope, lineage): return await self.inner.decision_head(scope, lineage)
-        async def append(self, record): return await self.inner.append(record)
-    transactions = await _transactions(db, test_user.id, 3); requests, emitter = await _requests(db, test_user.id, transactions); first = await _authorize_each(emitter, test_user.id, requests[:1]); nested = await db.begin_nested(); batch = await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=requests); await nested.rollback(); nested = await db.begin_nested(); legacy = await authorize_financial_commands_many(emitter=TraceEmitter(SingleRepository(emitter.repository)), user_id=test_user.id, requests=requests); await nested.rollback(); single = [*first, *await _authorize_each(emitter, test_user.id, requests[1:])]; assert len({anchor.decision_id for anchor in single}) == 3; assert batch == single; assert legacy == single
-async def test_AC_extraction_statement_approve_5_two_requests_for_one_command_keep_the_single_path(db, test_user): transactions = await _transactions(db, test_user.id, 2); requests, emitter = await _requests(db, test_user.id, transactions); changed = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions[:1])]; new_source = (await _emit_each(db, test_user.id, changed, emitter=emitter))[0][-1]; assert new_source.record_id != requests[0].upstream_decision.record_id; doubled = [replace(requests[0], upstream_decision=new_source), requests[0]]; nested = await db.begin_nested(); batch = await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=doubled); await nested.rollback(); single = await _authorize_each(emitter, test_user.id, doubled); assert batch == single; assert batch[0] == batch[1]
-async def test_AC_extraction_statement_approve_5_a_command_needs_an_authoritative_source_decision(db, test_user):
-    transactions = await _transactions(db, test_user.id, 2); requests, emitter = await _requests(db, test_user.id, transactions); foreign = FinancialCommandRequest(upstream_decision=requests[0].upstream_decision, entry_date=requests[1].entry_date, memo=requests[1].memo, lines_data=requests[1].lines_data, base_currency='SGD', source_id=requests[1].source_id)
-    with pytest.raises(ValueError, match='current authoritative source decision'): await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=[requests[0], foreign])
-    assert await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=[]) == []
+    emitter, debit, credit, requests = _emitter(db), uuid4(), uuid4(), []
+    for (item, _, _), txn in zip(await _inputs(db, user_id, transactions), transactions, strict=True):
+        records = (await _emit_each(db, user_id, [item], emitter=emitter))[0]
+        lines = [{"account_id": debit, "direction": Direction.DEBIT, "amount": txn.amount, "currency": "SGD"}, {"account_id": credit, "direction": Direction.CREDIT, "amount": txn.amount, "currency": "SGD"}]
+        requests.append(FinancialCommandRequest(upstream_decision=records[-1], entry_date=txn.txn_date, memo=txn.description, lines_data=lines, base_currency="SGD", source_id=txn.id))
+    return requests, emitter
+
+
+async def _authorize_each(emitter: TraceEmitter, user_id: UUID, requests: list[FinancialCommandRequest]) -> list:
+    return [await authorize_financial_command(emitter=emitter, user_id=user_id, upstream_decision=r.upstream_decision, entry_date=r.entry_date, memo=r.memo, lines_data=r.lines_data, base_currency=r.base_currency, source_id=r.source_id) for r in requests]
+
+
+async def test_AC_extraction_statement_approve_5_batch_command_anchors_and_edge_cases(db, test_user):
+    requests, emitter = await _requests(db, test_user.id, await _transactions(db, test_user.id, 4))
+    batch, batch_sql = await _rollback_run(db, authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=requests), capture_sql=True)
+    with _Statements(db) as single_run:
+        single = await _authorize_each(emitter, test_user.id, requests)
+    assert len(batch) == 4 and len({a.decision_id for a in batch}) == 4 and batch == single and len(batch_sql) <= 8 and 3 * len(batch_sql) < len(single_run.texts)
+
+    req3, em3 = await _requests(db, test_user.id, await _transactions(db, test_user.id, 3))
+    first = await _authorize_each(em3, test_user.id, req3[:1])
+    b3 = await _rollback_run(db, authorize_financial_commands_many(emitter=em3, user_id=test_user.id, requests=req3))
+    leg3 = await _rollback_run(db, authorize_financial_commands_many(emitter=TraceEmitter(_SingleRepository(em3.repository)), user_id=test_user.id, requests=req3))
+    s3 = [*first, *await _authorize_each(em3, test_user.id, req3[1:])]
+    assert len({a.decision_id for a in s3}) == 3 and b3 == s3 and leg3 == s3
+
+    tx2 = await _transactions(db, test_user.id, 2)
+    req2, em2 = await _requests(db, test_user.id, tx2)
+    new_src = (await _emit_each(db, test_user.id, [item for item, _, _ in await _inputs(db, test_user.id, tx2[:1])], emitter=em2))[0][-1]
+    doubled = [replace(req2[0], upstream_decision=new_src), req2[0]]
+    bd = await _rollback_run(db, authorize_financial_commands_many(emitter=em2, user_id=test_user.id, requests=doubled))
+    assert new_src.record_id != req2[0].upstream_decision.record_id and bd == await _authorize_each(em2, test_user.id, doubled) and bd[0] == bd[1]
+
+    foreign = replace(req2[1], upstream_decision=req2[0].upstream_decision)
+    with pytest.raises(ValueError, match="current authoritative source decision"):
+        await authorize_financial_commands_many(emitter=em2, user_id=test_user.id, requests=[req2[0], foreign])
+    assert await authorize_financial_commands_many(emitter=em2, user_id=test_user.id, requests=[]) == []
+
+
 async def _posting_context(db: AsyncSession, user_id: UUID, count: int):
-    seeded = await seed_parsed_statement(db, user_id, transactions=[{'description': f'Entry batch {index}', 'amount': Decimal('7.00') + index, 'direction': TransactionDirection.OUT if index % 2 else TransactionDirection.IN, 'date': date(2026, 7, 1) + timedelta(days=index)} for index in range(count)]); bank = Account(user_id=user_id, name=f'Bank {seeded.id}', type=AccountType.ASSET, currency='SGD'); db.add(bank); await db.flush(); seeded.statement.account_id = bank.id; await db.flush(); emitter = _emitter(db); requests = []
-    for txn in seeded.transactions: decision, counter = await reviewed_posting_inputs(db, user_id=user_id, transaction=txn, intent=_intent(txn)); records = await emit_disposition_trace_records(emitter=emitter, user_id=user_id, execution_id=f'entry-batch:{txn.id}', occurred_at=OCCURRED_AT, transaction=_statement_transaction(txn), proposal=_proposal(txn), decision=decision); requests.append(StatementEntryRequest(txn=txn, disposition=decision, counter_account=counter, source_decision=records[-1], source_type=JournalEntrySourceType.AUTO_PARSED))
-    return (seeded.statement, bank, emitter, requests)
+    seeded = await seed_parsed_statement(db, user_id, transactions=[{"description": f"Entry batch {i}", "amount": Decimal("7.00") + i, "direction": TransactionDirection.OUT if i % 2 else TransactionDirection.IN, "date": date(2026, 7, 1) + timedelta(days=i)} for i in range(count)])
+    bank = await make_account(db, user_id, f"Bank {seeded.id}")
+    seeded.statement.account_id = bank.id
+    await db.flush()
+    emitter, deps = _emitter(db), posting_dependencies()
+    reqs = [
+        StatementEntryRequest(txn=txn, disposition=dec, counter_account=cnt, source_decision=(await emit_disposition_trace_records(emitter=emitter, user_id=user_id, execution_id=f"entry-batch:{txn.id}", occurred_at=OCCURRED_AT, transaction=_st_txn(txn), proposal=_proposal(txn), decision=dec))[-1], source_type=JournalEntrySourceType.AUTO_PARSED)
+        for txn in seeded.transactions
+        for dec, cnt in [await reviewed_posting_inputs(db, user_id=user_id, transaction=txn, intent=_intent(txn))]
+    ]
+    common = {"user_id": user_id, "base_currency": "SGD", "auto_post": True, "preloaded_statement": seeded.statement, "preloaded_bank_account": bank, "fx_rate_provider": deps.fx_rate_provider, "fx_rate_error": deps.fx_rate_error, "trace_emitter": emitter}
+    return bank, reqs, common
+
+
 async def _facts(db: AsyncSession, entries: list[JournalEntry], bank: Account) -> list[dict]:
-    facts = []
-    for entry in sorted(entries, key=lambda item: item.memo): lines = (await db.execute(select(JournalLine).where(JournalLine.journal_entry_id == entry.id))).scalars().all(); anchor = await db.get(TraceRecordRow, entry.decision_anchor_id); facts.append({'memo': entry.memo, 'date': entry.entry_date, 'status': entry.status, 'source_type': entry.source_type, 'authority': entry.decision_authority_state, 'anchor': (anchor.record_type, anchor.assertion_kind, anchor.assertion_id, anchor.result), 'lines': sorted(((line.line_no, 'bank' if line.account_id == bank.id else 'counter', line.direction, line.amount, line.currency) for line in lines)), 'loaded_lines': len(entry.lines)})
-    return facts
-def _common(test_user, statement, bank) -> dict: dependencies = posting_dependencies(); return {'user_id': test_user.id, 'base_currency': 'SGD', 'auto_post': True, 'preloaded_statement': statement, 'preloaded_bank_account': bank, 'fx_rate_provider': dependencies.fx_rate_provider, 'fx_rate_error': dependencies.fx_rate_error}
-async def test_AC_extraction_statement_approve_6_batch_entries_equal_the_single_entries(db, test_user):
-    batch_statement, batch_bank, batch_emitter, batch_requests = await _posting_context(db, test_user.id, 4); single_statement, single_bank, single_emitter, single_requests = await _posting_context(db, test_user.id, 4)
-    batch = await create_entries_from_txns(db, batch_requests, trace_emitter=batch_emitter, **_common(test_user, batch_statement, batch_bank))
-    single = [await create_entry_from_txn(db, request.txn, disposition=request.disposition, counter_account=request.counter_account, source_decision=request.source_decision, source_type=request.source_type, trace_emitter=single_emitter, record_evidence=False, **_common(test_user, single_statement, single_bank)) for request in single_requests]; assert [entry.source_id for entry in batch] == [request.txn.id for request in batch_requests]; assert all((entry.status is JournalEntryStatus.POSTED for entry in batch)); batch_facts = await _facts(db, batch, batch_bank); assert len(batch_facts) == 4; assert batch_facts == await _facts(db, single, single_bank); assert all((fact['loaded_lines'] == 2 for fact in batch_facts)); assert all((fact['anchor'][1:3] == ('financial_command', 'source-disposition') for fact in batch_facts))
-async def test_AC_extraction_statement_approve_6_batch_entries_keep_the_checks_and_errors_of_the_single_path(db, test_user):
-    statement, bank, emitter, requests = await _posting_context(db, test_user.id, 2); common = {**_common(test_user, statement, bank), 'trace_emitter': emitter}; assert await create_entries_from_txns(db, [], **common) == []; foreign = AtomicTransactionFactory.build(user_id=UUID(int=1)); foreign_request = StatementEntryRequest(txn=foreign, disposition=requests[0].disposition, counter_account=requests[0].counter_account, source_decision=requests[0].source_decision, source_type=requests[0].source_type)
-    with pytest.raises(ValueError, match='does not belong to user'): await create_entries_from_txns(db, [requests[0], foreign_request], **{**common, 'auto_post': False})
-    assert await db.scalar(select(func.count()).select_from(JournalEntry)) == 0
-    async def refuse(*_args, **_kwargs): raise ValidationError('unbalanced')
-    with patch.object(review_queue, 'submit_anchored_journal_entries', refuse):
-        with pytest.raises(ValueError, match='Generated entry does not balance: unbalanced'): await create_entries_from_txns(db, requests, **{**common, 'auto_post': False})
-        with pytest.raises(ValueError, match='Generated entry violates accounting invariants: unbalanced'): await create_entries_from_txns(db, requests, **common)
+    return [
+        {
+            "memo": e.memo, "date": e.entry_date, "status": e.status, "source_type": e.source_type, "authority": e.decision_authority_state,
+            "anchor": (a.record_type, a.assertion_kind, a.assertion_id, a.result),
+            "lines": sorted((ln.line_no, "bank" if ln.account_id == bank.id else "counter", ln.direction, ln.amount, ln.currency) for ln in (await db.execute(select(JournalLine).where(JournalLine.journal_entry_id == e.id))).scalars()),
+            "loaded_lines": len(e.lines),
+        }
+        for e in sorted(entries, key=lambda item: item.memo)
+        for a in [await db.get(TraceRecordRow, e.decision_anchor_id)]
+    ]
+
+
+async def test_AC_extraction_statement_approve_6_batch_entries_and_checks(db, test_user):
+    b_bank, b_reqs, b_common = await _posting_context(db, test_user.id, 4)
+    s_bank, s_reqs, s_common = await _posting_context(db, test_user.id, 4)
+    batch = await create_entries_from_txns(db, b_reqs, **b_common)
+    single = [await create_entry_from_txn(db, r.txn, disposition=r.disposition, counter_account=r.counter_account, source_decision=r.source_decision, source_type=r.source_type, record_evidence=False, **s_common) for r in s_reqs]
+    batch_facts = await _facts(db, batch, b_bank)
+    assert [e.source_id for e in batch] == [r.txn.id for r in b_reqs] and all(e.status is JournalEntryStatus.POSTED for e in batch)
+    assert len(batch_facts) == 4 and batch_facts == await _facts(db, single, s_bank) and all(f["loaded_lines"] == 2 and f["anchor"][1:3] == ("financial_command", "source-disposition") for f in batch_facts)
+
+    _, reqs, common = await _posting_context(db, test_user.id, 2)
+    assert await create_entries_from_txns(db, [], **common) == []
+    foreign_req = replace(reqs[0], txn=AtomicTransactionFactory.build(user_id=UUID(int=1)))
+    with pytest.raises(ValueError, match="does not belong to user"):
+        await create_entries_from_txns(db, [reqs[0], foreign_req], **{**common, "auto_post": False})
+    assert await db.scalar(select(func.count()).select_from(JournalEntry).where(JournalEntry.user_id == test_user.id)) == 8
+
+    async def refuse(*_args, **_kwargs):
+        raise ValidationError("unbalanced")
+
+    with patch.object(review_queue, "submit_anchored_journal_entries", refuse):
+        for auto_post, msg in ((False, "Generated entry does not balance: unbalanced"), (True, "Generated entry violates accounting invariants: unbalanced")):
+            with pytest.raises(ValueError, match=msg):
+                await create_entries_from_txns(db, reqs, **{**common, "auto_post": auto_post})

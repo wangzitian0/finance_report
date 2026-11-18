@@ -1,8 +1,38 @@
-from uuid import uuid4; import pytest; from sqlalchemy.ext.asyncio import AsyncSession; from src.extraction.extension.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService; from tests.factories import UserFactory
-async def test_AC18_7_4_node_and_edge_upserts_are_idempotent(db: AsyncSession, test_user): service = EvidenceLineageService(); user_id = test_user.id; source_entity_id = uuid4(); record_entity_id = uuid4(); source = await service.upsert_node(db, user_id=user_id, node_kind='source_document', entity_type='bank_statement', entity_id=source_entity_id, properties={'label': 'May statement'}); source_again = await service.upsert_node(db, user_id=user_id, node_kind='source_document', entity_type='bank_statement', entity_id=source_entity_id, properties={'label': 'May statement updated'}); record = await service.upsert_node(db, user_id=user_id, node_kind='extracted_record', entity_type='bank_statement_transaction', entity_id=record_entity_id); edge = await service.upsert_edge(db, user_id=user_id, from_node_id=source.id, to_node_id=record.id, relation='parsed_into', properties={'parser': 'fixture'}); edge_again = await service.upsert_edge(db, user_id=user_id, from_node_id=source.id, to_node_id=record.id, relation='parsed_into', properties={'parser': 'fixture-v2'}); assert source_again.id == source.id; assert source_again.properties == {'label': 'May statement updated'}; assert edge_again.id == edge.id; assert edge_again.properties == {'parser': 'fixture-v2'}
-async def test_AC18_7_5_traversal_resolves_upstream_and_downstream_by_entity(db: AsyncSession, test_user): service = EvidenceLineageService(); user_id = test_user.id; source_entity_id = uuid4(); extracted_entity_id = uuid4(); atomic_entity_id = uuid4(); source = await service.upsert_node(db, user_id=user_id, node_kind='source_document', entity_type='bank_statement', entity_id=source_entity_id); extracted = await service.upsert_node(db, user_id=user_id, node_kind='extracted_record', entity_type='bank_statement_transaction', entity_id=extracted_entity_id); atomic = await service.upsert_node(db, user_id=user_id, node_kind='atomic_fact', entity_type='atomic_transaction', entity_id=atomic_entity_id); await service.upsert_edge(db, user_id=user_id, from_node_id=source.id, to_node_id=extracted.id, relation='parsed_into'); await service.upsert_edge(db, user_id=user_id, from_node_id=extracted.id, to_node_id=atomic.id, relation='deduped_into'); downstream = await service.get_downstream(db, user_id=user_id, entity_type='bank_statement', entity_id=source_entity_id); upstream = await service.get_upstream(db, user_id=user_id, entity_type='atomic_transaction', entity_id=atomic_entity_id); assert [(step.depth, step.edge.relation, step.node.entity_type) for step in downstream] == [(1, 'parsed_into', 'bank_statement_transaction'), (2, 'deduped_into', 'atomic_transaction')]; assert [(step.depth, step.edge.relation, step.node.entity_type) for step in upstream] == [(1, 'deduped_into', 'bank_statement_transaction'), (2, 'parsed_into', 'bank_statement')]
-async def test_AC18_7_6_traversal_enforces_depth_limit(db: AsyncSession, test_user): service = EvidenceLineageService(); user_id = test_user.id; entity_ids = [uuid4(), uuid4(), uuid4()]; first = await service.upsert_node(db, user_id=user_id, node_kind='source_document', entity_type='source', entity_id=entity_ids[0]); second = await service.upsert_node(db, user_id=user_id, node_kind='extracted_record', entity_type='middle', entity_id=entity_ids[1]); third = await service.upsert_node(db, user_id=user_id, node_kind='atomic_fact', entity_type='leaf', entity_id=entity_ids[2]); await service.upsert_edge(db, user_id=user_id, from_node_id=first.id, to_node_id=second.id, relation='parsed_into'); await service.upsert_edge(db, user_id=user_id, from_node_id=second.id, to_node_id=third.id, relation='deduped_into'); one_hop = await service.get_downstream(db, user_id=user_id, entity_type='source', entity_id=entity_ids[0], max_depth=1); assert DEFAULT_MAX_DEPTH == 6; assert [(step.depth, step.node.entity_type) for step in one_hop] == [(1, 'middle')]
-async def test_AC18_7_5_cross_user_edges_and_traversal_are_blocked(db: AsyncSession, test_user):
-    service = EvidenceLineageService(); user_a = test_user.id; user_b = (await UserFactory.create_async(db)).id; shared_entity_id = uuid4(); source_a = await service.upsert_node(db, user_id=user_a, node_kind='source_document', entity_type='bank_statement', entity_id=shared_entity_id); source_b = await service.upsert_node(db, user_id=user_b, node_kind='source_document', entity_type='bank_statement', entity_id=shared_entity_id); target_a = await service.upsert_node(db, user_id=user_a, node_kind='extracted_record', entity_type='bank_statement_transaction', entity_id=uuid4())
-    with pytest.raises(ValueError, match='same user'): await service.upsert_edge(db, user_id=user_a, from_node_id=source_b.id, to_node_id=target_a.id, relation='parsed_into')
-    await service.upsert_edge(db, user_id=user_a, from_node_id=source_a.id, to_node_id=target_a.id, relation='parsed_into'); user_b_downstream = await service.get_downstream(db, user_id=user_b, entity_type='bank_statement', entity_id=shared_entity_id); assert source_a.id != source_b.id; assert user_b_downstream == []
+from __future__ import annotations
+
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction.extension.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService
+from tests.factories import UserFactory
+
+
+async def test_AC18_7_lineage_upsert_traversal_depth_and_tenant_isolation(db: AsyncSession, test_user):
+    service, uid, sid, rid = EvidenceLineageService(), test_user.id, uuid4(), uuid4()
+    src = await service.upsert_node(db, user_id=uid, node_kind="source_document", entity_type="bank_statement", entity_id=sid, properties={"label": "May statement"})
+    src_again = await service.upsert_node(db, user_id=uid, node_kind="source_document", entity_type="bank_statement", entity_id=sid, properties={"label": "May statement updated"})
+    rec = await service.upsert_node(db, user_id=uid, node_kind="extracted_record", entity_type="bank_statement_transaction", entity_id=rid)
+    edge = await service.upsert_edge(db, user_id=uid, from_node_id=src.id, to_node_id=rec.id, relation="parsed_into", properties={"parser": "fixture"})
+    edge_again = await service.upsert_edge(db, user_id=uid, from_node_id=src.id, to_node_id=rec.id, relation="parsed_into", properties={"parser": "fixture-v2"})
+    assert (src_again.id, src_again.properties, edge_again.id, edge_again.properties) == (src.id, {"label": "May statement updated"}, edge.id, {"parser": "fixture-v2"})
+
+    aid = uuid4()
+    atm = await service.upsert_node(db, user_id=uid, node_kind="atomic_fact", entity_type="atomic_transaction", entity_id=aid)
+    await service.upsert_edge(db, user_id=uid, from_node_id=rec.id, to_node_id=atm.id, relation="deduped_into")
+    downstream = await service.get_downstream(db, user_id=uid, entity_type="bank_statement", entity_id=sid)
+    upstream = await service.get_upstream(db, user_id=uid, entity_type="atomic_transaction", entity_id=aid)
+    one_hop = await service.get_downstream(db, user_id=uid, entity_type="bank_statement", entity_id=sid, max_depth=1)
+    assert (
+        DEFAULT_MAX_DEPTH,
+        [(s.depth, s.edge.relation, s.node.entity_type) for s in downstream],
+        [(s.depth, s.edge.relation, s.node.entity_type) for s in upstream],
+        [(s.depth, s.node.entity_type) for s in one_hop],
+    ) == (6, [(1, "parsed_into", "bank_statement_transaction"), (2, "deduped_into", "atomic_transaction")], [(1, "deduped_into", "bank_statement_transaction"), (2, "parsed_into", "bank_statement")], [(1, "bank_statement_transaction")])
+
+    user_b = (await UserFactory.create_async(db)).id
+    src_b = await service.upsert_node(db, user_id=user_b, node_kind="source_document", entity_type="bank_statement", entity_id=sid)
+    with pytest.raises(ValueError, match="same user"):
+        await service.upsert_edge(db, user_id=uid, from_node_id=src_b.id, to_node_id=rec.id, relation="parsed_into")
+    assert src.id != src_b.id and await service.get_downstream(db, user_id=user_b, entity_type="bank_statement", entity_id=sid) == []

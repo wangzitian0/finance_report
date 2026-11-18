@@ -1,5 +1,68 @@
-from __future__ import annotations; from pathlib import Path; from unittest.mock import AsyncMock; from uuid import uuid4; from sqlalchemy import select; from src.extraction import BankStatementStatus, DocumentSource; from src.extraction.extension.service import ExtractionService; from src.ledger import Account, AccountType; from tests.statement_ingestion import parse_and_load_statement_projection; _unreconciled_payload = lambda institution, account_last4: {'institution': institution, 'account_last4': account_last4, 'currency': 'SGD', 'period_start': '2026-06-01', 'period_end': '2026-06-30', 'opening_balance': '1000.00', 'closing_balance': '2000.00', 'transactions': [{'date': '2026-06-15', 'description': 'Test', 'amount': '100.00', 'direction': 'IN', 'currency': 'SGD', 'balance_after': '1100.00'}]}; _balanced_payload = lambda institution, account_last4, opening, closing, amount: {'institution': institution, 'account_last4': account_last4, 'currency': 'SGD', 'period_start': '2026-06-01', 'period_end': '2026-06-30', 'opening_balance': opening, 'closing_balance': closing, 'transactions': [{'date': '2026-06-15', 'description': 'Interest', 'amount': amount, 'direction': 'IN', 'currency': 'SGD', 'balance_after': closing}]}
-async def _account_exists(db, user_id, institution: str, account_last4: str) -> Account | None: name = f'{institution} ••{account_last4}'; return (await db.execute(select(Account).where(Account.user_id == user_id).where(Account.name == name).where(Account.type == AccountType.ASSET))).scalar_one_or_none()
-async def test_AC_extraction_1832_4_rejected_parse_deletes_the_account_it_just_created(db, test_user): service = ExtractionService(); service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload('DBS', '9911')); _result, statement, _transactions = await parse_and_load_statement_projection(service, db=db, source=DocumentSource.resolve(path=Path('ac-1832-4a.pdf'), content=b'%PDF-1.7', content_hash='ac-1832-4a'), institution='DBS', user_id=test_user.id); await db.flush(); assert statement.status == BankStatementStatus.REJECTED; assert statement.account_id is None; assert await _account_exists(db, test_user.id, 'DBS', '9911') is None
-async def test_AC_extraction_1832_4_rejected_parse_never_deletes_a_preexisting_account(db, test_user): service = ExtractionService(); service.extract_financial_data = AsyncMock(return_value=_balanced_payload('GXS', '7174', '500.00', '600.00', '100.00')); _first_result, first, _transactions = await parse_and_load_statement_projection(service, db=db, source=DocumentSource.resolve(path=Path('ac-1832-4b-first.pdf'), content=b'%PDF-1.7', content_hash='ac-1832-4b-first'), institution='GXS', user_id=test_user.id); await db.flush(); assert first.status == BankStatementStatus.APPROVED; assert first.account_id is not None; service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload('GXS', '7174')); _second_result, second, _transactions = await parse_and_load_statement_projection(service, db=db, source=DocumentSource.resolve(path=Path('ac-1832-4b-second.pdf'), content=b'%PDF-1.7', content_hash='ac-1832-4b-second'), institution='GXS', user_id=test_user.id); await db.flush(); assert second.status == BankStatementStatus.REJECTED; account = await _account_exists(db, test_user.id, 'GXS', '7174'); assert account is not None; assert account.id == first.account_id; refreshed_first = await db.get(type(first), first.id); assert refreshed_first.account_id == account.id
-async def test_AC_extraction_1832_4_no_db_session_skips_account_lifecycle_entirely(tmp_path): service = ExtractionService(); service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload('DBS', '4242')); result = await service.parse_document(DocumentSource.resolve(path=Path('ac-1832-4c.pdf'), content=b'%PDF-1.7', content_hash='ac-1832-4c'), institution='DBS', user_id=uuid4(), db=None); assert result.balance_validated is False; assert result.review_reasons
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+from sqlalchemy import select
+from src.extraction import BankStatementStatus, DocumentSource
+from src.extraction.extension.service import ExtractionService
+from src.ledger import Account, AccountType
+from tests.statement_ingestion import parse_and_load_statement_projection
+
+
+def _unreconciled_payload(institution: str, last4: str) -> dict:
+    return {
+        "institution": institution,
+        "account_last4": last4,
+        "currency": "SGD",
+        "period_start": "2026-06-01",
+        "period_end": "2026-06-30",
+        "opening_balance": "1000.00",
+        "closing_balance": "2000.00",
+        "transactions": [{"date": "2026-06-15", "description": "Test", "amount": "100.00", "direction": "IN", "currency": "SGD", "balance_after": "1100.00"}],
+    }
+
+
+def _balanced_payload(institution: str, last4: str, opening: str, closing: str, amount: str) -> dict:
+    return {
+        "institution": institution,
+        "account_last4": last4,
+        "currency": "SGD",
+        "period_start": "2026-06-01",
+        "period_end": "2026-06-30",
+        "opening_balance": opening,
+        "closing_balance": closing,
+        "transactions": [{"date": "2026-06-15", "description": "Interest", "amount": amount, "direction": "IN", "currency": "SGD", "balance_after": closing}],
+    }
+
+
+async def _find_account(db, user_id, institution: str, last4: str) -> Account | None:
+    return (await db.execute(select(Account).where(Account.user_id == user_id, Account.name == f"{institution} ••{last4}", Account.type == AccountType.ASSET))).scalar_one_or_none()
+
+
+async def test_rejected_parse_deletes_orphan_account_but_preserves_preexisting(db, test_user):
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload("DBS", "9911"))
+    _, stmt, _ = await parse_and_load_statement_projection(service, db=db, source=DocumentSource.resolve(path=Path("rej-a.pdf"), content=b"%PDF-1.7", content_hash="rej-a"), institution="DBS", user_id=test_user.id)
+    await db.flush()
+    assert (stmt.status, stmt.account_id, await _find_account(db, test_user.id, "DBS", "9911")) == (BankStatementStatus.REJECTED, None, None)
+
+    service.extract_financial_data = AsyncMock(return_value=_balanced_payload("GXS", "7174", "500.00", "600.00", "100.00"))
+    _, first, _ = await parse_and_load_statement_projection(service, db=db, source=DocumentSource.resolve(path=Path("rej-b1.pdf"), content=b"%PDF-1.7", content_hash="rej-b1"), institution="GXS", user_id=test_user.id)
+    await db.flush()
+    assert first.status == BankStatementStatus.APPROVED and first.account_id is not None
+
+    service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload("GXS", "7174"))
+    _, second, _ = await parse_and_load_statement_projection(service, db=db, source=DocumentSource.resolve(path=Path("rej-b2.pdf"), content=b"%PDF-1.7", content_hash="rej-b2"), institution="GXS", user_id=test_user.id)
+    await db.flush()
+    account = await _find_account(db, test_user.id, "GXS", "7174")
+    refreshed_first = await db.get(type(first), first.id)
+    assert (second.status, account is not None, account.id, refreshed_first.account_id) == (BankStatementStatus.REJECTED, True, first.account_id, account.id)
+
+
+async def test_no_db_session_skips_account_lifecycle_entirely():
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload("DBS", "4242"))
+    result = await service.parse_document(DocumentSource.resolve(path=Path("rej-c.pdf"), content=b"%PDF-1.7", content_hash="rej-c"), institution="DBS", user_id=uuid4(), db=None)
+    assert result.balance_validated is False and result.review_reasons

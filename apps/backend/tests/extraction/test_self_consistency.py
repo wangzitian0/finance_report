@@ -1,22 +1,79 @@
-from decimal import Decimal; from unittest.mock import AsyncMock, patch; import pytest; from src.config import settings; from src.extraction.extension.service import ExtractionError, ExtractionService
-def _bank(diff: str='0'): txn_amount = Decimal('100.00') - Decimal(diff); return {'institution': 'DBS', 'period_start': '2025-01-01', 'period_end': '2025-01-31', 'opening_balance': '0.00', 'closing_balance': '100.00', 'currency': 'SGD', 'transactions': [{'date': '2025-01-10', 'amount': f'{txn_amount:.2f}', 'direction': 'IN', 'currency': 'SGD'}]}
-def _structurally_invalid(): payload = _bank('0'); payload['transactions'] = [{'date': '2025-01-10', 'amount': 'not-a-number', 'direction': 'IN'}]; return payload
-_brokerage = lambda: {'institution': 'Futu', 'period_start': '2025-06-01', 'period_end': '2025-06-30', 'opening_balance': '0.00', 'closing_balance': '5000.00', 'currency': 'HKD', 'positions': [{'symbol': 'AAPL', 'quantity': '10', 'market_value': '5000.00'}], 'transactions': []}
-async def _run(service, attempts_returns, *, max_attempts=3, seed=42):
-    mock = AsyncMock(side_effect=attempts_returns)
-    with patch.object(settings, 'ai_extract_max_attempts', max_attempts), patch.object(settings, 'ai_json_seed', seed), patch.object(service, 'extract_financial_data', mock): result = await service._extract_with_balance_retry(file_content=b'x', institution='DBS', file_type='pdf', file_url=None, force_model=None, filename='statement.pdf')
-    return (result, mock)
-async def test_reconciles_first_attempt_single_call(): service = ExtractionService(); result, mock = await _run(service, [_bank('0')]); assert result['closing_balance'] == '100.00'; assert mock.await_count == 1
-async def test_retries_until_reconciles(): service = ExtractionService(); good = _bank('0'); result, mock = await _run(service, [_bank('12.50'), good]); assert result is good; assert mock.await_count == 2
-async def test_keeps_best_when_none_reconcile(): service = ExtractionService(); worst, best = (_bank('40.00'), _bank('3.00')); result, mock = await _run(service, [worst, best, _bank('20.00')], max_attempts=3); assert result is best; assert mock.await_count == 3
-async def test_brokerage_is_not_retried(): service = ExtractionService(); result, mock = await _run(service, [_brokerage(), _bank('0')]); assert 'positions' in result; assert mock.await_count == 1
-async def test_seed_varies_per_attempt(): service = ExtractionService(); _, mock = await _run(service, [_bank('5.00'), _bank('5.00'), _bank('5.00')], max_attempts=3, seed=42); seeds = [c.kwargs.get('seed_override') for c in mock.await_args_list]; assert seeds == [None, 43, 44]
-async def test_max_attempts_one_disables_retry(): service = ExtractionService(); result, mock = await _run(service, [_bank('9.00')], max_attempts=1); assert result['closing_balance'] == '100.00'; assert mock.await_count == 1
-async def test_structurally_invalid_parse_does_not_win_as_best(): service = ExtractionService(); close = _bank('3.00'); result, mock = await _run(service, [_structurally_invalid(), close], max_attempts=2); assert result is close; assert mock.await_count == 2
-async def test_all_invalid_returns_last_parse(): service = ExtractionService(); last = _structurally_invalid(); result, _ = await _run(service, [_structurally_invalid(), last], max_attempts=2); assert result is last
-async def test_transient_retry_error_keeps_earlier_usable_parse(): service = ExtractionService(); usable = _bank('5.00'); result, mock = await _run(service, [usable, ExtractionError('429 rate limited')], max_attempts=2); assert result is usable; assert mock.await_count == 2
-async def test_all_attempts_error_reraises():
+from __future__ import annotations
+
+from decimal import Decimal
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from src.config import settings
+from src.extraction.extension.service import ExtractionError, ExtractionService
+
+
+def _bank(diff: str = "0"):
+    txn_amount = Decimal("100.00") - Decimal(diff)
+    return {
+        "institution": "DBS",
+        "period_start": "2025-01-01",
+        "period_end": "2025-01-31",
+        "opening_balance": "0.00",
+        "closing_balance": "100.00",
+        "currency": "SGD",
+        "transactions": [{"date": "2025-01-10", "amount": f"{txn_amount:.2f}", "direction": "IN", "currency": "SGD"}],
+    }
+
+
+def _invalid():
+    payload = _bank("0")
+    payload["transactions"] = [{"date": "2025-01-10", "amount": "not-a-number", "direction": "IN"}]
+    return payload
+
+
+def _brokerage():
+    return {
+        "institution": "Futu",
+        "period_start": "2025-06-01",
+        "period_end": "2025-06-30",
+        "opening_balance": "0.00",
+        "closing_balance": "5000.00",
+        "currency": "HKD",
+        "positions": [{"symbol": "AAPL", "quantity": "10", "market_value": "5000.00"}],
+        "transactions": [],
+    }
+
+
+async def _run(attempts_returns, *, max_attempts=3, seed=42):
     service = ExtractionService()
-    with pytest.raises(ExtractionError): await _run(service, [ExtractionError('boom'), ExtractionError('boom2')], max_attempts=2)
-async def test_first_attempt_error_then_success_recovers(): service = ExtractionService(); good = _bank('0'); result, mock = await _run(service, [ExtractionError('timeout'), good], max_attempts=2); assert result is good; assert mock.await_count == 2
-async def test_error_mid_run_does_not_skip_remaining_attempts(): service = ExtractionService(); reconciled = _bank('0'); result, mock = await _run(service, [_bank('8.00'), ExtractionError('429'), reconciled], max_attempts=3); assert result is reconciled; assert mock.await_count == 3
+    mock = AsyncMock(side_effect=attempts_returns)
+    with patch.object(settings, "ai_extract_max_attempts", max_attempts), patch.object(settings, "ai_json_seed", seed), patch.object(service, "extract_financial_data", mock):
+        return await service._extract_with_balance_retry(file_content=b"x", institution="DBS", file_type="pdf", file_url=None, force_model=None, filename="statement.pdf"), mock
+
+
+@pytest.mark.parametrize(
+    ("returns_fn", "max_attempts", "expected_calls", "check_fn"),
+    [
+        (lambda: [_bank("0")], 3, 1, lambda r: r["closing_balance"] == "100.00"),
+        (lambda: [_bank("12.50"), _bank("0")], 3, 2, lambda r: r["transactions"][0]["amount"] == "100.00"),
+        (lambda: [_bank("40.00"), _bank("3.00"), _bank("20.00")], 3, 3, lambda r: r["transactions"][0]["amount"] == "97.00"),
+        (lambda: [_brokerage(), _bank("0")], 3, 1, lambda r: "positions" in r),
+        (lambda: [_bank("9.00")], 1, 1, lambda r: r["closing_balance"] == "100.00"),
+        (lambda: [_invalid(), _bank("3.00")], 2, 2, lambda r: r["transactions"][0]["amount"] == "97.00"),
+        (lambda: [_invalid(), _invalid()], 2, 2, lambda r: r["transactions"][0]["amount"] == "not-a-number"),
+        (lambda: [_bank("5.00"), ExtractionError("429 rate limited")], 2, 2, lambda r: r["transactions"][0]["amount"] == "95.00"),
+        (lambda: [ExtractionError("timeout"), _bank("0")], 2, 2, lambda r: r["transactions"][0]["amount"] == "100.00"),
+        (lambda: [_bank("8.00"), ExtractionError("429"), _bank("0")], 3, 3, lambda r: r["transactions"][0]["amount"] == "100.00"),
+    ],
+    ids=[
+        "first-reconciles", "retry-reconciles", "keeps-best", "brokerage-single", "max-1",
+        "invalid-skipped", "all-invalid-last", "transient-keeps-usable", "first-err-recovers", "mid-err-continues",
+    ],
+)
+async def test_retry_selection_matrix(returns_fn, max_attempts, expected_calls, check_fn):
+    result, mock = await _run(returns_fn(), max_attempts=max_attempts)
+    assert mock.await_count == expected_calls and check_fn(result)
+
+
+async def test_seed_varies_and_all_attempts_error_reraises():
+    _, mock = await _run([_bank("5.00"), _bank("5.00"), _bank("5.00")], max_attempts=3, seed=42)
+    assert [c.kwargs.get("seed_override") for c in mock.await_args_list] == [None, 43, 44]
+    with pytest.raises(ExtractionError):
+        await _run([ExtractionError("boom"), ExtractionError("boom2")], max_attempts=2)

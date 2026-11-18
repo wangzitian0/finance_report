@@ -1,4 +1,37 @@
-from __future__ import annotations; import pytest; from src.runtime import EnvTier, resolve_env_tier; pytestmark = pytest.mark.no_db
-@pytest.mark.parametrize(('environment', 'expected'), [('development', EnvTier.LOCAL_DEV), ('dev', EnvTier.LOCAL_DEV), ('local', EnvTier.LOCAL_DEV), ('test', EnvTier.LOCAL_CI), ('testing', EnvTier.LOCAL_CI), ('ci', EnvTier.LOCAL_CI), ('preview', EnvTier.PREVIEW), ('branch-main', EnvTier.PREVIEW), ('pr-123', EnvTier.PREVIEW), ('commit-abc1234', EnvTier.PREVIEW), ('tag-v0-2-53', EnvTier.PREVIEW), ('staging', EnvTier.STAGING), ('production', EnvTier.PRODUCTION)])
-def test_known_environments_resolve(environment: str, expected: EnvTier) -> None: assert resolve_env_tier(environment) is expected
-def test_ci_environments_resolve_to_github_ci_on_github_actions() -> None: assert all((resolve_env_tier(environment, github_actions=True) is EnvTier.GITHUB_CI for environment in ('test', 'testing', 'ci'))); assert resolve_env_tier('  Staging ') is EnvTier.STAGING; assert resolve_env_tier('qa-42') is EnvTier.PRODUCTION; assert resolve_env_tier('') is EnvTier.PRODUCTION
+from __future__ import annotations
+
+import pytest
+from src.runtime import EnvTier, resolve_env_tier
+
+pytestmark = pytest.mark.no_db
+
+
+@pytest.mark.parametrize(
+    ("environment", "expected"),
+    [
+        ("development", EnvTier.LOCAL_DEV),
+        ("dev", EnvTier.LOCAL_DEV),
+        ("local", EnvTier.LOCAL_DEV),
+        ("test", EnvTier.LOCAL_CI),
+        ("testing", EnvTier.LOCAL_CI),
+        ("ci", EnvTier.LOCAL_CI),
+        ("preview", EnvTier.PREVIEW),
+        ("branch-main", EnvTier.PREVIEW),
+        ("pr-123", EnvTier.PREVIEW),
+        ("commit-abc1234", EnvTier.PREVIEW),
+        ("tag-v0-2-53", EnvTier.PREVIEW),
+        ("staging", EnvTier.STAGING),
+        ("production", EnvTier.PRODUCTION),
+    ],
+)
+def test_known_environments_resolve(environment: str, expected: EnvTier) -> None:
+    assert resolve_env_tier(environment) is expected
+
+
+def test_ci_environments_resolve_to_github_ci_on_github_actions() -> None:
+    assert all(resolve_env_tier(env, github_actions=True) is EnvTier.GITHUB_CI for env in ("test", "testing", "ci"))
+    assert (resolve_env_tier("  Staging "), resolve_env_tier("qa-42"), resolve_env_tier("")) == (
+        EnvTier.STAGING,
+        EnvTier.PRODUCTION,
+        EnvTier.PRODUCTION,
+    )

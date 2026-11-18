@@ -1,22 +1,108 @@
-import pytest; from src.extraction.extension.service import ExtractionError, ExtractionService
-class TestCSVParsing:
-    def setup_method(self): self.service = ExtractionService()
-    async def test_parse_dbs_csv(self): csv_content = b'Transaction Date,Reference,Debit Amount,Credit Amount,Transaction Ref1,Transaction Ref2,Transaction Ref3\n15 Jan 2025,REF001,,500.00,SALARY,EMPLOYER PTE LTD,JAN 2025\n16 Jan 2025,REF002,100.00,,NETS,FAIRPRICE,GROCERIES\n17 Jan 2025,REF003,50.00,,ATM WITHDRAWAL,DBS ATM,'; result = await self.service._parse_csv_content(csv_content, 'DBS'); assert 'currency' not in result; assert 'period_start' not in result; assert 'period_end' not in result; assert result['observed_transaction_start'] == '2025-01-15'; assert result['observed_transaction_end'] == '2025-01-17'; assert len(result['transactions']) == 3; txn0 = result['transactions'][0]; assert txn0['date'] == '2025-01-15'; assert txn0['amount'] == '500.00'; assert txn0['direction'] == 'IN'; assert 'SALARY' in txn0['description']; txn1 = result['transactions'][1]; assert txn1['direction'] == 'OUT'; assert txn1['amount'] == '100.00'; _m1_csv_content = b'Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount\nSGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00'; _m1_result = await self.service._parse_csv_content(_m1_csv_content, 'Example Bank'); assert _m1_result['currency'] == 'SGD'; assert _m1_result['period_start'] == '2025-01-01'; assert _m1_result['period_end'] == '2025-01-31'; assert _m1_result['opening_balance'] == '100.00'; assert _m1_result['closing_balance'] == '125.00'
-    async def test_AC_extraction_2476_1_declared_csv_balances_are_not_marked_missing(self): declared = b'Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount\nSGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00'; result = await self.service._parse_csv_content(declared, 'Example Bank'); assert result['balance_source'] == 'declared_in_csv_export'; closing_only = b'Statement Currency,Statement Closing Balance,Date,Description,Amount\nSGD,125.00,2025-01-15,Interest,25.00'; result = await self.service._parse_csv_content(closing_only, 'Example Bank'); assert result['balance_source'] == 'missing_from_csv_export'; no_balances = b'Date,Description,Amount\n2025-01-15,Interest,25.00'; result = await self.service._parse_csv_content(no_balances, 'Example Bank'); assert result['balance_source'] == 'missing_from_csv_export'; _m2_csv_content = b'Transaction Date,Debit Amount,Credit Amount,Transaction Ref1\n20 Jan 2025,,1000.00,TRANSFER FROM SAVINGS\n21 Jan 2025,200.00,,BILL PAYMENT'; _m2_result = await self.service._parse_csv_content(_m2_csv_content, 'POSB'); assert len(_m2_result['transactions']) == 2; assert _m2_result['transactions'][0]['direction'] == 'IN'; assert _m2_result['transactions'][1]['direction'] == 'OUT'
-    async def test_parse_wise_csv(self): csv_content = b'ID,Created on,Direction,Source amount (after fees),Reference\n12345,2025-01-10T10:30:00Z,OUT,250.00,Payment to vendor\n12346,2025-01-12T14:00:00Z,IN,1500.00,Client payment received'; result = await self.service._parse_csv_content(csv_content, 'Wise'); assert len(result['transactions']) == 2; assert result['observed_transaction_start'] == '2025-01-10'; assert result['observed_transaction_end'] == '2025-01-12'; assert 'period_start' not in result; assert 'period_end' not in result; assert result['transactions'][0]['direction'] == 'OUT'; assert result['transactions'][0]['amount'] == '250.00'; assert result['transactions'][1]['direction'] == 'IN'; assert result['transactions'][1]['amount'] == '1500.00'; _m3_csv_content = b'Transaction Date,Description,Debit,Credit\n05/01/2025,SALARY CREDIT,,5000.00\n06/01/2025,CREDIT CARD PAYMENT,1500.00,'; _m3_result = await self.service._parse_csv_content(_m3_csv_content, 'OCBC'); assert len(_m3_result['transactions']) == 2; assert _m3_result['transactions'][0]['direction'] == 'IN'; assert _m3_result['transactions'][1]['direction'] == 'OUT'
-    async def test_parse_generic_csv_with_amount_column(self):
-        csv_content = b'Date,Description,Amount\n2025-01-01,Income,500.00\n2025-01-02,Expense,-100.00'; result = await self.service._parse_csv_content(csv_content, 'Unknown Bank'); assert len(result['transactions']) == 2; assert result['transactions'][0]['direction'] == 'IN'; assert result['transactions'][0]['amount'] == '500.00'; assert result['transactions'][1]['direction'] == 'OUT'; assert result['transactions'][1]['amount'] == '100.00'; _m4_csv_content = b'Transaction Date,Amount\n'
-        with pytest.raises(ExtractionError, match='(No valid transactions|empty or has no data rows)'): await self.service._parse_csv_content(_m4_csv_content, 'DBS')
-    async def test_parse_csv_with_bom(self): csv_content = b'\xef\xbb\xbfTransaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,,100.00,Test'; result = await self.service._parse_csv_content(csv_content, 'DBS'); assert len(result['transactions']) == 1; assert result['transactions'][0]['amount'] == '100.00'; _m5_csv_content = b'Date,Amount,Description\n2025-01-15,100.00,ISO format\n15/01/2025,200.00,DD/MM/YYYY format\n01/15/2025,300.00,MM/DD/YYYY format'; _m5_result = await self.service._parse_csv_content(_m5_csv_content, 'Generic'); assert len(_m5_result['transactions']) == 3; _m6_csv_content = b'Date,Debit,Credit,Description\n2025-01-15,$50.00,,Purchase\n2025-01-16,,SGD 100.00,Deposit'; _m6_result = await self.service._parse_csv_content(_m6_csv_content, 'Generic'); assert len(_m6_result['transactions']) == 2; assert _m6_result['transactions'][0]['amount'] == '50.00'; assert _m6_result['transactions'][1]['amount'] == '100.00'; _m7_csv_content = b'Date,Credit,Description\n2025-01-15,"1,500.00",Large deposit'; _m7_result = await self.service._parse_csv_content(_m7_csv_content, 'Generic'); assert len(_m7_result['transactions']) == 1; assert _m7_result['transactions'][0]['amount'] == '1500.00'; _m8_csv_content = b'Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,,100.00,Valid transaction\nInvalid Date,,50.00,Should be skipped\n16 Jan 2025,,200.00,Another valid one'; _m8_result = await self.service._parse_csv_content(_m8_csv_content, 'DBS'); assert len(_m8_result['transactions']) == 2
-class TestCSVEdgeCases:
-    def setup_method(self): self.service = ExtractionService()
-    async def test_parse_csv_string_input(self):
-        csv_content = '\ufeffDate,Amount,Description\n2025-01-15,100.00,Test income'; result = await self.service._parse_csv_content(csv_content, 'Generic'); assert len(result['transactions']) == 1; assert result['transactions'][0]['amount'] == '100.00'; _m1_csv_content = b'Date,Amount,Description\n2025-01-15,100.00,Payment to S1234567A'; _m1_result = await self.service._parse_csv_content(_m1_csv_content, 'Generic'); assert len(_m1_result['transactions']) == 1; _m2_csv_content = b'Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,-,-,Dash amounts'
-        with pytest.raises(ExtractionError, match='No valid transactions'): await self.service._parse_csv_content(_m2_csv_content, 'DBS')
-        _m3_csv_content = b'Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,abc,,Invalid amount'
-        with pytest.raises(ExtractionError, match='No valid transactions'): await self.service._parse_csv_content(_m3_csv_content, 'DBS')
-        _m4_csv_content = b'Transaction Date,Debit Amount,Credit Amount,Transaction Ref1\n15 Jan 2025,,,No amounts here\n16 Jan 2025,,500.00,Valid deposit'; _m4_result = await self.service._parse_csv_content(_m4_csv_content, 'DBS'); assert len(_m4_result['transactions']) == 1; assert _m4_result['transactions'][0]['direction'] == 'IN'; _m5_csv_content = b'ID,Created on,Direction,Source amount (after fees),Reference\n123,INVALID_DATE,OUT,250.00,Bad date transfer\n124,2025-01-12T14:00:00Z,IN,1500.00,Valid transfer'; _m5_result = await self.service._parse_csv_content(_m5_csv_content, 'Wise'); assert len(_m5_result['transactions']) == 1; assert _m5_result['transactions'][0]['direction'] == 'IN'; _m6_csv_content = b'ID,Created on,Direction,Source amount (after fees),Reference\n123,2025-01-10T10:30:00Z,OUT,0.00,Zero amount\n124,2025-01-12T14:00:00Z,IN,1500.00,Valid transfer'; _m6_result = await self.service._parse_csv_content(_m6_csv_content, 'Wise'); assert len(_m6_result['transactions']) == 1; _m7_csv_content = b'ID,Created on,Direction,Source amount (after fees),Reference\n123,2025-01-10T10:30:00Z,OUT,INVALID,Bad amount\n124,2025-01-12T14:00:00Z,IN,1500.00,Valid transfer'; _m7_result = await self.service._parse_csv_content(_m7_csv_content, 'Wise'); assert len(_m7_result['transactions']) == 1; _m8_csv_content = b'Transaction Date,Description,Debit,Credit\nBAD_DATE,INVALID ROW,100.00,\n05/01/2025,SALARY CREDIT,,5000.00'; _m8_result = await self.service._parse_csv_content(_m8_csv_content, 'OCBC'); assert len(_m8_result['transactions']) == 1; assert _m8_result['transactions'][0]['direction'] == 'IN'; _m9_csv_content = b'Transaction Date,Description,Debit,Credit\n05/01/2025,NO AMOUNTS,,\n06/01/2025,VALID,1500.00,'; _m9_result = await self.service._parse_csv_content(_m9_csv_content, 'OCBC'); assert len(_m9_result['transactions']) == 1; assert _m9_result['transactions'][0]['direction'] == 'OUT'; _m10_csv_content = b'Date,Amount,Description\nINVALID,100.00,Bad date row\n2025-01-15,200.00,Valid row'; _m10_result = await self.service._parse_csv_content(_m10_csv_content, 'Unknown Bank'); assert len(_m10_result['transactions']) == 1; _m11_csv_content = b'Date,Amount,Description\n2025-01-15,INVALID_AMT,Bad amount\n2025-01-16,200.00,Valid row'; _m11_result = await self.service._parse_csv_content(_m11_csv_content, 'Unknown Bank'); assert len(_m11_result['transactions']) == 1; assert _m11_result['transactions'][0]['amount'] == '200.00'; _m12_csv_content = b'Date,Debit,Credit,Description\n2025-01-15,,,No amounts\n2025-01-16,,500.00,Valid deposit'; _m12_result = await self.service._parse_csv_content(_m12_csv_content, 'Unknown Bank'); assert len(_m12_result['transactions']) == 1; assert _m12_result['transactions'][0]['direction'] == 'IN'; _m13_csv_content = b'Date,Description,Reference\n2025-01-15,Some transaction,REF001'
-        with pytest.raises(ExtractionError, match='No valid transactions'): await self.service._parse_csv_content(_m13_csv_content, 'Unknown Bank')
-        _m14_csv_content = b'Transaction Date,Debit Amount,Credit Amount,Description\nBAD DATE,,,Row 1 bad date\nALSO BAD,,,Row 2 bad date'
-        with pytest.raises(ExtractionError, match='No valid transactions found in CSV'): await self.service._parse_csv_content(_m14_csv_content, 'DBS')
-        _m15_csv_content = b'Transaction Date,Debit,Credit,Description\n15 Jan 2025,,100.00,\n16 Jan 2025,,50.00,Valid'; _m15_result = await self.service._parse_csv_content(_m15_csv_content, 'OCBC'); assert [_m15_t['description'] for _m15_t in _m15_result['transactions']] == ['', 'Valid']; _m16_csv_content = b'Date,Amount,Description\n2025-01-15,100.00,Test income'; _m16_result = await self.service._parse_csv_content(_m16_csv_content, 'Unknown Bank'); assert len(_m16_result['transactions']) == 1; assert 'reference' not in _m16_result['transactions'][0]; _m17_csv_content = b'Created on,Source amount (after fees),Direction,Reference\n1/5/2025T10:30:00,100.00,IN,TRF-1'; _m17_result = await self.service._parse_csv_content(_m17_csv_content, 'Wise'); assert len(_m17_result['transactions']) == 1; assert _m17_result['transactions'][0]['date'] == '2025-05-01'; _m18_csv_content = '----------------------微信支付账单明细列表--------------------\n统计时间: 2025-01-01 至 2025-01-31\n导出时间: 2025-02-01 10:00:00\n-----------------------------------------------------------------\n交易时间,交易类型,交易对方,商品,收/支,金额(元),支付方式,当前状态,交易单号,商户单号,备注\n2025-01-15 12:30:00,商户消费,星巴克,拿铁咖啡,支出,¥38.00,零钱,支付成功,4200000001,M1001,/\n2025-01-18 19:00:00,转账,张三,朋友转账,收入,100.00,零钱,已存入零钱,4200000002,M1002,/\n'.encode(); _m18_result = await self.service._parse_csv_content(_m18_csv_content, 'WeChat Pay'); assert len(_m18_result['transactions']) == 2; _m18_txn0 = _m18_result['transactions'][0]; assert _m18_txn0['date'] == '2025-01-15'; assert _m18_txn0['amount'] == '38.00'; assert _m18_txn0['direction'] == 'OUT'; assert '星巴克' in _m18_txn0['description']; assert '拿铁咖啡' in _m18_txn0['description']; assert _m18_txn0['reference'] == '4200000001'; _m18_txn1 = _m18_result['transactions'][1]; assert _m18_txn1['date'] == '2025-01-18'; assert _m18_txn1['amount'] == '100.00'; assert _m18_txn1['direction'] == 'IN'; assert '张三' in _m18_txn1['description']; assert _m18_txn1['reference'] == '4200000002'; _m19_csv_content = '支付宝交易记录明细查询\n账号: test@example.com\n起始日期: 2025-01-01 终止日期: 2025-01-31\n-----------------------------------------------------------------\n交易时间\t,交易分类\t,交易对方\t,对方账号\t,商品说明\t,收/支\t,金额\t,收/付款方式\t,交易状态\t,交易订单号\t,商家订单号\t,备注\t\n2025-01-10 08:30:00\t,餐饮美食\t,肯德基\t,kfc@corp\t,早餐套餐\t,支出\t,25.50\t,花呗\t,交易成功\t,202501100001\t,KFC01\t,/\t\n2025-01-20 14:15:00\t,转账充值\t,李四\t,lisi@corp\t,还款转账\t,收入\t,500.00\t,余额宝\t,交易成功\t,202501200002\t,LS02\t,/\t\n2025-01-25 10:00:00\t,信用卡还款\t,招商银行\t,cmb@bank\t,还款\t,不计收支\t,2000.00\t,银行卡\t,还款成功\t,202501250003\t,CMB03\t,/\t\n'.encode('gbk'); _m19_result = await self.service._parse_csv_content(_m19_csv_content, 'Alipay'); assert len(_m19_result['transactions']) == 2; _m19_txn0 = _m19_result['transactions'][0]; assert _m19_txn0['date'] == '2025-01-10'; assert _m19_txn0['amount'] == '25.50'; assert _m19_txn0['direction'] == 'OUT'; assert '肯德基' in _m19_txn0['description']; assert _m19_txn0['reference'] == '202501100001'; _m19_txn1 = _m19_result['transactions'][1]; assert _m19_txn1['date'] == '2025-01-20'; assert _m19_txn1['amount'] == '500.00'; assert _m19_txn1['direction'] == 'IN'; assert '李四' in _m19_txn1['description']; assert _m19_txn1['reference'] == '202501200002'
+import pytest
+
+from src.extraction.extension.service import ExtractionError, ExtractionService
+
+
+@pytest.mark.parametrize(
+    ("csv_content", "institution", "expected_txns", "meta"),
+    [
+        (
+            b"Transaction Date,Reference,Debit Amount,Credit Amount,Transaction Ref1,Transaction Ref2,Transaction Ref3\n"
+            b"15 Jan 2025,REF001,,500.00,SALARY,EMPLOYER PTE LTD,JAN 2025\n"
+            b"16 Jan 2025,REF002,100.00,,NETS,FAIRPRICE,GROCERIES\n"
+            b"17 Jan 2025,REF003,50.00,,ATM WITHDRAWAL,DBS ATM,",
+            "DBS",
+            [("2025-01-15", "500.00", "IN", "SALARY"), ("2025-01-16", "100.00", "OUT", None), ("2025-01-17", "50.00", "OUT", None)],
+            {"observed_transaction_start": "2025-01-15", "observed_transaction_end": "2025-01-17", "_absent": ("currency", "period_start", "period_end")},
+        ),
+        (
+            b"Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount\n"
+            b"SGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00",
+            "Example Bank",
+            [("2025-01-15", "25.00", "IN", "Interest")],
+            {"currency": "SGD", "period_start": "2025-01-01", "period_end": "2025-01-31", "opening_balance": "100.00", "closing_balance": "125.00", "balance_source": "declared_in_csv_export"},
+        ),
+        (
+            b"Statement Currency,Statement Closing Balance,Date,Description,Amount\nSGD,125.00,2025-01-15,Interest,25.00",
+            "Example Bank",
+            [("2025-01-15", "25.00", "IN", None)],
+            {"balance_source": "missing_from_csv_export"},
+        ),
+        (b"Date,Description,Amount\n2025-01-15,Interest,25.00", "Example Bank", [("2025-01-15", "25.00", "IN", None)], {"balance_source": "missing_from_csv_export"}),
+        (b"Transaction Date,Debit Amount,Credit Amount,Transaction Ref1\n20 Jan 2025,,1000.00,TRANSFER\n21 Jan 2025,200.00,,BILL", "POSB", [("2025-01-20", "1000.00", "IN", None), ("2025-01-21", "200.00", "OUT", None)], {}),
+        (
+            b"ID,Created on,Direction,Source amount (after fees),Reference\n12345,2025-01-10T10:30:00Z,OUT,250.00,Payment\n12346,2025-01-12T14:00:00Z,IN,1500.00,Client",
+            "Wise",
+            [("2025-01-10", "250.00", "OUT", None), ("2025-01-12", "1500.00", "IN", None)],
+            {"observed_transaction_start": "2025-01-10", "observed_transaction_end": "2025-01-12", "_absent": ("period_start", "period_end")},
+        ),
+        (b"Transaction Date,Description,Debit,Credit\n05/01/2025,SALARY,,5000.00\n06/01/2025,CARD,1500.00,", "OCBC", [("2025-01-05", "5000.00", "IN", None), ("2025-01-06", "1500.00", "OUT", None)], {}),
+        (b"Date,Description,Amount\n2025-01-01,Income,500.00\n2025-01-02,Expense,-100.00", "Unknown Bank", [("2025-01-01", "500.00", "IN", None), ("2025-01-02", "100.00", "OUT", None)], {}),
+        (b"\xef\xbb\xbfTransaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,,100.00,Test", "DBS", [("2025-01-15", "100.00", "IN", None)], {}),
+        ("\ufeffDate,Amount,Description\n2025-01-15,100.00,Test income", "Generic", [("2025-01-15", "100.00", "IN", None)], {}),
+        (b"Date,Amount,Description\n2025-01-15,100.00,ISO\n15/01/2025,200.00,DMY\n01/15/2025,300.00,MDY", "Generic", [("2025-01-15", "100.00", "IN", None), ("2025-01-15", "200.00", "IN", None), ("2025-01-15", "300.00", "IN", None)], {}),
+        (b'Date,Debit,Credit,Description\n2025-01-15,$50.00,,Purchase\n2025-01-16,,SGD 100.00,Deposit\n2025-01-17,,"1,500.00",Large', "Generic", [("2025-01-15", "50.00", "OUT", None), ("2025-01-16", "100.00", "IN", None), ("2025-01-17", "1500.00", "IN", None)], {}),
+        (b"Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,,100.00,Valid\nInvalid Date,,50.00,Skip\n16 Jan 2025,,200.00,Valid2", "DBS", [("2025-01-15", "100.00", "IN", None), ("2025-01-16", "200.00", "IN", None)], {}),
+        (b"Transaction Date,Debit Amount,Credit Amount,Transaction Ref1\n15 Jan 2025,,,No amt\n16 Jan 2025,,500.00,Deposit", "DBS", [("2025-01-16", "500.00", "IN", None)], {}),
+        (b"ID,Created on,Direction,Source amount (after fees),Reference\n123,INVALID,OUT,250.00,Bad\n124,2025-01-10T10:30:00Z,OUT,0.00,Zero\n125,2025-01-10T10:30:00Z,OUT,INVALID,Bad\n126,2025-01-12T14:00:00Z,IN,1500.00,Valid", "Wise", [("2025-01-12", "1500.00", "IN", None)], {}),
+        (b"Transaction Date,Description,Debit,Credit\nBAD_DATE,INV,100.00,\n05/01/2025,NO_AMT,,\n06/01/2025,SALARY,,5000.00\n07/01/2025,CARD,1500.00,", "OCBC", [("2025-01-06", "5000.00", "IN", None), ("2025-01-07", "1500.00", "OUT", None)], {}),
+        (b"Date,Amount,Description\nINVALID,100.00,Bad\n2025-01-15,INVALID_AMT,Bad\n2025-01-16,200.00,Valid", "Unknown Bank", [("2025-01-16", "200.00", "IN", None)], {}),
+        (b"Date,Debit,Credit,Description\n2025-01-15,,,None\n2025-01-16,,500.00,Valid", "Unknown Bank", [("2025-01-16", "500.00", "IN", None)], {}),
+        (b"Transaction Date,Debit,Credit,Description\n15 Jan 2025,,100.00,\n16 Jan 2025,,50.00,Valid", "OCBC", [("2025-01-15", "100.00", "IN", ""), ("2025-01-16", "50.00", "IN", "Valid")], {}),
+        (b"Date,Amount,Description\n2025-01-15,100.00,Payment to S1234567A", "Unknown Bank", [("2025-01-15", "100.00", "IN", None)], {"_txn0_no_ref": True}),
+        (b"Created on,Source amount (after fees),Direction,Reference\n1/5/2025T10:30:00,100.00,IN,TRF-1", "Wise", [("2025-05-01", "100.00", "IN", None)], {}),
+        (
+            "----------------------微信支付账单明细列表--------------------\n"
+            "统计时间: 2025-01-01 至 2025-01-31\n-----------------------------------------------------------------\n"
+            "交易时间,交易类型,交易对方,商品,收/支,金额(元),支付方式,当前状态,交易单号,商户单号,备注\n"
+            "2025-01-15 12:30:00,商户消费,星巴克,拿铁咖啡,支出,¥38.00,零钱,支付成功,4200000001,M1001,/\n"
+            "2025-01-18 19:00:00,转账,张三,朋友转账,收入,100.00,零钱,已存入零钱,4200000002,M1002,/\n".encode(),
+            "WeChat Pay",
+            [("2025-01-15", "38.00", "OUT", "星巴克"), ("2025-01-18", "100.00", "IN", "张三")],
+            {"_refs": ["4200000001", "4200000002"]},
+        ),
+        (
+            "支付宝交易记录明细查询\n账号: test@example.com\n-----------------------------------------------------------------\n"
+            "交易时间\t,交易分类\t,交易对方\t,对方账号\t,商品说明\t,收/支\t,金额\t,收/付款方式\t,交易状态\t,交易订单号\t,商家订单号\t,备注\t\n"
+            "2025-01-10 08:30:00\t,餐饮美食\t,肯德基\t,kfc@corp\t,早餐套餐\t,支出\t,25.50\t,花呗\t,交易成功\t,202501100001\t,KFC01\t,/\t\n"
+            "2025-01-20 14:15:00\t,转账充值\t,李四\t,lisi@corp\t,还款转账\t,收入\t,500.00\t,余额宝\t,交易成功\t,202501200002\t,LS02\t,/\t\n"
+            "2025-01-25 10:00:00\t,信用卡还款\t,招商银行\t,cmb@bank\t,还款\t,不计收支\t,2000.00\t,银行卡\t,还款成功\t,202501250003\t,CMB03\t,/\t\n".encode("gbk"),
+            "Alipay",
+            [("2025-01-10", "25.50", "OUT", "肯德基"), ("2025-01-20", "500.00", "IN", "李四")],
+            {"_refs": ["202501100001", "202501200002"]},
+        ),
+    ],
+)
+async def test_csv_parsing_formats_and_skips(csv_content, institution, expected_txns, meta):
+    result = await ExtractionService()._parse_csv_content(csv_content, institution)
+    txns = result["transactions"]
+    assert [(t["date"], t["amount"], t["direction"]) for t in txns] == [(d, a, dr) for d, a, dr, _ in expected_txns]
+    for txn, (_, _, _, desc_sub) in zip(txns, expected_txns, strict=True):
+        if desc_sub == "":
+            assert txn["description"] == ""
+        elif desc_sub is not None:
+            assert desc_sub in txn["description"]
+    for key, val in meta.items():
+        if key == "_absent":
+            assert all(k not in result for k in val)
+        elif key == "_txn0_no_ref":
+            assert "reference" not in txns[0]
+        elif key == "_refs":
+            assert [t["reference"] for t in txns] == val
+        else:
+            assert result[key] == val
+
+
+@pytest.mark.parametrize(
+    ("csv_content", "institution", "match"),
+    [
+        (b"Transaction Date,Amount\n", "DBS", "(No valid transactions|empty or has no data rows)"),
+        (b"Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,-,-,Dash", "DBS", "No valid transactions"),
+        (b"Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,abc,,Bad", "DBS", "No valid transactions"),
+        (b"Date,Description,Reference\n2025-01-15,Some transaction,REF001", "Unknown Bank", "No valid transactions"),
+        (b"Transaction Date,Debit Amount,Credit Amount,Description\nBAD DATE,,,R1\nALSO BAD,,,R2", "DBS", "No valid transactions found in CSV"),
+    ],
+)
+async def test_csv_parsing_rejects_empty_or_invalid_rows(csv_content, institution, match):
+    with pytest.raises(ExtractionError, match=match):
+        await ExtractionService()._parse_csv_content(csv_content, institution)

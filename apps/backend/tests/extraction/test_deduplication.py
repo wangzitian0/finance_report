@@ -1,28 +1,107 @@
-from datetime import date; from decimal import Decimal; from uuid import uuid4; import pytest; from sqlalchemy import select; from src.extraction import DocumentType, TransactionDirection; from src.extraction.base.types import ExtractedTransactionRow; from src.extraction.extension.deduplication import DeduplicationService; from src.extraction.orm.layer2 import AtomicTransaction; from tests.factories import UserFactory
+import asyncio
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.extraction import DocumentType, TransactionDirection
+from src.extraction.base.types import ExtractedTransactionRow
+from src.extraction.extension.deduplication import DeduplicationService
+from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
+from src.extraction.orm.layer1 import UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction
+from tests.factories import AccountFactory, StatementSummaryFactory, UserFactory
+
+
 async def _known_custody_sources(db, user_id):
-    from src.extraction.orm.layer1 import UploadedDocument; from tests.factories import AccountFactory, StatementSummaryFactory; account = AccountFactory.build(user_id=user_id, currency='USD'); db.add(account); await db.flush(); docs = []
-    for kind in (DocumentType.BANK_STATEMENT, DocumentType.BROKERAGE_STATEMENT): doc = UploadedDocument(user_id=user_id, file_path=f'synthetic/{uuid4()}.pdf', file_hash=uuid4().hex * 2, original_filename='synthetic.pdf', document_type=kind); db.add(doc); await db.flush(); db.add(StatementSummaryFactory.build(user_id=user_id, uploaded_document_id=doc.id, file_hash=doc.file_hash, account_id=account.id, currency='USD')); docs.append(doc.id)
-    await db.flush(); return docs
-async def _upsert(service, *, db, user_id, txn_date, amount, direction, description, currency, source_doc_id, source_doc_type, reference=None, balance_after=None): row = ExtractedTransactionRow(user_id=user_id, txn_date=txn_date, amount=amount, direction=direction.value, description=description, reference=reference, currency=currency, currency_unresolved=False, balance_after=balance_after, occurrence_index=0, dedup_hash=service.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference=reference, balance_after=balance_after)); return await service.upsert_scoped_atomic_transaction(db=db, row=row, source_doc_id=source_doc_id, source_doc_type=source_doc_type)
-class TestDeduplicationService:
-    def test_calculate_transaction_hash(self): user_id = uuid4(); txn_date = date(2024, 1, 15); amount = Decimal('100.50'); direction = TransactionDirection.IN; description = 'Test Transaction'; reference = 'REF123'; service = DeduplicationService(); hash_result = service.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference); assert len(hash_result) == 64; assert all((c in '0123456789abcdef' for c in hash_result)); hash_result2 = service.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference); assert hash_result == hash_result2; hash_normalized = service.calculate_transaction_hash(user_id, txn_date, amount, direction, 'TEST TRANSACTION', reference); assert hash_result == hash_normalized; _m1_user_id = uuid4(); _m1_txn_date = date(2024, 1, 15); _m1_amount = Decimal('100.50'); _m1_direction = TransactionDirection.IN; _m1_description = 'Test Transaction'; _m1_service = DeduplicationService(); _m1_hash_result = _m1_service.calculate_transaction_hash(_m1_user_id, _m1_txn_date, _m1_amount, _m1_direction, _m1_description, reference=None); assert len(_m1_hash_result) == 64; _m1_hash_empty_ref = _m1_service.calculate_transaction_hash(_m1_user_id, _m1_txn_date, _m1_amount, _m1_direction, _m1_description, reference=''); assert _m1_hash_result == _m1_hash_empty_ref
-    def test_running_balance_distinguishes_identical_transactions(self): service = DeduplicationService(); user_id = uuid4(); txn_date = date(2024, 1, 1); amount = Decimal('50.00'); direction = TransactionDirection.OUT; description = 'Batch Payment'; _hash = lambda balance_after: service.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference=None, balance_after=balance_after); assert _hash(Decimal('950.00')) != _hash(Decimal('900.00')); assert _hash(Decimal('950.00')) == _hash(Decimal('950.00')); assert _hash(None) == service.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference=None); assert _hash(Decimal('950')) == _hash(Decimal('950.00')) == _hash(Decimal('950.000')); _m2_service = DeduplicationService(); _m2_user_id = uuid4(); _m2_txn_date = date(2024, 1, 1); _m2_amount = Decimal('5.00'); _m2_direction = TransactionDirection.OUT; _m2_description = 'Coffee'; _m2__hash = lambda *, occurrence_index=0, balance_after=None: _m2_service.calculate_transaction_hash(_m2_user_id, _m2_txn_date, _m2_amount, _m2_direction, _m2_description, reference=None, balance_after=balance_after, occurrence_index=occurrence_index); assert _m2__hash(occurrence_index=0) != _m2__hash(occurrence_index=1); assert _m2__hash(occurrence_index=0) == _m2_service.calculate_transaction_hash(_m2_user_id, _m2_txn_date, _m2_amount, _m2_direction, _m2_description, reference=None); assert _m2__hash(occurrence_index=0, balance_after=Decimal('100.00')) != _m2__hash(occurrence_index=7, balance_after=Decimal('100.00')); assert _m2__hash(occurrence_index=0, balance_after=Decimal('100.00')) == _m2__hash(occurrence_index=0, balance_after=Decimal('100.00')); assert _m2_service.calculate_transaction_hash(_m2_user_id, _m2_txn_date, Decimal('50'), _m2_direction, _m2_description) == _m2_service.calculate_transaction_hash(_m2_user_id, _m2_txn_date, Decimal('50.00'), _m2_direction, _m2_description)
-    def test_AC13_22_1_same_balance_distinct_rows_do_not_collapse(self): service = DeduplicationService(); user_id = uuid4(); txn_date = date(2024, 3, 10); amount = Decimal('250.00'); direction = TransactionDirection.IN; description = 'Incoming Transfer'; balance = Decimal('1750.00'); _hash = lambda occurrence_index: service.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference=None, balance_after=balance, occurrence_index=occurrence_index); first_deposit = _hash(occurrence_index=0); second_deposit = _hash(occurrence_index=1); assert first_deposit != second_deposit; assert first_deposit == _hash(occurrence_index=0); assert second_deposit == _hash(occurrence_index=1)
-    async def test_upsert_scoped_atomic_transaction_new_creates_record(self, db, test_user): service = DeduplicationService(); doc_id = uuid4(); txn = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Test Transaction', currency='USD', source_doc_id=doc_id, source_doc_type=DocumentType.BANK_STATEMENT, reference='REF123'); assert txn.id is not None; assert txn.user_id == test_user.id; assert txn.amount == Decimal('100.50'); assert txn.direction == TransactionDirection.IN; assert txn.description == 'Test Transaction'; assert txn.reference == 'REF123'; assert txn.currency == 'USD'; assert len(txn.dedup_hash) == 64; assert len(txn.source_documents) == 1; assert txn.source_documents[0]['doc_id'] == str(doc_id); assert txn.source_documents[0]['doc_type'] == DocumentType.BANK_STATEMENT.value
-    async def test_upsert_persists_balance_after(self, db, test_user): service = DeduplicationService(); txn = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2025, 6, 25), amount=Decimal('1033.50'), direction=TransactionDirection.OUT, description='Buy to Open NIO Inc NIO', currency='USD', source_doc_id=uuid4(), source_doc_type=DocumentType.BROKERAGE_STATEMENT, balance_after=Decimal('3966.50')); assert txn.balance_after == Decimal('3966.50'); reloaded = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.id == txn.id))).scalar_one(); assert reloaded.balance_after == Decimal('3966.50')
-    async def test_upsert_preserves_balance_after_on_legacy_null_row(self, db, test_user): service = DeduplicationService(); user_id = test_user.id; balance = Decimal('3966.50'); doc1_id, doc2_id = await _known_custody_sources(db, user_id); fields = dict(txn_date=date(2025, 6, 25), amount=Decimal('1033.50'), direction=TransactionDirection.OUT, description='Buy to Open NIO Inc NIO', reference=None); dedup_hash = service.calculate_transaction_hash(user_id, balance_after=balance, **fields); legacy = AtomicTransaction(user_id=user_id, currency='USD', dedup_hash=dedup_hash, balance_after=None, source_documents=[{'doc_id': str(doc1_id), 'doc_type': 'brokerage_statement'}], **fields); db.add(legacy); await db.flush(); result = await _upsert(service, db=db, user_id=user_id, currency='USD', source_doc_id=doc2_id, source_doc_type=DocumentType.BROKERAGE_STATEMENT, balance_after=balance, **fields); assert result.id == legacy.id; assert result.balance_after is None
-    async def test_upsert_scoped_atomic_transaction_duplicate_appends_source(self, db, test_user): service = DeduplicationService(); doc1_id, doc2_id = await _known_custody_sources(db, test_user.id); txn1 = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Test Transaction', currency='USD', source_doc_id=doc1_id, source_doc_type=DocumentType.BANK_STATEMENT, reference='REF123'); original_id = txn1.id; txn2 = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Test Transaction', currency='USD', source_doc_id=doc2_id, source_doc_type=DocumentType.BROKERAGE_STATEMENT, reference='REF123'); assert txn2.id == original_id; assert len(txn2.source_documents) == 2; doc_ids = {doc['doc_id'] for doc in txn2.source_documents}; assert str(doc1_id) in doc_ids; assert str(doc2_id) in doc_ids
-    async def test_upsert_scoped_atomic_transaction_duplicate_same_source_no_duplicate(self, db, test_user): service = DeduplicationService(); doc_id = uuid4(); txn1 = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Test Transaction', currency='USD', source_doc_id=doc_id, source_doc_type=DocumentType.BANK_STATEMENT, reference='REF123'); txn2 = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Test Transaction', currency='USD', source_doc_id=doc_id, source_doc_type=DocumentType.BANK_STATEMENT, reference='REF123'); assert txn2.id == txn1.id; assert len(txn2.source_documents) == 1; assert txn2.source_documents[0]['doc_id'] == str(doc_id)
-    async def test_different_users_have_different_hashes(self, db, test_user): service = DeduplicationService(); user1_id = test_user.id; user2_id = (await UserFactory.create_async(db)).id; doc_id = uuid4(); txn1 = await _upsert(service, db=db, user_id=user1_id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Test Transaction', currency='USD', source_doc_id=doc_id, source_doc_type=DocumentType.BANK_STATEMENT, reference='REF123'); txn2 = await _upsert(service, db=db, user_id=user2_id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Test Transaction', currency='USD', source_doc_id=doc_id, source_doc_type=DocumentType.BANK_STATEMENT, reference='REF123'); assert txn1.id != txn2.id; assert txn1.dedup_hash != txn2.dedup_hash
-    async def test_concurrent_upsert_same_hash_no_duplicates(self, db_engine, db, test_user):
-        import asyncio; from sqlalchemy.ext.asyncio import AsyncSession; service = DeduplicationService(); doc1_id, doc2_id = await _known_custody_sources(db, test_user.id); await db.commit()
-        async def upsert_in_session(doc_id):
-            async with AsyncSession(db_engine) as session, session.begin(): txn = await _upsert(service, db=session, user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal('100.50'), direction=TransactionDirection.IN, description='Concurrent Test', currency='USD', source_doc_id=doc_id, source_doc_type=DocumentType.BANK_STATEMENT, reference='CONCURRENT'); return {'id': txn.id, 'dedup_hash': txn.dedup_hash, 'source_count': len(txn.source_documents)}
-        results = await asyncio.gather(upsert_in_session(doc1_id), upsert_in_session(doc2_id), return_exceptions=True); from sqlalchemy.exc import IntegrityError; has_integrity_error = any((isinstance(r, IntegrityError) for r in results)); successful_results: list[dict] = [r for r in results if not isinstance(r, Exception)]
-        if has_integrity_error: assert len(successful_results) == 1, 'Constraint should allow exactly one record'; assert successful_results[0]['source_count'] == 1
-        else:
-            assert len(successful_results) == 2, f'Expected 2 results, got {len(successful_results)}'; assert successful_results[0]['id'] == successful_results[1]['id'], 'Race condition: different IDs mean duplicate records created'
-            async with AsyncSession(db_engine) as session: result = await session.execute(select(AtomicTransaction).where(AtomicTransaction.dedup_hash == successful_results[0]['dedup_hash'])); all_records = result.scalars().all(); assert len(all_records) == 1, f'Race condition: {len(all_records)} duplicate records in database'
-    async def test_upsert_scoped_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
-        service = DeduplicationService(); doc1 = uuid4(); doc2 = uuid4(); txn = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 2, 1), amount=Decimal('12.00'), direction=TransactionDirection.OUT, description='Bad source docs', currency='SGD', source_doc_id=doc1, source_doc_type=DocumentType.BANK_STATEMENT); txn.source_documents = {'bad': 'shape'}; await db.flush(); from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
-        with pytest.raises(TransactionIdentityReviewRequired, match='review'): await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 2, 1), amount=Decimal('12.00'), direction=TransactionDirection.OUT, description='Bad source docs', currency='SGD', source_doc_id=doc2, source_doc_type=DocumentType.BROKERAGE_STATEMENT)
+    account = AccountFactory.build(user_id=user_id, currency="USD")
+    db.add(account)
+    await db.flush()
+    docs = []
+    for kind in (DocumentType.BANK_STATEMENT, DocumentType.BROKERAGE_STATEMENT):
+        doc = UploadedDocument(user_id=user_id, file_path=f"synthetic/{uuid4()}.pdf", file_hash=uuid4().hex * 2, original_filename="synthetic.pdf", document_type=kind)
+        db.add(doc)
+        await db.flush()
+        db.add(StatementSummaryFactory.build(user_id=user_id, uploaded_document_id=doc.id, file_hash=doc.file_hash, account_id=account.id, currency="USD"))
+        docs.append(doc.id)
+    await db.flush()
+    return docs
+
+
+async def _upsert(service, *, db, user_id, txn_date, amount, direction, description, currency, source_doc_id, source_doc_type, reference=None, balance_after=None):
+    row = ExtractedTransactionRow(
+        user_id=user_id, txn_date=txn_date, amount=amount, direction=direction.value, description=description, reference=reference, currency=currency,
+        currency_unresolved=False, balance_after=balance_after, occurrence_index=0,
+        dedup_hash=service.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference=reference, balance_after=balance_after),
+    )
+    return await service.upsert_scoped_atomic_transaction(db=db, row=row, source_doc_id=source_doc_id, source_doc_type=source_doc_type)
+
+
+def test_calculate_transaction_hash_determinism_and_dimensions():
+    service, uid, d = DeduplicationService(), uuid4(), date(2024, 1, 15)
+    h = lambda desc="Test Transaction", ref="REF123", amt=Decimal("100.50"), bal=None, occ=0: service.calculate_transaction_hash(
+        uid, d, amt, TransactionDirection.IN, desc, reference=ref, balance_after=bal, occurrence_index=occ
+    )
+    assert len(h()) == 64 and all(c in "0123456789abcdef" for c in h())
+    assert h() == h(desc="TEST TRANSACTION") and h(ref=None) == h(ref="")
+    assert h(bal=Decimal("950.00")) != h(bal=Decimal("900.00"))
+    assert h(bal=Decimal("950")) == h(bal=Decimal("950.00")) == h(bal=Decimal("950.000"))
+    assert h(bal=Decimal("1750.00"), occ=0) != h(bal=Decimal("1750.00"), occ=1)
+    assert h(occ=0) != h(occ=1) and h(amt=Decimal("50")) == h(amt=Decimal("50.00"))
+
+
+async def test_upsert_scoped_atomic_transaction_create_append_and_isolation(db, test_user):
+    service, doc1_id, d = DeduplicationService(), uuid4(), date(2024, 1, 15)
+    txn = await _upsert(service, db=db, user_id=test_user.id, txn_date=d, amount=Decimal("100.50"), direction=TransactionDirection.IN, description="Test Transaction", currency="USD", source_doc_id=doc1_id, source_doc_type=DocumentType.BANK_STATEMENT, reference="REF123", balance_after=Decimal("3966.50"))
+    reloaded = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.id == txn.id))).scalar_one()
+    assert (txn.user_id, txn.amount, txn.direction, txn.description, txn.reference, txn.currency, len(txn.dedup_hash), txn.source_documents, reloaded.balance_after) == (
+        test_user.id, Decimal("100.50"), TransactionDirection.IN, "Test Transaction", "REF123", "USD", 64, [{"doc_id": str(doc1_id), "doc_type": DocumentType.BANK_STATEMENT.value}], Decimal("3966.50")
+    )
+    same = await _upsert(service, db=db, user_id=test_user.id, txn_date=d, amount=Decimal("100.50"), direction=TransactionDirection.IN, description="Test Transaction", currency="USD", source_doc_id=doc1_id, source_doc_type=DocumentType.BANK_STATEMENT, reference="REF123", balance_after=Decimal("3966.50"))
+    assert same.id == txn.id and len(same.source_documents) == 1
+
+    other_user = await UserFactory.create_async(db)
+    other_txn = await _upsert(service, db=db, user_id=other_user.id, txn_date=d, amount=Decimal("100.50"), direction=TransactionDirection.IN, description="Test Transaction", currency="USD", source_doc_id=doc1_id, source_doc_type=DocumentType.BANK_STATEMENT, reference="REF123", balance_after=Decimal("3966.50"))
+    assert other_txn.id != txn.id and other_txn.dedup_hash != txn.dedup_hash
+
+
+async def test_upsert_merges_known_custody_sources_and_preserves_legacy_null_balance(db, test_user):
+    service, (doc1_id, doc2_id) = DeduplicationService(), await _known_custody_sources(db, test_user.id)
+    fields = dict(txn_date=date(2025, 6, 25), amount=Decimal("1033.50"), direction=TransactionDirection.OUT, description="Buy to Open NIO Inc NIO", reference=None)
+    legacy = AtomicTransaction(user_id=test_user.id, currency="USD", dedup_hash=service.calculate_transaction_hash(test_user.id, balance_after=Decimal("3966.50"), **fields), balance_after=None, source_documents=[{"doc_id": str(doc1_id), "doc_type": "brokerage_statement"}], **fields)
+    db.add(legacy)
+    await db.flush()
+    merged = await _upsert(service, db=db, user_id=test_user.id, currency="USD", source_doc_id=doc2_id, source_doc_type=DocumentType.BROKERAGE_STATEMENT, balance_after=Decimal("3966.50"), **fields)
+    assert (merged.id, merged.balance_after, {d["doc_id"] for d in merged.source_documents}) == (legacy.id, None, {str(doc1_id), str(doc2_id)})
+
+
+async def test_concurrent_upsert_same_hash_no_duplicates(db_engine, db, test_user):
+    service, (doc1_id, doc2_id) = DeduplicationService(), await _known_custody_sources(db, test_user.id)
+    await db.commit()
+
+    async def upsert_in_session(doc_id):
+        async with AsyncSession(db_engine) as session, session.begin():
+            txn = await _upsert(service, db=session, user_id=test_user.id, txn_date=date(2024, 1, 15), amount=Decimal("100.50"), direction=TransactionDirection.IN, description="Concurrent Test", currency="USD", source_doc_id=doc_id, source_doc_type=DocumentType.BANK_STATEMENT, reference="CONCURRENT")
+            return {"id": txn.id, "dedup_hash": txn.dedup_hash, "source_count": len(txn.source_documents)}
+
+    results = await asyncio.gather(upsert_in_session(doc1_id), upsert_in_session(doc2_id), return_exceptions=True)
+    ok = [r for r in results if not isinstance(r, Exception)]
+    if any(isinstance(r, IntegrityError) for r in results):
+        assert len(ok) == 1 and ok[0]["source_count"] == 1
+    else:
+        assert len(ok) == 2 and ok[0]["id"] == ok[1]["id"]
+        async with AsyncSession(db_engine) as session:
+            assert len((await session.execute(select(AtomicTransaction).where(AtomicTransaction.dedup_hash == ok[0]["dedup_hash"]))).scalars().all()) == 1
+
+
+async def test_upsert_scoped_atomic_transaction_handles_non_list_source_documents(db, test_user):
+    service = DeduplicationService()
+    txn = await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 2, 1), amount=Decimal("12.00"), direction=TransactionDirection.OUT, description="Bad source docs", currency="SGD", source_doc_id=uuid4(), source_doc_type=DocumentType.BANK_STATEMENT)
+    txn.source_documents = {"bad": "shape"}
+    await db.flush()
+    with pytest.raises(TransactionIdentityReviewRequired, match="review"):
+        await _upsert(service, db=db, user_id=test_user.id, txn_date=date(2024, 2, 1), amount=Decimal("12.00"), direction=TransactionDirection.OUT, description="Bad source docs", currency="SGD", source_doc_id=uuid4(), source_doc_type=DocumentType.BROKERAGE_STATEMENT)

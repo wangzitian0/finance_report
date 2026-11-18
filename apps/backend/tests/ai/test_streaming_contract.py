@@ -1,21 +1,60 @@
-from __future__ import annotations; import json; from unittest.mock import AsyncMock, MagicMock, patch; from uuid import uuid4; import pytest; from pydantic import ValidationError; from src.schemas.chat import ChatActionChip, ChatCitation, ChatResponseMetadata; from src.schemas.streaming import ADVISOR_METADATA_HEADER, EXPOSE_HEADERS_HEADER, ChatStreamEnvelope, ChatStreamMediaType, ExportStreamEnvelope, ExportStreamMediaType
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+
+import pytest
+from pydantic import ValidationError
+
 from src.request_context import RequestContext
-def test_AC6_33_1_chat_envelope_minimal_headers() -> None: session_id = uuid4(); envelope = ChatStreamEnvelope(session_id=session_id); headers = envelope.to_headers(); assert envelope.media_type is ChatStreamMediaType.TEXT_PLAIN; assert headers['X-Session-Id'] == str(session_id); assert 'X-Model-Name' not in headers; assert ADVISOR_METADATA_HEADER not in headers; assert headers[EXPOSE_HEADERS_HEADER] == 'X-Session-Id'
-def test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers() -> None: session_id = uuid4(); metadata = ChatResponseMetadata(grounded=True, citations=[ChatCitation(label='Balance sheet', source_ref='report:balance-sheet', confidence_tier='high', href='/reports?tab=balance-sheet')], actions=[ChatActionChip(kind='review', label='Review 2', href='/audit', count=2)]); envelope = ChatStreamEnvelope(session_id=session_id, model_name='anthropic/claude', advisor_metadata=metadata); headers = envelope.to_headers(); assert headers['X-Model-Name'] == 'anthropic/claude'; parsed = ChatResponseMetadata.model_validate(json.loads(headers[ADVISOR_METADATA_HEADER])); assert parsed == metadata; assert headers[EXPOSE_HEADERS_HEADER] == 'X-Session-Id, X-Model-Name, X-Advisor-Metadata'
-def test_AC6_33_3_chat_envelope_omits_empty_advisor_metadata() -> None: envelope = ChatStreamEnvelope(session_id=uuid4(), model_name='m', advisor_metadata=ChatResponseMetadata()); headers = envelope.to_headers(); assert ADVISOR_METADATA_HEADER not in headers; assert headers[EXPOSE_HEADERS_HEADER] == 'X-Session-Id, X-Model-Name'
-def test_AC6_33_4_chat_envelope_rejects_invalid_advisor_metadata() -> None:
-    with pytest.raises(ValidationError): ChatStreamEnvelope.model_validate({'session_id': str(uuid4()), 'advisor_metadata': {'grounded': 'not-a-bool', 'citations': [{'label': ''}]}})
-def test_AC6_33_5_export_envelope_builds_attachment_headers() -> None: csv_env = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename='balance-sheet-2026-01-01.csv'); json_env = ExportStreamEnvelope(media_type=ExportStreamMediaType.JSON, filename='snapshot.json'); assert csv_env.media_type.value == 'text/csv'; assert csv_env.to_headers()['Content-Disposition'] == 'attachment; filename=balance-sheet-2026-01-01.csv'; assert json_env.media_type.value == 'application/json'; assert json_env.to_headers()['Content-Disposition'] == 'attachment; filename=snapshot.json'
-def test_AC6_33_6_export_envelope_rejects_unknown_media_type() -> None:
-    with pytest.raises(ValidationError): ExportStreamEnvelope(media_type='application/pdf', filename='x.pdf')
-    _m1_envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename='balance-sheet-2026-01-01.csv'); assert _m1_envelope.filename == 'balance-sheet-2026-01-01.csv'; assert _m1_envelope.to_headers()['Content-Disposition'] == 'attachment; filename=balance-sheet-2026-01-01.csv'
-@pytest.mark.parametrize('bad_filename', ['report\r\nSet-Cookie: x=1.csv', 'report\n.csv', 'report\r.csv', 'report".csv', 'report;rm -rf.csv', '../../etc/passwd', 'dir\\report.csv'])
-def test_AC6_33_9_export_envelope_rejects_unsafe_filename(bad_filename: str) -> None:
-    with pytest.raises(ValidationError): ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=bad_filename)
+from src.schemas.chat import ChatActionChip, ChatCitation, ChatResponseMetadata
+from src.schemas.streaming import (
+    ADVISOR_METADATA_HEADER,
+    EXPOSE_HEADERS_HEADER,
+    ChatStreamEnvelope,
+    ChatStreamMediaType,
+    ExportStreamEnvelope,
+    ExportStreamMediaType,
+)
+
+
+def test_AC6_33_chat_and_export_envelopes() -> None:
+    sid = uuid4()
+    min_h = ChatStreamEnvelope(session_id=sid).to_headers()
+    meta = ChatResponseMetadata(grounded=True, citations=[ChatCitation(label="Balance sheet", source_ref="report:balance-sheet", confidence_tier="high", href="/reports?tab=balance-sheet")], actions=[ChatActionChip(kind="review", label="Review 2", href="/audit", count=2)])
+    full_h = ChatStreamEnvelope(session_id=sid, model_name="anthropic/claude", advisor_metadata=meta).to_headers()
+    empty_h = ChatStreamEnvelope(session_id=sid, model_name="m", advisor_metadata=ChatResponseMetadata()).to_headers()
+    csv_env, json_env = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename="balance-sheet-2026-01-01.csv"), ExportStreamEnvelope(media_type=ExportStreamMediaType.JSON, filename="snapshot.json")
+    assert (min_h["X-Session-Id"], "X-Model-Name" in min_h, ADVISOR_METADATA_HEADER in min_h, min_h[EXPOSE_HEADERS_HEADER]) == (str(sid), False, False, "X-Session-Id")
+    assert (full_h["X-Model-Name"], ChatResponseMetadata.model_validate(json.loads(full_h[ADVISOR_METADATA_HEADER])), full_h[EXPOSE_HEADERS_HEADER]) == ("anthropic/claude", meta, "X-Session-Id, X-Model-Name, X-Advisor-Metadata")
+    assert ADVISOR_METADATA_HEADER not in empty_h and empty_h[EXPOSE_HEADERS_HEADER] == "X-Session-Id, X-Model-Name"
+    assert (csv_env.media_type.value, csv_env.to_headers()["Content-Disposition"], json_env.media_type.value, json_env.to_headers()["Content-Disposition"]) == (
+        "text/csv", "attachment; filename=balance-sheet-2026-01-01.csv", "application/json", "attachment; filename=snapshot.json",
+    )
+    with pytest.raises(ValidationError):
+        ChatStreamEnvelope.model_validate({"session_id": str(sid), "advisor_metadata": {"grounded": "not-a-bool", "citations": [{"label": ""}]}})
+
+
+@pytest.mark.parametrize(("media_type", "filename"), [("application/pdf", "x.pdf"), (ExportStreamMediaType.CSV, "report\r\nSet-Cookie: x=1.csv"), (ExportStreamMediaType.CSV, "report\n.csv"), (ExportStreamMediaType.CSV, "report\r.csv"), (ExportStreamMediaType.CSV, 'report".csv'), (ExportStreamMediaType.CSV, "report;rm -rf.csv"), (ExportStreamMediaType.CSV, "../../etc/passwd"), (ExportStreamMediaType.CSV, "dir\\report.csv")])
+def test_AC6_33_export_envelope_rejects_invalid_inputs(media_type, filename: str) -> None:
+    with pytest.raises(ValidationError):
+        ExportStreamEnvelope(media_type=media_type, filename=filename)
+
+
 @pytest.mark.no_db
 async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> None:
-    from src.routers.chat import chat_message; mock_db = MagicMock(); mock_db.flush = AsyncMock(); session_id = uuid4()
-    async def mock_stream(): yield 'Hello'
-    metadata = {'grounded': True, 'citations': [{'label': 'Balance Sheet', 'source_ref': 'balance_sheet.total_equity', 'confidence_tier': 'TRUSTED', 'href': '/reports?tab=balance-sheet'}], 'actions': []}
-    with patch('src.routers.chat.AIAdvisorService') as MockService: stream_obj = MagicMock(); stream_obj.session_id = session_id; stream_obj.stream = mock_stream(); stream_obj.model_name = 'gpt-4'; stream_obj.metadata = metadata; mock_service = MagicMock(); mock_service.chat_stream = AsyncMock(return_value=stream_obj); MockService.return_value = mock_service; payload = MagicMock(); payload.message = 'What is my net worth?'; payload.session_id = None; payload.model = None; response = await chat_message(payload, ctx=RequestContext(mock_db, uuid4()))
-    assert response.media_type == ChatStreamMediaType.TEXT_PLAIN.value; assert response.headers['X-Session-Id'] == str(session_id); assert response.headers['X-Model-Name'] == 'gpt-4'; parsed = ChatResponseMetadata.model_validate(json.loads(response.headers[ADVISOR_METADATA_HEADER])); assert parsed.grounded is True; assert parsed.citations[0].label == 'Balance Sheet'; assert response.headers[EXPOSE_HEADERS_HEADER] == 'X-Session-Id, X-Model-Name, X-Advisor-Metadata'
+    from src.routers.chat import chat_message
+
+    mock_db, session_id = MagicMock(flush=AsyncMock()), uuid4()
+
+    async def mock_stream():
+        yield "Hello"
+
+    stream_obj = MagicMock(session_id=session_id, stream=mock_stream(), model_name="gpt-4", metadata={"grounded": True, "citations": [{"label": "Balance Sheet", "source_ref": "balance_sheet.total_equity", "confidence_tier": "TRUSTED", "href": "/reports?tab=balance-sheet"}], "actions": []})
+    with patch("src.routers.chat.AIAdvisorService", return_value=MagicMock(chat_stream=AsyncMock(return_value=stream_obj))):
+        response = await chat_message(MagicMock(message="What is my net worth?", session_id=None, model=None), ctx=RequestContext(mock_db, uuid4()))
+    parsed = ChatResponseMetadata.model_validate(json.loads(response.headers[ADVISOR_METADATA_HEADER]))
+    assert (response.media_type, response.headers["X-Session-Id"], response.headers["X-Model-Name"], parsed.grounded, parsed.citations[0].label, response.headers[EXPOSE_HEADERS_HEADER]) == (
+        ChatStreamMediaType.TEXT_PLAIN.value, str(session_id), "gpt-4", True, "Balance Sheet", "X-Session-Id, X-Model-Name, X-Advisor-Metadata",
+    )

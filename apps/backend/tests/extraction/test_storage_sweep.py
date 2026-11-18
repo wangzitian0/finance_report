@@ -1,75 +1,150 @@
-import asyncio; from datetime import UTC, datetime, timedelta; from unittest.mock import MagicMock, patch; import pytest; from botocore.exceptions import ClientError; from sqlalchemy.ext.asyncio import AsyncSession; from src.config import settings; from src.extraction import DocumentType, UploadedDocument, get_known_storage_paths; from src.runtime import StorageError; from src.runtime.extension.storage_sweep import _list_storage_keys, run_storage_sweep, sweep_orphaned_storage_objects
-_orphan_min_age = lambda: timedelta(hours=settings.storage_sweep_grace_period_hours); _old_timestamp = lambda: datetime.now(UTC) - _orphan_min_age() - timedelta(minutes=5); _recent_timestamp = lambda: datetime.now(UTC) - timedelta(minutes=5)
+import asyncio
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
+
+import pytest
+from botocore.exceptions import ClientError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.config import Settings, settings
+from src.extraction import DocumentType, UploadedDocument, get_known_storage_paths
+from src.runtime import StorageError
+from src.runtime.extension.storage_sweep import _list_storage_keys, run_storage_sweep, sweep_orphaned_storage_objects
+
+
+def _old_ts(hours: int | None = None) -> datetime:
+    offset = timedelta(hours=hours) if hours is not None else timedelta(hours=settings.storage_sweep_grace_period_hours)
+    return datetime.now(UTC) - offset - timedelta(minutes=5)
+
+
 def _make_db_sessionmaker(db: AsyncSession):
-    def _sessionmaker():
-        class _FakeCtx:
-            async def __aenter__(self_): return db
-            async def __aexit__(self_, *args): return False
-        return _FakeCtx()
-    return _sessionmaker
-async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
-    orphan_key = 'statements/user-1/orphan-id/orphan.pdf'; mock_keys = [(orphan_key, _old_timestamp())]
-    with patch('src.runtime.extension.storage_sweep.StorageService') as MockStorage, patch('src.runtime.extension.storage_sweep._list_storage_keys', return_value=mock_keys): mock_storage_instance = MagicMock(); MockStorage.return_value = mock_storage_instance; deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths)
-    assert deleted == 1
-async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
-    known_key = 'statements/user-1/known-id/statement.pdf'; document = UploadedDocument(user_id=test_user.id, file_path=known_key, file_hash='known_hash_sweep_test', original_filename='statement.pdf', document_type=DocumentType.BANK_STATEMENT); db.add(document); await db.commit(); mock_keys = [(known_key, _old_timestamp())]
-    with patch('src.runtime.extension.storage_sweep.StorageService') as MockStorage, patch('src.runtime.extension.storage_sweep._list_storage_keys', return_value=mock_keys): mock_storage_instance = MagicMock(); MockStorage.return_value = mock_storage_instance; deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths)
-    assert deleted == 0; mock_storage_instance.delete_object.assert_not_called()
-async def test_sweep_skips_recent_objects(db: AsyncSession, test_user):
-    recent_key = 'statements/user-1/recent-id/recent.pdf'; mock_keys = [(recent_key, _recent_timestamp())]
-    with patch('src.runtime.extension.storage_sweep.StorageService') as MockStorage, patch('src.runtime.extension.storage_sweep._list_storage_keys', return_value=mock_keys): mock_storage_instance = MagicMock(); MockStorage.return_value = mock_storage_instance; deleted = await sweep_orphaned_storage_objects()
-    assert deleted == 0; mock_storage_instance.delete_object.assert_not_called()
-async def test_sweep_skips_when_no_bucket_configured():
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings: mock_settings.s3_bucket = None; deleted = await sweep_orphaned_storage_objects()
-    assert deleted == 0
-async def test_sweep_returns_zero_when_no_objects():
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep._list_storage_keys', return_value=[]), patch('src.runtime.extension.storage_sweep.StorageService'): mock_settings.s3_bucket = 'test-bucket'; deleted = await sweep_orphaned_storage_objects()
-    assert deleted == 0
-async def test_sweep_handles_storage_list_error():
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep.StorageService'), patch('src.runtime.extension.storage_sweep._list_storage_keys', side_effect=StorageError('connection error')): mock_settings.s3_bucket = 'test-bucket'; deleted = await sweep_orphaned_storage_objects()
-    assert deleted == 0
-async def test_sweep_handles_delete_error(db: AsyncSession):
-    orphan_key = 'statements/user-1/orphan-id/orphan-del-err.pdf'; mock_keys = [(orphan_key, _old_timestamp())]
-    with patch('src.runtime.extension.storage_sweep.StorageService') as MockStorage, patch('src.runtime.extension.storage_sweep._list_storage_keys', return_value=mock_keys): mock_storage_instance = MagicMock(); mock_storage_instance.delete_object.side_effect = StorageError('Delete failed'); MockStorage.return_value = mock_storage_instance; deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths)
-    assert deleted == 0
-def test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps(): aware_modified = datetime(2026, 5, 29, 8, 0, tzinfo=UTC); naive_modified = datetime(2026, 5, 29, 9, 30); mock_storage = MagicMock(); mock_storage.bucket = 'test-bucket'; mock_paginator = MagicMock(); mock_storage.client.get_paginator.return_value = mock_paginator; mock_paginator.paginate.return_value = [{'Contents': [{'Key': 'statements/user-a/file-a.pdf', 'LastModified': aware_modified}]}, {}, {'Contents': [{'Key': 'statements/user-b/file-b.pdf', 'LastModified': naive_modified}]}]; assert _list_storage_keys(mock_storage) == [('statements/user-a/file-a.pdf', aware_modified), ('statements/user-b/file-b.pdf', naive_modified.replace(tzinfo=UTC))]; mock_storage.client.get_paginator.assert_called_once_with('list_objects_v2'); mock_paginator.paginate.assert_called_once_with(Bucket='test-bucket', Prefix='statements/')
-def test_list_storage_keys_raises_on_client_error():
-    mock_storage = MagicMock(); mock_paginator = MagicMock(); mock_storage.client.get_paginator.return_value = mock_paginator; mock_paginator.paginate.side_effect = ClientError({'Error': {'Code': 'NoSuchBucket', 'Message': 'The bucket does not exist'}}, 'ListObjectsV2')
-    with pytest.raises(StorageError, match='Failed to list storage objects'): _list_storage_keys(mock_storage)
-async def test_run_storage_sweep_exits_on_stop_event():
-    stop_event = asyncio.Event()
-    async def mock_sweep(*args, **kwargs): stop_event.set(); return 0
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects', side_effect=mock_sweep): mock_settings.enable_storage_sweep = True; mock_settings.storage_sweep_interval_seconds = 86400; await run_storage_sweep(stop_event)
-async def test_run_storage_sweep_logs_when_objects_deleted():
-    stop_event = asyncio.Event()
-    async def mock_sweep_with_deletions(*args, **kwargs): stop_event.set(); return 5
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects', side_effect=mock_sweep_with_deletions): mock_settings.enable_storage_sweep = True; mock_settings.storage_sweep_interval_seconds = 86400; await run_storage_sweep(stop_event)
-async def test_run_storage_sweep_handles_exception():
-    stop_event = asyncio.Event(); call_count = [0]
-    async def maybe_raise(*args, **kwargs):
-        call_count[0] += 1
-        if call_count[0] == 1: raise RuntimeError('Unexpected error from sweep')
-        stop_event.set(); return 0
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects', side_effect=maybe_raise): mock_settings.enable_storage_sweep = True; mock_settings.storage_sweep_interval_seconds = 0.001; await run_storage_sweep(stop_event)
-    assert call_count[0] == 2
-async def test_run_storage_sweep_disabled_by_feature_flag():
-    stop_event = asyncio.Event()
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects') as mock_sweep: mock_settings.enable_storage_sweep = False; await run_storage_sweep(stop_event)
-    assert not stop_event.is_set(); mock_sweep.assert_not_called()
-def test_grace_period_and_interval_defaults_match_issue_356(monkeypatch): from src.config import Settings; monkeypatch.delenv('STORAGE_SWEEP_GRACE_PERIOD_HOURS', raising=False); monkeypatch.delenv('STORAGE_SWEEP_INTERVAL_SECONDS', raising=False); defaults = Settings(_env_file=None); assert defaults.storage_sweep_grace_period_hours == 24; assert defaults.storage_sweep_interval_seconds == 86400
-async def test_sweep_reads_grace_period_from_config(db: AsyncSession, test_user):
-    orphan_key = 'statements/user-1/cfg-grace/orphan.pdf'; obj_age_hours = 2; mock_keys = [(orphan_key, datetime.now(UTC) - timedelta(hours=obj_age_hours, minutes=5))]
-    with patch('src.runtime.extension.storage_sweep.StorageService') as MockStorage, patch('src.runtime.extension.storage_sweep._list_storage_keys', return_value=mock_keys), patch('src.runtime.extension.storage_sweep.settings') as mock_settings: mock_settings.s3_bucket = 'test-bucket'; mock_settings.storage_sweep_grace_period_hours = 1; mock_storage_instance = MagicMock(); MockStorage.return_value = mock_storage_instance; deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths)
-    assert deleted == 1
-    with patch('src.runtime.extension.storage_sweep.StorageService') as MockStorage, patch('src.runtime.extension.storage_sweep._list_storage_keys', return_value=mock_keys), patch('src.runtime.extension.storage_sweep.settings') as mock_settings: mock_settings.s3_bucket = 'test-bucket'; mock_settings.storage_sweep_grace_period_hours = 24; mock_storage_instance = MagicMock(); MockStorage.return_value = mock_storage_instance; deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths)
-    assert deleted == 0; mock_storage_instance.delete_object.assert_not_called()
-async def test_run_storage_sweep_reads_interval_from_config():
-    stop_event = asyncio.Event(); observed: dict[str, float] = {}
-    async def fake_wait_for(_awaitable, timeout): observed['timeout'] = timeout; stop_event.set(); _awaitable.close(); raise TimeoutError
-    async def mock_sweep(*args, **kwargs): return 0
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects', side_effect=mock_sweep), patch('src.runtime.extension.storage_sweep.asyncio.wait_for', side_effect=fake_wait_for): mock_settings.enable_storage_sweep = True; mock_settings.storage_sweep_interval_seconds = 12345; await run_storage_sweep(stop_event)
-    assert observed['timeout'] == 12345
-@pytest.mark.parametrize('preview_env', ['preview', 'branch-main', 'pr-42'])
+    class _FakeCtx:
+        async def __aenter__(self):
+            return db
+
+        async def __aexit__(self, *_args):
+            return False
+
+    return lambda: _FakeCtx()
+
+
+@pytest.mark.parametrize(
+    ("case", "grace_hours", "expected_deleted", "expect_delete_call"),
+    [
+        ("orphan", None, 1, True),
+        ("known", None, 0, False),
+        ("recent", None, 0, False),
+        ("delete_error", None, 0, True),
+        ("grace_1h", 1, 1, True),
+        ("grace_24h", 24, 0, False),
+    ],
+)
+async def test_sweep_orphaned_objects_cases(db: AsyncSession, test_user, case, grace_hours, expected_deleted, expect_delete_call):
+    key = f"statements/user-1/{case}/file.pdf"
+    if case == "known":
+        db.add(UploadedDocument(user_id=test_user.id, file_path=key, file_hash="known_hash_sweep_test", original_filename="s.pdf", document_type=DocumentType.BANK_STATEMENT))
+        await db.commit()
+    ts = datetime.now(UTC) - timedelta(minutes=5) if case == "recent" else datetime.now(UTC) - timedelta(hours=2, minutes=5) if grace_hours else _old_ts()
+    mock_storage = MagicMock()
+    if case == "delete_error":
+        mock_storage.delete_object.side_effect = StorageError("Delete failed")
+    with (
+        patch("src.runtime.extension.storage_sweep.StorageService", return_value=mock_storage),
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=[(key, ts)]),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+    ):
+        mock_settings.environment = settings.environment
+        mock_settings.s3_bucket = "test-bucket"
+        mock_settings.storage_sweep_grace_period_hours = grace_hours or settings.storage_sweep_grace_period_hours
+        assert await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths) == expected_deleted
+    assert mock_storage.delete_object.called is expect_delete_call
+
+
+@pytest.mark.parametrize(
+    ("bucket", "list_kw"),
+    [(None, {}), ("test-bucket", {"return_value": []}), ("test-bucket", {"side_effect": StorageError("connection error")})],
+)
+async def test_sweep_short_circuits_and_handles_list_errors(bucket, list_kw):
+    with (
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.StorageService"),
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", **list_kw),
+    ):
+        mock_settings.s3_bucket = bucket
+        assert await sweep_orphaned_storage_objects() == 0
+
+
+def test_list_storage_keys_pagination_and_error():
+    aware = datetime(2026, 5, 29, 8, 0, tzinfo=UTC)
+    naive = datetime(2026, 5, 29, 9, 30)
+    mock_storage, mock_paginator = MagicMock(bucket="test-bucket"), MagicMock()
+    mock_storage.client.get_paginator.return_value = mock_paginator
+    mock_paginator.paginate.return_value = [{"Contents": [{"Key": "statements/user-a/file-a.pdf", "LastModified": aware}]}, {}, {"Contents": [{"Key": "statements/user-b/file-b.pdf", "LastModified": naive}]}]
+    assert _list_storage_keys(mock_storage) == [("statements/user-a/file-a.pdf", aware), ("statements/user-b/file-b.pdf", naive.replace(tzinfo=UTC))]
+    mock_storage.client.get_paginator.assert_called_once_with("list_objects_v2")
+    mock_paginator.paginate.assert_called_once_with(Bucket="test-bucket", Prefix="statements/")
+
+    mock_paginator.paginate.side_effect = ClientError({"Error": {"Code": "NoSuchBucket", "Message": "missing"}}, "ListObjectsV2")
+    with pytest.raises(StorageError, match="Failed to list storage objects"):
+        _list_storage_keys(mock_storage)
+
+
+@pytest.mark.parametrize(("enabled", "fail_first", "deleted_count"), [(True, False, 0), (True, False, 5), (True, True, 0), (False, False, 0)])
+async def test_run_storage_sweep_loop(enabled, fail_first, deleted_count):
+    stop_event, calls = asyncio.Event(), [0]
+
+    async def fake_sweep(*_args, **_kwargs):
+        calls[0] += 1
+        if fail_first and calls[0] == 1:
+            raise RuntimeError("Unexpected error")
+        stop_event.set()
+        return deleted_count
+
+    with patch("src.runtime.extension.storage_sweep.settings") as mock_settings, patch("src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects", side_effect=fake_sweep) as mock_sweep:
+        mock_settings.enable_storage_sweep, mock_settings.storage_sweep_interval_seconds = enabled, 0.001
+        await run_storage_sweep(stop_event)
+    if enabled:
+        assert calls[0] == (2 if fail_first else 1)
+    else:
+        assert not stop_event.is_set()
+        mock_sweep.assert_not_called()
+
+
+async def test_run_storage_sweep_config_defaults_and_interval(monkeypatch):
+    monkeypatch.delenv("STORAGE_SWEEP_GRACE_PERIOD_HOURS", raising=False)
+    monkeypatch.delenv("STORAGE_SWEEP_INTERVAL_SECONDS", raising=False)
+    defaults = Settings(_env_file=None)
+    assert (defaults.storage_sweep_grace_period_hours, defaults.storage_sweep_interval_seconds) == (24, 86400)
+
+    stop_event, observed = asyncio.Event(), {}
+
+    async def fake_wait_for(awaitable, timeout):
+        observed["timeout"] = timeout
+        stop_event.set()
+        awaitable.close()
+        raise TimeoutError
+
+    with (
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects", return_value=0),
+        patch("src.runtime.extension.storage_sweep.asyncio.wait_for", side_effect=fake_wait_for),
+    ):
+        mock_settings.enable_storage_sweep, mock_settings.storage_sweep_interval_seconds = True, 12345
+        await run_storage_sweep(stop_event)
+    assert observed["timeout"] == 12345
+
+
+@pytest.mark.parametrize("preview_env", ["preview", "branch-main", "pr-42"])
 async def test_storage_sweep_skipped_in_preview_environment(preview_env: str):
     stop_event = asyncio.Event()
-    with patch('src.runtime.extension.storage_sweep.settings') as mock_settings, patch('src.runtime.extension.storage_sweep.StorageService') as MockStorage, patch('src.runtime.extension.storage_sweep._list_storage_keys') as mock_list: mock_settings.environment = preview_env; mock_settings.enable_storage_sweep = True; mock_settings.s3_bucket = 'finance-report-staging'; deleted = await sweep_orphaned_storage_objects(); assert deleted == 0; MockStorage.assert_not_called(); mock_list.assert_not_called(); await run_storage_sweep(stop_event); assert not stop_event.is_set(); MockStorage.assert_not_called()
+    with (
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.StorageService") as mock_storage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys") as mock_list,
+    ):
+        mock_settings.environment, mock_settings.enable_storage_sweep, mock_settings.s3_bucket = preview_env, True, "finance-report-staging"
+        assert await sweep_orphaned_storage_objects() == 0
+        await run_storage_sweep(stop_event)
+    assert not stop_event.is_set()
+    mock_storage.assert_not_called()
+    mock_list.assert_not_called()

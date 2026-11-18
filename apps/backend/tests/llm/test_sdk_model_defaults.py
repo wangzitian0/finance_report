@@ -1,5 +1,20 @@
-from infra2_sdk.runtime.llm import LlmSettings; from src.config import Settings; ROLES = ('large', 'small', 'multimodal'); MODEL_ENV_VARS = ('LARGE_MODEL', 'SMALL_MODEL', 'MULTIMODAL_MODEL')
-def _default_settings(monkeypatch) -> Settings: [monkeypatch.delenv(name, raising=False) for name in MODEL_ENV_VARS]; return Settings(_env_file=None)
-def test_AC_llm_sdk_model_defaults_1_app_defaults_equal_the_sdk_defaults(monkeypatch) -> None: sdk = LlmSettings(); settings = _default_settings(monkeypatch); assert settings.large_model == sdk.role_model('large'); assert settings.small_model == sdk.role_model('small'); assert settings.multimodal_model == sdk.role_model('multimodal')
-def test_AC_llm_sdk_model_defaults_1_sdk_view_of_the_app_equals_the_sdk_defaults(monkeypatch) -> None: sdk = LlmSettings(); handed = _default_settings(monkeypatch).to_llm_settings(); assert all((handed.role_model(role) == sdk.role_model(role) and handed.role_reasoning_effort(role) == sdk.role_reasoning_effort(role) for role in ROLES))
-def test_AC_llm_sdk_model_defaults_1_production_may_override_one_role(monkeypatch) -> None: sdk = LlmSettings(); _default_settings(monkeypatch); monkeypatch.setenv('SMALL_MODEL', 'custom-production-model'); settings = Settings(_env_file=None); assert settings.small_model == 'custom-production-model'; handed = settings.to_llm_settings(); assert handed.role_model('small') == 'custom-production-model'; assert handed.role_model('large') == sdk.role_model('large'); assert handed.role_model('multimodal') == sdk.role_model('multimodal')
+from infra2_sdk.runtime.llm import LlmSettings
+
+from src.config import Settings
+
+ROLES = ("large", "small", "multimodal")
+
+
+def test_AC_llm_sdk_model_defaults_1(monkeypatch) -> None:
+    for name in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    sdk, defaults = LlmSettings(), Settings(_env_file=None)
+    handed = defaults.to_llm_settings()
+    assert all(getattr(defaults, f"{r}_model") == handed.role_model(r) == sdk.role_model(r) and handed.role_reasoning_effort(r) == sdk.role_reasoning_effort(r) for r in ROLES)
+
+    monkeypatch.setenv("SMALL_MODEL", "custom-production-model")
+    overridden = Settings(_env_file=None)
+    handed_override = overridden.to_llm_settings()
+    assert (overridden.small_model, handed_override.role_model("small"), handed_override.role_model("large"), handed_override.role_model("multimodal")) == (
+        "custom-production-model", "custom-production-model", sdk.role_model("large"), sdk.role_model("multimodal"),
+    )

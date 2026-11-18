@@ -1,18 +1,63 @@
-from __future__ import annotations; import pytest; from infra2_sdk.runtime.llm import LlmSettings; from src.config import Settings, settings; from src.llm.base import ProtocolFamily, ReasoningEffort, Scene; from src.llm.extension.env_config import EnvConfigSource
+from __future__ import annotations
+
+import pytest
+from infra2_sdk.runtime.llm import LlmSettings
+
+import src.llm.extension.env_config as env_config
+from src.config import Settings, settings
+from src.llm.base import ProtocolFamily, ReasoningEffort, Scene
+from src.llm.extension.env_config import EnvConfigSource
+
+
 @pytest.fixture
-def configured(monkeypatch): monkeypatch.setattr(settings, 'ai_api_key', 'test-key', raising=False); monkeypatch.setattr(settings, 'ai_provider', 'zai', raising=False); monkeypatch.setattr(settings, 'ai_base_url', 'https://api.z.ai', raising=False); monkeypatch.setattr(settings, 'small_model', 'glm-5.1'); monkeypatch.setattr(settings, 'large_model', 'large-test-model'); monkeypatch.setattr(settings, 'multimodal_model', 'test-vision-model'); return EnvConfigSource()
-async def test_AC23_2_4_unconfigured_when_no_api_key(monkeypatch): monkeypatch.setattr(settings, 'ai_api_key', '', raising=False); src = EnvConfigSource(); assert await src.is_configured() is False; assert await src.list_providers() == []; assert await src.get_binding(Scene.ADVISOR_CHAT) is None
-async def test_AC23_2_4_provider_protocol_inferred_from_ai_provider(configured): providers = await configured.list_providers(); assert len(providers) == 1; p = providers[0]; assert p.protocol is ProtocolFamily.OPENAI_COMPATIBLE; assert p.api_key == 'test-key'; assert p.api_base == 'https://api.z.ai'; assert await configured.is_configured() is True
-async def test_AC23_2_4_openrouter_and_anthropic_families(monkeypatch): monkeypatch.setattr(settings, 'ai_api_key', 'k', raising=False); monkeypatch.setattr(settings, 'ai_provider', 'openrouter', raising=False); assert (await EnvConfigSource().list_providers())[0].protocol is ProtocolFamily.OPENROUTER_COMPATIBLE; monkeypatch.setattr(settings, 'ai_provider', 'anthropic', raising=False); assert (await EnvConfigSource().list_providers())[0].protocol is ProtocolFamily.ANTHROPIC_COMPATIBLE; monkeypatch.setattr(settings, 'ai_provider', 'gemini', raising=False); assert (await EnvConfigSource().list_providers())[0].protocol is ProtocolFamily.GOOGLE_GEMINI
-async def test_AC23_2_4_get_provider_by_id(configured): assert await configured.get_provider('env') is not None; assert await configured.get_provider('nope') is None
-async def test_AC23_2_4_scene_bindings_match_configured_models(configured): assert (await configured.get_binding(Scene.EXTRACTION_VISION)).model_id == 'test-vision-model'; assert (await configured.get_binding(Scene.EXTRACTION_OCR)).model_id == 'test-vision-model'; assert (await configured.get_binding(Scene.EXTRACTION_JSON)).model_id == 'glm-5.1'; advisor = await configured.get_binding(Scene.ADVISOR_CHAT); assert advisor.model_id == 'large-test-model'; assert advisor.reasoning is ReasoningEffort.HIGH; assert (await configured.get_binding(Scene.STATEMENT_SUMMARY)).model_id == 'glm-5.1'
+def configured(monkeypatch) -> EnvConfigSource:
+    for attr, val in (("ai_api_key", "test-key"), ("ai_provider", "zai"), ("ai_base_url", "https://api.z.ai"), ("small_model", "glm-5.1"), ("large_model", "large-test-model"), ("multimodal_model", "test-vision-model")):
+        monkeypatch.setattr(settings, attr, val, raising=False)
+    return EnvConfigSource()
+
+
+async def test_AC23_2_4_unconfigured_and_configured_env_source(monkeypatch, configured: EnvConfigSource) -> None:
+    providers = await configured.list_providers()
+    advisor = await configured.get_binding(Scene.ADVISOR_CHAT)
+    assert (len(providers), providers[0].protocol, providers[0].api_key, providers[0].api_base, await configured.is_configured(), await configured.get_provider("env") is not None, await configured.get_provider("nope")) == (
+        1, ProtocolFamily.OPENAI_COMPATIBLE, "test-key", "https://api.z.ai", True, True, None,
+    )
+    assert ((await configured.get_binding(Scene.EXTRACTION_VISION)).model_id, (await configured.get_binding(Scene.EXTRACTION_OCR)).model_id, (await configured.get_binding(Scene.EXTRACTION_JSON)).model_id, advisor.model_id, advisor.reasoning, (await configured.get_binding(Scene.STATEMENT_SUMMARY)).model_id) == (
+        "test-vision-model", "test-vision-model", "glm-5.1", "large-test-model", ReasoningEffort.HIGH, "glm-5.1",
+    )
+
+    monkeypatch.setattr(settings, "ai_api_key", "", raising=False)
+    empty = EnvConfigSource()
+    assert (await empty.is_configured(), await empty.list_providers(), await empty.get_binding(Scene.ADVISOR_CHAT)) == (False, [], None)
+
+
+@pytest.mark.parametrize(("ai_provider", "expected"), [("openrouter", ProtocolFamily.OPENROUTER_COMPATIBLE), ("anthropic", ProtocolFamily.ANTHROPIC_COMPATIBLE), ("gemini", ProtocolFamily.GOOGLE_GEMINI)])
+async def test_AC23_2_4_provider_protocol_families(monkeypatch, ai_provider: str, expected: ProtocolFamily) -> None:
+    monkeypatch.setattr(settings, "ai_api_key", "k", raising=False)
+    monkeypatch.setattr(settings, "ai_provider", ai_provider, raising=False)
+    assert (await EnvConfigSource().list_providers())[0].protocol is expected
+
+
 @pytest.mark.no_db
-async def test_default_glm_models_reach_scene_bindings(monkeypatch):
-    import src.llm.extension.env_config as env_config; [monkeypatch.delenv(variable, raising=False) for variable in ('LARGE_MODEL', 'SMALL_MODEL', 'MULTIMODAL_MODEL')]; defaults = Settings(_env_file=None, LLM_PROVIDER='zai', LLM_API_KEY='test-key'); monkeypatch.setattr(env_config, 'settings', defaults); source = EnvConfigSource(); sdk = LlmSettings()
-    for scene in (Scene.EXTRACTION_JSON, Scene.STATEMENT_SUMMARY): binding = await source.get_binding(scene); assert binding.model_id == sdk.role_model('small'); assert binding.reasoning == ReasoningEffort(sdk.role_reasoning_effort('small'))
-    advisor = await source.get_binding(Scene.ADVISOR_CHAT); assert advisor.model_id == sdk.role_model('large'); assert advisor.reasoning == ReasoningEffort(sdk.role_reasoning_effort('large'))
-    for scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR): binding = await source.get_binding(scene); assert binding.model_id == sdk.role_model('multimodal'); assert binding.reasoning == ReasoningEffort(sdk.role_reasoning_effort('multimodal'))
-@pytest.mark.no_db
-def test_llm_cassette_and_live_settings_fields(monkeypatch) -> None: monkeypatch.setenv('LLM_CASSETTE_ENGAGE', 'true'); monkeypatch.setenv('LLM_CASSETTE_REFRESH', 'true'); monkeypatch.setenv('LLM_LIVE', 'true'); s = Settings(_env_file=None); assert s.llm_cassette_engage is True; assert s.llm_cassette_refresh is True; assert s.llm_live is True
-@pytest.mark.no_db
-def test_AC_llm_2624_1_env_config_role_and_retired_model_resolution(monkeypatch) -> None: monkeypatch.setattr(settings, 'large_model', 'large-role-model'); monkeypatch.setattr(settings, 'small_model', 'small-role-model'); monkeypatch.setattr(settings, 'multimodal_model', 'multimodal-role-model'); assert EnvConfigSource.default_role_for_scene(Scene.ADVISOR_CHAT) == 'large'; assert EnvConfigSource.default_role_for_scene(Scene.EXTRACTION_VISION) == 'multimodal'; assert EnvConfigSource.default_role_for_scene(Scene.EXTRACTION_JSON) == 'small'; assert EnvConfigSource.is_retired_scene_model('   ') is True; assert EnvConfigSource.is_retired_scene_model('glm-4.6') is True; assert EnvConfigSource.is_retired_scene_model('provider1/glm-4.6') is True; assert EnvConfigSource.is_retired_scene_model('glm-5.1') is False; assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, None) == 'large-role-model'; assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, 'large') == 'large-role-model'; assert EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, 'glm-4.6') == 'large-role-model'; assert EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_VISION, 'multimodal') == 'multimodal-role-model'; assert EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_JSON, 'glm-5.1') == 'glm-5.1'
+async def test_default_glm_models_cassette_settings_and_retired_resolution(monkeypatch) -> None:
+    for variable in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(env_config, "settings", Settings(_env_file=None, LLM_PROVIDER="zai", LLM_API_KEY="test-key"))
+    source, sdk = EnvConfigSource(), LlmSettings()
+    for role, scene in (("small", Scene.EXTRACTION_JSON), ("small", Scene.STATEMENT_SUMMARY), ("large", Scene.ADVISOR_CHAT), ("multimodal", Scene.EXTRACTION_VISION), ("multimodal", Scene.EXTRACTION_OCR)):
+        binding = await source.get_binding(scene)
+        assert (binding.model_id, binding.reasoning) == (sdk.role_model(role), ReasoningEffort(sdk.role_reasoning_effort(role)))
+
+    for env in ("LLM_CASSETTE_ENGAGE", "LLM_CASSETTE_REFRESH", "LLM_LIVE"):
+        monkeypatch.setenv(env, "true")
+    s = Settings(_env_file=None)
+    assert s.llm_cassette_engage and s.llm_cassette_refresh and s.llm_live
+
+    for attr, val in (("large_model", "large-role-model"), ("small_model", "small-role-model"), ("multimodal_model", "multimodal-role-model")):
+        monkeypatch.setattr(env_config.settings, attr, val)
+    assert (
+        EnvConfigSource.default_role_for_scene(Scene.ADVISOR_CHAT), EnvConfigSource.default_role_for_scene(Scene.EXTRACTION_VISION), EnvConfigSource.default_role_for_scene(Scene.EXTRACTION_JSON),
+        EnvConfigSource.is_retired_scene_model("   "), EnvConfigSource.is_retired_scene_model("glm-4.6"), EnvConfigSource.is_retired_scene_model("provider1/glm-4.6"), EnvConfigSource.is_retired_scene_model("glm-5.1"),
+        EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, None), EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, "large"), EnvConfigSource.resolve_scene_model(Scene.ADVISOR_CHAT, "glm-4.6"),
+        EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_VISION, "multimodal"), EnvConfigSource.resolve_scene_model(Scene.EXTRACTION_JSON, "glm-5.1"),
+    ) == ("large", "multimodal", "small", True, True, True, False, "large-role-model", "large-role-model", "large-role-model", "multimodal-role-model", "glm-5.1")

@@ -1,7 +1,49 @@
-from decimal import Decimal; import pytest; from src.portfolio.base.valuation_calculator import AllocationItem, PortfolioValuationTotals, PositionValuationResult, calculate_allocation_breakdown, calculate_portfolio_valuation_totals, calculate_position_valuation; pytestmark = pytest.mark.no_db
-def test_calculate_position_valuation_profit():
-    result = calculate_position_valuation(quantity=Decimal('100'), unit_cost_basis=Decimal('150.00'), market_price=Decimal('175.50')); assert isinstance(result, PositionValuationResult); assert result.market_value == Decimal('17550.00'); assert result.cost_basis == Decimal('15000.00'); assert result.unrealized_pnl == Decimal('2550.00'); assert result.unrealized_pnl_percent == Decimal('17.00'); _m1_result = calculate_position_valuation(quantity=Decimal('50'), unit_cost_basis=Decimal('200.00'), market_price=Decimal('180.00')); assert _m1_result.market_value == Decimal('9000.00'); assert _m1_result.cost_basis == Decimal('10000.00'); assert _m1_result.unrealized_pnl == Decimal('-1000.00'); assert _m1_result.unrealized_pnl_percent == Decimal('-10.00'); _m2_zero_qty = calculate_position_valuation(quantity=Decimal('0'), unit_cost_basis=Decimal('100.00'), market_price=Decimal('120.00')); assert _m2_zero_qty.market_value == Decimal('0.00'); assert _m2_zero_qty.cost_basis == Decimal('0.00'); assert _m2_zero_qty.unrealized_pnl == Decimal('0.00'); assert _m2_zero_qty.unrealized_pnl_percent == Decimal('0.00'); _m2_zero_cost = calculate_position_valuation(quantity=Decimal('10'), unit_cost_basis=Decimal('0.00'), market_price=Decimal('50.00')); assert _m2_zero_cost.cost_basis == Decimal('0.00'); assert _m2_zero_cost.unrealized_pnl == Decimal('500.00'); assert _m2_zero_cost.unrealized_pnl_percent == Decimal('0.00')
-    with pytest.raises(ValueError, match='Quantity cannot be negative'): calculate_position_valuation(quantity=Decimal('-10'), unit_cost_basis=Decimal('100.00'), market_price=Decimal('120.00'))
-    with pytest.raises(ValueError, match='Market price cannot be negative'): calculate_position_valuation(quantity=Decimal('10'), unit_cost_basis=Decimal('100.00'), market_price=Decimal('-5.00'))
-    with pytest.raises(ValueError, match='Cost basis cannot be negative'): calculate_position_valuation(quantity=Decimal('10'), unit_cost_basis=Decimal('-100.00'), market_price=Decimal('120.00'))
-    _m4_pos1 = calculate_position_valuation(quantity=Decimal('100'), unit_cost_basis=Decimal('50.00'), market_price=Decimal('70.00')); _m4_pos2 = calculate_position_valuation(quantity=Decimal('200'), unit_cost_basis=Decimal('100.00'), market_price=Decimal('90.00')); _m4_pos3 = calculate_position_valuation(quantity=Decimal('50'), unit_cost_basis=Decimal('10.00'), market_price=Decimal('15.00')); _m4_totals = calculate_portfolio_valuation_totals([_m4_pos1, _m4_pos2, _m4_pos3]); assert isinstance(_m4_totals, PortfolioValuationTotals); assert _m4_totals.total_market_value == Decimal('25750.00'); assert _m4_totals.total_cost_basis == Decimal('25500.00'); assert _m4_totals.total_unrealized_pnl == Decimal('250.00'); assert _m4_totals.total_unrealized_pnl_percent == Decimal('0.98'); _m5_totals = calculate_portfolio_valuation_totals([]); assert _m5_totals.total_market_value == Decimal('0.00'); assert _m5_totals.total_cost_basis == Decimal('0.00'); assert _m5_totals.total_unrealized_pnl == Decimal('0.00'); assert _m5_totals.total_unrealized_pnl_percent == Decimal('0.00'); _m6_items = [AllocationItem(category='Technology', value=Decimal('6000.00')), AllocationItem(category='Finance', value=Decimal('3000.00')), AllocationItem(category='Technology', value=Decimal('4000.00')), AllocationItem(category='Healthcare', value=Decimal('7000.00'))]; _m6_breakdown = calculate_allocation_breakdown(_m6_items); assert len(_m6_breakdown) == 3; assert _m6_breakdown[0].category == 'Technology'; assert _m6_breakdown[0].value == Decimal('10000.00'); assert _m6_breakdown[0].percentage == Decimal('50.00'); assert _m6_breakdown[0].count == 2; assert _m6_breakdown[1].category == 'Healthcare'; assert _m6_breakdown[1].value == Decimal('7000.00'); assert _m6_breakdown[1].percentage == Decimal('35.00'); assert _m6_breakdown[1].count == 1; assert _m6_breakdown[2].category == 'Finance'; assert _m6_breakdown[2].value == Decimal('3000.00'); assert _m6_breakdown[2].percentage == Decimal('15.00'); assert _m6_breakdown[2].count == 1; _m6_total_pct = sum((_m6_b.percentage for _m6_b in _m6_breakdown)); assert _m6_total_pct == Decimal('100.00')
+from decimal import Decimal
+
+import pytest
+
+from src.portfolio.base.valuation_calculator import AllocationItem, PortfolioValuationTotals, PositionValuationResult, calculate_allocation_breakdown, calculate_portfolio_valuation_totals, calculate_position_valuation
+
+pytestmark = pytest.mark.no_db
+
+
+@pytest.mark.parametrize(
+    ("qty", "cost", "price", "expected"),
+    [
+        ("100", "150.00", "175.50", (Decimal("17550.00"), Decimal("15000.00"), Decimal("2550.00"), Decimal("17.00"))),
+        ("50", "200.00", "180.00", (Decimal("9000.00"), Decimal("10000.00"), Decimal("-1000.00"), Decimal("-10.00"))),
+        ("0", "100.00", "120.00", (Decimal("0.00"), Decimal("0.00"), Decimal("0.00"), Decimal("0.00"))),
+        ("10", "0.00", "50.00", (Decimal("500.00"), Decimal("0.00"), Decimal("500.00"), Decimal("0.00"))),
+    ],
+)
+def test_calculate_position_valuation(qty, cost, price, expected):
+    res = calculate_position_valuation(quantity=Decimal(qty), unit_cost_basis=Decimal(cost), market_price=Decimal(price))
+    assert (isinstance(res, PositionValuationResult), res.market_value, res.cost_basis, res.unrealized_pnl, res.unrealized_pnl_percent) == (True, *expected)
+
+
+@pytest.mark.parametrize(
+    ("qty", "cost", "price", "match"),
+    [("-10", "100.00", "120.00", "Quantity cannot be negative"), ("10", "100.00", "-5.00", "Market price cannot be negative"), ("10", "-100.00", "120.00", "Cost basis cannot be negative")],
+)
+def test_calculate_position_valuation_rejects_negative_inputs(qty, cost, price, match):
+    with pytest.raises(ValueError, match=match):
+        calculate_position_valuation(quantity=Decimal(qty), unit_cost_basis=Decimal(cost), market_price=Decimal(price))
+
+
+def test_portfolio_totals_and_allocation_breakdown():
+    positions = [calculate_position_valuation(quantity=Decimal(q), unit_cost_basis=Decimal(c), market_price=Decimal(p)) for q, c, p in (("100", "50.00", "70.00"), ("200", "100.00", "90.00"), ("50", "10.00", "15.00"))]
+    totals, empty = calculate_portfolio_valuation_totals(positions), calculate_portfolio_valuation_totals([])
+    breakdown = calculate_allocation_breakdown([AllocationItem(category=cat, value=Decimal(val)) for cat, val in (("Technology", "6000.00"), ("Finance", "3000.00"), ("Technology", "4000.00"), ("Healthcare", "7000.00"))])
+    assert (
+        isinstance(totals, PortfolioValuationTotals),
+        (totals.total_market_value, totals.total_cost_basis, totals.total_unrealized_pnl, totals.total_unrealized_pnl_percent),
+        (empty.total_market_value, empty.total_cost_basis, empty.total_unrealized_pnl, empty.total_unrealized_pnl_percent),
+        [(b.category, b.value, b.percentage, b.count) for b in breakdown],
+        sum(b.percentage for b in breakdown),
+    ) == (
+        True,
+        (Decimal("25750.00"), Decimal("25500.00"), Decimal("250.00"), Decimal("0.98")),
+        (Decimal("0.00"), Decimal("0.00"), Decimal("0.00"), Decimal("0.00")),
+        [("Technology", Decimal("10000.00"), Decimal("50.00"), 2), ("Healthcare", Decimal("7000.00"), Decimal("35.00"), 1), ("Finance", Decimal("3000.00"), Decimal("15.00"), 1)],
+        Decimal("100.00"),
+    )

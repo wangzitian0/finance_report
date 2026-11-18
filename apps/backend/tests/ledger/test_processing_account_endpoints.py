@@ -1,20 +1,107 @@
-from __future__ import annotations; from datetime import date, timedelta; from decimal import Decimal; import pytest; from httpx import AsyncClient; from sqlalchemy.ext.asyncio import AsyncSession; from src.ledger import Account, AccountType, ProcessingCurrencyConflictError, TransferAccountCurrencyMismatchError, create_transfer_in_entry, create_transfer_out_entry, get_or_create_processing_account
-async def _seed_account(db: AsyncSession, user_id, name: str, code: str, *, currency: str='SGD') -> Account: account = Account(user_id=user_id, name=name, code=code, type=AccountType.ASSET, currency=currency); db.add(account); await db.flush(); return account
-async def test_processing_summary_requires_auth(public_client: AsyncClient) -> None: resp = await public_client.get('/reconciliation/transfers/summary'); assert resp.status_code == 401
-async def test_processing_pending_requires_auth(public_client: AsyncClient) -> None: resp = await public_client.get('/reconciliation/transfers/pending'); assert resp.status_code == 401
-async def test_processing_summary_empty(client: AsyncClient) -> None: resp = await client.get('/reconciliation/transfers/summary'); assert resp.status_code == 200, resp.text; data = resp.json(); assert data['pending_count'] == 0; assert data['pending_total'] == '0.00'; assert Decimal(data['pending_total']) == Decimal('0'); assert data['current_balance'] == '0.00'; assert Decimal(data['current_balance']) == Decimal('0'); assert data['currency'] == 'SGD'; assert data['oldest_pending_date'] is None
-async def test_processing_pending_empty(client: AsyncClient) -> None: resp = await client.get('/reconciliation/transfers/pending'); assert resp.status_code == 200, resp.text; data = resp.json(); assert data['total'] == 0; assert data['items'] == []
-async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: AsyncSession, test_user) -> None: user_id = test_user.id; cash = await _seed_account(db, user_id, 'Cash', '1001'); savings = await _seed_account(db, user_id, 'Savings', '1002'); today = date.today(); older = today - timedelta(days=10); newer = today - timedelta(days=2); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('100.00'), txn_date=older, description='Older OUT', currency='SGD'); await create_transfer_in_entry(db, user_id=user_id, dest_account_id=savings.id, amount=Decimal('40.00'), txn_date=newer, description='Newer IN', currency='SGD'); await db.commit(); resp = await client.get('/reconciliation/transfers/summary'); assert resp.status_code == 200, resp.text; data = resp.json(); assert data['pending_count'] == 2; assert Decimal(data['pending_total']) == Decimal('60.00'); assert Decimal(data['current_balance']) == Decimal('60.00'); assert data['currency'] == 'SGD'; assert data['oldest_pending_date'] == older.isoformat()
-async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClient, db: AsyncSession, test_user) -> None: user_id = test_user.id; cash = await _seed_account(db, user_id, 'Cash', '1001'); savings = await _seed_account(db, user_id, 'Savings', '1002'); today = date.today(); out_date = today - timedelta(days=30); in_date = today - timedelta(days=2); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('100.00'), txn_date=out_date, description='Vendor payout alpha', currency='SGD'); await create_transfer_in_entry(db, user_id=user_id, dest_account_id=savings.id, amount=Decimal('80.00'), txn_date=in_date, description='Refund receipt beta', currency='SGD'); await db.commit(); resp = await client.get('/reconciliation/transfers/summary'); assert resp.status_code == 200, resp.text; data = resp.json(); assert data['pending_count'] == 2; assert Decimal(data['pending_total']) == Decimal('20.00'); assert Decimal(data['current_balance']) == Decimal('20.00')
-async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: AsyncSession, test_user) -> None: user_id = test_user.id; cash = await _seed_account(db, user_id, 'Cash', '1001'); savings = await _seed_account(db, user_id, 'Savings', '1002'); today = date.today(); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('100.00'), txn_date=today, description='Salary Transfer OUT: IN:', currency='SGD'); await create_transfer_in_entry(db, user_id=user_id, dest_account_id=savings.id, amount=Decimal('100.00'), txn_date=today, description='Salary Transfer OUT: IN:', currency='SGD'); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('50.00'), txn_date=today - timedelta(days=30), description='Unmatched brokerage sweep', currency='SGD'); await db.commit(); summary_resp = await client.get('/reconciliation/transfers/summary'); assert summary_resp.status_code == 200, summary_resp.text; summary = summary_resp.json(); assert summary['pending_count'] == 1; assert Decimal(summary['pending_total']) == Decimal('50.00'); pending_resp = await client.get('/reconciliation/transfers/pending'); assert pending_resp.status_code == 200, pending_resp.text; data = pending_resp.json(); assert data['total'] == 1; assert len(data['items']) == 1; assert Decimal(data['items'][0]['amount']) == Decimal('50.00')
-async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncSession, test_user) -> None: user_id = test_user.id; cash = await _seed_account(db, user_id, 'Cash', '1001'); savings = await _seed_account(db, user_id, 'Savings', '1002'); today = date.today(); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('100.00'), txn_date=today, description='Salary Transfer OUT: IN:', currency='SGD'); await create_transfer_in_entry(db, user_id=user_id, dest_account_id=savings.id, amount=Decimal('100.00'), txn_date=today, description='Salary Transfer OUT: IN:', currency='SGD'); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('50.00'), txn_date=today - timedelta(days=30), description='Unmatched brokerage sweep', currency='SGD'); await db.commit(); resp = await client.get('/reconciliation/transfers/pending'); assert resp.status_code == 200, resp.text; data = resp.json(); assert len(data['items']) == 1; assert Decimal(data['items'][0]['amount']) == Decimal('50.00')
-async def test_processing_pending_lists_pairs_with_days_outstanding(client: AsyncClient, db: AsyncSession, test_user) -> None: user_id = test_user.id; cash = await _seed_account(db, user_id, 'Cash', '1001'); savings = await _seed_account(db, user_id, 'Savings', '1002'); today = date.today(); out_date = today - timedelta(days=10); in_date = today - timedelta(days=3); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('250.00'), txn_date=out_date, description='Wire out', currency='SGD'); await create_transfer_in_entry(db, user_id=user_id, dest_account_id=savings.id, amount=Decimal('75.00'), txn_date=in_date, description='Wire in', currency='SGD'); await db.commit(); resp = await client.get('/reconciliation/transfers/pending'); assert resp.status_code == 200, resp.text; data = resp.json(); assert data['total'] == 2; by_amount = {Decimal(item['amount']): item for item in data['items']}; out_item = by_amount[Decimal('250.00')]; in_item = by_amount[Decimal('75.00')]; assert out_item['from_account'] == 'Cash'; assert 'unmatched' in out_item['to_account'].lower(); assert out_item['currency'] == 'SGD'; assert out_item['initiated_date'] == out_date.isoformat(); assert out_item['days_outstanding'] == 10; assert 'unmatched' in in_item['from_account'].lower(); assert in_item['to_account'] == 'Savings'; assert in_item['initiated_date'] == in_date.isoformat(); assert in_item['days_outstanding'] == 3
-async def test_processing_pending_flags_over_seven_days(client: AsyncClient, db: AsyncSession, test_user) -> None: user_id = test_user.id; cash = await _seed_account(db, user_id, 'Cash', '1001'); today = date.today(); await create_transfer_out_entry(db, user_id=user_id, source_account_id=cash.id, amount=Decimal('500.00'), txn_date=today - timedelta(days=14), description='Stuck transfer', currency='SGD'); await db.commit(); resp = await client.get('/reconciliation/transfers/pending'); assert resp.status_code == 200, resp.text; items = resp.json()['items']; assert len(items) == 1; assert items[0]['days_outstanding'] == 14; assert items[0]['days_outstanding'] > 7
-async def test_usd_transfer_uses_explicit_base_for_python_and_database_invariants(db: AsyncSession, test_user) -> None: cash = await _seed_account(db, test_user.id, 'USD Cash', '1001', currency='USD'); entry = await create_transfer_out_entry(db, user_id=test_user.id, source_account_id=cash.id, amount=Decimal('25.00'), txn_date=date.today(), description='USD sweep', currency='USD'); await db.commit(); assert entry.status.value == 'posted'; assert {line.currency for line in entry.lines} == {'USD'}
-async def test_processing_summary_uses_stored_account_currency_after_config_change(client: AsyncClient, db: AsyncSession, test_user) -> None: processing = await get_or_create_processing_account(db, test_user.id, currency='SGD'); assert processing.currency == 'SGD'; await db.commit(); update = await client.put('/users/me/settings/base-currency', json={'base_currency': 'USD'}); assert update.status_code == 200, update.text; response = await client.get('/reconciliation/transfers/summary'); assert response.status_code == 200, response.text; assert response.json()['currency'] == 'SGD'
-async def test_transfer_rejects_currency_mismatch_with_existing_processing_account(db: AsyncSession, test_user) -> None:
-    await get_or_create_processing_account(db, test_user.id, currency='SGD'); usd_cash = await _seed_account(db, test_user.id, 'USD Cash', '1001', currency='USD')
-    with pytest.raises(ProcessingCurrencyConflictError, match='Processing account currency is SGD'): await create_transfer_out_entry(db, user_id=test_user.id, source_account_id=usd_cash.id, amount=Decimal('25.00'), txn_date=date.today(), description='invalid USD sweep', currency='USD')
-async def test_transfer_classifies_foreign_counterparty_mismatch(db: AsyncSession, test_user) -> None:
-    await get_or_create_processing_account(db, test_user.id, currency='SGD'); usd_cash = await _seed_account(db, test_user.id, 'Foreign USD Cash', '1002', currency='USD')
-    with pytest.raises(TransferAccountCurrencyMismatchError, match='Transfer account currency is USD'): await create_transfer_out_entry(db, user_id=test_user.id, source_account_id=usd_cash.id, amount=Decimal('25.00'), txn_date=date.today(), description='foreign USD sweep', currency='SGD')
+from __future__ import annotations
+
+from datetime import date, timedelta
+from decimal import Decimal
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.ledger import (
+    AccountType,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
+    create_transfer_in_entry,
+    create_transfer_out_entry,
+    get_or_create_processing_account,
+)
+from tests.ledger._ledger_helpers import make_account
+
+
+@pytest.mark.parametrize("path", ["/reconciliation/transfers/summary", "/reconciliation/transfers/pending"])
+async def test_processing_endpoints_require_auth(public_client: AsyncClient, path: str) -> None:
+    assert (await public_client.get(path)).status_code == 401
+
+
+async def test_processing_endpoints_empty(client: AsyncClient) -> None:
+    summary = (await client.get("/reconciliation/transfers/summary")).json()
+    assert (summary["pending_count"], Decimal(summary["pending_total"]), Decimal(summary["current_balance"]), summary["currency"], summary["oldest_pending_date"]) == (
+        0,
+        Decimal("0"),
+        Decimal("0"),
+        "SGD",
+        None,
+    )
+    assert (await client.get("/reconciliation/transfers/pending")).json() == {"total": 0, "items": []}
+
+
+async def test_processing_summary_net_balance_and_paired_exclusion(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    uid = test_user.id
+    cash = await make_account(db, uid, "Cash", AccountType.ASSET, code="1001")
+    savings = await make_account(db, uid, "Savings", AccountType.ASSET, code="1002")
+    today = date.today()
+    older, newer = today - timedelta(days=10), today - timedelta(days=2)
+    await create_transfer_out_entry(db, user_id=uid, source_account_id=cash.id, amount=Decimal("100.00"), txn_date=older, description="Older OUT", currency="SGD")
+    await create_transfer_in_entry(db, user_id=uid, dest_account_id=savings.id, amount=Decimal("40.00"), txn_date=newer, description="Newer IN", currency="SGD")
+    await db.commit()
+
+    summary = (await client.get("/reconciliation/transfers/summary")).json()
+    assert (summary["pending_count"], Decimal(summary["pending_total"]), Decimal(summary["current_balance"]), summary["currency"], summary["oldest_pending_date"]) == (
+        2,
+        Decimal("60.00"),
+        Decimal("60.00"),
+        "SGD",
+        older.isoformat(),
+    )
+
+
+async def test_pending_excludes_fully_paired_and_lists_days_outstanding(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    uid = test_user.id
+    cash = await make_account(db, uid, "Cash", AccountType.ASSET, code="1001")
+    savings = await make_account(db, uid, "Savings", AccountType.ASSET, code="1002")
+    today = date.today()
+    out_date, in_date = today - timedelta(days=14), today - timedelta(days=3)
+    await create_transfer_out_entry(db, user_id=uid, source_account_id=cash.id, amount=Decimal("100.00"), txn_date=today, description="Salary Transfer OUT: IN:", currency="SGD")
+    await create_transfer_in_entry(db, user_id=uid, dest_account_id=savings.id, amount=Decimal("100.00"), txn_date=today, description="Salary Transfer OUT: IN:", currency="SGD")
+    await create_transfer_out_entry(db, user_id=uid, source_account_id=cash.id, amount=Decimal("250.00"), txn_date=out_date, description="Wire out", currency="SGD")
+    await create_transfer_in_entry(db, user_id=uid, dest_account_id=savings.id, amount=Decimal("75.00"), txn_date=in_date, description="Wire in", currency="SGD")
+    await db.commit()
+
+    summary = (await client.get("/reconciliation/transfers/summary")).json()
+    assert (summary["pending_count"], Decimal(summary["pending_total"])) == (2, Decimal("175.00"))
+    data = (await client.get("/reconciliation/transfers/pending")).json()
+    assert data["total"] == 2
+    by_amt = {Decimal(item["amount"]): item for item in data["items"]}
+    out_item, in_item = by_amt[Decimal("250.00")], by_amt[Decimal("75.00")]
+    assert out_item["from_account"] == "Cash" and "unmatched" in out_item["to_account"].lower() and out_item["days_outstanding"] == 14
+    assert "unmatched" in in_item["from_account"].lower() and in_item["to_account"] == "Savings" and in_item["days_outstanding"] == 3
+
+
+async def test_processing_currency_invariants_and_config_isolation(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    uid = test_user.id
+    processing = await get_or_create_processing_account(db, uid, currency="SGD")
+    assert processing.currency == "SGD"
+    await db.commit()
+    assert (await client.put("/users/me/settings/base-currency", json={"base_currency": "USD"})).status_code == 200
+    assert (await client.get("/reconciliation/transfers/summary")).json()["currency"] == "SGD"
+
+    usd_cash = await make_account(db, uid, "USD Cash", AccountType.ASSET, "USD", code="1001")
+    for transfer_ccy, exc, match in (
+        ("USD", ProcessingCurrencyConflictError, "Processing account currency is SGD"),
+        ("SGD", TransferAccountCurrencyMismatchError, "Transfer account currency is USD"),
+    ):
+        with pytest.raises(exc, match=match):
+            await create_transfer_out_entry(db, user_id=uid, source_account_id=usd_cash.id, amount=Decimal("25.00"), txn_date=date.today(), description="sweep", currency=transfer_ccy)
+
+
+async def test_usd_transfer_uses_explicit_base(db: AsyncSession, test_user) -> None:
+    cash = await make_account(db, test_user.id, "USD Cash", AccountType.ASSET, "USD", code="1001")
+    entry = await create_transfer_out_entry(db, user_id=test_user.id, source_account_id=cash.id, amount=Decimal("25.00"), txn_date=date.today(), description="USD sweep", currency="USD")
+    await db.commit()
+    assert entry.status.value == "posted" and {ln.currency for ln in entry.lines} == {"USD"}
