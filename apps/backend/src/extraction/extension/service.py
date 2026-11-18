@@ -61,6 +61,7 @@ from src.extraction.extension.brokerage_positions import (
 from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.custody_binding import (
     BankCustodyAllocation,
+    custody_account_type_for_statement,
     release_rejected_custody,
     resolve_bank_custody,
     validate_custody_account,
@@ -71,6 +72,7 @@ from src.extraction.extension.prompts.statement import PROMPT_FILE_TYPES, get_pa
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import AccountType
 from src.observability import record_financial_invariant_violation
 
 settings = src.config.settings
@@ -210,6 +212,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 if len(snapshot_dates) == 1:
                     resolved_period_start = resolved_period_end = next(iter(snapshot_dates))
 
+            opening_balance_dec = self._safe_decimal(extracted.get("opening_balance"))
+            closing_balance_dec = self._safe_decimal(extracted.get("closing_balance"))
+            custody_account_type = custody_account_type_for_statement(
+                institution=final_institution,
+                filename=display_filename,
+                opening_balance=opening_balance_dec,
+                closing_balance=closing_balance_dec,
+            )
             sanitized_account_last4 = sanitize_account_last4(extracted.get("account_last4"))
             account_id, sanitized_account_last4, bank_allocation = await self._resolve_bank_account_binding(
                 db=db,
@@ -219,6 +229,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 statement_currency=statement_currency,
                 sanitized_account_last4=sanitized_account_last4,
                 is_brokerage_payload=is_position_snapshot,
+                account_type=custody_account_type,
             )
 
             statement = StatementSummary(
@@ -230,8 +241,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 currency=statement_currency,
                 period_start=resolved_period_start,
                 period_end=resolved_period_end,
-                opening_balance=self._safe_decimal(extracted.get("opening_balance")),
-                closing_balance=self._safe_decimal(extracted.get("closing_balance")),
+                opening_balance=opening_balance_dec,
+                closing_balance=closing_balance_dec,
                 extraction_metadata=None,
             )
 
@@ -497,6 +508,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         statement_currency: str | None,
         sanitized_account_last4: str | None,
         is_brokerage_payload: bool,
+        account_type: AccountType = AccountType.ASSET,
     ) -> tuple[UUID | None, str | None, BankCustodyAllocation | None]:
         bank_allocation = None
         if db is not None and account_id is not None and not is_brokerage_payload:
@@ -510,6 +522,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     account_last4=sanitized_account_last4,
                     currency=statement_currency,
                     account_id=account_id,
+                    account_type=account_type,
                 )
                 account_id = bank_allocation.account.id
             elif account_id is None:
@@ -955,6 +968,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         if not model:
             raise ExtractionError("Multimodal model is not configured")
 
+        allow_multiple_accounts = document_kind == "brokerage"
         text_batches = (
             await asyncio.to_thread(self._build_text_page_batches, file_content)
             if read_text_layer and file_type == "pdf"
@@ -968,8 +982,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 hints_block=guidance,
                 seed_override=seed_override,
                 user_id=user_id,
+                allow_multiple_accounts=allow_multiple_accounts,
             )
-            if from_text.get("transactions"):
+            if from_text.get("transactions") or (document_kind == "brokerage" and from_text.get("positions")):
                 return from_text
             logger.warning("PDF text layer gave no transactions; reading the page images", page_batches=len(text_batches))
         media_batches = await asyncio.to_thread(
@@ -983,6 +998,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             hints_block=guidance,
             seed_override=seed_override,
             user_id=user_id,
+            allow_multiple_accounts=allow_multiple_accounts,
         )
 
     async def _extract_json_from_media_batches(
@@ -994,6 +1010,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         seed_override: int | None,
         user_id: UUID | None,
         hints_block: str = "",
+        allow_multiple_accounts: bool = False,
     ) -> dict[str, Any]:
         """Call the model once per page batch. ``hints_block`` is the last part of every prompt."""
 
@@ -1083,7 +1100,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             parts.append(part)
 
         try:
-            merged = merge_paged_extractions(parts)
+            merged = merge_paged_extractions(parts, allow_multiple_accounts=allow_multiple_accounts)
         except MultipleAccountsError as exc:
             logger.warning("Multiple accounts in paged extraction", parts_by_account=exc.parts_by_account)
             raise

@@ -345,7 +345,7 @@ async def test_AC_extraction_disposition_6_auto_post_requires_authoritative_trac
 
 async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, test_user):
     unsafe_account = Account(
-        user_id=test_user.id, name="Uncommitted Liability", type=AccountType.LIABILITY, currency="SGD"
+        user_id=test_user.id, name="Uncommitted Expense", type=AccountType.EXPENSE, currency="SGD"
     )
     db.add(unsafe_account)
     await db.flush()
@@ -374,7 +374,7 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     assert persisted_statement is not None
     assert persisted_statement.status == BankStatementStatus.PARSED
     assert persisted_statement.stage1_status == Stage1Status.PENDING_REVIEW
-    assert persisted_statement.validation_error == "Custody account must be a non-system asset account"
+    assert persisted_statement.validation_error == "Custody account must be a non-system asset or liability account"
     persisted_txns = await statement_validation_mod.resolve_statement_transactions(db, persisted_statement)
     assert len(persisted_txns) == 1
     assert persisted_txns[0].description == "Uncommitted Salary"
@@ -530,7 +530,7 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
 @pytest.mark.parametrize(
     ("account_type", "account_currency", "is_active", "expected_detail"),
     [
-        (AccountType.LIABILITY, "SGD", True, "Custody account must be a non-system asset account"),
+        (AccountType.EXPENSE, "SGD", True, "Custody account must be a non-system asset or liability account"),
         (AccountType.ASSET, "USD", True, "Custody account currency does not match the source"),
         (AccountType.ASSET, "SGD", False, "Custody account is archived; an active account is required"),
     ],

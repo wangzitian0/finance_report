@@ -81,6 +81,14 @@ _BROKER_ALIASES = (
     ("Interactive Brokers", ("interactive brokers", "ibkr", "ib llc")),
     ("Moomoo", ("moomoo", "futu sg")),
     ("Futu", ("futu", "富途")),
+    ("Fidelity", ("fidelity", "fidelity investments", "national financial services")),
+    ("Charles Schwab", ("charles schwab", "schwab one", "schwab & co")),
+    ("Pershing", ("pershing", "pershing llc", "bny mellon")),
+    ("Vanguard", ("vanguard",)),
+    ("E*TRADE", ("e*trade", "etrade")),
+    ("TD Ameritrade", ("td ameritrade",)),
+    ("Saxo", ("saxo bank", "saxo markets")),
+    ("Tiger Brokers", ("tiger brokers", "tiger trade")),
 )
 
 _MOOMOO_SUBSCRIPTION_RE = re.compile(

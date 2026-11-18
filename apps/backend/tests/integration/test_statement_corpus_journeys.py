@@ -295,18 +295,16 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
             ),
             None,
         )
-        if activity_line is not None:
-            assert Decimal(str(activity_line["amount"])) == -case.net_movement, (
-                f"[{case.short_id}] cash-flow activity line {activity_line['amount']} != -{case.net_movement} (posting account not classified as cash)"
-            )
-        else:
-            summary = cash_flow["summary"]
-            assert Decimal(str(summary["beginning_cash"])) == case.opening_balance, (
-                f"[{case.short_id}] beginning cash must equal the source opening stock"
-            )
-            assert Decimal(str(summary["ending_cash"])) == case.opening_balance + case.net_movement, (
-                f"[{case.short_id}] ending cash must equal source opening plus net movement"
-            )
+        assert activity_line is None, (
+            f"[{case.short_id}] cash custody account must not appear as a non-cash activity line: {activity_line}"
+        )
+        summary = cash_flow["summary"]
+        assert Decimal(str(summary["beginning_cash"])) == case.opening_balance, (
+            f"[{case.short_id}] beginning cash must equal the source opening stock"
+        )
+        assert Decimal(str(summary["ending_cash"])) == case.opening_balance + case.net_movement, (
+            f"[{case.short_id}] ending cash must equal source opening plus net movement"
+        )
 
 
 @pytest.mark.e2e

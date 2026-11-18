@@ -343,3 +343,170 @@ async def test_staggered_multi_account_coverage_and_all_period_cash_flow(
     assert Decimal(cf["summary"]["net_cash_flow"]) == Decimal("800.00")
     assert Decimal(cf["cash_bridge"]["opening_stock_adjustment"]) == Decimal("2000.00")
     assert Decimal(cf["summary"]["ending_cash"]) == Decimal("3800.00")
+
+
+@pytest.mark.asyncio
+async def test_credit_card_statement_posts_positive_liability_and_excludes_from_cash_flow(
+    client, db, test_user
+) -> None:
+    """Credit card statement custody must post as Liability on Balance Sheet, not negative Asset or Cash Flow cash."""
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    from src.audit import SqlTraceRecordRepository, TraceEmitter
+    from src.extraction import (
+        BankStatementStatus,
+        DocumentSource,
+        ExtractedTransactionFact,
+        ExtractionMethod,
+        SourceProvenance,
+        StatementBalanceFact,
+        StatementEvidenceType,
+        StatementExtractionResult,
+        StatementSourceType,
+        ClassificationStatus,
+        RuleType,
+        Stage1Status,
+        StatementSummary,
+        UploadedDocument,
+        create_statement_account_from_confirmation,
+        extraction_trace_policy_registry,
+        persist_statement_extraction_result,
+    )
+    from src.extraction.extension.extraction_trace import build_extraction_trace_records
+    from src.extraction.orm.layer2 import AtomicTransaction
+    from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
+    from src.ledger import AccountType
+
+    uid = test_user.id
+    expense = Account(user_id=uid, name="Dining", code="5000", type=AccountType.EXPENSE, currency="SGD")
+    db.add(expense)
+    await db.flush()
+
+    doc = UploadedDocument(
+        user_id=uid,
+        file_path="statements/cc-liberty.pdf",
+        file_hash="b" * 64,
+        original_filename="bsb_002_liberty_national.pdf",
+        document_type="bank_statement",
+    )
+    db.add(doc)
+    await db.flush()
+
+    stmt = StatementSummary(
+        user_id=uid,
+        uploaded_document_id=doc.id,
+        file_hash=doc.file_hash,
+        institution="Liberty National Credit Card",
+        account_last4="8899",
+        currency="SGD",
+        period_start=date(2025, 9, 1),
+        period_end=date(2025, 9, 30),
+        opening_balance=Decimal("-1000.00"),
+        closing_balance=Decimal("-1450.00"),
+        status=BankStatementStatus.PARSED,
+        stage1_status=Stage1Status.PENDING_REVIEW,
+        confidence_score=95,
+        balance_validated=True,
+    )
+    db.add(stmt)
+    await db.flush()
+
+    res = StatementExtractionResult.create(
+        producer_version="test@1",
+        source_content_digest=doc.file_hash,
+        source_type=StatementSourceType.BANK,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        institution="Liberty National Credit Card",
+        account_last4="8899",
+        statement_currency="SGD",
+        period_start=date(2025, 9, 1),
+        period_end=date(2025, 9, 30),
+        balances=(StatementBalanceFact("SGD", Decimal("-1000.00"), Decimal("-1450.00")),),
+        transactions=(
+            ExtractedTransactionFact(
+                fact_id="cc-1",
+                transaction_date=date(2025, 9, 12),
+                description="Liberty Dining Spend",
+                amount=Decimal("450.00"),
+                direction="OUT",
+                currency="SGD",
+                balance_after=Decimal("-1450.00"),
+                confidence=Decimal("0.95"),
+            ),
+        ),
+        positions=(),
+        confidence=Decimal("0.95"),
+        balance_validated=True,
+        warnings=(),
+        review_reasons=(),
+        provenance=SourceProvenance(
+            intake_mode="pdf", method=ExtractionMethod.DETERMINISTIC, provider="test", model="test@1"
+        ),
+    )
+    traces = build_extraction_trace_records(
+        res, user_id=uid, execution_id=f"test:{stmt.id}:res", occurred_at=datetime.now(UTC)
+    )
+    await TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())).emit_many(traces)
+    await persist_statement_extraction_result(
+        db, statement=stmt, result=res, source_trace_record_id=traces[0].record_id
+    )
+
+    txn = AtomicTransaction(
+        user_id=uid,
+        txn_date=date(2025, 9, 12),
+        amount=Decimal("450.00"),
+        direction="OUT",
+        description="Liberty Dining Spend",
+        currency="SGD",
+        balance_after=Decimal("-1450.00"),
+        dedup_hash="cc-1",
+        source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
+    )
+    db.add(txn)
+    await db.flush()
+    rule = ClassificationRule(
+        user_id=uid,
+        version_number=1,
+        effective_date=date(2025, 9, 12),
+        rule_name="Dining rule",
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["Liberty Dining"]},
+        tag_mappings={"category": "DINING"},
+        default_account_id=expense.id,
+        created_by=uid,
+    )
+    db.add(rule)
+    await db.flush()
+    db.add(
+        TransactionClassification(
+            atomic_txn_id=txn.id,
+            rule_version_id=rule.id,
+            account_id=expense.id,
+            tags={"category": "DINING", "rationale": "dining"},
+            confidence_score=95,
+            status=ClassificationStatus.APPLIED,
+        )
+    )
+    card_account = await create_statement_account_from_confirmation(db, stmt, uid)
+    assert card_account.type is AccountType.LIABILITY
+    assert card_account.code == "AUTO-CARD"
+    await db.commit()
+
+    approve_resp = await client.post(f"/statements/{stmt.id}/approvals")
+    assert approve_resp.status_code == 200, approve_resp.text
+
+    bs = (await client.get("/reports/balance-sheet", params={"as_of_date": "2025-09-30", "currency": "SGD"})).json()
+    assert bs["is_balanced"] is True
+    assert Decimal(bs["equation_delta"]) == Decimal("0.00")
+    assert Decimal(bs["total_assets"]) == Decimal("0.00")
+    assert Decimal(bs["total_liabilities"]) == Decimal("1450.00")
+
+    cf = (
+        await client.get(
+            "/reports/cash-flow", params={"start_date": "2025-09-01", "end_date": "2025-09-30", "currency": "SGD"}
+        )
+    ).json()
+    assert Decimal(cf["summary"]["beginning_cash"]) == Decimal("0.00")
+    assert Decimal(cf["summary"]["ending_cash"]) == Decimal("0.00")
+    _ = Path(".")

@@ -46,7 +46,12 @@ from src.extraction.base.types import (
 )
 from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 from src.extraction.extension.ai_settings import auto_accept_enabled
-from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
+from src.extraction.extension.custody_binding import (
+    custody_account_type_for_statement,
+    is_bank_custody_source,
+    resolve_bank_custody_account,
+    statement_balance_to_ledger_amount,
+)
 from src.extraction.extension.disposition_policy import (
     current_statement_disposition_policy_snapshot,
     statement_disposition_policy_for_user,
@@ -579,9 +584,9 @@ async def resolve_statement_posting_account(db: AsyncSession, statement: Stateme
         ).scalar_one_or_none()
         if account is None:
             raise ValidationFailedError("Statement account mapping is invalid. Confirm the target account before posting.")
-        if account.type != AccountType.ASSET or not account.is_active:
+        if account.type not in (AccountType.ASSET, AccountType.LIABILITY) or not account.is_active:
             raise ValidationFailedError(
-                "Statement account mapping must reference an active asset account. "
+                "Statement account mapping must reference an active asset or liability account. "
                 "Confirm the target account before posting."
             )
         if account.currency != currency:
@@ -620,6 +625,13 @@ async def create_statement_account_from_confirmation(
 ) -> Account:
     """Resolve or auto-create the statement custody/asset account upon user confirmation."""
     document = await _resolve_statement_uploaded_document(db, statement, user_id)
+    source_filename = document.original_filename if document else statement.file_hash
+    custody_account_type = custody_account_type_for_statement(
+        institution=statement.institution,
+        filename=source_filename,
+        opening_balance=statement.opening_balance,
+        closing_balance=statement.closing_balance,
+    )
     if statement.institution and statement.account_last4 and statement.currency:
         source = await get_current_statement_extraction_result(
             db, user_id=user_id, statement_id=statement.id, statement=statement
@@ -632,6 +644,7 @@ async def create_statement_account_from_confirmation(
                 account_last4=statement.account_last4,
                 currency=statement.currency,
                 account_id=statement.account_id,
+                account_type=custody_account_type,
             )
             statement.account_id = resolved.id
             await db.flush()
@@ -654,7 +667,6 @@ async def create_statement_account_from_confirmation(
     account_name = (statement.institution or "").strip() or "Statement Account"
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"
-    source_filename = document.original_filename if document else statement.file_hash
 
     async def _find_statement_account(session: AsyncSession) -> Account | None:
         return (
@@ -663,7 +675,7 @@ async def create_statement_account_from_confirmation(
                 .where(
                     Account.user_id == user_id,
                     Account.name == account_name,
-                    Account.type == AccountType.ASSET,
+                    Account.type == custody_account_type,
                     Account.currency == currency,
                     Account.is_active.is_(True),
                 )
@@ -679,9 +691,9 @@ async def create_statement_account_from_confirmation(
         build=lambda: Account(
             user_id=user_id,
             name=account_name,
-            type=AccountType.ASSET,
+            type=custody_account_type,
             currency=currency,
-            code="AUTO-BANK",
+            code="AUTO-CARD" if custody_account_type is AccountType.LIABILITY else "AUTO-BANK",
             description=f"Created from confirmed statement import {source_filename}",
         ),
     )
@@ -1025,9 +1037,10 @@ async def reconcile_account_statement_chain(
         return changed
 
     earliest = approved_rows[0]
-    earliest_opening = earliest.effective_opening_balance()
-    if earliest_opening is None or earliest.period_start is None:
+    raw_earliest_opening = earliest.effective_opening_balance()
+    if raw_earliest_opening is None or earliest.period_start is None:
         raise ValidationFailedError("Statement opening balance, date, and account are required before posting")
+    earliest_opening = statement_balance_to_ledger_amount(account.type, raw_earliest_opening)
 
     currency = normalize_currency_code(earliest.currency or account.currency or "")
     changed = False
@@ -1146,6 +1159,8 @@ async def reconcile_account_statement_chain(
         next_open = s_next.effective_opening_balance()
         if next_open is None:
             continue
+        next_open = statement_balance_to_ledger_amount(account.type, next_open)
+        prev_close = statement_balance_to_ledger_amount(account.type, s_prev.closing_balance)
         non_plug_movement = await _non_plug_account_movement_between(
             db,
             user_id,
@@ -1154,7 +1169,7 @@ async def reconcile_account_statement_chain(
             before_date=s_next.period_start,
             opening_entry_ids=opening_entry_ids,
         )
-        delta = to_money(next_open - s_prev.closing_balance - non_plug_movement)
+        delta = to_money(next_open - prev_close - non_plug_movement)
         if abs(delta) > account_service.CROSS_PERIOD_GAP_PLUG_TOLERANCE:
             plug_date = min(
                 max(s_prev.period_end + timedelta(days=1), s_next.period_start - timedelta(days=1)),
@@ -1248,8 +1263,13 @@ async def _reconcile_secondary_currency_opening_balance(
     dependencies: StatementPostingDependencies | None = None,
     base_currency: str | None = None,
 ) -> bool:
+    secondary_account_type = custody_account_type_for_statement(
+        institution=statement.institution,
+        opening_balance=statement.opening_balance,
+        closing_balance=statement.closing_balance,
+    )
     secondary_account = await resolve_secondary_currency_custody_account(
-        db, statement=statement, user_id=user_id, currency=currency
+        db, statement=statement, user_id=user_id, currency=currency, account_type=secondary_account_type
     )
     secondary_candidate = StatementSummary(
         id=statement.id,

@@ -3,6 +3,7 @@
 import json
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import Date, and_, cast, func, literal, or_, select, text, union
@@ -26,6 +27,57 @@ class BankCustodyAllocation:
     binding: BankCustodyBinding
     account_created: bool
     binding_created: bool
+
+
+_CREDIT_CARD_MARKERS = (
+    "credit card",
+    "credit_card",
+    "card statement",
+    "mastercard",
+    "visa",
+    "amex",
+    "american express",
+    "discover card",
+)
+
+
+def is_credit_card_statement(
+    *,
+    institution: str | None = None,
+    filename: str | None = None,
+    opening_balance: Decimal | None = None,
+    closing_balance: Decimal | None = None,
+) -> bool:
+    """Return True when statement metadata or negative debt balance signature identifies a credit card."""
+    text_sample = f"{institution or ''} {filename or ''}".lower()
+    if any(marker in text_sample for marker in _CREDIT_CARD_MARKERS):
+        return True
+    return opening_balance is not None and closing_balance is not None and opening_balance < Decimal("0") and closing_balance <= Decimal("0")
+
+
+def custody_account_type_for_statement(
+    *,
+    institution: str | None = None,
+    filename: str | None = None,
+    opening_balance: Decimal | None = None,
+    closing_balance: Decimal | None = None,
+) -> AccountType:
+    """Classify credit card statements as LIABILITY custody and depository statements as ASSET."""
+    if is_credit_card_statement(
+        institution=institution,
+        filename=filename,
+        opening_balance=opening_balance,
+        closing_balance=closing_balance,
+    ):
+        return AccountType.LIABILITY
+    return AccountType.ASSET
+
+
+def statement_balance_to_ledger_amount(account_type: AccountType, statement_amount: Decimal) -> Decimal:
+    """Map statement-signed balances to ledger-normal magnitude (+debt for LIABILITY, +cash for ASSET)."""
+    if account_type is AccountType.LIABILITY:
+        return -statement_amount
+    return statement_amount
 
 
 def is_bank_custody_source(source: StatementExtractionResult | None, document: UploadedDocument | None) -> bool:
@@ -98,11 +150,14 @@ async def coverage_bank_custody_account_ids(
             StatementExtractionResultRecord,
             StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
         )
+        .join(Account, Account.id == StatementSummary.account_id)
         .where(
             StatementSummary.user_id == user_id,
             StatementSummary.account_id.is_not(None),
             period_start <= as_of,
             is_bank_source,
+            Account.type == AccountType.ASSET,
+            Account.is_active.is_(True),
         )
     )
     secondary_accounts = (
@@ -159,8 +214,8 @@ async def validate_custody_account(
     account = await db.get(Account, account_id)
     if account is None or account.user_id != user_id:
         raise ExtractionError("Custody account must be owned by the importing user")
-    if account.type != AccountType.ASSET or account.is_system:
-        raise ExtractionError("Custody account must be a non-system asset account")
+    if account.type not in (AccountType.ASSET, AccountType.LIABILITY) or account.is_system:
+        raise ExtractionError("Custody account must be a non-system asset or liability account")
     if not account.is_active:
         raise ExtractionError("Custody account is archived; an active account is required")
     if currency is not None and account.currency != normalize_currency_code(currency):
@@ -284,6 +339,7 @@ async def resolve_bank_custody(
     currency: str,
     account_id: UUID | None = None,
     create_if_missing: bool = True,
+    account_type: AccountType = AccountType.ASSET,
 ) -> BankCustodyAllocation:
     currency = normalize_currency_code(currency)
     if not institution or not account_last4 or not currency:
@@ -336,9 +392,9 @@ async def resolve_bank_custody(
         account = Account(
             user_id=user_id,
             name=f"{institution} ••{account_last4}",
-            type=AccountType.ASSET,
+            type=account_type,
             currency=currency,
-            code="AUTO-BANK",
+            code="AUTO-CARD" if account_type is AccountType.LIABILITY else "AUTO-BANK",
         )
         db.add(account)
         await db.flush()
@@ -383,6 +439,7 @@ async def resolve_bank_custody_account(
     currency: str,
     account_id: UUID | None = None,
     create_if_missing: bool = True,
+    account_type: AccountType = AccountType.ASSET,
 ) -> Account:
     """Public custody boundary for explicit creation, selection, and mapped posting."""
     try:
@@ -394,6 +451,7 @@ async def resolve_bank_custody_account(
             currency=currency,
             account_id=account_id,
             create_if_missing=create_if_missing,
+            account_type=account_type,
         )
     except ExtractionError as exc:
         raise ValidationFailedError(str(exc)) from exc
